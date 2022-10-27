@@ -1,0 +1,15 @@
+--let $no_cleanup=1
+--source ../../innodb/t/log_corruption.test
+
+SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Encrypting redo log
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters=
+--source include/start_mysqld.inc
+
+--list_files $bugdir
+--remove_files_wildcard $bugdir
+--rmdir $bugdir

@@ -1,0 +1,6 @@
+SET @@SESSION.debug_dbug='+d,inject_binlog_delete_domain_init_error';
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (99);
+ERROR HY000: Could not delete gtid domain. Reason: injected error.
+SHOW WARNINGS;
+Level	Code	Message
+Error	1076	Could not delete gtid domain. Reason: injected error.

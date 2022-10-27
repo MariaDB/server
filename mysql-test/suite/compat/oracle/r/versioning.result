@@ -1,0 +1,24 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-15975 PL/SQL parser does not understand historical queries
+#
+CREATE TABLE t1 (a INT) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (10);
+DELETE FROM t1;
+INSERT INTO t1 VALUES (20);
+SELECT * FROM t1 FOR SYSTEM_TIME ALL;
+a
+10
+20
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (NOW()+INTERVAL 10 YEAR);
+a
+20
+DROP TABLE t1;
+#
+# MDEV-17959 Assertion `opt_bootstrap || mysql_parse_status || thd->lex->select_stack_top == 0' failed in parse_sql upon DELETE HISTORY under ORACLE mode
+#
+SET SQL_MODE= ORACLE;
+CREATE TABLE t1 (a INT);
+DELETE HISTORY FROM t1;
+ERROR HY000: Table `t1` is not system-versioned
+DROP TABLE t1;

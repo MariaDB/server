@@ -1,0 +1,25 @@
+call mtr.add_suppression("Column family 'cf1' not found");
+call mtr.add_suppression("Column family 'rev:cf2' not found");
+DROP TABLE IF EXISTS t1;
+call mtr.add_suppression("Column family 'cf1' not found");
+call mtr.add_suppression("Column family 'rev:cf2' not found");
+set global rocksdb_compact_cf = 'cf1';
+set global rocksdb_compact_cf = 'rev:cf2';
+set global rocksdb_signal_drop_index_thread = 1;
+# restart
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+c varchar(500) not null,
+primary key (a,b) comment 'cf1',
+key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+DELETE FROM t1;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_compact_read_bytes';
+drop table t1;
+select case when variable_value-@a < 500000 then 'true' else 'false' end  from information_schema.global_status where variable_name='rocksdb_compact_read_bytes';
+case when variable_value-@a < 500000 then 'true' else 'false' end
+true
+DROP TABLE IF EXISTS t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'

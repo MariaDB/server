@@ -1,0 +1,71 @@
+call mtr.add_suppression("Cannot find index f2 in InnoDB index dictionary.");
+call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table .*");
+call mtr.add_suppression("Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB  .*");
+call mtr.add_suppression("InnoDB could not find key no 1 with name f2 from dict cache for table .*");
+#
+# Bug #18734396	INNODB IN-PLACE ALTER FAILURES BLOCK FUTURE ALTERS
+#
+# Temporary tablename will be unique. This makes sure that future
+# in-place ALTERs of the same table will not be blocked due to
+# temporary tablename.
+CREATE TABLE t1 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=innodb;
+SET debug_dbug='+d,innodb_alter_commit_crash_before_commit';
+ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
+ERROR HY000: Lost connection to MySQL server during query
+# restart
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+# Consecutive Alter table does not create same temporary file name
+ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) NOT NULL,
+  PRIMARY KEY (`f2`,`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop table t1;
+#
+# MDEV-22928 InnoDB fails to fetch index type
+# 	when index mismatch
+#
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+index(f1), index(f2))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1), (2, 2);
+connect  con1,localhost,root,,test;
+SET DEBUG_SYNC="alter_table_inplace_after_commit SIGNAL default_signal WAIT_FOR default_done";
+ALTER TABLE t1 DROP INDEX f2, ALGORITHM=INPLACE;
+connection default;
+set DEBUG_SYNC="now WAIT_FOR default_signal";
+# restart
+disconnect con1;
+SHOW KEYS FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	f1	1	f1	A	2	NULL	NULL		BTREE		
+t1	1	f2	1	f2	A	NULL	NULL	NULL		Corrupted		
+Warnings:
+Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
+Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
+Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
+Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
+DROP TABLE t1;
+#
+# MDEV-25503 InnoDB hangs on startup during recovery
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
+connect  con1,localhost,root,,;
+BEGIN;
+DELETE FROM mysql.innodb_table_stats;
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC='inplace_after_index_build SIGNAL blocked WAIT_FOR ever';
+ALTER TABLE t1 FORCE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR blocked';
+# restart
+SELECT * FROM t1;
+a
+DROP TABLE t1;

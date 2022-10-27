@@ -1,0 +1,89 @@
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+--source include/have_innodb.inc
+
+SET SESSION STORAGE_ENGINE='InnoDB';
+
+select @@global.use_stat_tables;
+select @@session.use_stat_tables;
+
+set @save_use_stat_tables=@@use_stat_tables;
+
+set use_stat_tables='preferably';
+
+--disable_warnings
+DROP DATABASE IF EXISTS dbt3_s001;
+--enable_warnings
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
+set optimizer_switch='rowid_filter=off';
+ 
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+delete from mysql.table_stats;
+delete from mysql.column_stats;
+delete from mysql.index_stats;
+ANALYZE TABLE
+customer, lineitem, nation, orders, part, partsupp, region, supplier;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # Bug mdev-503: optimizer ignores setting use_stat_tables='preferably'
+--echo # 
+
+flush tables 
+customer, lineitem, nation, orders, part, partsupp, region, supplier;
+
+let $Q3S=
+select sql_calc_found_rows straight_join
+       l_orderkey, sum(l_extendedprice*(1-l_discount)) as revenue,
+       o_orderdate, o_shippriority
+from orders, customer, lineitem
+where c_mktsegment = 'BUILDING' and c_custkey = o_custkey
+      and l_orderkey = o_orderkey and o_orderdate < date '1995-03-15'
+      and l_shipdate > date '1995-03-15'
+group by l_orderkey, o_orderdate, o_shippriority
+order by revenue desc, o_orderdate
+limit 10;
+
+set use_stat_tables='never';
+--replace_column 9 #
+eval EXPLAIN $Q3S;
+
+set use_stat_tables='preferably';
+--replace_result 2 1
+eval EXPLAIN $Q3S;
+
+flush tables customer, orders, lineitem;
+eval EXPLAIN $Q3S;
+
+--echo # End of the test case for mdev-503
+
+set optimizer_switch=@save_optimizer_switch;
+
+
+DROP DATABASE dbt3_s001;
+
+use test;
+
+set use_stat_tables=@save_use_stat_tables;
+
+
+SET SESSION STORAGE_ENGINE=DEFAULT;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

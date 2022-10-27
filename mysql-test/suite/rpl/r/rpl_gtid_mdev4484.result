@@ -1,0 +1,47 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+SET sql_log_bin=0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
+SET sql_log_bin=1;
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (i int) ENGINE=InnoDB;
+connection slave;
+*** MDEV-4484, incorrect error handling when entries in gtid_slave_pos not found. ***
+TRUNCATE TABLE mysql.gtid_slave_pos;
+connection master;
+INSERT INTO t1 VALUES (1);
+connection slave;
+connection slave;
+include/stop_slave.inc
+SET @old_gtid_cleanup_batch_size= @@GLOBAL.gtid_cleanup_batch_size;
+SET GLOBAL gtid_cleanup_batch_size= 2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,gtid_slave_pos_simulate_failed_delete";
+SET sql_log_bin= 0;
+CALL mtr.add_suppression("<DEBUG> Error deleting old GTID row");
+SET sql_log_bin= 1;
+include/start_slave.inc
+connection master;
+connection slave;
+SELECT COUNT(*), MAX(seq_no) INTO @pre_count, @pre_max_seq_no
+FROM mysql.gtid_slave_pos;
+SELECT IF(@pre_count >= 20, "OK", CONCAT("Error: too few rows seen while errors injected: ", @pre_count));
+IF(@pre_count >= 20, "OK", CONCAT("Error: too few rows seen while errors injected: ", @pre_count))
+OK
+SET GLOBAL debug_dbug= @old_dbug;
+connection master;
+connection slave;
+connection slave;
+SELECT IF(COUNT(*) >= 1, "OK", CONCAT("Error: too few rows seen after errors no longer injected: ", COUNT(*)))
+FROM mysql.gtid_slave_pos
+WHERE seq_no <= @pre_max_seq_no;
+IF(COUNT(*) >= 1, "OK", CONCAT("Error: too few rows seen after errors no longer injected: ", COUNT(*)))
+OK
+connection master;
+DROP TABLE t1;
+connection slave;
+SET GLOBAL gtid_cleanup_batch_size= @old_gtid_cleanup_batch_size;
+include/rpl_end.inc

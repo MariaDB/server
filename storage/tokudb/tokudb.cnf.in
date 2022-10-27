@@ -1,0 +1,8 @@
+[mariadb]
+# See https://mariadb.com/kb/en/tokudb-differences/ for differences
+# between TokuDB in MariaDB and TokuDB from http://www.tokutek.com/
+
+plugin-load-add=ha_tokudb.so
+
+[mysqld_safe]
+@cnf_malloc_lib@

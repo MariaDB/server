@@ -1,0 +1,670 @@
+# mysql-test-run.pl --embedded cannot restart the server.
+--source include/not_embedded.inc
+
+# This test case needs to crash the server. Needs a debug server.
+--source include/have_debug.inc
+
+# Valgrind can hang or return spurious messages on DBUG_SUICIDE
+--source include/not_valgrind.inc
+
+# Avoid CrashReporter popup on Mac
+--source include/not_crashrep.inc
+
+--source include/innodb_page_size_small.inc
+--source include/default_charset.inc
+--source include/have_sequence.inc
+
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded\\.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue\\.");
+call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
+call mtr.add_suppression("InnoDB: Page for tablespace ");
+call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=0x");
+FLUSH TABLES;
+
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+
+SET SESSION innodb_strict_mode=1;
+
+# Create the table that we will use for crash recovery (during IMPORT)
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED;
+INSERT INTO t1 VALUES (1), (2), (3), (4);
+
+FLUSH TABLES t1 FOR EXPORT;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+UNLOCK TABLES;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED;
+INSERT INTO t1 VALUES (1);
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+##### Before commit crash
+SET SESSION debug_dbug="+d,ib_import_before_commit_crash";
+
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+# Write file to make mysql-test-run.pl start up the server again
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+
+# Execute the statement that causes the crash
+--error 2013
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+#### Before commit crash
+
+# Check that the DD is consistent after recovery
+
+##### Before checkpoint crash
+SET SESSION debug_dbug="+d,ib_import_before_checkpoint_crash";
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Don't start up the server right away.
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+
+# Execute the statement that causes the crash
+--error 2013
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+# After the above test the results are non-deterministic,
+# delete the old tablespace files and drop the table,
+# recreate the table and do a proper import.
+-- source include/wait_until_disconnected.inc
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+--echo # Restart and reconnect to the server
+--enable_reconnect
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+#### Before checkpoint crash
+
+# After the above test the results are non-deterministic, recreate the table
+# and do a proper import.
+
+DROP TABLE t1;
+
+SET SESSION innodb_strict_mode=1;
+
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+SELECT COUNT(*) FROM t1;
+
+INSERT INTO t1 VALUES(400), (500), (600);
+
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+# Test handling of internal failure error
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+# Test failure after reset of space id and LSN in the tablespace
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,ib_import_internal_error";
+
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+DROP TABLE t1;
+
+
+# Test failure after reset of space id and LSN in the tablespace
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+# Test failure after reset of space id and LSN in the tablespace
+SET SESSION debug_dbug="+d,ib_import_reset_space_and_lsn_failure";
+
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+# Test failure after attempting a tablespace open
+SET SESSION debug_dbug="+d,ib_import_open_tablespace_failure";
+
+--replace_result \\ /
+--error ER_GET_ERRMSG
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+# Test failure after ibuf check
+SET SESSION debug_dbug="+d,ib_import_check_bitmap_failure";
+
+# Need proper mapping of error codes :-(
+--error ER_NOT_KEYFILE
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+# Test failure after adjusting the cluster index root page
+SET SESSION debug_dbug="+d,ib_import_cluster_root_adjust_failure";
+
+--error ER_NOT_KEYFILE
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+# Test failure after importing the cluster index
+SET SESSION debug_dbug="+d,ib_import_cluster_failure";
+
+--error ER_NOT_KEYFILE
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+# Test failure after importing the secondary index(es)
+SET SESSION debug_dbug="+d,ib_import_sec_root_adjust_failure";
+
+--error ER_NOT_KEYFILE
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+--disable_query_log
+# Enable metrics for the counters we are going to use
+set global innodb_monitor_enable = purge_stop_count;
+set global innodb_monitor_enable = purge_resume_count;
+set global innodb_monitor_enable = ibuf_merges;
+set global innodb_monitor_enable = ibuf_merges_insert;
+--enable_query_log
+
+#
+# Create a large table with delete marked records, disable purge during
+# the update so that we can test the IMPORT purge code.
+#
+CREATE TABLE t1 (
+	c1 BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 BIGINT,
+	c3 VARCHAR(2048),
+	c4 VARCHAR(2048),
+	INDEX idx1(c2),
+	INDEX idx2(c3(512)),
+	INDEX idx3(c4(512))) Engine=InnoDB
+        ROW_FORMAT=COMPRESSED;
+
+# Stop purge so that it doesn't remove the delete marked entries.
+connect (purge_control,localhost,root);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
+# Disable change buffer merge from the master thread, additionally
+# enable aggressive flushing so that more changes are buffered.
+SET GLOBAL innodb_disable_background_merge=ON;
+SET GLOBAL innodb_monitor_reset = ibuf_merges;
+SET GLOBAL innodb_monitor_reset = ibuf_merges_insert;
+
+INSERT INTO t1
+SELECT 1 + seq, 1 + (seq MOD 4),
+ REPEAT(SUBSTR('abcd', 1 + (seq MOD 4), 1), 2048),
+ REPEAT(SUBSTR('abcd', 1 + (seq MOD 4), 1), 2048)
+FROM seq_0_to_127;
+
+DELETE FROM t1 WHERE c2 = 1;
+
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c3 = REPEAT("c2", 1024);
+UPDATE t1 SET c4 = REPEAT("c4", 1024);
+
+SHOW CREATE TABLE t1;
+
+FLUSH TABLES t1 FOR EXPORT;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+
+SELECT name FROM information_schema.innodb_metrics
+WHERE name IN ('ibuf_merges','ibuf_merges_insert') AND count>0 ORDER BY name;
+
+SET GLOBAL innodb_disable_background_merge=OFF;
+
+# Enable normal operation
+connection purge_control;
+COMMIT;
+disconnect purge_control;
+connection default;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+	c1 BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 BIGINT,
+	c3 VARCHAR(2048),
+	c4 VARCHAR(2048),
+	INDEX idx1(c2),
+	INDEX idx2(c3(512)),
+	INDEX idx3(c4(512))) Engine=InnoDB
+        ROW_FORMAT=COMPRESSED;
+
+SELECT c1, c2 FROM t1;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+SELECT c1,c2 FROM t1;
+
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
+####
+# Create a table and save the tablespace and .cfg file, we need to create
+# a Btree that has several levels
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+INSERT INTO t1
+SELECT 100, REPEAT('Karanbir', 128), REPEAT('Ajeeth', 1200)
+FROM seq_1_to_256;
+FLUSH TABLES t1 FOR EXPORT;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+SET SESSION debug_dbug="+d,ib_import_trigger_corruption_1";
+
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+DROP TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+#
+
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+SET SESSION debug_dbug="+d,buf_page_import_corrupt_failure";
+
+# Following alter is failing
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+DROP TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+SET SESSION debug_dbug="+d,ib_import_trigger_corruption_2";
+
+--error ER_INNODB_INDEX_CORRUPT
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+DROP TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+SET SESSION debug_dbug="+d,ib_import_trigger_corruption_3";
+
+--error ER_NOT_KEYFILE
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+DROP TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+SET SESSION debug_dbug="+d,ib_import_create_index_failure_1";
+
+ALTER TABLE t1 ADD INDEX idx(c1);
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+DROP TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+#
+
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+SET SESSION debug_dbug="+d,fil_space_create_failure";
+
+--replace_result \\ /
+--error ER_GET_ERRMSG
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+DROP TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+#
+
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+SET SESSION debug_dbug="+d,dict_tf_to_fsp_flags_failure";
+
+--replace_result \\ /
+--error ER_GET_ERRMSG
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+DROP TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+#
+
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--error ER_TABLESPACE_DISCARDED
+SELECT COUNT(*) FROM t1;
+
+# Restore files
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+SET SESSION debug_dbug="+d,fsp_flags_is_valid_failure";
+
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+DROP TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+set global innodb_monitor_disable = all;
+set global innodb_monitor_reset_all = all;
+
+-- disable_warnings
+set global innodb_monitor_enable = default;
+set global innodb_monitor_disable = default;
+set global innodb_monitor_reset = default;
+set global innodb_monitor_reset_all = default;
+-- enable_warnings
+
+--disable_query_log
+call mtr.add_suppression("'Resource temporarily unavailable'");
+call mtr.add_suppression("Monitor ibuf_merges is already enabled");
+call mtr.add_suppression("Monitor ibuf_merges_insert is already enabled");
+call mtr.add_suppression("Got error -1 when reading table '.*'");
+call mtr.add_suppression("InnoDB: Table '.*' tablespace is set as discarded.");
+call mtr.add_suppression("InnoDB: Tablespace '.*' exists in the cache");
+call mtr.add_suppression("InnoDB: Freeing existing tablespace '.*' entry from the cache with id.*");
+call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");
+call mtr.add_suppression("There was an error writing to the meta data file");
+call mtr.add_suppression("InnoDB: Trying to import a tablespace, but could not open the tablespace file");
+call mtr.add_suppression("Unsupported tablespace format");
+call mtr.add_suppression("Page is marked as free");
+call mtr.add_suppression("t1.ibd: Page .* at offset .* looks corrupted");
+call mtr.add_suppression("but tablespace with that id or name does not exist");
+call mtr.add_suppression("Could not find a valid tablespace file for '.*t1'");
+call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
+--enable_query_log
+
+#cleanup
+--remove_file $MYSQLTEST_VARDIR/tmp/t1.cfg
+--remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd

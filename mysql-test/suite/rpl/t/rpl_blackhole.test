@@ -1,0 +1,25 @@
+# PURPOSE. Test that blackhole works with replication in all three
+# modes: STATEMENT, MIXED, and ROW.
+#
+# METHOD. We start by creating a table on the master and then change
+# the engine to use blackhole on the slave.
+#
+# After insert/update/delete of one or more rows, the test the
+# proceeds to check that replication is running after replicating an
+# change, that the blackhole engine does not contain anything (which
+# is just a check that the correct engine is used), and that something
+# is written to the binary log.
+#
+# Whe check INSERT, UPDATE, and DELETE statement for tables with no
+# key (forcing a range search on the slave), primary keys (using a
+# primary key lookup), and index/key with multiple matches (forcing an
+# index search).
+
+source include/have_blackhole.inc;
+source include/master-slave.inc;
+
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+
+source include/rpl_blackhole_basic.test;
+
+--source include/rpl_end.inc

@@ -1,0 +1,318 @@
+SET SESSION STORAGE_ENGINE='InnoDB';
+set @save_optimizer_switch_for_stat_tables_test=@@optimizer_switch;
+set optimizer_switch='extended_keys=on';
+set @save_use_stat_tables=@@use_stat_tables;
+set use_stat_tables='preferably';
+DROP DATABASE IF EXISTS dbt3_s001;
+CREATE DATABASE dbt3_s001;
+use dbt3_s001;
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
+select * from mysql.table_stats;
+db_name	table_name	cardinality
+dbt3_s001	customer	150
+dbt3_s001	lineitem	6005
+dbt3_s001	nation	25
+dbt3_s001	orders	1500
+dbt3_s001	part	200
+dbt3_s001	partsupp	700
+dbt3_s001	region	5
+dbt3_s001	supplier	10
+select * from mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	customer	PRIMARY	1	1.0000
+dbt3_s001	customer	i_c_nationkey	1	6.0000
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_shipdate	1	2.6500
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_receiptdate	1	2.6477
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	nation	PRIMARY	1	1.0000
+dbt3_s001	nation	i_n_regionkey	1	5.0000
+dbt3_s001	orders	PRIMARY	1	1.0000
+dbt3_s001	orders	i_o_orderdate	1	1.3321
+dbt3_s001	orders	i_o_custkey	1	15.0000
+dbt3_s001	part	PRIMARY	1	1.0000
+dbt3_s001	partsupp	PRIMARY	1	3.5000
+dbt3_s001	partsupp	PRIMARY	2	1.0000
+dbt3_s001	partsupp	i_ps_partkey	1	3.5000
+dbt3_s001	partsupp	i_ps_suppkey	1	70.0000
+dbt3_s001	region	PRIMARY	1	1.0000
+dbt3_s001	supplier	PRIMARY	1	1.0000
+dbt3_s001	supplier	i_s_nationkey	1	1.1111
+flush table lineitem;
+set use_stat_tables='never';
+select round(sum(l_extendedprice*l_discount),4) as revenue
+from lineitem
+where l_shipdate >= date '1994-01-01' 
+and l_shipdate < date '1994-01-01' + interval '1' year
+and l_discount between 0.06 - 0.01 and 0.06 + 0.01
+and l_quantity < 24;
+revenue
+77949.9186
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
+connection con1;
+set debug_sync='statistics_mem_alloc_start1  WAIT_FOR second_thread_started_too';
+set debug_sync='statistics_mem_alloc_start2  SIGNAL first_thread_working';
+use dbt3_s001;
+set use_stat_tables='preferably';
+select round(sum(l_extendedprice*l_discount),4) as revenue
+from lineitem
+where l_shipdate >= date '1994-01-01' 
+and l_shipdate < date '1994-01-01' + interval '1' year
+and l_discount between 0.06 - 0.01 and 0.06 + 0.01
+and l_quantity < 24                                            ;
+connection con2;
+set debug_sync='statistics_mem_alloc_start1  SIGNAL second_thread_started_too';
+set debug_sync='statistics_mem_alloc_start2  WAIT_FOR first_thread_working';
+use dbt3_s001;
+set use_stat_tables='preferably';
+select round(sum(l_extendedprice*l_discount),4) as revenue
+from lineitem
+where l_shipdate >= date '1994-01-01' 
+and l_shipdate < date '1994-01-01' + interval '1' year
+and l_discount between 0.06 - 0.01 and 0.06 + 0.01
+and l_quantity < 24;
+connection con1;
+revenue
+77949.9186
+connection con2;
+revenue
+77949.9186
+connection default;
+set use_stat_tables='preferably';
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+select * from mysql.index_stats where table_name='lineitem' order by index_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_receiptdate	1	2.6477
+dbt3_s001	lineitem	i_l_shipdate	1	2.6500
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+delete from mysql.index_stats 
+where table_name='lineitem' and
+index_name in ('i_l_shipdate', 'i_l_receiptdate');
+select * from mysql.index_stats where table_name='lineitem' order by index_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+analyze table lineitem persistent for columns() indexes (i_l_shipdate);
+select * from mysql.index_stats where table_name='lineitem' order by index_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_shipdate	1	2.6500
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+delete from mysql.index_stats 
+where table_name='lineitem' and index_name= 'i_l_shipdate';
+select * from mysql.index_stats where table_name='lineitem' order by index_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
+connection con1;
+set debug_sync='statistics_collection_start1  WAIT_FOR second_thread_started_too';
+set debug_sync='statistics_collection_start2  SIGNAL first_thread_working';
+use dbt3_s001;
+set use_stat_tables='preferably';
+analyze table lineitem persistent for columns() indexes (i_l_shipdate);
+connection con2;
+set debug_sync='statistics_collection_start1  SIGNAL second_thread_started_too';
+set debug_sync='statistics_collection_start2  WAIT_FOR first_thread_working';
+use dbt3_s001;
+set use_stat_tables='preferably';
+analyze table lineitem persistent for columns() indexes (i_l_receiptdate);
+connection con1;
+connection con2;
+connection default;
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+select * from mysql.index_stats where table_name='lineitem' order by index_name, prefix_arity;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_receiptdate	1	2.6477
+dbt3_s001	lineitem	i_l_receiptdate	2	1.0152
+dbt3_s001	lineitem	i_l_receiptdate	3	1.0000
+dbt3_s001	lineitem	i_l_shipdate	1	2.6500
+dbt3_s001	lineitem	i_l_shipdate	2	1.0149
+dbt3_s001	lineitem	i_l_shipdate	3	1.0000
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+select * from mysql.index_stats where table_name='lineitem'
+ order by index_name, prefix_arity;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_receiptdate	1	2.6477
+dbt3_s001	lineitem	i_l_receiptdate	2	1.0152
+dbt3_s001	lineitem	i_l_receiptdate	3	1.0000
+dbt3_s001	lineitem	i_l_shipdate	1	2.6500
+dbt3_s001	lineitem	i_l_shipdate	2	1.0149
+dbt3_s001	lineitem	i_l_shipdate	3	1.0000
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+set debug_sync='RESET';
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
+connection con1;
+set debug_sync='statistics_collection_start SIGNAL parked WAIT_FOR finish';
+use dbt3_s001;
+set use_stat_tables='preferably';
+analyze table lineitem persistent for all;
+connection con2;
+set debug_sync='now WAIT_FOR parked';
+use dbt3_s001;
+set use_stat_tables='never';
+select * from lineitem where l_orderkey=1 and l_partkey=156;
+l_orderkey	l_partkey	l_suppkey	l_linenumber	l_quantity	l_extendedprice	l_discount	l_tax	l_returnflag	l_linestatus	l_shipDATE	l_commitDATE	l_receiptDATE	l_shipinstruct	l_shipmode	l_comment
+1	156	4	1	17	17954.55	0.04	0.02	N	O	1996-03-13	1996-02-12	1996-03-22	DELIVER IN PERSON	TRUCK	blithely regular ideas caj
+delete from lineitem where l_orderkey=1 and l_partkey=156;
+select * from lineitem where l_orderkey=1 and l_partkey=156;
+l_orderkey	l_partkey	l_suppkey	l_linenumber	l_quantity	l_extendedprice	l_discount	l_tax	l_returnflag	l_linestatus	l_shipDATE	l_commitDATE	l_receiptDATE	l_shipinstruct	l_shipmode	l_comment
+set debug_sync='now SIGNAL finish';
+connection con1;
+connection default;
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+select * from mysql.index_stats where table_name='lineitem'
+  order by index_name, prefix_arity;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0027
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7155
+dbt3_s001	lineitem	i_l_commitdate	2	1.0364
+dbt3_s001	lineitem	i_l_commitdate	3	1.0000
+dbt3_s001	lineitem	i_l_orderkey	1	4.0027
+dbt3_s001	lineitem	i_l_orderkey	2	1.0000
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0027
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_orderkey_quantity	3	1.0000
+dbt3_s001	lineitem	i_l_partkey	1	30.0200
+dbt3_s001	lineitem	i_l_partkey	2	1.0089
+dbt3_s001	lineitem	i_l_partkey	3	1.0000
+dbt3_s001	lineitem	i_l_receiptdate	1	2.6473
+dbt3_s001	lineitem	i_l_receiptdate	2	1.0152
+dbt3_s001	lineitem	i_l_receiptdate	3	1.0000
+dbt3_s001	lineitem	i_l_shipdate	1	2.6496
+dbt3_s001	lineitem	i_l_shipdate	2	1.0149
+dbt3_s001	lineitem	i_l_shipdate	3	1.0000
+dbt3_s001	lineitem	i_l_suppkey	1	600.4000
+dbt3_s001	lineitem	i_l_suppkey	2	1.2073
+dbt3_s001	lineitem	i_l_suppkey	3	1.0000
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0200
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5771
+dbt3_s001	lineitem	i_l_suppkey_partkey	3	1.0030
+dbt3_s001	lineitem	i_l_suppkey_partkey	4	1.0000
+set @save_global_use_stat_tables=@@global.use_stat_tables;
+set global use_stat_tables='preferably';
+set debug_sync='RESET';
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
+connection con1;
+set debug_sync='statistics_update_start SIGNAL parker WAIT_FOR go1 EXECUTE 1';
+set debug_sync='thr_multi_lock_before_thr_lock SIGNAL go2 EXECUTE 3';
+use dbt3_s001;
+analyze table lineitem persistent for all;
+connection con2;
+set debug_sync='open_and_process_table WAIT_FOR parker';
+set debug_sync='statistics_read_start SIGNAL go1 WAIT_FOR go2';
+use dbt3_s001;
+select * from mysql.index_stats, lineitem where index_name= 'i_l_shipdate' and l_orderkey=1 and l_partkey=68 order by prefix_arity;;
+connection con1;
+connection con2;
+db_name	table_name	index_name	prefix_arity	avg_frequency	l_orderkey	l_partkey	l_suppkey	l_linenumber	l_quantity	l_extendedprice	l_discount	l_tax	l_returnflag	l_linestatus	l_shipDATE	l_commitDATE	l_receiptDATE	l_shipinstruct	l_shipmode	l_comment
+dbt3_s001	lineitem	i_l_shipdate	1	2.6496	1	68	9	2	36	34850.16	0.09	0.06	N	O	1996-04-12	1996-02-28	1996-04-20	TAKE BACK RETURN	MAIL	slyly bold pinto beans detect s
+dbt3_s001	lineitem	i_l_shipdate	2	1.0149	1	68	9	2	36	34850.16	0.09	0.06	N	O	1996-04-12	1996-02-28	1996-04-20	TAKE BACK RETURN	MAIL	slyly bold pinto beans detect s
+dbt3_s001	lineitem	i_l_shipdate	3	1.0000	1	68	9	2	36	34850.16	0.09	0.06	N	O	1996-04-12	1996-02-28	1996-04-20	TAKE BACK RETURN	MAIL	slyly bold pinto beans detect s
+connection default;
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+set global use_stat_tables=@save_global_use_stat_tables;
+DROP DATABASE dbt3_s001;
+use test;
+set @save_global_use_stat_tables=@@global.use_stat_tables;
+set global use_stat_tables='preferably';
+set debug_sync='RESET';
+create table t1 (a int, b int, key(a));
+insert t1 values (1,1),(2,2);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET debug_sync='after_open_table_ignore_flush WAIT_FOR go';
+select * from information_schema.statistics where table_schema='test';
+connect con1, localhost, root;
+connection con1;
+select * from t1;
+a	b
+1	1
+2	2
+SET DEBUG_SYNC= "now SIGNAL go";
+connection default;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
+def	test	t1	1	test	a	1	a	A	2	NULL	NULL	YES	BTREE		
+connection default;
+disconnect con1;
+set debug_sync='RESET';
+drop table t1;
+set global use_stat_tables=@save_global_use_stat_tables;
+set use_stat_tables=@save_use_stat_tables;
+set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
+SET SESSION STORAGE_ENGINE=DEFAULT;

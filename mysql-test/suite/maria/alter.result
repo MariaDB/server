@@ -1,0 +1,186 @@
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+CREATE TABLE t1 (pk INT, d DATETIME, PRIMARY KEY(pk), KEY(d)) ENGINE=Aria;
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 VALUES (1,'2000-01-01 22:22:22'),(2,'2012-12-21 12:12:12');
+INSERT INTO t1 VALUES (3, '2008-07-24');
+ALTER TABLE t1 ENABLE KEYS;
+SELECT t1a.pk FROM t1 AS t1a LEFT JOIN t1 AS t1b ON t1a.pk = t1b.pk;
+pk
+1
+2
+3
+SELECT * FROM t1 AS t1a LEFT JOIN t1 AS t1b ON t1a.pk = t1b.pk;
+pk	d	pk	d
+1	2000-01-01 22:22:22	1	2000-01-01 22:22:22
+2	2012-12-21 12:12:12	2	2012-12-21 12:12:12
+3	2008-07-24 00:00:00	3	2008-07-24 00:00:00
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, KEY(i)) ENGINE=Aria;
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 VALUES (1,11);
+INSERT INTO t1 VALUES (2,0),(3,33),(4,0),(5,55),(6,66),(7,0),(8,88),(9,99);
+ALTER TABLE t1 ENABLE KEYS;
+SELECT * FROM t1 WHERE i = 0 OR pk BETWEEN 6 AND 10;
+pk	i
+2	0
+4	0
+6	66
+7	0
+8	88
+9	99
+DROP TABLE t1;
+CREATE TABLE t1 (f INT) ENGINE=Aria transactional=1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=1
+INSERT INTO t1 VALUES (1),(2);
+ALTER TABLE t1 ORDER BY unknown_column;
+ERROR 42S22: Unknown column 'unknown_column' in 'order clause'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 TRANSACTIONAL=1
+CREATE TABLE t2 SELECT * FROM t1;
+DROP TABLE t1, t2;
+#
+# MDEV-19055 Assertion `(_my_thread_var())->thr_errno != 0' failed in pagecache_read
+#
+CREATE OR REPLACE TABLE t1 (x INT) ENGINE=Aria;
+CREATE TEMPORARY TABLE t2 (a TIME) ENGINE=Aria;
+ALTER TABLE t2 ADD b DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE t2 ADD CHECK (b = 4);
+INSERT IGNORE INTO t2 () VALUES (),(),(),();
+ALTER IGNORE TABLE t2 ADD c INT;
+SELECT count(a),sum(a) FROM t2;
+count(a)	sum(a)
+0	NULL
+DELETE FROM t2 ORDER BY c LIMIT 1;
+INSERT IGNORE INTO t2 SELECT * FROM t2;
+OPTIMIZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	optimize	status	OK
+SELECT count(a),sum(a) FROM t2;
+count(a)	sum(a)
+0	NULL
+INSERT IGNORE INTO t2 SELECT * FROM t2;
+SET SQL_MODE= 'STRICT_ALL_TABLES';
+SELECT count(a),sum(a) FROM t2;
+count(a)	sum(a)
+0	NULL
+ALTER TABLE t2 CHANGE IF EXISTS d c INT;
+ERROR 22007: Truncated incorrect datetime value: '4'
+SELECT count(a),sum(a) FROM t2;
+count(a)	sum(a)
+0	NULL
+ALTER IGNORE TABLE t2 ADD IF NOT EXISTS e BIT;
+ALTER TABLE t1 MODIFY IF EXISTS xx INT;
+INSERT IGNORE INTO t2 () VALUES (),(),(),();
+SELECT count(a),sum(a) FROM t2;
+count(a)	sum(a)
+0	NULL
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t1,t2;
+#
+# MDEV-17576
+# Assertion `share->reopen == 1' failed in maria_extra upon ALTER on
+# Aria table with triggers and locks
+#
+CREATE TABLE t1 (a INT) ENGINE=Aria;
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t1 SELECT * FROM t1;
+LOCK TABLE t1 WRITE;
+ALTER TABLE t1 FORCE, LOCK=EXCLUSIVE;
+DROP TRIGGER tr;
+DROP TABLE t1;
+#
+# End of 10.2 test
+#
+#
+# MDEV-17665 Assertion `!share || share->page_type == PAGECACHE_LSN_PAGE',
+# `type != PAGECACHE_READ_UNKNOWN_PAGE' and similar ones upon concurrent
+# Aria operations
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, KEY(a)) ENGINE=Aria;
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+connect  con1,localhost,root,,test;
+connect  con2,localhost,root,,test;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+connection con1;
+FLUSH TABLES;
+connection default;
+INSERT INTO t1 SELECT 1;
+ERROR 21S01: Column count doesn't match value count at row 1
+connection con2;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+disconnect con2;
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE t1;
+#
+# MDEV-22674 Server crash in compare_bin, ASAN heap-buffer-overflow in
+# _ma_dpointer, Assertion `!info->s->have_versioning ||
+# info->s->lock_key_trees' failed in restore_table_state_after_repair
+#
+CREATE TABLE t1 (id INT, d DATETIME, PRIMARY KEY(d,id),INDEX(d)) ENGINE=Aria;
+INSERT INTO t1 SELECT seq, NOW() FROM seq_1_to_500;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+connect  con1,localhost,root,,test;
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 (id) SELECT b FROM t2;
+connection default;
+INSERT INTO t1 SELECT a FROM t2;
+ERROR 21S01: Column count doesn't match value count at row 1
+connection con1;
+ERROR 42S22: Unknown column 'b' in 'field list'
+disconnect con1;
+connection default;
+drop table t1, t2;
+# This is also in MDEV-22674
+CREATE TABLE t1 (id INT, d DATETIME, PRIMARY KEY(d,id),INDEX(d)) ENGINE=Aria;
+INSERT INTO t1 SELECT seq, NOW() FROM seq_1_to_500;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 (id) SELECT b FROM t2;
+ERROR 42S22: Unknown column 'b' in 'field list'
+INSERT INTO t1 SELECT a FROM t2;
+ERROR 21S01: Column count doesn't match value count at row 1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+500
+DROP TABLE t1,t2;
+#
+# MDEV-23296 Assertion `block->type == PAGECACHE_EMPTY_PAGE ||
+# block->type == PAGECACHE_READ_UNKNOWN_PAGE || block->type == type ||
+# (block->type == PAGECACHE_PLAIN_PAGE && type == PAGECACHE_LSN_PAGE)'
+# with aria_max_sort_file_size
+#
+SET @max_size.save= @@aria_max_sort_file_size;
+SET GLOBAL aria_max_sort_file_size= 0;
+CREATE TABLE t1 (pk INT PRIMARY KEY, a CHAR(255), KEY(a)) ENGINE=Aria;
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ALTER TABLE t1 ENABLE KEYS;
+INSERT INTO t1 VALUES (3,'nice try');
+SELECT * FROM t1;
+pk	a
+1	foo
+2	bar
+3	nice try
+DROP TABLE t1;
+SET GLOBAL aria_max_sort_file_size= @max_size.save;
+#
+# End of 10.4 test
+#

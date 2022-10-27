@@ -1,0 +1,7 @@
+--source include/have_rocksdb.inc
+
+
+let $cf_name=rev:cf1;
+
+--source include/rocksdb_icp.inc
+

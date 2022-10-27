@@ -1,0 +1,1214 @@
+#
+# Tests for SHOW EXPLAIN FOR functionality
+#
+--source include/have_debug.inc
+--source include/have_innodb.inc
+
+
+--disable_warnings
+drop table if exists t0, t1, t2, t3, t4;
+drop view if exists v1;
+--enable_warnings
+SET @old_debug= @@session.debug;
+
+# 
+# Testcases in this file do not work with embedded server. The reason for this
+# is that we use the following commands for synchronization:
+#
+#    set @show_explain_probe_select_id=1;
+#    SET debug_dbug='d,show_explain_probe_join_exec_start';
+#    send select count(*) from t1 where a < 100000;
+#
+# When ran with mysqltest_embedded, this translates into: 
+#
+#    Thread1> DBUG_PUSH("d,show_explain_probe_join_exec_start");
+#    Thread1> create another thread for doing "send ... reap"
+#    Thread2> mysql_parse("select count(*) from t1 where a < 100000");
+#
+# That is, "select count(*) ..." is ran in a thread for which DBUG_PUSH(...)
+# has not been called. As a result, show_explain_probe_join_exec_start does not fire, and
+# "select count(*) ..." does not wait till its SHOW EXPLAIN command, and the
+# test fails.
+#
+-- source include/not_embedded.inc
+
+set debug_sync='RESET';
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int);
+insert into t1 select A.a + 10*B.a + 100*C.a from t0 A, t0 B, t0 C;
+alter table t1 add b int, add c int, add filler char(32);
+update t1 set b=a, c=a, filler='fooo';
+alter table t1 add key(a), add key(b);
+
+# 
+# Try killing a non-existent thread
+# 
+--error ER_NO_SUCH_THREAD
+show explain for 2000000000;
+
+--error ER_SET_CONSTANTS_ONLY
+show explain for (select max(a) from t0);
+
+# 
+# Setup two threads and their ids
+#
+let $thr1=`select connection_id()`;
+connect (con1, localhost, root,,);
+connection con1;
+let $thr2=`select connection_id()`;
+SET @old_debug= @@session.debug;
+connection default;
+
+# SHOW EXPLAIN FOR <idle thread>
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+
+# SHOW EXPLAIN FOR <ourselves>
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr1;
+
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
+
+#
+# Test SHOW EXPLAIN for simple queries
+#
+connection con1;
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select count(*) from t1 where a < 100000;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+
+send select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+
+--echo # We can catch EXPLAIN, too.
+set @show_expl_tmp= @@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
+send explain select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set optimizer_switch= @show_expl_tmp;
+SET debug_dbug=@old_debug;
+
+--echo # UNION, first branch 
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send explain select a from t0 A union select a+1 from t0 B;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # UNION, second branch
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send explain select a from t0 A union select a+1 from t0 B;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # Uncorrelated  subquery, select
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select a, (select max(a) from t0 B) from t0 A where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # Uncorrelated  subquery, explain
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send explain select a, (select max(a) from t0 B) from t0 A where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo # correlated  subquery, select
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo # correlated  subquery, explain
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo # correlated  subquery, select, while inside the subquery
+set @show_explain_probe_select_id=2; # <---
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo # correlated  subquery, explain, while inside the subquery
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo # correlated  subquery, explain, while inside the subquery
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+# TODO: explain in the parent subuqery when the un-correlated child has been
+# run (and have done irreversible cleanups)
+#  ^^ Is this at all possible after 5.3? 
+#     Maybe, for 5.3 try this: 
+#       - run before/after the parent has invoked child's optimization
+#       - run after materialization 
+
+--echo # Try to do SHOW EXPLAIN for a query that runs a  SET command:
+--echo #   I've found experimentally that select_id==2 here...
+--echo # 
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send set @foo= (select max(a) from t0 where sin(a) >0);
+connection default;
+--source include/wait_condition.inc
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+evalp kill query $thr2;
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # Attempt SHOW EXPLAIN for an UPDATE
+--echo #
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+#--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+--source include/wait_condition.inc
+#--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # Attempt SHOW EXPLAIN for a DELETE (UPD: now works)
+--echo # 
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+#--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+--source include/wait_condition.inc
+#--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # Multiple SHOW EXPLAIN calls for one select 
+--echo # 
+create table t2 as select a as a, a as dummy from t0 limit 3;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # SHOW EXPLAIN for SELECT ... ORDER BY with "Using filesort"
+--echo #
+explain select * from t0 order by a;
+
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+set @show_explain_probe_select_id=1;
+send select * from t0 order by a; 
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # SHOW EXPLAIN for SELECT ... with "Using temporary"
+--echo #
+connection default;
+explain select distinct a from t0;
+connection con1;
+
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+set @show_explain_probe_select_id=1;
+send select distinct a from t0; 
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # SHOW EXPLAIN for SELECT ... with "Using temporary; Using filesort"
+--echo #
+connection default;
+explain select distinct a from t0;
+connection con1;
+
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+set @show_explain_probe_select_id=1;
+
+send select distinct a from t0; 
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # MDEV-238: SHOW EXPLAIN: Server crashes in JOIN::print_explain with FROM subquery and GROUP BY
+--echo #
+CREATE TABLE t2 ( a INT ); 
+INSERT INTO t2 VALUES (1),(2),(1),(4),(2);
+explain SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
+
+SET debug_dbug='+d,show_explain_in_find_all_keys';
+send SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
+
+connection default;
+--source include/wait_condition.inc
+--echo # FIXED by "conservative assumptions about when QEP is available" fix:
+--echo #    NOTE: current code will not show "Using join buffer": 
+#--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+DROP TABLE t2;
+
+
+--echo #
+--echo # MDEV-239: Assertion `field_types == 0 ... ' failed in Protocol_text::store(double, uint32, String*) with 
+--echo #          SHOW EXPLAIN over EXPLAIN EXTENDED
+--echo #
+
+
+CREATE TABLE t2 (a INT); 
+INSERT INTO t2 VALUES (1),(2),(1),(4),(2);
+
+EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+DROP TABLE t2;
+
+
+--echo #
+--echo # MDEV-240: SHOW EXPLAIN: Assertion `this->optimized == 2' failed in 
+--echo # JOIN::print_explain on query with a JOIN, TEMPTABLE view,
+--echo #          
+CREATE TABLE t3 (a INT); 
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t3;
+INSERT INTO t3 VALUES (8);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (4),(5),(6),(7),(8),(9);
+explain SELECT * FROM v1, t2;
+
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send SELECT * FROM v1, t2;
+
+connection default;
+--source include/wait_condition.inc
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+evalp kill query $thr2;
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+SET debug_dbug=@old_debug;
+DROP VIEW v1;
+DROP TABLE t2, t3;
+
+--echo #
+--echo # MDEV-267: SHOW EXPLAIN: Server crashes in JOIN::print_explain on most of queries
+--echo #
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select sleep(1);
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo #
+--echo # Same as above, but try another reason for JOIN to be degenerate
+--echo #
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select * from t0 where 1>10;
+connection default;
+--source include/wait_condition.inc
+#--error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # Same as above, but try another reason for JOIN to be degenerate (2)
+--echo #
+create table t3(a int primary key);
+insert into t3 select a from t0;
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select * from t0,t3 where t3.a=112233;
+connection default;
+--source include/wait_condition.inc
+# --error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+drop table t3;
+
+--echo #
+--echo # MDEV-270: SHOW EXPLAIN: server crashes in JOIN::print_explain on a query with 
+--echo #           select tables optimized away
+--echo #
+
+CREATE TABLE t2 (pk INT PRIMARY KEY, a INT ) ENGINE=MyISAM; 
+INSERT INTO t2 VALUES 
+  (1,4),(2,62),(3,7),(4,1),(5,0),(6,7),(7,7),(8,1),(9,7),(10,1),
+  (11,5),(12,2),(13,0),(14,1),(15,8),(16,1),(17,1),(18,9),(19,1),(20,5) ;
+
+explain SELECT * FROM t2 WHERE a = 
+       (SELECT MAX(a) FROM t2 
+        WHERE pk= (SELECT MAX(pk) FROM t2 WHERE pk = 3)
+       );
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_do_select';
+send SELECT * FROM t2 WHERE a = 
+       (SELECT MAX(a) FROM t2 
+        WHERE pk= (SELECT MAX(pk) FROM t2 WHERE pk = 3)
+       );
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+drop table t2;
+
+
+--echo #
+--echo # MDEV-273: SHOW EXPLAIN: server crashes in JOIN::print_explain on a query with impossible WHERE
+--echo #
+CREATE TABLE t2 (a1 INT, KEY(a1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+  (4),(6),(7),(1),(0),(7),(7),(1),(7),(1),
+  (5),(2),(0),(1),(8),(1),(1),(9),(1),(5);
+
+CREATE TABLE t3 (b1 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES
+  (4),(5),(8),(4),(8),(2),(9),(6),(4),(8),
+  (3),(5),(9),(6),(8),(3),(2),(6),(3),(1),
+  (4),(3),(1),(7),(0),(0),(9),(5),(9),(0),
+  (2),(2),(5),(9),(1),(4),(8),(6),(5),(5),
+  (1),(7),(2),(8),(9),(3),(2),(6),(6),(5),
+  (4),(3),(2),(7),(4),(6),(0),(8),(5),(8),
+  (2),(9),(7),(5),(7),(0),(4),(3),(1),(0),
+  (6),(2),(8),(3),(7),(3),(5),(5),(1),(2),
+  (1),(7),(1),(9),(9),(8),(3);
+CREATE TABLE t4 (c1 INT) ENGINE=MyISAM;
+
+EXPLAIN
+SELECT count(*) FROM t2, t3
+WHERE a1 < ALL ( 
+  SELECT a1 FROM t2
+  WHERE a1 IN ( SELECT a1 FROM t2, t4 )
+);
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_do_select';
+send
+SELECT count(*) FROM t2, t3
+WHERE a1 < ALL ( 
+  SELECT a1 FROM t2
+  WHERE a1 IN ( SELECT a1 FROM t2, t4 )
+);
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+drop table t2, t3, t4;
+
+--echo #
+--echo # MDEV-275: SHOW EXPLAIN: server crashes in JOIN::print_explain with IN subquery and aggregate function
+--echo #
+CREATE TABLE t2 ( `pk` INT NOT NULL PRIMARY KEY, `a1` INT NOT NULL, KEY(`a1`)) ENGINE=MyISAM; 
+INSERT INTO t2 VALUES 
+  (1,5),(2,4),(3,6),(4,9),(5,2),(6,8),(7,4),(8,8),(9,0),(10,43),
+  (11,23),(12,3),(13,45),(14,16),(15,2),(16,33),(17,2),(18,5),(19,9),(20,2);
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send
+  SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
+connection default;
+--source include/wait_condition.inc
+# --error ER_TARGET_NOT_EXPLAINABLE
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-305: SHOW EXPLAIN: ref returned by SHOW EXPLAIN is different from the normal EXPLAIN ('const' vs empty string)
+--echo #
+CREATE TABLE t1(a INT, KEY(a));
+INSERT INTO t1 VALUES (3),(1),(5),(1);
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+
+send SELECT 'test' FROM t1 WHERE a=1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-299: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN changes back and forth during query execution
+--echo #
+
+create table t1 (key1 int, col1 int, col2 int, filler char(100), key(key1));
+insert into t1 select A.a+ 10 * B.a, 10, 10, 'filler-data' from t0 A, t0 B;
+
+# Make matches 3 records 
+update t1 set col1=3, col2=10 where key1=1; # small range
+update t1 set col1=3, col2=1000 where key1=2; # big range 
+update t1 set col1=3, col2=10 where key1=3; # small range again
+update t1 set col1=3, col2=1000 where key1=4; # big range 
+
+set @tmp_mdev299_jcl= @@join_cache_level;
+set join_cache_level=0;
+
+explain select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_test_if_quick_select';
+
+send 
+select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+SET debug_dbug=@old_debug;
+drop table t1;
+
+--echo #
+--echo # MDEV-297: SHOW EXPLAIN: Server gets stuck until timeout occurs while
+--echo #           executing SHOW INDEX and SHOW EXPLAIN in parallel
+--echo #
+CREATE TABLE t1(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c));
+INSERT INTO t1 (a) VALUES (3),(1),(5),(1);
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+
+send SHOW INDEX FROM t1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-324: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN for a query with TEMPTABLE view 
+--echo #           loses 'DERIVED' line on the way without saying that the plan was already deleted
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+
+EXPLAIN SELECT a + 1 FROM v1;
+
+SET debug_dbug='+d,show_explain_probe_join_tab_preread';
+set @show_explain_probe_select_id=1;
+
+send
+  SELECT a + 1 FROM v1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-323: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN loses 
+--echo #            'UNION RESULT' line on the way without saying that the plan was already deleted
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (4),(6);
+
+EXPLAIN 
+SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 );
+
+SET debug_dbug='+d,show_explain_probe_union_read';
+send
+SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 );
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+SET debug_dbug=@old_debug;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-327: SHOW EXPLAIN: Different select_type in plans produced by SHOW EXPLAIN 
+--echo #           and standard EXPLAIN: 'SUBQUERY' vs 'DEPENDENT SUBQUERY'
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=Aria;
+INSERT INTO t1 VALUES
+(4),(6),(3),(5),(3),(246),(2),(9),(3),(8),
+(1),(8),(8),(5),(7),(5),(1),(6),(2),(9);
+
+CREATE TABLE t2 (b INT) ENGINE=Aria;
+INSERT INTO t2 VALUES
+(1),(7),(4),(7),(0),(2),(9),(4),(0),(9),
+(1),(3),(8),(8),(18),(84),(6),(3),(6),(6);
+
+EXPLAIN
+SELECT * FROM t1, ( SELECT * FROM t2 ) AS alias
+WHERE a < ALL ( SELECT b FROM t1, t2 WHERE a = b );
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+--send
+SELECT * FROM t1, ( SELECT * FROM t2 ) AS alias
+WHERE a < ALL ( SELECT b FROM t1, t2 WHERE a = b );
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+DROP TABLE t1, t2;
+
+--echo # 
+--echo #  Test that SHOW EXPLAIN will print 'Distinct'.
+--echo #
+CREATE TABLE t1 (a int(10) unsigned not null primary key,b int(10) unsigned);
+INSERT INTO t1 VALUES (1,1),(2,1),(3,1),(4,1);
+
+CREATE TABLE t3 (a int(10) unsigned, key(A), b text);
+INSERT INTO t3 VALUES (1,'1'),(2,'2');
+
+create temporary table t4 select * from t3;
+insert into t3 select * from t4;
+insert into t4 select * from t3;
+insert into t3 select * from t4;
+insert into t4 select * from t3;
+insert into t3 select * from t4;
+insert into t4 select * from t3;
+insert into t3 select * from t4;
+explain select distinct t1.a from t1,t3 where t1.a=t3.a;
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+--send
+select distinct t1.a from t1,t3 where t1.a=t3.a;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+drop table t1,t3,t4;
+
+--echo #
+--echo # ----------  SHOW EXPLAIN and permissions -----------------
+--echo #
+create user test2@localhost;
+grant ALL on test.* to test2@localhost;
+
+# Give the user SUPER privilege so it can SET debug_dbug variable.
+grant super on *.* to test2@localhost;
+connect (con2, localhost, test2,,);
+connection con1;
+
+--echo #
+--echo #  First, make sure that user 'test2' cannot do SHOW EXPLAIN on us
+--echo #
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send
+select * from t0 where a < 3;
+
+connection default;
+--source include/wait_condition.inc
+
+connection con2;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp show explain for $thr2;
+
+connection default;
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+--echo #
+--echo # Check that user test2 can do SHOW EXPLAIN on its own queries 
+--echo #
+connect (con3, localhost, test2,,);
+
+connection con2;
+let $thr_con2=`select connection_id()`;
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send
+select * from t0 where a < 3;
+
+connection con1;
+let $save_wait_condition= $wait_condition;
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr_con2;
+--source include/wait_condition.inc
+
+connection con3;
+evalp show explain for $thr_con2;
+
+connection con2;
+reap;
+
+connection con1;
+
+disconnect con3;
+let $wait_condition= $save_wait_condition;
+--echo #
+--echo # Now, grant test2 a PROCESSLIST permission, and see that he's able to observe us 
+--echo #
+disconnect con2;
+grant process on *.* to test2@localhost;
+connect (con2, localhost, test2,,);
+connection con1;
+SET debug_dbug=@old_debug;
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send
+select * from t0 where a < 3;
+
+connection default;
+--source include/wait_condition.inc
+
+connection con2;
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+revoke all privileges on test.* from test2@localhost;
+drop user test2@localhost;
+
+disconnect con2;
+--echo #
+--echo # Test that it is possible to KILL a SHOW EXPLAIN command that's waiting
+--echo # on its target thread
+--echo # 
+connect (con2, localhost, root,,);
+connect (con3, localhost, root,,);
+connection con2;
+create table t1 (pk int primary key, data char(64)) engine=innodb;
+insert into t1 select A.a + 10 * B.a + 100 * C.a, 'data1' from t0 A, t0 B, t0 C;
+
+--echo # Lock two threads
+set autocommit=0;
+select * from t1 where pk between 10 and 20 for update;
+
+connection con1;
+set autocommit=0;
+# This will freeze
+send
+select * from t1 where pk between 10 and 20 for update;
+
+# run SHOW EXPLAIN on a frozen thread
+connection default;
+let $save_wait_condition= $wait_condition;
+let $wait_condition=
+select 1
+from information_schema.INNODB_LOCK_WAITS
+where
+  requesting_trx_id=(select trx_id
+                     from information_schema.INNODB_TRX
+                     where trx_mysql_thread_id=$thr2);
+
+let $thr_default=`select connection_id()`;
+--source include/wait_condition.inc
+--echo # do: send_eval show explain for thr2;
+--disable_query_log
+send_eval show explain for $thr2;
+--enable_query_log
+
+# kill the SHOW EXPLAIN command
+connection con3;
+let $wait_condition= select State='show explain' from information_schema.processlist where id=$thr_default;
+--source include/wait_condition.inc
+evalp kill query $thr_default;
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+
+connection con2;
+rollback;
+
+connection con1;
+reap;
+
+drop table t1;
+disconnect con3;
+disconnect con2;
+let $wait_condition= $save_wait_condition;
+
+--echo # 
+--echo # Check that the I_S table is invisible
+--echo # 
+select table_name from information_schema.tables where table_schema='information_schema' and table_name like '%explain%';
+
+--echo # 
+--echo # MDEV-325: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN is different from standard EXPLAIN: type ALL vs 'index_merge'..
+--echo #
+CREATE TABLE t1 (a INT, b INT, KEY(a), KEY(b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(8,0),(128,5050),(5372,8),(234,7596),(2,0),(2907,8930),(1,0),
+(0,5224),(8,7638),(960,5),(9872,1534),(0,2295),(3408,9809),
+(7,0),(1168,0),(2089,5570),(0,205),(88,1018),(0,26528),
+(0,0),(4,5567),(1444,145),(6,0),(1,7535),(7793,534),(70,9),
+(178,1),(44,5),(189,0),(3,0);
+
+EXPLAIN
+SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b;
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+--send
+SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_do_select';
+--send
+SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+SET debug_dbug=@old_debug;
+
+drop table t1;
+
+--echo # 
+--echo # MDEV-298: SHOW EXPLAIN: Plan returned by SHOW EXPLAIN only contains 
+--echo #   'Using temporary' while the standard EXPLAIN says 'Using temporary; Using filesort'
+--echo # 
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),
+  (10),(11),(12),(13),(14),(15),(16);
+INSERT INTO t1 SELECT t11.a FROM t1 t11, t1 t12, t1 t13;
+
+EXPLAIN SELECT a FROM t1 GROUP BY a;
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+--send
+SELECT a FROM t1 GROUP BY a;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+SET debug_dbug=@old_debug;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-408: SHOW EXPLAIN: Some values are chopped off in SHOW EXPLAIN output
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(35)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (3989,'Abilene'),(3873,'Akron');
+
+CREATE TABLE t2 (c INT, d VARCHAR(52) PRIMARY KEY, KEY(c)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (86,'English'),(87,'Russian');
+
+explain SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's';
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+--send
+SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's';
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+SET debug_dbug=@old_debug;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-412: SHOW EXPLAIN: Server crashes in JOIN::print_explain on a query with inner join and ORDER BY the same column twice
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(3), KEY(b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES 
+(3795,'USA'),(3913,'USA'),(3846,'ITA'),(4021,'USA'),(4005,'RUS'),(4038,'USA'),
+(3825,'USA'),(3840,'USA'),(3987,'USA'),(3807,'USA'),(3896,'USA'),(4052,'USA'),
+(3973,'USA'),(3982,'ITA'),(3965,'USA'),(3852,'RUS'),(4006,'USA'),(3800,'USA'),
+(4020,'USA'),(4040,'USA'),(3916,'USA'),(3817,'USA'),(3885,'USA'),(3802,'USA'),
+(4009,'ITA'),(3895,'USA'),(3963,'RUS'),(4045,'USA'),(3988,'USA'),(3815,'USA'),
+(4063,'USA'),(3978,'USA'),(4019,'USA'),(3954,'USA'),(3950,'USA'),(3974,'ITA'),
+(4054,'USA'),(4061,'RUS'),(3976,'USA'),(3966,'USA'),(3957,'USA'),(3981,'USA'),
+(3923,'USA'),(3876,'USA'),(3819,'USA'),(3877,'USA'),(3829,'ITA'),(3964,'USA'),
+(4053,'RUS'),(3917,'USA'),(3874,'USA'),(4023,'USA'),(4001,'USA'),(3872,'USA'),
+(3890,'USA'),(3962,'USA'),(3886,'USA'),(4026,'ITA'),(3869,'USA'),(3937,'RUS'),
+(3975,'USA'),(3944,'USA'),(3908,'USA'),(3867,'USA'),(3947,'USA'),(3838,'USA'),
+(3796,'USA'),(3893,'USA'),(3920,'ITA'),(3994,'USA'),(3875,'RUS'),(4011,'USA'),
+(4013,'USA'),(3810,'USA'),(3834,'USA'),(3968,'USA'),(3931,'USA'),(3839,'USA'),
+(4042,'USA'),(4039,'ITA'),(3811,'USA'),(3837,'RUS'),(4041,'USA'),(3884,'USA'),
+(3894,'USA'),(3879,'USA'),(3942,'USA'),(3959,'USA'),(3814,'USA'),(4044,'USA'),
+(3971,'ITA'),(3823,'USA'),(3793,'RUS'),(3855,'USA'),(3905,'USA'),(3865,'USA'),
+(4046,'USA'),(3990,'USA'),(4022,'USA'),(3833,'USA'),(3918,'USA'),(4064,'ITA'),
+(3821,'USA'),(3836,'RUS'),(3921,'USA'),(3914,'USA'),(3888,'USA');
+
+CREATE TABLE t2 (c VARCHAR(3) PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('USA');
+
+CREATE TABLE t3 (d VARCHAR(3), e VARCHAR(52), PRIMARY KEY (d,e)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES 
+('JPN','Japanese'),('KOR','Korean'),('POL','Polish'),('PRT','Portuguese'),
+('ESP','Spanish'),('FRA','French'),('VNM','Vietnamese');
+
+explain
+SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2;
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_do_select';
+
+send
+SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+SET debug_dbug=@old_debug;
+
+DROP TABLE t1,t2,t3;
+
+
+--echo #
+--echo # MDEV-423: SHOW EXPLAIN: 'Using where' for a subquery is shown in EXPLAIN, but not in SHOW EXPLAIN output
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7),(0),(9),(3),(4),(2),(5),(7),(0),(9),(3),(4),(2),(5);		
+
+CREATE TABLE t2 (b INT, c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES 
+(0,4),(8,6),(1,3),(8,5),(9,3),(24,246),(6,2),(1,9),(6,3),(2,8),
+(4,1),(8,8),(4,8),(4,5),(7,7),(4,5),(1,1),(9,6),(4,2),(8,9);
+
+create table t3 like t2;
+insert into t3 select * from t2;
+
+explain 
+SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
+WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10;
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+
+send
+SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
+WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+SET debug_dbug=@old_debug;
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-416: Server crashes in SQL_SELECT::cleanup on EXPLAIN with SUM ( DISTINCT ) in a non-correlated subquery (5.5-show-explain tree)
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (8),(9);
+
+EXPLAIN SELECT * FROM t1 
+WHERE ( 8, 89 ) IN ( SELECT b, SUM( DISTINCT b ) FROM t2 GROUP BY b );
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Check if queries in non-default charsets work.
+--echo #
+
+set names cp1251;
+# The below are two Russian letters with codes E3FB in cp1251 encoding.
+select charset('ãû');
+select hex('ãû');
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+
+send
+select * from t0 where length('ãû') = a;
+
+connection default;
+set names utf8;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+set names default;
+
+connection con1;
+# The constant should be two letters, the last looking like 'bl'
+reap;
+
+SET debug_dbug=@old_debug;
+set names default;
+
+--echo #
+--echo # MDEV-462: SHOW EXPLAIN: Assertion `table_list->table' fails in find_field_in_table_ref if FOR contains a non-numeric value
+--echo #
+--error ER_SET_CONSTANTS_ONLY 
+show explain for foo;
+
+--echo #
+--echo # MDEV-411: SHOW EXPLAIN: For dependent subquery EXPLAIN produces type=index, key, 'Using where; Using index', 
+--echo #           while SHOW EXPLAIN says type=ALL, no key, 'Range checked for each record'
+--echo #
+CREATE TABLE t1 (a INT NOT NULL, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7),(0);
+
+CREATE TABLE t2 (b INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (0),(8);
+
+explain
+SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
+WHERE b <= ANY ( 
+  SELECT a FROM t1 
+  WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
+
+
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+
+send
+SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
+WHERE b <= ANY ( 
+  SELECT a FROM t1 
+  WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+SET debug_dbug=@old_debug;
+DROP TABLE t1,t2;
+drop table t0;
+
+--echo #
+--echo # MDEV-5148: Server crashes in print_explain on killing EXPLAIN EXTENDED
+--echo #
+create table t0 (a int not null);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+
+create table t2 as select * from t1;
+
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_best_ext_lim_search';
+send
+explain 
+select * from t0 
+where not exists ( select 1 from t1, t2 where t1.b=t2.b and t2.a=t0.a) and a is null;
+
+connection default;
+--source include/wait_condition.inc
+evalp kill query $thr2;
+
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+
+drop table t0,t1,t2;
+
+--echo # End
+connection default;
+disconnect con1;
+set debug_sync='RESET';
+

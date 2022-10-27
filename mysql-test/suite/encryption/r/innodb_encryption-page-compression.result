@@ -1,0 +1,187 @@
+SET GLOBAL innodb_encryption_threads = 4;
+set global innodb_compression_algorithm = 1;
+create table innodb_normal (c1 int, b char(20)) engine=innodb;
+show warnings;
+Level	Code	Message
+create table innodb_page_compressed1 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=1;
+show warnings;
+Level	Code	Message
+show create table innodb_page_compressed1;
+Table	Create Table
+innodb_page_compressed1	CREATE TABLE `innodb_page_compressed1` (
+  `c1` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=1
+create table innodb_page_compressed2 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=2;
+show warnings;
+Level	Code	Message
+show create table innodb_page_compressed2;
+Table	Create Table
+innodb_page_compressed2	CREATE TABLE `innodb_page_compressed2` (
+  `c1` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=2
+create table innodb_page_compressed3 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=3;
+show warnings;
+Level	Code	Message
+show create table innodb_page_compressed3;
+Table	Create Table
+innodb_page_compressed3	CREATE TABLE `innodb_page_compressed3` (
+  `c1` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=3
+create table innodb_page_compressed4 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=4;
+show warnings;
+Level	Code	Message
+show create table innodb_page_compressed4;
+Table	Create Table
+innodb_page_compressed4	CREATE TABLE `innodb_page_compressed4` (
+  `c1` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=4
+create table innodb_page_compressed5 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=5;
+show warnings;
+Level	Code	Message
+show create table innodb_page_compressed5;
+Table	Create Table
+innodb_page_compressed5	CREATE TABLE `innodb_page_compressed5` (
+  `c1` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=5
+create table innodb_page_compressed6 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=6;
+show warnings;
+Level	Code	Message
+show create table innodb_page_compressed6;
+Table	Create Table
+innodb_page_compressed6	CREATE TABLE `innodb_page_compressed6` (
+  `c1` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=6
+create table innodb_page_compressed7 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=7;
+show warnings;
+Level	Code	Message
+show create table innodb_page_compressed7;
+Table	Create Table
+innodb_page_compressed7	CREATE TABLE `innodb_page_compressed7` (
+  `c1` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=7
+create table innodb_page_compressed8 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=8;
+show warnings;
+Level	Code	Message
+show create table innodb_page_compressed8;
+Table	Create Table
+innodb_page_compressed8	CREATE TABLE `innodb_page_compressed8` (
+  `c1` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=8
+create table innodb_page_compressed9 (c1 int, b char(20)) engine=innodb page_compressed=1 page_compression_level=9;
+show warnings;
+Level	Code	Message
+show create table innodb_page_compressed9;
+Table	Create Table
+innodb_page_compressed9	CREATE TABLE `innodb_page_compressed9` (
+  `c1` int(11) DEFAULT NULL,
+  `b` char(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `page_compression_level`=9
+create procedure innodb_insert_proc (repeat_count int)
+begin
+declare current_num int;
+set current_num = 0;
+while current_num < repeat_count do
+insert into innodb_normal values(current_num,'testing..');
+set current_num = current_num + 1;
+end while;
+end//
+commit;
+begin;
+call innodb_insert_proc(2000);
+insert into innodb_page_compressed1 select * from innodb_normal;
+insert into innodb_page_compressed2 select * from innodb_normal;
+insert into innodb_page_compressed3 select * from innodb_normal;
+insert into innodb_page_compressed4 select * from innodb_normal;
+insert into innodb_page_compressed5 select * from innodb_normal;
+insert into innodb_page_compressed6 select * from innodb_normal;
+insert into innodb_page_compressed7 select * from innodb_normal;
+insert into innodb_page_compressed8 select * from innodb_normal;
+insert into innodb_page_compressed9 select * from innodb_normal;
+commit;
+select count(*) from innodb_page_compressed1 where c1 < 500000;
+count(*)
+2000
+select count(*) from innodb_page_compressed2 where c1 < 500000;
+count(*)
+2000
+select count(*) from innodb_page_compressed3 where c1 < 500000;
+count(*)
+2000
+select count(*) from innodb_page_compressed4 where c1 < 500000;
+count(*)
+2000
+select count(*) from innodb_page_compressed5 where c1 < 500000;
+count(*)
+2000
+select count(*) from innodb_page_compressed6 where c1 < 500000;
+count(*)
+2000
+select count(*) from innodb_page_compressed7 where c1 < 500000;
+count(*)
+2000
+select count(*) from innodb_page_compressed8 where c1 < 500000;
+count(*)
+2000
+select count(*) from innodb_page_compressed9 where c1 < 500000;
+count(*)
+2000
+flush tables innodb_page_compressed1, innodb_page_compressed2,
+innodb_page_compressed3, innodb_page_compressed4,
+innodb_page_compressed5, innodb_page_compressed6,
+innodb_page_compressed7, innodb_page_compressed8,
+innodb_page_compressed9 for export;
+unlock tables;
+# Wait until dirty pages are compressed and encrypted
+SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+variable_value > 0
+1
+SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
+variable_value > 0
+1
+# restart
+SET GLOBAL innodb_encryption_threads = 4;
+SET GLOBAL innodb_encrypt_tables = off;
+update innodb_page_compressed1 set c1 = c1 + 1;
+update innodb_page_compressed2 set c1 = c1 + 1;
+update innodb_page_compressed3 set c1 = c1 + 1;
+update innodb_page_compressed4 set c1 = c1 + 1;
+update innodb_page_compressed5 set c1 = c1 + 1;
+update innodb_page_compressed6 set c1 = c1 + 1;
+update innodb_page_compressed7 set c1 = c1 + 1;
+update innodb_page_compressed8 set c1 = c1 + 1;
+update innodb_page_compressed9 set c1 = c1 + 1;
+flush tables innodb_page_compressed1, innodb_page_compressed2,
+innodb_page_compressed3, innodb_page_compressed4,
+innodb_page_compressed5, innodb_page_compressed6,
+innodb_page_compressed7, innodb_page_compressed8,
+innodb_page_compressed9 for export;
+unlock tables;
+# Wait until dirty pages are compressed and encrypted 2
+SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+variable_value > 0
+1
+SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
+variable_value > 0
+1
+SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';
+variable_value > 0
+1
+drop procedure innodb_insert_proc;
+drop table innodb_normal;
+drop table innodb_page_compressed1;
+drop table innodb_page_compressed2;
+drop table innodb_page_compressed3;
+drop table innodb_page_compressed4;
+drop table innodb_page_compressed5;
+drop table innodb_page_compressed6;
+drop table innodb_page_compressed7;
+drop table innodb_page_compressed8;
+drop table innodb_page_compressed9;

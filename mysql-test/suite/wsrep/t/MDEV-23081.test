@@ -1,0 +1,57 @@
+#
+# MDEV-23081: Stray XA transactions at startup
+# if node restarts with wsrep_on=OFF
+#
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+#
+# Execute two inserts on block those after becoming
+# prepared, and before they are committed
+#
+--connect con1, localhost, root
+SET DEBUG_SYNC = "wsrep_after_certification SIGNAL after_certification_reached WAIT_FOR continue_after_certification";
+SET DEBUG_SYNC = "wsrep_before_commit_order_enter SIGNAL before_commit_order_reached_1 WAIT_FOR continue_before_commit_order_1";
+--send INSERT INTO t1 VALUES (9)
+
+--connect con_ctrl, localhost, root
+SET DEBUG_SYNC = "now WAIT_FOR after_certification_reached";
+
+--connect con2, localhost, root
+SET DEBUG_SYNC = "wsrep_before_commit_order_enter SIGNAL before_commit_order_reached_2 WAIT_FOR continue_before_commit_order_2";
+--send INSERT INTO t1 VALUES (10)
+
+--connection con_ctrl
+SET DEBUG_SYNC = "now WAIT_FOR before_commit_order_reached_2";
+SET DEBUG_SYNC = "now SIGNAL continue_after_certification";
+SET DEBUG_SYNC = "now WAIT_FOR before_commit_order_reached_1";
+
+#
+# Kill the server
+#
+--connection default
+--source include/kill_mysqld.inc
+
+#
+# and restart it with wsrep-on=OFF
+#
+let $restart_noprint=2;
+--let $restart_parameters=--wsrep-on=OFF
+--source include/start_mysqld.inc
+
+#
+# Expect no prepared XA transactions to be reported
+#
+XA RECOVER;
+
+--disconnect con1
+--disconnect con2
+--disconnect con_ctrl
+--connection default
+
+DROP TABLE t1;
+CALL mtr.add_suppression("You need to use --log-bin to make --binlog-format work");

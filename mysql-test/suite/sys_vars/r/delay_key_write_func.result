@@ -1,0 +1,78 @@
+'#--------------------FN_DYNVARS_023_01-------------------------#'
+SET @start_value= @@global.delay_key_write;
+'#--------------------FN_DYNVARS_023_02-------------------------#'
+CREATE PROCEDURE sp_addRecords (IN var1 INT,IN var2 INT)
+BEGIN
+WHILE (var1 < var2) DO
+INSERT INTO t1 VALUES(var1,REPEAT('MYSQL',10),100000.0/var1);
+SET var1=var1+1;
+END WHILE;
+END//
+'---check when delay_key_write is OFF---'
+SET @@global.delay_key_write = OFF;
+CREATE TABLE t1(
+a INT PRIMARY KEY,
+b VARCHAR(512),
+c DOUBLE
+) DELAY_KEY_WRITE = 1;
+FLUSH STATUS;
+CALL sp_addRecords(1,10);
+SHOW STATUS LIKE 'Key_reads';
+Variable_name	Value
+Key_reads	0
+SHOW STATUS LIKE 'Key_writes';
+Variable_name	Value
+Key_writes	9
+SHOW STATUS LIKE 'Key_write_requests';
+Variable_name	Value
+Key_write_requests	9
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+9
+DROP TABLE t1;
+'----check when delay_key_write is ON---'
+SET @@global.delay_key_write = ON;
+CREATE TABLE t1(
+a INT PRIMARY KEY,
+b VARCHAR(512),
+c DOUBLE
+) DELAY_KEY_WRITE = 1;
+FLUSH STATUS;
+CALL sp_addRecords(1,10);
+SHOW STATUS LIKE 'Key_reads';
+Variable_name	Value
+Key_reads	0
+SHOW STATUS LIKE 'Key_writes';
+Variable_name	Value
+Key_writes	0
+SHOW STATUS LIKE 'Key_write_requests';
+Variable_name	Value
+Key_write_requests	9
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+9
+DROP TABLE t1;
+'----check when delay_key_write is ALL---'
+SET @@global.delay_key_write = ALL;
+CREATE TABLE t1(
+a INT PRIMARY KEY,
+b VARCHAR(512),
+c DOUBLE
+) DELAY_KEY_WRITE = 0;
+FLUSH STATUS;
+CALL sp_addRecords(1,10);
+SHOW STATUS LIKE 'Key_reads';
+Variable_name	Value
+Key_reads	0
+SHOW STATUS LIKE 'Key_writes';
+Variable_name	Value
+Key_writes	0
+SHOW STATUS LIKE 'Key_write_requests';
+Variable_name	Value
+Key_write_requests	9
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+9
+DROP PROCEDURE sp_addRecords;
+DROP TABLE t1;
+SET @@global.delay_key_write= @start_value;

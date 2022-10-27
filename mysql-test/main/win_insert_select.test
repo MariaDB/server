@@ -1,0 +1,79 @@
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(30));
+
+PREPARE populate_table FROM "INSERT into t1 values (1, 'manual_insert_1'),
+                                                   (4, 'manual_insert_2')";
+
+INSERT INTO t1 SELECT row_number() over(), "should_not_add_any_rows" FROM t1;
+INSERT INTO t1 SELECT 1 + row_number() over(), "should_not_add_any_rows" FROM t1;
+
+EXECUTE populate_table;
+
+INSERT INTO t1 SELECT 10 + row_number() over(), "should repeat 2 times [11-12]" FROM t1;
+
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+
+DELETE FROM t1;
+EXECUTE populate_table;
+
+
+INSERT INTO t1
+    SELECT 10 + (dense_rank() over(order by c1)), "dense_rank_insert" from t1;
+
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+
+DELETE FROM t1;
+EXECUTE populate_table;
+
+INSERT INTO t1
+    SELECT 100 + (rank() over(order by c1)), "rank_insert" from t1;
+
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+
+DELETE FROM t1;
+EXECUTE populate_table;
+
+INSERT INTO t1
+    SELECT 100 + (ntile(10) over(order by c1)), "ntile_insert" from t1;
+
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+
+DELETE FROM t1;
+EXECUTE populate_table;
+
+INSERT INTO t1
+    SELECT 1000 + (percent_rank() over(order by c1)), "percent_rank_insert" from t1;
+
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+
+DELETE FROM t1;
+EXECUTE populate_table;
+
+INSERT INTO t1
+    SELECT 1000 + (count(*) over(order by c1)), "count_insert" from t1;
+
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+
+DELETE FROM t1;
+EXECUTE populate_table;
+
+--echo #
+--echo # Test how avg interacts when the results need to be rounded.
+--echo #
+SELECT 1000 + (avg(c1) over(order by c1)) as avg_expr, c1, "This will be inserted into t1" from t1;
+
+INSERT INTO t1
+    SELECT 1000 + (avg(c1) over(order by c1)), "avg_insert" from t1;
+
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+
+DELETE FROM t1;
+EXECUTE populate_table;
+
+INSERT INTO t1
+    SELECT 1000 + (sum(c1) over(order by c1)), "sum_insert" from t1;
+
+SELECT c1, c2
+FROM t1
+ORDER BY c2, c1;
+
+DROP table t1;

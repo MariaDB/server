@@ -1,0 +1,41 @@
+# Copyright(C) 2012 Kentoku SHIBA
+# Copyright(C) 2014 Kenji Maruyama <mmmaru777@gmail.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/skip_freebsd.inc
+--source ../../include/mroonga/have_signed_64bit_time_t.inc
+--source ../../include/mroonga/have_strict_sql_mode.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS diaries;
+--enable_warnings
+
+CREATE TABLE diaries (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title TEXT,
+  created_at DATETIME
+) DEFAULT CHARSET UTF8;
+
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO diaries (title, created_at)
+       VALUES ('2012', '2012');
+
+SELECT * FROM diaries;
+
+DROP TABLE diaries;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

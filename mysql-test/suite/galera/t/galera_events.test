@@ -1,0 +1,53 @@
+#
+# Test that the replication of MySQL events conforms to the behavior of stock MySQL replication as described here
+# http://dev.mysql.com/doc/refman/5.6/en/replication-features-invoked.html
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $event_scheduler_orig = `SELECT @@event_scheduler;`
+
+#
+# Events arrive on slave as SLAVESIDE_DISABLED
+#
+
+--connection node_1
+CREATE EVENT event1 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO SELECT 1;
+
+--connection node_2
+SELECT DEFINER= 'root@localhost', ORIGINATOR = 1, STATUS = 'SLAVESIDE_DISABLED', EVENT_TYPE = 'ONE TIME', ON_COMPLETION = 'NOT PRESERVE' FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME = 'event1';
+
+--connection node_1
+ALTER EVENT event1 DISABLE;
+
+--connection node_2
+# The definition on node 2 should still say SLAVESIDE_DISABLED
+SELECT DEFINER= 'root@localhost', ORIGINATOR = 1, STATUS = 'SLAVESIDE_DISABLED', EVENT_TYPE = 'ONE TIME', ON_COMPLETION = 'NOT PRESERVE' FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME = 'event1';
+
+#
+# Expired event should be dropped from the slave
+#
+
+--connection node_2
+SET GLOBAL event_scheduler = ON;
+CREATE EVENT event2 ON SCHEDULE AT CURRENT_TIMESTAMP ON COMPLETION NOT PRESERVE DO SELECT 1;
+--sleep 1
+
+--connection node_1
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME = 'event2';
+
+#
+# DROP EVENT causes event to be dropped everywhere
+#
+
+--connection node_1
+DROP EVENT event1;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME = 'event1';
+
+# Cleanup
+
+--connection node_2
+--eval SET GLOBAL event_scheduler = $event_scheduler_orig;

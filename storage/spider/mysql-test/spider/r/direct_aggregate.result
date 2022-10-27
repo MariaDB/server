@@ -1,0 +1,100 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+
+create table select test
+connection master_1;
+DROP TABLE IF EXISTS ta_l;
+CREATE TABLE ta_l (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+INSERT INTO ta_l (a, b, c) VALUES
+(1, 'a', '2008-08-01 10:21:39'),
+(2, 'b', '2000-01-01 00:00:00'),
+(3, 'e', '2007-06-04 20:03:11'),
+(4, 'd', '2003-11-30 05:01:03'),
+(5, 'c', '2001-12-31 23:59:59');
+
+direct_aggregating test
+connection master_1;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	0
+SELECT COUNT(*) FROM ta_l;
+COUNT(*)
+5
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	0
+SELECT MAX(a) FROM ta_l;
+MAX(a)
+5
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	1
+SELECT MIN(a) FROM ta_l;
+MIN(a)
+1
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	2
+SELECT MAX(a) FROM ta_l WHERE a < 5;
+MAX(a)
+4
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	3
+SELECT MIN(a) FROM ta_l WHERE a > 1;
+MIN(a)
+2
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	4
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

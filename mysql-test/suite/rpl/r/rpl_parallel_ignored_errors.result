@@ -1,0 +1,50 @@
+include/master-slave.inc
+[connection master]
+connection server_2;
+include/stop_slave.inc
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET @old_debug= @@GLOBAL.debug_dbug;
+SET GLOBAL slave_parallel_mode='optimistic';
+SET GLOBAL slave_parallel_threads= 3;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=InnoDB;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connect  con_temp2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+BEGIN;
+INSERT INTO t1 VALUES (32);
+connection server_1;
+INSERT INTO t1 VALUES (32);
+connection server_2;
+SET GLOBAL debug_dbug="+d,hold_worker_on_schedule";
+SET debug_sync="debug_sync_action SIGNAL reached_pause WAIT_FOR continue_worker";
+connection server_1;
+SET gtid_seq_no=100;
+INSERT INTO t1 VALUES (33);
+connection server_2;
+SET debug_sync='now WAIT_FOR reached_pause';
+connection server_1;
+INSERT INTO t1 VALUES (34);
+connection server_2;
+connection con_temp2;
+COMMIT;
+connection server_2;
+include/stop_slave.inc
+include/assert.inc [table t1 should have zero rows where a>32]
+SELECT * FROM t1 WHERE a>32;
+a
+DELETE FROM t1 WHERE a=32;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL debug_dbug=@old_debug;
+SET DEBUG_SYNC= 'RESET';
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1;
+include/rpl_end.inc

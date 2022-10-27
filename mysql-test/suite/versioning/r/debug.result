@@ -1,0 +1,54 @@
+create table t1 (a int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create temporary table tt1 (a int) with system versioning;
+ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug='+d,sysvers_force';
+create table t2 (a int);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create temporary table tt2 (a int) with system versioning;
+show create table tt2;
+Table	Create Table
+tt2	CREATE TEMPORARY TABLE `tt2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connect con1, localhost, root;
+create table t3 (a int);
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create temporary table tt3 (a int) with system versioning;
+show create table tt3;
+Table	Create Table
+tt3	CREATE TEMPORARY TABLE `tt3` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+disconnect con1;
+connection default;
+set debug_dbug='+d,sysvers_show';
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create table t4 (a int);
+show create table t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `a` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+set global debug_dbug=@old_dbug;
+drop table t1, t2, t3, t4;

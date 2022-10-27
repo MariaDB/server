@@ -1,0 +1,87 @@
+--source include/have_tokudb_backup.inc
+--source include/not_gtid_enabled.inc
+
+--let $MASTER_STATE_FILE=tokubackup_binlog_info
+--let $BACKUP_DIR_MASTER=$MYSQL_TMP_DIR/tokudb_backup_master
+--let $MASTER_STATE_FILE_PATH=$BACKUP_DIR_MASTER/$MASTER_STATE_FILE
+--let DDIR=$BACKUP_DIR_MASTER
+
+# Settings for include/filter_file.inc
+--delimiter |
+let $script=
+  s{filename: [^,]+,}{filename: ####,};
+  s{position: [^,]+,}{position: ####,};
+  s{GTID of last change: [^ ]+}{GTID of last change: #####};
+|
+--delimiter ;
+--let $input_file = $MASTER_STATE_FILE_PATH
+--let $skip_column_names= 1
+
+--echo ### Create backup dir
+--mkdir $BACKUP_DIR_MASTER
+
+--source include/master-slave.inc
+
+--connection master
+
+--echo ### Check for settings
+SELECT @@gtid_mode;
+
+--echo ### Generate some binlog events
+CREATE TABLE t1(a INT) ENGINE=TokuDB;
+DROP TABLE t1;
+
+--echo ### Master backup
+--disable_query_log
+--eval SET SESSION tokudb_backup_dir='$BACKUP_DIR_MASTER'
+--enable_query_log
+
+--source include/filter_file.inc
+--echo ### $MASTER_STATE_FILE content:
+--cat_file $MASTER_STATE_FILE_PATH
+
+--echo ### Delete backup dir
+--perl
+use File::Path 'rmtree';
+$DDIR=$ENV{"DDIR"};
+rmtree([ "$DDIR" ]);
+EOF
+
+--echo ### Create backup dir
+--mkdir $BACKUP_DIR_MASTER
+
+--echo ### GTID-mode on
+--let $rpl_server_numbers= 1,2
+--let $rpl_set_enforce_gtid_consistency= 1
+--source include/rpl_set_gtid_mode.inc
+
+--echo ### Check for settings
+SELECT @@gtid_mode;
+
+--echo ### Generate some binlog events
+CREATE TABLE t1(a INT) ENGINE=TokuDB;
+DROP TABLE t1;
+
+--echo ### Master backup
+--disable_query_log
+--eval SET SESSION tokudb_backup_dir='$BACKUP_DIR_MASTER'
+--enable_query_log
+
+--source include/filter_file.inc
+--echo ### $MASTER_STATE_FILE content:
+--cat_file $MASTER_STATE_FILE_PATH
+
+--echo ### Delete backup dir
+--perl
+use File::Path 'rmtree';
+$DDIR=$ENV{"DDIR"};
+rmtree([ "$DDIR" ]);
+EOF
+
+--echo ### GTID-mode off
+--let $rpl_gtid_mode= OFF
+--let $rpl_set_enforce_gtid_consistency= 0
+--let $rpl_server_numbers= 1,2
+--source include/rpl_set_gtid_mode.inc
+
+--source include/rpl_end.inc

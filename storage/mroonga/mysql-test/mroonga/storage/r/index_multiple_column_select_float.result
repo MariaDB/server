@@ -1,0 +1,28 @@
+DROP TABLE IF EXISTS temperatures;
+CREATE TABLE temperatures (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title VARCHAR(20),
+temperature FLOAT,
+KEY temperature_index(temperature),
+KEY multi_index(temperature, title)
+);
+INSERT INTO temperatures VALUES (NULL, "Hot!", 28.2);
+INSERT INTO temperatures VALUES (NULL, "Snow!", -2.8);
+INSERT INTO temperatures VALUES (NULL, "Rainy!", 12.7);
+SELECT temperature FROM temperatures WHERE temperature BETWEEN 10 AND 30;
+temperature
+12.7
+28.2
+SELECT temperature FROM temperatures WHERE temperature BETWEEN -10 AND 20;
+temperature
+-2.8
+12.7
+SELECT title, temperature FROM temperatures WHERE temperature BETWEEN 10 AND 30;
+title	temperature
+Rainy!	12.7
+Hot!	28.2
+SELECT title, temperature FROM temperatures WHERE temperature BETWEEN -10 AND 20;
+title	temperature
+Snow!	-2.8
+Rainy!	12.7
+DROP TABLE temperatures;

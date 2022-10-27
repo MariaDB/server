@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS logs;
+CREATE TABLE logs (
+id INT,
+record JSON,
+message VARCHAR(255) GENERATED ALWAYS AS (json_extract(`record`, '$.message')) VIRTUAL
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4;
+ALTER TABLE logs ADD INDEX (message);
+ERROR HY000: Table storage engine 'Mroonga' does not support the create option 'Index on virtual generated column'
+DROP TABLE logs;

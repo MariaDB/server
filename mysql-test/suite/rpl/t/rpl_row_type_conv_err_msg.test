@@ -1,0 +1,356 @@
+# ==== Purpose ====
+#
+# Test verifies that when slave side type conversion fails in row based
+# replication, more informative error message is displayed. It also verifies
+# that in the case of blob fields appropriate type name is displayed in error
+# message.
+#
+# ==== Implementation ====
+#
+# Steps:
+# Test case1:
+#          1. Create a table on master with VARCHAR filed and charset
+#             'utf8mb3'.
+#          2. Create a table on slave with VARCHAR field and charset
+#             'utf8mb4'.
+#          3. Insert a tuple on master.
+#          4. Verify that slave provides more informative error message with
+#             respect to difference in charsets.
+# Test case2: Repeat same steps as above for CHAR field
+# Test case3:
+#          1. Create a table on master with LONGBLOB field.
+#          2. Create a table on slave with TINYBLOB field.
+#          3. Insert a tuple on master.
+#          4. Verify that error message displayed on slave clearly states type
+#             conversion failure from 'longblob' to 'tinyblob'.
+#          5. Also verify that error message doesn't show additional details
+#             of charset when not required.
+# Test Case4: Verifies varbinary to binary type conversion failure specific
+#             error message.
+# Test Case5: Verifies binary to varbinary type conversion failure specific
+#             error message.
+# Test Case6: Verifies binary to binary type conversion failure specific
+#             error message.
+# Test Case7: Verifies char to blob type conversion failure specific
+#             error message.
+# Test Case8: Verifies char to text type conversion failure specific
+#             error message.
+# ==== References ====
+#
+# MDEV-19925: Column ... cannot be converted from type 'varchar(20)' to type
+#             'varchar(20)'
+#
+
+--source include/have_binlog_format_row.inc
+# Inorder to grep a specific error pattern in error log a fresh error log
+# needs to be generated.
+--source include/force_restart.inc
+--source include/master-slave.inc
+
+--echo ####################################################################
+--echo # Test Case1: Improved error message with charset information
+--echo ####################################################################
+--connection master
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 VARCHAR(1) CHARACTER SET 'utf8mb3');
+SET SQL_LOG_BIN=1;
+
+--connection slave
+CREATE TABLE t1 (c1 VARCHAR(1) CHARACTER SET 'utf8mb4');
+
+--connection master
+INSERT INTO t1 VALUES ('a');
+
+--connection slave
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+
+# Check error log for correct messages.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
+}
+
+# Error msg before: Column 0 of table 'test.t1' cannot be converted from type 'varchar(3)' to type 'varchar(1)'
+# Error msg after : Column 0 of table 'test.t1' cannot be converted from type 'varchar(3 octets)' to type 'varchar(4 octets) character set utf8mb4'
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=\'varchar\(3 octets\)\' to type \'varchar\(4 octets\) character set utf8mb4\'
+--source include/search_pattern_in_file.inc
+
+--connection master
+DROP TABLE t1;
+--connection slave
+DROP TABLE t1;
+--let $rpl_only_running_threads= 1
+--source include/rpl_reset.inc
+
+--echo ####################################################################
+--echo # Test Case2: Improved error message with charset information for CHAR
+--echo # type
+--echo ####################################################################
+--connection master
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 CHAR(1) CHARACTER SET 'utf8mb3');
+SET SQL_LOG_BIN=1;
+
+--connection slave
+CREATE TABLE t1 (c1 CHAR(1) CHARACTER SET 'utf8mb4');
+
+--connection master
+INSERT INTO t1 VALUES ('a');
+
+--connection slave
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+
+# Error msg before: Column 0 of table 'test.t1' cannot be converted from type 'char(0)' to type 'char(1)'
+# Error msg after : Column 0 of table 'test.t1' cannot be converted from type 'char(3 octets)' to type 'char(4 octets) character set utf8mb4)'
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=\'char\(3 octets\)\' to type \'char\(4 octets\) character set utf8mb4\'
+--source include/search_pattern_in_file.inc
+
+--connection master
+DROP TABLE t1;
+--connection slave
+DROP TABLE t1;
+--let $rpl_only_running_threads= 1
+--source include/rpl_reset.inc
+
+--echo ####################################################################
+--echo # Test Case3: For BLOB type fileds, when type conversion failed on
+--echo # slave, the errormessage had incorrect type names.
+--echo ####################################################################
+--connection master
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 LONGBLOB);
+SET SQL_LOG_BIN=1;
+
+--connection slave
+CREATE TABLE t1 (c1 TINYBLOB);
+
+--connection master
+INSERT INTO t1 VALUES ('a');
+
+--connection slave
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+
+# Error msg before: Column 0 of table 'test.t1' cannot be converted from type 'tinyblob' to type 'tinyblob'
+# Error msg after : Column 0 of table 'test.t1' cannot be converted from type 'longblob' to type 'tinyblob'
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=\'longblob\' to type \'tinyblob\'
+--source include/search_pattern_in_file.inc
+
+--connection master
+DROP TABLE t1;
+--connection slave
+DROP TABLE t1;
+--let $rpl_only_running_threads= 1
+--source include/rpl_reset.inc
+
+--echo ####################################################################
+--echo # Test Case4: Verifies varbinary to binary type conversion failure
+--echo #             specific error message.
+--echo ####################################################################
+--connection master
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 VARBINARY(10));
+SET SQL_LOG_BIN=1;
+
+--connection slave
+CREATE TABLE t1 (c1 BINARY(10));
+
+--connection master
+INSERT INTO t1 VALUES ('a');
+
+--connection slave
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+
+# Check error log for correct messages.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
+}
+
+# Expected Error : Column 0 of table 'test.t1' cannot be converted from type 'varbinary(10)' to type 'binary(10)'
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=\'varbinary\(10\)\' to type \'binary\(10\)\'
+--source include/search_pattern_in_file.inc
+
+--connection master
+DROP TABLE t1;
+--connection slave
+DROP TABLE t1;
+--let $rpl_only_running_threads= 1
+--source include/rpl_reset.inc
+
+--echo ####################################################################
+--echo # Test Case5: Verifies binary to varbinary type conversion failure
+--echo #             specific error message.
+--echo ####################################################################
+--connection master
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 BINARY(10));
+SET SQL_LOG_BIN=1;
+
+--connection slave
+CREATE TABLE t1 (c1 VARBINARY(10));
+
+--connection master
+INSERT INTO t1 VALUES ('a');
+
+--connection slave
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+
+# Check error log for correct messages.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
+}
+
+# Expected Error : Column 0 of table 'test.t1' cannot be converted from type 'binary(10)' to type 'varbinary(10)'
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=\'binary\(10\)\' to type \'varbinary\(10\)\'
+--source include/search_pattern_in_file.inc
+
+--connection master
+DROP TABLE t1;
+--connection slave
+DROP TABLE t1;
+--let $rpl_only_running_threads= 1
+--source include/rpl_reset.inc
+
+--echo ####################################################################
+--echo # Test Case6: Verifies binary to binary type conversion failure
+--echo #             specific error message.
+--echo ####################################################################
+--connection master
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 BINARY(1));
+SET SQL_LOG_BIN=1;
+
+--connection slave
+CREATE TABLE t1 (c1 BINARY(10));
+
+--connection master
+INSERT INTO t1 VALUES ('a');
+
+--connection slave
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+
+# Check error log for correct messages.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
+}
+
+# Expected Error : Column 0 of table 'test.t1' cannot be converted from type 'binary(1)' to type 'binary(10)'
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=\'binary\(1\)\' to type \'binary\(10\)\'
+--source include/search_pattern_in_file.inc
+
+--connection master
+DROP TABLE t1;
+--connection slave
+DROP TABLE t1;
+--let $rpl_only_running_threads= 1
+--source include/rpl_reset.inc
+
+--echo ####################################################################
+--echo # Test Case7: Verifies char to blob type conversion failure
+--echo #             specific error message. BLOB field on slave has no
+--echo #             associated character set hence the master side field
+--echo #             is also considered as binary.
+--echo ####################################################################
+--connection master
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 CHAR(1));
+SET SQL_LOG_BIN=1;
+
+--connection slave
+CREATE TABLE t1 (c1 BLOB);
+
+--connection master
+INSERT INTO t1 VALUES ('a');
+
+--connection slave
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+
+# Check error log for correct messages.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
+}
+
+# Expected Error : Column 0 of table 'test.t1' cannot be converted from type 'binary(1)' to type 'binary(10)'
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=\'binary\(1\)\' to type \'blob\'
+--source include/search_pattern_in_file.inc
+
+--connection master
+DROP TABLE t1;
+--connection slave
+DROP TABLE t1;
+--let $rpl_only_running_threads= 1
+--source include/rpl_reset.inc
+
+--echo ####################################################################
+--echo # Test Case8: Verifies char to text type conversion failure
+--echo #             specific error message.
+--echo ####################################################################
+--connection master
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 CHAR(1));
+SET SQL_LOG_BIN=1;
+
+--connection slave
+CREATE TABLE t1 (c1 TEXT);
+
+--connection master
+INSERT INTO t1 VALUES ('a');
+
+--connection slave
+--let $slave_sql_errno= 1677
+--source include/wait_for_slave_sql_error.inc
+
+# Check error log for correct messages.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
+}
+
+# Expected Error : Column 0 of table 'test.t1' cannot be converted from type 'binary(1)' to type 'binary(10)'
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=\'char\(1 octets\)\' to type \'text\'
+--source include/search_pattern_in_file.inc
+
+--connection master
+DROP TABLE t1;
+--connection slave
+DROP TABLE t1;
+--let $rpl_only_running_threads= 1
+--source include/rpl_reset.inc
+
+--source include/rpl_end.inc

@@ -1,0 +1,45 @@
+source include/have_log_bin.inc;
+source include/have_innodb.inc;
+
+let $engine = InnoDB;
+
+SET @old_binlog_format=@@binlog_format;
+
+SET BINLOG_FORMAT=ROW;
+RESET MASTER;
+
+source include/binlog_truncate.test;
+
+--echo # Even though the isolation level might be permissive, truncate
+--echo # table follows a stricter isolation as its locking is based on
+--echo # (exclusive) metadata locks.
+
+let $before_truncate = SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+source include/binlog_truncate.test;
+
+let $before_truncate = SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+source include/binlog_truncate.test;
+
+let $before_truncate = SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+source include/binlog_truncate.test;
+
+let $before_truncate = SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+source include/binlog_truncate.test;
+
+SET BINLOG_FORMAT=STATEMENT;
+RESET MASTER;
+
+source include/binlog_truncate.test;
+
+--echo # Truncate is not supported for SBR if the isolation level is
+--echo # READ UNCOMMITTED or READ COMMITTED. These specific isolation
+--echo # levels are tested elsewhere.
+
+let $before_truncate = SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+source include/binlog_truncate.test;
+
+let $before_truncate = SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+source include/binlog_truncate.test;
+
+SET @@global.binlog_format = @old_binlog_format;
+SET @@session.binlog_format = @old_binlog_format;

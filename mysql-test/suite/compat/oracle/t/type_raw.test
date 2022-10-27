@@ -1,0 +1,10 @@
+SET sql_mode=ORACLE;
+
+# RAW is not a reserved word even in sql_mode=ORACLE
+CREATE TABLE raw (raw INT);
+SHOW CREATE TABLE raw;
+DROP TABLE raw;
+
+CREATE TABLE t1 (a RAW(10));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

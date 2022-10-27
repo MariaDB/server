@@ -1,0 +1,12 @@
+#
+# MDEV-8022 Assertion `rc == 0' failed in ma_encrypt on dropping an encrypted Aria table
+#
+
+--source include/have_file_key_management_plugin.inc
+
+set global aria_encrypt_tables = 1;
+create table t1 (i int, key(i)) engine=aria;
+insert into t1 values (1);
+drop table t1;
+set global aria_encrypt_tables = 0;
+

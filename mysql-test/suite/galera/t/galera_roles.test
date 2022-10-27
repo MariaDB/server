@@ -1,0 +1,201 @@
+#
+# Test for CREATE/DROP/GRANT/REVOKE role.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # Testing CREATE/GRANT role
+--echo #
+
+--echo
+--echo # On node_1
+--connection node_1
+
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a int, b int);
+CREATE TABLE test1.t2 (a int, b int);
+INSERT INTO test1.t1 values (1,2),(3,4);
+INSERT INTO test1.t2 values (5,6),(7,8);
+
+CREATE PROCEDURE test1.pr1() SELECT "pr1";
+
+CREATE USER foo@localhost;
+CREATE ROLE role1;
+
+GRANT role1 TO foo@localhost;
+GRANT RELOAD ON *.* TO role1;
+GRANT SELECT ON mysql.* TO role1;
+GRANT EXECUTE ON PROCEDURE test1.pr1 TO role1;
+GRANT SELECT ON test1.t1 TO role1;
+GRANT SELECT (a) ON test1.t2 TO role1;
+
+--echo # Open connections to the 2 nodes using 'foo' user.
+--let $port_1= \$NODE_MYPORT_1
+--connect(foo_node_1,127.0.0.1,foo,,test,$port_1,)
+
+--let $port_2= \$NODE_MYPORT_2
+--sleep 1
+--connect(foo_node_2,127.0.0.1,foo,,test,$port_2,)
+
+--echo
+--echo # Connect with foo_node_1
+--connection foo_node_1
+
+SHOW GRANTS;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+FLUSH TABLES;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM mysql.roles_mapping;
+--error ER_DBACCESS_DENIED_ERROR
+SHOW TABLES FROM test1;
+
+SET ROLE role1;
+
+FLUSH TABLES;
+--sorted_result
+SELECT * FROM mysql.roles_mapping;
+SHOW TABLES FROM test1;
+SELECT * FROM test1.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test1.t2;
+SELECT a FROM test1.t2;
+CALL test1.pr1();
+
+--echo
+--echo # Connect with foo_node_2
+--connection foo_node_2
+
+SHOW GRANTS;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+FLUSH TABLES;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM mysql.roles_mapping;
+--error ER_DBACCESS_DENIED_ERROR
+SHOW TABLES FROM test1;
+
+SET ROLE role1;
+
+FLUSH TABLES;
+--sorted_result
+SELECT * FROM mysql.roles_mapping;
+SHOW TABLES FROM test1;
+SELECT * FROM test1.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test1.t2;
+SELECT a FROM test1.t2;
+CALL test1.pr1();
+
+--echo #
+--echo # Testing REVOKE role
+--echo #
+
+--echo #
+--echo # Connect with node_1
+--connection node_1
+REVOKE EXECUTE ON PROCEDURE test1.pr1 FROM role1;
+
+--echo
+--echo # Connect with foo_node_1
+--connection foo_node_1
+
+--sleep 1
+--error ER_PROCACCESS_DENIED_ERROR
+CALL test1.pr1();
+
+--echo
+--echo # Connect with foo_node_2
+--connection foo_node_2
+--sleep 1
+--error ER_PROCACCESS_DENIED_ERROR
+CALL test1.pr1();
+
+--echo #
+--echo # Testing DROP role
+--echo #
+
+--echo
+--echo # Connect with node_1
+--connection node_1
+
+DROP ROLE role1;
+
+--echo
+--echo # Connect with foo_node_1
+--connection foo_node_1
+
+FLUSH TABLES;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM mysql.roles_mapping;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test1.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT a FROM test1.t2;
+
+SHOW GRANTS;
+SELECT * FROM INFORMATION_SCHEMA.ENABLED_ROLES;
+SELECT * FROM INFORMATION_SCHEMA.ENABLED_ROLES; # yes, repeat it twice
+SELECT CURRENT_ROLE();
+
+--echo
+--echo # Connect with foo_node_2
+--connection foo_node_2
+
+FLUSH TABLES;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM mysql.roles_mapping;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM test1.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT a FROM test1.t2;
+
+SHOW GRANTS;
+SELECT * FROM INFORMATION_SCHEMA.ENABLED_ROLES;
+SELECT * FROM INFORMATION_SCHEMA.ENABLED_ROLES; # yes, repeat it twice
+SELECT CURRENT_ROLE();
+
+# Cleanup
+disconnect foo_node_2;
+--echo # Connect with node_1
+--connection node_1
+
+DROP USER foo@localhost;
+DROP DATABASE test1;
+
+--echo #
+--echo # MDEV-10566: Create role statement replicated inconsistently in Galera Cluster
+--echo #
+--echo
+--echo # On node_1
+--connection node_1
+CREATE USER foo@localhost;
+CREATE ROLE role1;
+CREATE ROLE role2 WITH ADMIN CURRENT_USER;
+CREATE ROLE role3 WITH ADMIN foo@localhost;
+CREATE ROLE role4 WITH ADMIN role1;
+
+--sorted_result
+SELECT * FROM mysql.roles_mapping;
+--sorted_result
+SELECT * FROM INFORMATION_SCHEMA.APPLICABLE_ROLES;
+
+--echo
+--echo # On node_2
+--connection node_2
+--sorted_result
+SELECT * FROM mysql.roles_mapping;
+--sorted_result
+SELECT * FROM INFORMATION_SCHEMA.APPLICABLE_ROLES;
+
+# Cleanup
+DROP ROLE role1;
+DROP ROLE role2;
+DROP ROLE role3;
+DROP ROLE role4;
+DROP USER foo@localhost;
+
+--source include/galera_end.inc
+--echo # End of test

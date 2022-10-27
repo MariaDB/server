@@ -1,0 +1,68 @@
+# Save the initial number of concurrent sessions
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connection con1;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT) ENGINE=innodb;
+BEGIN;
+INSERT INTO t1 VALUES(1);
+connection con2;
+FLUSH TABLES WITH READ LOCK;
+connection con1;
+# Sending:
+COMMIT;
+connection con2;
+# Wait until COMMIT gets blocked.
+# Verify that 'con1' was blocked and data did not move.
+SELECT * FROM t1;
+a
+UNLOCK TABLES;
+connection con1;
+# Reaping COMMIT
+connection con1;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+a
+1
+connection con2;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+connection con3;
+FLUSH TABLES WITH READ LOCK;
+connection con1;
+COMMIT;
+connection con2;
+a
+1
+COMMIT;
+connection con3;
+UNLOCK TABLES;
+connection con2;
+COMMIT;
+connection con1;
+BEGIN;
+INSERT INTO t1 VALUES(10);
+FLUSH TABLES WITH READ LOCK;
+connection con2;
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+BEGIN;
+SELECT * FROM t1;
+a
+1
+10
+SHOW CREATE DATABASE test;
+Database	Create Database
+test	CREATE DATABASE `test` /*!40100 DEFAULT CHARACTER SET latin1 */
+COMMIT;
+# Cleanup
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+# We commit open transactions when we disconnect: only then we can
+# drop the table.
+DROP TABLE t1;
+# End of 4.1 tests
+# Wait till all disconnects are completed

@@ -1,0 +1,281 @@
+FLUSH STATUS;
+create table t1(abc int primary key, xyz int invisible);
+SHOW STATUS LIKE 'Feature_invisible_columns';
+desc t1;
+show create table t1;
+select TABLE_CATALOG,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,EXTRA from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA='test' and TABLE_NAME='t1';
+drop table t1;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create table t1(a1 int invisible);
+--error ER_PARSE_ERROR
+create table t1(a1 blob,invisible(a1));
+--error ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
+create table t1(a1 int primary key invisible ,a2 int unique invisible , a3 blob,a4 int not null invisible unique);
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create table t1(abc int not null invisible);
+--echo MDEV-14849 CREATE + ALTER with user-invisible columns produce invalid table definition
+create or replace table t1 (pk int auto_increment primary key invisible, i int);
+--error ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT
+alter table t1 modify pk int invisible;
+drop table t1;
+create table t1(a int invisible, b int);
+#should automatically add null
+insert into t1 values(1);
+insert into t1(a) values(2);
+insert into t1(b) values(3);
+insert into t1(a,b) values(5,5);
+select * from t1;
+select a,b from t1;
+delete from t1;
+insert into t1 values(1),(2),(3),(4);
+select * from t1;
+select a from t1;
+drop table t1;
+
+--echo #more complex case of invisible
+create table t1(a int , b int invisible , c int invisible auto_increment unique, d blob , e int unique, f int);
+desc t1;
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select * from t1;
+select a,b,c,d,e,f from t1;
+drop table t1;
+
+--echo #more complex case of invisible with sql_mode=NO_AUTO_VALUE_ON_ZERO
+set sql_mode='NO_AUTO_VALUE_ON_ZERO';
+create table t1(a int , b int invisible , c int invisible auto_increment unique, d blob , e int unique, f int);
+desc t1;
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select * from t1;
+select a,b,c,d,e,f from t1;
+drop table t1;
+set sql_mode='';
+
+--error ER_PARSE_ERROR
+create table sdsdsd(a int , b int, invisible(a,b));
+create table t1(a int,abc int as (a mod 3) virtual invisible);
+desc t1;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+insert into t1 values(1,default);
+insert into t1 values(1),(22),(233);
+select * from t1;
+select a,abc from t1;
+drop table t1;
+create table t1(abc int primary key invisible auto_increment, a int);
+desc t1;
+show create table t1;
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+select * from t1;
+select abc,a from t1;
+delete  from t1;
+insert into t1 values(1),(2),(3),(4),(6);
+select abc,a from t1;
+drop table t1;
+create table t1(abc int);
+--error ER_TABLE_MUST_HAVE_COLUMNS
+alter table t1 change abc ss int invisible;
+alter table t1 add column xyz int;
+alter table t1 modify column abc  int ;
+desc t1;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+insert into t1 values(22);
+alter table t1 modify column abc  int invisible;
+desc t1;
+insert into t1 values(12);
+drop table t1;
+--echo #some test on copy table structure with table data;
+--echo #table with invisible fields and unique keys;
+create table t1(a int , b int invisible , c int invisible auto_increment unique, d blob , e int unique, f int);
+desc t1;
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select * from t1;
+select a,b,c,d,e,f from t1;
+--echo #this won't copy invisible fields and keys;
+create table t2 as select * from t1;
+desc t2;
+select * from t2;
+--error ER_BAD_FIELD_ERROR
+select a,b,c,d,e,f from t2;
+drop table t2;
+--echo #now this will copy invisible fields
+create table t2 as select a,b,c,d,e,f from t1;
+desc t2;
+select * from t2;
+select a,b,c,d,e,f from t2;
+drop table t2,t1;
+--echo #some test related to copy of data from one table to another;
+create table t1(a int , b int invisible , c int invisible auto_increment unique, d blob , e int unique, f int);
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select a,b,c,d,e,f from t1;
+create table t2(a int , b int invisible , c int invisible , d blob , e int unique, f int);
+insert into t2 select * from t1;
+select a,b,c,d,e,f from t2;
+truncate t2;
+insert into t2 (a,b,c,d,e,f) select a,b,c,d,e,f from t1;
+select a,b,c,d,e,f from t2;
+truncate t2;
+drop table t1,t2;
+--echo #some test related to creating view on table with invisible column;
+create table t1(a int , b int invisible , c int invisible auto_increment unique, d blob , e int unique, f int);
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+create view v as select * from t1;
+desc v;
+select * from v;
+--echo #v does not have invisible column;
+--error ER_BAD_FIELD_ERROR
+select a,b,c,d,e,f from v;
+insert into v values(1,21,32,4);
+select * from v;
+--error ER_BAD_FIELD_ERROR
+insert into v(a,b,c,d,e,f) values(1,12,3,4,5,6);
+drop view v;
+create view v as select a,b,c,d,e,f from t1;
+desc v;
+select * from v;
+--echo #v does  have invisible column but they aren't invisible anymore.
+select a,b,c,d,e,f from v;
+insert into v values(1,26,33,4,45,66);
+select a,b,c,d,e,f from v;
+insert into v(a,b,c,d,e,f) values(1,32,31,41,5,6);
+select a,b,c,d,e,f from v;
+drop view v;
+drop table t1;
+--echo #now invisible column in where and some join query
+create table t1 (a int unique , b int invisible unique, c int unique  invisible);
+insert into t1(a,b,c) values(1,1,1);
+insert into t1(a,b,c) values(2,2,2);
+insert into t1(a,b,c) values(3,3,3);
+insert into t1(a,b,c) values(4,4,4);
+insert into t1(a,b,c) values(21,21,26);
+insert into t1(a,b,c) values(31,31,35);
+insert into t1(a,b,c) values(41,41,45);
+insert into t1(a,b,c) values(22,22,24);
+insert into t1(a,b,c) values(32,32,33);
+insert into t1(a,b,c) values(42,42,43);
+explain select * from t1 where b=3;
+select * from t1 where b=3;
+explain select * from t1 where c=3;
+select * from t1 where c=3;
+create table t2 as select a,b,c from t1;
+desc t2;
+explain select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
+select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
+drop table t1,t2;
+--echo #Unhide  invisible columns
+create table t1 (a int primary key, b int invisible, c int invisible unique);
+show create table t1;
+desc t1;
+alter table t1 modify column b int;
+desc t1;
+alter table t1 change column c d int;
+desc t1;
+drop table t1;
+SHOW STATUS LIKE 'Feature_invisible_columns';
+--echo #invisible is non reserved
+create table t1(a int unique , invisible int invisible, c int );
+desc t1;
+alter table t1 change column invisible hid int invisible;
+desc t1;
+drop table t1;
+##Internal temp table
+CREATE TABLE t1 (b int);
+INSERT t1 values(1);
+INSERT t1 values(2);
+INSERT t1 values(3);
+INSERT t1 values(4);
+INSERT t1 values(5);
+CREATE TABLE t2 (a int invisible) SELECT * FROM t1;
+select * from t2 order by b;
+select a,b from t2 order by b;
+CREATE TABLE t3 (b int, a int invisible) SELECT * FROM t1;
+select * from t3 order by b;
+select a,b from t3 order by b;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+CREATE TABLE t4 (b int invisible) SELECT * FROM t1;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+CREATE TABLE t5 (a int invisible) SELECT b as a FROM t1;
+drop table t1,t2,t3;
+
+create table t1 (a int , b int invisible default 3, c int , d int invisible default 6);
+DELIMITER //;
+CREATE PROCEDURE
+insert_t1(a int, b int)
+MODIFIES SQL DATA
+insert into t1 values(a,b);
+//
+DELIMITER ;//
+call insert_t1(1,1);
+call insert_t1(2,2);
+select * from t1 order by a;
+select a,b,c,d from t1 order by a;
+DROP PROCEDURE insert_t1;
+delete from t1;
+prepare insert_1 from "insert into t1 values(@a,@c)";
+prepare insert_2 from "insert into t1(a,b,c) values(@a,@b,@c)";
+set @a=1, @c=1;
+execute insert_1;
+set @a=2,@b=2, @c=2;
+execute insert_2;
+select a,b,c,d from t1 order by a;
+drop table t1;
+#MDEV-15085 Non constant default getting Null values
+create table t1(a int default 5 invisible, b int);
+create table t2(a int default (b+11) invisible, b int);
+insert into t1 values(1);
+select a,b from t1;
+insert into t2 values(1);
+select a,b from t2;
+drop table t1,t2;
+
+#
+# natural join and using
+#
+create table t1 (a int invisible, b int, c int);
+create table t2 (a int, b int, d int);
+insert t1 (a,b,c) values (0,2,3), (10, 20, 30);
+insert t2 (a,b,d) values (1,2,4), (10, 30, 40);
+select * from t1 join t2 using (a);
+select * from t1 natural join t2;
+drop table t1, t2;
+## Triggers  MDEV-15754
+CREATE TABLE t1 (c CHAR(3), t TIMESTAMP invisible);
+INSERT INTO t1 (c,t) VALUES ('foo','2000-01-01 00:00:00');
+
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @a= 1;
+INSERT INTO t1 SELECT * FROM t1;
+# Cleanup
+DROP TABLE t1;
+##LOAD DATA MDEV-15965 Invisible columns and LOAD DATA don't work well
+##  together: ER_WARN_TOO_FEW_RECORDS
+create or replace table t1 (a int, b int invisible);
+insert into t1 values (1),(2);
+
+select * from t1 into outfile 'f';
+load data infile 'f' into table t1;
+select a,b from t1;
+load data infile 'f' into table t1 (a,@v) SET b=@v;
+select a,b from t1;
+load data infile 'f' into table t1 (a,@v) SET b=a;
+select a,b from t1;
+truncate table t1;
+
+insert into t1(a,b) values (1,1),(2,2);
+select a,b from t1 into outfile 'a';
+load data infile 'a' into table t1(a,b);
+select a,b from t1;
+load data infile 'a' into table t1 (a,@v) SET b=@v;
+select a,b from t1;
+load data infile 'a' into table t1 (a,@v) SET b=@v+2;
+select a,b from t1;
+
+#cleanup
+drop table t1;
+
+--echo #
+--echo # MDEV-23467 SIGSEGV in fill_record/fill_record_n_invoke_before_triggers on INSERT DELAYED
+--echo #
+create table t1 (a int, b int invisible);
+insert delayed into t1 values (1);
+# cleanup
+drop table t1;

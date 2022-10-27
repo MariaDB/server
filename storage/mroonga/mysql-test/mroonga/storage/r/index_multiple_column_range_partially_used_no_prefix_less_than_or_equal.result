@@ -1,0 +1,31 @@
+DROP TABLE IF EXISTS items;
+CREATE TABLE items (
+id INT PRIMARY KEY AUTO_INCREMENT NOT NULL,
+score1 INT,
+score2 INT,
+created_at DATETIME,
+INDEX (created_at, score1, score2)
+) DEFAULT CHARSET=UTF8;
+SHOW CREATE TABLE items;
+Table	Create Table
+items	CREATE TABLE `items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `score1` int(11) DEFAULT NULL,
+  `score2` int(11) DEFAULT NULL,
+  `created_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `created_at` (`created_at`,`score1`,`score2`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8
+INSERT INTO items (score1, score2, created_at) VALUES(1, 0, "2015-07-01 00:00:00");
+INSERT INTO items (score1, score2, created_at) VALUES(2, 0, "2015-07-01 00:00:00");
+INSERT INTO items (score1, score2, created_at) VALUES(2, 0, "2015-07-01 12:00:00");
+INSERT INTO items (score1, score2, created_at) VALUES(2, 0, "2015-07-02 00:00:00");
+SELECT *
+FROM items
+WHERE created_at <= "2015-07-01 12:00:00"
+       ORDER BY created_at DESC;
+id	score1	score2	created_at
+3	2	0	2015-07-01 12:00:00
+2	2	0	2015-07-01 00:00:00
+1	1	0	2015-07-01 00:00:00
+DROP TABLE items;

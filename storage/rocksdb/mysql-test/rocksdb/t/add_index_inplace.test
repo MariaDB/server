@@ -1,0 +1,417 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+##
+## test adding index inplace
+##
+
+# test basic add
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kb) WHERE b > 5;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > 2;
+DROP TABLE t1;
+
+# test add + drop (simultaneous)
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 ADD INDEX kb(b), DROP INDEX ka, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kb) WHERE b > 5;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > 2;
+DROP TABLE t1;
+
+## test multi-drop + multi-add
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 DROP INDEX ka, DROP INDEX kab, ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD INDEX kb(b), ADD INDEX kab(a,b), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kb) WHERE b > 5;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > 2;
+DROP TABLE t1;
+
+# test multi add + drop (simultaneous)
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 ADD INDEX kb(b), DROP INDEX ka, ADD INDEX kba(b,a), DROP INDEX kab, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kb) WHERE b > 5;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kba) WHERE a > 2;
+DROP TABLE t1;
+
+# test dropping and adding a key simultaneously w/ same name but different col
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+ALTER TABLE t1 DROP INDEX ka, ADD INDEX ka(b), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(ka) WHERE b > 5;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > 2;
+DROP TABLE t1;
+
+##
+## test adding index inplace w/ various column types
+##
+
+# test basic add
+CREATE TABLE t1 (pk CHAR(8) PRIMARY KEY, a VARCHAR(11), b INT UNSIGNED) ENGINE=rocksdb charset utf8 collate utf8_bin;
+SHOW CREATE TABLE t1;
+SHOW COLUMNS IN t1;
+INSERT INTO t1 VALUES ('aaa', '1111', 1);
+INSERT INTO t1 VALUES ('bbb', '2222', 2);
+INSERT INTO t1 VALUES ('ccc', '3333', 3);
+ALTER TABLE t1 ADD INDEX kab(a,b), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > '2' AND b < 3;
+DROP TABLE t1;
+
+## test add + drop (simultaneous)
+CREATE TABLE t1 (pk CHAR(8) PRIMARY KEY, a VARCHAR(11), b INT UNSIGNED) ENGINE=rocksdb charset utf8 collate utf8_bin;
+SHOW CREATE TABLE t1;
+SHOW COLUMNS IN t1;
+INSERT INTO t1 VALUES ('aaa', '1111', 1);
+INSERT INTO t1 VALUES ('bbb', '2222', 2);
+INSERT INTO t1 VALUES ('ccc', '3333', 3);
+ALTER TABLE t1 ADD INDEX kab(a,b), ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD INDEX ka(a), DROP INDEX kab, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(ka) WHERE a > '2' AND b < 3;
+DROP TABLE t1;
+
+### test multi-drop + multi-add
+CREATE TABLE t1 (pk CHAR(8) PRIMARY KEY, a VARCHAR(11), b INT UNSIGNED) ENGINE=rocksdb charset utf8 collate utf8_bin;
+SHOW CREATE TABLE t1;
+SHOW COLUMNS IN t1;
+INSERT INTO t1 VALUES ('aaa', '1111', 1);
+INSERT INTO t1 VALUES ('bbb', '2222', 2);
+INSERT INTO t1 VALUES ('ccc', '3333', 3);
+ALTER TABLE t1 ADD INDEX kab(a,b), ADD INDEX ka(a), ADD INDEX kb(b), ALGORITHM=INPLACE;
+ALTER TABLE t1 DROP INDEX ka, DROP INDEX kb, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > '2' AND b < 3;
+DROP TABLE t1;
+
+##
+## test adding via CREATE/DROP index syntax
+##
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+CREATE INDEX kb on t1 (b);
+CREATE INDEX kba on t1 (b,a);
+DROP INDEX ka on t1;
+DROP INDEX kab on t1;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kb) WHERE b > 5;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(kba) WHERE a > 2;
+DROP TABLE t1;
+
+#
+# Create tables with partitions and try to update/select from them.
+#
+CREATE TABLE t1 (i INT, j INT, k INT, PRIMARY KEY (i), KEY(j)) ENGINE = ROCKSDB PARTITION BY KEY(i) PARTITIONS 4;
+
+--disable_query_log
+let $max = 100;
+let $i = 1;
+while ($i <= $max) {
+  let $insert = INSERT INTO t1 VALUES ($i, $i, $i);
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+
+ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
+DROP INDEX kij ON t1;
+SHOW CREATE TABLE t1;
+
+SELECT * FROM t1 ORDER BY i LIMIT 10;
+SELECT COUNT(*) FROM t1;
+
+DROP TABLE t1;
+
+# test failure in prepare phase (due to collation)
+set @tmp_rocksdb_strict_collation_check= @@rocksdb_strict_collation_check;
+set global rocksdb_strict_collation_check=1;
+CREATE TABLE t1 (a INT, b TEXT);
+
+--echo # MariaDB no longer gives ER_UNSUPPORTED_COLLATION
+ALTER TABLE t1 ADD KEY kb(b(10));
+ALTER TABLE t1 ADD PRIMARY KEY(a);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b TEXT collate utf8_general_ci);
+--echo # MariaDB no longer gives ER_UNSUPPORTED_COLLATION
+ALTER TABLE t1 ADD KEY kb(b(10));
+ALTER TABLE t1 ADD PRIMARY KEY(a);
+DROP TABLE t1;
+
+set global rocksdb_strict_collation_check= @tmp_rocksdb_strict_collation_check;
+
+# make sure race condition between connection close and alter on another
+# connection is handled
+
+set global rocksdb_bulk_load=1;
+
+--echo # Establish connection con1 (user=root)
+connect (con1,localhost,root,,);
+
+--echo # Switch to connection con1
+connection con1;
+
+show global variables like 'rocksdb_bulk_load%';
+show session variables like 'rocksdb_bulk_load%';
+
+CREATE TABLE t1 (i INT, j INT, PRIMARY KEY (i)) ENGINE = ROCKSDB;
+
+INSERT INTO t1 VALUES (1,1);
+
+# Disconnect connection 1, this starts the code path that will call
+# rocksdb_close_connection, ending the bulk load.
+--echo # Disconnecting on con1
+disconnect con1;
+
+--echo # Establish connection con2 (user=root)
+connect (con2,localhost,root,,);
+--echo # Switch to connection con2
+connection con2;
+
+# when alter table happens, it tries to close all other TABLE instances
+# when acquiring the exclusive lock for alter table (this happens in SQL layer)
+# make sure bulk_load now handles this possible race condition properly
+ALTER TABLE t1 ADD INDEX kj(j), ALGORITHM=INPLACE;
+
+SELECT COUNT(*) FROM t1 FORCE INDEX(PRIMARY);
+SELECT COUNT(*) FROM t1 FORCE INDEX(kj);
+
+DROP TABLE t1;
+disconnect con2;
+
+# make sure implicilty closing the alter from another session works
+
+--echo # Establish connection con1 (user=root)
+connect (con1,localhost,root,,);
+--echo # Establish connection con2 (user=root)
+connect (con2,localhost,root,,);
+
+--echo # Switch to connection con1
+connection con1;
+
+CREATE TABLE t1 (i INT, j INT, PRIMARY KEY (i)) ENGINE = ROCKSDB;
+
+set rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES (1,1);
+
+--echo # Switch to connection con2
+connection con2;
+
+# here, the bulk load hasn't been completed yet, and we are in conn2
+# therefore select count returns 0
+SELECT COUNT(*) FROM t1 FORCE INDEX(PRIMARY);
+
+# implicilty close the table from connection 2
+ALTER TABLE t1 ADD INDEX kj(j), ALGORITHM=INPLACE;
+
+SELECT COUNT(*) FROM t1 FORCE INDEX(PRIMARY);
+SELECT COUNT(*) FROM t1 FORCE INDEX(kj);
+
+set global rocksdb_bulk_load=0;
+
+DROP TABLE t1;
+
+connection default;
+
+
+SET @prior_rocksdb_merge_combine_read_size= @@rocksdb_merge_combine_read_size;
+SET @prior_rocksdb_strict_collation_check= @@rocksdb_strict_collation_check;
+SET @prior_rocksdb_merge_buf_size = @@rocksdb_merge_buf_size;
+
+SET global rocksdb_strict_collation_check = off;
+SET session rocksdb_merge_combine_read_size = 566;
+SET session rocksdb_merge_buf_size = 340;
+
+show variables like 'rocksdb_bulk_load%';
+CREATE TABLE t1 (a VARCHAR(80)) ENGINE=RocksDB;
+INSERT INTO t1 (a) VALUES (REPEAT("a", 80));
+INSERT INTO t1 (a) VALUES (REPEAT("a", 80));
+INSERT INTO t1 (a) VALUES (REPEAT("a", 80));
+INSERT INTO t1 (a) VALUES (REPEAT("a", 80));
+ALTER TABLE t1 ADD INDEX ka(a), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX(ka) WHERE a > "";
+DROP TABLE t1;
+
+SET session rocksdb_merge_buf_size = @prior_rocksdb_merge_buf_size;
+SET session rocksdb_merge_combine_read_size = @prior_rocksdb_merge_combine_read_size;
+SET global rocksdb_strict_collation_check = @prior_rocksdb_strict_collation_check;
+
+# Test to make sure index statistics are updating properly
+CREATE TABLE t1 (i INT, j INT, PRIMARY KEY (i)) ENGINE = ROCKSDB;
+
+--disable_query_log
+let $max = 100;
+let $i = 1;
+while ($i <= $max) {
+  let $insert = INSERT INTO t1 VALUES ($i, $i);
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+
+set global rocksdb_force_flush_memtable_now=1;
+
+--let $data_length_old = query_get_value("select INDEX_LENGTH from information_schema.tables where table_schema=database() and table_name='t1'", INDEX_LENGTH, 1)
+
+## uncomment to see the actual values
+#--replace_column 8 #
+#SHOW TABLE STATUS WHERE name LIKE 't1';
+
+# Now do an alter and see what happens
+ALTER TABLE t1 ADD INDEX kj(j), ALGORITHM=INPLACE;
+
+--let $data_length_new = query_get_value("select INDEX_LENGTH from information_schema.tables where table_schema=database() and table_name='t1'", INDEX_LENGTH, 1)
+--disable_query_log
+--eval select $data_length_old < $data_length_new as "larger"
+
+--source include/restart_mysqld.inc
+--source include/wait_until_connected_again.inc
+--let $data_length_new = query_get_value("select INDEX_LENGTH from information_schema.tables where table_schema=database() and table_name='t1'", INDEX_LENGTH, 1)
+--disable_query_log
+--eval select $data_length_old < $data_length_new as "larger"
+
+analyze table t1;
+--let $data_length_new = query_get_value("select INDEX_LENGTH from information_schema.tables where table_schema=database() and table_name='t1'", INDEX_LENGTH, 1)
+--disable_query_log
+--eval select $data_length_old < $data_length_new as "larger"
+
+--source include/restart_mysqld.inc
+--source include/wait_until_connected_again.inc
+--let $data_length_new = query_get_value("select INDEX_LENGTH from information_schema.tables where table_schema=database() and table_name='t1'", INDEX_LENGTH, 1)
+--disable_query_log
+--eval select $data_length_old < $data_length_new as "larger"
+
+# verifying multiple analyze table won't change stats
+--disable_query_log
+let $max = 10;
+let $i = 1;
+while ($i <= $max) {
+  let $analyze = ANALYZE TABLE t1;
+  inc $i;
+  eval $analyze;
+}
+--enable_query_log
+
+--let $data_length_new2 = query_get_value("select INDEX_LENGTH from information_schema.tables where table_schema=database() and table_name='t1'", INDEX_LENGTH, 1)
+--eval select $data_length_new2 < $data_length_new * 1.5 as "same"
+
+
+--enable_query_log
+
+## uncomment to see the actual values
+#--replace_column 8 #
+#SHOW TABLE STATUS WHERE name LIKE 't1';
+
+DROP TABLE t1;
+
+# https://github.com/facebook/mysql-5.6/issues/602
+# Add then drop same index should be optimized out.
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+c INT,
+KEY kbc(b,c)) ENGINE = ROCKSDB;
+INSERT INTO t1 (a,b,c) VALUES (1,1,1);
+INSERT INTO t1 (a,b,c) VALUES (2,2,2);
+INSERT INTO t1 (a,b,c) VALUES (3,3,3);
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 DROP INDEX kbc, ADD INDEX kbc(b,c), ALGORITHM=INPLACE;
+ALTER TABLE t1 DROP INDEX kbc;
+DROP TABLE t1;
+
+# Make sure changing key part prefix length causes index rebuild as well.
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b varchar(10),
+index kb(b(5))
+) ENGINE = ROCKSDB charset utf8 collate utf8_bin;
+
+INSERT INTO t1 (a,b) VALUES (1,'1111122222');
+INSERT INTO t1 (a,b) VALUES (2,'2222233333');
+INSERT INTO t1 (a,b) VALUES (3,'3333344444');
+
+--let $start_max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
+
+ALTER TABLE t1 DROP INDEX kb, ADD INDEX kb(b(8)), ALGORITHM=INPLACE;
+SELECT * FROM t1 FORCE INDEX(kb);
+
+--let $end_max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
+
+if ($end_max_index_id <= $start_max_index_id) {
+  echo Max index ID did not increase;
+}
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# Cardinality checks for indexes statistics
+SET @prior_rocksdb_table_stats_sampling_pct = @@rocksdb_table_stats_sampling_pct;
+set global rocksdb_table_stats_sampling_pct = 100;
+
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+
+INSERT INTO t1 (a, b) VALUES (1, 10);
+INSERT INTO t1 (a, b) VALUES (2, 10);
+INSERT INTO t1 (a, b) VALUES (3, 20);
+INSERT INTO t1 (a, b) VALUES (4, 20);
+
+set global rocksdb_force_flush_memtable_now=1;
+analyze table t1;
+
+SHOW INDEX in t1;
+
+ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
+SHOW INDEX in t1;
+
+DROP TABLE t1;
+SET global rocksdb_table_stats_sampling_pct = @prior_rocksdb_table_stats_sampling_pct;

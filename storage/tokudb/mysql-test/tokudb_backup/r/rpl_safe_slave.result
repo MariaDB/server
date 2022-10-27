@@ -1,0 +1,75 @@
+###
+# Master-slave test
+####
+include/rpl_init.inc [topology=1->2]
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+### Create temp table on master
+CREATE TEMPORARY TABLE t1 (a INT);
+include/sync_slave_sql_with_master.inc
+### Setup debug_sync points and prepare for slave backup
+SET SESSION debug="+d,debug_sync_abort_on_timeout";
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	1
+SET DEBUG_SYNC= 'tokudb_backup_wait_for_safe_slave_entered SIGNAL sse WAIT_FOR sse_continue';
+SET DEBUG_SYNC= 'tokudb_backup_wait_for_temp_tables_loop_begin SIGNAL ttlb WAIT_FOR ttlb_continue';
+SET DEBUG_SYNC= 'tokudb_backup_wait_for_temp_tables_loop_slave_started SIGNAL ttlss WAIT_FOR ttlss_continue EXECUTE 2';
+SET DEBUG_SYNC= 'tokudb_backup_wait_for_temp_tables_loop_end SIGNAL ttle WAIT_FOR ttle_continue';
+### Turn-on safe-slave option
+SET GLOBAL tokudb_backup_safe_slave=ON;
+SET GLOBAL tokudb_backup_safe_slave_timeout=30;
+### Start slave backup
+SET SESSION debug="+d,debug_sync_abort_on_timeout";
+### Wait for safe slave function to start
+SET DEBUG_SYNC = "now WAIT_FOR sse";
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	1
+### Wait for safe slave loop start
+SET DEBUG_SYNC = "now SIGNAL sse_continue WAIT_FOR ttlb";
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	1
+### Wait for safe thread loop point just after slave sql thread start 1
+SET DEBUG_SYNC = "now SIGNAL ttlb_continue WAIT_FOR ttlss";
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	1
+### Wait for safe thread loop end
+SET DEBUG_SYNC = "now SIGNAL ttlss_continue WAIT_FOR ttle";
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	1
+### Wait for safe thread loop point just after slave sql thread start 2
+SET DEBUG_SYNC = "now SIGNAL ttle_continue WAIT_FOR ttlss";
+### Drop temp table on master
+DROP TABLE t1;
+### and syncronize slave
+include/sync_slave_sql_with_master.inc
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	0
+### Continue backup
+SET DEBUG_SYNC = "now SIGNAL ttlss_continue";
+### Wait for backup finish
+include/filter_file.inc
+### Slave tokubackup_slave_info content:
+host: #.#.#.#, user: ####, port: ####, master log file: ####, relay log file: ####, exec master log pos: ####, executed gtid set: , channel name: 
+### Delete slave backup dir
+### Turn-off safe-slave option for slave
+SET GLOBAL tokudb_backup_safe_slave=default;
+SET GLOBAL tokudb_backup_safe_slave_timeout=default;
+### Turn-on safe-slave option for master
+SET GLOBAL tokudb_backup_safe_slave=ON;
+SET GLOBAL tokudb_backup_safe_slave_timeout=30;
+### Backup master
+### Turn-off safe-slave option for master
+SET GLOBAL tokudb_backup_safe_slave=default;
+SET GLOBAL tokudb_backup_safe_slave_timeout=default;
+include/filter_file.inc
+### Master tokubackup_binlog_info content:
+filename: ####, position: ####, gtid_mode: OFF, GTID of last change: 
+### Delete master backup dir
+include/rpl_end.inc

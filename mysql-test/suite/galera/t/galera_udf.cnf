@@ -1,0 +1,15 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+$UDF_EXAMPLE_LIB_OPT
+query_cache_type=1
+
+[mysqld.2]
+query_cache_type=1
+
+
+
+
+
+
+

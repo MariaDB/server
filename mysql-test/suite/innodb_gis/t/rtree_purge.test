@@ -1,0 +1,30 @@
+# This test case will test R-tree purge.
+
+--source include/innodb_page_size.inc
+--source include/have_sequence.inc
+--source include/not_valgrind.inc
+
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
+create table t (
+  b point not null,d point not null, spatial key (d),spatial key (b)
+) engine=innodb;
+
+--disable_query_log
+set @p=point(1,1);
+let $n=200;
+while ($n) {
+begin;
+insert into t select @p,@p from seq_1_to_130;
+delete from t;
+commit;
+dec $n;
+}
+--enable_query_log
+
+--source ../../innodb/include/wait_all_purged.inc
+
+# Clean up.
+drop table t;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

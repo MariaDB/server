@@ -1,0 +1,61 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+# Copyright(C) 2014 Kentoku SHIBA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+set @mroonga_log_level_backup=@@mroonga_log_level;
+show global variables like 'mroonga_log_level';
+
+set global mroonga_log_level=NONE;
+show global variables like 'mroonga_log_level';
+
+set global mroonga_log_level=EMERG;
+show global variables like 'mroonga_log_level';
+
+set global mroonga_log_level=ALERT;
+show global variables like 'mroonga_log_level';
+
+set global mroonga_log_level=CRIT;
+show global variables like 'mroonga_log_level';
+
+set global mroonga_log_level=ERROR;
+show global variables like 'mroonga_log_level';
+
+set global mroonga_log_level=WARNING;
+show global variables like 'mroonga_log_level';
+
+set global mroonga_log_level=NOTICE;
+show global variables like 'mroonga_log_level';
+
+set global mroonga_log_level=INFO;
+show global variables like 'mroonga_log_level';
+
+set global mroonga_log_level=DEBUG;
+show global variables like 'mroonga_log_level';
+
+set global mroonga_log_level=DUMP;
+show global variables like 'mroonga_log_level';
+
+--error ER_WRONG_VALUE_FOR_VAR
+set global mroonga_log_level=dummy;
+
+--error ER_GLOBAL_VARIABLE
+set session mroonga_log_level=NOTICE;
+
+set global mroonga_log_level=@mroonga_log_level_backup;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

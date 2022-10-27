@@ -1,0 +1,29 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-17363 Compressed columns cannot be restored from dump
+--echo # In sql_mode=ORACLE, COMPRESSED is still valid both as an SP label
+--echo # and an SP variable name.
+--echo #
+
+DELIMITER $$;
+BEGIN
+  IF TRUE THEN
+    GOTO compressed;
+  END IF;
+  SELECT 'This should not be reached' AS warn;
+<<compressed>>
+  BEGIN
+    SELECT 1 AS a;
+  END;
+END
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+DECLARE compressed INT DEFAULT 1;
+BEGIN
+  SELECT compressed;
+END
+$$
+DELIMITER ;$$

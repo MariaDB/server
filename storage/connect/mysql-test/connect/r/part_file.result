@@ -1,0 +1,343 @@
+set @@global.connect_exact_info=ON;
+# This will be used to see what data files are created
+CREATE TABLE dr1 (
+fname VARCHAR(256) NOT NULL FLAG=2,
+ftype CHAR(8) NOT NULL FLAG=3
+# ,FSIZE INT(6) NOT NULL FLAG=5  removed because Unix size != Windows size
+) engine=CONNECT table_type=DIR file_name='t1#P#*.*';
+#
+# Testing partitioning on inward table
+#
+CREATE TABLE t1 (
+id INT NOT NULL,
+msg VARCHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=10
+PARTITION BY RANGE(id) (
+PARTITION first VALUES LESS THAN(10),
+PARTITION middle VALUES LESS THAN(50),
+PARTITION last VALUES LESS THAN(MAXVALUE));
+INSERT INTO t1 VALUES(4, 'four'),(24, 'twenty four');
+INSERT INTO t1 VALUES(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one');
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+partition_name	table_rows
+first	2
+middle	3
+last	2
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+24	twenty four
+10	ten
+40	forty
+60	sixty
+81	eighty one
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id > 50;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	last	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT * FROM t1 WHERE id > 50;
+id	msg
+60	sixty
+81	eighty one
+UPDATE t1 set id = 41 WHERE msg = 'four';
+ERROR HY000: Got error 174 'Cannot update column id because it is used for partitioning' from CONNECT
+UPDATE t1 set msg = 'quatre' WHERE id = 4;
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+t1#P#first	.csv
+t1#P#last	.csv
+t1#P#middle	.csv
+#
+# Altering partitioning on inward table
+#
+ALTER TABLE t1
+PARTITION by range(id) (
+PARTITION first VALUES LESS THAN(11),
+PARTITION middle VALUES LESS THAN(50),
+PARTITION last VALUES LESS THAN(MAXVALUE));
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+partition_name	table_rows
+first	3
+middle	2
+last	2
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+t1#P#first	.csv
+t1#P#last	.csv
+t1#P#middle	.csv
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	first	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT * FROM t1 WHERE id=10;
+id	msg
+10	ten
+DELETE FROM t1 WHERE id in (4,60);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	ten
+24	twenty four
+40	forty
+81	eighty one
+DROP TABLE t1;
+#
+# Testing partitioning on a void outward table
+#
+ALTER TABLE dr1 FILE_NAME='part*.*';
+CREATE TABLE t1 (
+rwid INT(6) DEFAULT 0 SPECIAL=ROWID,
+rnum INT(6) DEFAULT 0 SPECIAL=ROWNUM,
+prtn VARCHAR(64) DEFAULT '' SPECIAL=PARTID,
+tbn  VARCHAR(64) DEFAULT '' SPECIAL=TABID,
+fid  VARCHAR(256) DEFAULT '' SPECIAL=FNAME,
+id   INT KEY NOT NULL,
+msg  VARCHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='part%s.txt';
+ALTER TABLE t1
+PARTITION by range columns(id) (
+PARTITION `1` VALUES LESS THAN(10),
+PARTITION `2` VALUES LESS THAN(50),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	id	A	NULL	NULL	NULL		XINDEX		
+INSERT INTO t1(id,msg) VALUES(4, 'four');
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+part1	.fnx
+part1	.txt
+INSERT INTO t1(id,msg) VALUES(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one');
+INSERT INTO t1(id,msg) VALUES(72,'seventy two'),(20,'twenty'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+partition_name	table_rows
+1	4
+2	4
+3	3
+SELECT * FROM t1;
+rwid	rnum	prtn	tbn	fid	id	msg
+1	1	1	t1	part1	4	four
+2	2	1	t1	part1	7	seven
+3	3	1	t1	part1	1	one
+4	4	1	t1	part1	8	eight
+1	1	2	t1	part2	10	ten
+2	2	2	t1	part2	40	forty
+3	3	2	t1	part2	20	twenty
+4	4	2	t1	part2	35	thirty five
+1	1	3	t1	part3	60	sixty
+2	2	3	t1	part3	81	eighty one
+3	3	3	t1	part3	72	seventy two
+SELECT * FROM t1 order by id;
+rwid	rnum	prtn	tbn	fid	id	msg
+3	3	1	t1	part1	1	one
+1	1	1	t1	part1	4	four
+2	2	1	t1	part1	7	seven
+4	4	1	t1	part1	8	eight
+1	1	2	t1	part2	10	ten
+3	3	2	t1	part2	20	twenty
+4	4	2	t1	part2	35	thirty five
+2	2	2	t1	part2	40	forty
+1	1	3	t1	part3	60	sixty
+3	3	3	t1	part3	72	seventy two
+2	2	3	t1	part3	81	eighty one
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	2	const	PRIMARY	PRIMARY	4	const	1	
+SELECT * FROM t1 WHERE id = 10;
+rwid	rnum	prtn	tbn	fid	id	msg
+1	1	2	t1	part2	10	ten
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id >= 40;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	2,3	range	PRIMARY	PRIMARY	4	NULL	4	Using where
+SELECT * FROM t1 WHERE id >= 40;
+rwid	rnum	prtn	tbn	fid	id	msg
+2	2	2	t1	part2	40	forty
+1	1	3	t1	part3	60	sixty
+3	3	3	t1	part3	72	seventy two
+2	2	3	t1	part3	81	eighty one
+SELECT count(*) FROM t1 WHERE id < 10;
+count(*)
+4
+SELECT case when id < 10 then 1 when id < 50 then 2 else 3 end as pn, count(*) FROM t1 group by pn;
+pn	count(*)
+1	4
+2	4
+3	3
+SELECT prtn, count(*) FROM t1 group by prtn;
+prtn	count(*)
+1	4
+2	4
+3	3
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id > 50;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	3	range	PRIMARY	PRIMARY	4	NULL	3	Using where
+SELECT * FROM t1 WHERE id = 35;
+rwid	rnum	prtn	tbn	fid	id	msg
+4	4	2	t1	part2	35	thirty five
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+part1	.fnx
+part1	.txt
+part2	.fnx
+part2	.txt
+part3	.fnx
+part3	.txt
+# This does not change the partition file data and is WRONG
+ALTER TABLE t1
+PARTITION by range columns(id) (
+PARTITION `1` VALUES LESS THAN(11),
+PARTITION `2` VALUES LESS THAN(70),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+Warnings:
+Warning	1105	Data repartition in 1 is unchecked
+Warning	1105	Data repartition in 2 is unchecked
+Warning	1105	Data repartition in 3 is unchecked
+SELECT CASE WHEN id < 11 THEN 1 WHEN id < 70 THEN 2 ELSE 3 END AS pn, COUNT(*) FROM t1 GROUP BY pn;
+pn	COUNT(*)
+1	5
+2	4
+3	2
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+partition_name	table_rows
+1	4
+2	4
+3	3
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+part1	.fnx
+part1	.txt
+part2	.fnx
+part2	.txt
+part3	.fnx
+part3	.txt
+#
+# This is the correct way to change partitioning:
+# Save table values, erase the table, then re-insert saved values in modified table
+#
+CREATE TABLE t2 (
+id INT NOT NULL,
+msg VARCHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=FIX;
+Warnings:
+Warning	1105	No file name. Table will use t2.fix
+INSERT INTO t2 SELECT id, msg FROM t1;
+DELETE FROM t1;
+INSERT INTO t1(id,msg) SELECT * FROM t2;
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+partition_name	table_rows
+1	5
+2	4
+3	2
+SELECT * FROM t1;
+rwid	rnum	prtn	tbn	fid	id	msg
+1	1	1	t1	part1	4	four
+2	2	1	t1	part1	7	seven
+3	3	1	t1	part1	1	one
+4	4	1	t1	part1	8	eight
+5	5	1	t1	part1	10	ten
+1	1	2	t1	part2	40	forty
+2	2	2	t1	part2	20	twenty
+3	3	2	t1	part2	35	thirty five
+4	4	2	t1	part2	60	sixty
+1	1	3	t1	part3	81	eighty one
+2	2	3	t1	part3	72	seventy two
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+part1	.fnx
+part1	.txt
+part2	.fnx
+part2	.txt
+part3	.fnx
+part3	.txt
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# Testing partitioning on a populated outward table
+#
+CREATE TABLE t1 (
+id   INT NOT NULL,
+msg  VARCHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='part%s.txt'
+PARTITION by range columns(id) (
+PARTITION `1` VALUES LESS THAN(11),
+PARTITION `2` VALUES LESS THAN(70),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+Warnings:
+Warning	1105	Data repartition in 1 is unchecked
+Warning	1105	Data repartition in 2 is unchecked
+Warning	1105	Data repartition in 3 is unchecked
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+partition_name	table_rows
+1	5
+2	4
+3	2
+SELECT * FROM t1 WHERE id < 11;
+id	msg
+4	four
+7	seven
+1	one
+8	eight
+10	ten
+SELECT * FROM t1 WHERE id >= 70;
+id	msg
+81	eighty one
+72	seventy two
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+part1	.fnx
+part1	.txt
+part2	.fnx
+part2	.txt
+part3	.fnx
+part3	.txt
+#
+# Testing indexing on a partitioned table
+#
+CREATE INDEX XID ON t1(id);
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	XID	1	id	A	NULL	NULL	NULL		XINDEX		
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+part1	.fnx
+part1	.txt
+part2	.fnx
+part2	.txt
+part3	.fnx
+part3	.txt
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	1	ref	XID	XID	4	const	1	
+DROP INDEX XID ON t1;
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+part1	.txt
+part2	.txt
+part3	.txt
+ALTER TABLE t1 ADD PRIMARY KEY (id);
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	id	A	NULL	NULL	NULL		XINDEX		
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+part1	.fnx
+part1	.txt
+part2	.fnx
+part2	.txt
+part3	.fnx
+part3	.txt
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	1	const	PRIMARY	PRIMARY	4	const	1	
+ALTER TABLE t1 DROP PRIMARY KEY;
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+SELECT * FROM dr1 ORDER BY fname, ftype;
+fname	ftype
+part1	.txt
+part2	.txt
+part3	.txt
+DROP TABLE t1;
+DROP TABLE dr1;
+set @@global.connect_exact_info=OFF;

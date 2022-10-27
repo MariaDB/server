@@ -1,0 +1,78 @@
+
+--source include/have_binlog_format_row.inc
+--source include/have_rocksdb.inc
+--source include/master-slave.inc
+--source include/have_gtid.inc
+--source include/not_valgrind.inc
+
+# This is a test case for issue#655 -- SingleDelete on Primary Key may
+# cause extra rows than Secondary Keys
+
+call mtr.add_suppression("Recovery from master pos");
+
+connection master;
+--disable_warnings
+drop table if exists r1;
+--enable_warnings
+create table r1 (id1 int, id2 int, primary key (id1, id2), index i (id2)) engine=rocksdb;
+insert into r1 values (1, 1000);
+
+sync_slave_with_master;
+connection slave;
+set global rocksdb_force_flush_memtable_now=1;
+--let slave_data_dir= query_get_value(SELECT @@DATADIR, @@DATADIR, 1)
+--let slave_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let slave_pid_file= query_get_value(SELECT @@pid_file, @@pid_file, 1)
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+
+--write_file $MYSQL_TMP_DIR/truncate_tail_binlog.sh
+#!/bin/bash
+
+F=$slave_data_dir/$slave_binlog_file
+SIZE=`stat -c %s $F`
+NEW_SIZE=`expr $SIZE - 100`
+truncate -s $NEW_SIZE $F
+rc=$?
+if [[ $rc != 0 ]]; then
+  exit 1
+fi
+
+kill -9 `head -1 $slave_pid_file`
+
+exit 0
+EOF
+--chmod 0755 $MYSQL_TMP_DIR/truncate_tail_binlog.sh
+--exec $MYSQL_TMP_DIR/truncate_tail_binlog.sh
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+
+# Crash recovery (losing some binlogs) with slave_use_idempotent_for_recovery may 
+# replay same transactions with slave_exec_mode=idempotent implicitly enabled.
+# On slave, the last insert is converted to update with the same key.
+# It should be treated as SD and Put (same as singledelete_idempotent_table.test).
+
+--source include/rpl_start_server.inc
+--source include/start_slave.inc
+
+# Due to the binlogs being truncated, the slave may still think it's processed up to
+# the truncated binlog and select master_pos_wait() can return prematurely. Add
+# a new transaction to the master to force master_pos_wait() to wait.
+connection master;
+insert into r1 values (2,2000);
+sync_slave_with_master;
+
+connection slave;
+delete r1 from r1 force index (i) where id2=1000;
+select id1,id2 from r1 force index (primary) where id1=1 and id2=1000;
+select id2 from r1 force index (i) where id1=1 and id2=1000;
+set global rocksdb_compact_cf='default';
+select id1,id2 from r1 force index (primary) where id1=1 and id2=1000;
+select id2 from r1 force index (i) where id1=1 and id2=1000;
+
+connection master;
+drop table r1;
+
+--remove_file $MYSQL_TMP_DIR/truncate_tail_binlog.sh
+--source include/rpl_end.inc
+
+

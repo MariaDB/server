@@ -1,0 +1,39 @@
+SET @start_value = @@global.slave_ddl_exec_mode;
+SELECT @@global.slave_ddl_exec_mode;
+@@global.slave_ddl_exec_mode
+IDEMPOTENT
+SELECT @@slave_ddl_exec_mode = @@GLOBAL.slave_ddl_exec_mode;
+@@slave_ddl_exec_mode = @@GLOBAL.slave_ddl_exec_mode
+1
+1 Expected
+SELECT COUNT(@@slave_ddl_exec_mode);
+COUNT(@@slave_ddl_exec_mode)
+1
+1 Expected
+SELECT COUNT(@@local.slave_ddl_exec_mode);
+ERROR HY000: Variable 'slave_ddl_exec_mode' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT COUNT(@@SESSION.slave_ddl_exec_mode);
+ERROR HY000: Variable 'slave_ddl_exec_mode' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT COUNT(@@GLOBAL.slave_ddl_exec_mode);
+COUNT(@@GLOBAL.slave_ddl_exec_mode)
+1
+1 Expected
+SELECT slave_ddl_exec_mode = @@SESSION.version;
+ERROR 42S22: Unknown column 'slave_ddl_exec_mode' in 'field list'
+Expected error 'Readonly variable'
+SET @@GLOBAL.slave_ddl_exec_mode=STRICT;
+SELECT @@GLOBAL.slave_ddl_exec_mode;
+@@GLOBAL.slave_ddl_exec_mode
+STRICT
+SET @@GLOBAL.slave_ddl_exec_mode=IDEMPOTENT;
+SELECT @@GLOBAL.slave_ddl_exec_mode;
+@@GLOBAL.slave_ddl_exec_mode
+IDEMPOTENT
+SET @@GLOBAL.slave_ddl_exec_mode=XXX;
+ERROR 42000: Variable 'slave_ddl_exec_mode' can't be set to the value of 'XXX'
+SELECT @@GLOBAL.slave_ddl_exec_mode;
+@@GLOBAL.slave_ddl_exec_mode
+IDEMPOTENT
+SET @@global.slave_ddl_exec_mode= @start_value;

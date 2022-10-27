@@ -1,0 +1,45 @@
+#--source include/innodb_page_size.inc
+
+CREATE TABLE t1(c1 INT, b CHAR(20)) ENGINE=INNODB PAGE_COMPRESSED=1;
+
+DELIMITER //;
+CREATE PROCEDURE innodb_insert_proc (REPEAT_COUNT INT)
+BEGIN
+  DECLARE CURRENT_NUM INT;
+  SET CURRENT_NUM = 0;
+  WHILE CURRENT_NUM < REPEAT_COUNT DO
+    INSERT INTO t1 VALUES(CURRENT_NUM,'TESTING..');
+    SET CURRENT_NUM = CURRENT_NUM + 1;
+  END WHILE;
+END//
+DELIMITER ;//
+COMMIT;
+
+SET AUTOCOMMIT=0;
+CALL innodb_insert_proc(5000);
+COMMIT;
+
+SELECT (VARIABLE_VALUE >= 0) AS HAVE_COMPRESSED_PAGES
+  FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+  WHERE VARIABLE_NAME = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
+
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables=test.*1" --target-dir=$targetdir;
+echo # xtrabackup prepare;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffix=.1 --prepare --export --target-dir=$targetdir;
+--enable_result_log
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+let $MYSQLD_DATADIR= `select @@datadir`;
+copy_file $targetdir/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd;
+copy_file $targetdir/test/t1.cfg $MYSQLD_DATADIR/test/t1.cfg;
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SELECT COUNT(*) FROM t1;
+
+DROP PROCEDURE innodb_insert_proc;
+DROP TABLE t1;
+rmdir $targetdir;

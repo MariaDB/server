@@ -1,0 +1,48 @@
+--source include/have_rocksdb.inc
+
+##############################################################################
+## SKIP LOCKED | NOWAIT are *not* supported for SELECT...FOR UPDATE in RocksDB
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (a int primary key) engine=rocksdb;
+
+insert into t1 values (1), (2), (3);
+
+### SKIP LOCKED
+
+--echo Should succeed since no table gets involved
+select 1 for update skip locked;
+
+--error ER_NO_SUCH_TABLE
+select * from nonexistence for update skip locked;
+
+--error ER_ILLEGAL_HA
+select * from t1 for update skip locked;
+
+--error ER_ILLEGAL_HA
+select * from t1 where a > 1 and a < 3 for update skip locked;
+
+--error ER_ILLEGAL_HA
+insert into t1 select * from t1 for update skip locked;
+
+### NOWAIT
+
+--echo Should succeed since no table gets involved
+select 1 for update nowait;
+
+--error ER_NO_SUCH_TABLE
+select * from nonexistence for update nowait;
+
+--error ER_ILLEGAL_HA
+select * from t1 for update nowait;
+
+--error ER_ILLEGAL_HA
+select * from t1 where a > 1 and a < 3 for update nowait;
+
+--error ER_ILLEGAL_HA
+insert into t1 select * from t1 for update nowait;
+
+drop table t1;

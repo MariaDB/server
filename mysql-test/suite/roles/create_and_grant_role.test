@@ -1,0 +1,21 @@
+source include/not_embedded.inc;
+
+create role r1;
+grant r1 to root@localhost;
+create user u1;
+set role r1;
+
+grant r1 to u1;
+--sorted_result
+select * from mysql.roles_mapping;
+
+drop user u1;
+--sorted_result
+select * from mysql.roles_mapping;
+--sorted_result
+show grants;
+drop role r1;
+--sorted_result
+select * from mysql.roles_mapping;
+--sorted_result
+show grants;

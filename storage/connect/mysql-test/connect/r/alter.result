@@ -1,0 +1,274 @@
+#
+# Testing indexing with ALTER on inward table (in-place)
+#
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use t1.dos
+INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
+SELECT * FROM t1;
+c	d
+1	One
+2	Two
+3	Three
+CREATE INDEX xc ON t1(c);
+DESCRIBE SELECT * FROM t1 WHERE c = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	xc	xc	4	const	1	
+DROP INDEX xc ON t1;
+CREATE INDEX xd ON t1(d);
+DROP INDEX xd ON t1;
+ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
+ALTER TABLE t1 DROP INDEX xc, DROP INDEX xd;
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+#
+# Testing modifying columns inward table (not in-place)
+#
+ALTER TABLE t1 MODIFY COLUMN c CHAR(5) NOT NULL;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(5) NOT NULL,
+  `d` char(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+c	d
+1	One
+2	Two
+3	Three
+ALTER TABLE t1 MODIFY COLUMN c INT NOT NULL;
+#
+# Fails because indexing must be in-place
+#
+ALTER TABLE t1 MODIFY COLUMN c CHAR(10) NOT NULL, ADD INDEX xd (d);
+ERROR 0A000: Alter operations not supported together by CONNECT
+#
+# Testing changing table type (not in-place)
+#
+ALTER TABLE t1 TABLE_TYPE=CSV HEADER=1 QUOTED=1;
+SELECT * FROM t1;
+c	d
+1	One
+2	Two
+3	Three
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) NOT NULL,
+  `d` char(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=CSV `HEADER`=1 `QUOTED`=1
+# create an outward table used to see the t1 file
+CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.csv';
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+SELECT * FROM t2;
+line
+"c","d"
+1,"One"
+2,"Two"
+3,"Three"
+#
+# Testing changing engine
+#
+DROP TABLE t1;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use t1.dos
+INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
+ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
+ALTER TABLE t1 ENGINE = MYISAM;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) NOT NULL,
+  `d` char(10) NOT NULL,
+  KEY `xc` (`c`),
+  KEY `xd` (`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	xc	1	c	A	NULL	NULL	NULL		BTREE		
+t1	1	xd	1	d	A	NULL	NULL	NULL		BTREE		
+SELECT * FROM t1;
+c	d
+1	One
+2	Two
+3	Three
+ALTER TABLE t1 ENGINE = CONNECT TABLE_TYPE=DBF;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) NOT NULL,
+  `d` char(10) NOT NULL,
+  KEY `xc` (`c`),
+  KEY `xd` (`d`)
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
+SELECT * FROM t1;
+c	d
+1	One
+2	Two
+3	Three
+DROP TABLE t1, t2;
+#
+# Testing ALTER on outward tables
+#
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='tf1.txt' ENDING=1;
+INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
+SELECT * FROM t1;
+c	d
+1	One
+2	Two
+3	Three
+CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='tf1.txt';
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+SELECT * FROM t2;
+line
+          1One
+          2Two
+          3Three
+#
+# Indexing works the same
+#
+ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
+SELECT d FROM t1 WHERE c = 2;
+d
+Two
+ALTER TABLE t1 DROP INDEX xc, DROP INDEX xd;
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+#
+# Other alterations do not modify the file
+#
+ALTER TABLE t1 MODIFY COLUMN c CHAR(5) NOT NULL;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
+SELECT * FROM t2;
+line
+          1One
+          2Two
+          3Three
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(5) NOT NULL,
+  `d` char(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+SELECT * FROM t1;
+ERROR HY000: Got error 174 'File tf1.txt is not fixed length, len=66 lrecl=16' from CONNECT
+ALTER TABLE t1 MODIFY COLUMN c INT NOT NULL;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
+#
+# Changing column order
+#
+ALTER TABLE t1 MODIFY COLUMN c INT NOT NULL AFTER d;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
+SELECT * FROM t2;
+line
+          1One
+          2Two
+          3Three
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` char(10) NOT NULL,
+  `c` int(11) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+# Wrong result
+SELECT * FROM t1;
+d	c
+	1
+	2
+	3
+ALTER TABLE t1 MODIFY COLUMN c INT NOT NULL FIRST;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
+# What should have been done
+ALTER TABLE t1 MODIFY c INT NOT NULL FLAG=0 AFTER d, MODIFY d CHAR(10) NOT NULL FLAG=11;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` char(10) NOT NULL `FLAG`=11,
+  `c` int(11) NOT NULL `FLAG`=0
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+SELECT * FROM t1;
+d	c
+One	1
+Two	2
+Three	3
+#
+# Changing to another engine is Ok
+# However, the data file is not deleted.
+#
+ALTER TABLE t1 ENGINE=ARIA;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` char(10) NOT NULL /* `FLAG`=11 */,
+  `c` int(11) NOT NULL /* `FLAG`=0 */
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 /* `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1 */
+set @old_sql_mode=@@sql_mode;
+set sql_mode=ignore_bad_table_options;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` char(10) NOT NULL `FLAG`=11,
+  `c` int(11) NOT NULL `FLAG`=0
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+set sql_mode=@old_sql_mode;
+SELECT * from t1;
+d	c
+One	1
+Two	2
+Three	3
+SELECT * from t2;
+line
+          1One
+          2Two
+          3Three
+#
+# Changing back to CONNECT fails
+# Sure enough, the data file was not deleted.
+#
+ALTER TABLE t1 ENGINE=CONNECT;
+ERROR HY000: Operation denied. Table data would be modified.
+#
+# But changing back to CONNECT succeed
+# if the data file does not exist.
+#
+ALTER TABLE t1 ENGINE=CONNECT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` char(10) NOT NULL `FLAG`=11,
+  `c` int(11) NOT NULL `FLAG`=0
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+SELECT * from t1;
+d	c
+One	1
+Two	2
+Three	3
+SELECT * from t2;
+line
+          1One
+          2Two
+          3Three
+DROP TABLE t1, t2;

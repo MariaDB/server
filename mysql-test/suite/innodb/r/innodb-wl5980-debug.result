@@ -1,0 +1,27 @@
+call mtr.add_suppression("Cannot find space id [0-9]+ in the tablespace memory cache");
+call mtr.add_suppression("Cannot rename table 'test/t1' to 'test/t2' since the dictionary cache already contains 'test/t2'.");
+#
+# WL5980 Remote tablespace debug error injection tests.
+#
+CREATE TABLE t1 (a int KEY, b text) ENGINE=Innodb DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir' ;
+INSERT INTO t1 VALUES (1, 'tablespace');
+SELECT * FROM t1;
+a	b
+1	tablespace
+#
+# Test the second injection point in fil_rename_tablespace().
+# Make sure the table is useable after this failure.
+#
+SET @save_dbug=@@debug_dbug;
+SET debug_dbug="+d,fil_rename_tablespace_failure_2";
+RENAME TABLE t1 TO t2;
+SET debug_dbug=@save_dbug;
+INSERT INTO t1 VALUES (2, 'tablespace');
+SELECT * FROM t1;
+a	b
+1	tablespace
+2	tablespace
+#
+# Cleanup
+#
+DROP TABLE t1;

@@ -1,0 +1,710 @@
+create or replace table t1 (
+x int unsigned,
+y int unsigned,
+sys_trx_start SYS_DATATYPE as row start invisible,
+sys_trx_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning;
+insert into t1 (x, y) values
+(0, 100),
+(1, 101),
+(2, 102),
+(3, 103),
+(4, 104),
+(5, 105),
+(6, 106),
+(7, 107),
+(8, 108),
+(9, 109);
+set @t0= now(6);
+delete from t1 where x = 3;
+delete from t1 where x > 7;
+insert into t1(x, y) values(3, 33);
+select sys_trx_start from t1 where x = 3 and y = 33 into @t1;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select x, y from t1;
+x	y
+0	100
+1	101
+2	102
+4	104
+5	105
+6	106
+7	107
+3	33
+select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
+ASOF_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+select x as FROMTO_x, y from t1 for system_time from timestamp '1970-01-01 00:00:00' to timestamp @t1;
+FROMTO_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+select x as BETWAND_x, y from t1 for system_time between timestamp '1970-01-01 00:00:00' and timestamp @t1;
+BETWAND_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+3	33
+select x as ALL_x, y from t1 for system_time all;
+ALL_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+3	33
+ASOF2_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+FROMTO2_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+BETWAND2_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+3	33
+create or replace table t1 (
+x int unsigned,
+y int unsigned
+) with system versioning;
+create or replace table t2 (
+x int unsigned,
+y int unsigned
+) with system versioning;
+insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
+insert into t2 values (1, 2), (2, 1), (3, 1);
+set @t0= now(6);
+select t1.x as IJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x;
+IJ1_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+select t1.x as LJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x;
+LJ1_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+4	4	NULL	NULL
+5	5	NULL	NULL
+select t1.x as RJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x;
+RJ1_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+NULL	NULL	2	1
+NULL	NULL	3	1
+delete from t1;
+delete from t2;
+explain extended select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`x` AS `IJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` join `test`.`t2` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` where `test`.`t1`.`x` = `test`.`t2`.`x` and `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0` and `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`
+explain extended select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`x` AS `LJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` left join `test`.`t2` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` on(`test`.`t2`.`x` = `test`.`t1`.`x` and `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0`) where `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`
+explain extended select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`x` AS `RJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t2` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` left join `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` on(`test`.`t1`.`x` = `test`.`t2`.`x` and `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`) where `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0`
+select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+IJ2_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+LJ2_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+4	4	NULL	NULL
+5	5	NULL	NULL
+select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+RJ2_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+NULL	NULL	2	1
+NULL	NULL	3	1
+drop table t1;
+drop table t2;
+create or replace table t1(x int) with system versioning;
+insert into t1 values (1);
+delete from t1;
+insert into t1 values (2);
+delete from t1;
+insert into t1 values (3);
+delete from t1;
+select row_start into @start1 from t1 for system_time all where x = 1;
+select row_end into @end1 from t1 for system_time all where x = 1;
+select row_start into @start2 from t1 for system_time all where x = 2;
+select row_end into @end2 from t1 for system_time all where x = 2;
+select row_start into @start3 from t1 for system_time all where x = 3;
+select row_end into @end3 from t1 for system_time all where x = 3;
+select x as ASOF_x from t1 for system_time as of @start2;
+ASOF_x
+2
+select x as ASOF_x from t1 for system_time as of @end2;
+ASOF_x
+select x as FROMTO_x from t1 for system_time from @start1 to @end3;
+FROMTO_x
+1
+2
+3
+select x as FROMTO_x from t1 for system_time from @end1 to @start2;
+FROMTO_x
+select x as BETWAND_x from t1 for system_time between @start1 and @end3;
+BETWAND_x
+1
+2
+3
+select x as BETWAND_x from t1 for system_time between @end1 and @start2;
+BETWAND_x
+2
+drop table t1;
+create table t1(
+A int
+) with system versioning;
+insert into t1 values(1);
+select * from t1;
+A
+1
+create or replace table t1 (x int);
+insert into t1 values (1);
+select * from t1 for system_time all;
+ERROR HY000: Table `t1` is not system-versioned
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 for system_time all for update;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+create or replace table t1 (a int not null auto_increment primary key) with system versioning;
+select * from (t1 as t2 left join t1 as t3 using (a)) natural left join t1;
+a
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (a int) with system versioning;
+insert into t1 values(1);
+insert into t2 values(1);
+create view v1 as select * from t2 inner join t1 using (a);
+select * from v1;
+a
+1
+drop view v1;
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create view vt1 as select a from t1;
+select * from t1 natural join vt1;
+a
+1
+drop view vt1;
+create or replace table t1(x int) with system versioning;
+select * from (t1 as r left join t1 as u using (x)), t1;
+x	x
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create trigger read_end after update on t1
+for each row set @end = old.row_end;
+update t1 set a=2;
+select @end;
+@end
+MAX_RESULT
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (b int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+select * from (select * from t1 cross join t2) as tmp;
+a	b
+1	2
+select * from (select * from (select * from t1 cross join t2) as tmp1) as tmp2;
+a	b
+1	2
+select * from (select * from t1 cross join t2 for system_time as of timestamp ('1970-01-01 00:00:00')) as tmp;
+a	b
+create or replace table t1(a1 int) with system versioning;
+create or replace table t2(a2 int) with system versioning;
+insert into t1 values(1),(2);
+insert into t2 values(1),(2);
+select * from t1 for system_time all natural left join t2 for system_time all;
+a1	a2
+1	1
+2	1
+1	2
+2	2
+create or replace table t1(a1 int) with system versioning;
+create or replace table t2(a2 int) with system versioning;
+insert into t1 values(1),(2);
+insert into t2 values(1),(2);
+create or replace view v1 as select a1 from t1;
+select * from v1 natural join t2;
+a1	a2
+1	1
+2	1
+1	2
+2	2
+select * from v1 natural left join t2;
+a1	a2
+1	1
+2	1
+1	2
+2	2
+select * from v1 natural right join t2;
+a2	a1
+1	1
+2	1
+1	2
+2	2
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+insert into t1 values (2);
+insert into t1 values (3);
+explain extended
+select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a` from `test`.`t1` left join (`test`.`t1` `t2` left join `test`.`t1` `t3` on(`test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t3`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999')) on(`test`.`t2`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999' and `test`.`t1`.`a` > 1) where `test`.`t1`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
+select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
+a	a
+2	1
+3	1
+2	2
+3	2
+2	3
+3	3
+1	NULL
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int) with system versioning;
+insert into t1 values (1), (2), (3);
+delete from t1 where x = 3;
+insert into t2 values (1);
+select * from t1, t2 for system_time all;
+x	y
+1	1
+2	1
+select * from (select * from t1 for system_time all, t2 for system_time all)
+for system_time all as t;
+ERROR HY000: Table `t` is not system-versioned
+# TRANSACTION/TIMESTAMP specifier in SYSTEM_TIME [MDEV-14645, Issue #396]
+create or replace table t1 (x int) with system versioning engine myisam;
+select * from t1 for system_time as of transaction 1;
+ERROR HY000: Transaction-precise system versioning for `t1` is not supported
+# MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+create or replace procedure sp()
+select * from t1 for system_time as of transaction 1;
+call sp;
+ERROR HY000: Transaction-precise system versioning for `t1` is not supported
+call sp;
+ERROR HY000: Transaction-precise system versioning for `t1` is not supported
+create or replace table t1 (a int);
+create or replace procedure sp()
+select * from t1 for system_time all;
+call sp;
+ERROR HY000: Table `t1` is not system-versioned
+call sp;
+ERROR HY000: Table `t1` is not system-versioned
+drop procedure sp;
+create or replace table t1 (
+x int,
+sys_trx_start bigint unsigned as row start invisible,
+sys_trx_end bigint unsigned as row end invisible,
+period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
+insert into t1 values (1);
+set @ts= now(6);
+delete from t1;
+select sys_trx_start from t1 for system_time all into @trx_start;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+## ensure @trx_start is much lower than unix timestamp
+select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
+trx_start_good
+1
+## TIMESTAMP specifier
+select x from t1 for system_time as of timestamp @ts;
+x
+1
+set @ts= timestamp'1-1-1 0:0:0';
+select x from t1 for system_time as of timestamp @ts;
+x
+## TRANSACTION specifier
+select x from t1 for system_time as of transaction @trx_start;
+x
+1
+## no specifier (auto-detection)
+select x from t1 for system_time as of @ts;
+x
+select x from t1 for system_time as of @trx_start;
+x
+1
+### Issue #365, bug 4 (related to #226, optimized fields)
+create or replace table t1 (i int, b int) with system versioning;
+insert into t1 values (0, 0), (0, 0);
+select min(i) over (partition by b) as f
+from (select i + 0 as i, b from t1) as tt
+order by i;
+f
+0
+0
+### Issue #365, bug 5 (dangling AND)
+create or replace table t1 (a int);
+create or replace table t2 (b int) with system versioning;
+select * from t1
+where exists (select 1 from t2 where t2.b = t1.a and t2.b = t1.a);
+a
+### Issue #365, bug 9 (not a derived subquery)
+create or replace table t1 (x int) with system versioning;
+select t1.x in (select x from t1) a from t1, (select x from t1) b;
+a
+### Issue #365, bug 10 (WHERE cond freed prematurely for PS)
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+create or replace view v1 as select x from t1 where x = 1;
+prepare stmt from "
+select x from t1 where x in (select x from v1);";
+execute stmt;
+x
+1
+execute stmt;
+x
+1
+### Issue #365, bug 11 (WHERE cond not top level item)
+create or replace table t1 (a int, b int,  key idx(a)) with system versioning;
+insert into t1 values (1, 1), (2, 2);
+select * from t1 where (a, 2) in ((1, 1), (2, 2)) and b = 1;
+a	b
+### Issue #398, NOW is now non-magic
+create or replace table t1 (x int) with system versioning;
+select * from t1 for system_time as of current_timestamp;
+x
+select * from t1 for system_time as of now;
+ERROR 42S22: Unknown column 'now' in 'FOR SYSTEM_TIME'
+### Issue #405, NATURAL JOIN failure
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (b int);
+create or replace view v1 as select a, row_start, row_end from t1 where a > round(rand()*1000);
+select * from v1 natural join t2;
+a	row_start	row_end	b
+#
+# Issue #406, MDEV-14633 Assertion on TRT read
+#
+create or replace table t1 (pk int primary key, i int, t time, key (i)) with system versioning;
+insert into t1 values (1, 10, '15:01:53'), (2, 20, '00:00:00');
+delete from t1;
+select * from t1 where t = '00:00:00' and i > 0 and row_end <> '2012-12-12 00:00:00';
+pk	i	t
+#
+# MDEV-14816 Assertion `join->best_read < double(1.797...e+308L)' failed in bool greedy_search
+#
+create or replace table t1 (f1 int) with system versioning;
+create or replace table t2 (f2 int) with system versioning;
+create or replace table t3 (f3 int);
+create or replace table t4 (f4 int);
+insert into t1 values (1), (2), (3), (4);
+insert into t2 values (1), (2), (3);
+insert into t3 values (1), (2);
+insert into t4 values (1);
+select * from
+t1 as t1a
+left join t2 as t2a left join (t3 as t3a inner join t1) on t2a.f2 = t3a.f3  on t1a.f1 = t2a.f2
+left join (t2 join t3 inner join t4) on t2a.f2 = t1a.f1;
+f1	f2	f3	f1	f2	f3	f4
+1	1	1	1	1	1	1
+2	2	2	1	1	1	1
+1	1	1	2	1	1	1
+2	2	2	2	1	1	1
+1	1	1	3	1	1	1
+2	2	2	3	1	1	1
+1	1	1	4	1	1	1
+2	2	2	4	1	1	1
+1	1	1	1	1	2	1
+2	2	2	1	1	2	1
+1	1	1	2	1	2	1
+2	2	2	2	1	2	1
+1	1	1	3	1	2	1
+2	2	2	3	1	2	1
+1	1	1	4	1	2	1
+2	2	2	4	1	2	1
+1	1	1	1	2	1	1
+2	2	2	1	2	1	1
+1	1	1	2	2	1	1
+2	2	2	2	2	1	1
+1	1	1	3	2	1	1
+2	2	2	3	2	1	1
+1	1	1	4	2	1	1
+2	2	2	4	2	1	1
+1	1	1	1	2	2	1
+2	2	2	1	2	2	1
+1	1	1	2	2	2	1
+2	2	2	2	2	2	1
+1	1	1	3	2	2	1
+2	2	2	3	2	2	1
+1	1	1	4	2	2	1
+2	2	2	4	2	2	1
+1	1	1	1	3	1	1
+2	2	2	1	3	1	1
+1	1	1	2	3	1	1
+2	2	2	2	3	1	1
+1	1	1	3	3	1	1
+2	2	2	3	3	1	1
+1	1	1	4	3	1	1
+2	2	2	4	3	1	1
+1	1	1	1	3	2	1
+2	2	2	1	3	2	1
+1	1	1	2	3	2	1
+2	2	2	2	3	2	1
+1	1	1	3	3	2	1
+2	2	2	3	3	2	1
+1	1	1	4	3	2	1
+2	2	2	4	3	2	1
+3	3	NULL	NULL	1	1	1
+3	3	NULL	NULL	1	2	1
+3	3	NULL	NULL	2	1	1
+3	3	NULL	NULL	2	2	1
+3	3	NULL	NULL	3	1	1
+3	3	NULL	NULL	3	2	1
+4	NULL	NULL	NULL	NULL	NULL	NULL
+#
+# MDEV-15004 parser greedily parses AS OF TIMESTAMP
+#
+select timestamp'2016-02-30 08:07:06';
+ERROR HY000: Incorrect DATETIME value: '2016-02-30 08:07:06'
+select * from t1 for system_time as of timestamp'2016-02-30 08:07:06';
+ERROR HY000: Incorrect DATETIME value: '2016-02-30 08:07:06'
+select timestamp('2003-12-31 12:00:00','12:00:00');
+timestamp('2003-12-31 12:00:00','12:00:00')
+2004-01-01 00:00:00
+select * from t1 for system_time as of timestamp('2003-12-31 12:00:00','12:00:00');
+f1
+#
+# MDEV-15391 Server crashes in JOIN::fix_all_splittings_in_plan or Assertion `join->best_read < double(1.79...e+308L)' failed [tempesta-tech#475]
+#
+create or replace table t1 (f1 int) with system versioning;
+insert t1 values (1),(2);
+create or replace table t2 (f2 int);
+create or replace table t3 (f3 int);
+create or replace table t4 (f4 int) with system versioning;
+select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
+f1
+insert t2 values (1),(2);
+insert t3 values (1),(2);
+insert t4 values (1),(2);
+explain extended
+select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`f1` AS `f1` from `test`.`t1` join `test`.`t2` left join (`test`.`t3` left join `test`.`t4` on(`test`.`t4`.`f4` = `test`.`t2`.`f2` and `test`.`t4`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999')) on(`test`.`t3`.`f3` = `test`.`t2`.`f2`) where `test`.`t1`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
+drop view v1;
+drop table t1, t2, t3, t4;
+#
+# MDEV-15980 FOR SYSTEM_TIME BETWEEN and FROM .. TO work with negative intervals
+#
+create or replace table t1 (
+a int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t1 values (1);
+delete from t1;
+select row_start from t1 for system_time all into @t1;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select row_end from t1 for system_time all into @t2;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select * from t1 for system_time between @t1 and @t2;
+a
+1
+select * from t1 for system_time between @t2 and @t1;
+a
+select * from t1 for system_time from @t1 to @t2;
+a
+1
+select * from t1 for system_time from @t2 to @t1;
+a
+drop table t1;
+#
+# MDEV-15991 Server crashes in setup_on_expr upon calling SP or function executing DML on versioned tables
+#
+create or replace table t1 (i int);
+insert into t1 values (1);
+create or replace procedure p(n int)
+begin
+select * from t1;
+end $
+call p(1);
+i
+1
+alter table t1 add system versioning;
+call p(2);
+i
+1
+call p(3);
+i
+1
+#
+# MDEV-15947 ASAN heap-use-after-free in Item_ident::print or in my_strcasecmp_utf8 or unexpected ER_BAD_FIELD_ERROR upon call of stored procedure reading from versioned table
+#
+create or replace table t1 (i int) with system versioning;
+create or replace procedure p() select * from t1;
+call p;
+i
+flush tables;
+call p;
+i
+call p;
+i
+drop procedure p;
+drop table t1;
+#
+# MDEV-21234 Server crashes in in setup_on_expr upon 3rd execution of SP
+#
+create table t1 (a varchar(8));
+insert into t1 values ('foo'),('bar');
+create table t2 (b date);
+create procedure pr() insert into t2 select * from t1;
+call pr;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+prepare stmt from 'insert into t2 select * from t1';
+execute stmt;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+alter table t1 add system versioning;
+call pr;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+call pr;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+execute stmt;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+execute stmt;
+ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
+drop prepare stmt;
+drop procedure pr;
+drop table t1, t2;
+#
+# MDEV-23799 CREATE .. SELECT wrong result on join versioned table
+#
+create or replace table x (id Int) with system versioning;
+create or replace table x_p (elementId Int, pkey varchar(20), pvalue varchar(20)) with system versioning;
+insert into x values (1), (2), (3);
+insert into x_p values (1, 'gender', 'male');
+insert into x_p values (2, 'gender', 'female');
+insert into x_p values (3, 'gender', 'male');
+create table tmp1
+select xgender.pvalue as gender, xtitle.pvalue as title
+from x
+left join x_p as xgender on x.id = xgender.elementId and xgender.pkey = 'gender'
+    left join x_p as xtitle on x.id = xtitle.elementId and xtitle.pkey = 'title';
+select * from tmp1;
+gender	title
+male	NULL
+female	NULL
+male	NULL
+drop table tmp1;
+drop tables x, x_p;
+call verify_trt_dummy(34);
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+3	1	1	1	1
+4	1	1	1	1
+5	1	1	1	1
+6	1	1	1	1
+7	1	1	1	1
+8	1	1	1	1
+9	1	1	1	1
+10	1	1	1	1
+11	1	1	1	1
+12	1	1	1	1
+13	1	1	1	1
+14	1	1	1	1
+15	1	1	1	1
+16	1	1	1	1
+17	1	1	1	1
+18	1	1	1	1
+19	1	1	1	1
+20	1	1	1	1
+21	1	1	1	1
+22	1	1	1	1
+23	1	1	1	1
+24	1	1	1	1
+25	1	1	1	1
+26	1	1	1	1
+27	1	1	1	1
+28	1	1	1	1
+29	1	1	1	1
+30	1	1	1	1
+31	1	1	1	1
+32	1	1	1	1
+33	1	1	1	1
+34	1	1	1	1

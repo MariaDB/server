@@ -1,0 +1,3 @@
+source include/have_ssl_crypto_functs.inc;
+--exec $MYSQL --protocol=tcp --host=127.0.0.1 --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl --ssl-verify-server-cert -e "select 1"
+--exec $MYSQL --protocol=tcp --host=localhost --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl --ssl-verify-server-cert -e "select 1"

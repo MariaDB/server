@@ -1,0 +1,14 @@
+-- source jdbconn.inc
+-- source mongo.inc
+
+--disable_query_log
+eval SET GLOBAL connect_class_path='$MTR_SUITE_DIR/std_data/Mongo3.jar';
+set connect_json_all_path=0;
+--enable_query_log
+let $DRV= Java;
+let $VERS= 3;
+let $TYPE= JSON;
+let $CONN= CONNECTION='mongodb://localhost:27017' LRECL=4096;
+
+-- source mongo_test.inc
+-- source jdbconn_cleanup.inc

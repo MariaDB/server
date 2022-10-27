@@ -1,0 +1,95 @@
+#
+# Test the behavior of a Galera async slave if it goes non-prim. Async replication
+# should abort with an error but it should be possible to restart it.
+#
+# The galera/galera_2node_slave.cnf describes the setup of the nodes
+#
+
+--source include/have_innodb.inc
+--source include/big_test.inc
+--source include/galera_cluster.inc
+
+# Step #1. Establish replication
+#
+# As node 4 is not a Galera node, and galera_cluster.inc does not open connetion to it
+# we open the node_4 connection here
+--connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
+
+
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_4, MASTER_USER='root';
+--enable_query_log
+START SLAVE;
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_4
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+--sleep 1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+# Step #2. Force async slave to go non-primary
+
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+
+--connection node_1
+--source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Step #3. Force async replication to fail by creating a replication event while the slave is non-prim
+
+--connection node_4
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+
+--connection node_2
+--sleep 5
+
+--let $value = query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1)
+--connection node_1
+--disable_query_log
+--eval SELECT "$value" IN ("Error 'Unknown command' on query. Default database: 'test'. Query: 'BEGIN'", "Node has dropped from cluster") AS expected_error
+--enable_query_log
+
+# Step #4. Bring back the async slave and restart replication
+--connection node_2
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+
+--connection node_1
+--source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+--source include/wait_until_ready.inc
+--source include/wait_until_connected_again.inc
+
+START SLAVE;
+
+# Confirm that the replication events have arrived
+
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_4
+DROP TABLE t1;
+
+--sleep 2
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+STOP SLAVE;
+RESET SLAVE ALL;
+
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown command' on query");
+CALL mtr.add_suppression("Slave: Unknown command Error_code: 1047");
+CALL mtr.add_suppression("Transport endpoint is not connected");
+CALL mtr.add_suppression("Slave SQL: Error in Xid_log_event: Commit could not be completed, 'Deadlock found when trying to get lock; try restarting transaction', Error_code: 1213");
+CALL mtr.add_suppression("Slave SQL: Node has dropped from cluster, Error_code: 1047");
+
+--connection node_4
+RESET MASTER;

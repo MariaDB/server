@@ -1,0 +1,105 @@
+--source include/have_innodb.inc
+# This is the test case for bug #53756. Alter table operation could
+# leave a deleted record for the temp table (later renamed to the altered
+# table) in the SYS_TABLES secondary index, we should ignore this row and
+# find the first non-deleted row for the specified table_id when load table
+# metadata in the function dict_load_table_on_id() during crash recovery.
+
+#
+# The embedded server test does not support restarting.
+--source include/not_embedded.inc
+
+#
+# Create test data.
+#
+CREATE TABLE bug_53756 (pk INT, c1 INT) ENGINE=InnoDB;
+ALTER TABLE bug_53756 ADD PRIMARY KEY (pk);
+INSERT INTO bug_53756 VALUES(1, 11), (2, 22), (3, 33), (4, 44);
+
+--echo
+--echo # Select a less restrictive isolation level.
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+COMMIT;
+
+--echo
+--echo # Start a transaction in the default connection for isolation.
+START TRANSACTION;
+SELECT @@tx_isolation;
+SELECT * FROM bug_53756;
+
+--connect (con1,localhost,root,,)
+START TRANSACTION;
+SELECT @@tx_isolation;
+DELETE FROM bug_53756 WHERE pk=1;
+
+--connect (con2,localhost,root,,)
+START TRANSACTION;
+SELECT @@tx_isolation;
+DELETE FROM bug_53756 WHERE pk=2;
+
+--connect (con3,localhost,root,,)
+START TRANSACTION;
+SELECT @@tx_isolation;
+UPDATE bug_53756 SET c1=77 WHERE pk=3;
+
+--connect (con4,localhost,root,,)
+START TRANSACTION;
+SELECT @@tx_isolation;
+UPDATE bug_53756 SET c1=88 WHERE pk=4;
+
+--connect (con5,localhost,root,,)
+START TRANSACTION;
+SELECT @@tx_isolation;
+INSERT INTO bug_53756 VALUES(5, 55);
+
+--connect (con6,localhost,root,,)
+START TRANSACTION;
+SELECT @@tx_isolation;
+INSERT INTO bug_53756 VALUES(6, 66);
+
+--connection con1
+COMMIT;
+
+--connection con3
+COMMIT;
+
+--connection con4
+ROLLBACK;
+
+--connection con6
+ROLLBACK;
+
+--echo
+--echo # The connections 2 and 5 stay open.
+
+--echo
+--echo # Delete of row 1 was committed.
+--echo # Update of row 3 was committed.
+--echo # Due to isolation level read committed, these should be included.
+--echo # All other changes should not be included.
+--connection default
+SELECT * FROM bug_53756;
+
+START TRANSACTION;
+INSERT INTO bug_53756 VALUES (666,666);
+
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+--disconnect con1
+--disconnect con2
+--disconnect con3
+--disconnect con4
+--disconnect con5
+--disconnect con6
+
+--echo #
+--echo # Select recovered data.
+--echo # Delete of row 1 was committed.
+--echo # Update of row 3 was committed.
+--echo # These should be included.
+--echo # All other changes should not be included.
+--echo # Delete of row 2 and insert of row 5 should be rolled back
+SELECT * FROM bug_53756;
+
+DROP TABLE bug_53756;

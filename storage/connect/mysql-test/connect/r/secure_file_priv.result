@@ -1,0 +1,8 @@
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='DATADIR/t1.dbf';
+ERROR HY000: The MariaDB server is running with the --secure-file-priv option so it cannot execute this statement
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='SECUREDATADIR/t1.dbf';
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+a
+10
+DROP TABLE t1;

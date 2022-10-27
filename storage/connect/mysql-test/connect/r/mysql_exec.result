@@ -1,0 +1,76 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE connect;
+connection slave;
+CREATE DATABASE connect;
+#
+# Checking Sending Commands
+#
+connection master;
+CREATE TABLE t1 (
+command VARCHAR(128) NOT NULL,
+warnings INT(4) NOT NULL FLAG=3,
+number INT(5) NOT NULL FLAG=1,
+message VARCHAR(255) FLAG=2)
+ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test' OPTION_LIST='Execsrc=1,maxerr=2';
+SELECT * FROM t1 WHERE command IN ('Warning','Note',
+'drop table if exists t1',
+'create table t1 (id int key auto_increment, msg varchar(32) not null)',
+"insert into t1(msg) values('One'),(NULL),('Three')",
+"insert into t1 values(2,'Deux') on duplicate key update msg = 'Two'",
+"insert into t1(message) values('Four'),('Five'),('Six')",
+'insert ignore into t1(id) values(NULL)',
+"update t1 set msg = 'Four' where id = 4",
+'select * from t1');
+command	warnings	number	message
+drop table if exists t1	1	0	Affected rows
+Note	0	1051	Unknown table 'test.t1'
+create table t1 (id int key auto_increment, msg varchar(32) not null)	0	0	Affected rows
+insert into t1(msg) values('One'),(NULL),('Three')	1	3	Affected rows
+Warning	0	1048	Column 'msg' cannot be null
+insert into t1 values(2,'Deux') on duplicate key update msg = 'Two'	0	2	Affected rows
+insert into t1(message) values('Four'),('Five'),('Six')	0	1054	Remote: Unknown column 'message' in 'field list'
+insert ignore into t1(id) values(NULL)	1	1	Affected rows
+Warning	0	1364	Field 'msg' doesn't have a default value
+update t1 set msg = 'Four' where id = 4	0	1	Affected rows
+select * from t1	0	2	Result set columns
+Warnings:
+Warning	1105	Result set columns
+#
+# Checking Using Procedure
+#
+DROP PROCEDURE IF EXISTS p1;
+Warnings:
+Note	1305	PROCEDURE test.p1 does not exist
+CREATE PROCEDURE p1(cmd varchar(512))
+READS SQL DATA
+SELECT * FROM t1 WHERE command IN ('Warning','Note',cmd);
+CALL p1('insert ignore into t1(id) values(NULL)');
+command	warnings	number	message
+insert ignore into t1(id) values(NULL)	1	1	Affected rows
+Warning	0	1364	Field 'msg' doesn't have a default value
+Warnings:
+Warning	1105	Affected rows
+CALL p1('update t1 set msg = "Five" where id = 5');
+command	warnings	number	message
+update t1 set msg = "Five" where id = 5	0	1	Affected rows
+Warnings:
+Warning	1105	Affected rows
+DROP PROCEDURE p1;
+DROP TABLE t1;
+connection slave;
+SELECT * FROM t1;
+id	msg
+1	One
+2	Two
+3	Three
+4	Four
+5	Five
+DROP TABLE t1;
+connection master;
+DROP TABLE IF EXISTS connect.t1;
+DROP DATABASE IF EXISTS connect;
+connection slave;
+DROP TABLE IF EXISTS connect.t1;
+DROP DATABASE IF EXISTS connect;

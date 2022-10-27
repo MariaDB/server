@@ -1,0 +1,85 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(0);
+INSERT INTO valid_values VALUES(4);
+INSERT INTO valid_values VALUES(2);
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+INSERT INTO invalid_values VALUES('\'bbb\'');
+INSERT INTO invalid_values VALUES('\'-1\'');
+INSERT INTO invalid_values VALUES('\'101\'');
+INSERT INTO invalid_values VALUES('\'484436\'');
+SET @start_global_value = @@global.ROCKSDB_STATS_LEVEL;
+SELECT @start_global_value;
+@start_global_value
+0
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_STATS_LEVEL to 0"
+SET @@global.ROCKSDB_STATS_LEVEL   = 0;
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_STATS_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+0
+"Trying to set variable @@global.ROCKSDB_STATS_LEVEL to 4"
+SET @@global.ROCKSDB_STATS_LEVEL   = 4;
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+4
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_STATS_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+0
+"Trying to set variable @@global.ROCKSDB_STATS_LEVEL to 2"
+SET @@global.ROCKSDB_STATS_LEVEL   = 2;
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+2
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_STATS_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+0
+"Trying to set variable @@session.ROCKSDB_STATS_LEVEL to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_STATS_LEVEL   = 444;
+ERROR HY000: Variable 'rocksdb_stats_level' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_STATS_LEVEL to 'aaa'"
+SET @@global.ROCKSDB_STATS_LEVEL   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+0
+"Trying to set variable @@global.ROCKSDB_STATS_LEVEL to 'bbb'"
+SET @@global.ROCKSDB_STATS_LEVEL   = 'bbb';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+0
+"Trying to set variable @@global.ROCKSDB_STATS_LEVEL to '-1'"
+SET @@global.ROCKSDB_STATS_LEVEL   = '-1';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+0
+"Trying to set variable @@global.ROCKSDB_STATS_LEVEL to '101'"
+SET @@global.ROCKSDB_STATS_LEVEL   = '101';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+0
+"Trying to set variable @@global.ROCKSDB_STATS_LEVEL to '484436'"
+SET @@global.ROCKSDB_STATS_LEVEL   = '484436';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+0
+SET @@global.ROCKSDB_STATS_LEVEL = @start_global_value;
+SELECT @@global.ROCKSDB_STATS_LEVEL;
+@@global.ROCKSDB_STATS_LEVEL
+0
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

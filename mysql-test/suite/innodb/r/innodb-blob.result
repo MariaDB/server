@@ -1,0 +1,164 @@
+FLUSH TABLES;
+CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY, b TEXT, c TEXT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,REPEAT('a',30000)),(2,REPEAT('b',40000));
+SET DEBUG_SYNC='before_row_upd_extern SIGNAL have_latch WAIT_FOR go1';
+BEGIN;
+UPDATE t1 SET a=a+2;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET b=CONCAT(b,'foo');
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC='now WAIT_FOR have_latch';
+SELECT a, RIGHT(b,20) FROM t1;
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC='now SIGNAL go1';
+connection con1;
+a	RIGHT(b,20)
+1	aaaaaaaaaaaaaaaaaaaa
+2	bbbbbbbbbbbbbbbbbbbb
+connection default;
+SET DEBUG='+d,row_ins_extern_checkpoint';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_SYNC='before_row_ins_extern_latch SIGNAL rec_not_blob WAIT_FOR crash';
+ROLLBACK;
+BEGIN;
+INSERT INTO t1 VALUES (3,REPEAT('c',50000));
+connection con1;
+SET DEBUG_SYNC='now WAIT_FOR rec_not_blob';
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT @@tx_isolation;
+@@tx_isolation
+READ-UNCOMMITTED
+SELECT a, RIGHT(b,20) FROM t1;
+a	RIGHT(b,20)
+1	aaaaaaaaaaaaaaaaaaaa
+2	bbbbbbbbbbbbbbbbbbbb
+SELECT a FROM t1;
+a
+1
+2
+3
+BEGIN;
+INSERT INTO t2 VALUES (42);
+# restart
+disconnect con1;
+disconnect con2;
+connection default;
+ERROR HY000: Lost connection to MySQL server during query
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+INSERT INTO t3 VALUES
+(1,REPEAT('d',7000),REPEAT('e',100)),
+(2,REPEAT('g',7000),REPEAT('h',100));
+SET DEBUG_SYNC='blob_write_middle SIGNAL go_sel WAIT_FOR go_upd';
+UPDATE t3 SET c=REPEAT('f',3000) WHERE a=1;
+# Connection con1:
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC='now WAIT_FOR go_sel';
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT @@tx_isolation;
+@@tx_isolation
+READ-UNCOMMITTED
+SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
+a	RIGHT(b,20)	RIGHT(c,20)
+2	gggggggggggggggggggg	hhhhhhhhhhhhhhhhhhhh
+set debug_sync='now SIGNAL go_upd';
+# Connection default:
+connection default;
+# reap UPDATE t3 SET c=REPEAT('f',3000) WHERE a=1;
+# Connection con1:
+connection con1;
+SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
+a	RIGHT(b,20)	RIGHT(c,20)
+1	dddddddddddddddddddd	ffffffffffffffffffff
+2	gggggggggggggggggggg	hhhhhhhhhhhhhhhhhhhh
+disconnect con1;
+connection default;
+CHECK TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+connect  con2,localhost,root,,;
+BEGIN;
+INSERT INTO t2 VALUES (347);
+connection default;
+SET DEBUG='+d,row_upd_extern_checkpoint';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_SYNC='before_row_upd_extern SIGNAL have_latch WAIT_FOR crash';
+UPDATE t3 SET c=REPEAT('i',3000) WHERE a=2;
+connection con2;
+SET DEBUG_SYNC='now WAIT_FOR have_latch';
+SELECT info FROM information_schema.processlist
+WHERE state = 'debug sync point: before_row_upd_extern';
+info
+UPDATE t3 SET c=REPEAT('i',3000) WHERE a=2
+connect  con3,localhost,root,,;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1;
+ROLLBACK;
+disconnect con3;
+connection con2;
+# restart
+disconnect con2;
+connection default;
+ERROR HY000: Lost connection to MySQL server during query
+CHECK TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
+a	RIGHT(b,20)	RIGHT(c,20)
+1	dddddddddddddddddddd	ffffffffffffffffffff
+2	gggggggggggggggggggg	hhhhhhhhhhhhhhhhhhhh
+SELECT a FROM t3;
+a
+1
+2
+connect  con2,localhost,root,,;
+BEGIN;
+INSERT INTO t2 VALUES (33101);
+connection default;
+SET DEBUG='+d,row_upd_extern_checkpoint';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET DEBUG_SYNC='after_row_upd_extern SIGNAL have_latch WAIT_FOR crash';
+UPDATE t3 SET c=REPEAT('j',3000) WHERE a=2;
+connection con2;
+SET DEBUG_SYNC='now WAIT_FOR have_latch';
+SELECT info FROM information_schema.processlist
+WHERE state = 'debug sync point: after_row_upd_extern';
+info
+UPDATE t3 SET c=REPEAT('j',3000) WHERE a=2
+# restart
+disconnect con2;
+connection default;
+ERROR HY000: Lost connection to MySQL server during query
+CHECK TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+SELECT a, RIGHT(b,20), RIGHT(c,20) FROM t3;
+a	RIGHT(b,20)	RIGHT(c,20)
+1	dddddddddddddddddddd	ffffffffffffffffffff
+2	gggggggggggggggggggg	hhhhhhhhhhhhhhhhhhhh
+SELECT a FROM t3;
+a
+1
+2
+SELECT * FROM t2;
+a
+DROP TABLE t1,t2,t3;
+CREATE TABLE t1(f1 INT PRIMARY KEY, f2 TEXT)ENGINE=InnoDB
+ROW_FORMAT=REDUNDANT;
+SET @fill_amount = (@@innodb_page_size / 2 ) + 1 ;
+INSERT INTO t1 VALUES(1, REPEAT(2, @fill_amount));
+UPDATE t1 SET f1 = 2;
+DROP TABLE t1;

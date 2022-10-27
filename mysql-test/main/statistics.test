@@ -1,0 +1,1012 @@
+--source include/have_stat_tables.inc
+--source include/have_innodb.inc
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+set @save_use_stat_tables=@@use_stat_tables;
+set @save_histogram_size=@@global.histogram_size;
+set @@global.histogram_size=0,@@local.histogram_size=0;
+set @save_hist_type=@@histogram_type;
+set histogram_type='single_prec_hb';
+
+DELETE FROM mysql.table_stats;
+--sorted_result
+DELETE FROM mysql.column_stats;
+--sorted_result
+DELETE FROM mysql.index_stats;  
+   
+set use_stat_tables='preferably';
+
+CREATE TABLE t1 (
+  a int NOT NULL PRIMARY KEY,
+  b varchar(32),
+  c char(16),
+  d date,
+  e double,
+  f bit(3),
+  INDEX idx1 (b, e), 
+  INDEX idx2 (c, d),
+  INDEX idx3 (d),
+  INDEX idx4 (e, b, d)
+) ENGINE= MYISAM;
+
+INSERT INTO t1 VALUES
+  (0, NULL, NULL, NULL, NULL, NULL),
+  (7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'dddddddd', '1990-05-15', 0.1, b'100'),
+  (17, 'vvvvvvvvvvvvv', 'aaaa', '1989-03-12', 0.01, b'101'),
+  (1, 'vvvvvvvvvvvvv', NULL, '1989-03-12', 0.01, b'100'),
+  (12, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1999-07-23', 0.112, b'001'),
+  (23, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.1, b'100'),
+  (8, 'vvvvvvvvvvvvv', 'aaaa', '1999-07-23', 0.1, b'100'),
+  (22, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'aaaa', '1989-03-12', 0.112, b'001'),
+  (31, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'aaaa', '1999-07-23', 0.01, b'001'),
+  (10, NULL, 'aaaa', NULL, 0.01, b'010'),
+  (5, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1999-07-23', 0.1, b'100'),
+  (15, 'vvvvvvvvvvvvv', 'ccccccccc', '1990-05-15', 0.1, b'010'),
+  (30, NULL, 'bbbbbb', NULL, NULL, b'100'),
+  (38, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', NULL, NULL, NULL),
+  (18, 'zzzzzzzzzzzzzzzzzz', 'ccccccccc', '1990-05-15', 0.01, b'010'),
+  (9, 'yyy', 'bbbbbb', '1998-08-28', 0.01, NULL),
+  (29, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.012, b'010'),
+  (3, 'yyy', 'dddddddd',  '1990-05-15', 0.112, b'010'),
+  (39, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', NULL, 0.01, b'100'),
+  (14, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'ccccccccc', '1990-05-15', 0.1, b'100'),
+  (40, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', '1989-03-12', NULL, NULL),
+  (44, NULL, 'aaaa', '1989-03-12', NULL, b'010'),
+  (19, 'vvvvvvvvvvvvv', 'ccccccccc', '1990-05-15', 0.012, b'011'),
+  (21, 'zzzzzzzzzzzzzzzzzz', 'dddddddd', '1989-03-12', 0.112, b'100'),
+  (45, NULL, NULL, '1989-03-12', NULL, b'011'),
+  (2, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'ccccccccc', '1990-05-15', 0.1, b'001'),
+  (35, 'yyy', 'aaaa', '1990-05-15', 0.05, b'011'),
+  (4, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.01, b'101'),
+  (47, NULL, 'aaaa', '1990-05-15', 0.05, b'010'),
+  (42, NULL, 'ccccccccc', '1989-03-12', 0.01, b'010'),
+  (32, NULL, 'bbbbbb', '1990-05-15', 0.01, b'011'),
+  (49, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww' , 'aaaa', '1990-05-15', NULL, NULL),
+  (43, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww' , 'bbbbbb', '1990-05-15', NULL, b'100'),
+  (37, 'yyy', NULL, '1989-03-12', 0.05, b'011'),
+  (41, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'ccccccccc', '1990-05-15', 0.05, NULL),
+  (34, 'yyy', NULL, NULL, NULL, NULL),
+  (33, 'zzzzzzzzzzzzzzzzzz', 'dddddddd', '1989-03-12', 0.05, b'011'),
+  (24,  'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1990-05-15', 0.01,  b'101'),
+  (11, 'yyy', 'ccccccccc', '1999-07-23', 0.1, NULL),
+  (25, 'zzzzzzzzzzzzzzzzzz', 'bbb', '1989-03-12', 0.01,  b'101');
+
+ANALYZE TABLE t1;
+
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
+
+SELECT COUNT(*) FROM t1;
+
+SELECT * FROM mysql.column_stats
+  WHERE db_name='test' AND table_name='t1' AND column_name='a';
+SELECT MIN(t1.a), MAX(t1.a), 
+       (SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
+       (SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.a)",
+       (SELECT COUNT(t1.a) FROM t1) /
+       (SELECT COUNT(DISTINCT t1.a) FROM t1) AS "AVG_FREQUENCY(t1.a)"
+FROM t1;
+
+SELECT * FROM mysql.column_stats
+  WHERE db_name='test' AND table_name='t1' AND column_name='b';
+SELECT MIN(t1.b), MAX(t1.b), 
+       (SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
+       (SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.b)",
+       (SELECT COUNT(t1.b) FROM t1) /
+       (SELECT COUNT(DISTINCT t1.b) FROM t1) AS "AVG_FREQUENCY(t1.b)"
+FROM t1;
+
+SELECT * FROM mysql.column_stats 
+  WHERE db_name='test' AND table_name='t1' AND column_name='c';
+SELECT MIN(t1.c), MAX(t1.c), 
+       (SELECT COUNT(*) FROM t1 WHERE t1.c IS NULL) /
+       (SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.c)",
+       (SELECT COUNT(t1.c) FROM t1) /
+       (SELECT COUNT(DISTINCT t1.c) FROM t1) AS "AVG_FREQUENCY(t1.c)"
+FROM t1;
+
+SELECT * FROM mysql.column_stats
+  WHERE db_name='test' AND table_name='t1' AND column_name='d';
+SELECT MIN(t1.d), MAX(t1.d), 
+       (SELECT COUNT(*) FROM t1 WHERE t1.d IS NULL) /
+       (SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.d)",
+       (SELECT COUNT(t1.d) FROM t1) /
+       (SELECT COUNT(DISTINCT t1.d) FROM t1) AS "AVG_FREQUENCY(t1.d)"
+FROM t1;
+
+SELECT * FROM mysql.column_stats
+  WHERE db_name='test' AND table_name='t1' AND column_name='e';
+SELECT MIN(t1.e), MAX(t1.e), 
+       (SELECT COUNT(*) FROM t1 WHERE t1.e IS NULL) /
+       (SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.e)",
+       (SELECT COUNT(t1.e) FROM t1) /
+       (SELECT COUNT(DISTINCT t1.e) FROM t1) AS "AVG_FREQUENCY(t1.e)"
+FROM t1;
+
+SELECT * FROM mysql.index_stats
+  WHERE db_name='test' AND table_name='t1' AND index_name='idx1';
+SELECT 
+  (SELECT COUNT(*) FROM t1 WHERE t1.b IS NOT NULL) /
+  (SELECT COUNT(DISTINCT t1.b) FROM t1 WHERE t1.b IS NOT NULL)
+  AS 'ARITY 1',
+  (SELECT COUNT(*) FROM t1 WHERE t1.b IS NOT NULL AND t1.e IS NOT NULL) /
+  (SELECT COUNT(DISTINCT t1.b, t1.e) FROM t1
+     WHERE t1.b IS NOT NULL AND t1.e IS NOT NULL) 
+  AS 'ARITY 2';
+
+SELECT * FROM mysql.index_stats
+  WHERE db_name='test' AND table_name='t1' AND index_name='idx2';
+SELECT 
+  (SELECT COUNT(*) FROM t1 WHERE t1.c IS NOT NULL) /
+  (SELECT COUNT(DISTINCT t1.c) FROM t1 WHERE t1.c IS NOT NULL) 
+  AS 'ARITY 1',
+  (SELECT COUNT(*) FROM t1 WHERE t1.c IS NOT NULL AND t1.d IS NOT NULL) /
+  (SELECT COUNT(DISTINCT t1.c, t1.d) FROM t1
+     WHERE t1.c IS NOT NULL AND t1.d IS NOT NULL)
+  AS 'ARITY 2';
+
+SELECT * FROM mysql.index_stats
+  WHERE db_name='test' AND table_name='t1' AND index_name='idx3';
+SELECT 
+  (SELECT COUNT(*) FROM t1 WHERE t1.d IS NOT NULL) /
+  (SELECT COUNT(DISTINCT t1.d) FROM t1 WHERE t1.d IS NOT NULL)
+  AS 'ARITY 1';
+
+SELECT * FROM mysql.index_stats
+  WHERE db_name='test' AND table_name='t1' AND index_name='idx4';
+SELECT 
+  (SELECT COUNT(*) FROM t1 WHERE t1.e IS NOT NULL) /
+  (SELECT COUNT(DISTINCT t1.e) FROM t1 WHERE t1.e IS NOT NULL)
+  AS 'ARITY 1',
+  (SELECT COUNT(*) FROM t1 WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL) /
+  (SELECT COUNT(DISTINCT t1.e, t1.b) FROM t1
+         WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL)
+  AS 'ARITY 2',
+  (SELECT COUNT(*) FROM t1
+     WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL AND t1.d IS NOT NULL) /  
+  (SELECT COUNT(DISTINCT t1.e, t1.b, t1.d) FROM t1
+     WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL AND t1.d IS NOT NULL)
+  AS 'ARITY 3';
+
+
+DELETE FROM mysql.column_stats;
+
+set histogram_size=4;
+ANALYZE TABLE t1;
+
+--sorted_result
+SELECT db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+DELETE FROM mysql.column_stats;
+
+set histogram_size=8;
+set histogram_type='DOUBLE_PREC_HB';
+ANALYZE TABLE t1;
+
+--sorted_result
+SELECT db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+DELETE FROM mysql.column_stats;
+
+set histogram_size= 0;
+set histogram_type='single_prec_hb';
+ANALYZE TABLE t1;
+
+
+CREATE TABLE t3 (
+  a int NOT NULL PRIMARY KEY,
+  b varchar(32),
+  c char(16),
+  INDEX idx (c)
+) ENGINE=MYISAM;
+
+INSERT INTO t3 VALUES
+  (0, NULL, NULL),
+  (7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'dddddddd'),
+  (17, 'vvvvvvvvvvvvv', 'aaaa'),
+  (1, 'vvvvvvvvvvvvv', NULL),
+  (12, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd'),
+  (23, 'vvvvvvvvvvvvv', 'dddddddd'),
+  (8, 'vvvvvvvvvvvvv', 'aaaa'),
+  (22, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'aaaa'),
+  (31, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'aaaa'),
+  (10, NULL, 'aaaa'),
+  (5, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd'),
+  (15, 'vvvvvvvvvvvvv', 'ccccccccc'),
+  (30, NULL, 'bbbbbb'),
+  (38, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb'),
+  (18, 'zzzzzzzzzzzzzzzzzz', 'ccccccccc'),
+  (9, 'yyy', 'bbbbbb'),
+  (29, 'vvvvvvvvvvvvv', 'dddddddd');
+
+ANALYZE TABLE t3;
+
+--sorted_result
+SELECT * FROM mysql.table_stats;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+ALTER TABLE t1 RENAME TO s1;
+--sorted_result
+SELECT * FROM mysql.table_stats;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+RENAME TABLE s1 TO t1;
+--sorted_result
+SELECT * FROM mysql.table_stats;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+DROP TABLE t3;
+SELECT * FROM mysql.table_stats;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+
+CREATE TEMPORARY TABLE t0 (
+  a int NOT NULL PRIMARY KEY,
+  b varchar(32)
+);
+INSERT INTO t0 SELECT a,b FROM t1;
+
+ALTER TABLE t1 CHANGE COLUMN b x varchar(32), 
+               CHANGE COLUMN e y double;
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+
+ALTER TABLE t1 CHANGE COLUMN x b varchar(32), 
+               CHANGE COLUMN y e double;
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+
+ALTER TABLE t1 RENAME TO s1, CHANGE COLUMN b x varchar(32);
+SHOW CREATE TABLE s1;
+SELECT * FROM mysql.table_stats;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+ 
+ALTER TABLE s1 RENAME TO t1, CHANGE COLUMN x b varchar(32);
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.table_stats;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx4);
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval
+SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_column_stats'
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
+  FROM mysql.column_stats WHERE column_name='b';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval
+SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_index_stats'
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
+  FROM mysql.index_stats WHERE index_name IN ('idx1', 'idx4');
+
+ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval
+LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/save_column_stats'
+  INTO TABLE mysql.column_stats
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval
+LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/save_index_stats'
+  INTO TABLE mysql.index_stats
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+remove_file $MYSQLTEST_VARDIR/tmp/save_column_stats;
+remove_file $MYSQLTEST_VARDIR/tmp/save_index_stats;
+
+
+ALTER TABLE t1 DROP COLUMN b;
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+DROP INDEX idx2 ON t1;
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+DROP INDEX idx1 ON t1;
+DROP INDEX idx4 ON t1;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 ADD COLUMN b varchar(32);
+CREATE INDEX idx1 ON t1(b, e);
+CREATE INDEX idx2 ON t1(c, d);
+CREATE INDEX idx4 ON t1(e, b, d);
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+UPDATE t1 SET b=(SELECT b FROM t0 WHERE t0.a= t1.a);
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+ALTER TABLE t1 DROP COLUMN b,
+               DROP INDEX idx1, DROP INDEX idx2, DROP INDEX idx4;
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+ALTER TABLE t1 ADD COLUMN b varchar(32);
+ALTER TABLE t1 
+  ADD INDEX idx1 (b, e), ADD INDEX idx2 (c, d), ADD INDEX idx4 (e, b, d);
+UPDATE t1 SET b=(SELECT b FROM t0 WHERE t0.a= t1.a);
+SHOW CREATE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES();
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(c,e,b) INDEXES(idx2,idx4);
+SELECT * FROM mysql.table_stats;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+DELETE FROM mysql.index_stats WHERE table_name='t1' AND index_name='primary';
+--sorted_result
+SELECT * FROM mysql.index_stats;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES(primary);
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
+
+SELECT * FROM mysql.table_stats;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 ENGINE=InnoDB;
+INSERT INTO t2 SELECT * FROM t1;
+
+set optimizer_switch='extended_keys=off';
+
+ANALYZE TABLE t2;
+
+--sorted_result
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats ORDER BY column_name, table_name;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+
+set optimizer_switch='extended_keys=on';
+
+ANALYZE TABLE t2;
+
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats ORDER BY column_name;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ALTER TABLE t2 DROP PRIMARY KEY, DROP INDEX idx1;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+UPDATE t2 SET b=0 WHERE b IS NULL;
+ALTER TABLE t2 ADD PRIMARY KEY (a,b);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ALTER TABLE t2 CHANGE COLUMN b b varchar(30);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ALTER TABLE t2 CHANGE COLUMN b b varchar(32);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ALTER TABLE t2 DROP COLUMN b, DROP PRIMARY KEY, ADD PRIMARY KEY(a);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+set optimizer_switch='extended_keys=off';
+
+ALTER TABLE t1
+  DROP INDEX idx1,
+  DROP INDEX idx4;
+ALTER TABLE t1
+  MODIFY COLUMN b text,
+  ADD INDEX idx1 (b(4), e), 
+  ADD INDEX idx4 (e, b(4), d);
+  
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+ANALYZE TABLE t1;
+
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+
+ANALYZE TABLE mysql.column_stats PERSISTENT FOR ALL;
+
+ANALYZE TABLE mysql.column_stats;
+
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
+
+set use_stat_tables='never';  
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SELECT * FROM mysql.table_stats;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+--sorted_result
+SELECT * FROM mysql.index_stats;
+
+
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES();
+ANALYZE TABLE t1 PERSISTENT FOR columns(a,b) INDEXES();
+ANALYZE TABLE t1 PERSISTENT FOR columns(b) indexes(idx2);
+ANALYZE TABLE t1 PERSISTENT FOR columns() indexes(idx2);
+
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+
+
+DROP TABLE t1,t2;
+
+set names utf8;
+
+CREATE DATABASE world;
+
+use world;
+
+--source include/world_schema_utf8.inc
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/world.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+set use_stat_tables='preferably';
+
+--disable_result_log
+ANALYZE TABLE Country, City, CountryLanguage;
+--enable_result_log
+
+--sorted_result
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+  FROM mysql.table_stats;
+--sorted_result
+SELECT UPPER(db_name), UPPER(table_name), 
+       column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+  FROM mysql.column_stats;
+--sorted_result
+SELECT UPPER(db_name), UPPER(table_name),
+       index_name, prefix_arity, avg_frequency
+  FROM mysql.index_stats;
+
+use test;
+
+set use_stat_tables='never'; 
+
+CREATE DATABASE world_innodb;
+
+use world_innodb;
+
+--source include/world_schema_utf8.inc
+
+ALTER TABLE Country ENGINE=InnoDB;
+ALTER TABLE City ENGINE=InnoDB;
+ALTER TABLE CountryLanguage ENGINE=InnoDB;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/world.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+set use_stat_tables='preferably';
+
+--disable_result_log
+ANALYZE TABLE Country, City, CountryLanguage;
+--enable_result_log
+
+--sorted_result
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+  FROM mysql.table_stats;
+--sorted_result
+SELECT UPPER(db_name), UPPER(table_name), 
+       column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+  FROM mysql.column_stats;
+--sorted_result
+SELECT UPPER(db_name), UPPER(table_name),
+       index_name, prefix_arity, avg_frequency
+  FROM mysql.index_stats;
+
+use world;
+set use_stat_tables='preferably';
+--disable_result_log
+set histogram_size=100;
+set histogram_type='SINGLE_PREC_HB';
+ANALYZE TABLE CountryLanguage;
+set histogram_size=254;
+set histogram_type='DOUBLE_PREC_HB';
+ANALYZE TABLE City;
+FLUSH TABLES;
+--enable_result_log
+
+--query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='COUNTRYLANGUAGE' and UPPER(column_name) = 'PERCENTAGE';
+--query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='CITY' and UPPER(column_name) = 'POPULATION';
+
+set histogram_type='single_prec_hb';
+set histogram_size=0;
+
+use test;
+DROP DATABASE world;
+
+--sorted_result
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+  FROM mysql.table_stats;
+--sorted_result
+SELECT UPPER(db_name), UPPER(table_name), 
+       column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+  FROM mysql.column_stats;
+--sorted_result
+SELECT UPPER(db_name), UPPER(table_name),
+       index_name, prefix_arity, avg_frequency
+  FROM mysql.index_stats;
+
+DROP DATABASE world_innodb;
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+  FROM mysql.table_stats;
+SELECT UPPER(db_name), UPPER(table_name), 
+       column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+  FROM mysql.column_stats;
+SELECT UPPER(db_name), UPPER(table_name),
+       index_name, prefix_arity, avg_frequency
+  FROM mysql.index_stats;
+
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+  
+--echo #
+--echo # Bug mdev-4357: empty string as a value of the HIST_SIZE column 
+--echo #                from mysql.column_stats
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+
+set histogram_size=10;
+
+analyze table t1  persistent for all;
+
+select db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+set histogram_size=default;
+
+drop table t1;
+
+--echo #
+--echo # Bug mdev-4359: wrong setting of the HIST_SIZE column 
+--echo # (see also mdev-4357)         from mysql.column_stats
+--echo #
+
+create table t1 ( a int);
+insert into t1 values (1),(2),(3),(4),(5);
+
+set histogram_size=10;
+set histogram_type='double_prec_hb';
+
+show variables like 'histogram%';
+
+analyze table t1 persistent for all;
+
+select db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+set histogram_size=0;
+set histogram_type='single_prec_hb';
+
+drop table t1;
+
+--echo #
+--echo # Bug mdev-4369: histogram for a column with many distinct values 
+--echo #
+
+
+CREATE TABLE t1 (id int);
+CREATE TABLE t2 (id int);
+
+INSERT INTO t1 (id) VALUES (1), (1), (1),(1);
+INSERT INTO t1 (id) SELECT id FROM t1;
+INSERT INTO t1 SELECT id+1 FROM t1;
+INSERT INTO t1 SELECT id+2 FROM t1;
+INSERT INTO t1 SELECT id+4 FROM t1;
+INSERT INTO t1 SELECT id+8 FROM t1;
+INSERT INTO t1 SELECT id+16 FROM t1;
+INSERT INTO t1 SELECT id+32 FROM t1;
+INSERT INTO t1 SELECT id+64 FROM t1;
+INSERT INTO t1 SELECT id+128 FROM t1;
+INSERT INTO t1 SELECT id+256 FROM t1;
+INSERT INTO t1 SELECT id+512 FROM t1;
+
+INSERT INTO t2 SELECT id FROM t1 ORDER BY id*rand();
+
+SELECT COUNT(*) FROM t2;
+SELECT COUNT(DISTINCT id) FROM t2;
+
+set @@tmp_table_size=1024*16;
+set @@max_heap_table_size=1024*16;
+
+set histogram_size=63;
+
+analyze table t2 persistent for all;
+
+select db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+set histogram_size=0;
+
+drop table t1, t2;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug MDEV-7383: min/max value for a column not utf8 compatible
+--echo #
+
+create table t1 (a varchar(100)) engine=MyISAM;
+insert into t1 values(unhex('D879626AF872675F73E662F8'));
+analyze table t1 persistent for all;
+show warnings;
+
+select db_name, table_name, column_name,
+       HEX(min_value), HEX(max_value),
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+drop table t1;
+
+--echo #
+--echo # MDEB-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
+--echo # Encountered illegal value '' when converting to DECIMAL
+--echo #
+
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=3, use_stat_tables=preferably;
+
+create table t1 (id int(10),cost decimal(9,2)) engine=innodb;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+create temporary table t2  (id int);
+insert into t2 (id) select id from t1 where cost > 0;
+select * from t2;
+
+set use_stat_tables=@save_use_stat_tables;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-16507: statistics for temporary tables should not be used
+--echo #
+
+SET
+@save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+SET @@use_stat_tables = preferably ;
+SET @@optimizer_use_condition_selectivity = 4;
+
+CREATE TABLE t1 (
+  TIMESTAMP TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ON UPDATE CURRENT_TIMESTAMP
+);
+
+SET @had_t1_table= @@warning_count != 0;
+CREATE TEMPORARY TABLE tmp_t1 LIKE t1;
+INSERT INTO tmp_t1 VALUES (now());
+INSERT INTO t1 SELECT * FROM tmp_t1 WHERE @had_t1_table=0;
+DROP TABLE t1;
+
+SET
+use_stat_tables=@save_use_stat_tables;
+SET
+optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+--echo # End of 10.0 tests
+
+--echo #
+--echo # MDEV-9590: Always print "Engine-independent statistic" warnings and
+--echo # might be filtering columns unintentionally from engines
+--echo #
+
+set use_stat_tables='NEVER';
+create table t1 (test blob);
+show variables like 'use_stat_tables';
+analyze table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-10435 crash with bad stat tables
+--echo #
+
+set use_stat_tables='preferably';
+call mtr.add_suppression("Column count of mysql.table_stats is wrong. Expected 3, found 1. The table is probably corrupted");
+
+rename table mysql.table_stats to test.table_stats;
+flush tables;
+create table t1 (a int);
+--error ER_NO_SUCH_TABLE
+rename table t1 to t2, t3 to t4;
+drop table t1;
+rename table test.table_stats to mysql.table_stats;
+
+rename table mysql.table_stats to test.table_stats;
+create table mysql.table_stats (a int);
+flush tables;
+create table t1 (a int);
+--error ER_NO_SUCH_TABLE
+rename table t1 to t2, t3 to t4;
+drop table t1, mysql.table_stats;
+rename table test.table_stats to mysql.table_stats;
+
+--echo #
+--echo # MDEV-19334: bool is_eits_usable(Field*): Assertion `field->table->stats_is_read' failed.
+--echo #
+
+create temporary table t1(a int);
+insert into t1 values (1),(2),(3);
+ 
+set use_stat_tables=preferably;
+set @optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=4;
+ 
+select * from t1 where a >= 2;
+drop table t1;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+CREATE TABLE t1 (a BLOB, b TEXT DEFAULT DECODE_HISTOGRAM('SINGLE_PREC_HB',a));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES (0x0000000000000000000000000101010101010101010202020303030304040404050505050606070707080809090A0A0B0C0D0D0E0E0F10111213131415161718191B1C1E202224292A2E33373B4850575F6A76818C9AA7B9C4CFDADFE5EBF0F4F8FAFCFF);
+SELECT b FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+set histogram_size=@save_histogram_size, histogram_type=@save_hist_type;
+
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # Test analyze_sample_percentage system variable.
+--echo #
+set @save_use_stat_tables=@@use_stat_tables;
+set @save_analyze_sample_percentage=@@analyze_sample_percentage;
+
+set session rand_seed1=42;
+set session rand_seed2=62;
+
+set use_stat_tables=PREFERABLY;
+set histogram_size=10;
+
+CREATE TABLE t1 (id int);
+INSERT INTO t1 (id) VALUES (1), (1), (1), (1), (1), (1), (1);
+INSERT INTO t1 (id) SELECT id FROM t1;
+INSERT INTO t1 SELECT id+1 FROM t1;
+INSERT INTO t1 SELECT id+2 FROM t1;
+INSERT INTO t1 SELECT id+4 FROM t1;
+INSERT INTO t1 SELECT id+8 FROM t1;
+INSERT INTO t1 SELECT id+16 FROM t1;
+INSERT INTO t1 SELECT id+32 FROM t1;
+INSERT INTO t1 SELECT id+64 FROM t1;
+INSERT INTO t1 SELECT id+128 FROM t1;
+INSERT INTO t1 SELECT id+256 FROM t1;
+INSERT INTO t1 SELECT id+512 FROM t1;
+INSERT INTO t1 SELECT id+1024 FROM t1;
+INSERT INTO t1 SELECT id+2048 FROM t1;
+INSERT INTO t1 SELECT id+4096 FROM t1;
+INSERT INTO t1 SELECT id+9192 FROM t1;
+
+--echo #
+--echo # This query will should show a full table scan analysis.
+--echo #
+ANALYZE TABLE t1;
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+       DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+
+set analyze_sample_percentage=0.1;
+
+--echo #
+--echo # This query will show an innacurate avg_frequency value.
+--echo #
+ANALYZE TABLE t1;
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+       DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+
+--echo #
+--echo # This query will show a better avg_frequency value.
+--echo #
+set analyze_sample_percentage=25;
+ANALYZE TABLE t1;
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+       DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+
+
+set analyze_sample_percentage=0;
+--echo #
+--echo # Test self adjusting sampling level.
+--echo #
+ANALYZE TABLE t1;
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+       DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+-- echo #
+-- echo # Test record estimation is working properly.
+-- echo #
+select count(*) from t1;
+explain select * from t1;
+
+set analyze_sample_percentage=100;
+ANALYZE TABLE t1;
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+       DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+explain select * from t1;
+
+
+drop table t1;
+set analyze_sample_percentage=@save_analyze_sample_percentage;
+set histogram_size=@save_histogram_size;
+set use_stat_tables=@save_use_stat_tables;
+set @@global.histogram_size=@save_histogram_size;

@@ -1,0 +1,592 @@
+--source include/have_debug.inc
+
+SET SESSION debug_dbug="+d,Item_func_in";
+SET SESSION debug_dbug="+d,Predicant_to_list_comparator";
+
+--echo # Constant predicant, compatible types, bisect
+SELECT 1 IN (1,2);
+SELECT 1 IN (1,2,NULL);
+SELECT 1 NOT IN (1,2);
+SELECT 1 NOT IN (1,2,NULL);
+
+SELECT 1.0 IN (1.0,2.0);
+SELECT 1.0 IN (1.0,2.0,NULL);
+SELECT 1.0 NOT IN (1.0,2.0);
+SELECT 1.0 NOT IN (1.0,2.0,NULL);
+
+SELECT 1e0 IN (1e0,2e0);
+SELECT 1e0 IN (1e0,2e0,NULL);
+SELECT 1e0 NOT IN (1e0,2e0);
+SELECT 1e0 NOT IN (1e0,2e0,NULL);
+
+SELECT 'a' IN ('a','b');
+SELECT 'a' IN ('a','b',NULL);
+SELECT 'a' NOT IN ('a','b');
+SELECT 'a' NOT IN ('a','b',NULL);
+
+SELECT TIMESTAMP'2001-01-01 10:20:30' IN ('2001-01-01 10:20:30','2001-02-02 10:20:30');
+SELECT TIMESTAMP'2001-01-01 10:20:30' IN ('2001-01-01 10:20:30','2001-02-02 10:20:30',NULL);
+SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN ('2001-01-01 10:20:30','2001-02-02 10:20:30');
+SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN ('2001-01-01 10:20:30','2001-02-02 10:20:30',NULL);
+
+SELECT TIME'10:20:30' IN ('10:20:30','10:20:30');
+SELECT TIME'10:20:30' IN ('10:20:30','10:20:30',NULL);
+SELECT TIME'10:20:30' NOT IN ('10:20:30','10:20:30');
+SELECT TIME'10:20:30' NOT IN ('10:20:30','10:20:30',NULL);
+
+SELECT DATE'2001-01-01' IN ('2001-01-01','2001-02-02');
+SELECT DATE'2001-01-01' IN ('2001-01-01','2001-02-02',NULL);
+SELECT DATE'2001-01-01' NOT IN ('2001-01-01','2001-02-02');
+SELECT DATE'2001-01-01' NOT IN ('2001-01-01','2001-02-02',NULL);
+
+
+--echo # Column predicant, compatible types, bisect
+
+# Special case: mixture of unsigned, signed and decimal
+CREATE TABLE t1 (a INT UNSIGNED);
+# a=1.0 is done as decimal, because decimal bits int
+# a=1   is done as decimal as well, because of different unsigned flag
+SELECT a IN (1.0, 1) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+SELECT a IN (1,2,3) FROM t1;
+SELECT a IN (1,2,3,NULL) FROM t1;
+SELECT a IN (1.0, CAST(1 AS UNSIGNED)) FROM t1;
+SELECT a IN (1.0, CAST(1 AS UNSIGNED),NULL) FROM t1;
+SELECT a NOT IN (1,2,3) FROM t1;
+SELECT a NOT IN (1,2,3,NULL) FROM t1;
+SELECT a NOT IN (1.0, CAST(1 AS UNSIGNED)) FROM t1;
+SELECT a NOT IN (1.0, CAST(1 AS UNSIGNED),NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DOUBLE);
+SELECT a IN (1e0,2,3.0) FROM t1;
+SELECT a IN (1e0,2,3.0,NULL) FROM t1;
+SELECT a NOT IN (1e0,2,3.0) FROM t1;
+SELECT a NOT IN (1e0,2,3.0,NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DECIMAL(10,1));
+SELECT a IN (1,2.0,3.0) FROM t1;
+SELECT a IN (1,2.0,3.0,NULL) FROM t1;
+SELECT a NOT IN (1,2.0,3.0) FROM t1;
+SELECT a NOT IN (1,2.0,3.0,NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10));
+SELECT a IN ('a','b','c') FROM t1;
+SELECT a IN ('a','b','c',NULL) FROM t1;
+SELECT a NOT IN ('a','b','c') FROM t1;
+SELECT a NOT IN ('a','b','c',NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATE);
+SELECT a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0) FROM t1;
+SELECT a IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL) FROM t1;
+SELECT a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0) FROM t1;
+SELECT a NOT IN ('2001-01-01',DATE'2001-01-02',20010102,20010102.0,20010102e0,NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIME);
+SELECT a IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0) FROM t1;
+SELECT a IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0,NULL) FROM t1;
+SELECT a NOT IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0) FROM t1;
+SELECT a NOT IN ('10:20:30',TIME'10:20:30',102030,102030.0,102030e0,NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATETIME);
+SELECT a IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0) FROM t1;
+SELECT a IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0,NULL) FROM t1;
+SELECT a NOT IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0) FROM t1;
+SELECT a NOT IN ('2001-01-01',TIMESTAMP'2001-01-01 10:20:30',DATE'2001-01-01',TIME'10:20:30',20010101102030,20010101102030.0,20010101102030e0,NULL) FROM t1;
+DROP TABLE t1;
+
+--echo # Constant predicant, compatible types, no bisect
+--echo # Bisect is not used because of non-constant expressions in the list
+CREATE TABLE t1 (a INT);
+SELECT 1 IN (a,1,2,3) FROM t1;
+SELECT 1 IN (a,1,2,3,NULL) FROM t1;
+SELECT 1 NOT IN (a,1,2,3) FROM t1;
+SELECT 1 NOT IN (a,1,2,3,NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DOUBLE);
+SELECT 1 IN (a,1e0,2e0,3e0) FROM t1;
+SELECT 1 IN (a,1e0,2e0,3e0,NULL) FROM t1;
+SELECT 1 NOT IN (a,1e0,2e0,3e0) FROM t1;
+SELECT 1 NOT IN (a,1e0,2e0,3e0,NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DECIMAL(10,1));
+SELECT 1 IN (a,1.0,2.0,3.0) FROM t1;
+SELECT 1 IN (a,1.0,2.0,3.0,NULL) FROM t1;
+SELECT 1 NOT IN (a,1.0,2.0,3.0) FROM t1;
+SELECT 1 NOT IN (a,1.0,2.0,3.0,NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10));
+SELECT 'a' IN (a,'b','c') FROM t1;
+SELECT 'a' IN (a,'b','c',NULL) FROM t1;
+SELECT 'a' NOT IN (a,'b','c') FROM t1;
+SELECT 'a' NOT IN (a,'b','c',NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATE);
+SELECT DATE'2001-01-01' IN (a,'2001-01-01') FROM t1;
+SELECT DATE'2001-01-01' IN (a,'2001-01-01',NULL) FROM t1;
+SELECT DATE'2001-01-01' NOT IN (a,'2001-01-01') FROM t1;
+SELECT DATE'2001-01-01' NOT IN (a,'2001-01-01',NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIME);
+SELECT TIME'10:20:30' IN (a,'10:20:30') FROM t1;
+SELECT TIME'10:20:30' IN (a,'10:20:30',NULL) FROM t1;
+SELECT TIME'10:20:30' NOT IN (a,'10:20:30') FROM t1;
+SELECT TIME'10:20:30' NOT IN (a,'10:20:30',NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATETIME);
+SELECT TIMESTAMP'2001-01-01 10:20:30' IN (a,TIMESTAMP'2001-01-01 10:20:30') FROM t1;
+SELECT TIMESTAMP'2001-01-01 10:20:30' IN (a,TIMESTAMP'2001-01-01 10:20:30',NULL) FROM t1;
+SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN (a,TIMESTAMP'2001-01-01 10:20:30') FROM t1;
+SELECT TIMESTAMP'2001-01-01 10:20:30' NOT IN (a,TIMESTAMP'2001-01-01 10:20:30',NULL) FROM t1;
+DROP TABLE t1;
+
+
+--echo # Constant predicant, incompatible types, no bisect
+SELECT 1 IN (1,2e0);
+SELECT 1 IN (1,2e0,NULL);
+SELECT 1 NOT IN (1,2e0);
+SELECT 1 NOT IN (1,2e0,NULL);
+
+SELECT 1.0 IN (1.0,2e0);
+SELECT 1.0 IN (1.0,2e0,NULL);
+SELECT 1.0 NOT IN (1.0,2e0);
+SELECT 1.0 NOT IN (1.0,2e0,NULL);
+
+SELECT 1e0 IN (1.0,TIME'10:20:30');
+SELECT 1e0 IN (1.0,TIME'10:20:30',NULL);
+SELECT 1e0 NOT IN (1.0,TIME'10:20:30');
+SELECT 1e0 NOT IN (1.0,TIME'10:20:30',NULL);
+
+SELECT 'a' IN ('a',2);
+SELECT 'a' IN ('a',2,NULL);
+SELECT 'a' NOT IN ('a',2);
+SELECT 'a' NOT IN ('a',2,NULL);
+
+SELECT TIME'10:20:30' IN (1,TIME'10:20:30');
+SELECT TIME'10:20:30' IN (1,TIME'10:20:30',NULL);
+SELECT TIME'10:20:30' IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32');
+SELECT TIME'10:20:30' IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL);
+SELECT TIME'10:20:30' IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32');
+SELECT TIME'10:20:30' IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL);
+SELECT TIME'10:20:30' NOT IN (1,TIME'10:20:30');
+SELECT TIME'10:20:30' NOT IN (1,TIME'10:20:30',NULL);
+SELECT TIME'10:20:30' NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32');
+SELECT TIME'10:20:30' NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL);
+SELECT TIME'10:20:30' NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32');
+SELECT TIME'10:20:30' NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL);
+
+--echo # Column predicant, incompatible types, no bisect
+CREATE TABLE t1 (a INT);
+SELECT a IN (1,1e0) FROM t1;
+SELECT a IN (1,1e0,NULL) FROM t1;
+SELECT a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) FROM t1;
+SELECT a IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) FROM t1;
+SELECT a IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) FROM t1;
+SELECT a IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) FROM t1;
+SELECT a NOT IN (1,1e0) FROM t1;
+SELECT a NOT IN (1,1e0,NULL) FROM t1;
+SELECT a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) FROM t1;
+SELECT a NOT IN (CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) FROM t1;
+SELECT a NOT IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED)) FROM t1;
+SELECT a NOT IN (CAST(1 AS DECIMAL),CAST(1 AS SIGNED), CAST(1 AS UNSIGNED),NULL) FROM t1;
+
+SELECT a IN (1,1.0) FROM t1;
+SELECT a IN (1,1.0,NULL) FROM t1;
+SELECT a NOT IN (1,1.0) FROM t1;
+SELECT a NOT IN (1,1.0,NULL) FROM t1;
+
+SELECT a IN (1,'1') FROM t1;
+SELECT a IN (1,'1',NULL) FROM t1;
+SELECT a NOT IN (1,'1') FROM t1;
+SELECT a NOT IN (1,'1',NULL) FROM t1;
+
+SELECT a IN (1,TIME'10:20:30') FROM t1;
+SELECT a IN (1,TIME'10:20:30',NULL) FROM t1;
+SELECT a NOT IN (1,TIME'10:20:30') FROM t1;
+SELECT a NOT IN (1,TIME'10:20:30',NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DECIMAL(10,0));
+SELECT a IN (1,1e0) FROM t1;
+SELECT a IN (1,1e0,NULL) FROM t1;
+SELECT a NOT IN (1,1e0) FROM t1;
+SELECT a NOT IN (1,1e0,NULL) FROM t1;
+
+SELECT a IN (1,'1') FROM t1;
+SELECT a IN (1,'1',NULL) FROM t1;
+SELECT a NOT IN (1,'1') FROM t1;
+SELECT a NOT IN (1,'1',NULL) FROM t1;
+
+SELECT a IN (1,TIME'10:20:30') FROM t1;
+SELECT a IN (1,TIME'10:20:30',NULL) FROM t1;
+SELECT a NOT IN (1,TIME'10:20:30') FROM t1;
+SELECT a NOT IN (1,TIME'10:20:30',NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DOUBLE);
+SELECT a IN (1,TIME'10:20:30') FROM t1;
+SELECT a IN (1,TIME'10:20:30',NULL) FROM t1;
+SELECT a NOT IN (1,TIME'10:20:30') FROM t1;
+SELECT a NOT IN (1,TIME'10:20:30',NULL) FROM t1;
+
+SELECT a IN (1,DATE'2001-01-01') FROM t1;
+SELECT a IN (1,DATE'2001-01-01',NULL) FROM t1;
+SELECT a NOT IN (1,DATE'2001-01-01') FROM t1;
+SELECT a NOT IN (1,DATE'2001-01-01',NULL) FROM t1;
+
+SELECT a IN (1,TIMESTAMP'2001-01-01 10:20:30') FROM t1;
+SELECT a IN (1,TIMESTAMP'2001-01-01 10:20:30',NULL) FROM t1;
+SELECT a NOT IN (1,TIMESTAMP'2001-01-01 10:20:30') FROM t1;
+SELECT a NOT IN (1,TIMESTAMP'2001-01-01 10:20:30',NULL) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10));
+SELECT a IN ('a',1) FROM t1;
+SELECT a IN ('a',TIME'10:20:30') FROM t1;
+SELECT a NOT IN ('a',1) FROM t1;
+SELECT a NOT IN ('a',TIME'10:20:30') FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIME);
+SELECT a IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') FROM t1;
+SELECT a IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) FROM t1;
+SELECT a IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') FROM t1;
+SELECT a IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) FROM t1;
+SELECT a NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') FROM t1;
+SELECT a NOT IN (102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) FROM t1;
+SELECT a NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32') FROM t1;
+SELECT a NOT IN (102030, 102030, TIME'10:20:30',TIMESTAMP'2001-01-01 10:20:32',NULL) FROM t1;
+DROP TABLE t1;
+
+#
+# ROW tests
+#
+# ROW has additional conditions when bisect is possible (see item_cmpfunc.h):
+#
+#  ((is_top_level_item && not_negated) ||             // 3
+#  (arg0_can_not_be_null && list_does_not_have_nulls) // 4
+
+# Testing all combinations of the condition components
+#
+# tli     - is_top_level_item
+# nneg    - not_negated
+# a0nnul  - arg0_can_not_be_null
+# lnnul   - list_does_not_have_nulls
+# cond3   - condition 3 is true?
+# cond4   - condition 4 is true?
+# bisect  - bisect is possible (cond3 orded with cond4)
+
+# Note:
+# - using an expression in SELECT list makes top_level_item() to be false
+# - using an expression in WHERE clause makes top_leve_item() to be true
+
+--echo # Not top level, negated: cond3 is false
+
+#  tli nneg a0nnul  lnnul    cond3  cond4 bisect
+#  ---  --- ------  -----    -----  ----- ------
+#    0    0      0      0        0      0      0
+#    0    0      0      1        0      0      0
+#    0    0      1      0        0      0      0
+#    0    0      1      1        0      1      1
+
+# ROW with scalar elements
+CREATE TABLE t1 (a INT);
+SELECT ROW(a,a) NOT IN ((1,1),(2,NULL)) FROM t1;
+SELECT ROW(a,a) NOT IN ((1,1),(2,2)) FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL, b INT);
+SELECT ROW(a,a) NOT IN ((1,1),(2,NULL)) FROM t1;
+SELECT ROW(a,a) NOT IN ((1,1),(2,2)) FROM t1;
+DROP TABLE t1;
+
+# ROW with a nested ROW
+CREATE TABLE t1 (a INT);
+SELECT ROW(a,(a,a)) NOT IN ((1,(1,1)),(2,(2,NULL))) FROM t1;
+SELECT ROW(a,(a,a)) NOT IN ((1,(1,1)),(2,(2,2))) FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL);
+SELECT ROW(a,(a,a)) NOT IN ((1,(1,1)),(2,(2,NULL))) FROM t1;
+SELECT ROW(a,(a,a)) NOT IN ((1,(1,1)),(2,(2,2))) FROM t1;
+DROP TABLE t1;
+
+--echo # Not top level, not negated: cond3 is false
+
+#  tli nneg a0nnul  lnnul    cond3  cond4 bisect
+#  ---  --- ------  -----    -----  ----- ------
+#    0    1      0      0        0      0      0
+#    0    1      0      1        0      0      0
+#    0    1      1      0        0      0      0
+#    0    1      1      1        0      1      1
+
+# ROW with scalar elements
+CREATE TABLE t1 (a INT);
+SELECT ROW(a,a) IN ((1,1),(2,NULL)) FROM t1;
+SELECT ROW(a,a) IN ((1,1),(2,2)) FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL);
+SELECT ROW(a,a) IN ((1,1),(2,NULL)) FROM t1;
+SELECT ROW(a,a) IN ((1,1),(2,2)) FROM t1;
+DROP TABLE t1;
+
+# ROW with a nested ROW
+CREATE TABLE t1 (a INT);
+SELECT ROW(a,(a,a)) IN ((1,(1,1)),(2,(2,NULL))) FROM t1;
+SELECT ROW(a,(a,a)) IN ((1,(1,1)),(2,(2,2))) FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL);
+SELECT ROW(a,(a,a)) IN ((1,(1,1)),(2,(2,NULL))) FROM t1;
+SELECT ROW(a,(a,a)) IN ((1,(1,1)),(2,(2,2))) FROM t1;
+DROP TABLE t1;
+
+
+--echo # Top level, negated: cond3 is false
+
+#  tli nneg a0nnul  lnnul    cond3  cond4 bisect
+#  ---  --- ------  -----    -----  ----- ------
+#    1    0      0      0        0      0      0
+#    1    0      0      1        0      0      0
+#    1    0      1      0        0      0      0
+#    1    0      1      1        0      1      1
+
+# ROW with scalar elements
+CREATE TABLE t1 (a INT);
+SELECT 1 FROM t1 WHERE ROW(a,a) NOT IN ((1,1),(2,NULL));
+SELECT 1 FROM t1 WHERE ROW(a,a) NOT IN ((1,1),(2,2));
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL);
+SELECT 1 FROM t1 WHERE ROW(a,a) NOT IN ((1,1),(2,NULL));
+SELECT 1 FROM t1 WHERE ROW(a,a) NOT IN ((1,1),(2,2));
+DROP TABLE t1;
+
+# ROW with a nested ROW
+CREATE TABLE t1 (a INT);
+SELECT 1 FROM t1 WHERE ROW(a,(a,a)) NOT IN ((1,(1,1)),(2,(2,NULL)));
+SELECT 1 FROM t1 WHERE ROW(a,(a,a)) NOT IN ((1,(1,1)),(2,(2,2)));
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL);
+SELECT 1 FROM t1 WHERE ROW(a,(a,a)) NOT IN ((1,(1,1)),(2,(2,NULL)));
+SELECT 1 FROM t1 WHERE ROW(a,(a,a)) NOT IN ((1,(1,1)),(2,(2,2)));
+DROP TABLE t1;
+
+--echo # Top level, not negated: cond3 is true
+
+#  tli nneg a0nnul  lnnul    cond3  cond4 bisect
+#  ---  --- ------  -----    -----  ----- ------
+#    1    1      0      0        1      0      1
+#    1    1      0      1        1      1      1
+#    1    1      1      0        1      0      1
+#    1    1      1      1        1      1      1
+
+# ROW with scalar elements
+CREATE TABLE t1 (a INT);
+SELECT 1 FROM t1 WHERE ROW(a,a) IN ((1,1),(2,NULL));
+SELECT 1 FROM t1 WHERE ROW(a,a) IN ((1,1),(2,2));
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL);
+SELECT 1 FROM t1 WHERE ROW(a,a) IN ((1,1),(2,NULL));
+SELECT 1 FROM t1 WHERE ROW(a,a) IN ((1,1),(2,2));
+DROP TABLE t1;
+
+# ROW with a nested ROW
+CREATE TABLE t1 (a INT);
+SELECT 1 FROM t1 WHERE ROW(a,(a,a)) IN ((1,(1,1)),(2,(2,NULL)));
+SELECT 1 FROM t1 WHERE ROW(a,(a,a)) IN ((1,(1,1)),(2,(2,2)));
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL);
+SELECT 1 FROM t1 WHERE ROW(a,(a,a)) IN ((1,(1,1)),(2,(2,NULL)));
+SELECT 1 FROM t1 WHERE ROW(a,(a,a)) IN ((1,(1,1)),(2,(2,2)));
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11514 IN with a mixture of TIME and DATETIME returns a wrong result
+--echo #
+
+SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32');
+
+PREPARE stmt FROM "SELECT
+       TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('A'),('B'),('A');
+# Compatible types
+SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN (b,'A');
+SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN ('A',b);
+SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN (b,a);
+SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN (a,b);
+# Incompatible types
+SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN (b,'A',10);
+SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN ('A',b,10);
+SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN (b,a,10);
+SELECT a,NULL AS b FROM t1 GROUP BY a HAVING 'A' IN (a,b,10);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11497 Wrong result for (int_expr IN (mixture of signed and unsigned expressions))
+--echo #
+CREATE TABLE t1 (a BIGINT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-9223372036854775808,18446744073709551615);
+SELECT * FROM t1 WHERE -1 IN (a,b);
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-11554 Wrong result for CASE on a mixture of signed and unsigned expressions
+--echo #
+
+CREATE TABLE t1 (a BIGINT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-9223372036854775808,18446744073709551615);
+SELECT
+  CASE -1
+    WHEN -9223372036854775808 THEN 'one'
+    WHEN 18446744073709551615 THEN 'two'
+  END AS c;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11555 CASE with a mixture of TIME and DATETIME returns a wrong result
+--echo #
+SELECT
+  CASE TIME'10:20:30'
+    WHEN 102030 THEN 'one'
+    WHEN TIME'10:20:31' THEN 'two'
+  END AS good,
+  CASE TIME'10:20:30'
+    WHEN 102030 THEN 'one'
+    WHEN TIME'10:20:31' THEN 'two'
+    WHEN TIMESTAMP'2001-01-01 10:20:32' THEN 'three'
+  END AS was_bad_now_good;
+
+
+SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
+SET SESSION debug_dbug="-d,Item_func_in";
+
+
+--echo #
+--echo # MDEV-19008 Slow EXPLAIN SELECT ... WHERE col IN (const1,const2,(subquery))
+--echo #
+
+SET SESSION debug_dbug="+d,Item_subselect";
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,2,(SELECT MAX(a) FROM t1));
+SELECT * FROM t1 WHERE a IN (1,2,(SELECT MAX(a) FROM t1));
+DROP TABLE t1;
+SET SESSION debug_dbug="-d,Item_subselect";
+
+
+--echo #
+--echo #  MDEV-16408 Remove tests for Item::type() in Item_basic_value::eq()
+--echo #
+
+SET SESSION debug_dbug="+d,Item_basic_value";
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE a BETWEEN 1 AND 1.0;
+SELECT * FROM t1 WHERE a BETWEEN 1 AND 1;
+SELECT * FROM t1 WHERE a BETWEEN 0 AND 1;
+SELECT * FROM t1 WHERE a BETWEEN 0 AND -1;
+SELECT * FROM t1 WHERE a BETWEEN -1 AND -1;
+SELECT * FROM t1 WHERE a BETWEEN -0000000000000001 AND -1;
+SELECT * FROM t1 WHERE a BETWEEN -1 AND 18446744073709551615;
+SELECT * FROM t1 WHERE a BETWEEN -1 AND 18446744073709551616;
+SELECT * FROM t1 WHERE a BETWEEN 1e2 AND 100e0;
+
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN 1 AND ?' USING 1;
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN -1 AND ?' USING 18446744073709551615;
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN -1 AND ?' USING 18446744073709551616;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('0'),('1'),('2');
+SELECT * FROM t1 WHERE a BETWEEN '0' AND '0';
+SELECT * FROM t1 WHERE a BETWEEN '0' AND ' 0';
+SELECT * FROM t1 WHERE a BETWEEN '0' AND '0 ';
+DROP TABLE t1;
+
+SET SESSION debug_dbug="-d,Item_basic_value";
+
+
+--echo #
+--echo # MDEV-11362 True condition elimination does not work for DECIMAL and temporal dynamic SQL parameters
+--echo #
+
+SET SESSION debug_dbug="+d,Item_basic_value";
+
+CREATE TABLE t1 (a DECIMAL(10,3));
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE a BETWEEN 1.0 AND 1.0;
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN 1.0 AND ?' USING 1.0;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE a BETWEEN TIME'00:00:00' AND TIME'00:00:00';
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN TIME''00:00:00'' AND ?' USING TIME'00:00:00';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1 WHERE a BETWEEN DATE'2001-01-01' AND DATE'2001-01-01';
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN DATE''2001-01-01'' AND ?' USING DATE'2001-01-01';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00'),('2001-01-01 00:00:00');
+SELECT * FROM t1 WHERE a BETWEEN TIMESTAMP'2001-01-01 00:00:00' AND TIMESTAMP'2001-01-01 00:00:00';
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN TIMESTAMP''2001-01-01 00:00:00'' AND ?' USING TIMESTAMP'2001-01-01 00:00:00';
+DROP TABLE t1;
+
+SET SESSION debug_dbug="-d,Item_basic_value";
+
+
+--echo #
+--echo # MDEV-16426 Optimizer erroneously treats equal constants of different formats as same
+--echo #
+
+SET SESSION debug_dbug="+d,Item_basic_value";
+
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a'),('b'),('c');
+SELECT * FROM t1 WHERE a BETWEEN 'a' AND 0x61;
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN ''a'' AND ?' USING 0x61;
+DROP TABLE t1;
+
+SET SESSION debug_dbug="-d,Item_basic_value";
+
+
+--echo #
+--echo # MDEV-16454 Bad results for IN with ROW
+--echo #
+
+SET SESSION debug_dbug="+d,cmp_item";
+SET SESSION debug_dbug="+d,Item_func_in";
+SET SESSION debug_dbug="+d,Predicant_to_list_comparator";
+
+SELECT (18446744073709551615,0) IN ((18446744073709551614,0),(-1,0));
+SELECT (1,(0,0)) IN ((1,(1,0)),(0,(0,0)));
+SELECT (1,(0,0),3) IN ((1,(1,0),3),(0,(0,0),3));
+
+SELECT '0x' IN (0);
+SELECT '0x' IN (0,1);
+SELECT ('0x',1) IN ((0,1));
+SELECT ('0x',1) IN ((0,1),(1,1));
+
+SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
+SET SESSION debug_dbug="-d,Item_func_in";
+SET SESSION debug_dbug="-d,cmp_item";

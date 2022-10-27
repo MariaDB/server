@@ -1,0 +1,64 @@
+-- source jdbconn.inc
+
+#
+# This test is run against Postgresql driver
+#
+eval SET GLOBAL connect_class_path='$MTR_SUITE_DIR/std_data/JavaWrappers.jar;C:/Jconnectors/postgresql-42.2.1.jar';
+CREATE TABLE t2 (
+  command varchar(128) not null,
+  number int(5) not null flag=1,
+  message varchar(255) flag=2)
+ENGINE=CONNECT TABLE_TYPE=JDBC
+CONNECTION='jdbc:postgresql://localhost/test?user=postgres&password=tinono'
+OPTION_LIST='Execsrc=1';
+#CONNECTION='jdbc:postgresql://localhost/mtr'
+#OPTION_LIST='User=mtr,Password=mtr,Schema=public,Execsrc=1';
+SELECT * FROM t2 WHERE command='drop table employee';
+SELECT * FROM t2 WHERE command = 'create table employee (id int not null, name varchar(32), title char(16), salary decimal(8,2))';
+SELECT * FROM t2 WHERE command = "insert into employee values(4567,'Johnson', 'Engineer', 12560.50)";
+
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables
+CONNECTION='jdbc:postgresql://localhost/test?user=postgres&password=tinono'
+OPTION_LIST='Tabtype=TABLE,Maxres=10';
+#CONNECTION='jdbc:postgresql://localhost/mtr'
+#OPTION_LIST='User=mtr,Password=mtr,Schema=public,Tabtype=TABLE,Maxres=10';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC tabname=employee CATFUNC=columns
+CONNECTION='jdbc:postgresql://localhost/test?user=postgres&password=tinono';
+#CONNECTION='jdbc:postgresql://localhost/mtr' tabname=employee;
+#OPTION_LIST='User=mtr,Password=mtr,Maxres=10';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Test connecting via a Federated server
+#
+CREATE SERVER 'postgresql' FOREIGN DATA WRAPPER 'postgresql' OPTIONS (
+HOST 'localhost',
+DATABASE 'test',
+USER 'postgres',
+PASSWORD 'tinono',
+PORT 0,
+SOCKET '',
+OWNER 'root');
+#DATABASE 'mtr',
+#USER 'mtr',
+#PASSWORD 'mtr',
+
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
+CONNECTION='postgresql/public.employee';
+SELECT * FROM t1;
+INSERT INTO t1 VALUES(3126,'Smith', 'Clerk', 5230.00);
+UPDATE t1 SET salary = salary + 100.00;
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP SERVER 'postgresql';
+SELECT * FROM t2 WHERE command='drop table employee';
+DROP TABLE t2;
+
+#
+# Clean up
+#
+-- source jdbconn_cleanup.inc

@@ -1,0 +1,36 @@
+source include/have_debug_sync.inc;
+source include/have_binlog_format_row.inc;
+source include/master-slave.inc;
+
+connection master;
+create table t1 (a int);
+--sync_slave_with_master
+
+connection slave;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+set global debug_dbug='d,rows_log_event_before_open_table';
+
+connection master;
+insert t1 values (1),(2),(3);
+
+connection slave;
+set debug_sync='now WAIT_FOR before_open_table';
+let $a=`select id from information_schema.processlist where state='debug sync point: now'`;
+replace_result $a slave_sql_thread;
+eval kill $a;
+set debug_sync='now SIGNAL go_ahead_sql';
+--let $slave_sql_errno= 1927
+--source include/wait_for_slave_sql_error.inc
+let $error= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1);
+--echo Last_SQL_Error = $error
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+set debug_sync='RESET';
+connection master;
+drop table t1;
+
+connection slave;
+--source include/start_slave.inc
+let $error= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1);
+--echo Last_SQL_Error = $error
+
+source include/rpl_end.inc;

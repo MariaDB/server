@@ -1,0 +1,54 @@
+#
+# Kill entire cluster during SR while pc.recovery is in effect
+# after restart, confirm that the mysql.wsrep_streaming_log table is empty
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+
+--source include/kill_galera.inc
+--connection node_1
+--source include/kill_galera.inc
+
+--sleep 1
+
+# Bootstrap the cluster from scratch
+
+--connection node_1
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/start_mysqld.inc
+
+--connection node_2
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+--connection node_1
+--source include/wait_until_connected_again.inc
+--source include/galera_wait_ready.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+DROP TABLE t1;

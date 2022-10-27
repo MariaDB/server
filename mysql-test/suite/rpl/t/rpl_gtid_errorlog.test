@@ -1,0 +1,85 @@
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=NONE;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=NONE;
+
+--echo *** Test MDEV-6120, output of current GTID when a replication error is logged to the errorlog ***
+--connection master
+CREATE TABLE t1(a INT PRIMARY KEY);
+--sync_slave_with_master
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+
+--connection master
+INSERT INTO t1 VALUES (1);
+SET gtid_seq_no=100;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+--save_master_pos
+
+--connection slave
+SET sql_log_bin=0;
+INSERT INTO t1 VALUES (2);
+SET sql_log_bin=1;
+
+START SLAVE;
+--let $slave_sql_errno=1062
+--source include/wait_for_slave_sql_error.inc
+
+--source include/stop_slave.inc
+# Skip the problem event from the master.
+SET GLOBAL gtid_slave_pos= "0-1-100";
+--source include/start_slave.inc
+--sync_with_master
+
+SELECT * FROM t1 ORDER BY a;
+
+--connection master
+
+SET @dbug_save= @@debug_dbug;
+SET debug_dbug= '+d,incident_database_resync_on_replace';
+REPLACE INTO t1 VALUES (5);
+SET debug_dbug= @dbug_save;
+--save_master_pos
+
+--connection slave
+--let $slave_sql_errno=1590
+--source include/wait_for_slave_sql_error.inc
+--source include/stop_slave.inc
+SET sql_slave_skip_counter=1;
+--source include/start_slave.inc
+--sync_with_master
+
+SELECT * FROM t1 ORDER BY a;
+
+
+# Check error log for correct messages.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
+}
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=Slave SQL: Error 'Duplicate entry .* on query\. .*Query: '.*', Gtid 0-1-100, Internal MariaDB error code:|Slave SQL: Could not execute Write_rows.*table test.t1; Duplicate entry.*, Gtid 0-1-100, Internal MariaDB error
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=Slave SQL: The incident LOST_EVENTS occurred on the master\. Message: <none>, Internal MariaDB error code: 1590
+--source include/search_pattern_in_file.inc
+
+
+--connection master
+DROP TABLE t1;
+
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection master;
+--source include/rpl_end.inc

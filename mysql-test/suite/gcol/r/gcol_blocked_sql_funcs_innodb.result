@@ -1,0 +1,179 @@
+SET @@session.default_storage_engine = 'InnoDB';
+create or replace table t1 (b double generated always as (rand()) virtual);
+create or replace table t1 (a datetime generated always as (curdate()) virtual);
+create or replace table t1 (a datetime generated always as (current_date) virtual);
+create or replace table t1 (a datetime generated always as (current_date()) virtual);
+create or replace table t1 (a datetime generated always as (current_time) virtual);
+create or replace table t1 (a datetime generated always as (current_time()) virtual);
+create or replace table t1 (a datetime generated always as (current_timestamp()) virtual);
+create or replace table t1 (a datetime generated always as (current_timestamp) virtual);
+create or replace table t1 (a datetime generated always as (curtime()) virtual);
+create or replace table t1 (a datetime, b varchar(10) generated always as (localtime()) virtual);
+create or replace table t1 (a datetime, b varchar(10) generated always as (localtime) virtual);
+create or replace table t1 (a datetime, b varchar(10) generated always as (localtimestamp()) virtual);
+create or replace table t1 (a datetime, b varchar(10) generated always as (localtimestamp) virtual);
+create or replace table t1 (a datetime, b varchar(10) generated always as (now()) virtual);
+create or replace table t1 (a int, b varchar(10) generated always as (sysdate()) virtual);
+create or replace table t1 (a datetime, b datetime generated always as (unix_timestamp()) virtual);
+create or replace table t1 (a datetime, b datetime generated always as (utc_date()) virtual);
+create or replace table t1 (a datetime, b datetime generated always as (utc_time()) virtual);
+create or replace table t1 (a datetime, b datetime generated always as (utc_timestamp()) virtual);
+create or replace table t1 (a int generated always as (connection_id()) virtual);
+create or replace table t1 (a varchar(32) generated always as (current_user()) virtual);
+create or replace table t1 (a varchar(32) generated always as (current_user) virtual);
+create or replace table t1 (a varchar(1024), b varchar(1024) generated always as (database()) virtual);
+create or replace table t1 (a varchar(32) generated always as (schema()) virtual);
+create or replace table t1 (a varchar(32) generated always as (session_user()) virtual);
+create or replace table t1 (a varchar(32) generated always as (system_user()) virtual);
+create or replace table t1 (a varchar(1024), b varchar(1024) generated always as (user()) virtual);
+create or replace table t1 (a varchar(1024) generated always as (uuid_short()) virtual);
+create or replace table t1 (a varchar(1024) generated always as (uuid()) virtual);
+create or replace table t1 (a varchar(1024), b varchar(1024) generated always as (version()) virtual);
+create or replace table t1 (a varchar(1024), b varchar(1024) generated always as (encrypt(a)) virtual);
+create or replace table t1 (a varchar(1024), b varchar(1024) generated always as (UpdateXML(a,'/a','<e>fff</e>')) virtual);
+drop table t1;
+# LOAD_FILE()
+create table t1 (a varchar(64), b varchar(1024) generated always as (load_file(a)) virtual);
+ERROR HY000: Function or expression 'load_file()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# MATCH()
+# BENCHMARK()
+create table t1 (a varchar(1024), b varchar(1024) generated always as (benchmark(a,3)) virtual);
+ERROR HY000: Function or expression 'benchmark()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# FOUND_ROWS()
+create table t1 (a varchar(1024), b varchar(1024) generated always as (found_rows()) virtual);
+ERROR HY000: Function or expression 'found_rows()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# GET_LOCK()
+create table t1 (a varchar(1024), b varchar(1024) generated always as (get_lock(a,10)) virtual);
+ERROR HY000: Function or expression 'get_lock()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# IS_FREE_LOCK()
+create table t1 (a varchar(1024), b varchar(1024) generated always as (is_free_lock(a)) virtual);
+ERROR HY000: Function or expression 'is_free_lock()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# IS_USED_LOCK()
+create table t1 (a varchar(1024), b varchar(1024) generated always as (is_used_lock(a)) virtual);
+ERROR HY000: Function or expression 'is_used_lock()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# LAST_INSERT_ID()
+create table t1 (a int generated always as (last_insert_id()) virtual);
+ERROR HY000: Function or expression 'last_insert_id()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# MASTER_POS_WAIT()
+create table t1 (a varchar(32), b int generated always as (master_pos_wait(a,0,2)) virtual);
+ERROR HY000: Function or expression 'master_pos_wait()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# NAME_CONST()
+create table t1 (a varchar(32) generated always as (name_const('test',1)) virtual);
+ERROR HY000: Function or expression 'name_const()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# RELEASE_LOCK()
+create table t1 (a varchar(32), b int generated always as (release_lock(a)) virtual);
+ERROR HY000: Function or expression 'release_lock()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# ROW_COUNT()
+create table t1 (a int generated always as (row_count()) virtual);
+ERROR HY000: Function or expression 'row_count()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+# SLEEP()
+create table t1 (a int, b int generated always as (sleep(a)) virtual);
+ERROR HY000: Function or expression 'sleep()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# VALUES()
+create table t1 (a varchar(1024), b varchar(1024) generated always as (value(a)) virtual);
+ERROR HY000: Function or expression 'value()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# Stored procedures
+create procedure p1()
+begin
+select current_user();
+end //
+create function f1()
+returns int
+begin
+return 1;
+end //
+create table t1 (a int generated always as (p1()) virtual);
+ERROR HY000: Function or expression '`p1`()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+create table t1 (a int generated always as (f1()) virtual);
+ERROR HY000: Function or expression '`f1`()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+drop procedure p1;
+drop function f1;
+# Unknown functions
+create table t1 (a int generated always as (f1()) virtual);
+ERROR HY000: Function or expression '`f1`()' cannot be used in the GENERATED ALWAYS AS clause of `a`
+#
+# GROUP BY FUNCTIONS
+#
+# AVG()
+create table t1 (a int, b int generated always as (avg(a)) virtual);
+ERROR HY000: Function or expression 'avg()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# BIT_AND()
+create table t1 (a int, b int generated always as (bit_and(a)) virtual);
+ERROR HY000: Function or expression 'bit_and()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# BIT_OR()
+create table t1 (a int, b int generated always as (bit_or(a)) virtual);
+ERROR HY000: Function or expression 'bit_or()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# BIT_XOR()
+create table t1 (a int, b int generated always as (bit_xor(a)) virtual);
+ERROR HY000: Function or expression 'bit_xor()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# COUNT(DISTINCT)
+create table t1 (a int, b int generated always as (count(distinct a)) virtual);
+ERROR HY000: Function or expression 'count(distinct )' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# COUNT()
+create table t1 (a int, b int generated always as (count(a)) virtual);
+ERROR HY000: Function or expression 'count()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# GROUP_CONCAT()
+create table t1 (a varchar(32), b int generated always as (group_concat(a,'')) virtual);
+ERROR HY000: Function or expression 'group_concat()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# MAX()
+create table t1 (a int, b int generated always as (max(a)) virtual);
+ERROR HY000: Function or expression 'max()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# MIN()
+create table t1 (a int, b int generated always as (min(a)) virtual);
+ERROR HY000: Function or expression 'min()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# STD()
+create table t1 (a int, b int generated always as (std(a)) virtual);
+ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# STDDEV_POP()
+create table t1 (a int, b int generated always as (stddev_pop(a)) virtual);
+ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# STDDEV_SAMP()
+create table t1 (a int, b int generated always as (stddev_samp(a)) virtual);
+ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# STDDEV()
+create table t1 (a int, b int generated always as (stddev(a)) virtual);
+ERROR HY000: Function or expression 'std()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# SUM()
+create table t1 (a int, b int generated always as (sum(a)) virtual);
+ERROR HY000: Function or expression 'sum()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# VAR_POP()
+create table t1 (a int, b int generated always as (var_pop(a)) virtual);
+ERROR HY000: Function or expression 'variance()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# VAR_SAMP()
+create table t1 (a int, b int generated always as (var_samp(a)) virtual);
+ERROR HY000: Function or expression 'var_samp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# VARIANCE()
+create table t1 (a int, b int generated always as (variance(a)) virtual);
+ERROR HY000: Function or expression 'variance()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+#
+# Sub-selects
+#
+create table t1 (a int);
+create table t2 (a int, b int generated always as (select count(*) virtual from t1));
+ERROR HY000: Function or expression 'select ...' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+#
+# Long expression
+create table t1 (a int, b varchar(300) generated always as (concat(a,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) virtual);
+drop table t1;
+create table t1 (a int, b varchar(300) generated always as (concat(a,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) virtual);
+drop table t1;
+#
+# Constant expression
+create table t1 (a int generated always as (PI()) virtual);
+drop table t1;
+# bug#21098119: GCOL WITH MATCH/AGAINST -->
+# ASSERTION FAILED: TR && TR->TABLE->FILE
+#
+create table t1 (a int);
+alter table t1 add column r blob generated always
+as (match(a) against ('' in boolean mode)) virtual;
+ERROR HY000: Function or expression 'match ... against()' cannot be used in the GENERATED ALWAYS AS clause of `r`
+drop table t1;
+DROP VIEW  IF EXISTS v1,v2;
+DROP TABLE IF EXISTS t1,t2,t3;
+DROP PROCEDURE IF EXISTS p1;
+DROP FUNCTION IF EXISTS f1;
+DROP TRIGGER IF EXISTS trg1;
+DROP TRIGGER IF EXISTS trg2;
+set sql_warnings = 0;

@@ -1,0 +1,363 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10596 Allow VARCHAR and VARCHAR2 without length as a data type of routine parameters and in RETURN clause
+--echo #
+
+--let type = CHAR
+--let length = 2000
+--source sp-param.inc
+
+--let type = NCHAR
+--let length = 2000
+--source sp-param.inc
+
+--let type = BINARY
+--let length = 2000
+--source sp-param.inc
+
+--let type = VARCHAR
+--let length = 4000
+--source sp-param.inc
+
+--let type = VARCHAR2
+--let length = 4000
+--source sp-param.inc
+
+--let type = NVARCHAR
+--let length = 4000
+--source sp-param.inc
+
+--let type = VARBINARY
+--let length = 4000
+--source sp-param.inc
+
+--let type = RAW
+--let length = 4000
+--source sp-param.inc
+
+--echo
+--echo MDEV-13919 sql_mode=ORACLE: Derive length of VARCHAR SP parameters with no length from actual parameters
+--echo
+set sql_mode= 'oracle,strict_trans_tables';
+delimiter /;
+CREATE OR REPLACE PROCEDURE p1(pinout INOUT varchar, pin IN varchar)
+AS
+BEGIN
+  pinout:=pin;
+END;
+/
+call p1(@w,'0123456789')
+/
+declare w varchar(10);
+begin
+  call p1(w,'0123456789');
+end;
+/
+--error ER_DATA_TOO_LONG
+declare w varchar(5);
+begin
+  call p1(w,'0123456789');
+end;
+/
+declare w varchar(20);
+begin
+  w:='aaa';
+  call p1(w,'0123456789');
+end;
+/
+--error ER_DATA_TOO_LONG
+declare w varchar(8);
+begin
+  w:='aaa';
+  call p1(w,'0123456789');
+end;
+/
+declare str varchar(6000);
+        pout varchar(6000);
+begin
+  str:=lpad('x',6000,'y');
+  call p1(pout,str);
+  select length(pout);
+end;
+/
+--error ER_DATA_TOO_LONG
+declare str varchar(6000);
+        pout varchar(4000);
+begin
+  str:=lpad('x',6000,'y');
+  call p1(pout,str);
+  select length(pout);
+end;
+/
+declare str varchar(40000);
+        pout varchar(60000);
+begin
+  str:=lpad('x',40000,'y');
+  call p1(pout,str);
+  select length(pout);
+end;
+/
+--error ER_DATA_TOO_LONG
+declare str text(80000);
+        pout text(80000);
+begin
+  str:=lpad('x',80000,'y');
+  call p1(pout,str);
+  select length(pout);
+end;
+/
+declare str text(80000);
+        pout text(80000);
+begin
+  str:=lpad('x',60000,'y');
+  call p1(pout,str);
+  select length(pout);
+end;
+/
+drop procedure p1
+/
+DELIMITER ;/
+
+
+#
+# Procedure, non-strict mode
+#
+
+SET sql_mode=ORACLE;
+DELIMITER /;
+CREATE PROCEDURE p1(pinout INOUT varchar, pin IN varchar)
+AS
+BEGIN
+  pinout:=pin;
+END;
+/
+CREATE PROCEDURE p2(len INT)
+AS
+  pinout VARCHAR(10);
+  pin VARCHAR(30);
+BEGIN
+  pin:= REPEAT('x', len);
+  p1(pinout, pin);
+  SELECT LENGTH(pinout);
+END;
+/
+DELIMITER ;/
+CALL p2(10);
+CALL p2(11);
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+
+#
+# Function, not-strict mode
+#
+
+SET sql_mode=ORACLE;
+DELIMITER /;
+CREATE FUNCTION f1(pin VARCHAR, padlen INT) RETURN TEXT
+AS
+BEGIN
+  pin:=LPAD(pin, padlen);
+  RETURN pin;
+END;
+/
+CREATE PROCEDURE p2(padlen INT) AS
+  str TEXT :='x';
+BEGIN
+  SELECT LENGTH(f1(str,padlen));
+END;
+/
+DELIMITER ;/
+CALL p2(65535);
+CALL p2(65536);
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+
+
+#
+# Procedure, utf8 formal parameter, latin actual parameter
+#
+
+SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
+DELIMITER /;
+CREATE PROCEDURE p1(pinout INOUT VARCHAR CHARACTER SET utf8,
+                    pin IN VARCHAR CHARACTER SET utf8)
+AS
+BEGIN
+  pinout:=pin;
+END;
+/
+CREATE PROCEDURE p2(padlen INT) AS
+  str VARCHAR(40000) CHARACTER SET latin1;
+  pout VARCHAR(60000) CHARACTER SET latin1;
+BEGIN
+  str:=lpad('x',padlen,'y');
+  p1(pout,str);
+  SELECT length(pout);
+END;
+/
+DELIMITER ;/
+CALL p2(21844);
+--error ER_DATA_TOO_LONG
+CALL p2(21845);
+--error ER_DATA_TOO_LONG
+CALL p2(21846);
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+#
+# Procedure, utf8 formal parameter, utf8 actual parameter
+#
+
+SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
+DELIMITER /;
+CREATE PROCEDURE p1(pinout INOUT VARCHAR CHARACTER SET utf8,
+                    pin IN VARCHAR CHARACTER SET utf8)
+AS
+BEGIN
+  pinout:=pin;
+END;
+/
+CREATE PROCEDURE p2(padlen INT) AS
+  str TEXT CHARACTER SET utf8;
+  pout TEXT CHARACTER SET utf8;
+BEGIN
+  str:=lpad('x',padlen,'y');
+  p1(pout,str);
+  SELECT length(pout);
+END;
+/
+DELIMITER ;/
+CALL p2(21844);
+--error ER_DATA_TOO_LONG
+CALL p2(21845);
+--error ER_DATA_TOO_LONG
+CALL p2(21846);
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+#
+# Function, latin1 formal parameter, latin1 actual parameter
+#
+
+SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
+DELIMITER /;
+CREATE FUNCTION f1(pin VARCHAR CHARACTER SET latin1, padlen INT) RETURN TEXT
+AS
+BEGIN
+  pin:=LPAD(pin, padlen);
+  RETURN pin;
+END;
+/
+CREATE PROCEDURE p2(padlen INT) AS
+  str TEXT CHARACTER SET latin1 :='x';
+BEGIN
+  SELECT LENGTH(f1(str,padlen));
+END;
+/
+DELIMITER ;/
+CALL p2(65532);
+--error ER_DATA_TOO_LONG
+CALL p2(65533);
+--error ER_DATA_TOO_LONG
+CALL p2(65534);
+--error ER_DATA_TOO_LONG
+CALL p2(65535);
+--error ER_DATA_TOO_LONG
+CALL p2(65536);
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+
+
+#
+# Function, utf8 formal parameter, utf8 actual parameter
+#
+
+SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
+DELIMITER /;
+CREATE FUNCTION f1(pin VARCHAR CHARACTER SET utf8, padlen INT) RETURN TEXT
+AS
+BEGIN
+  pin:=LPAD(pin, padlen);
+  RETURN pin;
+END;
+/
+CREATE PROCEDURE p2(padlen INT) AS
+  str TEXT CHARACTER SET utf8 := 'x';
+BEGIN
+  SELECT LENGTH(f1(str,padlen));
+END;
+/
+DELIMITER ;/
+CALL p2(21844);
+--error ER_DATA_TOO_LONG
+CALL p2(21845);
+--error ER_DATA_TOO_LONG
+CALL p2(21846);
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+
+
+#
+# Function, utf8 formal parameter, latin1 actual parameter
+#
+
+SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
+DELIMITER /;
+CREATE FUNCTION f1(pin VARCHAR CHARACTER SET utf8, padlen INT) RETURN TEXT
+AS
+BEGIN
+  pin:=LPAD(pin, padlen);
+  RETURN pin;
+END;
+/
+CREATE PROCEDURE p2(padlen INT) AS
+  str TEXT CHARACTER SET latin1 := 'x';
+BEGIN
+  SELECT LENGTH(f1(str,padlen));
+END;
+/
+DELIMITER ;/
+CALL p2(21844);
+--error ER_DATA_TOO_LONG
+CALL p2(21845);
+--error ER_DATA_TOO_LONG
+CALL p2(21846);
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+
+
+#
+# Function, latin1 formal parameter, utf8 actual parameter
+#
+
+SET sql_mode='ORACLE,STRICT_TRANS_TABLES';
+DELIMITER /;
+CREATE FUNCTION f1(pin VARCHAR CHARACTER SET latin1, padlen INT) RETURN TEXT
+AS
+BEGIN
+  pin:=LPAD(pin, padlen);
+  RETURN pin;
+END;
+/
+CREATE PROCEDURE p2(padlen INT) AS
+  str TEXT CHARACTER SET utf8 := 'x';
+BEGIN
+  SELECT LENGTH(f1(str,padlen));
+END;
+/
+DELIMITER ;/
+CALL p2(65532);
+--error ER_DATA_TOO_LONG
+CALL p2(65533);
+--error ER_DATA_TOO_LONG
+CALL p2(65534);
+--error ER_DATA_TOO_LONG
+CALL p2(65535);
+--error ER_DATA_TOO_LONG
+CALL p2(65536);
+DROP PROCEDURE p2;
+DROP FUNCTION f1;

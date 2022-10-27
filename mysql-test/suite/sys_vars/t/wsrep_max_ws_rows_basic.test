@@ -1,0 +1,45 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_max_ws_rows
+--echo #
+
+--echo # save the initial value
+SET @wsrep_max_ws_rows_global_saved = @@global.wsrep_max_ws_rows;
+
+--echo # default
+SELECT @@global.wsrep_max_ws_rows;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_max_ws_rows;
+SET @@global.wsrep_max_ws_rows=1;
+SELECT @@global.wsrep_max_ws_rows;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_max_ws_rows=131072;
+SELECT @@global.wsrep_max_ws_rows;
+SET @@global.wsrep_max_ws_rows=131073;
+SELECT @@global.wsrep_max_ws_rows;
+SET @@global.wsrep_max_ws_rows=0;
+SELECT @@global.wsrep_max_ws_rows;
+SET @@global.wsrep_max_ws_rows=default;
+SELECT @global.wsrep_max_ws_rows;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_max_ws_rows=NULL;
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_max_ws_rows='junk';
+# expect warnings (Truncated incorrect wsrep_max_ws_rows value: '-1')
+SET @@global.wsrep_max_ws_rows=-1;
+SELECT @global.wsrep_max_ws_rows;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_max_ws_rows = @wsrep_max_ws_rows_global_saved;
+
+--echo # End of test

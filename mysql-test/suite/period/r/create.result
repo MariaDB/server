@@ -1,0 +1,102 @@
+create table t (id int primary key, s date, e date, period for mytime(s,e));
+# CONSTRAINT CHECK (s < e) is added implicitly, and shouldn't be shown
+# this is important for correct command-based replication
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) NOT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PRIMARY KEY (`id`),
+  PERIOD FOR `mytime` (`s`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
+period for mytime(s,e));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) NOT NULL,
+  `s` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `e` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  PRIMARY KEY (`id`),
+  PERIOD FOR `mytime` (`s`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+# SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)a)
+# 2) If a <table period definition> TPD is specified, then:
+# a) <table scope> shall not be specified.
+create or replace temporary table t (s date, e date, period for mytime(s,e));
+ERROR HY000: Application-time period table cannot be temporary
+# SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)e)iii)
+# The <data type or domain name> contained in CD1 is either DATE or a
+# timestamp type and it is equivalent to the <data type or domain name>
+# contained in CD2.
+create or replace table t (id int primary key, s datetime, e date,
+period for mytime(s,e));
+ERROR HY000: Fields of PERIOD FOR `mytime` have different types
+create or replace table t (s timestamp(2), e timestamp(6),
+period for mytime(s,e));
+ERROR HY000: Fields of PERIOD FOR `mytime` have different types
+create or replace table t (id int primary key, s int, e date,
+period for mytime(s,e));
+ERROR 42000: Incorrect column specifier for column 's'
+create or replace table t (id int primary key, s time, e time,
+period for mytime(s,e));
+ERROR 42000: Incorrect column specifier for column 's'
+create or replace table t (id int primary key, s date, e date,
+period for mytime(s,x));
+ERROR 42S22: Unknown column 'x' in 'mytime'
+# MDEV-18842: Unfortunate error message when the same column is used
+# for application period start and end
+create or replace table t (s date, t date, period for apt(s,s));
+ERROR 42000: Column 's' specified twice
+create or replace table t (id int primary key, s date, e date,
+period for mytime(s,e),
+period for mytime2(s,e));
+ERROR HY000: Cannot specify more than one application-time period
+# SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)d)
+# No <column name> in any <column definition> shall be equivalent to PN.
+create or replace table t (mytime int, s date, e date,
+period for mytime(s,e));
+ERROR 42S21: Duplicate column name 'mytime'
+# SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)e)v)2)A)
+# Neither CD1 nor CD2 shall contain an <identity column specification>, a
+# <generation clause>, a <system time period start column specification>,
+#  or a <system time period end column specification>.
+create or replace table t (id int primary key,
+s date,
+e date generated always as (s+1),
+period for mytime(s,e));
+ERROR HY000: Period field `e` cannot be GENERATED ALWAYS AS
+create or replace table t (id int primary key,
+s date,
+e date as (s+1) VIRTUAL,
+period for mytime(s,e));
+ERROR HY000: Period field `e` cannot be GENERATED ALWAYS AS
+create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
+st timestamp(6) as row start,
+en timestamp(6) as row end,
+period for system_time (st, en),
+period for mytime(st,e)) with system versioning;
+ERROR HY000: Period field `st` cannot be GENERATED ALWAYS AS
+# SQL16, Part 2, 11.3  <table definition>, Syntax Rules, 2)
+# Let IDCN be an implementation-dependent <constraint name> that is not
+# equivalent to the <constraint name> of any table constraint descriptor
+# included in S.
+create or replace table t (x int, s date, e date,
+period for mytime(s, e),
+constraint mytime check (x > 1));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `x` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `mytime` (`s`, `e`),
+  CONSTRAINT `mytime` CHECK (`x` > 1)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t values (2, '2001-01-01', '2001-01-01');
+ERROR 23000: CONSTRAINT `mytime_1` failed for `test`.`t`
+show status like "Feature_application_time_periods";
+Variable_name	Value
+Feature_application_time_periods	6
+drop table t;

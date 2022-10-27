@@ -1,0 +1,30 @@
+# Embedded server doesn't support external clients
+--source include/not_embedded.inc
+
+#
+# Bug #30126: semicolon before closing */ in /*!... CREATE DATABASE ;*/
+#
+
+--let $file = $MYSQLTEST_VARDIR/tmp/bug30126.sql
+
+CREATE DATABASE mysqldump_30126;
+USE mysqldump_30126;
+CREATE TABLE t1 (c1 int);
+--exec $MYSQL_DUMP --add-drop-database mysqldump_30126 > $file
+--exec $MYSQL mysqldump_30126 < $file
+DROP DATABASE mysqldump_30126;
+
+--remove_file $file
+use test;
+
+#
+# MDEV-19182 mysqldump not always handling SHOW CREATE TRIGGER failures correctly
+#
+create table t1 (a int);
+create trigger tr after insert on t1 for each row set @a=1;
+let $datadir=`select @@datadir`;
+move_file $datadir/test/tr.TRN $datadir/test/tr-1.TRN;
+error 2;
+exec $MYSQL_DUMP test t1 >/dev/null;
+move_file $datadir/test/tr-1.TRN $datadir/test/tr.TRN;
+drop table t1;

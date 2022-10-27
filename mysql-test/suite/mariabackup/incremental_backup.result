@@ -1,0 +1,33 @@
+call mtr.add_suppression("InnoDB: New log files created");
+CREATE TABLE t_aria(i INT) ENGINE ARIA;
+CREATE TABLE t(i INT PRIMARY KEY) ENGINE INNODB;
+BEGIN;
+INSERT INTO t VALUES(2);
+connect  con1,localhost,root,,;
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+INSERT INTO t VALUES(1);
+# Create full backup , modify table, then create incremental/differential backup
+BEGIN;
+INSERT INTO t VALUES(0);
+DELETE FROM t WHERE i=0;
+connection default;
+COMMIT;
+# Generate enough aria log records to increase area log file size
+SELECT * FROM t;
+i
+1
+2
+# Prepare full backup, apply incremental one
+# Aria log file was updated during applying incremental backup
+disconnect con1;
+# Restore and check results
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t;
+i
+1
+2
+DROP TABLE t;
+DROP TABLE t_aria;

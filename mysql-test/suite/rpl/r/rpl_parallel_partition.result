@@ -1,0 +1,49 @@
+include/master-slave.inc
+[connection master]
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,inject_wakeup_subsequent_commits_sleep";
+SET GLOBAL slave_parallel_threads=8;
+*** MDEV-8147: Assertion `m_lock_type == 2' failed in handler::ha_close() during parallel replication ***
+connection server_1;
+CREATE TABLE E (
+pk INTEGER AUTO_INCREMENT,
+col_int_nokey INTEGER /*! NULL */,
+col_int_key INTEGER /*! NULL */,
+col_date_key DATE /*! NULL */,
+col_date_nokey DATE /*! NULL */,
+col_time_key TIME /*! NULL */,
+col_time_nokey TIME /*! NULL */,
+col_datetime_key DATETIME /*! NULL */,
+col_datetime_nokey DATETIME /*! NULL */,
+col_varchar_key VARCHAR(1) /*! NULL */,
+col_varchar_nokey VARCHAR(1) /*! NULL */,
+PRIMARY KEY (pk),
+KEY (col_int_key),
+KEY (col_date_key),
+KEY (col_time_key),
+KEY (col_datetime_key),
+KEY (col_varchar_key, col_int_key)
+)  ENGINE=InnoDB;
+ALTER TABLE `E` PARTITION BY KEY() PARTITIONS 5;
+ALTER TABLE `E` REMOVE PARTITIONING;
+connection default;
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+connection server_2;
+include/start_slave.inc
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=8;
+include/start_slave.inc
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection server_1;
+DROP TABLE `E`;
+DROP TABLE t1;
+include/rpl_end.inc

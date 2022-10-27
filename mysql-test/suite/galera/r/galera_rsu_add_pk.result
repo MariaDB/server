@@ -1,0 +1,31 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+INSERT INTO t1 (f1) SELECT 000000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+INSERT INTO t1 (f1) SELECT 100000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;;
+connection node_2;
+SET SESSION wsrep_OSU_method = "RSU";
+ALTER TABLE t1 ADD PRIMARY KEY (f1);
+SET SESSION wsrep_OSU_method = "TOI";
+INSERT INTO t1 (f1) SELECT 200000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+SELECT COUNT(*) AS EXPECT_300000 FROM t1;
+EXPECT_300000
+300000
+SELECT MAX(f1) AS EXPECT_299999 FROM t1;
+EXPECT_299999
+299999
+connection node_1;
+SELECT COUNT(*) AS EXPECT_300000 FROM t1;
+EXPECT_300000
+300000
+SELECT MAX(f1) AS EXPECT_299999 FROM t1;
+EXPECT_299999
+299999
+SET SESSION wsrep_OSU_method = "RSU";
+ALTER TABLE t1 ADD PRIMARY KEY (f1);
+SET SESSION wsrep_OSU_method = "TOI";
+DROP TABLE t1;
+DROP TABLE ten;

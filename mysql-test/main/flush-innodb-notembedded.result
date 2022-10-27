@@ -1,0 +1,40 @@
+set sql_mode="";
+# Test 7: Check privileges required.
+#
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a INT) engine= InnoDB;
+GRANT RELOAD, SELECT, LOCK TABLES ON *.* TO user1@localhost;
+GRANT CREATE, DROP ON *.* TO user2@localhost;
+GRANT RELOAD, SELECT ON *.* TO user3@localhost;
+GRANT SELECT, LOCK TABLES ON *.* TO user4@localhost;
+GRANT RELOAD, LOCK TABLES ON *.* TO user5@localhost;
+connect con1, localhost, user1;
+FLUSH TABLE db1.t1 FOR EXPORT;
+UNLOCK TABLES;
+disconnect con1;
+connection default;
+connect con1, localhost, user2;
+FLUSH TABLE db1.t1 FOR EXPORT;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+disconnect con1;
+connection default;
+connect con1, localhost, user3;
+FLUSH TABLE db1.t1 FOR EXPORT;
+ERROR 42000: Access denied for user 'user3'@'localhost' to database 'db1'
+disconnect con1;
+connection default;
+connect con1, localhost, user4;
+FLUSH TABLE db1.t1 FOR EXPORT;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+disconnect con1;
+connection default;
+connect con1, localhost, user5;
+FLUSH TABLE db1.t1 FOR EXPORT;
+ERROR 42000: SELECT command denied to user 'user5'@'localhost' for table 't1'
+disconnect con1;
+connection default;
+DROP USER user1@localhost, user2@localhost, user3@localhost,
+user4@localhost, user5@localhost;
+DROP TABLE db1.t1;
+DROP DATABASE db1;
+# End of 5.6 tests

@@ -1,0 +1,131 @@
+#
+# Testing errors
+#
+CREATE TABLE t1
+(
+ID INT NOT NULL
+) Engine=CONNECT TABLE_TYPE=DOS FILE_NAME='nonexistent.txt';
+SELECT * FROM t1;
+ID
+Warnings:
+Warning	1105	Open(rb) error 2 on DATADIR/test/nonexistent.txt: No such file or directory
+DROP TABLE t1;
+#
+# Testing READONLY tables
+#
+CREATE TABLE t1
+(
+id INT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='t1.txt';
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+id
+10
+ALTER TABLE t1 READONLY=1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=FIX `FILE_NAME`='t1.txt' `READONLY`=1
+INSERT INTO t1 VALUES (20);
+ERROR HY000: Table 't1' is read only
+UPDATE t1 SET id=20 WHERE id=10;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+DELETE FROM t1 WHERE id=10;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+TRUNCATE TABLE t1;
+ERROR HY000: Table 't1' is read only
+ALTER TABLE t1 READONLY=0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=FIX `FILE_NAME`='t1.txt' `READONLY`=0
+INSERT INTO t1 VALUES (20);
+SELECT * FROM t1;
+id
+10
+20
+DROP TABLE t1;
+#
+# Testing manual examples
+#
+CREATE TABLE t1
+(
+number   CHAR(4) not null,
+location CHAR(15) NOT NULL flag=5,
+director CHAR(5) NOT NULL flag=20,
+function CHAR(12) NOT NULL flag=26,
+name     CHAR(22) NOT NULL flag=38
+) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='dept.dat';
+SELECT * FROM t1;
+number	location	director	function	name
+0318	KINGSTON	70012	SALES	Bank/Insurance
+0021	ARMONK	87777	CHQ	Corporate headquarter
+0319	HARRISON	40567	SALES	Federal Administration
+2452	POUGHKEEPSIE	31416	DEVELOPMENT	Research & development
+DROP TABLE t1;
+CREATE TABLE t1
+(
+name char(12) not null,
+city char(11) not null,
+birth date not null date_format='DD/MM/YYYY',
+hired date not null date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
+SELECT * FROM t1;
+name	city	birth	hired
+John	Boston	1986-01-25	2010-06-02
+Henry	Boston	1987-06-07	2008-04-01
+George	San Jose	1981-08-10	2010-06-02
+Sam	Chicago	1979-11-22	2007-10-10
+James	Dallas	1992-05-13	2009-12-14
+Bill	Boston	1986-09-11	2008-02-10
+DROP TABLE t1;
+CREATE TABLE t1
+(
+name char(12) not null,
+city char(11) not null,
+birth date not null date_format='DD/MM/YYYY',
+hired date not null date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' LRECL=47 ENDING=1;
+SELECT * FROM t1;
+name	city	birth	hired
+John	Boston	1986-01-25	2010-06-02
+Henry	Boston	1987-06-07	2008-04-01
+George	San Jose	1981-08-10	2010-06-02
+Sam	Chicago	1979-11-22	2007-10-10
+James	Dallas	1992-05-13	2009-12-14
+Bill	Boston	1986-09-11	2008-02-10
+DROP TABLE t1;
+CREATE TABLE t1
+(
+name char(12) not null,
+city char(11) not null,
+birth date not null date_format='DD/MM/YYYY',
+hired date not null date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' ENDING=2;
+SELECT * FROM t1;
+name	city	birth	hired
+John	Boston	1986-01-25	2010-06-02
+Henry	Boston	1987-06-07	2008-04-01
+George	San Jose	1981-08-10	2010-06-02
+Sam	Chicago	1979-11-22	2007-10-10
+James	Dallas	1992-05-13	2009-12-14
+Bill	Boston	1986-09-11	2008-02-10
+DROP TABLE t1;
+CREATE TABLE t1
+(
+name char(12) not null,
+city char(11) not null,
+birth date not null date_format='DD/MM/YYYY',
+hired date not null date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' LRECL=47 ENDING=2;
+SELECT * FROM t1;
+name	city	birth	hired
+John	Boston	1986-01-25	2010-06-02
+Henry	Boston	1987-06-07	2008-04-01
+George	San Jose	1981-08-10	2010-06-02
+Sam	Chicago	1979-11-22	2007-10-10
+James	Dallas	1992-05-13	2009-12-14
+Bill	Boston	1986-09-11	2008-02-10
+DROP TABLE t1;

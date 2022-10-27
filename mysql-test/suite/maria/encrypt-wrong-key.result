@@ -1,0 +1,16 @@
+call mtr.add_suppression("file_key_management");
+call mtr.add_suppression("System key id 1 is missing");
+call mtr.add_suppression("Unknown key id 1");
+call mtr.add_suppression("Failed to decrypt");
+CREATE TABLE t1 (i INT, KEY(i)) ENGINE=Aria;
+INSERT INTO t1 VALUES (1);
+repair table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	info	Wrong CRC on datapage at 1
+test.t1	repair	warning	Number of rows changed from 1 to 0
+test.t1	repair	status	OK
+INSERT INTO t1 VALUES (2);
+select * from t1;
+ERROR HY000: failed to decrypt './test/t1'  rc: -1  dstlen: 0  size: 8172
+
+drop table t1;

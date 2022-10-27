@@ -1,0 +1,64 @@
+create table t1 (pk int not null primary key) engine=rocksdb;
+insert into t1 values (1),(2),(3);
+set autocommit=0;
+begin;
+select * from t1 where pk=1 for update;
+pk
+1
+connect  con1,localhost,root,,;
+connection con1;
+call mtr.add_suppression("Got snapshot conflict errors");
+### Connection con1
+set @@rocksdb_lock_wait_timeout=500;
+set autocommit=0;
+begin;
+select * from t1 where pk=1 for update;;
+connection default;
+### Connection default
+rollback;
+connection con1;
+pk
+1
+rollback;
+connection default;
+begin;
+select * from t1 where pk=1 for update;
+pk
+1
+connection con1;
+### Connection con1
+set @@rocksdb_lock_wait_timeout=2;
+set autocommit=0;
+begin;
+select * from t1 where pk=1 for update;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+rollback;
+set autocommit=1;
+connection con1;
+drop table t1;
+connection default;
+#
+#  Now, test what happens if another transaction modified the record and committed
+#
+CREATE TABLE t1 (
+id int primary key, 
+value int
+) engine=rocksdb collate latin1_bin;
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+connection con1;
+BEGIN;
+SELECT * FROM t1 WHERE id=3;
+id	value
+3	3
+connection default;
+BEGIN;
+UPDATE t1 SET value=30 WHERE id=3;
+COMMIT;
+connection con1;
+SELECT * FROM t1 WHERE id=3 FOR UPDATE;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction (snapshot conflict)
+ROLLBACK;
+disconnect con1;
+connection default;
+drop table t1;

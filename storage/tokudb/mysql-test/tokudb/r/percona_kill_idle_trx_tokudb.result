@@ -1,0 +1,43 @@
+SET default_storage_engine=TokuDB;
+#
+# Test kill_idle_transaction_timeout feature with TokuDB
+#
+CREATE TABLE t1 (a INT);
+SET GLOBAL kill_idle_transaction= 1;
+BEGIN;
+INSERT INTO t1 VALUES (1),(2);
+COMMIT;
+SELECT * FROM t1;
+a
+1
+2
+BEGIN;
+INSERT INTO t1 VALUES (3);
+# Current connection idle transaction killed, reconnecting
+SELECT * FROM t1;
+a
+1
+2
+#
+# Test that row locks are released on idle transaction kill
+#
+SET GLOBAL kill_idle_transaction= 2;
+# Take row locks in connection conn1
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+a
+1
+2
+# Take row locks in connection default
+UPDATE t1 SET a=4;
+SELECT * FROM t1;
+a
+4
+4
+# Show that connection conn1 has been killed
+SELECT * FROM t1;
+ERROR HY000: MySQL server has gone away
+# connection default
+# Cleanup
+DROP TABLE t1;
+SET GLOBAL kill_idle_transaction= saved_kill_idle_transaction;

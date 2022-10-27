@@ -1,0 +1,24 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),(11);
+CREATE TABLE t1 (f1 VARCHAR(128)) ENGINE=InnoDB;
+connection node_2;
+Killing server ...
+connection node_1;
+INSERT INTO t1 SELECT REPEAT('a', 128) FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;
+connection node_2;
+connection node_2a;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1771561
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE
+2
+connection node_1;
+DROP TABLE t1;
+DROP TABLE ten;

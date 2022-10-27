@@ -1,0 +1,33 @@
+--source include/have_rocksdb.inc
+
+# Issue#212 MyRocks chooses full index scan even if range scan is more efficient
+# rocksdb_debug_optimizer_n_rows must not be set.
+
+create table t1 (id1 bigint, id2 bigint, c1 bigint, c2 bigint, c3 bigint, c4 bigint, c5 bigint, c6 bigint, c7 bigint, primary key (id1, id2), index i(c1, c2));
+--disable_query_log
+let $i=0;
+while ($i<10000)
+{
+  inc $i;
+  eval insert t1(id1, id2, c1, c2, c3, c4, c5, c6, c7)
+          values($i,    0, $i,  0,  0,  0,  0,  0,  0);
+}
+--enable_query_log
+analyze table t1;
+select count(*) from t1;
+--replace_column 9 #
+explain select c1 from t1 where c1 > 5 limit 10;
+drop table t1;
+
+--echo #
+--echo # MDEV-17414: MyROCKS order desc limit 1 fails
+--echo #
+create table t1 (date date);
+insert into t1 values ('2018-10-04'), ('2018-10-05');
+select * from t1 where date < '2018-10-09' order by date desc limit 1; # Works as expected
+alter table t1 add index date_index (date);
+select * from t1 where date < '2018-10-05' order by date desc limit 1; # Works as expected
+--echo # this should not produce an empty set:
+select * from t1 where date < '2018-10-09' order by date desc limit 1;
+drop table t1;
+

@@ -1,0 +1,68 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+call mtr.add_suppression("table or database name 'mysqltest-1'");
+connection master;
+CREATE DATABASE `mysqltest-1`;
+connection slave;
+connection master;
+connection slave;
+connection master;
+Master position is not changed
+connection slave;
+SET @old_general_log_state = @@global.general_log;
+SET @old_slow_log_state = @@global.slow_query_log;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL general_log = 'ON';
+SET GLOBAL slow_query_log = 'ON';
+SET GLOBAL log_output = 'FILE';
+connection master;
+ALTER TABLE mysql.slow_log DROP COLUMN thread_id, DROP COLUMN rows_affected;
+DROP DATABASE `mysqltest-1`;
+connection slave;
+connection slave;
+SHOW CREATE TABLE mysql.slow_log;
+Table	Create Table
+slow_log	CREATE TABLE `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` int(11) NOT NULL,
+  `rows_examined` int(11) NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
+connection master;
+connection master;
+Master position has been changed
+connection slave;
+connection slave;
+SHOW CREATE TABLE mysql.slow_log;
+Table	Create Table
+slow_log	CREATE TABLE `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` int(11) NOT NULL,
+  `rows_examined` int(11) NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` int(11) NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
+SET GLOBAL general_log = 'OFF';
+SET GLOBAL slow_query_log = 'OFF';
+truncate mysql.slow_log;
+truncate mysql.general_log;
+SET GLOBAL general_log = @old_general_log_state;
+SET GLOBAL slow_query_log = @old_slow_log_state;
+SET GLOBAL log_output = @old_log_output;
+include/rpl_end.inc

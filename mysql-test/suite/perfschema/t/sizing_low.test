@@ -1,0 +1,10 @@
+
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+--source include/have_64bit.inc
+--source include/not_valgrind.inc
+--source ../include/have_aligned_memory.inc
+
+--source ../include/sizing_auto.inc
+
+CALL mtr.add_suppression("innodb_open_files should not be greater than the open_files_limit.");

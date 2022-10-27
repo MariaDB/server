@@ -1,0 +1,5 @@
+--loose-innodb-buffer-pool-stats
+--loose-innodb-buffer-page
+--loose-innodb-buffer-page-lru
+--innodb-file-per-table
+--innodb-defragment=1

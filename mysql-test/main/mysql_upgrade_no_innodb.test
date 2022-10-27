@@ -1,0 +1,6 @@
+--source include/mysql_upgrade_preparation.inc
+
+--exec $MYSQL_UPGRADE --force --upgrade-system-tables 2>&1
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info

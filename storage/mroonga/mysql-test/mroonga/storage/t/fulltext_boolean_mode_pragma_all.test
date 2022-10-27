@@ -1,0 +1,44 @@
+# Copyright(C) 2015 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS memos;
+--enable_warnings
+
+SET NAMES utf8;
+CREATE TABLE memos (
+  id INT PRIMARY KEY,
+  title VARCHAR(255),
+  content TEXT,
+  FULLTEXT INDEX (title, content)
+) DEFAULT CHARSET=utf8;
+
+INSERT INTO memos VALUES(1, "Groonga", "Groonga is fast.");
+INSERT INTO memos VALUES(2, "Mroonga", "Mroonga is also fast.");
+INSERT INTO memos VALUES(3, "Rroonga", "Rroonga is also fast.");
+
+SELECT *,
+       MATCH(title, content)
+         AGAINST("*W1:10,2:2DOR Groonga Mroonga" in BOOLEAN MODE) AS score
+  FROM memos
+ WHERE MATCH(title, content)
+         AGAINST("*W1:10,2:2DOR Groonga Mroonga" in BOOLEAN MODE);
+
+DROP TABLE memos;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

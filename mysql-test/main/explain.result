@@ -1,0 +1,415 @@
+drop table if exists t1;
+create table t1 (id int not null, str char(10), unique(str));
+explain select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+insert into t1 values (1, null),(2, null),(3, "foo"),(4, "bar");
+select * from t1 where str is null;
+id	str
+1	NULL
+2	NULL
+select * from t1 where str="foo";
+id	str
+3	foo
+explain select * from t1 where str is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	str	str	11	const	2	Using index condition
+explain select * from t1 where str="foo";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	str	str	11	const	1	
+explain select * from t1 ignore key (str) where str="foo";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+explain select * from t1 use key (str,str) where str="foo";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	str	str	11	const	1	
+explain select * from t1 use key (str,str,foo) where str="foo";
+ERROR 42000: Key 'foo' doesn't exist in table 't1'
+explain select * from t1 ignore key (str,str,foo) where str="foo";
+ERROR 42000: Key 'foo' doesn't exist in table 't1'
+drop table t1;
+explain select 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+create table t1 (a int not null);
+explain select count(*) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+insert into t1 values(1);
+explain select count(*) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+insert into t1 values(1);
+explain select count(*) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+drop table t1;
+set names koi8r;
+create table таб (кол0 int, кол1 int, key инд0 (кол0), key инд01 (кол0,кол1));
+insert into таб (кол0) values (1);
+insert into таб (кол0) values (2);
+explain select кол0 from таб where кол0=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	таб	ref	инд0,инд01	инд0	5	const	1	Using index
+drop table таб;
+set names latin1;
+select 3 into @v1;
+explain select 3 into @v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+create table t1(f1 int, f2 int);
+insert into t1 values (1,1);
+create view v1 as select * from t1 where f1=1;
+explain extended select * from v1 where f2=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	select 1 AS `f1`,1 AS `f2` from dual where 1
+explain extended select * from t1 where 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2` from `test`.`t1` where 0
+explain extended select * from t1 where 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	select 1 AS `f1`,1 AS `f2` from dual where 1
+explain extended select * from t1 having 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+Warnings:
+Note	1003	select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`f2` AS `f2` from `test`.`t1` having 0
+explain extended select * from t1 having 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	select 1 AS `f1`,1 AS `f2` from dual having 1
+drop view v1;
+drop table t1;
+CREATE TABLE t1(c INT);
+INSERT INTO t1 VALUES (),();
+CREATE TABLE t2 (b INT,
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b));
+Warnings:
+Note	1831	Duplicate index `b_2`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_3`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_4`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_5`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_6`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_7`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_8`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_9`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_10`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_11`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_12`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_13`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_14`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_15`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_16`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_17`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_18`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_19`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_20`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_21`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_22`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_23`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_24`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_25`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_26`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_27`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_28`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_29`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_30`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_31`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_32`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_33`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_34`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_35`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_36`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_37`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_38`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_39`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `b_40`. This is deprecated and will be disallowed in a future release
+INSERT INTO t2 VALUES (),(),();
+EXPLAIN SELECT 1 FROM
+(SELECT 1 FROM t2,t1 WHERE b < c GROUP BY 1 LIMIT 1) AS d2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+X	X	X	X	X	X	X	X	X	
+X	X	X	X	X	X	X	X	X	
+X	X	X	X	X	X	X	X	X	Range checked for each record (index map: 0xFFFFFFFFFF)
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1(a INT);
+CREATE TABLE t2(a INT);
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2);
+EXPLAIN EXTENDED SELECT 1
+FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
+EXPLAIN EXTENDED SELECT 1
+FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
+prepare s1 from 
+'EXPLAIN EXTENDED SELECT 1  
+ FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1';
+execute s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
+prepare s1 from 
+'EXPLAIN EXTENDED SELECT 1  
+ FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1';
+execute s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
+execute s1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from (/* select#2 */ select count(distinct `test`.`t1`.`a`) AS `COUNT(DISTINCT t1.a)` from `test`.`t1` join `test`.`t2` group by `test`.`t1`.`a`) `s1`
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+EXPLAIN EXTENDED SELECT COUNT(a) FROM t1 USE KEY(a);
+ERROR 42000: Key 'a' doesn't exist in table 't1'
+DROP TABLE t1;
+CREATE TABLE t1(a LONGTEXT);
+INSERT INTO t1 VALUES (repeat('a',@@global.max_allowed_packet));
+INSERT INTO t1 VALUES (repeat('b',@@global.max_allowed_packet));
+EXPLAIN SELECT DISTINCT 1 FROM t1,
+(SELECT DISTINCTROW a AS away FROM t1 GROUP BY a WITH ROLLUP) as d1
+WHERE t1.a = d1.a;
+ERROR 42S22: Unknown column 'd1.a' in 'where clause'
+DROP TABLE t1;
+#
+# Bug#48295:
+# explain extended crash with subquery and ONLY_FULL_GROUP_BY sql_mode
+#
+CREATE TABLE t1 (f1 INT not null);
+SELECT @@session.sql_mode INTO @old_sql_mode;
+SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
+EXPLAIN EXTENDED SELECT 1 FROM t1
+WHERE f1 > ALL( SELECT t.f1 FROM t1,t1 AS t );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	SUBQUERY	t	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+Warnings:
+Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t1` where 0
+SET SESSION sql_mode=@old_sql_mode;
+DROP TABLE t1;
+End of 5.0 tests.
+#
+# Bug#37870: Usage of uninitialized value caused failed assertion.
+#
+create table t1 (dt datetime not null, t time not null);
+create table t2 (dt datetime not null);
+insert into t1 values ('2001-01-01 1:1:1', '1:1:1'),
+('2001-01-01 1:1:1', '1:1:1');
+insert into t2 values ('2001-01-01 1:1:1'), ('2001-01-01 1:1:1');
+SET @save_join_cache_level=@@join_cache_level;
+SET join_cache_level=0;
+flush tables;
+EXPLAIN SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN (SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.dt IS NULL );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	OUTR	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	INNR	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(OUTR)
+flush tables;
+SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN (SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.dt IS NULL );
+dt
+flush tables;
+EXPLAIN SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN ( SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.t < '2005-11-13 7:41:31' );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	OUTR	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	INNR	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(OUTR)
+flush tables;
+SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN ( SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.t < '2005-11-13 7:41:31' );
+dt
+2001-01-01 01:01:01
+2001-01-01 01:01:01
+SET join_cache_level=@save_join_cache_level;
+drop tables t1, t2;
+#
+# Bug#47669: Query showed by EXPLAIN EXTENDED gives different result from original query
+#
+CREATE TABLE t1 (c int);
+INSERT INTO t1 VALUES (NULL);
+CREATE TABLE t2 (d int);
+INSERT INTO t2 VALUES (NULL), (0);
+EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where `test`.`t2`.`d` = NULL) AS `(SELECT 1 FROM t2 WHERE d = c)` from dual
+DROP TABLE t1, t2;
+#
+# Bug#30302: Tables that were optimized away are printed in the
+#            EXPLAIN EXTENDED warning.
+#
+create table t1(f1 int);
+create table t2(f2 int);
+insert into t1 values(1);
+insert into t2 values(1),(2);
+explain extended select * from t1 where f1=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+Warnings:
+Note	1003	select 1 AS `f1` from dual where 1
+explain extended select * from t1 join t2 on f1=f2 where f1=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select 1 AS `f1`,`test`.`t2`.`f2` AS `f2` from `test`.`t2` where `test`.`t2`.`f2` = 1
+drop table t1,t2;
+#
+# Bug #48419: another explain crash..
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b BLOB, KEY b(b(100)));
+INSERT INTO t2 VALUES ('1'), ('2'), ('3');
+FLUSH TABLES;
+EXPLAIN SELECT 1 FROM t1 WHERE a = (SELECT 1 FROM t1 t JOIN t2 WHERE b <= 1 AND t.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+DROP TABLE t1, t2;
+#
+# Bug #48573: difference of index selection between rpm binary and
+#             .tar.gz, windows vs linux..
+#
+CREATE TABLE t1(c1 INT, c2 INT, c4 INT, c5 INT, KEY(c2, c5), KEY(c2, c4, c5));
+INSERT INTO t1 VALUES(4, 1, 1, 1);
+INSERT INTO t1 VALUES(3, 1, 1, 1);
+INSERT INTO t1 VALUES(2, 1, 1, 1);
+INSERT INTO t1 VALUES(1, 1, 1, 1);
+INSERT INTO t1 VALUES(5, 2, 1, 1);
+INSERT INTO t1 VALUES(6, 2, 1, 1);
+INSERT INTO t1 VALUES(7, 3, 1, 1);
+INSERT INTO t1 VALUES(9, 3, 1, 1);
+INSERT INTO t1 VALUES(10, 4, 1, 1);
+INSERT INTO t1 VALUES(11, 4, 1, 1);
+EXPLAIN SELECT c1 FROM t1 WHERE c2 = 1 AND c4 = 1 AND c5 = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	c2,c2_2	c2	10	const,const	4	Using where
+DROP TABLE t1;
+#
+# Bug#56814 Explain + subselect + fulltext crashes server
+#
+CREATE TABLE t1(f1 VARCHAR(6) NOT NULL,
+FULLTEXT KEY(f1),UNIQUE(f1));
+INSERT INTO t1 VALUES ('test');
+EXPLAIN SELECT 1 FROM t1
+WHERE 1 > ALL((SELECT t1.f1 FROM t1 JOIN t1 a ON (MATCH(t1.f1) AGAINST (""))
+WHERE t1.f1 GROUP BY t1.f1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+PREPARE stmt FROM
+'EXPLAIN SELECT 1 FROM t1
+ WHERE 1 > ALL((SELECT t1.f1 FROM t1 RIGHT OUTER JOIN t1 a
+ ON (MATCH(t1.f1) AGAINST (""))
+ WHERE t1.f1 GROUP BY t1.f1))';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM
+'EXPLAIN SELECT 1 FROM t1
+ WHERE 1 > ALL((SELECT t1.f1 FROM t1 JOIN t1 a
+ ON (MATCH(t1.f1) AGAINST (""))
+ WHERE t1.f1 GROUP BY t1.f1))';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+End of 5.1 tests.
+#
+# Bug#11829785 EXPLAIN EXTENDED CRASH WITH RIGHT OUTER JOIN, SUBQUERIES
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (0), (0);
+PREPARE s FROM 
+'EXPLAIN EXTENDED
+SELECT SUBSTRING(1, (SELECT 1 FROM t1 a1 RIGHT OUTER JOIN t1 ON 0)) AS d
+FROM t1 WHERE 0 > ANY (SELECT @a FROM t1)';
+EXECUTE s;
+ERROR 21000: Subquery returns more than 1 row
+DEALLOCATE PREPARE s;
+DROP TABLE t1;
+#
+# Bug#776295: EXPLAIN EXTENDED with always false multiple equality
+#             in the WHERE condition of a derived table
+#
+CREATE TABLE t1 (a int) ;
+CREATE TABLE t2 (a int) ;
+INSERT INTO t2 VALUES (8);
+set @tmp_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='derived_merge=off,derived_with_keys=off';
+EXPLAIN EXTENDED
+SELECT * FROM ( SELECT t1.a FROM t1,t2 WHERE t2.a = t1.a ) AS t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+Warnings:
+Note	1003	/* select#1 */ select NULL AS `a` from (/* select#2 */ select NULL AS `a` from `test`.`t1` where 0) `t`
+set optimizer_switch=@tmp_optimizer_switch;
+DROP TABLE t1,t2;
+#
+# MDEV-7215: EXPLAIN REPLACE produces an error:
+# Column count doesn't match value count 
+#
+create table t1 (a int);
+insert into t1 values (1);
+create table t2 (b int, c int);
+replace into t2 select 100, (select a from t1);
+explain replace into t2 select 100, (select a from t1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	t1	system	NULL	NULL	NULL	NULL	1	
+drop table t1, t2;
+# End of 10.1 tests

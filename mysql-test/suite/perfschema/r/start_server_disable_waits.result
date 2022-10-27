@@ -1,0 +1,39 @@
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+test
+select count(*) from performance_schema.performance_timers;
+count(*)
+5
+select count(*) from performance_schema.setup_consumers;
+count(*)
+12
+select count(*) > 3 from performance_schema.setup_instruments;
+count(*) > 3
+1
+select count(*) from performance_schema.setup_timers;
+count(*)
+4
+show engine PERFORMANCE_SCHEMA status;
+show status like "performance_schema%";
+select * from performance_schema.setup_instruments
+where name like "wait/%" and enabled='YES';
+NAME	ENABLED	TIMED
+select * from performance_schema.events_waits_summary_global_by_event_name
+where event_name like "wait/%" and count_star > 0;
+EVENT_NAME	COUNT_STAR	SUM_TIMER_WAIT	MIN_TIMER_WAIT	AVG_TIMER_WAIT	MAX_TIMER_WAIT
+select * from performance_schema.events_waits_summary_by_thread_by_event_name
+where event_name like "wait/%" and count_star > 0;
+THREAD_ID	EVENT_NAME	COUNT_STAR	SUM_TIMER_WAIT	MIN_TIMER_WAIT	AVG_TIMER_WAIT	MAX_TIMER_WAIT
+select * from performance_schema.events_waits_summary_by_user_by_event_name
+where event_name like "wait/%" and count_star > 0;
+USER	EVENT_NAME	COUNT_STAR	SUM_TIMER_WAIT	MIN_TIMER_WAIT	AVG_TIMER_WAIT	MAX_TIMER_WAIT
+select * from performance_schema.events_waits_summary_by_host_by_event_name
+where event_name like "wait/%" and count_star > 0;
+HOST	EVENT_NAME	COUNT_STAR	SUM_TIMER_WAIT	MIN_TIMER_WAIT	AVG_TIMER_WAIT	MAX_TIMER_WAIT
+select * from performance_schema.events_waits_summary_by_account_by_event_name
+where event_name like "wait/%" and count_star > 0;
+USER	HOST	EVENT_NAME	COUNT_STAR	SUM_TIMER_WAIT	MIN_TIMER_WAIT	AVG_TIMER_WAIT	MAX_TIMER_WAIT

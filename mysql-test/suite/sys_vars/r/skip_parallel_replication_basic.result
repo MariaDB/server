@@ -1,0 +1,15 @@
+SELECT @@global.skip_parallel_replication;
+ERROR HY000: Variable 'skip_parallel_replication' is a SESSION variable
+SET GLOBAL skip_parallel_replication= 0;
+ERROR HY000: Variable 'skip_parallel_replication' is a SESSION variable and can't be used with SET GLOBAL
+SELECT @@session.skip_parallel_replication;
+@@session.skip_parallel_replication
+0
+SET SESSION skip_parallel_replication= 1;
+SELECT @@session.skip_parallel_replication;
+@@session.skip_parallel_replication
+1
+SET SESSION skip_parallel_replication= 0;
+SELECT @@session.skip_parallel_replication;
+@@session.skip_parallel_replication
+0

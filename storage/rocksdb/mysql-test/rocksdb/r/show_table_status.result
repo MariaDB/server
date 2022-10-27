@@ -1,0 +1,136 @@
+DROP TABLE IF EXISTS t1, t2, t3;
+CREATE TABLE t1 (a INT, b CHAR(8) PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (100,'a'),(2,'foo');
+CREATE TABLE t2 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t2 (a,b) VALUES (1,'bar');
+set global rocksdb_force_flush_memtable_now = true;
+CREATE TABLE t3 (a INT, b CHAR(8), pk INT PRIMARY KEY) ENGINE=rocksdb CHARACTER SET utf8;
+SHOW TABLE STATUS WHERE name IN ( 't1', 't2', 't3' );
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
+t2	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
+t3	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	#	#	NULL	utf8_general_ci	NULL			0	N
+SHOW TABLE STATUS WHERE name LIKE 't2';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t2	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
+DROP TABLE t1, t2, t3;
+CREATE DATABASE `db_new..............................................end`;
+USE `db_new..............................................end`;
+CREATE TABLE `t1_new..............................................end`(a int) engine=rocksdb;
+INSERT INTO `t1_new..............................................end` VALUES (1);
+SELECT TABLE_SCHEMA, TABLE_NAME FROM information_schema.table_statistics WHERE TABLE_NAME = 't1_new..............................................end';
+TABLE_SCHEMA	db_new..............................................end
+TABLE_NAME	t1_new..............................................end
+DROP DATABASE `db_new..............................................end`;
+#
+# MDEV-17171: Bug: RocksDB Tables do not have "Creation Date"
+#
+use test;
+create table t1 (a int) engine=rocksdb;
+select create_time is not null, update_time, check_time 
+from information_schema.tables where table_schema=database() and table_name='t1';
+create_time is not null	update_time	check_time
+1	NULL	NULL
+insert into t1 values (1);
+select create_time is not null, update_time is not null, check_time 
+from information_schema.tables where table_schema=database() and table_name='t1';
+create_time is not null	update_time is not null	check_time
+1	1	NULL
+flush tables;
+select create_time is not null, update_time is not null, check_time 
+from information_schema.tables where table_schema=database() and table_name='t1';
+create_time is not null	update_time is not null	check_time
+1	1	NULL
+select create_time, update_time into @create_tm, @update_tm
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+select sleep(3);
+sleep(3)
+0
+insert into t1 values (2);
+select 
+create_time=@create_tm /* should not change */ , 
+timestampdiff(second, @update_tm, update_time) > 2,
+check_time
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+create_time=@create_tm	1
+timestampdiff(second, @update_tm, update_time) > 2	1
+check_time	NULL
+#
+# Check how create_time survives ALTER TABLE.
+# First, an ALTER TABLE that re-creates the table:
+alter table t1 add b int;
+select
+create_time<>@create_tm /* should change */,
+create_time IS NOT NULL,
+update_time IS NULL
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+create_time<>@create_tm	1
+create_time IS NOT NULL	1
+update_time IS NULL	1
+insert into t1 values (5,5);
+select create_time, update_time into @create_tm, @update_tm
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+# Then, an in-place ALTER TABLE:
+select sleep(2);
+sleep(2)	0
+alter table t1 add key (a);
+# create_time will change as .frm file is rewritten:
+select
+create_time=@create_tm,
+update_time
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+create_time=@create_tm	0
+update_time	NULL
+# Check TRUNCATE TABLE
+insert into t1 values (10,10);
+select create_time, update_time into @create_tm, @update_tm
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+select sleep(2);
+sleep(2)	0
+truncate table t1;
+select
+create_time=@create_tm /* should not change */,
+update_time
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+create_time=@create_tm	1
+update_time	NULL
+#
+# Check what is left after server restart
+#
+drop table t1;
+create table t1 (a int);
+insert into t1 values (1);
+# Save t1's creation time
+create table t2 as
+select create_time
+from information_schema.tables
+where table_schema=database() and table_name='t1';
+select sleep(2);
+sleep(2)	0
+# restart
+select
+create_time=(select create_time from t2)  /* should not change */,
+update_time
+from information_schema.tables
+where table_schema=database() and table_name='t1';
+create_time=(select create_time from t2)	1
+update_time	NULL
+drop table t1, t2;
+#
+# Check how it works for partitioned tables
+#
+create table t1 (pk int primary key) partition by hash(pk) partitions 2;
+insert into t1 values (1);
+select create_time IS NOT NULL , update_time IS NOT NULL
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+create_time IS NOT NULL	1
+update_time IS NOT NULL	1
+drop table t1;

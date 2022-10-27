@@ -1,0 +1,35 @@
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-6409 CREATE VIEW replication problem if error occurs in mysql_register_view
+--echo #
+--echo # Check the bug where if an error occurs in mysql_register_view the view
+--echo # is still replicated to the slave
+--echo #
+connection master;
+create table t1 (a int);
+insert into t1 values (1);
+create view v1 as select a from t1;
+insert into v1 values (2);
+select * from v1 order by a;
+sync_slave_with_master;
+
+# view already has to be on slave
+show tables;
+connection master;
+SET @saved_dbug = @@SESSION.debug_dbug;
+set @@debug_dbug="d,simulate_register_view_failure";
+
+--error ER_OUT_OF_RESOURCES
+CREATE VIEW v2 as SELECT * FROM t1;
+
+show tables;
+sync_slave_with_master;
+show tables;
+
+connection master;
+DROP VIEW IF EXISTS v1;
+DROP TABLE t1;
+SET debug_dbug= @saved_dbug;
+--source include/rpl_end.inc

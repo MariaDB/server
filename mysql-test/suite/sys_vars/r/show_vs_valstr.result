@@ -1,0 +1,10 @@
+use information_schema;
+select variable_name, s.variable_value, v.global_value
+from global_variables s join system_variables v using (variable_name)
+where not (s.variable_value <=> v.global_value);
+variable_name	variable_value	global_value
+select variable_name, s.variable_value, v.session_value
+from session_variables s join system_variables v using (variable_name)
+where v.variable_scope != 'GLOBAL' and
+not (s.variable_value <=> v.session_value);
+variable_name	variable_value	session_value

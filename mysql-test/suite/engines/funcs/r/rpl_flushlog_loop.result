@@ -1,0 +1,14 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+change master to master_host='127.0.0.1',master_user='root',
+master_password='',master_port=MASTER_PORT;
+include/start_slave.inc
+connection master;
+change master to master_host='127.0.0.1',master_user='root',
+master_password='',master_port=SLAVE_PORT;
+include/start_slave.inc
+flush logs;
+include/stop_slave.inc
+include/rpl_end.inc

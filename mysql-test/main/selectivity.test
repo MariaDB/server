@@ -1,0 +1,1333 @@
+--source include/have_stat_tables.inc
+--source include/have_sequence.inc
+--source include/default_charset.inc
+
+--disable_warnings
+drop table if exists t0,t1,t2,t3;
+--enable_warnings
+
+select @@global.use_stat_tables;
+select @@session.use_stat_tables;
+
+set @save_use_stat_tables=@@use_stat_tables;
+set use_stat_tables='preferably';
+
+--source include/default_optimizer_switch.inc
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @save_histogram_size=@@histogram_size;
+set @save_histogram_type=@@histogram_type;
+set join_cache_level=2;
+set @@global.histogram_size=0,@@local.histogram_size=0;
+set histogram_type='single_prec_hb';
+
+# check that statistics on nulls is used
+
+set optimizer_use_condition_selectivity=3;
+
+create table t1 (a int);
+insert into t1 values
+  (9), (3), (2), (NULL), (NULL), (2), (NULL), (1), (5), (NULL);
+
+analyze table t1;
+
+select * from mysql.column_stats;
+
+flush table t1;
+
+explain extended 
+select * from t1 where a is null;
+
+explain extended 
+select * from t1 where a is not null;
+
+drop table t1;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+--disable_warnings
+DROP DATABASE IF EXISTS dbt3_s001;
+--enable_warnings
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+
+ANALYZE TABLE
+customer, lineitem, nation, orders, part, partsupp, region, supplier;
+FLUSH TABLE
+customer, lineitem, nation, orders, part, partsupp, region, supplier;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+--echo === Q2 ===
+
+set optimizer_use_condition_selectivity=5;
+explain extended
+select
+	s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone, s_comment
+from
+	part, supplier, partsupp, nation, region
+where
+	p_partkey = ps_partkey
+	and s_suppkey = ps_suppkey
+	and p_size = 9
+	and p_type like '%TIN'
+	and s_nationkey = n_nationkey
+	and n_regionkey = r_regionkey
+	and r_name = 'ASIA'
+	and ps_supplycost = (
+		select
+			min(ps_supplycost)
+		from
+			partsupp, supplier, nation, region
+		where
+			p_partkey = ps_partkey
+			and s_suppkey = ps_suppkey
+			and s_nationkey = n_nationkey
+			and n_regionkey = r_regionkey
+			and r_name = 'ASIA'
+	)
+order by
+	s_acctbal desc, n_name, s_name, p_partkey;
+set optimizer_use_condition_selectivity=4;
+explain extended
+select
+	s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone, s_comment
+from
+	part, supplier, partsupp, nation, region
+where
+	p_partkey = ps_partkey
+	and s_suppkey = ps_suppkey
+	and p_size = 9
+	and p_type like '%TIN'
+	and s_nationkey = n_nationkey
+	and n_regionkey = r_regionkey
+	and r_name = 'ASIA'
+	and ps_supplycost = (
+		select
+			min(ps_supplycost)
+		from
+			partsupp, supplier, nation, region
+		where
+			p_partkey = ps_partkey
+			and s_suppkey = ps_suppkey
+			and s_nationkey = n_nationkey
+			and n_regionkey = r_regionkey
+			and r_name = 'ASIA'
+	)
+order by
+	s_acctbal desc, n_name, s_name, p_partkey;
+
+--echo === Q15 ===
+
+create view revenue0 (supplier_no, total_revenue) as
+  select l_suppkey, sum(l_extendedprice * (1 - l_discount))
+  from lineitem
+  where
+    l_shipdate >= '1995-08-01'
+    and l_shipdate < date_add('1995-08-01', interval 90 day)
+  group by l_suppkey;
+
+let $Q15=
+select s_suppkey, s_name, s_address, s_phone, total_revenue
+from supplier, revenue0
+where s_suppkey = supplier_no
+  and total_revenue = (select max(total_revenue) from revenue0)
+order by s_suppkey;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=off';
+
+set optimizer_use_condition_selectivity=1;
+eval EXPLAIN EXTENDED $Q15;
+eval $Q15;
+
+set optimizer_use_condition_selectivity=3;
+eval EXPLAIN EXTENDED $Q15;
+eval $Q15;
+
+set optimizer_switch=@save_optimizer_switch;
+
+drop view revenue0;
+
+
+--echo === Q16 ===
+
+let $Q16=
+select p_brand, p_type, p_size, count(distinct ps_suppkey) as supplier_cnt
+from partsupp, part
+where p_partkey = ps_partkey
+  and p_brand <> 'Brand#11'
+  and p_type not like 'SMALL POLISHED%'
+  and p_size in (49, 37, 27, 5, 40, 6, 22, 8)
+  and ps_suppkey not in (select s_suppkey from supplier
+                           where s_comment like '%Customer%Complaints%')
+group by p_brand, p_type, p_size
+order by supplier_cnt desc, p_brand, p_type, p_size;
+
+set optimizer_use_condition_selectivity=1;
+eval EXPLAIN EXTENDED $Q16;
+eval $Q16;
+
+set optimizer_use_condition_selectivity=3;
+eval EXPLAIN EXTENDED $Q16;
+eval $Q16;
+
+set optimizer_use_condition_selectivity=4;
+eval EXPLAIN EXTENDED $Q16;
+eval $Q16;
+
+
+--echo === Q18 ===
+
+let $Q18=
+select 
+  c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity)
+from customer, orders, lineitem
+where
+  o_orderkey in (select l_orderkey from lineitem
+                 group by l_orderkey having sum(l_quantity) > 250)
+  and c_custkey = o_custkey
+  and o_orderkey = l_orderkey
+group by c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice
+order by o_totalprice desc, o_orderdate;
+
+set optimizer_use_condition_selectivity=1;
+eval EXPLAIN EXTENDED $Q18;
+eval $Q18;
+
+set optimizer_use_condition_selectivity=3;
+eval EXPLAIN EXTENDED $Q18;
+eval $Q18;
+
+
+--echo === Q22 ===
+
+let $Q22=
+select cntrycode, count(*) as numcust, sum(c_acctbal) as totacctbal
+from  (
+    select substr(c_phone, 1, 2) as cntrycode, c_acctbal
+    from customer
+    where
+      substr(c_phone, 1, 2) in ('10', '20', '14', '19', '11', '28', '25')
+      and c_acctbal > (select avg(c_acctbal) from customer
+                        where c_acctbal > 0.00
+                          and substr(c_phone, 1, 2) in
+                              ('10', '20', '14', '19', '11', '28', '25'))
+      and not exists (select * from orders where o_custkey = c_custkey)
+  ) as vip
+group by cntrycode
+order by cntrycode;
+
+set optimizer_use_condition_selectivity=1;
+eval EXPLAIN EXTENDED $Q22;
+eval $Q22;
+
+set optimizer_use_condition_selectivity=3;
+eval EXPLAIN EXTENDED $Q22;
+eval $Q22;
+
+
+--echo === Q20 ===
+
+let $Q20=
+select sql_calc_found_rows
+       s_name, s_address
+from supplier, nation
+where s_suppkey in (select ps_suppkey from partsupp
+                    where ps_partkey in (select p_partkey from part
+                                         where p_name like 'g%')
+                          and ps_availqty >
+                              (select 0.5 * sum(l_quantity)
+                               from lineitem
+                               where l_partkey = ps_partkey
+                                     and l_suppkey = ps_suppkey
+                                     and l_shipdate >= date('1993-01-01')
+                                     and l_shipdate < date('1993-01-01') +
+                                         interval '1' year ))
+and s_nationkey = n_nationkey
+and n_name = 'UNITED STATES'
+order by s_name
+limit 10;
+
+set optimizer_use_condition_selectivity=1;
+eval EXPLAIN EXTENDED $Q20;
+eval $Q20;
+
+SELECT ((SELECT COUNT(*) FROM part WHERE p_name LIKE 'g%') /
+        (SELECT COUNT(*) FROM part)) AS sel;
+
+set optimizer_use_condition_selectivity=3;
+eval EXPLAIN EXTENDED $Q20;
+eval $Q20;
+
+set histogram_size=127;
+
+ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
+
+flush table part;
+
+set optimizer_use_condition_selectivity=4;
+eval EXPLAIN EXTENDED $Q20;
+eval $Q20; 
+
+set histogram_type='DOUBLE_PREC_HB';
+set histogram_size=126;
+
+ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
+
+flush table part;
+
+eval EXPLAIN EXTENDED $Q20;
+eval $Q20; 
+
+set histogram_type='SINGLE_PREC_HB';
+set histogram_size=24;
+
+ANALYZE TABLE nation PERSISTENT FOR COLUMNS(n_name) INDEXES();
+
+flush table nation;
+
+eval EXPLAIN EXTENDED $Q20;
+eval $Q20; 
+
+DROP DATABASE dbt3_s001;
+
+set histogram_type=@save_histogram_type;
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+use test;
+
+--echo #
+--echo # Bug mdev-4348: using view with use_condition_selectivity > 1 
+--echo #
+
+set @tmp_use_stat_tables=@@use_stat_tables; 
+set use_stat_tables='never';
+set optimizer_use_condition_selectivity=3;
+
+CREATE TABLE t1 (a int, b int);
+INSERT t1 VALUES (7,1), (0,7);
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1;
+
+CREATE TABLE t2 (c int, d int, index idx(d));
+INSERT INTO t2 VALUES 
+  (0,4), (8,6), (1,3), (8,5), (9,3), (2,2), (6,2),
+  (1,9), (6,3), (2,8), (4,1), (0,7), (4,8), (4,5);
+
+EXPLAIN EXTENDED
+SELECT * FROM v1 INNER JOIN t2 ON ( a = c AND b = d );
+
+SELECT * FROM v1 INNER JOIN t2 ON ( a = c AND b = d );
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set use_stat_tables=@tmp_use_stat_tables; 
+
+--echo #
+--echo # Bug mdev-4349: impossible range for non-indexed column 
+--echo #
+
+set optimizer_use_condition_selectivity=3;
+
+create table t1 (a int);
+insert into t1 values
+  (3), (7), (2), (5), (7), (1), (2), (2);
+
+set optimizer_use_condition_selectivity=1;
+explain extended
+select * from t1 where a < 1 and a > 7;
+select * from t1 where a < 1 and a > 7;
+
+set optimizer_use_condition_selectivity=3;
+explain extended
+select * from t1 where a < 1 and a > 7;
+select * from t1 where a < 1 and a > 7;
+
+drop table t1;
+
+create table t1 (a int);
+insert into t1 values (1);
+
+create table t2 (b int);
+insert into t2 values (2),(3);
+
+explain extended 
+select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
+select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
+
+drop table t1,t2;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+--echo #
+--echo # Bug mdev-4350: erroneous negative selectivity 
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1), (1);
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 values (0);
+select count(*) from t1;
+
+set use_stat_tables='preferably';
+set histogram_size=127;
+set histogram_type='SINGLE_PREC_HB';
+analyze table t1;
+flush table t1;
+
+set optimizer_use_condition_selectivity=4;
+explain extended select * from t1 where a=0;
+
+drop table t1;
+
+set histogram_size=@save_histogram_size;
+set histogram_type=@save_histogram_type;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+--echo #
+--echo # Bug mdev-4367: 2-way join with an empty table 
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+set optimizer_use_condition_selectivity=3;
+
+CREATE TABLE t1 (a varchar(1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('j'),('k');
+
+CREATE TABLE t2 (b varchar(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('x'),('y');
+
+CREATE TABLE t3 (c varchar(1), KEY(c)) ENGINE=MyISAM;
+
+SELECT * FROM t1 STRAIGHT_JOIN (t2 JOIN t3 ON c = b AND b > 'z');
+
+DROP TABLE t1,t2,t3;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+--echo #
+--echo # Bug mdev-4366: impossible condition on an indexed column discovered after
+--echo #                substitution of constant tables
+--echo #                with optimizer_use_condition_selectivity=3
+--echo #
+
+CREATE TABLE t1 (pk int PRIMARY KEY, a int);
+INSERT INTO t1 VALUES 
+  (1,4), (2,6), (3,3), (4,5);
+
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (1), (7);
+
+set optimizer_use_condition_selectivity=1;
+EXPLAIN EXTENDED
+SELECT 1 FROM t1, t2 WHERE pk = 6 AND a = 2 AND b = 10;
+SELECT 1 FROM t1, t2 WHERE pk = 6 AND a = 2 AND b = 10;
+
+set optimizer_use_condition_selectivity=3;
+EXPLAIN EXTENDED
+SELECT 1 FROM t1, t2 WHERE pk = 6 AND a = 2 AND b = 10;
+SELECT 1 FROM t1, t2 WHERE pk = 6 AND a = 2 AND b = 10;
+
+DROP TABLE t1,t2;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+--echo #
+--echo # Bug mdev-4370: Histograms have bean created, but the query is run after
+--echo #                FLUSH TABLES with optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables=PREFERABLY; 
+set histogram_size=10;
+set histogram_type='SINGLE_PREC_HB';
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (9), (1);
+ANALYZE TABLE t1;
+FLUSH TABLES;
+
+set optimizer_use_condition_selectivity=3;
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a > 3;
+SELECT * FROM t1 WHERE a > 3;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1;
+
+set histogram_size=@save_histogram_size;
+set histogram_type=@save_histogram_type;
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-4371: Join with condition supported by index on an empty table  
+--echo #                with optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables=PREFERABLY; 
+
+CREATE TABLE t1 (a int, b int, INDEX(a));
+
+CREATE TABLE t2 (c int);
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+
+ANALYZE TABLE t1, t2;
+FLUSH TABLES;
+
+set optimizer_use_condition_selectivity=3;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=off';
+
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2 WHERE a > 9;
+SELECT * FROM t1, t2 WHERE a > 9;
+
+set optimizer_switch=@save_optimizer_switch;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-4373: condition on a short varchar column   
+--echo #                with optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables=PREFERABLY;
+
+CREATE TABLE t1 (a varchar(1));
+INSERT INTO t1 VALUES ('x'), ('y');
+
+ANALYZE TABLE t1;
+FLUSH TABLES;
+
+set optimizer_use_condition_selectivity=3;
+
+SELECT * FROM t1 WHERE a <= 'w';
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-4372: exists subquery in WHERE   
+--echo #                with optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables = PREFERABLY;
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES 
+  (1),(7),(4),(7),(0),(2),(9),(4),(0),(9),(1),(3),(8),(8);
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (4),(5),(2),(5),(1),(1),(2);
+
+ANALYZE TABLE t1, t2;
+FLUSH TABLES;
+
+set optimizer_use_condition_selectivity=3;
+
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2 WHERE EXISTS ( SELECT 1 FROM t1, t2 ) AND a != b OR a <= 4;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2;
+
+set use_stat_tables=@save_use_stat_tables;
+
+
+--echo #
+--echo # Bug mdev-4363: selectivity of the condition a IS NULL OR IS NOT NULL   
+--echo #                with optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables = PREFERABLY;
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES 
+  (1),(7),(4),(7),(NULL),(2),(NULL),(4),(NULL),(NULL),(1),(3),(8),(8);
+
+ANALYZE TABLE t1;
+FLUSH TABLE t1;
+
+set optimizer_use_condition_selectivity=3;
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a IS NOT NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a IS NULL OR a IS NOT NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a IS NULL OR a < 5;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-4378: 2-way join with a materialized IN subquery in WHERE   
+--echo #                when optimizer_use_condition_selectivity=4
+--echo #
+
+set use_stat_tables=PREFERABLY;
+set histogram_size=50;
+set histogram_type=SINGLE_PREC_HB;
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (8),(9),(6);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8),(1),(8),(9),(24),(6),(1),(6),(2),(4);
+
+CREATE TABLE t3 (ln VARCHAR(16)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES 
+('smith'),('black'),('white'),('jones'),
+('brown'),('taylor'),('anderson'),('taylor');
+
+ANALYZE TABLE t1, t2, t3;
+FLUSH TABLES;
+
+set  optimizer_use_condition_selectivity=4;
+
+SELECT * FROM t1, t2 WHERE 'garcia' IN ( SELECT MIN( ln ) FROM t3 WHERE ln = 'sun' );
+
+set histogram_size=@save_histogram_size;
+set histogram_type=@save_histogram_type;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2,t3;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-4380: 2-way join with a materialized IN subquery in WHERE   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+set  use_stat_tables=PREFERABLY;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (5),(9);
+
+CREATE TABLE t2 (b VARCHAR(8));
+INSERT INTO t2 VALUES ('red'),('blue');
+
+CREATE TABLE t3 (c VARCHAR(8), d VARCHAR(8));
+INSERT INTO t3 VALUES ('white','black'),('cyan','yellow');
+
+ANALYZE TABLE t1, t2, t3;
+FLUSH TABLES;
+
+set optimizer_use_condition_selectivity=3;
+
+SELECT * FROM t1, t2 WHERE ( 'orange', 'green' ) IN ( 
+  SELECT MAX(c), MAX(d) FROM t3, t2 WHERE c >= d AND b = c 
+);
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2,t3;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-4389: join with degenerated range condition in WHERE   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables=PREFERABLY;
+
+CREATE TABLE t1 (f1 VARCHAR(1));
+INSERT t1 VALUES ('p'),('q');
+
+CREATE TABLE t2 (f2 VARCHAR(1));
+INSERT INTO t2 VALUES 
+  ('o'),('v'),('f'),('f'),('e'),('l'),('j'),('p'),('r'),('j'),
+  ('j'),('u'),('i'),('r'),('x'),('a'),('x'),('s');
+
+ANALYZE TABLE t1, t2;
+FLUSH TABLES;
+
+SET optimizer_use_condition_selectivity=3;
+
+SELECT * FROM t1, t2 AS t2a, t2 AS t2b WHERE f1 <= 'a' AND t2a.f2 = f1;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-4406: range condition for non-nullable column   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+create table t1 (a int not null);
+insert into t1 values
+  (7), (6), (4), (9), (1), (5), (2), (1), (3), (8);
+
+set use_stat_tables='preferably';
+
+analyze table t1;
+flush table t1;
+
+set optimizer_use_condition_selectivity=3;
+
+select count(*) from t1 where a between 5 and 7;
+explain extended select * from t1 where a between 5 and 7;
+
+alter table t1 change column a a int;
+analyze table t1;
+flush table t1;
+
+explain extended select * from t1 where a between 5 and 7;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+drop table t1;
+
+set use_stat_tables=@save_use_stat_tables;
+
+
+--echo #
+--echo # Bug mdev-5200: impossible where with a semijoin subquery   
+--echo #                when optimizer_use_condition_selectivity=2
+--echo #
+
+set use_stat_tables = 'preferably';
+set optimizer_use_condition_selectivity = 2;
+
+CREATE TABLE t1 (i1 int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0), (1);
+
+CREATE TABLE t2 (pk2 int, i2 int, c2 char(1), PRIMARY KEY(pk2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,8,'m'), (2,9,'b');
+
+CREATE TABLE t3 (c3 char(1), INDEX(c3)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES ('v'), ('c');
+
+ANALYZE TABLE t1,t2,t3;
+
+SELECT * FROM t1
+  WHERE 2 IN ( SELECT pk2 FROM t2 LEFT JOIN t3 ON (c3 = c2 ) WHERE i2 = 3 );
+EXPLAIN EXTENDED
+SELECT * FROM t1
+  WHERE 2 IN ( SELECT pk2 FROM t2 LEFT JOIN t3 ON (c3 = c2 ) WHERE i2 = 3 );
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # Bug mdev-5415: query over an information schema table   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+set optimizer_use_condition_selectivity = 3;
+
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE SQL_MODE != '';
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+--echo #
+--echo # Bug mdev-5630: always true conjunctive condition   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables = 'preferably';
+set optimizer_use_condition_selectivity = 3;
+
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (10);
+
+CREATE TABLE t2 (id int, flag char(1), INDEX(id)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (100,'0'),(101,'1');
+
+ANALYZE TABLE t1, t2;
+
+SELECT * FROM t1, t2 WHERE id = a AND ( a = 16 OR flag AND a != 6 );
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Bug mdev-4429: join with  range condition whose selectivity == 0   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+CREATE TABLE language (lang_group INT, lang VARCHAR(16) PRIMARY KEY);
+INSERT INTO language VALUES 
+  (1,'Chinese'),(6,'English'),(1,'French'),
+  (1,'German'),(1,'Italian'),(0,'Japanese');
+
+CREATE TABLE country (code varchar(3) PRIMARY KEY,
+                      country_group INT DEFAULT NULL);
+INSERT INTO country VALUES ('USA',3),('FRA',5);
+
+CREATE TABLE continent (cont_group INT, cont varchar(16) PRIMARY KEY);
+INSERT INTO continent VALUES
+  (1,'N.America'),(1,'S.America'),(3,'Australia'),
+  (4,'Africa'),(5,'Antarctica'),(6,'Eurasia');
+
+SET use_stat_tables=PREFERABLY;
+ANALYZE TABLE country, language, continent;
+FLUSH TABLES;
+SET optimizer_use_condition_selectivity=3;
+
+SELECT * FROM language, country, continent
+  WHERE country_group = lang_group AND lang_group IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM language, country, continent
+  WHERE country_group = lang_group AND lang_group IS NULL;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+drop table language, country, continent;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-5191: performance degradation due to a suboptimal chosen plan   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables = 'preferably';
+
+set @@RAND_SEED1=810763568, @@RAND_SEED2=600681772;
+set TIMESTAMP=1394806993;
+
+create table t1 (a int, b int) engine=myisam;
+insert t1 values (rand()*1e5, rand()*1e5);
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+
+create table t2 (c int, d int, key(c), key(d)) engine=myisam;
+insert t2 select floor(rand()*1e5/2)*2, floor(rand()*1e5/3)*3 from t1;
+
+analyze table t1,t2;
+
+set optimizer_use_condition_selectivity=1;
+explain extended 
+select * from t1, t2, t1 as t3
+  where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+--sorted_result
+select * from t1, t2, t1 as t3
+  where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+
+set optimizer_use_condition_selectivity=3;
+explain extended
+select * from t1, t2, t1 as t3
+  where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+--sorted_result
+select * from t1, t2, t1 as t3
+  where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+drop table t1,t2;
+
+set histogram_type=@save_histogram_type;
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+
+--echo #
+--echo # Bug mdev-5931: no where condition after constant table row substitution 
+--echo #                with optimizer_use_condition_selectivity=3
+--echo #
+
+CREATE TABLE t1 (a varchar(3), b varchar(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo', 'foo');
+
+CREATE TABLE t2 (c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1), (2);
+
+set optimizer_use_condition_selectivity=3;
+
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2 WHERE c >= 0 OR a = b ;
+
+SELECT * FROM t1, t2 WHERE c >= 0 OR a = b ;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Bug mdev-6325: wrong selectivity of a column with ref access 
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (a int, b int, key(a));
+insert into t2 select A.a + 10*B.a, 12345 from t0 A, t0 B, t0 C;
+
+set use_stat_tables='preferably';
+set histogram_size=100;
+
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+analyze table t2 persistent for all;
+
+explain extended 
+select * from t1 straight_join t2 where t1.a=t2.a and t1.a<10;
+explain extended 
+select * from t1 straight_join t2 where t1.a=t2.a and t2.a<10;
+
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+drop table t0,t1,t2;
+
+--echo #
+--echo # Bug mdev-6843: col IS NULL in where condition when col is always NULL
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (a int, b int);
+insert into t2 select NULL, a from t1;
+
+set use_stat_tables='preferably';
+set histogram_size=100;
+
+set optimizer_use_condition_selectivity=4;
+analyze table t2 persistent for all;
+
+explain extended
+select * from t2 a straight_join t2 b where a.a is null;
+
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+drop table t0,t1,t2;
+
+--echo #
+--echo # Bug mdev-7316: a conjunct in WHERE with selectivity == 0
+--echo #
+
+CREATE TABLE t1 (a varchar(16), b int, PRIMARY KEY(a), KEY(b));
+INSERT INTO t1 VALUES
+  ('USAChinese',10), ('USAEnglish',20), ('USAFrench',30);
+
+CREATE TABLE t2 (i int);
+INSERT INTO t2 VALUES
+  (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(1),(2),(3),(4);
+
+ANALYZE TABLE t1, t2;
+
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=3;
+
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2
+  WHERE  a <> 'USARussian' AND b IS NULL;
+
+SELECT * FROM t1, t2
+  WHERE a <> 'USARussian' AND b IS NULL;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-11096: range condition over column without statistical data
+--echo #
+
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=3;
+
+create table t1(col1 char(32));
+insert into t1 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
+analyze table t1 persistent for columns () indexes ();
+
+explain extended 
+select * from t1 where col1 > 'b' and col1 < 'e';
+select * from t1 where col1 > 'b' and col1 < 'e';
+
+drop table t1;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-9628: unindexed blob column without min-max statistics 
+--echo #                with optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=3;
+
+create table t1(col1 char(32));
+insert into t1 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
+analyze table t1;
+
+create table t2(col1 text);
+insert into t2 values ('a'),('b'),('c'),('d'), ('e'),('f'),('g'),('h');
+analyze table t2;
+
+select * from t1 where col1 > 'b' and col1 < 'd';
+explain extended 
+select * from t1 where col1 > 'b' and col1 < 'd';
+
+select * from t2 where col1 > 'b' and col1 < 'd';
+explain extended 
+select * from t2 where col1 > 'b' and col1 < 'd';
+
+select * from t2 where col1 < 'b' and col1 > 'd';
+explain extended 
+select * from t2 where col1 < 'b' and col1 > 'd';
+
+drop table t1,t2;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-11364: IS NULL over not nullable datetime column
+--echo #                 in mergeable derived
+--echo #
+
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+set HISTOGRAM_SIZE = 255;
+
+CREATE TABLE t1 (t TIME, d DATE NOT NULL);
+INSERT INTO t1 VALUES ('10:00:00', '0000-00-00'),('11:00:00','0000-00-00');
+ 
+ANALYZE TABLE t1;
+
+SELECT * FROM (SELECT t FROM t1 WHERE d IS NULL) sq;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16374: filtered shows 0 for materilization scan for a semi join, which makes optimizer
+--echo # always pick materialization scan over materialization lookup
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int);
+insert into t1 values (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10),
+(11,11),(12,12),(13,13),(14,14),(15,15);
+set @@optimizer_use_condition_selectivity=2;
+explain extended select * from t1 where a in (select max(a) from t1 group by b);
+select * from t1 where a in (select max(a) from t1 group by b);
+set @@optimizer_use_condition_selectivity=1;
+explain extended select * from t1 where a in (select max(a) from t1 group by b);
+select * from t1 where a in (select max(a) from t1 group by b);
+drop table t1,t0;
+
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-15306: Wrong/Unexpected result with the value
+--echo # optimizer_use_condition_selectivity set to 4
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+delimiter |;
+CREATE FUNCTION f1() RETURNS INT DETERMINISTIC
+BEGIN
+  SET @cnt := @cnt + 1;
+  RETURN 1;
+END;|
+delimiter ;|
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @save_use_stat_tables= @@use_stat_tables;
+set @@use_stat_tables='complementary';
+set @@optimizer_use_condition_selectivity=4;
+SET @cnt= 0;
+SELECT * FROM t1 WHERE a = f1();
+SELECT @cnt;
+
+set @@use_stat_tables='preferably';
+analyze table t1 persistent for all;
+SET @cnt := 0;
+set @@optimizer_use_condition_selectivity=4;
+SELECT * FROM t1 WHERE a = f1();
+SELECT @cnt;
+alter table  t1 force;
+drop table t1;
+drop function f1;
+
+--echo #
+--echo # MDEV-19834 Selectivity of an equality condition discounted twice
+--echo #
+create table t1 (a int, b int, key (b), key (a));
+insert into t1
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1 ;
+
+--echo # Check what info the optimizer has about selectivities
+explain extended select * from t1 use index () where a in (17,51,5);
+explain extended select * from t1 use index () where b=2;
+
+--echo # Now, the equality is used for ref access, while the range condition
+--echo # gives selectivity data
+explain extended select * from t1 where a in (17,51,5) and b=2;
+drop table t1;
+
+set use_stat_tables= @save_use_stat_tables;
+set @@histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+--echo #
+--echo # MDEV-20576: failing assertion DBUG_ASSERT(0.0 < sel && sel <= 1)
+--echo #
+
+set @@optimizer_use_condition_selectivity=2;
+
+set names utf8;
+
+CREATE DATABASE world;
+
+use world;
+
+--source include/world_schema.inc
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/world.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+CREATE INDEX Name ON City(Name);
+CREATE INDEX CountryPopulation ON City(Country,Population);
+CREATE INDEX CountryName ON City(Country,Name);
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+ANALYZE TABLE City;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+set @@optimizer_use_condition_selectivity=2;
+
+EXPLAIN
+SELECT * FROM City WHERE Country='FIN';
+
+DROP DATABASE world;
+
+use test;
+
+CREATE TABLE t1 (
+  a INT,
+  b INT NOT NULL,
+  c char(100),
+  KEY (b, c),
+  KEY (b, a, c)
+) ENGINE=MyISAM
+DEFAULT CHARSET = utf8;
+
+INSERT INTO t1 VALUES
+(1,  1, 1),
+(2,  2, 2),
+(3,  3, 3),
+(4,  4, 4),
+(5,  5, 5),
+(6,  6, 6),
+(7,  7, 7),
+(8,  8, 8),
+(9,  9, 9);
+
+INSERT INTO t1 SELECT a + 10,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 20,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 40,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 80,  b, c FROM t1;
+INSERT INTO t1 SELECT a + 160, b, c FROM t1;
+INSERT INTO t1 SELECT a + 320, b, c FROM t1;
+INSERT INTO t1 SELECT a + 640, b, c FROM t1;
+INSERT INTO t1 SELECT a + 1280, b, c FROM t1 LIMIT 80;
+
+EXPLAIN
+SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
+SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20424: New default value for optimizer_use_condition-selectivity
+--echo # leads to bad plan
+--echo #
+
+create table t1(a int, b int, c int, d int, key(a,b));
+insert into t1 select 50,seq-1,seq-1,seq from seq_1_to_10;
+insert into t1 select seq-1,seq-1,seq-1,seq from seq_1_to_100 limit 90;
+
+create table t2(a int, b int, c int, primary key(a));
+insert into t2 select seq-1,seq-1,seq-1 from seq_1_to_100;
+
+create table t3(a int, b int, c int, primary key(a));
+insert into t3 select seq-1,seq-1,seq-1 from seq_1_to_100 limit 30;
+
+let $query= select t1.b,t2.a,t3.a,t3.b from t1,t2,t3
+where t1.c = t2.a AND t1.d = t3.a and t1.a = 50 and t1.b <= 100;
+
+set optimizer_use_condition_selectivity=1;
+eval explain extended $query;
+eval $query;
+
+set optimizer_use_condition_selectivity=2;
+eval explain extended $query;
+eval $query;
+set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+
+drop table t1,t2,t3;
+
+
+--echo #
+--echo # MDEV-20519: Query plan regression with optimizer_use_condition_selectivity=4
+--echo #
+
+
+
+create table t1 (id int, a int, PRIMARY KEY(id), key(a));
+insert into t1 select seq,seq from seq_1_to_100;
+
+create table t2 (id int, a int, b int, PRIMARY KEY(id), key(a), key(b));
+insert into t2 select seq,seq,seq from seq_1_to_100;
+
+set optimizer_switch='exists_to_in=off';
+set optimizer_use_condition_selectivity=2;
+
+let $query= SELECT * FROM t1
+            WHERE
+              EXISTS (SELECT * FROM t1 A INNER JOIN t2 ON t2.a = A.id
+                      WHERE A.a=t1.a AND t2.b < 20);
+
+eval $query;
+eval explain $query;
+
+EXPLAIN  SELECT * FROM t1 A, t1 B WHERE A.a = B.a and A.id = 65;
+
+eval explain $query;
+
+set optimizer_switch= @save_optimizer_switch;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-21495: Conditional jump or move depends on uninitialised value in sel_arg_range_seq_next
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+set optimizer_use_condition_selectivity=4;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SELECT * from t1 WHERE a = 5 and b = 5;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1;
+
+--echo # End of 10.1 tests
+
+--echo #
+--echo # MDEV-22583: Selectivity for BIT columns in filtered column for EXPLAIN is incorrect
+--echo #
+
+SET optimizer_use_condition_selectivity=4;
+SET histogram_size=255;
+CREATE TABLE t1 (a BIT(32), b INT);
+INSERT INTO t1 VALUES (80, 80), (81, 81), (82, 82);
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+EXPLAIN EXTENDED SELECT * from t1 where t1.a >= 81;
+SELECT HEX(a), b from t1 where t1.a >= 81;
+
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set histogram_size=@save_histogram_size;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19474: Histogram statistics are used even with optimizer_use_condition_selectivity=3
+--echo #
+
+CREATE TABLE t1(a int);
+INSERT INTO t1 values (1),(2),(2),(3),(4);
+SET optimizer_use_condition_selectivity=4;
+SET histogram_size= 255;
+
+set use_stat_tables='preferably';
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+SET optimizer_use_condition_selectivity=3;
+
+--echo # filtered should show 25 %
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+FLUSH TABLES;
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set histogram_size=@save_histogram_size;
+set use_stat_tables= @save_use_stat_tables;
+
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
+
+#
+# Clean up
+#
+--source include/restore_charset.inc
+set @@global.histogram_size=@save_histogram_size;

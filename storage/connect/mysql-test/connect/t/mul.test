@@ -1,0 +1,43 @@
+--echo #
+--echo # Testing multiple 1
+--echo #
+CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL,
+  `b` char(10) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `table_type`=CSV `sep_char`=';';
+INSERT INTO t1 VALUES('test1','bla');
+SELECT * FROM t1;
+
+CREATE TABLE `t2` (
+  `a` char(10) DEFAULT NULL,
+  `b` char(10) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `table_type`=CSV `sep_char`=';';
+INSERT INTO t2 VALUES('test2','blub');
+SELECT * FROM t2;
+
+CREATE TABLE `t_all` (
+  `a` char(10) DEFAULT NULL,
+  `b` char(10) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `table_type`=CSV `file_name`='t*.csv' `sep_char`=';' `multiple`=1;
+SELECT * FROM t_all order by `a`;
+
+--echo #
+--echo # Testing multiple 2
+--echo #
+CREATE table fnlist (
+fn char(8) not null
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 table_type=DOS;
+INSERT INTO fnlist VALUES('t1.csv'),('t2.csv');
+SELECT fn FROM fnlist;
+
+CREATE TABLE `tblist` (
+  `a` char(10) DEFAULT NULL,
+  `b` char(10) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `table_type`=CSV `file_name`='fnlist.dos' `sep_char`=';' `multiple`=2;
+SELECT * FROM tblist;
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t_all;
+DROP TABLE fnlist;
+DROP TABLE tblist;

@@ -1,0 +1,87 @@
+#
+# MDEV-14012 - sql_mode=Oracle: substr(): treat position 0 as position 1
+# MDEV-10574 - sql_mode=Oracle: return null instead of empty string
+#
+SET sql_mode=ORACLE;
+SELECT SUBSTR('abc',2,1),SUBSTR('abc',1,1), SUBSTR('abc',0,1) FROM dual;
+SUBSTR('abc',2,1)	SUBSTR('abc',1,1)	SUBSTR('abc',0,1)
+b	a	a
+SELECT SUBSTR('abc',2),SUBSTR('abc',1), SUBSTR('abc',0) FROM dual;
+SUBSTR('abc',2)	SUBSTR('abc',1)	SUBSTR('abc',0)
+bc	abc	abc
+SELECT SUBSTR(null,2,1),SUBSTR(null,1), SUBSTR(null,0) FROM dual;
+SUBSTR(null,2,1)	SUBSTR(null,1)	SUBSTR(null,0)
+NULL	NULL	NULL
+SELECT SUBSTR('abc',-2),SUBSTR('abc',-1), SUBSTR('abc',-0) FROM dual;
+SUBSTR('abc',-2)	SUBSTR('abc',-1)	SUBSTR('abc',-0)
+bc	c	abc
+SELECT SUBSTR('abc',-2,1),SUBSTR('abc',-1,1), SUBSTR('abc',-0,1) FROM dual;
+SUBSTR('abc',-2,1)	SUBSTR('abc',-1,1)	SUBSTR('abc',-0,1)
+b	c	a
+SELECT SUBSTR('abc',null) FROM dual;
+SUBSTR('abc',null)
+NULL
+SELECT SUBSTR('abc',2,null),SUBSTR('abc',1,null), SUBSTR('abc',0,null) FROM dual;
+SUBSTR('abc',2,null)	SUBSTR('abc',1,null)	SUBSTR('abc',0,null)
+NULL	NULL	NULL
+SELECT SUBSTR('abc',2,0),SUBSTR('abc',1,0), SUBSTR('abc',0,0) FROM dual;
+SUBSTR('abc',2,0)	SUBSTR('abc',1,0)	SUBSTR('abc',0,0)
+NULL	NULL	NULL
+SELECT SUBSTR('abc',2,-1),SUBSTR('abc',1,-1), SUBSTR('abc',0,-1) FROM dual;
+SUBSTR('abc',2,-1)	SUBSTR('abc',1,-1)	SUBSTR('abc',0,-1)
+NULL	NULL	NULL
+SELECT SUBSTR(SPACE(0),1) FROM DUAL;
+SUBSTR(SPACE(0),1)
+NULL
+CREATE TABLE t1 (c1 VARCHAR(10),start INTEGER, length INTEGER);
+INSERT INTO t1 VALUES ('abc', 1, 1);
+INSERT INTO t1 VALUES ('abc', 0, 1);
+INSERT INTO t1 VALUES (null, 1, 1);
+INSERT INTO t1 VALUES (null, 0, 1);
+INSERT INTO t1 VALUES ('abc', 1, 0);
+INSERT INTO t1 VALUES ('abc', 0, 0);
+INSERT INTO t1 VALUES (null, 1, 0);
+INSERT INTO t1 VALUES (null, 0, 0);
+INSERT INTO t1 VALUES ('abc', 1, -1);
+INSERT INTO t1 VALUES ('abc', 0, -1);
+INSERT INTO t1 VALUES (null, 1, -1);
+INSERT INTO t1 VALUES (null, 0, -1);
+INSERT INTO t1 VALUES (SPACE(0), 0, 1);
+SELECT SUBSTR(c1,start,length) FROM t1;
+SUBSTR(c1,start,length)
+a
+a
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(10) NOT NULL);
+CREATE TABLE t2 AS SELECT SUBSTR(C1,1,1) AS C1 from t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "C1" varchar(1) DEFAULT NULL
+)
+DROP TABLE t2;
+DROP TABLE t1;
+EXPLAIN EXTENDED SELECT SUBSTR('abc',2,1) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select substr_oracle('abc',2,1) AS "SUBSTR('abc',2,1)"
+CREATE VIEW v1 AS SELECT SUBSTR('abc',2,1) ;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select substr_oracle('abc',2,1) AS "SUBSTR('abc',2,1)"	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+SUBSTR('abc',2,1)
+b
+DROP VIEW v1;

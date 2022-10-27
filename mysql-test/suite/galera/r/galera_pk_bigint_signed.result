@@ -1,0 +1,34 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 BIGINT SIGNED PRIMARY KEY, f2 VARCHAR(5)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(-9223372036854775808, 'min'),
+(9223372036854775807, 'max')
+;
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+-9223372036854775808	min
+9223372036854775807	max
+UPDATE t1 SET f2 = CONCAT(f2, '_');
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+-9223372036854775808	min_
+9223372036854775807	max_
+connection node_1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'foo' WHERE f1 = -9223372036854775808;
+connection node_2;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'bar' WHERE f1 = -9223372036854775808;
+connection node_1;
+COMMIT;
+SET AUTOCOMMIT=ON;
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SET AUTOCOMMIT=ON;
+DROP TABLE t1;

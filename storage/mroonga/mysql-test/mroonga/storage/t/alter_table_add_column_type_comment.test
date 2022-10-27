@@ -1,0 +1,43 @@
+# Copyright(C) 2014 Kenji Maruyama <mmmaru777@gmail.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/load_mroonga_functions.inc
+
+--disable_query_log
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+--enable_query_log
+
+CREATE TABLE tags (
+  id INT UNSIGNED PRIMARY KEY
+) DEFAULT CHARSET=utf8;
+
+CREATE TABLE bugs (
+  id INT UNSIGNED PRIMARY KEY
+) DEFAULT CHARSET=utf8;
+
+ALTER TABLE bugs ADD COLUMN name VARCHAR(64) COMMENT 'type "tags"';
+
+SELECT mroonga_command("dump --dump_plugins no");
+
+DROP TABLE bugs;
+DROP TABLE tags;
+
+--source ../../include/mroonga/unload_mroonga_functions.inc
+--source ../../include/mroonga/have_mroonga_deinit.inc

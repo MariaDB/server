@@ -1,0 +1,68 @@
+#
+# Test the ENUM column type, as it is frequently an unwanted child
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# ENUM as key
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 ENUM('', 'one', 'two'), KEY (f1)) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES ('');
+INSERT INTO t1 VALUES ('one'), ('two');
+INSERT IGNORE INTO t1 VALUES (0), (1), (2);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t1 where f1 = '';
+SELECT COUNT(*) FROM t1 where f1 = 'one';
+
+DROP TABLE t1;
+
+#
+# ENUM as PK
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 ENUM('', 'one', 'two', 'three', 'four') PRIMARY KEY) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (''), ('one'), ('two');
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t1 WHERE f1 = '';
+
+# Conflict
+
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f1 = 'three' where f1 = '';
+
+--connection node_2
+SET AUTOCOMMIt=OFF;
+START TRANSACTION;
+UPDATE t1 SET f1 = 'four' where f1 = '';
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+--connection node_1
+
+SELECT COUNT(*) FROM t1 WHERE f1 = 'three';
+SELECT * FROM t1;
+
+DROP TABLE t1;

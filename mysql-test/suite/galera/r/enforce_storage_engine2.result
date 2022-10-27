@@ -1,0 +1,28 @@
+connection node_2;
+connection node_1;
+#
+# MDEV-9312: storage engine not enforced during galera cluster
+# replication
+#
+connection node_1;
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+CREATE TABLE t2(i INT) ENGINE=MYISAM;
+Warnings:
+Note	1266	Using storage engine InnoDB for table 't2'
+connection node_2;
+SHOW TABLES;
+Tables_in_test
+t1
+t2
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1, t2;
+# End of tests

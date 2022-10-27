@@ -1,0 +1,77 @@
+--source include/have_rocksdb.inc
+--source include/not_valgrind.inc
+
+--let $restart_noprint=2
+
+--echo #
+--echo #  Test how MyRocks behaves when RocksDB reports corrupted data.
+--echo #
+
+--source include/have_debug.inc
+
+# use custom error log to assert on error message in search_pattern_in_file.inc
+--let LOG=$MYSQLTEST_VARDIR/tmp/allow_to_start_after_corruption_debug.err
+--let SEARCH_FILE=$LOG
+
+# restart server to change error log and ignore corruptopn on startup
+--let $_mysqld_option=--log-error=$LOG --rocksdb_allow_to_start_after_corruption=1
+--source include/restart_mysqld_with_option.inc
+
+--echo #
+--echo #  Test server crashes on corrupted data and restarts
+--echo #
+create table t1 (
+  pk int not null primary key,
+  col1 varchar(10)
+) engine=rocksdb;
+
+insert into t1 values (1,1),(2,2),(3,3);
+
+select * from t1 where pk=1;
+set session debug_dbug= "+d,rocksdb_return_status_corrupted";
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+select * from t1 where pk=1;
+--source include/wait_until_disconnected.inc
+--let SEARCH_PATTERN=data corruption detected
+--source include/search_pattern_in_file.inc
+--remove_file $LOG
+
+--echo #
+--echo #  The same for scan queries
+--echo #
+
+--source include/start_mysqld_with_option.inc
+select * from t1;
+set session debug_dbug= "+d,rocksdb_return_status_corrupted";
+--exec echo "wait" > $_expect_file_name
+--error 2013
+select * from t1;
+--source include/wait_until_disconnected.inc
+--let SEARCH_PATTERN=data corruption detected
+--source include/search_pattern_in_file.inc
+--remove_file $LOG
+
+--echo #
+--echo #  Test restart failure. The server is shutdown at this point.
+--echo #
+
+# remove flag to ignore corruption
+--let $_mysqld_option=--log-error=$LOG
+--error 0
+--exec $MYSQLD_CMD --plugin_load=$HA_ROCKSDB_SO $_mysqld_option
+--let SEARCH_PATTERN=The server will exit normally and stop restart attempts
+--source include/search_pattern_in_file.inc
+--remove_file $LOG
+
+--echo #
+--echo #  Remove corruption file and restart cleanly
+--echo #
+
+--exec rm $MYSQLTEST_VARDIR/mysqld.$_server_id/data/#rocksdb/ROCKSDB_CORRUPTED
+--source include/start_mysqld_with_option.inc
+
+drop table t1;
+
+# Restart mysqld with default options
+--source include/restart_mysqld.inc

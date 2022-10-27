@@ -1,0 +1,5 @@
+--source include/have_rocksdb.inc
+
+let $trx_isolation = SERIALIZABLE;
+--source transaction_isolation.inc
+

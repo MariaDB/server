@@ -1,0 +1,80 @@
+#############################################################################
+# BUG#43579 mysql_upgrade tries to alter log tables on replicated database
+# Master and slave should be upgraded separately.  All statements executed by
+# mysql_upgrade will not be binlogged. --write-binlog and --skip-write-binlog
+# options are added into mysql_upgrade. These options control whether sql
+# statements are binlogged or not. 
+#############################################################################
+--source include/have_innodb.inc
+--source include/mysql_upgrade_preparation.inc
+--source include/master-slave.inc
+
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+call mtr.add_suppression("table or database name 'mysqltest-1'");
+
+connection master;
+--disable_warnings
+CREATE DATABASE `mysqltest-1`;
+--enable_warnings
+sync_slave_with_master;
+
+connection master;
+let $before_position= query_get_value(SHOW MASTER STATUS, Position, 1);
+
+#With '--force' option, mysql_upgrade always executes all sql statements for upgrading.
+--exec $MYSQL_UPGRADE --skip-verbose --force --user=root > $MYSQLTEST_VARDIR/log/mysql_upgrade.log 2>&1
+sync_slave_with_master;
+
+connection master;
+let $after_position= query_get_value(SHOW MASTER STATUS, Position, 1);
+
+if ($before_position == $after_position)
+{
+  echo Master position is not changed;
+}
+
+# Some log events of the mysql_upgrade previously caused errors on slave,
+# however with MDEV-4851 this should be ok, so we test it:
+connection slave;
+SET @old_general_log_state = @@global.general_log;
+SET @old_slow_log_state = @@global.slow_query_log;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL general_log = 'ON';
+SET GLOBAL slow_query_log = 'ON';
+SET GLOBAL log_output = 'FILE';
+
+connection master;
+#With '--force' option, mysql_upgrade always executes all sql statements for upgrading.
+ALTER TABLE mysql.slow_log DROP COLUMN thread_id, DROP COLUMN rows_affected;
+DROP DATABASE `mysqltest-1`;
+sync_slave_with_master;
+
+connection slave;
+SHOW CREATE TABLE mysql.slow_log;
+connection master;
+--exec $MYSQL_UPGRADE --skip-verbose --write-binlog --force --user=root > $MYSQLTEST_VARDIR/log/mysql_upgrade.log 2>&1
+
+let $datadir= `select @@datadir`;
+remove_file $datadir/mysql_upgrade_info;
+
+connection master;
+let $after_file= query_get_value(SHOW MASTER STATUS, File, 1);
+let $after_position= query_get_value(SHOW MASTER STATUS, Position, 1);
+
+if ($before_position != $after_position)
+{
+  echo Master position has been changed;
+}
+
+sync_slave_with_master;
+connection slave;
+SHOW CREATE TABLE mysql.slow_log;
+SET GLOBAL general_log = 'OFF';
+SET GLOBAL slow_query_log = 'OFF';
+truncate mysql.slow_log;
+truncate mysql.general_log;
+SET GLOBAL general_log = @old_general_log_state;
+SET GLOBAL slow_query_log = @old_slow_log_state;
+SET GLOBAL log_output = @old_log_output;
+
+--source include/rpl_end.inc

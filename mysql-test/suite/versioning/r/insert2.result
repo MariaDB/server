@@ -1,0 +1,86 @@
+create table t1(
+x int unsigned,
+sys_start bigint unsigned as row start invisible,
+sys_end bigint unsigned as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning engine=innodb;
+create table t2(x int unsigned) engine=innodb;
+start transaction;
+insert into t1(x) values(1);
+commit;
+start transaction;
+insert into t2(x) values(1);
+savepoint a;
+insert into t1(x) values(1);
+rollback to a;
+commit;
+insert into t2(x) values (1);
+create or replace table t1 (
+x int,
+y int as (x) virtual,
+sys_trx_start bigint unsigned as row start invisible,
+sys_trx_end bigint unsigned as row end invisible,
+period for system_time (sys_trx_start, sys_trx_end)
+) engine=innodb with system versioning;
+insert into t1 values (1, null);
+update t1 set x= x + 1;
+select x, y, sys_trx_end = 18446744073709551615 as current from t1 for system_time all;
+x	y	current
+2	2	1
+1	1	0
+create or replace table t1 (
+x int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t1 values  (1), (2);
+insert into t1 (row_start) select row_end from t1;
+ERROR HY000: The value specified for generated column 'row_start' in table 't1' has been ignored
+set sql_mode='';
+insert into t1 (row_start, row_end) values (DEFAULT, 1);
+Warnings:
+Warning	1906	The value specified for generated column 'row_end' in table 't1' has been ignored
+set sql_mode=default;
+select @@sql_mode into @saved_mode;
+set sql_mode= '';
+insert into t1 (x, row_start, row_end) values (3, 4, 5);
+Warnings:
+Warning	1906	The value specified for generated column 'row_start' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'row_end' in table 't1' has been ignored
+set sql_mode= @saved_mode;
+insert into t1 (row_start, row_end) values (DEFAULT, DEFAULT);
+select * from t1;
+x
+1
+2
+NULL
+3
+NULL
+# MDEV-14792 INSERT without column list into table with explicit versioning columns produces bad data
+create or replace table t1 (
+i int,
+s timestamp(6) as row start,
+e timestamp(6) as row end,
+c varchar(8),
+period for system_time(s, e))
+with system versioning;
+insert into t1 values (1, null, null, 'foo');
+select i, c, e>TIMESTAMP'2038-01-01 00:00:00' AS current_row from t1;
+i	c	current_row
+1	foo	1
+drop table t1;
+drop table t2;
+#
+# MDEV-14871 Server crashes in fill_record / fill_record_n_invoke_before_triggers upon inserting into versioned table with trigger
+#
+create or replace table t1 (pk int primary key) with system versioning;
+create trigger tr before insert on t1 for each row select 1 into @a;
+insert into t1 values (1),(2);
+drop table t1;
+create table t1 (pk int primary key, i int) with system versioning;
+replace into t1 values (1,10),(1,100),(1,1000);
+select pk,i,row_end > '2038-01-01' from t1 for system_time all;
+pk	i	row_end > '2038-01-01'
+1	1000	1
+drop table t1;

@@ -1,0 +1,3 @@
+-- source include/have_innodb.inc
+let $engine_type=InnoDB;
+-- source include/rpl_sv_relay_space.test

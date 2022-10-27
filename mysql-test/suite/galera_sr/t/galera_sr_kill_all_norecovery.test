@@ -1,0 +1,71 @@
+#
+# Kill entire cluster during SR while pc.recovery is NOT in effect
+# after restart, confirm that the mysql.wsrep_streaming_log table is empty
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../../galera/include/auto_increment_offset_save.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+
+
+#
+# Kill the entire cluster and restart
+#
+--connection node_2
+--source include/kill_galera.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+--let $start_mysqld_params = "--wsrep-new-cluster"
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/start_mysqld.inc
+
+--connection node_2
+--let $start_mysqld_params = ""
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+
+#
+# Check that wsrep_streaming_log is empty
+#
+--connection node_1
+--source include/wait_until_connected_again.inc
+--source include/galera_wait_ready.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) `expect 0` FROM t1;
+SELECT COUNT(*) `expect 0` FROM mysql.wsrep_streaming_log;
+
+
+#
+# Cleanup
+#
+--source ../../galera/include/auto_increment_offset_restore.inc
+DROP TABLE t1;

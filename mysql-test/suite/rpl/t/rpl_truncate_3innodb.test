@@ -1,0 +1,3 @@
+--source include/have_innodb.inc
+let $engine=InnoDB;
+--source include/rpl_truncate.test

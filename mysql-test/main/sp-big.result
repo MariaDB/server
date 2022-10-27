@@ -1,0 +1,89 @@
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+length
+107520
+select length(routine_definition) from information_schema.routines where routine_schema = 'test' and routine_name = 'longprocedure';
+length(routine_definition)
+107530
+call test.longprocedure(@value);
+select @value;
+@value
+3
+drop procedure test.longprocedure;
+drop table t1;
+create table t1 (f1 char(100) , f2 mediumint , f3 int , f4 real, f5 numeric);
+insert into t1 (f1, f2, f3, f4, f5) values
+("This is a test case for for Bug#9819", 1, 2, 3.0, 4.598);
+Warnings:
+Note	1265	Data truncated for column 'f5' at row 1
+create table t2 like t1;
+select count(*) from t1;
+count(*)
+256
+select count(*) from t2;
+count(*)
+0
+drop procedure if exists p1;
+create procedure p1()
+begin
+declare done integer default 0;
+declare vf1 char(100) ;
+declare vf2 mediumint;
+declare vf3 int ;
+declare vf4 real ;
+declare vf5 numeric ;
+declare cur1 cursor for select f1,f2,f3,f4,f5 from t1;  
+declare continue handler for sqlstate '02000' set done = 1; 
+open cur1;
+while done <> 1 do
+fetch cur1 into vf1, vf2, vf3, vf4, vf5;
+if not done then
+insert into t2 values (vf1, vf2, vf3, vf4, vf5);
+end if;
+end while;
+close cur1;
+end|
+call p1();
+select count(*) from t1;
+count(*)
+256
+select count(*) from t2;
+count(*)
+256
+select f1 from t1 limit 1;
+f1
+This is a test case for for Bug#9819
+select f1 from t2 limit 1;
+f1
+This is a test case for for Bug#9819
+drop procedure p1;
+drop table t1, t2;
+create table t1 (
+`id1` int unsigned not null default '0',
+`id2` int unsigned not null default '0',
+`link_type` int unsigned not null default '0',
+`visibility` tinyint not null default '0',
+`data` varchar(255) not null default '',
+`time` int unsigned not null default '0',
+`version` int unsigned not null default '0',
+primary key (id1, link_type, visibility, id2)
+) default collate=latin1_bin;
+create procedure select_test()
+begin
+declare id1_cond int;
+set id1_cond = 1;
+while id1_cond <= 10000 do
+select count(*) as cnt from (select id1 from t1 force index (primary) where id1 = id1_cond and link_type = 1 and visibility = 1 order by id2 desc) as t into @cnt;
+set id1_cond = id1_cond + 1;
+end while;
+end//
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+insert t1 select seq, seq, 1, 1, seq, seq, seq from seq_1_to_2000;
+set @before=unix_timestamp();
+call select_test();
+select unix_timestamp() - @before < @time;
+unix_timestamp() - @before < @time
+1
+drop procedure select_test;
+drop table t1;

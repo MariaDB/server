@@ -1,0 +1,57 @@
+#
+# Bug#11760927: 53375: RBR + NO PK => HIGH LOAD ON SLAVE (TABLE SCAN/CPU) => SLAVE FAILURE
+#
+--source include/have_binlog_format_row.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+# SETUP
+# - setup log_warnings and debug 
+--connection slave
+--source include/stop_slave.inc
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+--let $log_warnings_save= `SELECT @@GLOBAL.log_warnings`
+
+SET GLOBAL log_warnings = 2;
+
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
+}
+
+# Assign env variable LOG_ERROR
+let LOG_ERROR=$log_error_;
+
+# force printing the notes to the error log
+SET GLOBAL debug_dbug="d,inject_long_find_row_note";
+--source include/start_slave.inc
+
+# test
+--connection master
+CREATE TABLE t1 (c1 INT);
+--sync_slave_with_master
+--connection master
+
+INSERT INTO t1 VALUES (1), (2);
+UPDATE t1 SET c1= 1000 WHERE c1=2;
+DELETE FROM t1;
+DROP TABLE t1;
+--sync_slave_with_master
+
+--echo # Check if any note related to long DELETE_ROWS and UPDATE_ROWS appears in the error log
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=The slave is applying a ROW event on behalf of an UPDATE statement on table t1 and is currently taking a considerable amount
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=The slave is applying a ROW event on behalf of a DELETE statement on table t1 and is currently taking a considerable amount
+--source include/search_pattern_in_file.inc
+
+# cleanup
+--source include/stop_slave.inc
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+--eval SET GLOBAL log_warnings = $log_warnings_save
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

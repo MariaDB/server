@@ -1,0 +1,104 @@
+#
+# #MW-329 Fix incorrect affected rows count after replay
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CALL mtr.add_suppression("WSREP: .*conflict state . after post commit .*");
+CREATE TABLE t1 (f1 INTEGER, f2 CHAR(20) DEFAULT 'abc') ENGINE=InnoDB;
+
+# We start with a populated table
+INSERT INTO t1 (f1) VALUES (1),(65535);
+
+#
+# Run concurrent INSERTs 
+#
+
+DELIMITER |;
+CREATE PROCEDURE proc_insert ()
+BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+        SET SESSION wsrep_sync_wait = 0;
+        WHILE 1 DO
+		INSERT INTO t1 (f1) VALUES (FLOOR( 1 + RAND( ) * 65535 ));
+		SELECT SLEEP(0.1);
+        END WHILE;
+END|
+DELIMITER ;|
+
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1b
+--let $connection_id = `SELECT CONNECTION_ID()`
+--disable_query_log
+--disable_result_log
+--send CALL proc_insert();
+
+#
+# Run concurrent UPDATEs. We expect that each UPDATE will report that
+# some rows were matched and updated
+#
+
+--connection node_2
+--let $count = 10
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
+while ($count)
+{
+	--let $signature = `SELECT LEFT(MD5(RAND()), 10)`
+	--disable_query_log
+	--error 0,ER_LOCK_DEADLOCK
+	--eval UPDATE t1 SET f2 = '$signature'
+	--enable_query_log
+	--let $row_count = `SELECT ROW_COUNT()`
+	if (`SELECT @@error_count = 0`) {
+		if (`SELECT $row_count = 0`) {
+			--die ROW_COUNT() = 0
+		}
+	}
+
+        #
+        # Ensure at least one replay happens
+        #
+
+        --let $wsrep_replays = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+        --disable_query_log
+        if (`SELECT $wsrep_replays - $wsrep_local_replays_old > 0`) {
+                --dec $count
+        }
+        --enable_query_log
+}
+
+#
+# Confirm that some transaction replays occurred
+#
+
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old > 0 AS wsrep_local_replays;
+--enable_query_log
+
+
+#
+# Terminate the stored procedure
+#
+
+--connection node_1
+--disable_query_log
+--eval KILL CONNECTION $connection_id
+--enable_query_log
+
+--connection node_1b
+--error 0,2013,1317
+--reap
+--enable_query_log
+--enable_result_log
+
+--connection node_1
+DROP PROCEDURE proc_insert;
+DROP TABLE t1;
+
+# Due to MW-330, Multiple "conflict state 3 after post commit" warnings if table is dropped while SP is running
+CALL mtr.add_suppression("conflict state 3 after post commit");
+
+set global innodb_status_output=Default;

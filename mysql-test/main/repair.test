@@ -1,0 +1,269 @@
+#
+# Test of repair table
+#
+--source include/have_sequence.inc
+--source include/default_charset.inc
+
+call mtr.add_suppression("character set is multi-byte");
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 SELECT 1,"table 1";
+repair table t1 use_frm;
+alter table t1 ENGINE=HEAP;
+repair table t1 use_frm;
+drop table t1;
+
+#
+# disabled keys during repair
+#
+create table t1(id int PRIMARY KEY, st varchar(10), KEY st_key(st));
+insert into t1 values(1, "One");
+alter table t1 disable keys;
+show keys from t1;
+repair table t1 extended;
+show keys from t1;
+drop table t1;
+
+
+# non-existent table
+repair table t1 use_frm;
+
+create table t1 engine=myisam SELECT 1,"table 1";
+flush tables;
+let $MYSQLD_DATADIR= `select @@datadir`;
+system echo 1 > $MYSQLD_DATADIR/test/t1.MYI ;
+repair table t1;
+repair table t1 use_frm;
+drop table t1;
+
+#
+# BUG#18874 - Setting myisam_repair_threads > 1, index cardinality always 1
+#
+CREATE TABLE t1(a INT, KEY(a));
+INSERT INTO t1 VALUES(1),(2),(3),(4),(5);
+SET myisam_repair_threads=2;
+REPAIR TABLE t1;
+SHOW INDEX FROM t1;
+SET myisam_repair_threads=@@global.myisam_repair_threads;
+DROP TABLE t1;
+
+#
+# BUG#22562 - REPAIR TABLE .. USE_FRM causes server crash on Windows and
+#             server hangs on Linux
+#
+CREATE TABLE t1(a INT);
+USE mysql;
+REPAIR TABLE test.t1 USE_FRM;
+USE test;
+DROP TABLE t1;
+
+#
+# BUG#23175 - MYISAM crash/repair failed during repair
+#
+CREATE TABLE t1(a CHAR(255), KEY(a));
+SET myisam_sort_buffer_size=4096;
+--replace_regex /Current myisam_sort_buffer_size.*/X/
+INSERT INTO t1 VALUES
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0');
+SET myisam_repair_threads=2;
+--replace_regex /Current myisam_sort_buffer_size.*/X/
+REPAIR TABLE t1;
+SET myisam_repair_threads=@@global.myisam_repair_threads;
+SET myisam_sort_buffer_size=@@global.myisam_sort_buffer_size;
+DROP TABLE t1;
+
+#
+# BUG#31174 - "Repair" command on MyISAM crashes with small 
+#              myisam_sort_buffer_size
+#
+CREATE TABLE t1(a CHAR(255), KEY(a));
+SET myisam_sort_buffer_size=4496;
+INSERT INTO t1 VALUES
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
+('0'),('0'),('0'),('0'),('0'),('0'),('0');
+SET myisam_repair_threads=2;
+REPAIR TABLE t1;
+SET myisam_repair_threads=@@global.myisam_repair_threads;
+SET myisam_sort_buffer_size=@@global.myisam_sort_buffer_size;
+DROP TABLE t1;
+
+--echo # End of 4.1 tests
+
+#
+# BUG#36055 - mysql_upgrade doesn't really 'upgrade' tables
+#
+
+--echo # Test with a saved table from 4.1
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file std_data/bug36055.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/bug36055.MYD $MYSQLD_DATADIR/test/t1.MYD
+--copy_file std_data/bug36055.MYI $MYSQLD_DATADIR/test/t1.MYI
+
+--replace_column 12 # 13 #
+SHOW TABLE STATUS LIKE 't1';
+SELECT * FROM t1;
+
+--echo # Run CHECK TABLE, it should indicate table need a REPAIR TABLE
+CHECK TABLE t1 FOR UPGRADE;
+
+--echo # REPAIR old table USE_FRM should fail
+REPAIR TABLE t1 USE_FRM;
+
+--echo # Run REPAIR TABLE to upgrade .frm file
+REPAIR TABLE t1;
+--replace_column 12 # 13 #
+SHOW TABLE STATUS LIKE 't1';
+SELECT * FROM t1;
+
+REPAIR TABLE t1 USE_FRM;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--echo # End of 5.0 tests
+
+#
+# Bug#18775 - Temporary table from alter table visible to other threads
+#
+# REPAIR TABLE ... USE_FRM on temporary table crashed the table or server.
+--disable_warnings
+DROP TABLE IF EXISTS tt1;
+--enable_warnings
+CREATE TEMPORARY TABLE tt1 (c1 INT);
+REPAIR TABLE tt1 USE_FRM;
+DROP TABLE tt1;
+
+
+--echo #
+--echo # Bug #48248 assert in MDL_ticket::upgrade_shared_lock_to_exclusive
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1(a INT);
+LOCK TABLES t1 READ;
+REPAIR TABLE t1;
+
+UNLOCK TABLES;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Test for bug #50784 "MDL: Assertion `m_tickets.is_empty() ||
+--echo #                      m_tickets.front() == m_trans_sentinel'"
+--echo #
+--disable_warnings
+drop tables if exists t1, t2;
+--enable_warnings
+create table t1 (i int);
+create table t2 (j int);
+set @@autocommit= 0;
+repair table t1, t2;
+set @@autocommit= default;
+drop tables t1, t2;
+
+--echo #
+--echo # Check that we have decent error messages when using crashed
+--echo # .frm file from MySQL 3.23
+--echo #
+
+--echo # Test with a saved table from 3.23
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+SET @save_global_character_set_server= @@global.character_set_server;
+set @@global.character_set_server=@@character_set_server;
+--copy_file std_data/host_old.frm $MYSQLD_DATADIR/test/t1.frm
+--copy_file std_data/host_old.MYD $MYSQLD_DATADIR/test/t1.MYD
+--copy_file std_data/host_old.MYI $MYSQLD_DATADIR/test/t1.MYI
+
+--error ER_GET_ERRNO
+select count(*) from t1;
+check table t1;
+repair table t1;
+repair table t1 use_frm;
+select count(*) from t1;
+check table t1;
+drop table t1;
+
+set @@global.character_set_server=@save_global_character_set_server;
+
+#
+# MDEV-8115 mysql_upgrade crashes the server with REPAIR VIEW
+#
+create table t1 (a blob);
+create view v1 as select * from t1;
+repair view v1;
+drop view v1;
+drop table t1;
+
+--echo # End of 5.5 tests
+
+#
+# MDEV-11539 test_if_reopen: Assertion `strcmp(share->unique_file_name,filename) || share->last_version' failed upon select from I_S
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT t1 VALUES (1);
+LOCK TABLE t1 WRITE;
+REPAIR TABLE t1;
+--disable_result_log
+SELECT * FROM INFORMATION_SCHEMA.TABLES;
+--enable_result_log
+SELECT * FROM t1;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo # End of 10.0 tests
+
+#
+# MDEV-17153 server crash on repair table ... use_frm
+#
+# Note, this test case doesn't crash, but shows spurios warnings
+# unless the bug is fixed
+#
+create table t1 (a int, b varchar(200));
+insert t1 select seq, repeat(200, seq) from seq_1_to_30;
+delete from t1 where a % 13 = 0;
+repair table t1 use_frm;
+delete from t1 where a % 11 = 0;
+repair table t1 extended use_frm;
+delete from t1 where a % 7 = 0;
+set myisam_repair_threads = 2;
+repair table t1 use_frm;
+set myisam_repair_threads = default;
+drop table t1;
+
+--echo # End of 10.2 tests

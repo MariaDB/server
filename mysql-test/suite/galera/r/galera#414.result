@@ -1,0 +1,15 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_on = OFF;
+connection node_2;
+connection node_1;
+SET SESSION wsrep_on = ON;
+connection node_1;
+CALL mtr.add_suppression("Failed to set packet size");
+connection node_2;
+CALL mtr.add_suppression("Failed to set packet size");

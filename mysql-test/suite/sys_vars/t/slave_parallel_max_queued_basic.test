@@ -1,0 +1,14 @@
+--source include/not_embedded.inc
+
+SET @save_slave_parallel_max_queued= @@GLOBAL.slave_parallel_max_queued;
+
+SELECT @@GLOBAL.slave_parallel_max_queued as 'Check default';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.slave_parallel_max_queued  as 'no session var';
+
+SET GLOBAL slave_parallel_max_queued= 0;
+SET GLOBAL slave_parallel_max_queued= DEFAULT;
+SET GLOBAL slave_parallel_max_queued= 65536;
+SELECT @@GLOBAL.slave_parallel_max_queued;
+
+SET GLOBAL slave_parallel_max_queued = @save_slave_parallel_max_queued;

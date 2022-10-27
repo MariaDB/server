@@ -1,0 +1,177 @@
+#
+# Test the case where the cluster splits 3 ways . The master remains in the
+# primary component and is able to commit its transaction.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+#
+# Begin a separate SR transaction on every node and confirm that each node
+# has SR table entries for every transaction
+#
+
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (13);
+INSERT INTO t1 VALUES (14);
+
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (200);
+INSERT INTO t1 VALUES (201);
+INSERT INTO t1 VALUES (202);
+INSERT INTO t1 VALUES (203);
+INSERT INTO t1 VALUES (204);
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(DISTINCT node_uuid) = 2 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (300);
+INSERT INTO t1 VALUES (301);
+INSERT INTO t1 VALUES (302);
+INSERT INTO t1 VALUES (303);
+INSERT INTO t1 VALUES (304);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_3a, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+--connection node_1a
+--let $wait_condition = SELECT COUNT(DISTINCT node_uuid) = 3 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+#
+# Isolate nodes #2 and #3 into separate non-primary components
+#
+
+--connection node_2a
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+
+--connection node_3a
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+
+--connection node_1a
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (21);
+INSERT INTO t1 VALUES (22);
+INSERT INTO t1 VALUES (23);
+INSERT INTO t1 VALUES (24);
+
+#
+# Restore cluster
+#
+
+--connection node_2a
+--source include/wsrep_wait_disconnect.inc
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+--source include/galera_wait_ready.inc
+
+--connection node_3a
+--source include/wsrep_wait_disconnect.inc
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+--source include/galera_wait_ready.inc
+
+--connection node_1a
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--let $node_1_gcomm_uuid = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid'`
+
+--connection node_2a
+--source include/wait_condition.inc
+
+--connection node_3a
+--source include/wait_condition.inc
+
+
+#
+# Confirm that the rejoined nodes only have node #1's transaction in their SR tables
+#
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+--disable_query_log
+--eval SELECT DISTINCT node_uuid = '$node_1_gcomm_uuid' AS wsrep_gcomm_uuid_match FROM mysql.wsrep_streaming_log;
+--enable_query_log
+
+--connection node_3
+--error ER_LOCK_DEADLOCK
+COMMIT;
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+--disable_query_log
+--eval SELECT DISTINCT node_uuid = '$node_1_gcomm_uuid' AS wsrep_gcomm_uuid_match FROM mysql.wsrep_streaming_log;
+--enable_query_log
+
+#
+# Finalize transaction on node #1
+#
+
+--connection node_1
+INSERT INTO t1 VALUES (30);
+INSERT INTO t1 VALUES (31);
+INSERT INTO t1 VALUES (32);
+INSERT INTO t1 VALUES (33);
+INSERT INTO t1 VALUES (34);
+COMMIT;
+
+#
+# Confirm that transaction is replicated correctly and SR tables are empty at the end of the test
+#
+
+SELECT COUNT(*) = 15, MIN(f1) = 10, MAX(f1) = 34 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SET AUTOCOMMIT=ON;
+
+--connection node_2
+COMMIT;
+SELECT COUNT(*) = 15, MIN(f1) = 10, MAX(f1) = 34 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SET AUTOCOMMIT=ON;
+
+--connection node_3
+COMMIT;
+SELECT COUNT(*) = 15, MIN(f1) = 10, MAX(f1) = 34 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SET AUTOCOMMIT=ON;
+
+DROP TABLE t1;
+
+--connection node_1
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
+--connection node_2
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
+--connection node_3
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for ");
+
+--source ../galera/include/auto_increment_offset_restore.inc

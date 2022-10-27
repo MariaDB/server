@@ -1,0 +1,669 @@
+include/rpl_init.inc [topology=1->2]
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+call mtr.add_suppression("Can't find record in 't1'");
+call mtr.add_suppression("Can't find record in 't2'");
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode='optimistic';
+SET @old_gtid_cleanup_batch_size= @@GLOBAL.gtid_cleanup_batch_size;
+SET GLOBAL gtid_cleanup_batch_size= 1000000;
+connection server_1;
+INSERT INTO t1 VALUES(1,1);
+BEGIN;
+INSERT INTO t1 VALUES(2,1);
+INSERT INTO t1 VALUES(3,1);
+COMMIT;
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,2);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,3);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,4);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,5);
+DELETE FROM t1 WHERE a=3;
+INSERT INTO t1 VALUES(3,2);
+DELETE FROM t1 WHERE a=1;
+INSERT INTO t1 VALUES(1,2);
+DELETE FROM t1 WHERE a=3;
+INSERT INTO t1 VALUES(3,3);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,6);
+include/save_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	3
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	3
+*** Test a bunch of non-transactional/DDL event groups. ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (4,4);
+INSERT INTO t1 VALUES (5,5);
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=MyISAM;
+ALTER TABLE t2 ADD b INT;
+INSERT INTO t2 VALUES (2,2);
+ALTER TABLE t2 DROP b;
+INSERT INTO t2 VALUES (3);
+ALTER TABLE t2 ADD c INT;
+INSERT INTO t2 VALUES (4,5);
+INSERT INTO t2 VALUES (5,5);
+INSERT INTO t3 VALUES (1);
+UPDATE t2 SET c=NULL WHERE a=4;
+ALTER TABLE t2 ADD UNIQUE (c);
+INSERT INTO t2 VALUES (6,6);
+UPDATE t2 SET c=c+100 WHERE a=2;
+INSERT INTO t3(a) VALUES (2);
+DELETE FROM t3 WHERE a=2;
+INSERT INTO t3(a) VALUES (2);
+DELETE FROM t3 WHERE a=2;
+ALTER TABLE t3 CHANGE a c INT NOT NULL;
+INSERT INTO t3(c) VALUES (2);
+DELETE FROM t3 WHERE c=2;
+INSERT INTO t3 SELECT a+200 FROM t2;
+DELETE FROM t3 WHERE c >= 200;
+INSERT INTO t3 SELECT a+200 FROM t2;
+include/save_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	3
+4	4
+5	5
+SELECT * FROM t2 ORDER BY a;
+a	c
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	5
+6	6
+SELECT * FROM t3 ORDER BY c;
+c
+1
+201
+202
+203
+204
+205
+206
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	3
+4	4
+5	5
+SELECT * FROM t2 ORDER BY a;
+a	c
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	5
+6	6
+SELECT * FROM t3 ORDER BY c;
+c
+1
+201
+202
+203
+204
+205
+206
+SELECT IF(COUNT(*) >= 30, "OK", CONCAT("Error: too few old rows found: ", COUNT(*)))
+FROM mysql.gtid_slave_pos;
+IF(COUNT(*) >= 30, "OK", CONCAT("Error: too few old rows found: ", COUNT(*)))
+OK
+SET GLOBAL gtid_cleanup_batch_size=1;
+*** Test @@skip_parallel_replication. ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+UPDATE t1 SET b=10 WHERE a=3;
+SET SESSION skip_parallel_replication=1;
+UPDATE t1 SET b=20 WHERE a=3;
+UPDATE t1 SET b=30 WHERE a=3;
+UPDATE t1 SET b=50 WHERE a=3;
+UPDATE t1 SET b=80 WHERE a=3;
+UPDATE t1 SET b=130 WHERE a=3;
+UPDATE t1 SET b=210 WHERE a=3;
+UPDATE t1 SET b=340 WHERE a=3;
+UPDATE t1 SET b=550 WHERE a=3;
+UPDATE t1 SET b=890 WHERE a=3;
+SET SESSION skip_parallel_replication=0;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	890
+4	4
+5	5
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	890
+4	4
+5	5
+status
+Ok, no retry
+*** Test that we do not replicate in parallel transactions that had row lock waits on the master ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+connect  m1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  m2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  m3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  m4,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  m5,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  m6,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  m7,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  m8,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connection default;
+BEGIN;
+UPDATE t1 SET b=b+1 WHERE a=3;
+connection m1;
+SET debug_sync='thd_report_wait_for SIGNAL waiting1';
+UPDATE t1 SET b=1001 WHERE a=3;
+connection default;
+SET debug_sync='now WAIT_FOR waiting1';
+connection m2;
+BEGIN;
+UPDATE t1 SET b=1002 WHERE a=5;
+SET debug_sync='thd_report_wait_for SIGNAL waiting2';
+UPDATE t1 SET b=102 WHERE a=3;
+connection default;
+SET debug_sync='now WAIT_FOR waiting2';
+UPDATE t1 SET b=1000 WHERE a=1;
+connection m3;
+SET debug_sync='thd_report_wait_for SIGNAL waiting3';
+UPDATE t1 SET b=1003 WHERE a=5;
+connection default;
+SET debug_sync='now WAIT_FOR waiting3';
+connection m4;
+SET debug_sync='thd_report_wait_for SIGNAL waiting4';
+UPDATE t1 SET b=1004 WHERE a=3;
+connection default;
+SET debug_sync='now WAIT_FOR waiting4';
+connection m5;
+SET debug_sync='thd_report_wait_for SIGNAL waiting5';
+UPDATE t1 SET b=1005 WHERE a=5;
+connection default;
+SET debug_sync='now WAIT_FOR waiting5';
+connection m6;
+SET debug_sync='thd_report_wait_for SIGNAL waiting6';
+UPDATE t1 SET b=1006 WHERE a=1;
+connection default;
+SET debug_sync='now WAIT_FOR waiting6';
+connection m7;
+SET debug_sync='thd_report_wait_for SIGNAL waiting7';
+UPDATE t1 SET b=1007 WHERE a=5;
+connection default;
+SET debug_sync='now WAIT_FOR waiting7';
+connection m8;
+SET debug_sync='thd_report_wait_for SIGNAL waiting8';
+UPDATE t1 SET b=1008 WHERE a=3;
+connection default;
+SET debug_sync='now WAIT_FOR waiting8';
+connection default;
+COMMIT;
+connection m1;
+connection m2;
+COMMIT;
+connection m3;
+connection m4;
+connection m5;
+connection m6;
+connection m7;
+connection m8;
+connection default;
+SET debug_sync='RESET';
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1006
+2	6
+3	1008
+4	4
+5	1007
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1006
+2	6
+3	1008
+4	4
+5	1007
+status
+Ok, no retry
+*** Test that we replicate correctly when using READ COMMITTED and binlog_format=MIXED on the slave ***
+connection server_2;
+include/stop_slave.inc
+SET @old_format= @@GLOBAL.binlog_format;
+SET GLOBAL binlog_format= MIXED;
+SET @old_isolation= @@GLOBAL.tx_isolation;
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+connection server_1;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,0), (2,0), (3,0);
+INSERT INTO t2 VALUES (1,0), (2,0);
+INSERT INTO t1 SELECT 4, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 4, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 5, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 5, COUNT(*) FROM t1;
+INSERT INTO t2 SELECT 6, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 6, COUNT(*) FROM t2;
+INSERT INTO t1 SELECT 7, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 7, COUNT(*) FROM t1;
+INSERT INTO t2 SELECT 8, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 8, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 9, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 9, COUNT(*) FROM t2;
+INSERT INTO t1 SELECT 10, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 10, COUNT(*) FROM t1;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+2	0
+3	0
+4	2
+5	3
+6	5
+7	5
+8	7
+9	8
+10	8
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	0
+4	4
+5	5
+6	5
+7	7
+8	7
+9	8
+10	10
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+2	0
+3	0
+4	2
+5	3
+6	5
+7	5
+8	7
+9	8
+10	8
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	0
+4	4
+5	5
+6	5
+7	7
+8	7
+9	8
+10	10
+include/stop_slave.inc
+SET GLOBAL binlog_format= @old_format;
+SET GLOBAL tx_isolation= @old_isolation;
+include/start_slave.inc
+*** MDEV-7888: ANALYZE TABLE does wakeup_subsequent_commits(), causing wrong binlog order and parallel replication hang ***
+connection server_1;
+DROP TABLE t1, t2, t3;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,1), (2,1), (3,1), (4,1), (5,1);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_debug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
+connection server_1;
+ALTER TABLE t2 COMMENT "123abc";
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+INSERT INTO t1 VALUES (1,2);
+INSERT INTO t1 VALUES (2,2);
+INSERT INTO t1 VALUES (3,2);
+INSERT INTO t1 VALUES (4,2);
+INSERT INTO t3 VALUES (1,3);
+ALTER TABLE t2 COMMENT "hello, world";
+BEGIN;
+INSERT INTO t1 VALUES (5,4);
+INSERT INTO t1 VALUES (6,4);
+INSERT INTO t1 VALUES (7,4);
+INSERT INTO t1 VALUES (8,4);
+INSERT INTO t1 VALUES (9,4);
+INSERT INTO t1 VALUES (10,4);
+INSERT INTO t1 VALUES (11,4);
+INSERT INTO t1 VALUES (12,4);
+INSERT INTO t1 VALUES (13,4);
+INSERT INTO t1 VALUES (14,4);
+INSERT INTO t1 VALUES (15,4);
+INSERT INTO t1 VALUES (16,4);
+INSERT INTO t1 VALUES (17,4);
+INSERT INTO t1 VALUES (18,4);
+INSERT INTO t1 VALUES (19,4);
+INSERT INTO t1 VALUES (20,4);
+COMMIT;
+INSERT INTO t1 VALUES (21,5);
+INSERT INTO t1 VALUES (22,5);
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	2
+3	2
+4	2
+5	4
+6	4
+7	4
+8	4
+9	4
+10	4
+11	4
+12	4
+13	4
+14	4
+15	4
+16	4
+17	4
+18	4
+19	4
+20	4
+21	5
+22	5
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	1
+2	1
+3	1
+4	1
+5	1
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	3
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	2
+3	2
+4	2
+5	4
+6	4
+7	4
+8	4
+9	4
+10	4
+11	4
+12	4
+13	4
+14	4
+15	4
+16	4
+17	4
+18	4
+19	4
+20	4
+21	5
+22	5
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	1
+2	1
+3	1
+4	1
+5	1
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	3
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_debug;
+include/start_slave.inc
+*** MDEV-7929: record_gtid() for non-transactional event group calls wakeup_subsequent_commits() too early, causing slave hang. ***
+connection server_2;
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_record_gtid_serverid_100_sleep';
+connection server_1;
+ALTER TABLE t3 COMMENT "DDL statement 1";
+INSERT INTO t1 VALUES (30,0);
+INSERT INTO t1 VALUES (31,0);
+INSERT INTO t1 VALUES (32,0);
+INSERT INTO t1 VALUES (33,0);
+INSERT INTO t1 VALUES (34,0);
+INSERT INTO t1 VALUES (35,0);
+INSERT INTO t1 VALUES (36,0);
+SET @old_server_id= @@SESSION.server_id;
+SET SESSION server_id= 100;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SET SESSION server_id= @old_server_id;
+INSERT INTO t1 VALUES (37,0);
+ALTER TABLE t3 COMMENT "DDL statement 2";
+INSERT INTO t1 VALUES (38,0);
+INSERT INTO t1 VALUES (39,0);
+ALTER TABLE t3 COMMENT "DDL statement 3";
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a	b
+30	0
+31	0
+32	0
+33	0
+34	0
+35	0
+36	0
+37	0
+38	0
+39	0
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a	b
+30	0
+31	0
+32	0
+33	0
+34	0
+35	0
+36	0
+37	0
+38	0
+39	0
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_debug;
+include/start_slave.inc
+*** MDEV-8113: ALTER TABLE causes slave hang in optimistic parallel replication ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+ALTER TABLE t2 ADD c INT;
+INSERT INTO t2 (a,b) VALUES (50, 0);
+INSERT INTO t2 (a,b) VALUES (51, 1);
+INSERT INTO t2 (a,b) VALUES (52, 2);
+INSERT INTO t2 (a,b) VALUES (53, 3);
+INSERT INTO t2 (a,b) VALUES (54, 4);
+INSERT INTO t2 (a,b) VALUES (55, 5);
+INSERT INTO t2 (a,b) VALUES (56, 6);
+INSERT INTO t2 (a,b) VALUES (57, 7);
+INSERT INTO t2 (a,b) VALUES (58, 8);
+INSERT INTO t2 (a,b) VALUES (59, 9);
+ALTER TABLE t2 DROP COLUMN c;
+SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
+a	b
+50	0
+51	1
+52	2
+53	3
+54	4
+55	5
+56	6
+57	7
+58	8
+59	9
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
+a	b
+50	0
+51	1
+52	2
+53	3
+54	4
+55	5
+56	6
+57	7
+58	8
+59	9
+*** MDEV-8075: DROP TEMPORARY TABLE not marked as ddl, causing optimistic parallel replication to fail ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (40, 10);
+CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (41);
+BEGIN;
+INSERT INTO t2 SELECT a, 20 FROM t1;
+DROP TEMPORARY TABLE t1;
+COMMIT;
+INSERT INTO t1 VALUES (42, 10);
+include/save_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 40 ORDER BY a;
+a	b
+40	10
+42	10
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+a	b
+41	20
+50	0
+51	1
+52	2
+53	3
+54	4
+55	5
+56	6
+57	7
+58	8
+59	9
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 40 ORDER BY a;
+a	b
+40	10
+42	10
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+a	b
+41	20
+50	0
+51	1
+52	2
+53	3
+54	4
+55	5
+56	6
+57	7
+58	8
+59	9
+connection server_1;
+DELETE FROM t1;
+DELETE FROM t2;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_2;
+set global log_warnings=2;
+BEGIN;
+INSERT INTO t1 SET a=1;
+connection server_1;
+SET @save.binlog_format=@@session.binlog_format;
+SET @@SESSION.binlog_format=row;
+BEGIN;
+INSERT INTO t1 SET a=1;
+INSERT INTO t2 SET a=1;
+COMMIT;
+BEGIN;
+DELETE FROM t2;
+COMMIT;
+connection server_2;
+connection server_2;
+ROLLBACK;
+connection server_1;
+SET @@SESSION.binlog_format= @save.binlog_format;
+DELETE FROM t1;
+DELETE FROM t2;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_2;
+include/stop_slave.inc
+set global log_warnings=default;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1, t2, t3;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*) <= 5*@@GLOBAL.gtid_cleanup_batch_size
+FROM mysql.gtid_slave_pos;
+COUNT(*) <= 5*@@GLOBAL.gtid_cleanup_batch_size
+1
+SET GLOBAL gtid_cleanup_batch_size= @old_gtid_cleanup_batch_size;
+connection server_1;
+include/rpl_end.inc

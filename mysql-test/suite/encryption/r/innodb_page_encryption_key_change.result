@@ -1,0 +1,149 @@
+# restart: --loose-file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+show warnings;
+Level	Code	Message
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=2;
+show warnings;
+Level	Code	Message
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed encrypted=yes encryption_key_id=3;
+show warnings;
+Level	Code	Message
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=4;
+show warnings;
+Level	Code	Message
+create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encrypted=yes encryption_key_id=5;
+show warnings;
+Level	Code	Message
+insert into innodb_normal values (1,'test1'),(2,'foo'),(3,'bar'),(4,'mariadb');
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_compressed select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+insert into innodb_redundant select * from innodb_normal;
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+variable_value >= 0
+1
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+variable_value >= 0
+1
+alter table innodb_compact engine=innodb encryption_key_id = 6;
+alter table innodb_compressed engine=innodb encryption_key_id = 6;
+alter table innodb_dynamic engine=innodb encryption_key_id = 6;
+alter table innodb_redundant engine=innodb encryption_key_id = 6;
+select * from innodb_normal;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_compact;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_compressed;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_dynamic;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_redundant;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+variable_value >= 0
+1
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+variable_value >= 0
+1
+# restart: --loose-file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt
+select * from innodb_normal;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_compact;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_compressed;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_dynamic;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_redundant;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+variable_value >= 0
+1
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+variable_value >= 0
+1
+alter table innodb_compact engine=innodb encryption_key_id = 2;
+alter table innodb_compressed engine=innodb encryption_key_id = 3;
+alter table innodb_dynamic engine=innodb encryption_key_id = 4;
+alter table innodb_redundant engine=innodb encryption_key_id = 5;
+select * from innodb_normal;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_compact;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_compressed;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_dynamic;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+select * from innodb_redundant;
+c1	b
+1	test1
+2	foo
+3	bar
+4	mariadb
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+variable_value >= 0
+1
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+variable_value >= 0
+1
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_compressed;
+drop table innodb_dynamic;
+drop table innodb_redundant;

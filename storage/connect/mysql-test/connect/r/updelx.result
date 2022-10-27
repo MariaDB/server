@@ -1,0 +1,2570 @@
+#
+# Testing indexed UPDATE and DELETE for all table types
+#
+# CSV table
+CREATE TABLE t1 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=6;
+Warnings:
+Warning	1105	No file name. Table will use t1.csv
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=NO BLOCK_SIZE=6;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+DROP TABLE t1;
+# DOS table
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16))
+ENGINE=CONNECT TABLE_TYPE=DOS;
+Warnings:
+Warning	1105	No file name. Table will use t1.dos
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=NO BLOCK_SIZE=4;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+DROP TABLE t1;
+# FIX table
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16) DISTRIB=CLUSTERED)
+ENGINE=CONNECT TABLE_TYPE=FIX BLOCK_SIZE=4;
+Warnings:
+Warning	1105	No file name. Table will use t1.fix
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=NO HUGE=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+DROP TABLE t1;
+# BIN table
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16) DISTRIB=CLUSTERED)
+ENGINE=CONNECT TABLE_TYPE=BIN BLOCK_SIZE=8;
+Warnings:
+Warning	1105	No file name. Table will use t1.bin
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=NO HUGE=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+DROP TABLE t1;
+# DBF table
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16))
+ENGINE=CONNECT TABLE_TYPE=DBF BLOCK_SIZE=12;
+Warnings:
+Warning	1105	No file name. Table will use t1.dbf
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+DROP TABLE t1;
+# VEC table
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16))
+ENGINE=CONNECT TABLE_TYPE=VEC BLOCK_SIZE=6 MAX_ROWS=16;
+Warnings:
+Warning	1105	No file name. Table will use t1.vec
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=NO HUGE=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+DROP TABLE t1;
+# Split VEC table (outward)
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16))
+ENGINE=CONNECT TABLE_TYPE=VEC BLOCK_SIZE=6 FILE_NAME='tx.vec';
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+ALTER TABLE t1 MAPPED=YES;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(4, 'four'),(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one'),(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	thirty five
+8	eight
+UPDATE t1 SET msg = 'bof' WHERE id = 35;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	sixty
+81	eighty one
+72	seventy two
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	big
+81	big
+72	big
+11	eleven
+1	one
+35	bof
+8	eight
+UPDATE t1 SET msg = 'updated' WHERE id IN (8,35,60,72);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	ten
+40	forty
+60	updated
+81	big
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'twin' WHERE id IN (81,10);
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+10	twin
+40	forty
+60	updated
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+UPDATE t1 SET msg = 'sixty' WHERE id = 60;
+SELECT * FROM t1 WHERE id = 60;
+id	msg
+60	sixty
+DELETE FROM t1 WHERE id = 4;
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+40	forty
+60	sixty
+81	twin
+72	updated
+11	eleven
+1	one
+35	updated
+8	updated
+DELETE FROM t1 WHERE id IN (40,11,35);
+SELECT * FROM t1;
+id	msg
+7	seven
+10	twin
+60	sixty
+81	twin
+72	updated
+1	one
+8	updated
+DELETE FROM t1 WHERE id IN (4,60,1);
+SELECT msg FROM t1;
+msg
+seven
+twin
+twin
+updated
+updated
+DELETE FROM t1 WHERE id IN (81,72);
+SELECT id FROM t1;
+id
+7
+8
+10
+DELETE FROM t1 WHERE id IN (7,10);
+SELECT * FROM t1;
+id	msg
+8	updated
+DELETE FROM t1 WHERE id = 8;
+SELECT * FROM t1;
+id	msg
+DROP TABLE t1;

@@ -1,0 +1,36 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+include/rpl_stop_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1]
+connection slave;
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+FLUSH TABLES WITH READ LOCK;
+include/start_slave.inc
+include/wait_for_slave_param.inc [Seconds_Behind_Master]
+UNLOCK TABLES;
+connection master;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+2	2
+3	4
+4	8
+5	16
+SELECT * FROM t2;
+a
+1
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel;
+DROP TABLE t1;
+include/start_slave.inc
+connection master;
+DROP TABLE t2;
+include/rpl_end.inc

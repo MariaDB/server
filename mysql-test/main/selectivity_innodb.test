@@ -1,0 +1,180 @@
+--source include/have_innodb.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
+--source include/default_optimizer_switch.inc
+
+SET SESSION STORAGE_ENGINE='InnoDB';
+
+set @save_optimizer_switch_for_selectivity_test=@@optimizer_switch;
+set optimizer_switch='extended_keys=on';
+
+--source selectivity.test
+
+set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
+set @tmp_ust= @@use_stat_tables;
+set @tmp_oucs= @@optimizer_use_condition_selectivity;
+
+
+--echo #
+--echo # MDEV-6808: MariaDB 10.0.13 crash with optimizer_use_condition_selectivity > 1
+--echo #
+set @tmp_mdev6808= @@optimizer_use_condition_selectivity;
+SET optimizer_use_condition_selectivity = 2;
+CREATE TABLE t1 (
+  event_id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (event_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE t2 (
+  repost_id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  subject_type varchar(24) CHARACTER SET latin1 COLLATE latin1_general_ci NOT NULL,
+  subject_id int(11) unsigned NOT NULL,
+  object_type varchar(24) CHARACTER SET latin1 COLLATE latin1_general_ci NOT NULL,
+  object_id int(11) unsigned NOT NULL,
+  is_private int(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (repost_id),
+  UNIQUE KEY `BETWEEN` (subject_type,subject_id,object_type,object_id,is_private),
+  KEY SUBJECT (subject_type,subject_id),
+  KEY OBJECT (object_type,object_id)
+) ENGINE=InnoDB;
+
+SELECT
+  *
+FROM 
+   t2, t1 
+WHERE 
+    t2.object_type = 'event' AND 
+    t2.object_id = t1.event_id AND 
+    t2.is_private = 0 AND 
+    t2.subject_id = 127994 AND 
+    t2.subject_type in ('user')
+;
+DROP TABLE t1, t2;
+set optimizer_use_condition_selectivity=@tmp_mdev6808;
+
+--echo #
+--echo # MDEV-6442: Assertion `join->best_read < double(...)' failed with optimizer_use_condition_selectivity >=3, ...
+--echo #
+SET use_stat_tables = PREFERABLY;
+SET optimizer_use_condition_selectivity = 3;
+
+CREATE TABLE t1 ( a VARCHAR(3), b VARCHAR(8), KEY (a,b) ) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('USA','Chinese'),('USA','English');
+
+CREATE TABLE t2 (i INT) ENGINE=InnoDB;
+
+SELECT * FROM t1, t2 WHERE ( 't', 'o' ) IN ( 
+  SELECT t1_2.b, t1_1.a FROM t1 AS t1_1 STRAIGHT_JOIN t1 AS t1_2 ON ( t1_2.a = t1_1.b ) 
+);
+DROP TABLE t1,t2;
+
+--echo # 
+--echo # MDEV-6738: use_stat_table + histograms crashing optimizer
+--echo # 
+
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+
+--echo # Need innodb because there is a special kind of field_bit for non-myisam tables
+create table t1(col1 int, col2 bit(1) DEFAULT NULL) engine=innodb;
+
+select * from t1 where col2 != true;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-7413: optimizer_use_condition_selectivity > 2 crashes 10.0.15+maria-1~wheezy
+--echo #
+
+CREATE TABLE t1 (
+  parent_id int,
+  child_group_id int,
+  child_user_id int,
+  KEY (parent_id,child_group_id,child_user_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE t2 (
+  id int,
+  lower_group_name varchar(255),
+  directory_id int(20),
+  UNIQUE KEY (directory_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE t3 (id int) ENGINE=InnoDB;
+
+insert into t1 values (1,1,1),(2,2,2);
+insert into t2 values (10,'foo',10),(20,'bar',20);
+insert into t3 values (101),(102);
+set use_stat_tables = PREFERABLY, optimizer_use_condition_selectivity = 3;
+
+select * from t1, t2, t3 
+where t1.child_user_id=t3.id and t1.child_group_id is null and t2.lower_group_name='foo' and t1.parent_id=t2.id and t2.directory_id=10;
+
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-9187: duplicate of bug mdev-9628
+--echo #
+
+set use_stat_tables = preferably;
+set optimizer_use_condition_selectivity=3;
+ 
+CREATE TABLE t1 (f1 char(32)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('foo'),('bar'),('qux');
+ANALYZE TABLE t1;
+
+SELECT * FROM t1 WHERE f1 < 'm';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE f1 < 'm';
+
+CREATE TABLE t2 (f1 TEXT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('foo'),('bar'),('qux');
+ANALYZE TABLE t2;
+
+SELECT * FROM t2 WHERE f1 <> 'qux';
+EXPLAIN EXTENDED
+SELECT * FROM t2 WHERE f1 <> 'qux';
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-11060: sql/protocol.cc:532: void Protocol::end_statement(): Assertion `0' failed
+--echo #
+
+
+set optimizer_use_condition_selectivity=4;
+
+--disable_warnings
+drop view if exists v1;
+--enable_warnings
+
+create table t1 (a int not null, b int, c int) engine=InnoDB;
+create trigger trgi before insert on t1 for each row set new.a=if(new.a is null,new.b,new.c);
+
+create table t2 (d int, e int) engine=InnoDB;
+update t1, t2 set a=NULL, b=2, c=NULL where b=d and e=200;
+
+create view v1 as select * from t1, t2 where d=2;
+--error ER_BAD_NULL_ERROR
+insert v1 (a,c) values (NULL, 20);
+
+drop table t1,t2;
+drop view v1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+set use_stat_tables= @tmp_ust;
+set optimizer_use_condition_selectivity= @tmp_oucs;
+set @@global.histogram_size=@save_histogram_size;
+SET SESSION STORAGE_ENGINE=DEFAULT;

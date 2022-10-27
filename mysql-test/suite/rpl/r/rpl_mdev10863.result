@@ -1,0 +1,51 @@
+include/rpl_init.inc [topology=1->2]
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+SET @old_max_relay= @@GLOBAL.max_relay_log_size;
+SET GLOBAL max_relay_log_size = 4096;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b VARCHAR(100)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, "a");
+connection server_2;
+*** Create a long transaction that will span a relay log file. ***
+connection server_1;
+SET @old_domain= @@gtid_domain_id;
+SET gtid_domain_id=10;
+INSERT INTO t1 VALUES (10000, "domain 10");
+SET gtid_domain_id=20;
+INSERT INTO t1 VALUES (20000, "domain 20");
+SET gtid_domain_id=@old_domain;
+BEGIN;
+[lots of inserts omitted]
+COMMIT;
+connection server_2;
+connection server_1;
+BEGIN;
+[lots of inserts omitted]
+COMMIT;
+connection server_2;
+include/stop_slave_sql.inc
+START SLAVE SQL_THREAD;
+include/wait_for_slave_to_start.inc
+connection server_1;
+INSERT INTO t1 VALUES (100000, "More stuffs.");
+INSERT INTO t1 VALUES (100001, "And even more");
+connection server_2;
+SELECT * FROM t1 WHERE a >= 100000 ORDER BY a;
+a	b
+100000	More stuffs.
+100001	And even more
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET GLOBAL max_relay_log_size= @old_max_relay;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
+DROP TABLE t1;
+include/rpl_end.inc

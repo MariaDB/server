@@ -1,0 +1,88 @@
+--source include/have_log_bin.inc
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--disable_warnings
+drop table if exists t1;
+drop view if exists t1;
+--enable_warnings
+
+--echo #
+--echo # MDEV-6948: SET STATEMENT gtid_domain_id = ... FOR has no effect
+--echo # (same for gtid_seq_no and server_id)
+--echo #
+reset master;
+create table t1 (i int);
+set gtid_domain_id = 10;
+insert into t1 values (1),(2);
+set statement gtid_domain_id = 20 for insert into t1 values (3),(4);
+
+--replace_column 1 x 2 x 3 x 4 x 5 x
+show binlog events limit 5,5;
+
+drop table t1;
+
+reset master;
+SET @a=11;
+
+create table t1 (a int not null auto_increment, c int, d int, primary key (a));
+create table t2 (b int);
+insert into t2 values (1),(2);
+
+DELIMITER |;
+CREATE function f1() returns int
+BEGIN
+  SET STATEMENT last_insert_id=@a for insert into t1 values (NULL, @a,
+  last_insert_id());
+  SET @a:=@a*100+13;
+  return @a;
+end|
+DELIMITER ;|
+
+
+call mtr.add_suppression("Unsafe statement written to the binary log using");
+select f1() from t2;
+
+--replace_column 1 x 2 x 3 x 4 x 5 x
+show binlog events limit 16, 100;
+
+select * from t1;
+
+drop function f1;
+drop table t1,t2;
+
+
+reset master;
+SET @a=11;
+
+create table t1 (a int not null auto_increment, c int, d int, primary key (a));
+create table t2 (b int);
+insert into t2 values (1),(2);
+
+DELIMITER |;
+CREATE function f1() returns int
+BEGIN
+  SET @save= @@last_insert_id;
+  SET session last_insert_id=@a;
+  insert into t1 values (NULL, @a, last_insert_id());
+  SET session last_insert_id=@save;
+  SET @a:=@a*100+13;
+  return @a;
+end|
+DELIMITER ;|
+
+select f1() from t2;
+
+--replace_column 1 x 2 x 3 x 4 x 5 x
+show binlog events limit 13, 100;
+
+select * from t1;
+
+drop function f1;
+drop table t1,t2;
+
+reset master;
+set statement last_insert_id = 112 for create table t1 as select last_insert_id();
+--replace_column 1 x 2 x 3 x 4 x 5 x
+show binlog events limit 4,1;
+drop table t1;

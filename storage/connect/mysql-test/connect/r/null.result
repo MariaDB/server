@@ -1,0 +1,134 @@
+#
+# Testing FIX null columns
+#
+CREATE TABLE t1
+(
+id INT NOT NULL,
+nb INT,
+msg VARCHAR(12)
+) ENGINE=CONNECT TABLE_TYPE=FIX;
+Warnings:
+Warning	1105	No file name. Table will use t1.fix
+INSERT INTO t1 values(NULL,1,'Hello');
+ERROR 23000: Column 'id' cannot be null
+INSERT INTO t1 values(10,4,NULL),(20,2,'Hello'),(0,0,'Zero');
+SELECT * FROM t1;
+id	nb	msg
+10	4	NULL
+20	2	Hello
+0	NULL	Zero
+SELECT* FROM t1 WHERE id IS NULL;
+id	nb	msg
+SELECT * FROM t1 WHERE nb IS NULL;
+id	nb	msg
+0	NULL	Zero
+SELECT * FROM t1 WHERE msg IS NOT NULL;
+id	nb	msg
+20	2	Hello
+0	NULL	Zero
+DROP TABLE t1;
+#
+# Testing CSV null columns
+#
+CREATE TABLE t1
+(
+id INT NOT NULL,
+nb INT,
+msg VARCHAR(12)
+) ENGINE=CONNECT TABLE_TYPE=CSV HEADER=1;
+Warnings:
+Warning	1105	No file name. Table will use t1.csv
+INSERT INTO t1 values(NULL,1,'Hello');
+ERROR 23000: Column 'id' cannot be null
+INSERT INTO t1 values(10,4,NULL),(20,2,'Hello'),(0,0,'Zero');
+SELECT * FROM t1;
+id	nb	msg
+10	4	NULL
+20	2	Hello
+0	NULL	Zero
+SELECT* FROM t1 WHERE id IS NULL;
+id	nb	msg
+SELECT * FROM t1 WHERE nb IS NULL;
+id	nb	msg
+0	NULL	Zero
+SELECT * FROM t1 WHERE msg IS NOT NULL;
+id	nb	msg
+20	2	Hello
+0	NULL	Zero
+DROP TABLE t1;
+#
+# Testing BIN null columns
+#
+CREATE TABLE t1
+(
+id INT NOT NULL,
+nb INT,
+msg VARCHAR(12)
+) ENGINE=CONNECT TABLE_TYPE=BIN;
+Warnings:
+Warning	1105	No file name. Table will use t1.bin
+INSERT INTO t1 values(NULL,1,'Hello');
+ERROR 23000: Column 'id' cannot be null
+INSERT INTO t1 values(10,4,NULL),(20,2,'Hello'),(0,0,'Zero');
+SELECT * FROM t1;
+id	nb	msg
+10	4	NULL
+20	2	Hello
+0	NULL	Zero
+SELECT* FROM t1 WHERE id IS NULL;
+id	nb	msg
+SELECT * FROM t1 WHERE nb IS NULL;
+id	nb	msg
+0	NULL	Zero
+SELECT * FROM t1 WHERE msg IS NOT NULL;
+id	nb	msg
+20	2	Hello
+0	NULL	Zero
+DROP TABLE t1;
+#
+# Testing DBF null columns
+#
+CREATE TABLE t1
+(
+id INT NOT NULL,
+nb INT,
+msg VARCHAR(12)
+) ENGINE=CONNECT TABLE_TYPE=DBF;
+Warnings:
+Warning	1105	No file name. Table will use t1.dbf
+INSERT INTO t1 values(NULL,1,'Hello');
+ERROR 23000: Column 'id' cannot be null
+INSERT INTO t1 values(10,4,NULL),(20,2,'Hello'),(0,0,'Zero');
+SELECT * FROM t1;
+id	nb	msg
+10	4	NULL
+20	2	Hello
+0	NULL	Zero
+SELECT* FROM t1 WHERE id IS NULL;
+id	nb	msg
+SELECT * FROM t1 WHERE nb IS NULL;
+id	nb	msg
+0	NULL	Zero
+SELECT * FROM t1 WHERE msg IS NOT NULL;
+id	nb	msg
+20	2	Hello
+0	NULL	Zero
+DROP TABLE t1;
+#
+# Testing INI null columns
+#
+CREATE TABLE t1
+(
+`sec` char(8) NOT NULL flag=1,
+`key` char(12)
+) ENGINE=CONNECT TABLE_TYPE=INI;
+Warnings:
+Warning	1105	No file name. Table will use t1.ini
+INSERT INTO t1(sec) values('S1');
+SELECT * FROM t1;
+sec	key
+INSERT INTO t1 values('S1','Newval');
+SELECT * FROM t1;
+sec	key
+S1	Newval
+DROP TABLE t1;

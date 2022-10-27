@@ -1,0 +1,10 @@
+CREATE TABLE t(i int);
+INSERT INTO t VALUES(1);
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * from t;
+i
+1
+DROP TABLE t;

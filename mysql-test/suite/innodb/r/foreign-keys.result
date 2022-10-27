@@ -1,0 +1,238 @@
+#
+# Bug #19471516 SERVER CRASHES WHEN EXECUTING ALTER TABLE
+# ADD FOREIGN KEY
+#
+CREATE TABLE `department` (`department_id` INT, `department_people_fk` INT,
+PRIMARY KEY (`department_id`)) engine=innodb;
+CREATE TABLE `title` (`title_id` INT, `title_manager_fk` INT,
+`title_reporter_fk` INT, PRIMARY KEY (`title_id`)) engine=innodb;
+CREATE TABLE `people` (`people_id` INT, PRIMARY KEY (`people_id`)) engine=innodb;
+ALTER TABLE `department` ADD FOREIGN KEY (`department_people_fk`) REFERENCES
+`people` (`people_id`);
+ALTER TABLE `title` ADD FOREIGN KEY (`title_manager_fk`) REFERENCES `people`
+(`people_id`);
+ALTER TABLE `title` ADD FOREIGN KEY (`title_reporter_fk`) REFERENCES `people`
+(`people_id`);
+drop table title, department, people;
+create table t1 (a int primary key, b int) engine=innodb;
+create table t2 (c int primary key, d int,
+foreign key (d) references t1 (a) on update cascade) engine=innodb;
+insert t1 values (1,1),(2,2),(3,3);
+insert t2 values (4,1),(5,2),(6,3);
+flush table t2 with read lock;
+connect  con1,localhost,root;
+delete from t1 where a=2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+update t1 set a=10 where a=1;
+connection default;
+unlock tables;
+connection con1;
+connection default;
+lock table t2 write;
+connection con1;
+delete from t1 where a=2;
+connection default;
+unlock tables;
+connection con1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+connection default;
+unlock tables;
+disconnect con1;
+create user foo;
+grant select,update on test.t1 to foo;
+connect foo,localhost,foo;
+update t1 set a=30 where a=3;
+disconnect foo;
+connection default;
+select * from t2;
+c	d
+5	2
+4	10
+6	30
+drop table t2, t1;
+drop user foo;
+create table t1 (f1 int primary key) engine=innodb;
+create table t2 (f2 int primary key) engine=innodb;
+create table t3 (f3 int primary key, foreign key (f3) references t2(f2)) engine=innodb;
+insert into t1 values (1),(2),(3),(4),(5);
+insert into t2 values (1),(2),(3),(4),(5);
+insert into t3 values (1),(2),(3),(4),(5);
+connect con1,localhost,root;
+set debug_sync='alter_table_before_rename_result_table signal g1 wait_for g2';
+alter table t2 add constraint foreign key (f2) references t1(f1) on delete cascade on update cascade;
+connection default;
+set debug_sync='before_execute_sql_command wait_for g1';
+update t1 set f1 = f1 + 100000 limit 2;
+connect con2,localhost,root;
+kill query UPDATE;
+disconnect con2;
+connection default;
+ERROR 70100: Query execution was interrupted
+set debug_sync='now signal g2';
+connection con1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f2` int(11) NOT NULL,
+  PRIMARY KEY (`f2`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+disconnect con1;
+connection default;
+select * from t2 where f2 not in (select f1 from t1);
+f2
+select * from t3 where f3 not in (select f2 from t2);
+f3
+drop table t3;
+drop table t2;
+drop table t1;
+set debug_sync='reset';
+#
+# MDEV-17595 - Server crashes in copy_data_between_tables or
+#              Assertion `thd->transaction.stmt.is_empty() ||
+#              (thd->state_flags & Open_tables_state::BACKUPS_AVAIL)'
+#              fails in close_tables_for_reopen upon concurrent
+#              ALTER TABLE and FLUSH
+#
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+CREATE TABLE t2 (b INT, KEY(b)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(2);
+ALTER TABLE t2 ADD FOREIGN KEY(b) REFERENCES t1(a), LOCK=EXCLUSIVE;
+DROP TABLE t2, t1;
+#
+# MDEV-16060 - InnoDB: Failing assertion: ut_strcmp(index->name, key->name)
+#
+CREATE TABLE t1 (`pk` INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+FLUSH TABLES;
+SET debug_sync='alter_table_intermediate_table_created SIGNAL ready WAIT_FOR go';
+ALTER TABLE t1 ADD FOREIGN KEY(pk) REFERENCES t2(pk) ON UPDATE CASCADE;
+connect con1, localhost, root;
+SET debug_sync='now WAIT_FOR ready';
+SET lock_wait_timeout=0;
+UPDATE t2 SET pk=10 WHERE pk=1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+PREPARE stmt FROM 'UPDATE t2 SET pk=10 WHERE pk=1';
+DEALLOCATE PREPARE stmt;
+SET debug_sync='now SIGNAL go';
+connection default;
+disconnect con1;
+connection default;
+SET debug_sync='reset';
+SHOW OPEN TABLES FROM test;
+Database	Table	In_use	Name_locked
+test	t2	0	0
+DROP TABLE t1, t2;
+create table t1 (a int primary key, b int) engine=innodb;
+create table t2 (c int primary key, d int,
+foreign key (d) references t1 (a) on update cascade) engine=innodb;
+insert t1 values (1,1),(2,2),(3,3);
+insert t2 values (4,1),(5,2),(6,3);
+flush table t2 with read lock;
+connect  con1,localhost,root;
+delete from t1 where a=2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+update t1 set a=10 where a=1;
+connection default;
+unlock tables;
+connection con1;
+connection default;
+lock table t2 write;
+connection con1;
+delete from t1 where a=2;
+connection default;
+unlock tables;
+connection con1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`d`) REFERENCES `t1` (`a`) ON UPDATE CASCADE)
+connection default;
+unlock tables;
+disconnect con1;
+create user foo;
+grant select,update on test.t1 to foo;
+connect foo,localhost,foo;
+update t1 set a=30 where a=3;
+disconnect foo;
+connection default;
+select * from t2;
+c	d
+5	2
+4	10
+6	30
+drop table t2, t1;
+drop user foo;
+#
+# MDEV-17187 table doesn't exist in engine after ALTER other tables
+# with CONSTRAINTs
+#
+set foreign_key_checks=on;
+create table t1 (id int not null primary key) engine=innodb;
+create table t2 (id int not null primary key, fid int not null,
+CONSTRAINT fk_fid FOREIGN KEY (fid) REFERENCES t1 (id))engine=innodb;
+insert into t1 values (1), (2), (3);
+insert into t2 values (1, 1), (2, 1), (3, 2);
+set foreign_key_checks=off;
+alter table t2 drop index fk_fid;
+set foreign_key_checks=on;
+delete from t1 where id=2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_fid` FOREIGN KEY (`fid`) REFERENCES `t1` (`id`))
+insert into t2 values(4, 99);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_fid` FOREIGN KEY (`fid`) REFERENCES `t1` (`id`))
+select * from t1;
+id
+1
+2
+3
+select * from t2;
+id	fid
+1	1
+2	1
+3	2
+set foreign_key_checks=off;
+delete from t1 where id=2;
+insert into t2 values(4, 99);
+set foreign_key_checks=on;
+select * from t1;
+id
+1
+3
+select * from t2;
+id	fid
+1	1
+2	1
+3	2
+4	99
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `fid` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_fid` FOREIGN KEY (`fid`) REFERENCES `t1` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop table t1,t2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+drop table t1,t2;
+ERROR 42S02: Unknown table 'test.t2'
+#
+# MDEV-23470 InnoDB: Failing assertion: cmp < 0 in
+#	row_ins_check_foreign_constraint
+#
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL)ENGINE=InnoDB;
+CREATE TABLE t2(f1 VARCHAR(100), f2 INT NOT NULL,
+INDEX(f2))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(99, 2);
+ALTER TABLE t2 ADD FOREIGN KEY(f2) REFERENCES t1(f1);
+SET FOREIGN_KEY_CHECKS=0;
+DROP INDEX f2 ON t2;
+SET FOREIGN_KEY_CHECKS=1;
+INSERT INTO t2 VALUES('G', 3);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+DROP TABLE t2, t1;
+SET FOREIGN_KEY_CHECKS=DEFAULT;

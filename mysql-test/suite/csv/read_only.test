@@ -1,0 +1,20 @@
+--source include/not_as_root.inc
+#
+# MDEV-11883 MariaDB crashes with out-of-memory when query information_schema
+#
+source include/have_csv.inc;
+
+let datadir=`select @@datadir`;
+
+create table t1 (a int not null) engine=csv;
+insert t1 values (1),(2);
+flush tables;
+
+chmod 0400 $datadir/test/t1.CSM;
+chmod 0400 $datadir/test/t1.CSV;
+
+--replace_result $datadir ./
+query_vertical select * from information_schema.tables where table_schema='test';
+
+drop table t1;
+

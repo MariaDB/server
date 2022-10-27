@@ -1,0 +1,220 @@
+--disable_warnings
+DROP TABLE IF EXISTS not_backing;
+DROP TABLE IF EXISTS backing;
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+
+
+CREATE TABLE `not_backing` (
+  id int(10) unsigned NOT NULL DEFAULT '0',
+  id2 int(10) unsigned NOT NULL DEFAULT '0',
+  info varchar(20) DEFAULT NULL,
+  KEY name (info)
+) DEFAULT CHARSET=latin1;
+
+CREATE TABLE backing (
+  id int(10) unsigned NOT NULL DEFAULT '0',
+  id2 int(10) unsigned NOT NULL DEFAULT '0',
+  parent int(10) unsigned DEFAULT NULL,
+  weight real(10,4) NOT NULL DEFAULT 0.0,
+  info varchar(20) DEFAULT NULL,
+  not_id_type varchar(20) DEFAULT NULL,
+  not_weight_type varchar(20) DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY name (info)
+) DEFAULT CHARSET=latin1;
+
+
+# oqgraph v2 create table should fail (missing attributes)
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH;
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+
+# no table reference
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, ORIGID='id', DESTID='id2';
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+# empty table reference
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='', ORIGID='id', DESTID='id2';
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+# empty table reference
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='', ORIGID='id';
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+
+# empty table reference
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='', DESTID='id2';
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+# non-existent table reference
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='bogus', ORIGID='id', DESTID='id2';
+--echo # Expect: 'Table 'test.bogus' doesn't exist''
+--disable_warnings
+--error 1146
+DESCRIBE oqtable;
+--enable_warnings
+
+# Table exists but no orig or dest specified
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='not_backing';
+--echo # Expect 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+# missing origid
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing', DESTID='id2';
+--echo # Expect 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+# empty origid
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='', DESTID='id2';
+--echo # Expect 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+# invalid origid reference
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='bogus', DESTID='id2';
+--echo # Expect Invalid OQGRAPH backing store ('/oqtable'.origid attribute not set to a valid column of 'backing')' 
+--error 1296
+DESCRIBE oqtable;
+
+# wrong type origid
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='not_id_type', DESTID='id2';
+--echo # Expect 'Column 'backing.not_id_type' is not a not-null integer type' 
+--error 1296
+DESCRIBE oqtable;
+
+# missing destid
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id';
+--echo # Expect 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+# empty destid
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='';
+--echo # Expect 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+# invalid destid reference
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='bogus';
+--echo # Expect Invalid OQGRAPH backing store ('/oqtable'.destid attribute not set to a valid column of 'backing')' 
+--error 1296
+DESCRIBE oqtable;
+
+# wrong type destid
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='not_id_type';
+--echo # Expect 'Column 'backing.not_id_type' is not a not-null integer type' 
+--error 1296
+DESCRIBE oqtable;
+
+# same origid and destid
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id';
+--echo # Expect 'Invalid OQGRAPH backing store ('/oqtable'.destid attribute set to same column as origid attribute)'
+--error 1296
+DESCRIBE oqtable;
+
+# invalid weight reference
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id2',WEIGHT='';
+--echo # Expect 'Invalid OQGRAPH backing store ('/oqtable'.weight attribute not set to a valid column of 'backing')'
+--error 1296
+DESCRIBE oqtable;
+
+# invalid weight reference
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id2',WEIGHT='bogus';
+--echo # Expect 'Invalid OQGRAPH backing store ('/oqtable'.weight attribute not set to a valid column of 'backing')'
+--error 1296
+DESCRIBE oqtable;
+
+# wrong type weight
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id2',WEIGHT='not_weight_type';
+--echo # Expect 'Column 'backing.not_weight_type' is not a not-null real type' 
+--error 1296
+DESCRIBE oqtable;
+
+# all valid
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+--enable_warnings
+CREATE TABLE oqtable ( latch varchar(32) NULL NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id2',WEIGHT='weight';
+DESCRIBE oqtable;
+
+#-- Expect an error if we attempt to use a view as the backing store
+#-- 'VIEWs are not supported for an OQGRAPH backing store.'
+#-- TODO
+
+#-- TODO - what happens if we make two tables with the same backing store?
+
+#-- TODO - what happens if data_table is a TEMPORARY table?
+
+# cleanup
+--disable_warnings
+DROP TABLE IF EXISTS oqtable;
+DROP TABLE IF EXISTS backing;
+DROP TABLE IF EXISTS not_backing;
+--enable_warnings

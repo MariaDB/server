@@ -1,0 +1,216 @@
+drop table if exists t1;
+select length(encrypt('foo', 'ff')) <> 0;
+length(encrypt('foo', 'ff')) <> 0
+1
+create table t1 (name varchar(50), pw varchar(64));
+insert into t1 values ('tom', password('my_pass'));
+set @pass='my_pass';
+select name from t1 where name='tom' and pw=password(@pass);
+name
+tom
+select name from t1 where name='tom' and pw=password(@undefined);
+name
+drop table t1;
+select password('abc');
+password('abc')
+*0D3CED9BEC10A777AEC23CCC353A8C08A633045E
+select password('');
+password('')
+
+select old_password('abc');
+old_password('abc')
+7cd2b5942be28759
+select old_password('');
+old_password('')
+
+select password('gabbagabbahey');
+password('gabbagabbahey')
+*B0F99D2963660DD7E16B751EC9EE2F17B6A68FA6
+select old_password('idkfa');
+old_password('idkfa')
+5c078dc54ca0fcca
+select length(password('1'));
+length(password('1'))
+41
+select length(encrypt('test'));
+length(encrypt('test'))
+13
+select encrypt('test','aa');
+encrypt('test','aa')
+aaqPiZY5xR5l.
+select old_password(NULL);
+old_password(NULL)
+NULL
+select password(NULL);
+password(NULL)
+
+set global old_passwords=on;
+select password('');
+password('')
+
+select old_password('');
+old_password('')
+
+select password('idkfa');
+password('idkfa')
+*B669C9DAC3AA6F2254B03CDEF8DFDD6B2D1054BA
+select old_password('idkfa');
+old_password('idkfa')
+5c078dc54ca0fcca
+set old_passwords=on;
+select password('idkfa');
+password('idkfa')
+5c078dc54ca0fcca
+select old_password('idkfa');
+old_password('idkfa')
+5c078dc54ca0fcca
+set global old_passwords=off;
+select password('idkfa');
+password('idkfa')
+5c078dc54ca0fcca
+select old_password('idkfa');
+old_password('idkfa')
+5c078dc54ca0fcca
+set old_passwords=off;
+select password('idkfa ');
+password('idkfa ')
+*2DC31D90647B4C1ABC9231563D2236E96C9A2DB2
+select password('idkfa');
+password('idkfa')
+*B669C9DAC3AA6F2254B03CDEF8DFDD6B2D1054BA
+select password(' idkfa');
+password(' idkfa')
+*12B099E56BB7FE8D43C78FD834A9D1D11178D045
+select old_password('idkfa');
+old_password('idkfa')
+5c078dc54ca0fcca
+select old_password(' i 	 d k f a ');
+old_password(' i 	 d k f a ')
+5c078dc54ca0fcca
+explain extended select password('idkfa '), old_password('idkfa');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select password('idkfa ') AS `password('idkfa ')`,old_password('idkfa') AS `old_password('idkfa')`
+select encrypt('1234','_.');
+encrypt('1234','_.')
+#
+#
+# Bug #44767: invalid memory reads in password() and old_password() 
+#             functions
+#
+CREATE TABLE t1(c1 MEDIUMBLOB);
+INSERT INTO t1 VALUES (REPEAT('a', 1024));
+SELECT OLD_PASSWORD(c1), PASSWORD(c1) FROM t1;
+OLD_PASSWORD(c1)	PASSWORD(c1)
+77023ffe214c04ff	*82E58A2C08AAFE72C8EB523069CD8ADB33F78F58
+DROP TABLE t1;
+# End of 5.0 tests
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-10306 Wrong results with combination of CONCAT, SUBSTR and CONVERT in subquery
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='derived_merge=on';
+CREATE TABLE t1 (t VARCHAR(32) CHARSET latin1);
+INSERT INTO t1 VALUES('abcdefghi');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT ENCRYPT(t,'aa') t2 FROM t1) sub;
+c2
+aaHHlPHAM4sjs-aaHHlPHAM4sjs
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
+#
+# End of 10.0 tests
+#
+#
+# Start of 10.1 tests
+#
+# Start of func_str_ascii_checksum.inc
+#
+# MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',password('test')), ('TEST', password('TEST'));
+SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= password("test") OR f2= password("TEST"));
+f1	f2
+test	*94BDCEBE19083CE2A1F959FD02F964C7AF4CFC29
+TEST	*47A6B0EA08A36FAEBE4305B373FE37E3CF27C357
+SELECT * FROM t1                  WHERE f1='test' AND (f2= password("test") OR f2= password("TEST"));
+f1	f2
+TEST	*47A6B0EA08A36FAEBE4305B373FE37E3CF27C357
+test	*94BDCEBE19083CE2A1F959FD02F964C7AF4CFC29
+SELECT * FROM t1                  WHERE f1='test' AND (f2= password("TEST") OR f2= password("test"));
+f1	f2
+TEST	*47A6B0EA08A36FAEBE4305B373FE37E3CF27C357
+test	*94BDCEBE19083CE2A1F959FD02F964C7AF4CFC29
+DROP TABLE t1;
+#
+# MDEV-10425 Assertion `collation.derivation == DERIVATION_IMPLICIT' failed in Item_func_conv_charset::fix_length_and_dec()
+#
+PREPARE stmt FROM "SELECT password(CONVERT('foo' USING latin1))";
+EXECUTE stmt;
+password(CONVERT('foo' USING latin1))
+*F3A2A51A9B0F2BE2468926B4132313728C250DBF
+DEALLOCATE PREPARE stmt;
+# End of func_str_ascii_checksum.inc
+# Start of func_str_ascii_checksum.inc
+#
+# MDEV-10850 Wrong result for WHERE .. (f2=TO_BASE64('test') OR f2=TO_BASE64('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(255), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',old_password('test')), ('TEST', old_password('TEST'));
+SELECT * FROM t1 IGNORE INDEX(k1) WHERE f1='test' AND (f2= old_password("test") OR f2= old_password("TEST"));
+f1	f2
+test	378b243e220ca493
+TEST	06df397e084be793
+SELECT * FROM t1                  WHERE f1='test' AND (f2= old_password("test") OR f2= old_password("TEST"));
+f1	f2
+TEST	06df397e084be793
+test	378b243e220ca493
+SELECT * FROM t1                  WHERE f1='test' AND (f2= old_password("TEST") OR f2= old_password("test"));
+f1	f2
+TEST	06df397e084be793
+test	378b243e220ca493
+DROP TABLE t1;
+#
+# MDEV-10425 Assertion `collation.derivation == DERIVATION_IMPLICIT' failed in Item_func_conv_charset::fix_length_and_dec()
+#
+PREPARE stmt FROM "SELECT old_password(CONVERT('foo' USING latin1))";
+EXECUTE stmt;
+old_password(CONVERT('foo' USING latin1))
+7c786c222596437b
+DEALLOCATE PREPARE stmt;
+# End of func_str_ascii_checksum.inc
+#
+# MDEV-10864 Wrong result for WHERE .. (f2=COMPRESS('test') OR f2=COMPRESS('TEST'))
+#
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(64), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',encrypt('test','key')), ('TEST', encrypt('TEST','key'));
+SELECT f1 FROM t1 ignore index(k1) WHERE f1='test' AND (f2= encrypt('test','key') OR f2= encrypt('TEST','key'));
+f1
+test
+TEST
+SELECT f1 FROM t1                  WHERE f1='test' AND (f2= encrypt('test','key') OR f2= encrypt('TEST','key'));
+f1
+TEST
+test
+SELECT f1 FROM t1                  WHERE f1='test' AND (f2= encrypt('TEST','key') OR f2= encrypt('test','key'));
+f1
+TEST
+test
+DROP TABLE t1;
+# Start of 10.2 tests
+CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(30) DEFAULT ENCRYPT(a,123));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL,
+  `b` varchar(30) DEFAULT encrypt(`a`,123)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (a) VALUES ('hello');
+SELECT * FROM t1;
+a	b
+hello	12NKz5XM5JeKI
+DROP TABLE t1;

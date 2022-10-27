@@ -1,0 +1,28 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave_sql.inc
+connection master;
+CALL mtr.add_suppression("Statement is unsafe because it uses a system function that may return a different value on the slave");
+create table t1 (i int);
+insert into t1 values (1),(2);
+insert into t1 values (3),(4);
+insert into t1 select i+20+0*sleep(1) from t1 where i=1;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+flush logs;
+insert into t1 values (5),(6);
+insert into t1 values (7),(8);
+insert into t1 values (9),(10);
+insert into t1 values (11),(12);
+insert into t1 values (13),(14);
+insert into t1 values (15),(16);
+connection slave;
+set global slave_parallel_threads = 1;
+start slave until master_log_file='MASTER_FILE', master_log_pos=MASTER_POS;
+drop table t1;
+include/stop_slave_io.inc
+set global slave_parallel_threads = DEFAULT;
+connection master;
+drop table t1;
+include/rpl_end.inc

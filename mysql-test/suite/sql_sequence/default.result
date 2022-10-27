@@ -1,0 +1,187 @@
+drop table if exists t1,s1,s2;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.s1'
+Note	1051	Unknown table 'test.s2'
+drop view if exists v1;
+Warnings:
+Note	4092	Unknown VIEW: 'test.v1'
+#
+# Test DEFAULT
+#
+CREATE SEQUENCE s1 nocache engine=myisam;
+CREATE table t1 (a int default next value for s1, b int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT nextval(`test`.`s1`),
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 SET b=1;
+insert into t1 SET b=2;
+insert into t1 (b) values (3),(4);
+select * from t1;
+a	b
+1	1
+2	2
+3	3
+4	4
+update t1 set b=5 where a=1;
+delete from t1 where b=1;
+select * from t1;
+a	b
+1	5
+2	2
+3	3
+4	4
+#
+# Executing DEFAULT function
+#
+INSERT into t1 values(default(a),10);
+INSERT into t1 values(default(a),default(a));
+update t1 set a=default(a), b=12 where b=2;
+select * from t1;
+a	b
+1	5
+8	12
+3	3
+4	4
+5	10
+6	7
+select default(a), a, b from t1;
+default(a)	a	b
+9	1	5
+10	8	12
+11	3	3
+12	4	4
+13	5	10
+14	6	7
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+15	1	9223372036854775806	1	1	0	0	0
+select * from t1 where default(a) > 0;
+a	b
+1	5
+8	12
+3	3
+4	4
+5	10
+6	7
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+16	1	9223372036854775806	1	1	0	0	0
+#
+# View
+#
+create view v1 as select * from t1;
+insert into v1 set b=20;
+select * from v1;
+a	b
+1	5
+8	12
+3	3
+4	4
+5	10
+6	7
+16	20
+drop view v1;
+#
+# Alter table
+#
+CREATE SEQUENCE s2 nocache engine=myisam;
+alter table t1 add column c int default next value for s2, add column d int default previous value for s2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT nextval(`test`.`s1`),
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT nextval(`test`.`s2`),
+  `d` int(11) DEFAULT lastval(`test`.`s2`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from t1;
+a	b	c	d
+1	5	1	1
+8	12	2	2
+3	3	3	3
+4	4	4	4
+5	10	5	5
+6	7	6	6
+16	20	7	7
+drop sequence s2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT nextval(`test`.`s1`),
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT nextval(`test`.`s2`),
+  `d` int(11) DEFAULT lastval(`test`.`s2`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+drop sequence s1;
+#
+# LOCK TABLES
+#
+CREATE SEQUENCE s1 nocache engine=myisam;
+CREATE table t1 (a int default next value for s1, b int);
+insert into t1 (b) values (3),(4);
+LOCK TABLE t1 WRITE;
+insert into t1 (b) values (5),(6);
+ERROR HY000: Table 's1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+LOCK TABLE t1 WRITE, s1 WRITE;
+insert into t1 (b) values (5),(6);
+select default(a) from t1;
+default(a)
+5
+6
+7
+8
+UNLOCK TABLES;
+LOCK TABLE t1 READ;
+insert into t1 (b) values (5),(6);
+ERROR HY000: Table 's1' was not locked with LOCK TABLES
+select default(a) from t1;
+ERROR HY000: Table 's1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+LOCK TABLE t1 READ, s1 read;
+insert into t1 (b) values (5),(6);
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+select default(a) from t1;
+ERROR HY000: Table 's1' was locked with a READ lock and can't be updated
+UNLOCK TABLES;
+drop table t1;
+drop sequence s1;
+#
+# Testing prepared statements
+#
+CREATE or replace SEQUENCE s1 nocache engine=myisam;
+CREATE or replace table t1 (a int default next value for s1, b int);
+PREPARE stmt FROM "insert into t1 (b) values(?)";
+execute stmt using 1;
+execute stmt using 2;
+execute stmt using 3;
+select * from t1;
+a	b
+1	1
+2	2
+3	3
+drop table t1,s1;
+deallocate prepare stmt;
+#
+# Wrong usage of default
+#
+CREATE table t1 (a int default next value for s1, b int);
+ERROR 42S02: Table 'test.s1' doesn't exist
+CREATE SEQUENCE s1 nocache engine=myisam;
+CREATE table t1 (a int default next value for s1, b int);
+DROP SEQUENCE s1;
+insert into t1 (b) values (5),(6);
+ERROR 42S02: Table 'test.s1' doesn't exist
+ALTER TABLE t1 add column c int;
+ERROR 42S02: Table 'test.s1' doesn't exist
+CREATE SEQUENCE s1 nocache engine=myisam;
+ALTER TABLE t1 add column c int;
+ALTER TABLE t1 add column d int default next value for s_not_exits;
+ERROR 42S02: Table 'test.s_not_exits' doesn't exist
+drop table t1;
+drop sequence s1;

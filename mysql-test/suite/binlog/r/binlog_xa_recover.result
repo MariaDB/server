@@ -1,0 +1,223 @@
+SET GLOBAL max_binlog_size= 4096;
+SET GLOBAL innodb_flush_log_at_trx_commit= 1;
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+INSERT INTO t1 VALUES (100, REPEAT("x", 4100));
+INSERT INTO t1 VALUES (101, REPEAT("x", 4100));
+INSERT INTO t1 VALUES (102, REPEAT("x", 4100));
+connect con1,localhost,root,,;
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL con1_wait WAIT_FOR con1_cont";
+SET DEBUG_SYNC= "commit_after_group_release_commit_ordered SIGNAL con1_ready WAIT_FOR _ever";
+INSERT INTO t1 VALUES (1, REPEAT("x", 4100));
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con1_wait";
+connect con2,localhost,root,,;
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL con2_wait WAIT_FOR con2_cont";
+SET DEBUG_SYNC= "commit_after_group_release_commit_ordered SIGNAL con2_ready WAIT_FOR _ever";
+INSERT INTO t1 VALUES (2, NULL);
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con2_wait";
+connect con3,localhost,root,,;
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL con3_wait WAIT_FOR con3_cont";
+SET DEBUG_SYNC= "commit_after_group_release_commit_ordered SIGNAL con3_ready WAIT_FOR _ever";
+INSERT INTO t1 VALUES (3, REPEAT("x", 4100));
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con3_wait";
+connect con4,localhost,root,,;
+SET DEBUG_SYNC= "ha_commit_trans_before_log_and_order SIGNAL con4_wait WAIT_FOR con4_cont";
+SET SESSION debug_dbug="+d,crash_commit_after_log";
+INSERT INTO t1 VALUES (4, NULL);
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con4_wait";
+SET DEBUG_SYNC= "now SIGNAL con1_cont";
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+SET DEBUG_SYNC= "now SIGNAL con2_cont";
+SET DEBUG_SYNC= "now WAIT_FOR con2_ready";
+SET DEBUG_SYNC= "now SIGNAL con3_cont";
+SET DEBUG_SYNC= "now WAIT_FOR con3_ready";
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+master-bin.000006	#
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000003	#	Gtid_list	#	#	[#-#-#]
+master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000002
+master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000003
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (102, REPEAT("x", 4100))
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000003	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Xid	#	#	COMMIT /* XID */
+master-bin.000003	#	Rotate	#	#	master-bin.000004;pos=POS
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000004	#	Gtid_list	#	#	[#-#-#]
+master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000003
+master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000004
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (1, REPEAT("x", 4100))
+master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000004	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000004	#	Xid	#	#	COMMIT /* XID */
+master-bin.000004	#	Rotate	#	#	master-bin.000005;pos=POS
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000005	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000005	#	Gtid_list	#	#	[#-#-#]
+master-bin.000005	#	Binlog_checkpoint	#	#	master-bin.000004
+master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000005	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (2, NULL)
+master-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000005	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000005	#	Xid	#	#	COMMIT /* XID */
+master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000005	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (3, REPEAT("x", 4100))
+master-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000005	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000005	#	Xid	#	#	COMMIT /* XID */
+master-bin.000005	#	Rotate	#	#	master-bin.000006;pos=POS
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000006	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000006	#	Gtid_list	#	#	[#-#-#]
+master-bin.000006	#	Binlog_checkpoint	#	#	master-bin.000004
+PURGE BINARY LOGS TO "master-bin.000006";
+show binary logs;
+Log_name	File_size
+master-bin.000004	#
+master-bin.000005	#
+master-bin.000006	#
+SET DEBUG_SYNC= "now SIGNAL con4_cont";
+connection con4;
+Got one of the listed errors
+connection default;
+SELECT a FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+100
+101
+102
+Test that with multiple binlog checkpoints, recovery starts from the last one.
+SET GLOBAL max_binlog_size= 4096;
+SET GLOBAL innodb_flush_log_at_trx_commit= 1;
+RESET MASTER;
+connect con10,localhost,root,,;
+SET DEBUG_SYNC= "commit_after_group_release_commit_ordered SIGNAL con10_ready WAIT_FOR con10_cont";
+INSERT INTO t1 VALUES (10, REPEAT("x", 4100));
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con10_ready";
+connect con11,localhost,root,,;
+SET DEBUG_SYNC= "commit_after_group_release_commit_ordered SIGNAL con11_ready WAIT_FOR con11_cont";
+INSERT INTO t1 VALUES (11, REPEAT("x", 4100));
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con11_ready";
+connect con12,localhost,root,,;
+SET DEBUG_SYNC= "commit_after_group_release_commit_ordered SIGNAL con12_ready WAIT_FOR con12_cont";
+INSERT INTO t1 VALUES (12, REPEAT("x", 4100));
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con12_ready";
+INSERT INTO t1 VALUES (13, NULL);
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000004	#	Gtid_list	#	#	[#-#-#]
+master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (13, NULL)
+master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000004	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000004	#	Xid	#	#	COMMIT /* XID */
+SET DEBUG_SYNC= "now SIGNAL con10_cont";
+connection con10;
+connection default;
+SET DEBUG_SYNC= "now SIGNAL con12_cont";
+connection con12;
+connection default;
+SET DEBUG_SYNC= "now SIGNAL con11_cont";
+connection con11;
+connection default;
+Now crash the server
+SET SESSION debug_dbug="+d,crash_commit_after_log";
+INSERT INTO t1 VALUES (14, NULL);
+Got one of the listed errors
+connection default;
+SELECT a FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+10
+11
+12
+13
+14
+100
+101
+102
+*** Check that recovery works if we crashed early during rotate, before
+*** binlog checkpoint event could be written.
+SET GLOBAL max_binlog_size= 4096;
+SET GLOBAL innodb_flush_log_at_trx_commit= 1;
+RESET MASTER;
+INSERT INTO t1 VALUES (21, REPEAT("x", 4100));
+INSERT INTO t1 VALUES (22, REPEAT("x", 4100));
+INSERT INTO t1 VALUES (23, REPEAT("x", 4100));
+SET SESSION debug_dbug="+d,crash_before_write_checkpoint_event";
+INSERT INTO t1 VALUES (24, REPEAT("x", 4100));
+Got one of the listed errors
+SELECT a FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+10
+11
+12
+13
+14
+21
+22
+23
+24
+100
+101
+102
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000004	#	Gtid_list	#	#	[#-#-#]
+master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000003
+master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000004
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (24, REPEAT("x", 4100))
+master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000004	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000004	#	Xid	#	#	COMMIT /* XID */
+master-bin.000004	#	Rotate	#	#	master-bin.000005;pos=POS
+connection default;
+DROP TABLE t1;

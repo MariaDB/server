@@ -1,0 +1,37 @@
+#
+# MDEV-5748 Assertion `status_var.memory_used == 0' fails on disconnect after opening an OQGRAPH table
+#
+
+# try to open oqgraph table in one connection and use in another:
+
+--connect (con1,localhost,root,,)
+
+CREATE TABLE oq_backing (
+  origid INT UNSIGNED NOT NULL,
+  destid INT UNSIGNED NOT NULL,
+  weight DOUBLE NOT NULL,
+  PRIMARY KEY (origid, destid),
+  KEY (destid)
+);
+
+CREATE TABLE oq_table (
+  latch VARCHAR(32) NULL,
+  origid BIGINT UNSIGNED NULL,
+  destid BIGINT UNSIGNED NULL,
+  weight DOUBLE NULL,
+  seq BIGINT UNSIGNED NULL,
+  linkid BIGINT UNSIGNED NULL,
+  KEY (latch, origid, destid) USING HASH,
+  KEY (latch, destid, origid) USING HASH
+) ENGINE=OQGRAPH
+data_table='oq_backing' origid='origid' destid='destid' weight='weight';
+
+flush tables;
+show fields in oq_table;
+--disconnect con1
+
+--connection default
+show tables;
+
+drop table oq_table, oq_backing;
+

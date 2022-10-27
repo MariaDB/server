@@ -1,0 +1,279 @@
+#
+# Testing errors
+#
+CREATE TABLE t1
+(
+ID INT
+) Engine=CONNECT TABLE_TYPE=INI FILE_NAME='nonexistent.txt';
+SELECT * FROM t1;
+ID
+DROP TABLE t1;
+#
+# Testing examples from the manual
+#
+CREATE TABLE t1
+(
+contact CHAR(16) flag=1,
+name CHAR(20),
+forename CHAR(32),
+hired date date_format='DD/MM/YYYY',
+address CHAR(64),
+city CHAR(20),
+zipcode CHAR(8),
+tel CHAR(16)
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='contact.ini';
+SELECT contact, name, hired, city, tel FROM t1;
+contact	name	hired	city	tel
+BER	Bertrand	NULL	Issy-les-Mlx	09.54.36.29.60
+WEL	Schmitt	1985-02-19	Berlin	03.43.377.360
+UK1	Smith	2003-11-08	London	NULL
+UPDATE t1 SET forename= 'Harry' where contact='UK1';
+SELECT * FROM t1 WHERE contact='UK1';
+contact	name	forename	hired	address	city	zipcode	tel
+UK1	Smith	Harry	2003-11-08	143 Blum Rd.	London	NW1 2BP	NULL
+INSERT INTO t1 (contact,forename) VALUES ('UK1','Harrison');
+SELECT * FROM t1 WHERE contact='UK1';
+contact	name	forename	hired	address	city	zipcode	tel
+UK1	Smith	Harrison	2003-11-08	143 Blum Rd.	London	NW1 2BP	NULL
+INSERT INTO t1 (contact,forename) VALUES ('UK2','John');
+SELECT * FROM t1 WHERE contact='UK2';
+contact	name	forename	hired	address	city	zipcode	tel
+UK2	NULL	John	NULL	NULL	NULL	NULL	NULL
+DROP TABLE t1;
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n')
+[BER]
+name=Bertrand
+forename=Olivier
+address=21 rue Ferdinand Buisson
+city=Issy-les-Mlx
+zipcode=92130
+tel=09.54.36.29.60
+cell=06.70.06.04.16
+[WEL]
+name=Schmitt
+forename=Bernard
+hired=19/02/1985
+address=64 tiergarten strasse
+city=Berlin
+zipcode=95013
+tel=03.43.377.360
+[UK1]
+name=Smith
+forename=Harrison
+hired=08/11/2003
+address=143 Blum Rd.
+city=London
+zipcode=NW1 2BP
+[UK2]
+forename=John
+
+CREATE TABLE t1
+(
+section CHAR(16) flag=1,
+keyname CHAR(16) flag=2,
+value CHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='contact.ini'
+  OPTION_LIST='Layout=Row';
+UPDATE t1 SET value='Paul' WHERE section='UK2' AND keyname='forename';
+SELECT * FROM t1;
+section	keyname	value
+BER	name	Bertrand
+BER	forename	Olivier
+BER	address	21 rue Ferdinand Buisson
+BER	city	Issy-les-Mlx
+BER	zipcode	92130
+BER	tel	09.54.36.29.60
+BER	cell	06.70.06.04.16
+WEL	name	Schmitt
+WEL	forename	Bernard
+WEL	hired	19/02/1985
+WEL	address	64 tiergarten strasse
+WEL	city	Berlin
+WEL	zipcode	95013
+WEL	tel	03.43.377.360
+UK1	name	Smith
+UK1	forename	Harrison
+UK1	hired	08/11/2003
+UK1	address	143 Blum Rd.
+UK1	city	London
+UK1	zipcode	NW1 2BP
+UK2	forename	Paul
+DROP TABLE t1;
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n')
+[BER]
+name=Bertrand
+forename=Olivier
+address=21 rue Ferdinand Buisson
+city=Issy-les-Mlx
+zipcode=92130
+tel=09.54.36.29.60
+cell=06.70.06.04.16
+[WEL]
+name=Schmitt
+forename=Bernard
+hired=19/02/1985
+address=64 tiergarten strasse
+city=Berlin
+zipcode=95013
+tel=03.43.377.360
+[UK1]
+name=Smith
+forename=Harrison
+hired=08/11/2003
+address=143 Blum Rd.
+city=London
+zipcode=NW1 2BP
+[UK2]
+forename=Paul
+
+#
+# Testing that the underlying file is created
+#
+CREATE TABLE t1
+(
+contact CHAR(12) NOT NULL flag=1,
+c2 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='tmp.ini';
+INSERT INTO t1 VALUES (10,10),(20,20),(300,300),(4000,4000), ('a b','c d');
+SELECT * FROM t1;
+contact	c2
+10	10
+20	20
+300	300
+4000	4000
+a b	c d
+DROP TABLE t1;
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n')
+[10]
+c2=10
+[20]
+c2=20
+[300]
+c2=300
+[4000]
+c2=4000
+[a b]
+c2=c d
+
+#
+# Testing bad table
+#
+CREATE TABLE t1
+(
+id INT
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='t1.ini';
+INSERT INTO t1 VALUES (10);
+ERROR HY000: Got error 122 'Section name must come first on Insert' from CONNECT
+SELECT * FROM t1;
+id
+DROP TABLE t1;
+#
+# Testing READONLY tables
+#
+CREATE TABLE t1
+(
+contact CHAR(10) flag=1,
+c2 CHAR(60)
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='t1.ini';
+INSERT INTO t1 VALUES ('UK',10),('FR',20),('RU',30);
+SELECT * FROM t1;
+contact	c2
+UK	10
+FR	20
+RU	30
+ALTER TABLE t1 READONLY=1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `contact` char(10) DEFAULT NULL `flag`=1,
+  `c2` char(60) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=INI `FILE_NAME`='t1.ini' `READONLY`=1
+INSERT INTO t1 VALUES ('US',40);
+ERROR HY000: Table 't1' is read only
+UPDATE t1 SET c2=20 WHERE c2=10;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+DELETE FROM t1 WHERE c2=10;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+TRUNCATE TABLE t1;
+ERROR HY000: Table 't1' is read only
+ALTER TABLE t1 READONLY=0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `contact` char(10) DEFAULT NULL `flag`=1,
+  `c2` char(60) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=INI `FILE_NAME`='t1.ini' `READONLY`=0
+INSERT INTO t1 VALUES ('US',40);
+SELECT * FROM t1;
+contact	c2
+UK	10
+FR	20
+RU	30
+US	40
+DROP TABLE t1;
+#
+# Bug: TABLE_TYPE=ini does not clear memory between CREATE TABLEs
+#
+CREATE TABLE t1 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=INI;
+Warnings:
+Warning	1105	No file name. Table will use t1.ini
+INSERT INTO t1 VALUES ('sec1','val1'),('sec2','val2');
+SELECT sec AS s, val AS v FROM t1;
+s	v
+sec1	val1
+sec2	val2
+DROP TABLE t1;
+CREATE TABLE t1 (sec2 CHAR(10) NOT NULL FLAG=1, val2 CHAR(10) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=INI;
+Warnings:
+Warning	1105	No file name. Table will use t1.ini
+INSERT INTO t1 VALUES ('sec1','val11'),('sec2','val22');
+SELECT sec2 AS s, val2 AS v FROM t1;
+s	v
+sec1	val11
+sec2	val22
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n')
+[sec1]
+val2=val11
+[sec2]
+val2=val22
+
+DROP TABLE t1;
+CREATE TABLE t1 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=INI;
+Warnings:
+Warning	1105	No file name. Table will use t1.ini
+CREATE TABLE t2 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=INI;
+Warnings:
+Warning	1105	No file name. Table will use t2.ini
+INSERT INTO t1 VALUES('1sec1','1val1'),('1sec2','1val2');
+INSERT INTO t2 VALUES('2sec1','2val1'),('2sec2','2val2');
+SELECT sec AS s, val AS v FROM t1;
+s	v
+1sec1	1val1
+1sec2	1val2
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n')
+[1sec1]
+val=1val1
+[1sec2]
+val=1val2
+
+SELECT sec AS s, val AS v FROM t2;
+s	v
+2sec1	2val1
+2sec2	2val2
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t2.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t2.ini'),'\r\n','\n'),'\n\n','\n')
+[2sec1]
+val=2val1
+[2sec2]
+val=2val2
+
+DROP TABLE t1, t2;

@@ -1,0 +1,6 @@
+--loose-default-storage-engine=innodb
+--loose-innodb_buffer_pool_load_at_startup=0
+--loose-innodb_buffer_pool_dump_at_shutdown=0
+--loose-innodb-buffer-pool-size=8M
+--loose-innodb-buffer-pool-instances=1
+--loose-innodb-page-size=16k

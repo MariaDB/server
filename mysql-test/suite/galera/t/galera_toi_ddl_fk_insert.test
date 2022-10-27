@@ -1,0 +1,69 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/big_test.inc
+
+#
+# This test creates a new FK constraint while concurrent INSERTS are running
+#
+
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE parent (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    f2 INTEGER
+) ENGINE=InnoDB;
+
+CREATE TABLE child (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    parent_id INT
+) ENGINE=InnoDB;
+
+INSERT INTO parent VALUES (1, 0);
+
+--connection node_2
+--send INSERT INTO child (parent_id) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+--connection node_1a
+--send INSERT INTO parent (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+--let $galera_connection_name = node_2a
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+--connection node_2a
+--send INSERT INTO parent (f2) SELECT 2 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+--let $galera_connection_name = node_1b
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+--connection node_1b
+--send ALTER TABLE child ADD FOREIGN KEY (parent_id) REFERENCES parent(id);
+
+--connection node_1a
+--reap
+
+--connection node_1b
+--reap
+
+--connection node_2
+--reap
+
+--connection node_2a
+--reap
+
+--connection node_1
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(*) FROM parent;
+SELECT COUNT(*) FROM child;
+
+--connection node_2
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(*) FROM parent;
+SELECT COUNT(*) FROM child;
+
+DROP TABLE child;
+DROP TABLE parent;
+DROP TABLE ten;

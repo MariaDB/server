@@ -1,0 +1,510 @@
+# This test is to check various cases of connections
+# with right and wrong password, with and without database
+# Unfortunately the check is incomplete as we can't connect without database
+
+# This test makes no sense with the embedded server
+--source include/not_embedded.inc
+
+# check that CSV engine was compiled in, as the test relies on the presence
+# of the log tables (which are CSV-based). By connect mysql; show tables;
+--source include/have_csv.inc
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+SET global secure_auth=0;
+
+#connect (con1,localhost,root,,"");
+#show tables;
+connect (con1,localhost,root,,mysql);
+show tables;
+connect (con2,localhost,root,,test);
+show tables;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_con,localhost,root,z,test2);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_con,localhost,root,z,);
+
+connection default;
+disconnect con1;
+disconnect con2;
+
+grant ALL on *.* to test@localhost identified by "gambling";
+grant ALL on *.* to test@127.0.0.1 identified by "gambling";
+
+# Now check this user with different databases
+#connect (con1,localhost,test,gambling,"");
+#show tables;
+connect (con3,localhost,test,gambling,mysql);
+show tables;
+connect (con4,localhost,test,gambling,test);
+show tables;
+
+connection default;
+disconnect con3;
+disconnect con4;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_con,localhost,test,,test2);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+# Need to protect "" within '' so it's interpreted literally
+connect (fail_con,localhost,test,,'""');
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_con,localhost,test,zorro,test2);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_con,localhost,test,zorro,);
+
+# check if old password version also works
+source include/switch_to_mysql_user.inc;
+update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
+flush privileges;
+show grants for test@localhost;
+update mysql.user set plugin='mysql_old_password' where user='test';
+flush privileges;
+show grants for test@localhost;
+
+connect (con10,localhost,test,gambling2,);
+connect (con5,localhost,test,gambling2,mysql);
+set password="";
+--error ER_PASSWD_LENGTH
+set password='gambling3';
+set password=old_password('gambling3');
+show tables;
+connect (con6,localhost,test,gambling3,test);
+show tables;
+
+connection default;
+disconnect con10;
+disconnect con5;
+disconnect con6;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_con,localhost,test,,test2);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_con,localhost,test,,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_con,localhost,test,zorro,test2);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (fail_con,localhost,test,zorro,);
+
+source include/switch_to_mysql_global_priv.inc;
+# remove user 'test' so that other tests which may use 'test'
+# do not depend on this test.
+delete from mysql.user where user=_binary"test";
+
+#
+# Bug#12517 Clear user variables and replication events before
+#           closing temp tables in thread cleanup.
+connect (con7,localhost,root,,test);
+let $connection_id= `select connection_id()`;
+create table t1 (id integer not null auto_increment primary key);
+create temporary table t2(id integer not null auto_increment primary key);
+set @id := 1;
+delete from t1 where id like @id;
+connection default;
+disconnect con7;
+# Wait till the session con7 is disconnected
+let $wait_condition =
+  SELECT COUNT(*) = 0
+  FROM information_schema.processlist
+  WHERE  id = '$connection_id';
+--source include/wait_condition.inc
+drop table t1;
+
+--echo # ------------------------------------------------------------------
+--echo # -- End of 4.1 tests
+--echo # ------------------------------------------------------------------
+
+###########################################################################
+
+--echo
+--echo # -- Bug#33507: Event scheduler creates more threads than max_connections
+--echo # -- which results in user lockout.
+
+--echo
+CREATE USER mysqltest_u1@localhost;
+GRANT USAGE ON *.* TO mysqltest_u1@localhost;
+
+# NOTE: if the test case fails sporadically due to spurious connections,
+# consider disabling all users.
+
+--echo
+let $saved_max_connections = `SELECT @@global.max_connections`;
+SET GLOBAL max_connections = 10;
+SET GLOBAL event_scheduler = ON;
+
+connect (tmp_con1,localhost,mysqltest_u1,,);
+connect (tmp_con2,localhost,mysqltest_u1,,);
+connect (tmp_con3,localhost,mysqltest_u1,,);
+connect (tmp_con4,localhost,mysqltest_u1,,);
+connect (tmp_con5,localhost,mysqltest_u1,,);
+connect (tmp_con6,localhost,mysqltest_u1,,);
+connect (tmp_con7,localhost,mysqltest_u1,,);
+connection default;
+
+--echo
+--echo # -- Waiting for Event Scheduler to start...
+let $wait_condition =
+  SELECT COUNT(*) = 1
+  FROM information_schema.processlist
+  WHERE user = 'event_scheduler';
+--source include/wait_condition.inc
+
+--echo
+--echo # -- Disconnecting default connection...
+--disconnect default
+
+--echo
+--echo # -- Check that we allow exactly three user connections, no matter how
+--echo # -- many threads are running.
+
+--echo
+--echo # -- Connecting (1)...
+let $con_name = con_1;
+let $con_user_name = mysqltest_u1;
+--source include/connect2.inc
+
+--echo
+--echo # -- Connecting (2)...
+let $con_name = con_2;
+let $con_user_name = mysqltest_u1;
+--source include/connect2.inc
+
+--echo
+--echo # -- Connecting (3)...
+let $con_name = con_3;
+let $con_user_name = mysqltest_u1;
+--source include/connect2.inc
+
+--echo
+--echo # -- Connecting (4) [should fail]...
+let $con_name = con_4;
+let $con_user_name = mysqltest_u1;
+let $wait_timeout = 5;
+--source include/connect2.inc
+
+--echo
+--echo # -- Check that we allow one extra SUPER-user connection.
+
+--echo
+--echo # -- Connecting super (1)...
+let $con_name = con_super_1;
+let $con_user_name = root;
+--source include/connect2.inc
+
+--echo
+--echo # -- Connecting super (2) [should fail]...
+let $con_name = con_super_2;
+let $con_user_name = root;
+let $wait_timeout = 5;
+--source include/connect2.inc
+
+--echo
+--echo # -- Ensure that we have Event Scheduler thread, 3 ordinary user
+--echo # -- connections and one extra super-user connection.
+SELECT user FROM information_schema.processlist ORDER BY id;
+
+--echo
+--echo # -- Resetting variables...
+--replace_result $saved_max_connections #max_connections#
+--eval SET GLOBAL max_connections = $saved_max_connections
+
+--echo
+--echo # -- Stopping Event Scheduler...
+SET GLOBAL event_scheduler = OFF;
+
+--echo
+--echo # -- Waiting for Event Scheduler to stop...
+let $wait_condition =
+  SELECT COUNT(*) = 0
+  FROM information_schema.processlist
+  WHERE user = 'event_scheduler';
+--source include/wait_condition.inc
+
+--echo
+--echo # -- That's it. Closing connections...
+--disconnect con_1
+--disconnect con_2
+--disconnect con_3
+--disconnect con_super_1
+--disconnect tmp_con1
+--disconnect tmp_con2
+--disconnect tmp_con3
+--disconnect tmp_con4
+--disconnect tmp_con5
+--disconnect tmp_con6
+--disconnect tmp_con7
+
+--echo
+--echo # -- Restoring default connection...
+--connect (default,localhost,root,,test)
+
+--echo
+--echo # -- Waiting for connections to close...
+let $count_sessions=1;
+--source include/wait_until_count_sessions.inc
+
+--echo
+DROP USER mysqltest_u1@localhost;
+
+--echo
+--echo # -- End of Bug#33507.
+--echo
+
+###########################################################################
+
+--echo # -- Bug#35074: max_used_connections is not correct.
+--echo
+
+FLUSH STATUS;
+
+--echo
+SHOW STATUS LIKE 'max_used_connections';
+
+--echo
+--echo # -- Starting Event Scheduler...
+SET GLOBAL event_scheduler = ON;
+
+--echo # -- Waiting for Event Scheduler to start...
+--source include/running_event_scheduler.inc
+
+# NOTE: We should use a new connection here instead of reconnect in order to
+# avoid races (we can not for sure when the connection being disconnected is
+# actually disconnected on the server).
+
+--echo
+--echo # -- Opening a new connection to check max_used_connections...
+--connect (con_1,localhost,root)
+
+--echo
+--echo # -- Check that max_used_connections hasn't changed.
+SHOW STATUS LIKE 'max_used_connections';
+
+--echo
+--echo # -- Closing new connection...
+--disconnect con_1
+--connection default
+
+--echo
+--echo # -- Stopping Event Scheduler...
+SET GLOBAL event_scheduler = OFF;
+
+--echo # -- Waiting for Event Scheduler to stop...
+--source include/no_running_events.inc
+
+--echo
+--echo # -- End of Bug#35074.
+--echo
+
+# Test connections to the extra port.
+
+connect(extracon,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,);
+SELECT 'Connection on extra port ok';
+
+connect(extracon2,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,);
+SELECT 'Connection on extra port 2 ok';
+
+--disable_abort_on_error
+--disable_result_log
+--disable_query_log
+connect(extracon3,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,);
+--enable_query_log
+--enable_result_log
+--enable_abort_on_error
+let $error = $mysql_errno;
+if (!$error)
+{
+  --echo # -- Error: managed to establish more than --extra-max-connections + 1 connections
+}
+if ($error)
+{
+  --echo # -- Success: more than --extra-max-connections + 1 normal connections not possible
+}
+
+###########################################################################
+
+--echo #
+--echo # -- Bug#49752: 2469.126.2 unintentionally breaks authentication
+--echo #               against MySQL 5.1 server
+--echo #
+
+GRANT ALL ON test.* TO 'O1234567890123456789012345678901234567890123456789012345678901234567890123456789'@'localhost' IDENTIFIED BY 'test123';
+
+FLUSH PRIVILEGES;
+
+connect (con1,localhost,O1234567890123456789012345678901234567890123456789012345678901234567890123456789x,test123,test);
+disconnect con1;
+
+connection default;
+
+DROP USER 'O1234567890123456789012345678901234567890123456789012345678901234567890123456789'@'localhost';
+
+FLUSH PRIVILEGES;
+
+--echo #
+--echo # -- End of Bug#49752
+--echo #
+
+--echo # ------------------------------------------------------------------
+--echo # -- End of 5.1 tests
+--echo # ------------------------------------------------------------------
+
+--disconnect extracon
+--disconnect extracon2
+--connection default
+
+#
+# A couple of plugin tests - for builtin plugins only
+#
+CREATE USER mysqltest_up1 IDENTIFIED VIA mysql_native_password using '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB';
+CREATE USER mysqltest_up2 IDENTIFIED VIA mysql_old_password using '09301740536db389';
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(pcon1,localhost,mysqltest_up1,foo,,$MASTER_MYPORT,);
+connect(pcon2,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,);
+select user(), current_user();
+disconnect pcon2;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(pcon3,localhost,mysqltest_up2,newpw,,$MASTER_MYPORT,);
+connect(pcon4,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,);
+select user(), current_user();
+disconnect pcon4;
+
+#
+# lp:683112 Maria 5.2 incorrectly reports "(using password: NO)"
+#           even when password is specified
+#
+# test "access denied" error for nonexisting user with and without a password
+#
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(pcon5,localhost,mysqltest_nouser,newpw,,$MASTER_MYPORT,);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect(pcon5,localhost,mysqltest_nouser,,,$MASTER_MYPORT,);
+
+connection default;
+
+#
+# MDEV-6253 MySQL Users Break when Migrating from MySQL 5.1 to MariaDB 10.0.10
+#
+# cannot connect when password is set and plugin=mysql_native_password
+#
+source include/switch_to_mysql_user.inc;
+update mysql.user set plugin='mysql_native_password' where user = 'mysqltest_up1';
+update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
+select user, password, plugin, authentication_string from mysql.user
+                  where user like 'mysqltest_up_';
+flush privileges;
+
+connect(pcon6,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,);
+select user(), current_user();
+disconnect pcon6;
+
+connect(pcon7,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,);
+select user(), current_user();
+disconnect pcon7;
+connection default;
+
+source include/switch_to_mysql_global_priv.inc;
+
+DROP USER mysqltest_up1@'%';
+DROP USER mysqltest_up2@'%';
+
+# Wait till all disconnects are completed
+--source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # BUG#1010351: New "via" keyword in 5.2+ can't be used as identifier anymore
+--echo #
+create table t1 (via int);
+alter table t1 add key(via);
+drop table t1;
+
+create table t1 (col1 int);
+alter table t1 add via int not null;
+drop table t1;
+
+delimiter |;
+create procedure p1(x int)
+foo: loop
+  if x = 0 then
+    leave foo;
+  end if;
+  select 'test';
+  set x = x-1;
+end loop foo|
+
+delimiter ;|
+call p1(2);
+drop procedure p1;
+
+SET global secure_auth=default;
+
+--echo #
+--echo # MDEV-19282: Log more specific warning with log_warnings=2 if
+--echo # connection is aborted prior to authentication
+--echo # MDEV-19277: Add status variable that gets incremented if
+--echo # connection is aborted prior to authentication
+--echo #
+
+flush status;
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+
+SET GLOBAL log_warnings=2;
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= This connection closed normally without authentication
+--source include/search_pattern_in_file.inc
+
+--perl
+use Socket;
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "Can't create a tcp socket!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("localhost")))
+  or die "Can't connect to port $ENV{MASTER_MYPORT}!\n";
+exit(0);
+EOF
+--echo # let tcp to detect disconnect
+select sleep(1);
+
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+
+--let SEARCH_PATTERN= This connection closed normally without authentication
+--source include/search_pattern_in_file.inc
+
+SET @save_connect_timeout= @@connect_timeout;
+SET GLOBAL connect_timeout=2;
+
+--perl
+use Socket;
+socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname("tcp"))
+  or die "Can't create a tcp socket!\n";
+connect(SOCK, pack_sockaddr_in($ENV{MASTER_MYPORT}, inet_aton("localhost")))
+  or die "Can't connect to port $ENV{MASTER_MYPORT}!\n";
+sleep 3;
+exit(0);
+EOF
+
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+
+--let SEARCH_PATTERN= This connection closed normally without authentication
+--source include/search_pattern_in_file.inc
+
+SET GLOBAL log_warnings=default;
+SET GLOBAL connect_timeout= @save_connect_timeout;
+
+--echo # End of 10.4 tests

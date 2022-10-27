@@ -1,0 +1,35 @@
+--source include/have_debug.inc
+
+create table t1 (a int);
+show create table t1;
+
+--error ER_VERS_NOT_SUPPORTED
+create temporary table tt1 (a int) with system versioning;
+
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug='+d,sysvers_force';
+
+create table t2 (a int);
+show create table t2;
+
+create temporary table tt2 (a int) with system versioning;
+show create table tt2;
+
+--connect con1, localhost, root
+
+create table t3 (a int);
+show create table t3;
+
+create temporary table tt3 (a int) with system versioning;
+show create table tt3;
+--disconnect con1
+--connection default
+
+set debug_dbug='+d,sysvers_show';
+
+show create table t3;
+create table t4 (a int);
+show create table t4;
+
+set global debug_dbug=@old_dbug;
+drop table t1, t2, t3, t4;

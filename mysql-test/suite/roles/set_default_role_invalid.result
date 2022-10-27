@@ -1,0 +1,130 @@
+create user test_user@localhost;
+create role test_role;
+create role not_granted_role;
+grant select on *.* to test_role;
+grant test_role to test_user@localhost;
+show grants;
+Grants for test_user@localhost
+GRANT `test_role` TO `test_user`@`localhost`
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+select user, host, default_role from mysql.user;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
+set default role invalid_role;
+ERROR OP000: Invalid role specification `invalid_role`
+set default role not_granted_role;
+ERROR OP000: Invalid role specification `not_granted_role`
+set default role test_role;
+select user, host, default_role from mysql.user;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
+select user, host, default_role from mysql.user where user='test_user';
+User	Host	default_role
+test_user	localhost	test_role
+show grants;
+Grants for test_user@localhost
+GRANT `test_role` TO `test_user`@`localhost`
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+GRANT SELECT ON *.* TO `test_role`
+SET DEFAULT ROLE test_role FOR 'test_user'@'localhost'
+select user, host, default_role from mysql.user where user='test_user';
+User	Host	default_role
+test_user	localhost	test_role
+set default role invalid_role;
+ERROR OP000: Invalid role specification `invalid_role`
+select user, host, default_role from mysql.user where user='test_user';
+User	Host	default_role
+test_user	localhost	test_role
+revoke test_role from test_user@localhost;
+select user, host, default_role from mysql.user where user='test_user';
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
+drop role test_role;
+drop role not_granted_role;
+drop user test_user@localhost;
+#
+# MDEV-22312: Bad error message for SET DEFAULT ROLE when user account
+#             is not granted the role
+#
+CREATE USER a;
+CREATE USER b;
+CREATE ROLE r1;
+CREATE ROLE r2;
+SET DEFAULT ROLE r1 FOR a;
+ERROR OP000: User `a@%` has not been granted role `r1`
+GRANT r1 TO b;
+GRANT r2 TO b;
+SET DEFAULT ROLE r1 FOR b;
+# Change user b
+SELECT CURRENT_ROLE;
+CURRENT_ROLE
+r1
+SET ROLE r2;
+SELECT CURRENT_ROLE;
+CURRENT_ROLE
+r2
+SET DEFAULT ROLE r1 FOR a;
+ERROR 42000: Access denied for user 'b'@'%' to database 'mysql'
+SET DEFAULT ROLE r2;
+# Change user root (session 1: select_priv to b)
+GRANT SELECT ON mysql.* TO b;
+# Change user b (session 1: select_priv)
+SHOW GRANTS FOR b;
+Grants for b@%
+GRANT `r1` TO `b`@`%`
+GRANT `r2` TO `b`@`%`
+GRANT USAGE ON *.* TO `b`@`%`
+GRANT SELECT ON `mysql`.* TO `b`@`%`
+SET DEFAULT ROLE r2 FOR 'b'@'%'
+SET DEFAULT ROLE r1 FOR a;
+ERROR 42000: Access denied for user 'b'@'%' to database 'mysql'
+SELECT CURRENT_ROLE;
+CURRENT_ROLE
+r2
+SET DEFAULT ROLE NONE;
+SELECT CURRENT_ROLE;
+CURRENT_ROLE
+r2
+SET DEFAULT ROLE current_role FOR current_user;
+SET DEFAULT ROLE invalid_role;
+ERROR OP000: Invalid role specification `invalid_role`
+SET DEFAULT ROLE invalid_role FOR a;
+ERROR 42000: Access denied for user 'b'@'%' to database 'mysql'
+SET DEFAULT ROLE none FOR a;
+ERROR 42000: Access denied for user 'b'@'%' to database 'mysql'
+# Change user root (session 2: adding update_priv to user b)
+GRANT UPDATE ON mysql.* TO b;
+# Change user b
+SHOW GRANTS FOR b;
+Grants for b@%
+GRANT `r1` TO `b`@`%`
+GRANT `r2` TO `b`@`%`
+GRANT USAGE ON *.* TO `b`@`%`
+GRANT SELECT, UPDATE ON `mysql`.* TO `b`@`%`
+SET DEFAULT ROLE r2 FOR 'b'@'%'
+SET DEFAULT ROLE r1 FOR a;
+ERROR OP000: User `a@%` has not been granted role `r1`
+SET DEFAULT ROLE invalid_role;
+ERROR OP000: Invalid role specification `invalid_role`
+SET DEFAULT ROLE invalid_role FOR a;
+ERROR OP000: Invalid role specification `invalid_role`
+SET DEFAULT ROLE none FOR a;
+# Change user root (session 3: Grant role to user a)
+GRANT r1 TO a;
+SET DEFAULT ROLE r1 FOR a;
+# Change user a (verify session 3)
+SELECT CURRENT_ROLE;
+CURRENT_ROLE
+r1
+SET DEFAULT ROLE None;
+# Change user b (session 3: role granted to user a)
+SET DEFAULT ROLE r1 FOR a;
+SET DEFAULT ROLE r2 FOR a;
+ERROR OP000: User `a@%` has not been granted role `r2`
+SET DEFAULT ROLE invalid_role;
+ERROR OP000: Invalid role specification `invalid_role`
+SET DEFAULT ROLE invalid_role FOR a;
+ERROR OP000: Invalid role specification `invalid_role`
+SELECT user, host, default_role FROM mysql.user where user='a' or user='b';
+User	Host	default_role
+a	%	r1
+b	%	r2
+DROP ROLE r1, r2;
+DROP USER a, b;

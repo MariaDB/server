@@ -1,0 +1,758 @@
+set system_versioning_alter_history=keep;
+# Check conventional partitioning on temporal tables
+create or replace table t1 (
+x int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end))
+with system versioning
+partition by range columns (x) (
+partition p0 values less than (100),
+partition p1 values less than (1000));
+insert into t1 values (3), (300);
+select * from t1;
+x
+3
+300
+select * from t1 partition (p0);
+x
+3
+select * from t1 partition (p1);
+x
+300
+delete from t1;
+select * from t1;
+x
+select * from t1 partition (p0);
+x
+select * from t1 partition (p1);
+x
+select * from t1 for system_time all;
+x
+3
+300
+select * from t1 partition (p0) for system_time all;
+x
+3
+select * from t1 partition (p1) for system_time all;
+x
+300
+# Engine change native <-> non-native versioning prohibited
+create or replace table t1 (
+i int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end))
+engine=DEFAULT_ENGINE
+with system versioning partition by hash(i);
+alter table t1 engine=NON_DEFAULT_ENGINE;
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change to/from native system versioning engine is not supported.
+## CREATE TABLE
+create or replace table t1 (x int)
+partition by system_time (
+partition p0 history,
+partition pn current);
+ERROR HY000: Table `t1` is not system-versioned
+create or replace table t1 (x int);
+alter table t1
+partition by system_time (
+partition p0 history,
+partition pn current);
+ERROR HY000: Table `t1` is not system-versioned
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 current);
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 current,
+partition p1 current);
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 history,
+partition p1 history);
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition pn current,
+partition p0 history);
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0,
+partition pn current);
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 history,
+partition pn current);
+## ALTER TABLE
+alter table t1 add partition (
+partition p1 current);
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+alter table t1 add partition (
+partition p1 history);
+Warnings:
+Warning	4115	Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME 
+(PARTITION `p0` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+insert into t1 values (1), (2);
+alter table t1 drop partition pn;
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+alter table t1 drop partition p1;
+alter table t1 drop partition p0;
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+select x from t1;
+x
+1
+2
+# Bug #260: incorrect IB partitioning warning
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 1 (
+partition p0 history,
+partition pn current);
+alter table t1 change x big int;
+create or replace table t1 (i int) engine myisam partition by hash(i) partitions 2;
+alter table t1 add partition (partition px history);
+ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
+## INSERT, UPDATE, DELETE
+create or replace table t1 (x int)
+with system versioning
+partition by system_time (
+partition p0 history,
+partition pn current);
+set @now= now(6);
+insert into t1 values (1);
+set @str= concat('select x, row_start < @now as A, row_end > @now as B from t1 partition (p0)');
+prepare select_p0 from @str;
+set @str= concat('select x, row_start > @now as C, row_end = timestamp\'2038-01-19 03:14:07.999999\' as D from t1 partition (pn)');
+prepare select_pn from @str;
+execute select_p0;
+x	A	B
+execute select_pn;
+x	C	D
+1	1	1
+set @str= concat('select row_start from t1 partition (pn) into @ts0');
+prepare stmt from @str;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+execute stmt;
+drop prepare stmt;
+set @now= now(6);
+delete from t1;
+execute select_p0;
+x	A	B
+1	1	1
+execute select_pn;
+x	C	D
+set @str= concat('select row_start from t1 partition (p0) into @ts1');
+prepare stmt from @str;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+execute stmt;
+drop prepare stmt;
+select @ts0 = @ts1;
+@ts0 = @ts1
+1
+set @now= now(6);
+insert into t1 values (2);
+execute select_p0;
+x	A	B
+1	1	0
+execute select_pn;
+x	C	D
+2	1	1
+set @str= concat('select row_start from t1 partition (pn) into @ts0');
+prepare stmt from @str;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+execute stmt;
+drop prepare stmt;
+set @now= now(6);
+update t1 set x = x + 1;
+execute select_p0;
+x	A	B
+1	1	0
+2	1	1
+execute select_pn;
+x	C	D
+3	1	1
+drop prepare select_p0;
+drop prepare select_pn;
+set @str= concat('select row_start from t1 partition (p0) where x = 2 into @ts1');
+prepare stmt from @str;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+execute stmt;
+drop prepare stmt;
+set @str= concat('select row_end from t1 partition (p0) where x = 2 into @ts2');
+prepare stmt from @str;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+execute stmt;
+drop prepare stmt;
+set @str= concat('select row_start from t1 partition (pn) into @ts3');
+prepare stmt from @str;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+execute stmt;
+drop prepare stmt;
+select @ts0 = @ts1;
+@ts0 = @ts1
+1
+select @ts2 = @ts3;
+@ts2 = @ts3
+1
+## rotation by LIMIT
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 0 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'LIMIT'
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 2 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 2
+(PARTITION `p0` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
+alter table t1 drop partition non_existent;
+ERROR HY000: Error in list of partitions to DROP
+insert into t1 values (1), (2), (3), (4), (5), (6);
+select * from t1 partition (pn);
+x
+1
+2
+3
+4
+5
+6
+delete from t1 where x < 4;
+delete from t1;
+select * from t1 partition (p0);
+x
+1
+2
+3
+select * from t1 partition (p1);
+x
+4
+5
+6
+insert into t1 values (7), (8);
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+### warn about full partition
+delete from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+select * from t1 partition (p1) order by x;
+x
+4
+5
+6
+7
+8
+### Assertion in ALTER on warning from partitioning LIMIT [#446]
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1), (2);
+delete from t1;
+alter table t1 partition by system_time limit 1 (
+partition p1 history,
+partition pn current);
+## rotation by INTERVAL
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 0 second (
+partition p0 history,
+partition p1 history,
+partition pn current);
+ERROR HY000: Wrong parameters for partitioned `t1`: wrong value for 'INTERVAL'
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 1 second starts 12345 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'starts 12345 (
+partition p0 history,
+partition p1 history,
+partition pn current)' at line 3
+create table t1 (i int) with system versioning
+partition by system_time interval 6 day limit 98
+(partition p0 history, partition ver_pn current);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'limit 98
+(partition p0 history, partition ver_pn current)' at line 2
+## Subpartitions
+create or replace table t1 (x int)
+with system versioning
+partition by system_time limit 2
+subpartition by key (x)
+subpartitions 2 (
+partition p0 history,
+partition p1 history,
+partition pn current);
+insert into t1 (x) values (1), (2), (3), (4), (5);
+select * from t1 partition (pnsp0);
+x
+1
+3
+5
+select * from t1 partition (pnsp1);
+x
+2
+4
+### warn about full partition
+delete from t1 where x < 3;
+delete from t1;
+delete from t1;
+select * from t1 partition (p0sp0);
+x
+1
+3
+5
+select * from t1 partition (p0sp1);
+x
+2
+4
+select * from t1 partition (p1sp0);
+x
+select * from t1 partition (p1sp1);
+x
+create or replace table t1 (
+a bigint,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end))
+with system versioning
+partition by range (a)
+(partition p0 values less than (20) engine innodb,
+partition p1 values less than maxvalue engine innodb);
+insert into t1 values (1);
+create or replace table t1 (
+f_int1 integer default 0,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning
+partition by range(f_int1)
+subpartition by hash(f_int1)
+( partition part1 values less than (1000)
+(subpartition subpart11 storage engine = 'innodb',
+subpartition subpart12 storage engine = 'innodb'));
+insert into t1 values (1);
+create or replace table t1 (i int) engine=innodb partition by key(i);
+alter table t1
+add column row_start SYS_DATATYPE as row start invisible,
+add column row_end SYS_DATATYPE as row end invisible,
+add period for system_time(row_start, row_end),
+add system versioning;
+insert into t1 values();
+# MDEV-14722 Assertion in ha_commit_trans for sub-statement
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day (
+partition p1 history,
+partition pc current);
+create or replace table t2 (f int);
+create or replace trigger tr before insert on t2
+for each row select table_rows from information_schema.tables
+where table_name = 't1' into @a;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+insert into t2 values (1);
+# MDEV-14740 Locking assertion for system_time partitioning
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 week (
+partition p1 history,
+partition pn current);
+create or replace table t2 (f int);
+create or replace trigger tr before insert on t2
+for each row select count(*) from t1 into @a;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+insert into t2 values (1);
+# MDEV-14747 ALTER PARTITION BY SYSTEM_TIME after LOCK TABLES
+create or replace table t1 (x int) with system versioning;
+lock table t1 write;
+alter table t1 partition by system_time interval 1 week (
+partition p1 history,
+partition pn current);
+unlock tables;
+# MDEV-14748 Assertion in ha_myisammrg::attach_children()
+create or replace table t1 (x int) engine=myisam with system versioning
+partition by system_time interval 1 month (partition p1 history, partition pn current);
+create or replace table t2 (x int) engine=myisam;
+create or replace table t3 (x int) engine=merge union=(t2);
+create or replace table t4 (x int) engine=myisam;
+create or replace trigger tr after insert on t4 for each row insert into t2
+( select x from t3 ) union ( select x from t1 );
+insert into t4 values (1);
+# MDEV-14821 Assertion failure
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (0), (1);
+update t1 set x= x + 1;
+alter table t1 partition by system_time limit 1 (
+partition p1 history,
+partition p2 history,
+partition pn current);
+delete from t1 where x = 1;
+delete from t1 where x = 2;
+# MDEV-14923 Assertion upon INSERT into locked versioned partitioned table
+create or replace table t1 (x int) with system versioning
+partition by system_time (partition p1 history, partition pn current);
+lock table t1 write;
+alter table t1 add partition (partition p1 history);
+ERROR HY000: Duplicate partition name p1
+insert into t1 values (1);
+unlock tables;
+create or replace table t1 (pk int) with system versioning
+partition by system_time interval 10 year (
+partition p1 history,
+partition p2 history,
+partition pn current
+);
+ERROR 22003: TIMESTAMP value is out of range in 'INTERVAL'
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 hour (
+partition p0 history, partition pn current);
+set @ts=(select partition_description from information_schema.partitions
+where table_schema='test' and table_name='t1' and partition_name='p0');
+alter table t1 add column b int;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+partition_name	partition_ordinal_position	partition_method	timediff(partition_description, @ts)
+p0	1	SYSTEM_TIME	00:00:00.000000
+pn	2	SYSTEM_TIME	NULL
+Warnings:
+Warning	1292	Incorrect time value: 'CURRENT'
+alter table t1 add partition (partition p1 history, partition p2 history);
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+partition_name	partition_ordinal_position	partition_method	timediff(partition_description, @ts)
+p0	1	SYSTEM_TIME	00:00:00.000000
+p1	2	SYSTEM_TIME	01:00:00.000000
+p2	3	SYSTEM_TIME	02:00:00.000000
+pn	4	SYSTEM_TIME	NULL
+Warnings:
+Warning	1292	Incorrect time value: 'CURRENT'
+alter table t1 drop partition p0;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+partition_name	partition_ordinal_position	partition_method	timediff(partition_description, @ts)
+p1	1	SYSTEM_TIME	01:00:00.000000
+p2	2	SYSTEM_TIME	02:00:00.000000
+pn	3	SYSTEM_TIME	NULL
+Warnings:
+Warning	1292	Incorrect time value: 'CURRENT'
+alter table t1 drop partition p2;
+ERROR HY000: Can only drop oldest partitions when rotating by INTERVAL
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+partition_name	partition_ordinal_position	partition_method	timediff(partition_description, @ts)
+p1	1	SYSTEM_TIME	01:00:00.000000
+p2	2	SYSTEM_TIME	02:00:00.000000
+pn	3	SYSTEM_TIME	NULL
+Warnings:
+Warning	1292	Incorrect time value: 'CURRENT'
+#
+# MDEV-15103 Assertion in ha_partition::part_records() for updating VIEW
+#
+create or replace table t1 (pk int primary key, f int) with system versioning
+partition by system_time limit 100 (partition p1 history, partition pn current);
+insert into t1 values (1,10), (2,20);
+create or replace view v1 as select * from t1;
+update v1 set f= 30;
+#
+# MDEV-15168 Unexpected ER_VERS_ENGINE_UNSUPPORTED upon dropping versioning on a partitioned table
+#
+create or replace table t (a int) with system versioning
+partition by system_time (partition p1 history, partition pn current);
+alter table t drop system versioning;
+ERROR HY000: Can not DROP SYSTEM VERSIONING for table `t` partitioned BY SYSTEM_TIME
+# MDEV-15191 Assertion `bit < (map)->n_bits' failed in bitmap_is_set upon INSERT
+create or replace table t1 (i int) with system versioning;
+insert into t1 values (1), (2);
+update t1 set i= 3;
+alter table t1 partition by system_time interval 1 month (partition p1 history, partition pn current);
+lock table t1 write;
+alter table t1 add partition (partition p2 history);
+insert into t1 values (4);
+unlock tables;
+# MDEV-15036 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' in Diagnostics_area::set_ok_status or unexpected ER_RANGE_NOT_INCREASING_ERROR
+create or replace table t1 (a int) with system versioning
+partition by system_time limit 2 (
+partition p1 history, partition p2 history,
+partition p3 history, partition pn current);
+insert into t1 values (1),(2),(3);
+update t1 set a = 4;
+delete from t1;
+delete from t1 where a is not null;
+# MDEV-14823 Wrong error message upon selecting from a system_time partition
+create or replace table t1 (i int) with system versioning partition by system_time limit 10 (partition p0 history, partition pn current);
+select * from t1 partition (p0) for system_time all;
+ERROR HY000: SYSTEM_TIME partitions in table `t1` does not support historical query
+# MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+create or replace procedure sp()
+select * from t1 partition (p0) for system_time all;
+call sp;
+ERROR HY000: SYSTEM_TIME partitions in table `t1` does not support historical query
+call sp;
+ERROR HY000: SYSTEM_TIME partitions in table `t1` does not support historical query
+drop procedure sp;
+# MDEV-15380 Index for versioned table gets corrupt after partitioning and DELETE
+create or replace table t1 (pk int primary key)
+engine=myisam
+with system versioning
+partition by key() partitions 3;
+set timestamp=1523466002.799571;
+insert into t1 values (11),(12);
+set timestamp=1523466004.169435;
+delete from t1 where pk in (11, 12);
+Same test but for Aria storage engine
+create or replace table t1 (pk int primary key)
+engine=aria
+with system versioning
+partition by key() partitions 3;
+set timestamp=1523466002.799571;
+insert into t1 values (11),(12);
+set timestamp=1523466004.169435;
+delete from t1 where pk in (11, 12);
+set timestamp= default;
+#
+# MDEV-18136 Server crashes in Item_func_dyncol_create::prepare_arguments
+#
+create or replace table t1 (pk int) with system versioning
+partition by system_time interval 7 second (
+partition ver_p1 history,
+partition ver_pn current);
+alter table t1
+partition by system_time interval column_get(column_create(7,7), 7 as int) second (
+partition ver_p1 history,
+partition ver_pn current);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 7 SECOND
+(PARTITION `ver_p1` HISTORY ENGINE = DEFAULT_ENGINE,
+ PARTITION `ver_pn` CURRENT ENGINE = DEFAULT_ENGINE)
+#
+# MDEV-19175 Server crashes in ha_partition::vers_can_native upon INSERT DELAYED into versioned partitioned table
+#
+create or replace table t1 (f int) with system versioning partition by hash(f);
+insert delayed into t1 values (1);
+#
+# MDEV-20068 History partition rotation is not done under LOCK TABLES
+#
+create or replace table t1 (x int) with system versioning partition by system_time limit 1
+(partition p1 history, partition pn current);
+lock tables t1 write;
+insert into t1 values (0), (1), (2), (3);
+delete from t1 where x < 3;
+delete from t1;
+Warnings:
+Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
+unlock tables;
+#
+# MDEV-20336 Assertion bitmap_is_set(read_partitions) upon SELECT FOR UPDATE from versioned table
+#
+create or replace table t1 (pk int primary key) with system versioning partition by system_time limit 100 (partition p1 history, partition pn current);
+execute immediate 'select * from t1 for update';
+pk
+drop view v1;
+drop tables t, t1, t2, t3, t4;
+#
+# MDEV-18957 UPDATE with LIMIT clause is wrong for versioned partitioned tables
+#
+create or replace table t1 (
+x int,
+a varchar(255)
+) with system versioning partition by system_time (partition p1 history, partition pn current);
+insert into t1 (x) values (1), (2), (3), (4);
+update t1 set a= 'foo' limit 3;
+update t1 set a= 'bar' limit 4;
+select * from t1;
+x	a
+1	bar
+2	bar
+3	bar
+4	bar
+drop table t1;
+#
+# MDEV-21011 Table corruption reported for versioned partitioned table after DELETE: "Found a misplaced row"
+#
+create table t1 (a int) with system versioning
+partition by system_time limit 3
+(partition p1 history, partition p2 history, partition pn current);
+insert into t1 values (1),(2),(3),(4);
+delete from t1;
+delete from t1;
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	note	Not supported for non-INTERVAL history partitions
+test.t1	check	note	The storage engine for the table doesn't support check
+drop table t1;
+#
+# MDEV-21233 Assertion `m_extra_cache' failed in ha_partition::late_extra_cache
+#
+create table t1 (id int, a varchar(8)) with system versioning partition by key (id) partitions 2;
+insert into t1 values  (1,'foo'),(2,'bar');
+create table t2 (b int);
+insert into t2 values (1),(2);
+update t1, t2 set a = 1;
+drop table t1, t2;
+#
+# MDEV-20515 multi-update tries to position updated table by null reference
+#
+create or replace table t1 (a int);
+insert into t1 values (0), (1);
+create or replace table t2 (b int) with system versioning
+partition by system_time
+(partition p1 history, partition pn current);
+insert into t2 values (0), (2);
+update t1 left join t2 on a > b set b= 2 order by b;
+drop table t1, t2;
+#
+# MDEV-17091 Assertion `old_part_id == m_last_part' failed in
+# ha_partition::update_row or `part_id == m_last_part' in
+# ha_partition::delete_row upon UPDATE/DELETE after dropping versioning
+#
+create or replace table t1 (pk int primary key, f int) engine=innodb
+with system versioning
+partition by key() partitions 2;
+insert into t1 values (1,10),(2,20);
+# expected to hit same partition
+select * from t1 partition (p0);
+pk	f
+1	10
+2	20
+alter table t1 drop system versioning;
+# 1 and 2 are expected to be in different partitions
+select * from t1 partition(p0);
+pk	f
+1	10
+select * from t1 partition(p1);
+pk	f
+2	20
+update t1 set f=pk;
+delete from t1;
+drop table t1;
+#
+# MDEV-22413 Server hangs upon UPDATE/DELETE on a view reading from versioned partitioned table
+#
+create or replace table t1 (f char(6)) engine innodb with system versioning;
+insert into t1 values (null);
+update t1 set f= 'foo';
+update t1 set f= 'bar';
+create or replace view v1 as select * from t1 for system_time all;
+update v1 set f = '';
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+create or replace table t1 (f char(6)) engine innodb with system versioning
+partition by system_time limit 1
+(partition p1 history, partition p2 history, partition pn current);
+insert into t1 values (null);
+update t1 set f= 'foo';
+update t1 set f= 'bar';
+create or replace view v1 as select * from t1 for system_time all;
+update v1 set f= '';
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+delete from v1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+drop view v1;
+drop table t1;
+#
+# MDEV-22112 Assertion `tab_part_info->part_type == RANGE_PARTITION || tab_part_info->part_type == LIST_PARTITION' failed in prep_alter_part_table
+#
+create table t1 (a int) with system versioning partition by system_time;
+ERROR HY000: For SYSTEM_TIME partitions each partition must be defined
+create table t1 (a int) with system versioning partition by system_time
+(partition p1 history, partition pn current);
+alter table t1 add partition (partition p2);
+ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
+# MDEV-17891 Assertion failures in select_insert::abort_result_set and
+#            mysql_load upon attempt to replace into a full table
+set @@max_heap_table_size= 1024*1024;
+create or replace table t1 (
+pk integer auto_increment,
+primary key (pk),
+f varchar(45000)
+) with system versioning engine=memory
+partition by system_time interval 1 year (partition p1 history,
+partition pn current);
+# fill the table until full
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 (f) select f from t1;
+ERROR HY000: The table 't1' is full
+# leave space for exactly one record in current partition
+delete from t1 where pk = 1;
+# copy all data into history partition
+replace into t1 select * from t1;
+replace into t1 select * from t1;
+ERROR HY000: The table 't1' is full
+create or replace table t1 (
+pk integer auto_increment,
+primary key (pk),
+f varchar(45000)
+) with system versioning engine=memory
+partition by system_time interval 1 year (partition p1 history,
+partition pn current);
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+select * into outfile 'load.data' from t1;
+load data infile 'load.data' replace into table t1;
+load data infile 'load.data' replace into table t1;
+ERROR HY000: The table 't1' is full
+load data infile 'load.data' replace into table t1;
+ERROR HY000: The table 't1' is full
+set @@max_heap_table_size= 1048576;
+drop table t1;
+#
+# MDEV-22178 Assertion `info->alias.str' failed in partition_info::check_partition_info instead of ER_VERS_WRONG_PARTS
+#
+create or replace table t1 (a int) with system versioning;
+alter table t1 partition by system_time (partition pn current);
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+drop table t1;
+# End of 10.3 tests
+#
+# MDEV-22283 Server crashes in key_copy or unexpected error 156: The table already existed in the storage engine
+#
+create table t1 (a int primary key) engine=aria page_checksum=0
+with system versioning
+partition by system_time (partition p1 history, partition pn current);
+alter table t1 add partition (partition p2 history);
+Warnings:
+Warning	4115	Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Got error 174 "Fatal error during initialization of handler" from storage engine Aria	NULL	NULL
+Warnings:
+Warning	1030	Got error 174 "Fatal error during initialization of handler" from storage engine Aria
+drop table t1;
+create table t1 (b int) engine=aria row_format=dynamic with system versioning
+partition by system_time (partition p1 history, partition pn current);
+insert into t1 values (1);
+replace into t1 values (1);
+drop table t1;
+# End of 10.4 tests

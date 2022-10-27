@@ -1,0 +1,44 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+SET SESSION innodb_lock_wait_timeout=600;
+SET SESSION lock_wait_timeout=600;
+CREATE TABLE ten (f1 INTEGER) engine=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoDB;
+INSERT INTO t1 (f2) SELECT a1.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = 15;
+SET GLOBAL wsrep_provider_options = 'repl.causal_read_timeout=PT1H';
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+100000
+INSERT INTO t1 (f2) SELECT a1.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+200000
+UPDATE t1 SET f2 = 1;
+connection node_2;
+SELECT COUNT(*) FROM t1 WHERE f2 = 1;
+COUNT(*)
+200000
+connection node_1;
+START TRANSACTION;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+200000
+UPDATE t1 SET f2 = 3;
+connection node_2;
+START TRANSACTION;
+UPDATE t1 SET f2 = 4;
+connection node_1;
+COMMIT;
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;
+DROP TABLE ten;

@@ -1,0 +1,87 @@
+--source include/have_innodb.inc
+--source include/have_query_cache.inc
+--source include/not_embedded.inc
+
+set @save_query_cache_size=@@query_cache_size;
+
+--echo #
+--echo # MDEV-12485: foreign key on delete cascade stale entries with
+--echo # query cache enabled
+--echo #
+
+SET NAMES utf8;
+set global query_cache_type=1;
+set global query_cache_size=1024*1024;
+set query_cache_type=1;
+
+create table t1 ( id int unsigned auto_increment, primary key(id) ) engine=innodb;
+
+create table t2 ( t2id int unsigned, id int unsigned, primary key(t2id, id), foreign key (`id`) references t1(`id`) on delete cascade ) engine=innodb;
+
+insert into t1 values (1);
+insert into t2 values (1,1);
+select * from t2;
+show status like "Qcache_queries_in_cache";
+
+delete from t1;
+show status like "Qcache_queries_in_cache";
+select * from t2;
+
+optimize table t2;
+select * from t2;
+drop table t2;
+drop table t1;
+
+create database `testdatabase$ї`;
+use `testdatabase$ї`;
+create table `t1$ї` ( id int unsigned auto_increment, primary key(id) ) engine=innodb;
+
+create table `t2$ї` ( t2id int unsigned, id int unsigned, primary key(t2id, id), foreign key (`id`) references `t1$ї`(`id`) on delete cascade ) engine=innodb;
+
+insert into `t1$ї` values (1);
+insert into  `t2$ї`values (1,1);
+select * from `t2$ї`;
+show status like "Qcache_queries_in_cache";
+
+delete from `t1$ї`;
+show status like "Qcache_queries_in_cache";
+select * from `t2$ї`;
+
+optimize table `t2$ї`;
+select * from `t2$ї`;
+
+use test;
+drop database `testdatabase$ї`;
+SET NAMES default;
+
+create database `#mysql50#-`;
+use `#mysql50#-`;
+create table `#mysql50#t-1` ( id int unsigned auto_increment, primary key(id) ) engine=innodb;
+
+create table `#mysql50#t-2` ( t2id int unsigned, id int unsigned, primary key(t2id, id), foreign key (`id`) references `#mysql50#t-1`(`id`) on delete cascade ) engine=innodb;
+
+insert into `#mysql50#t-1` values (1);
+insert into  `#mysql50#t-2`values (1,1);
+select * from `#mysql50#t-2`;
+show status like "Qcache_queries_in_cache";
+
+delete from `#mysql50#t-1`;
+show status like "Qcache_queries_in_cache";
+select * from `#mysql50#t-2`;
+
+optimize table `#mysql50#t-2`;
+select * from `#mysql50#t-2`;
+
+use test;
+drop database `#mysql50#-`;
+SET NAMES default;
+--disable_query_log
+call mtr.add_suppression("\\[ERROR\\] Invalid \\(old\\?\\) table or database name 't?-[12]?\\'");
+--enable_query_log
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=\\[ERROR\\] Invalid \\(old\\?\\) table or database name
+--source include/search_pattern_in_file.inc
+
+set global query_cache_type=DEFAULT;
+set global query_cache_size=@save_query_cache_size;
+--echo End of 10.2 tests

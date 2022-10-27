@@ -1,0 +1,35 @@
+include/master-slave.inc
+[connection master]
+CREATE PROCEDURE test.p1(IN i INT)
+BEGIN
+DECLARE CONTINUE HANDLER FOR sqlexception BEGIN END;
+DROP TABLE IF EXISTS test.t1;
+CREATE TABLE test.t1 (num INT,PRIMARY KEY(num))ENGINE=INNODB;
+START TRANSACTION;
+INSERT INTO test.t1 VALUES(i);
+savepoint t1_save;
+INSERT INTO test.t1 VALUES (14);
+ROLLBACK to savepoint t1_save;
+COMMIT;
+END|
+CALL test.p1(12);
+SELECT * FROM test.t1;
+num
+12
+connection slave;
+SELECT * FROM test.t1;
+num
+12
+connection master;
+CALL test.p1(13);
+SELECT * FROM test.t1;
+num
+13
+connection slave;
+SELECT * FROM test.t1;
+num
+13
+connection master;
+DROP PROCEDURE test.p1;
+DROP TABLE test.t1;
+include/rpl_end.inc

@@ -1,0 +1,37 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER) Engine=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoDB;
+connection node_2;
+set session wsrep_sync_wait=15;
+SET GLOBAL wsrep_slave_threads = 4;
+connection node_1;
+CREATE PROCEDURE p1 (repeat_count int)
+BEGIN
+DECLARE current_num int;
+SET current_num = 0;
+WHILE current_num < repeat_count do
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1;
+COMMIT;
+SET current_num = current_num + 1;
+END WHILE;
+END|
+call p1(1000);
+connection node_1;
+connection node_1a;
+connection node_1b;
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+40000
+SELECT COUNT(DISTINCT f1) FROM t1;
+COUNT(DISTINCT f1)
+40000
+disconnect node_1a;
+disconnect node_1b;
+connection default;
+DROP TABLE t1;
+DROP TABLE ten;
+DROP PROCEDURE p1;

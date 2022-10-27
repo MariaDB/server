@@ -1,0 +1,122 @@
+-- source include/have_crypt.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+select length(encrypt('foo', 'ff')) <> 0;
+--replace_result $1$aa$4OSUA5cjdx0RUQ08opV27/ aaqPiZY5xR5l.
+
+create table t1 (name varchar(50), pw varchar(64));
+insert into t1 values ('tom', password('my_pass'));
+set @pass='my_pass';
+select name from t1 where name='tom' and pw=password(@pass);
+select name from t1 where name='tom' and pw=password(@undefined);
+drop table t1;
+
+# Test new and old password handling functions 
+
+select password('abc');
+select password('');
+select old_password('abc');
+select old_password('');
+select password('gabbagabbahey');
+select old_password('idkfa');
+select length(password('1'));
+--replace_result 60 13
+select length(encrypt('test'));
+--replace_result  \$2a\$04\$aO....................ql.D6ROU4Byvysj72xrV1ZAkrMKS8I6 aaqPiZY5xR5l.
+select encrypt('test','aa');
+select old_password(NULL);
+select password(NULL);
+set global old_passwords=on;
+select password('');
+select old_password('');
+select password('idkfa');
+select old_password('idkfa');
+set old_passwords=on;
+select password('idkfa');
+select old_password('idkfa');
+set global old_passwords=off;
+select password('idkfa');
+select old_password('idkfa');
+
+# this test shows that new scrambles honor spaces in passwords:
+set old_passwords=off;
+select password('idkfa ');
+select password('idkfa');
+select password(' idkfa');
+select old_password('idkfa');
+select old_password(' i 	 d k f a ');
+
+explain extended select password('idkfa '), old_password('idkfa');
+
+#
+# Bug #13619: Crash on FreeBSD with salt like '_.'
+#
+--replace_column 1 #
+select encrypt('1234','_.');
+
+# End of 4.1 tests
+
+--echo #
+--echo # Bug #44767: invalid memory reads in password() and old_password() 
+--echo #             functions
+--echo #
+
+CREATE TABLE t1(c1 MEDIUMBLOB);
+INSERT INTO t1 VALUES (REPEAT('a', 1024));
+SELECT OLD_PASSWORD(c1), PASSWORD(c1) FROM t1;
+DROP TABLE t1;
+
+--echo # End of 5.0 tests
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-10306 Wrong results with combination of CONCAT, SUBSTR and CONVERT in subquery
+--echo #
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='derived_merge=on';
+# ENCRYPT() is not affected by MDEV-10306
+# It already uses tmp_value only for internal purposes and
+# returns the result in the String passed to val_str()
+CREATE TABLE t1 (t VARCHAR(32) CHARSET latin1);
+INSERT INTO t1 VALUES('abcdefghi');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT ENCRYPT(t,'aa') t2 FROM t1) sub;
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--let func=password
+--source include/func_str_ascii_checksum.inc
+--let func=old_password
+--source include/func_str_ascii_checksum.inc
+
+--echo #
+--echo # MDEV-10864 Wrong result for WHERE .. (f2=COMPRESS('test') OR f2=COMPRESS('TEST'))
+--echo #
+
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(64), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',encrypt('test','key')), ('TEST', encrypt('TEST','key'));
+SELECT f1 FROM t1 ignore index(k1) WHERE f1='test' AND (f2= encrypt('test','key') OR f2= encrypt('TEST','key'));
+SELECT f1 FROM t1                  WHERE f1='test' AND (f2= encrypt('test','key') OR f2= encrypt('TEST','key'));
+SELECT f1 FROM t1                  WHERE f1='test' AND (f2= encrypt('TEST','key') OR f2= encrypt('test','key'));
+DROP TABLE t1;
+
+--echo # Start of 10.2 tests
+
+CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(30) DEFAULT ENCRYPT(a,123));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('hello');
+SELECT * FROM t1;
+DROP TABLE t1;

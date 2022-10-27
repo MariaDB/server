@@ -1,0 +1,120 @@
+#
+# MDEV-15352 AUTO_INCREMENT breaks after updating a column value to a negative number
+#
+SET @engine='ARIA';
+CREATE PROCEDURE autoinc_mdev15353_one(engine VARCHAR(64), t VARCHAR(64))
+BEGIN
+DECLARE query TEXT DEFAULT 'CREATE TABLE t1 ('
+                             '  id TTT NOT NULL AUTO_INCREMENT,'
+                             '  name CHAR(30) NOT NULL,'
+                             '  PRIMARY KEY (id)) ENGINE=EEE';
+EXECUTE IMMEDIATE REPLACE(REPLACE(query,'TTT', t), 'EEE', engine);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (name) VALUES ('dog');
+SELECT * FROM t1;
+UPDATE t1 SET id=-1 WHERE id=1;
+SELECT * FROM t1;
+INSERT INTO t1 (name) VALUES ('cat');
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+$$
+CALL autoinc_mdev15353_one(@engine, 'tinyint');
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` tinyint(4) NOT NULL AUTO_INCREMENT,
+  `name` char(30) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+id	name
+1	dog
+id	name
+-1	dog
+id	name
+-1	dog
+2	cat
+CALL autoinc_mdev15353_one(@engine, 'smallint');
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` smallint(6) NOT NULL AUTO_INCREMENT,
+  `name` char(30) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+id	name
+1	dog
+id	name
+-1	dog
+id	name
+-1	dog
+2	cat
+CALL autoinc_mdev15353_one(@engine, 'mediumint');
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` mediumint(9) NOT NULL AUTO_INCREMENT,
+  `name` char(30) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+id	name
+1	dog
+id	name
+-1	dog
+id	name
+-1	dog
+2	cat
+CALL autoinc_mdev15353_one(@engine, 'int');
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` char(30) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+id	name
+1	dog
+id	name
+-1	dog
+id	name
+-1	dog
+2	cat
+CALL autoinc_mdev15353_one(@engine, 'bigint');
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `name` char(30) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+id	name
+1	dog
+id	name
+-1	dog
+id	name
+-1	dog
+2	cat
+CALL autoinc_mdev15353_one(@engine, 'float');
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` float NOT NULL AUTO_INCREMENT,
+  `name` char(30) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+id	name
+1	dog
+id	name
+-1	dog
+id	name
+-1	dog
+2	cat
+CALL autoinc_mdev15353_one(@engine, 'double');
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` double NOT NULL AUTO_INCREMENT,
+  `name` char(30) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+id	name
+1	dog
+id	name
+-1	dog
+id	name
+-1	dog
+2	cat
+DROP PROCEDURE autoinc_mdev15353_one;

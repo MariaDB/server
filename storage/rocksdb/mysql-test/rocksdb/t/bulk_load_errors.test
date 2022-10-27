@@ -1,0 +1,168 @@
+--source include/have_rocksdb.inc
+--source include/count_sessions.inc
+
+--let LOG1=$MYSQLTEST_VARDIR/tmp/rocksdb.bulk_load_errors.1.err
+--let $_mysqld_option=--log-error=$LOG1
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_option.inc
+
+### Bulk load ###
+CREATE TABLE t1(pk INT, PRIMARY KEY(pk)) ENGINE=ROCKSDB;
+
+# Make sure we get an error with out of order keys during bulk load
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(10);
+INSERT INTO t1 VALUES(11);
+--error ER_KEYS_OUT_OF_ORDER
+INSERT INTO t1 VALUES(9);
+SET rocksdb_bulk_load=0;
+
+# Make sure only 10 and 11 got into the table
+SELECT * FROM t1;
+
+# Make sure we get an error with overlapping data
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(20);
+INSERT INTO t1 VALUES(21);
+
+--error ER_OVERLAPPING_KEYS
+SET rocksdb_bulk_load=0;
+
+SHOW VARIABLES LIKE 'rocksdb_bulk_load';
+call mtr.add_suppression('finalizing last SST file while setting bulk loading variable');
+
+SELECT * FROM t1;
+
+--let SEARCH_FILE=$LOG1
+--let SEARCH_PATTERN=RocksDB: Error [0-9]+ finalizing last SST file while setting bulk loading variable
+--source include/search_pattern_in_file.inc
+
+--let LOG2=$MYSQLTEST_VARDIR/tmp/rocksdb.bulk_load_errors.2.err
+--let $_mysqld_option=--log-error=$LOG2
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_option.inc
+--remove_file $LOG1
+
+
+# Make sure we get an error in log when we disconnect and do not assert the server
+--connect (con1,localhost,root,,)
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(20);
+INSERT INTO t1 VALUES(21);
+let $ID = `SELECT connection_id()`;
+--connection default
+--disconnect con1
+
+SELECT * FROM t1;
+
+--disable_parsing
+# MariaDB: no support for $RPC_PROTOCOL
+if (`SELECT $RPC_PROTOCOL > 0`) {
+  # for --rpc_protocol mode wait for the background detached session to
+  # go away
+  let $wait_condition =
+      SELECT COUNT(*) = 0
+      FROM information_schema.srv_sessions
+      WHERE id = $ID;
+  --source include/wait_condition.inc
+}
+
+if (`SELECT $RPC_PROTOCOL = 0`) {
+  # for non --rpc_protocol mode simply wait until the number of sessions
+  # returns to earlier levels
+  --source include/wait_until_count_sessions.inc
+}
+--enable_parsing
+# MariaDB:
+--source include/wait_until_count_sessions.inc
+
+# Note: in MariaDB, session count will be decremented *before* 
+#   myrocks::rocksdb_close_connection is called. This causes a race condition:
+#   we may grep the error log before bulk load is finalized.
+#   To prevent that, do a soft restart of the server (I wasnt able to find
+#   any other reliable way)
+--source include/restart_mysqld_with_option.inc
+
+--let SEARCH_FILE=$LOG2
+--let SEARCH_PATTERN=RocksDB: Error [0-9]+ finalizing last SST file while disconnecting
+--source include/search_pattern_in_file.inc
+
+--let LOG3=$MYSQLTEST_VARDIR/tmp/rocksdb.bulk_load_errors.3.err
+--let $_mysqld_option=--log-error=$LOG3
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_option.inc
+--remove_file $LOG2
+
+TRUNCATE TABLE t1;
+
+### Bulk load with unsorted PKs ###
+SET rocksdb_bulk_load_allow_unsorted=1;
+
+# We should not get an error with out of order PKs
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(100);
+INSERT INTO t1 VALUES(101);
+INSERT INTO t1 VALUES(99);
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+
+# We should get an error with duplicate PKs in the same bulk load
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(201);
+INSERT INTO t1 VALUES(200);
+INSERT INTO t1 VALUES(202);
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES(201);
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+
+SET rocksdb_bulk_load_allow_unsorted=DEFAULT;
+DROP TABLE t1;
+
+# This would trigger a debug assertion that is just an error in release builds
+CREATE TABLE t1(c1 INT KEY) ENGINE=ROCKSDB;
+SET rocksdb_bulk_load=1;
+--error ER_KEYS_OUT_OF_ORDER
+INSERT INTO t1 VALUES (),(),();
+SET rocksdb_bulk_load=0;
+DROP TABLE t1;
+
+# Crash when table open cache closes handler with bulk load operation not finalized
+SET @orig_table_open_cache=@@global.table_open_cache;
+CREATE TABLE t1(a INT AUTO_INCREMENT, b INT, PRIMARY KEY (a)) ENGINE=ROCKSDB DEFAULT CHARSET=latin1;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(13, 0);
+INSERT INTO t1 VALUES(2, 'test 2');
+INSERT INTO t1 VALUES(@id, @arg04);
+SET @@global.table_open_cache=FALSE;
+INSERT INTO t1 VALUES(51479+0.333333333,1);
+DROP TABLE t1;
+SET @@global.table_open_cache=@orig_table_open_cache;
+
+--let SEARCH_FILE=$LOG3
+--let SEARCH_PATTERN=RocksDB: Error [0-9]+ finalizing bulk load while closing handler
+--source include/search_pattern_in_file.inc
+
+--source include/restart_mysqld.inc
+
+--remove_file $LOG3
+
+# Switch between tables, but also introduce duplicate key errors
+CREATE TABLE t1 (pk INT, PRIMARY KEY (pk)) ENGINE=ROCKSDB;
+CREATE TABLE t2 (pk INT, PRIMARY KEY (pk)) ENGINE=ROCKSDB;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES (1), (2);
+INSERT INTO t2 VALUES (1), (2);
+INSERT INTO t1 VALUES (1);
+--error ER_OVERLAPPING_KEYS
+INSERT INTO t2 VALUES (3);
+SET rocksdb_bulk_load=0;
+DROP TABLE t1;
+DROP TABLE t2;
+
+--source include/wait_until_count_sessions.inc

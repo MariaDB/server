@@ -1,0 +1,83 @@
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
+CREATE TABLE t1 (a int(11), b varchar(32));
+INSERT INTO t1 VALUES (7,'ggggggg'),(1,'a'),(3,'ccc'),(4,'dddd'),(1,'A'),
+(2,'BB'),(4,'DDDD'),(5,'EEEEE'),(7,'GGGGGGG'),(2,'bb');
+CREATE VIEW v1 AS SELECT a, UPPER(b) FROM t1;
+connect  root,localhost,root,,test;
+connection root;
+CREATE DATABASE mysqltest;
+CREATE TABLE mysqltest.t1 SELECT * FROM t1;
+GRANT DELETE ON mysqltest.* TO mysqltest_1@localhost;
+GRANT SELECT(b) ON mysqltest.t1 TO mysqltest_1@localhost;
+connect  user1,localhost,mysqltest_1,,test;
+connection user1;
+DELETE FROM mysqltest.t1 WHERE a=2 RETURNING b;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'a' in table 't1'
+DELETE FROM  mysqltest.t1 RETURNING b;
+b
+ggggggg
+a
+ccc
+dddd
+A
+BB
+DDDD
+EEEEE
+GGGGGGG
+bb
+connection root;
+SELECT * FROM mysqltest.t1;
+a	b
+INSERT INTO mysqltest.t1 SELECT * FROM t1;
+GRANT SELECT(a) ON mysqltest.t1 TO mysqltest_1@localhost;
+DELETE FROM mysqltest.t1 WHERE a=2 RETURNING b;
+b
+bb
+BB
+SELECT * FROM mysqltest.t1;
+a	b
+7	GGGGGGG
+5	EEEEE
+4	DDDD
+1	A
+4	dddd
+3	ccc
+1	a
+7	ggggggg
+INSERT INTO mysqltest.t1 SELECT * FROM t1;
+connection root;
+CREATE VIEW mysqltest.v1(a) AS SELECT a FROM mysqltest.t1;
+GRANT SELECT, INSERT ON mysqltest.t1 TO mysqltest_1@localhost;
+connection user1;
+DELETE FROM mysqltest.v1;
+SELECT * FROM mysqltest.t1;
+a	b
+INSERT INTO mysqltest.t1 SELECT * FROM t1;
+DELETE FROM mysqltest.v1 RETURNING a;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 'a' in table 'v1'
+connection root;
+GRANT SELECT ON mysqltest.* TO mysqltest_1@localhost;
+connection user1;
+DELETE FROM mysqltest.v1 RETURNING a;
+a
+7
+1
+3
+4
+1
+2
+4
+5
+7
+2
+SELECT * FROM mysqltest.t1;
+a	b
+INSERT INTO mysqltest.t1 SELECT * FROM t1;
+connection root;
+DROP DATABASE mysqltest;
+disconnect user1;
+DROP USER mysqltest_1@localhost;
+DROP VIEW v1;
+DROP TABLE t1;
+set GLOBAL sql_mode=default;

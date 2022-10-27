@@ -1,0 +1,96 @@
+-- source include/not_embedded.inc
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Testing indexed UPDATE and DELETE for all table types
+--echo #
+
+--echo # CSV table
+CREATE TABLE t1 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=6;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=YES;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=NO BLOCK_SIZE=6;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=YES;
+-- source updelx.inc
+DROP TABLE t1;
+
+--echo # DOS table
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16))
+ENGINE=CONNECT TABLE_TYPE=DOS;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=YES;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=NO BLOCK_SIZE=4;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=YES;
+-- source updelx.inc
+DROP TABLE t1;
+
+--echo # FIX table
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16) DISTRIB=CLUSTERED)
+ENGINE=CONNECT TABLE_TYPE=FIX BLOCK_SIZE=4;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=YES;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=NO HUGE=YES;
+-- source updelx.inc
+DROP TABLE t1;
+
+--echo # BIN table
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16) DISTRIB=CLUSTERED)
+ENGINE=CONNECT TABLE_TYPE=BIN BLOCK_SIZE=8;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=YES;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=NO HUGE=YES;
+-- source updelx.inc
+DROP TABLE t1;
+
+--echo # DBF table
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16))
+ENGINE=CONNECT TABLE_TYPE=DBF BLOCK_SIZE=12;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=YES;
+-- source updelx.inc
+#ALTER TABLE t1 MAPPED=NO HUGE=YES;
+#-- source updelx.inc
+DROP TABLE t1;
+
+--echo # VEC table
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16))
+ENGINE=CONNECT TABLE_TYPE=VEC BLOCK_SIZE=6 MAX_ROWS=16;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=YES;
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=NO HUGE=YES;
+-- source updelx.inc
+DROP TABLE t1;
+
+--echo # Split VEC table (outward)
+CREATE TABLE t1 (
+id INT(4) KEY NOT NULL,
+msg VARCHAR(16))
+ENGINE=CONNECT TABLE_TYPE=VEC BLOCK_SIZE=6 FILE_NAME='tx.vec';
+-- source updelx.inc
+ALTER TABLE t1 MAPPED=YES;
+-- source updelx.inc
+DROP TABLE t1;
+
+# Cleanup
+--remove_file $MYSQLD_DATADIR/test/tx1.vec
+--remove_file $MYSQLD_DATADIR/test/tx2.vec

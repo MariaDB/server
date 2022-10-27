@@ -1,0 +1,173 @@
+--source include/have_innodb.inc
+# The embedded server does not support restarting in mysql-test-run.
+-- source include/not_embedded.inc
+-- source include/no_valgrind_without_big.inc
+-- source include/innodb_checksum_algorithm.inc
+
+let MYSQLD_DATADIR=`select @@datadir`;
+let PAGE_SIZE=`select @@innodb_page_size`;
+
+-- disable_query_log
+call mtr.add_suppression("InnoDB: innodb_force_recovery is on.");
+call mtr.add_suppression("InnoDB: Ignoring tablespace for.*bug16720368");
+call mtr.add_suppression("Found 1 prepared XA transactions");
+call mtr.add_suppression("InnoDB: Operating system error.*in a file operation");
+call mtr.add_suppression("InnoDB: \(The error means\|If you are\)");
+call mtr.add_suppression("InnoDB: Ignoring tablespace `test/bug16720368` because it could not be opened");
+call mtr.add_suppression("InnoDB: Tablespace .* was not found at.*bug16735660");
+call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace.");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted*");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+call mtr.add_suppression("InnoDB: Table `test`\\.`bug16720368` is corrupted");
+-- enable_query_log
+
+-- echo #
+-- echo # Bug#16720368 INNODB CRASHES ON BROKEN #SQL*.IBD FILE AT STARTUP
+-- echo #
+
+SET GLOBAL innodb_file_per_table=1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+CREATE TABLE bug16720368_1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+connect (con1,localhost,root);
+CREATE TABLE bug16720368 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO bug16720368 (a) VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+--source include/wait_all_purged.inc
+
+connection default;
+
+-- echo # Cleanly shutdown mysqld
+-- source include/shutdown_mysqld.inc
+
+disconnect con1;
+
+-- echo # Corrupt FIL_PAGE_OFFSET in bug16720368.ibd,
+-- echo # and recompute innodb_checksum_algorithm=crc32
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $file = "$ENV{MYSQLD_DATADIR}/test/bug16720368.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+my $ps= $ENV{PAGE_SIZE};
+my $page;
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+my $full_crc32 = unpack("N",substr($page,54,4)) & 0x10; # FIL_SPACE_FLAGS
+sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+substr($page,4,4)=pack("N",0xc001cafe);
+my $polynomial = 0x82f63b78; # CRC-32C
+if ($full_crc32)
+{
+    my $ck = mycrc32(substr($page, 0, $ps-4), 0, $polynomial);
+    substr($page, $ps-4, 4) = pack("N", $ck);
+}
+else
+{
+    my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+    substr($page,0,4)=$ck;
+    substr($page,$ps-8,4)=$ck;
+}
+sysseek(FILE, 3*$ps, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close(FILE) || die "Unable to close $file";
+EOF
+
+-- source include/start_mysqld.inc
+
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+SELECT COUNT(*) FROM bug16720368;
+--error ER_NO_SUCH_TABLE_IN_ENGINE
+INSERT INTO bug16720368 VALUES(1);
+INSERT INTO bug16720368_1 VALUES(1);
+
+-- echo # Shut down the server to uncorrupt the data.
+-- source include/shutdown_mysqld.inc
+
+# Uncorrupt the FIL_PAGE_OFFSET.
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $file = "$ENV{MYSQLD_DATADIR}/test/bug16720368.ibd";
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+my $ps= $ENV{PAGE_SIZE};
+my $page;
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+my $full_crc32 = unpack("N",substr($page,54,4)) & 0x10; # FIL_SPACE_FLAGS
+sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+substr($page,4,4)=pack("N",3);
+my $polynomial = 0x82f63b78; # CRC-32C
+if ($full_crc32)
+{
+    my $ck = mycrc32(substr($page, 0, $ps-4), 0, $polynomial);
+    substr($page, $ps-4, 4) = pack("N", $ck);
+}
+else
+{
+    my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+    substr($page,0,4)=$ck;
+    substr($page,$ps-8,4)=$ck;
+}
+sysseek(FILE, 3*$ps, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close(FILE) || die "Unable to close $file";
+EOF
+
+-- source include/start_mysqld.inc
+
+INSERT INTO bug16720368 VALUES(9,1);
+SELECT COUNT(*) FROM bug16720368;
+# A debug assertion would fail in buf_block_align_instance()
+# if we did not uncorrupt the page number first.
+DROP TABLE bug16720368, bug16720368_1;
+
+-- echo #
+-- echo # Bug#16735660 ASSERT TABLE2 == NULL, ROLLBACK OF RESURRECTED TXNS,
+-- echo # DICT_TABLE_ADD_TO_CACHE
+-- echo #
+
+SET GLOBAL innodb_file_per_table=1;
+
+CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES(42);
+
+-- connect (con1,localhost,root)
+
+CREATE TABLE bug16735660 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+XA START 'x';
+--source ../include/no_checkpoint_start.inc
+INSERT INTO bug16735660 VALUES(1),(2),(3);
+XA END 'x';
+XA PREPARE 'x';
+--connection default
+--let CLEANUP_IF_CHECKPOINT=XA ROLLBACK 'x';DROP TABLE bug16735660;
+--source ../include/no_checkpoint_end.inc
+
+-- disconnect con1
+-- move_file $MYSQLD_DATADIR/test/bug16735660.ibd $MYSQLD_DATADIR/bug16735660.omg
+
+-- echo # Attempt to start without an *.ibd file.
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--source include/start_mysqld.inc
+
+let SEARCH_PATTERN= \[ERROR\] InnoDB: Tablespace [0-9]+ was not found at .*test.bug16735660.ibd;
+-- source include/search_pattern_in_file.inc
+
+-- move_file $MYSQLD_DATADIR/bug16735660.omg $MYSQLD_DATADIR/test/bug16735660.ibd
+
+-- source include/restart_mysqld.inc
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM bug16735660;
+
+XA RECOVER;
+XA ROLLBACK 'x';
+
+SELECT * FROM bug16735660;
+DROP TABLE bug16735660;

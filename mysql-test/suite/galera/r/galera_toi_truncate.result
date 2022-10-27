@@ -1,0 +1,24 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+connection node_2;
+SET SESSION wsrep_retry_autocommit = 0;
+INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6, ten AS a7, ten AS a8;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+connection node_1;
+TRUNCATE TABLE t1;
+connection node_2;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+EXPECT_0
+0
+connection node_1;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+EXPECT_0
+0
+DROP TABLE t1;
+DROP TABLE ten;

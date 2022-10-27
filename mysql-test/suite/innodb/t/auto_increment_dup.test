@@ -1,0 +1,157 @@
+##########################################################################
+# LP bug #1035225 / MySQL bug #66301: INSERT ... ON DUPLICATE KEY UPDATE +
+# innodb_autoinc_lock_mode=1 is broken
+##########################################################################
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/innodb_binlog.inc
+
+set global transaction isolation level repeatable read;
+
+CREATE TABLE t1(
+       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+       k INT,
+       c CHAR(1),
+       UNIQUE KEY(k)) ENGINE=InnoDB;
+
+SHOW CREATE TABLE t1;
+
+--enable_info
+
+--echo #
+--echo # Sequential execution
+--echo #
+
+INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1';
+
+--echo #
+--echo # 1 duplicate
+--echo #
+INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+--echo #
+--echo # 5 rows, consecutive auto_inc values
+--echo #
+
+SELECT * FROM t1 order by k;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+       k INT,
+       c CHAR(1),
+       UNIQUE KEY(k)) ENGINE=InnoDB;
+
+--echo #
+--echo # Sequential execution 2
+--echo #
+
+INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+
+--echo #
+--echo # 1 duplicate
+--echo #
+INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1';
+--echo #
+--echo # 5 rows, consecutive auto_inc values
+--echo #
+
+SELECT * FROM t1 order by k;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+       k INT,
+       c CHAR(1),
+       UNIQUE KEY(k)) ENGINE=InnoDB;
+
+--echo #
+--echo # Parallel execution
+--echo #
+
+--connect(con2, localhost, root)
+--send SET DEBUG_SYNC='now WAIT_FOR write_row_done'
+
+--connect(con1, localhost, root)
+SET DEBUG_SYNC='ha_write_row_end SIGNAL write_row_done WAIT_FOR continue';
+--send INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1'
+--connection con2
+--reap
+
+SET DEBUG_SYNC='execute_command_after_close_tables SIGNAL continue';
+INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+
+--connection con1
+--echo #
+--echo # 2 duplicates
+--echo #
+--reap
+--connection default
+--echo #
+--echo # 3 rows
+--echo #
+
+SELECT * FROM t1 order by k;
+
+INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+
+SELECT * FROM t1 order by k;
+
+
+--disable_info
+
+--disconnect con1
+--disconnect con2
+
+--connection default
+
+DROP TABLE t1;
+
+--echo #
+--echo # Parallel test with read_committed
+--echo #
+
+set global transaction isolation level read committed;
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+CREATE TABLE t1(
+       id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+       k INT,
+       c CHAR(1),
+       UNIQUE KEY(k)) ENGINE=InnoDB;
+
+--enable_info
+
+--connect(con1, localhost, root)
+SET DEBUG_SYNC='ha_write_row_end SIGNAL continue2 WAIT_FOR continue1';
+--send INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1'
+
+--connect(con2, localhost, root)
+SET DEBUG_SYNC='ha_write_row_start WAIT_FOR continue2';
+SET DEBUG_SYNC='after_mysql_insert SIGNAL continue1';
+INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+--disconnect con2
+
+--connection con1
+--reap
+--disable_info
+SET DEBUG_SYNC='RESET';
+
+--echo #
+--echo # 5 rows, gap in autoinc values
+--echo #
+SELECT * FROM t1 ORDER BY k;
+
+--disconnect con1
+
+--connection default
+
+DROP TABLE t1;
+
+set global transaction isolation level repeatable read;

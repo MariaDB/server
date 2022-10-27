@@ -1,0 +1,34 @@
+drop table if exists t1;
+show variables like 'log_bin';
+Variable_name	Value
+log_bin	ON
+set binlog_format="STATEMENT";
+create table t1 (c1 int primary key, c2 int) engine = mroonga;
+insert into t1 values(1,100);
+insert into t1 values(2,100);
+commit;
+select * from t1;
+c1	c2
+1	100
+2	100
+drop table t1;
+set binlog_format="ROW";
+create table t1 (c1 int primary key, c2 int) engine = mroonga;
+insert into t1 values(1,100);
+insert into t1 values(2,100);
+commit;
+select * from t1;
+c1	c2
+1	100
+2	100
+drop table t1;
+set binlog_format="MIXED";
+create table t1 (c1 int primary key, c2 int) engine = mroonga;
+insert into t1 values(1,100);
+insert into t1 values(2,100);
+commit;
+select * from t1;
+c1	c2
+1	100
+2	100
+drop table t1;

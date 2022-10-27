@@ -1,0 +1,20 @@
+#
+# MDEV-5943 'show table status' does not immediately show tokudb tables
+#
+create table t1 (id int primary key) engine=tokudb;
+show tables;
+drop table t1;
+
+#
+# MDEV-5839 TokuDB tables not properly cleaned on DROP DATABASE
+#
+create database mysqltest1;
+use mysqltest1;
+create table t1 (a int) engine=tokudb;
+drop database mysqltest1;
+
+create database mysqltest1;
+use mysqltest1;
+create table t1 (a int) engine=tokudb;
+drop database mysqltest1;
+

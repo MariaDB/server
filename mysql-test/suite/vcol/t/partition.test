@@ -1,0 +1,32 @@
+#
+# test keyread on an indexed vcol
+#
+--source include/have_partition.inc
+
+CREATE TABLE t1 (
+    id INT NOT NULL,
+    store_id INT NOT NULL,
+    x INT GENERATED ALWAYS AS (id + store_id)
+)
+PARTITION BY RANGE (store_id) (
+    PARTITION p0 VALUES LESS THAN (6),
+    PARTITION p1 VALUES LESS THAN (11),
+    PARTITION p2 VALUES LESS THAN (16),
+    PARTITION p3 VALUES LESS THAN (21)
+);
+INSERT t1 (id, store_id) VALUES(1, 2), (3, 4), (3, 12), (4, 18);
+CREATE INDEX idx ON t1(x);
+SELECT x FROM t1;
+DROP TABLE t1;
+
+#
+# MDEV-15626 Assertion on update virtual column in partitioned table
+#
+create table t1 (i int, v int as (i) virtual)
+partition by range columns (i)
+subpartition by hash(v) subpartitions 3 (
+    partition p1 values less than (3),
+    partition pn values less than (maxvalue));
+insert t1 set i= 0;
+set statement sql_mode= '' for update t1 set i= 1, v= 2;
+drop table t1;

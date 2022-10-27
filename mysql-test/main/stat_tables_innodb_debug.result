@@ -1,0 +1,25 @@
+# 
+# MDEV-7901: re-implement analyze table for low impact
+# 
+create table t1 (a int, b int, c int, key IDX1(a), key IDX2(a,b)) engine=innodb;
+insert into t1 select seq/10, seq/2, seq from seq_0_to_9;
+SET DEBUG_SYNC='statistics_collection_start1 SIGNAL analyzing WAIT_FOR written';
+analyze table t1 persistent for all;
+connect  con1, localhost, root,,;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR analyzing';
+select count(*) from t1;
+count(*)
+10
+insert into t1 values (333,333,333);
+update t1 set a=1;
+SET DEBUG_SYNC= 'now SIGNAL written';
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select count(*) from t1;
+count(*)
+11
+set debug_sync='RESET';
+drop table t1;

@@ -1,0 +1,11 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+# Correct Galera library found
+SET SESSION wsrep_sync_wait=DEFAULT;
+SET GLOBAL wsrep_provider_options = 'pc.weight=3';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_provider_options';
+Variable_name	Value
+wsrep_provider_options	pc.weight = 3
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';

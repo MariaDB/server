@@ -1,0 +1,37 @@
+#
+# MDL BF-BF lock conflict
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+# sync point controlling session
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait=0;
+
+# secondary conflicting DML victim session
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1b
+SET SESSION wsrep_sync_wait=0;
+
+--let $table_admin_command = OPTIMIZE
+--source galera_ddl_fk_conflict.inc
+--source galera_ddl_fk_conflict_with_tmp.inc
+
+--let $table_admin_command = REPAIR
+--source galera_ddl_fk_conflict.inc
+--source galera_ddl_fk_conflict_with_tmp.inc
+
+--let $table_admin_command = ALTER
+--let $table_admin_command_end = ENGINE=INNODB
+--source galera_ddl_fk_conflict.inc
+
+--let $table_admin_command = TRUNCATE
+--let $table_admin_command_end = 
+--source galera_ddl_fk_conflict.inc
+
+# CHECK and ANALYZE are not affected
+

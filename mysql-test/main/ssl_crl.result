@@ -1,0 +1,5 @@
+# try logging in with a certificate not in the server's --ssl-crl : should succeed
+Variable_name	Value
+Ssl_version	TLS_VERSION
+# try logging in with a certificate in the server's --ssl-crl : should fail
+ERROR 2026 (HY000): SSL connection error: sslv3 alert certificate revoked

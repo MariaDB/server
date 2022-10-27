@@ -1,0 +1,19 @@
+DROP TABLE IF EXISTS memos;
+SET NAMES utf8;
+CREATE TABLE memos (
+id INT PRIMARY KEY AUTO_INCREMENT,
+content TEXT,
+FULLTEXT INDEX (content)
+) DEFAULT CHARSET=utf8 COMMENT='engine "InnODB"';
+INSERT INTO memos VALUES (NULL, "Today is good day.");
+INSERT INTO memos VALUES (NULL, "Tomorrow will be good day.");
+INSERT INTO memos VALUES (NULL, "Yesterday was good day.");
+INSERT INTO memos VALUES (NULL, "Today is fine.");
+INSERT INTO memos VALUES (NULL, "Tomorrow will be fine.");
+INSERT INTO memos VALUES (NULL, "Yesterday was fine.");
+SELECT * FROM memos
+WHERE MATCH (content) AGAINST ("*D- good +day be" IN BOOLEAN MODE);
+id	content
+1	Today is good day.
+3	Yesterday was good day.
+DROP TABLE memos;

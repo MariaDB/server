@@ -1,0 +1,95 @@
+-- source include/have_debug.inc
+
+SET @org_slow_query_log= @@global.slow_query_log;
+SET @org_log_output= @@global.log_output;
+SET @org_log_slow_admin_statements= @@global.log_slow_admin_statements;
+
+SET @@GLOBAL.slow_query_log=OFF;
+SET @@GLOBAL.log_output='TABLE';
+FLUSH SLOW LOGS;
+SET @@GLOBAL.slow_query_log=ON;
+SET @@GLOBAL.log_slow_admin_statements=ON;
+SET @saved_dbug = @@debug_dbug;
+SET SESSION debug_dbug="+d,simulate_slow_query";
+
+DELIMITER $$;
+CREATE PROCEDURE show_slow_log()
+BEGIN
+  SELECT CONCAT('[slow] ', sql_text) AS sql_text
+    FROM mysql.slow_log
+     WHERE sql_text NOT LIKE '%debug_dbug%';
+END
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Expect all admin statements in the slow log (ON,DEFAULT)
+--echo #
+
+SET @@SESSION.log_slow_admin_statements=ON;
+SET log_slow_filter=DEFAULT;
+TRUNCATE TABLE mysql.slow_log;
+--source include/log_slow_debug_common.inc
+CALL show_slow_log();
+
+
+--echo #
+--echo # Expect all admin statements in the slow log (ON,admin)
+--echo #
+
+SET @@SESSION.log_slow_admin_statements=ON;
+SET log_slow_filter=admin;
+TRUNCATE TABLE mysql.slow_log;
+--source include/log_slow_debug_common.inc
+CALL show_slow_log();
+
+
+--echo #
+--echo # Expect none of admin DDL statements in the slow log (ON,filesort)
+--echo #
+
+SET @@SESSION.log_slow_admin_statements=ON;
+SET log_slow_filter=filesort;
+TRUNCATE TABLE mysql.slow_log;
+--source include/log_slow_debug_common.inc
+CALL show_slow_log();
+
+
+--echo #
+--echo # Expect none of admin statements in the slow log (OFF,DEFAULT)
+--echo #
+
+SET @@SESSION.log_slow_admin_statements=OFF;
+SET log_slow_filter=DEFAULT;
+TRUNCATE TABLE mysql.slow_log;
+--source include/log_slow_debug_common.inc
+CALL show_slow_log();
+
+
+--echo #
+--echo # Expect all admin statements in the slow log (GLOBAL OFF,LOCAL ON,DEFAULT)
+--echo # In the original implementation, this combination disabled slow log for admin commands.
+--echo # However, instead of this exception in GLOBAL vs LOCAL variable behaviour,
+--echo # we should make max_system_variables.log_slow_admin_statements=0
+--echo # prevent enabling globally suppressed logging by setting the session variable to ON.
+--echo #
+
+SET @@GLOBAL.log_slow_admin_statements=OFF;
+SET @@SESSION.log_slow_admin_statements=ON;
+SET log_slow_filter=DEFAULT;
+TRUNCATE TABLE mysql.slow_log;
+--source include/log_slow_debug_common.inc
+CALL show_slow_log();
+
+
+--echo #
+--echo # Clean up
+--echo #
+
+SET SESSION debug_dbug=@saved_dbug;
+TRUNCATE mysql.slow_log;
+SET @@global.slow_query_log= @org_slow_query_log;
+SET @@global.log_output= @org_log_output;
+SET @@global.log_slow_admin_statements= @org_log_slow_admin_statements;
+DROP PROCEDURE show_slow_log;

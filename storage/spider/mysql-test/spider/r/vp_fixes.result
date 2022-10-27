@@ -1,0 +1,93 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+
+create table and insert
+connection master_1;
+DROP TABLE IF EXISTS tb_l;
+CREATE TABLE tb_l (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE2 MASTER_1_CHARSET2
+INSERT INTO tb_l (a, b, c) VALUES
+(1, 'a', '2008-08-01 10:21:39'),
+(2, 'b', '2000-01-01 00:00:00'),
+(3, 'e', '2007-06-04 20:03:11'),
+(4, 'd', '2003-11-30 05:01:03'),
+(5, 'c', '2001-12-31 23:59:59');
+DROP TABLE IF EXISTS ta_l;
+CREATE TABLE ta_l (
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+INSERT INTO ta_l SELECT a, b, c FROM tb_l;
+
+0.9
+create different primary key table
+connection master_1;
+CREATE TABLE ta_l_int (
+a INT DEFAULT 10,
+b INT AUTO_INCREMENT,
+c INT DEFAULT 11,
+PRIMARY KEY(b)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT4_2_1
+connection master_1;
+INSERT INTO ta_l_int (a, b, c) VALUES (2, NULL, 3);
+create un-correspond primary key table
+connection master_1;
+DROP TABLE IF EXISTS ta_l_int;
+connection master_1;
+CREATE TABLE ta_l_int (
+a INT DEFAULT 10,
+b INT DEFAULT 12,
+c INT DEFAULT 11,
+PRIMARY KEY(c)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT4_2_1
+connection master_1;
+INSERT INTO ta_l_int (a, b, c) VALUES (2, NULL, 3);
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

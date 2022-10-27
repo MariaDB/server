@@ -1,0 +1,78 @@
+SET DEFAULT_STORAGE_ENGINE = 'tokudb';
+# Establish connection conn1 (user = root)
+connect  conn1,localhost,root,,;
+DROP TABLE IF EXISTS foo;
+connection default;
+set session transaction isolation level read uncommitted;
+set session tokudb_prelock_empty=1;
+set session tokudb_load_save_space=0;
+create table foo (a int, b int, c int, key (a)) engine=TokuDB;
+show create table foo;
+Table	Create Table
+foo	CREATE TABLE `foo` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=TokuDB DEFAULT CHARSET=latin1
+begin;
+insert into foo values (1,10,100),(2,20,200),(3,30,300);
+connection conn1;
+set session transaction isolation level read uncommitted;
+set session lock_wait_timeout=1;
+insert into foo values (100,100,100);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+alter table foo drop index a;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate table foo;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+commit;
+drop table foo;
+set session tokudb_prelock_empty=1;
+set session tokudb_load_save_space=1;
+create table foo (a int, b int, c int, key (a)) engine=TokuDB;
+show create table foo;
+Table	Create Table
+foo	CREATE TABLE `foo` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=TokuDB DEFAULT CHARSET=latin1
+begin;
+insert into foo values (1,10,100),(2,20,200),(3,30,300);
+connection conn1;
+insert into foo values (100,100,100);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+alter table foo drop index a;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate table foo;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+commit;
+drop table foo;
+set session tokudb_prelock_empty=0;
+set session tokudb_load_save_space=0;
+create table foo (a int, b int, c int, key (a)) engine=TokuDB;
+show create table foo;
+Table	Create Table
+foo	CREATE TABLE `foo` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=TokuDB DEFAULT CHARSET=latin1
+begin;
+insert into foo values (1,10,100),(2,20,200),(3,30,300);
+connection conn1;
+insert into foo values (100,100,100);
+alter table foo drop index a;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+truncate table foo;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+disconnect conn1;
+connection default;
+set session transaction isolation level serializable;
+DROP TABLE foo;

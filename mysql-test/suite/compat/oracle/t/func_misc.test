@@ -1,0 +1,346 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10578 sql_mode=ORACLE: SP control functions SQLCODE, SQLERRM
+--echo #
+
+--echo #
+--echo # Using SQLCODE and SQLERRM outside of an SP
+--echo #
+
+--error ER_BAD_FIELD_ERROR
+SELECT SQLCODE;
+
+--error ER_BAD_FIELD_ERROR
+SELECT SQLERRM;
+
+CREATE TABLE t1 (SQLCODE INT, SQLERRM VARCHAR(10));
+INSERT INTO t1 VALUES (10, 'test');
+SELECT SQLCODE, SQLERRM FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Normal SQLCODE and SQLERRM usage
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(stmt VARCHAR)
+AS
+BEGIN
+  EXECUTE IMMEDIATE stmt;
+  SELECT 'Error1: ' || SQLCODE || ' ' || SQLERRM;
+EXCEPTION
+  WHEN OTHERS THEN
+    SELECT 'Error2: ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+CALL p1('SELECT 1');
+CALL p1('xxx');
+CALL p1('SELECT 1');
+DROP PROCEDURE p1;
+
+--echo #
+--echo # SQLCODE and SQLERRM hidden by local variables
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  sqlcode INT:= 10;
+  sqlerrm VARCHAR(64) := 'test';
+BEGIN
+  SELECT 'Error: ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  sqlcode INT;
+  sqlerrm VARCHAR(64);
+BEGIN
+  SQLCODE:= 10;
+  sqlerrm:= 'test';
+  SELECT 'Error: ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # SQLCODE and SQLERRM hidden by parameters
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(sqlcode INT, sqlerrm VARCHAR)
+AS
+BEGIN
+  SELECT 'Error: ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+CALL p1(10, 'test');
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # SQLCODE and SQLERRM in CREATE..SELECT
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  CREATE TABLE t1 AS SELECT SQLCODE, SQLERRM;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # SQLCODE and SQLERRM in EXPLAIN EXTENDED SELECT
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  EXPLAIN EXTENDED SELECT SQLCode, SQLErrm;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+
+
+
+--echo #
+--echo # Warning-alike errors in stored functions
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+  a INT;
+BEGIN
+  SELECT a INTO a FROM t1;
+  RETURN 'No exception ' || SQLCODE || ' ' || SQLERRM;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    RETURN 'Exception ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+  a INT;
+BEGIN
+  SELECT a INTO a FROM t1;
+  RETURN 'No exception ' || SQLCODE || ' ' || SQLERRM;
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN 'Exception ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Warning-alike errors in stored procedures
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+  a INT;
+BEGIN
+  SELECT a INTO a FROM t1;
+  res:= 'No exception ' || SQLCODE || ' ' || SQLERRM;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    res:= 'Exception ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+CALL p1(@a);
+SELECT @a;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+  a INT;
+BEGIN
+  SELECT a INTO a FROM t1;
+  res:= 'No exception ' || SQLCODE || ' ' || SQLERRM;
+EXCEPTION
+  WHEN OTHERS THEN
+    res:= 'Exception ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+CALL p1(@a);
+SELECT @a;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # SQLCODE and SQLERRM are cleared on RETURN
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+  a INT:=10;
+BEGIN
+  SELECT a INTO a FROM t1;
+  RETURN 'Value=' || a;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN RETURN 'Exception|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CREATE FUNCTION f2 RETURN VARCHAR
+AS
+  a VARCHAR(128);
+BEGIN
+  RETURN f1() || '|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+SELECT f1() FROM DUAL;
+SELECT f2() FROM DUAL;
+DROP TABLE t1;
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+  a INT:=10;
+BEGIN
+  SELECT a INTO a FROM t1;
+  RETURN 'Value=' || a;
+EXCEPTION
+  WHEN OTHERS THEN RETURN 'Exception|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CREATE FUNCTION f2 RETURN VARCHAR
+AS
+  a VARCHAR(128);
+BEGIN
+  RETURN f1() || '|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+SELECT f1() FROM DUAL;
+SELECT f2() FROM DUAL;
+DROP TABLE t1;
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # SQLCODE and SQLERRM are cleared on a return from a PROCEDURE
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+  a INT:=10;
+BEGIN
+  SELECT a INTO a FROM t1;
+  res:='Value=' || a;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN res:='Exception|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CREATE FUNCTION f2 RETURN VARCHAR
+AS
+  res VARCHAR(128);
+BEGIN
+  CALL p1(res);
+  RETURN res || '|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+SELECT f2() FROM DUAL;
+DROP FUNCTION f2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+  a INT:=10;
+BEGIN
+  SELECT a INTO a FROM t1;
+  res:='Value=' || a;
+EXCEPTION
+  WHEN OTHERS THEN res:='Exception|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CREATE FUNCTION f2 RETURN VARCHAR
+AS
+  res VARCHAR(128);
+BEGIN
+  CALL p1(res);
+  RETURN res || '|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+DELIMITER ;$$
+SELECT f2() FROM DUAL;
+DROP FUNCTION f2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of MDEV-10578 sql_mode=ORACLE: SP control functions SQLCODE, SQLERRM
+--echo #
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+DELIMITER $$;
+BEGIN
+  SELECT SQLCODE;
+END
+$$
+DELIMITER ;$$
+--enable_ps_protocol
+--disable_metadata

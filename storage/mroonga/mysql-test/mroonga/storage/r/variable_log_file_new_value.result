@@ -1,0 +1,6 @@
+SET @mroonga_log_file_backup = @@mroonga_log_file;
+SET GLOBAL mroonga_log_file = "new-mroonga.log";
+SHOW GLOBAL VARIABLES LIKE 'mroonga_log_file';
+Variable_name	Value
+mroonga_log_file	new-mroonga.log
+SET GLOBAL mroonga_log_file = @mroonga_log_file_backup;

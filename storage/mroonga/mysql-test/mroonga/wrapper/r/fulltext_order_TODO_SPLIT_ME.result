@@ -1,0 +1,24 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES UTF8;
+CREATE TABLE ft(
+a INT DEFAULT 0,
+b TEXT,
+c TEXT,
+PRIMARY KEY(a),
+FULLTEXT KEY ftx1(b),
+FULLTEXT KEY ftx2(c)
+)ENGINE=Mroonga DEFAULT CHARSET=UTF8 COMMENT = 'engine "innodb"';
+INSERT INTO ft VALUES(1,'aaaaa','abcde');
+INSERT INTO ft VALUES(2,'bbbbb','bcdef');
+INSERT INTO ft VALUES(3,'ccccc','cdefg');
+INSERT INTO ft VALUES(4,'ddddd','defgh');
+INSERT INTO ft VALUES(5,'eeeee','efghi');
+SELECT a, b, c FROM ft WHERE MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE);
+a	b	c
+2	bbbbb	bcdef
+SELECT a, b, c FROM ft WHERE MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE) ORDER BY MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE);
+a	b	c
+2	bbbbb	bcdef
+SELECT a, b, c FROM ft WHERE MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE);
+a	b	c
+DROP TABLE ft;

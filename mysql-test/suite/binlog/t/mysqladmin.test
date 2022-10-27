@@ -1,0 +1,12 @@
+source include/have_binlog_format_statement.inc;
+#
+# MDEV-12612 mysqladmin --local flush... to use FLUSH LOCAL
+#
+create user adm@localhost identified by 'foobar';
+grant reload on *.* to adm@localhost;
+reset master;
+exec $MYSQLADMIN -uadm -pfoobar flush-status;
+source include/show_binlog_events.inc;
+exec $MYSQLADMIN --local -uadm -pfoobar flush-status;
+source include/show_binlog_events.inc;
+drop user adm@localhost;

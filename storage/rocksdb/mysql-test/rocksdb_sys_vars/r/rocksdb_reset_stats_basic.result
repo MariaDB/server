@@ -1,0 +1,97 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(0);
+INSERT INTO valid_values VALUES('on');
+INSERT INTO valid_values VALUES('off');
+INSERT INTO valid_values VALUES('true');
+INSERT INTO valid_values VALUES('false');
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+INSERT INTO invalid_values VALUES('\'bbb\'');
+SET @start_global_value = @@global.ROCKSDB_RESET_STATS;
+SELECT @start_global_value;
+@start_global_value
+0
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_RESET_STATS to 1"
+SET @@global.ROCKSDB_RESET_STATS   = 1;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RESET_STATS = DEFAULT;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+"Trying to set variable @@global.ROCKSDB_RESET_STATS to 0"
+SET @@global.ROCKSDB_RESET_STATS   = 0;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RESET_STATS = DEFAULT;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+"Trying to set variable @@global.ROCKSDB_RESET_STATS to on"
+SET @@global.ROCKSDB_RESET_STATS   = on;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RESET_STATS = DEFAULT;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+"Trying to set variable @@global.ROCKSDB_RESET_STATS to off"
+SET @@global.ROCKSDB_RESET_STATS   = off;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RESET_STATS = DEFAULT;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+"Trying to set variable @@global.ROCKSDB_RESET_STATS to true"
+SET @@global.ROCKSDB_RESET_STATS   = true;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RESET_STATS = DEFAULT;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+"Trying to set variable @@global.ROCKSDB_RESET_STATS to false"
+SET @@global.ROCKSDB_RESET_STATS   = false;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RESET_STATS = DEFAULT;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+"Trying to set variable @@session.ROCKSDB_RESET_STATS to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_RESET_STATS   = 444;
+ERROR HY000: Variable 'rocksdb_reset_stats' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_RESET_STATS to 'aaa'"
+SET @@global.ROCKSDB_RESET_STATS   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+"Trying to set variable @@global.ROCKSDB_RESET_STATS to 'bbb'"
+SET @@global.ROCKSDB_RESET_STATS   = 'bbb';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+SET @@global.ROCKSDB_RESET_STATS = @start_global_value;
+SELECT @@global.ROCKSDB_RESET_STATS;
+@@global.ROCKSDB_RESET_STATS
+0
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

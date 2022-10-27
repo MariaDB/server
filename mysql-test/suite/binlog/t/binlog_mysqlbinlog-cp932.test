@@ -1,0 +1,1 @@
+--source include/binlog_mysqlbinlog-cp932.inc

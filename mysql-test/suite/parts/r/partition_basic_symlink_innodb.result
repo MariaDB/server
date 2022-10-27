@@ -1,0 +1,327 @@
+#
+# Verify that the DATA/INDEX DIR is stored and used if ALTER to MyISAM.
+#
+DROP TABLE IF EXISTS t1;
+SET SESSION innodb_strict_mode = ON;
+#
+# InnoDB only supports DATA DIRECTORY with innodb_file_per_table=ON
+#
+SET GLOBAL innodb_file_per_table = OFF;
+CREATE TABLE t1 (c1 INT)  ENGINE = InnoDB
+PARTITION BY HASH (c1) (
+PARTITION p0
+DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
+    INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir',
+PARTITION p1
+DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
+    INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir'
+);
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: DATA DIRECTORY requires innodb_file_per_table.
+Warning	1478	InnoDB: INDEX DIRECTORY is not supported
+Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+Error	6	Error on delete of 'MYSQLD_DATADIR/test/t1.par' (Errcode: 2 "No such file or directory")
+#
+# InnoDB is different from MyISAM in that it uses a text file
+# with an '.isl' extension instead of a symbolic link so that
+# the tablespace can be re-located on any OS. Also, instead of
+# putting the file directly into the DATA DIRECTORY,
+# it adds a folder under it with the name of the database.
+# Since strict mode is off, InnoDB ignores the INDEX DIRECTORY
+# and it is no longer part of the definition.
+#
+SET SESSION innodb_strict_mode = OFF;
+SET GLOBAL innodb_file_per_table = ON;
+CREATE TABLE t1 (c1 INT) ENGINE = InnoDB
+PARTITION BY HASH (c1)
+(PARTITION p0
+DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
+ INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir',
+PARTITION p1
+DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir'
+ INDEX DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir'
+);
+Warnings:
+Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	<INDEX DIRECTORY> option ignored
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	<INDEX DIRECTORY> option ignored
+# Verifying .frm, .par, .isl & .ibd files
+---- MYSQLD_DATADIR/test
+db.opt
+t1#P#p0.isl
+t1#P#p1.isl
+t1.frm
+t1.par
+---- MYSQLTEST_VARDIR/mysql-test-data-dir/test
+t1#P#p0.ibd
+t1#P#p1.ibd
+# The ibd tablespaces should not be directly under the DATA DIRECTORY
+---- MYSQLTEST_VARDIR/mysql-test-data-dir
+test
+---- MYSQLTEST_VARDIR/mysql-test-idx-dir
+FLUSH TABLES;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`c1`)
+(PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
+ PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB)
+#
+# Verify that the DATA/INDEX DIRECTORY is stored and used if we
+# ALTER TABLE to MyISAM.
+#
+ALTER TABLE t1 engine=MyISAM;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`c1`)
+(PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = MyISAM,
+ PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = MyISAM)
+# Verifying .frm, .par and MyISAM files (.MYD, MYI)
+---- MYSQLD_DATADIR/test
+db.opt
+t1#P#p0.MYD
+t1#P#p0.MYI
+t1#P#p1.MYD
+t1#P#p1.MYI
+t1.frm
+t1.par
+---- MYSQLTEST_VARDIR/mysql-test-data-dir
+t1#P#p0.MYD
+t1#P#p1.MYD
+test
+---- MYSQLTEST_VARDIR/mysql-test-idx-dir
+#
+# Now verify that the DATA DIRECTORY is used again if we
+# ALTER TABLE back to InnoDB.
+#
+SET SESSION innodb_strict_mode = ON;
+ALTER TABLE t1 engine=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`c1`)
+(PARTITION `p0` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
+ PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB)
+# Verifying .frm, .par, .isl and InnoDB .ibd files
+---- MYSQLD_DATADIR/test
+db.opt
+t1#P#p0.isl
+t1#P#p1.isl
+t1.frm
+t1.par
+---- MYSQLTEST_VARDIR/mysql-test-data-dir
+test
+---- MYSQLTEST_VARDIR/mysql-test-idx-dir
+---- MYSQLTEST_VARDIR/mysql-test-data-dir/test
+t1#P#p0.ibd
+t1#P#p1.ibd
+DROP TABLE t1;
+#
+# MDEV-14611 ALTER TABLE EXCHANGE PARTITION does not work
+#                 properly when used with DATA DIRECTORY
+#
+SET GLOBAL innodb_file_per_table = ON;
+CREATE TABLE t1
+(
+myid INT(11) NOT NULL,
+myval VARCHAR(10),
+PRIMARY KEY (myid)
+) ENGINE=INNODB PARTITION BY KEY (myid)
+(
+PARTITION p0001 DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB,
+PARTITION p0002 DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB,
+PARTITION p0003 DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB,
+PARTITION p0004 DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB
+);
+CREATE TABLE t2
+(
+myid INT(11) NOT NULL,
+myval VARCHAR(10),
+PRIMARY KEY (myid)
+) ENGINE=INNODB DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir';
+ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `myid` int(11) NOT NULL,
+  `myval` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`myid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`myid`)
+(PARTITION `p0001` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
+ PARTITION `p0002` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
+ PARTITION `p0003` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
+ PARTITION `p0004` DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB)
+DROP TABLE t1, t2;
+CREATE TABLE t1
+(
+myid INT(11) NOT NULL,
+myval VARCHAR(10),
+PRIMARY KEY (myid)
+) ENGINE=INNODB PARTITION BY RANGE (myid)
+(
+PARTITION p0001 VALUES LESS THAN (50) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB,
+PARTITION p0002 VALUES LESS THAN (150) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB,
+PARTITION p0003 VALUES LESS THAN (1050) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB,
+PARTITION p0004 VALUES LESS THAN (10050) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB
+);
+CREATE TABLE t2
+(
+myid INT(11) NOT NULL,
+myval VARCHAR(10),
+PRIMARY KEY (myid)
+) ENGINE=INNODB DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir';
+insert into t1 values (1, 'one');
+insert into t2 values (2, 'two'), (3, 'threee'), (4, 'four');
+select * from t1;
+myid	myval
+1	one
+ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `myid` int(11) NOT NULL,
+  `myval` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`myid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`myid`)
+(PARTITION `p0001` VALUES LESS THAN (50) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir' ENGINE = InnoDB,
+ PARTITION `p0002` VALUES LESS THAN (150) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
+ PARTITION `p0003` VALUES LESS THAN (1050) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
+ PARTITION `p0004` VALUES LESS THAN (10050) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB)
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `myid` int(11) NOT NULL,
+  `myval` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`myid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQLTEST_VARDIR/mysql-test-data-dir/'
+select * from t1;
+myid	myval
+2	two
+3	threee
+4	four
+select * from t2;
+myid	myval
+1	one
+DROP TABLE t1, t2;
+CREATE TABLE t1
+(
+myid INT(11) NOT NULL,
+myval VARCHAR(10),
+PRIMARY KEY (myid)
+) ENGINE=INNODB PARTITION BY RANGE (myid)
+(
+PARTITION p0001 VALUES LESS THAN (50) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB,
+PARTITION p0002 VALUES LESS THAN (150) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB,
+PARTITION p0003 VALUES LESS THAN (1050) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB,
+PARTITION p0004 VALUES LESS THAN (10050) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = INNODB
+);
+CREATE TABLE t2
+(
+myid INT(11) NOT NULL,
+myval VARCHAR(10),
+PRIMARY KEY (myid)
+) ENGINE=INNODB;
+insert into t1 values (1, 'one');
+insert into t2 values (2, 'two'), (3, 'threee'), (4, 'four');
+select * from t1;
+myid	myval
+1	one
+ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `myid` int(11) NOT NULL,
+  `myval` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`myid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`myid`)
+(PARTITION `p0001` VALUES LESS THAN (50) ENGINE = InnoDB,
+ PARTITION `p0002` VALUES LESS THAN (150) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
+ PARTITION `p0003` VALUES LESS THAN (1050) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB,
+ PARTITION `p0004` VALUES LESS THAN (10050) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-data-dir' ENGINE = InnoDB)
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `myid` int(11) NOT NULL,
+  `myval` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`myid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQLTEST_VARDIR/mysql-test-data-dir/'
+select * from t1;
+myid	myval
+2	two
+3	threee
+4	four
+select * from t2;
+myid	myval
+1	one
+DROP TABLE t1, t2;
+CREATE TABLE t1
+(
+myid INT(11) NOT NULL,
+myval VARCHAR(10),
+PRIMARY KEY (myid)
+) ENGINE=INNODB PARTITION BY RANGE (myid)
+(
+PARTITION p0001 VALUES LESS THAN (50) ENGINE = INNODB,
+PARTITION p0002 VALUES LESS THAN (150) ENGINE = INNODB,
+PARTITION p0003 VALUES LESS THAN (1050) ENGINE = INNODB,
+PARTITION p0004 VALUES LESS THAN (10050) ENGINE = INNODB
+);
+CREATE TABLE t2
+(
+myid INT(11) NOT NULL,
+myval VARCHAR(10),
+PRIMARY KEY (myid)
+) ENGINE=INNODB DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir';
+insert into t1 values (1, 'one');
+insert into t2 values (2, 'two'), (3, 'threee'), (4, 'four');
+select * from t1;
+myid	myval
+1	one
+ALTER TABLE t1 EXCHANGE PARTITION p0001 WITH TABLE t2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `myid` int(11) NOT NULL,
+  `myval` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`myid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`myid`)
+(PARTITION `p0001` VALUES LESS THAN (50) DATA DIRECTORY = 'MYSQLTEST_VARDIR/mysql-test-idx-dir' ENGINE = InnoDB,
+ PARTITION `p0002` VALUES LESS THAN (150) ENGINE = InnoDB,
+ PARTITION `p0003` VALUES LESS THAN (1050) ENGINE = InnoDB,
+ PARTITION `p0004` VALUES LESS THAN (10050) ENGINE = InnoDB)
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `myid` int(11) NOT NULL,
+  `myval` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`myid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t1;
+myid	myval
+2	two
+3	threee
+4	four
+select * from t2;
+myid	myval
+1	one
+DROP TABLE t1, t2;
+#
+# Cleanup
+#

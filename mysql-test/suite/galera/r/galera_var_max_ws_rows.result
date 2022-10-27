@@ -1,0 +1,142 @@
+connection node_2;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+SET GLOBAL wsrep_max_ws_rows = 4;
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+INSERT INTO t1 (f2) VALUES (3);
+INSERT INTO t1 (f2) VALUES (4);
+INSERT INTO t1 (f2) VALUES (5);
+ERROR HY000: wsrep_max_ws_rows exceeded
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+INSERT INTO t1 (f2) VALUES (3);
+INSERT INTO t1 (f2) VALUES (4);
+UPDATE t1 SET f2 = 10 WHERE f2 = 4;
+ERROR HY000: wsrep_max_ws_rows exceeded
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+INSERT INTO t1 (f2) VALUES (3);
+INSERT INTO t1 (f2) VALUES (4);
+DELETE FROM t1 WHERE f2 = 1;
+ERROR HY000: wsrep_max_ws_rows exceeded
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SET GLOBAL wsrep_max_ws_rows = 5;
+INSERT INTO t1 (f2) VALUES (1),(2),(3),(4),(5);
+SET GLOBAL wsrep_max_ws_rows = 4;
+UPDATE t1 SET f2 = f2 + 10;
+ERROR HY000: wsrep_max_ws_rows exceeded
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+DELETE FROM t1 WHERE f2 < 10;
+ERROR HY000: wsrep_max_ws_rows exceeded
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+INSERT INTO t1 (f2) SELECT * FROM ten;
+ERROR HY000: wsrep_max_ws_rows exceeded
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+INSERT INTO t1 (f2) VALUES (10),(20),(30),(40),(50);
+ERROR HY000: wsrep_max_ws_rows exceeded
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+SET GLOBAL wsrep_max_ws_rows = 10;
+DELETE FROM t1 WHERE f2 < 10;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SET GLOBAL wsrep_max_ws_rows = 100;
+SELECT COUNT(*) = 100 FROM t1;
+COUNT(*) = 100
+1
+DELETE FROM t1 WHERE f2 < 101;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SET GLOBAL wsrep_max_ws_rows = 9999;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+ERROR HY000: wsrep_max_ws_rows exceeded
+SET GLOBAL wsrep_max_ws_rows = 10000;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+SET GLOBAL wsrep_max_ws_rows = 9999;
+UPDATE t1 SET f2 = 2 WHERE f2 = 1;
+ERROR HY000: wsrep_max_ws_rows exceeded
+SET GLOBAL wsrep_max_ws_rows = 10000;
+UPDATE t1 SET f2 = 2 WHERE f2 = 1;
+SET GLOBAL wsrep_max_ws_rows = 9999;
+DELETE FROM t1 WHERE f2 = 2;
+ERROR HY000: wsrep_max_ws_rows exceeded
+SET GLOBAL wsrep_max_ws_rows = 10000;
+DELETE FROM t1 WHERE f2 = 2;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SET AUTOCOMMIT = ON;
+SET GLOBAL wsrep_max_ws_rows = 1;
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+ERROR HY000: wsrep_max_ws_rows exceeded
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+SET AUTOCOMMIT = OFF;
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+ERROR HY000: wsrep_max_ws_rows exceeded
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+ERROR HY000: wsrep_max_ws_rows exceeded
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+ERROR HY000: wsrep_max_ws_rows exceeded
+DROP TABLE t1;
+DROP TABLE ten;
+#
+# MDEV-11817: Altering a table with more rows than
+# wsrep_max_ws_rows causes cluster to break when running
+# Galera cluster in TOI mode
+#
+connection node_1;
+CREATE TABLE t1(c1 INT)ENGINE = INNODB;
+SET GLOBAL wsrep_max_ws_rows= DEFAULT;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 SELECT * FROM t1;
+SET GLOBAL wsrep_max_ws_rows= 1;
+ALTER TABLE t1 CHANGE COLUMN c1 c1 BIGINT;
+connection node_2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+DROP TABLE t1;
+connection node_1;
+disconnect node_2;
+disconnect node_1;

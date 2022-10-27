@@ -1,0 +1,6 @@
+The examples directory includes files that might be needed by some
+developers:
+- the example file udf_example.c
+
+For more information, see MariaDB Connector/C docs at:
+https://github.com/MariaDB/mariadb-connector-c/wiki/libmysql_libmariadb

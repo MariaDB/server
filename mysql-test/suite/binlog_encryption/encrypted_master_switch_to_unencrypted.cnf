@@ -1,0 +1,5 @@
+!include my.cnf
+
+[mysqld.1]
+encrypt-binlog=0
+skip-file-key-management

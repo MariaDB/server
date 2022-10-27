@@ -1,0 +1,43 @@
+CREATE USER IF NOT EXISTS u1@localhost IDENTIFIED BY 'pw1';
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u1';
+plugin	authentication_string
+mysql_native_password	*2B602296A79E0A8784ACC5C88D92E46588CCA3C3
+CREATE USER IF NOT EXISTS u1@localhost IDENTIFIED BY 'pw2';
+Warnings:
+Note	1973	Can't create user 'u1'@'localhost'; it already exists
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u1';
+plugin	authentication_string
+mysql_native_password	*2B602296A79E0A8784ACC5C88D92E46588CCA3C3
+CREATE OR REPLACE USER u1@localhost IDENTIFIED BY 'pw3';
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u1';
+plugin	authentication_string
+mysql_native_password	*77B4A70CEFD76DB9415F36D291E74C110D2738E0
+CREATE OR REPLACE USER IF NOT EXISTS u1@localhost IDENTIFIED BY 'pw4';
+ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u1';
+plugin	authentication_string
+mysql_native_password	*77B4A70CEFD76DB9415F36D291E74C110D2738E0
+DROP USER IF EXISTS u1@localhost;
+DROP USER IF EXISTS u1@localhost;
+Warnings:
+Note	1974	Can't drop user 'u1'@'localhost'; it doesn't exist
+DROP USER u1@localhost;
+ERROR HY000: Operation DROP USER failed for 'u1'@'localhost'
+CREATE OR REPLACE USER u1@localhost;
+CREATE USER u1@localhost;
+ERROR HY000: Operation CREATE USER failed for 'u1'@'localhost'
+DROP USER u1@localhost;
+CREATE USER u1;
+CREATE USER u1, u2;
+ERROR HY000: Operation CREATE USER failed for 'u1'@'%'
+CREATE USER u2;
+ERROR HY000: Operation CREATE USER failed for 'u2'@'%'
+CREATE OR REPLACE USER u1 IDENTIFIED BY PASSWORD 'password', u2;
+ERROR HY000: Password hash should be a 41-digit hexadecimal number
+CREATE OR REPLACE USER u1 IDENTIFIED BY PASSWORD 'abcdefghijklmnop', u2;
+DROP USER u1;
+DROP USER IF EXISTS u1, u2;
+Warnings:
+Note	1974	Can't drop user 'u1'@'%'; it doesn't exist
+DROP USER u2;
+ERROR HY000: Operation DROP USER failed for 'u2'@'%'

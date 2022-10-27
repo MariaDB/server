@@ -1,0 +1,18 @@
+--- suite/storage_engine/tbl_opt_data_dir.result	2017-05-24 00:21:15.550159778 +0300
++++ ../storage/myisammrg/mysql-test/storage_engine/tbl_opt_data_dir.reject	2017-05-24 00:25:45.506164827 +0300
+@@ -5,7 +5,7 @@
+ t1	CREATE TABLE `t1` (
+   `a` int(11) DEFAULT NULL,
+   `b` char(8) DEFAULT NULL
+-) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 DATA DIRECTORY='<DATA_DIR_1>'
++) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`mrg`.`t1`)
+ # For ALTER TABLE the option is ignored
+ # Running ALTER TABLE .. DATA DIRECTORY = <>
+ Warnings:
+@@ -15,5 +15,5 @@
+ t1	CREATE TABLE `t1` (
+   `a` int(11) DEFAULT NULL,
+   `b` char(8) DEFAULT NULL
+-) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 DATA DIRECTORY='<DATA_DIR_1>'
++) ENGINE=<STORAGE_ENGINE> DEFAULT CHARSET=latin1 INSERT_METHOD=LAST UNION=(`mrg`.`t1`)
+ DROP TABLE t1;

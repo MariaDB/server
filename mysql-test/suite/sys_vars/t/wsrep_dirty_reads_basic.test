@@ -1,0 +1,48 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_dirty_reads
+--echo #
+
+--echo # save the initial value
+SET @wsrep_dirty_reads_session_saved = @@session.wsrep_dirty_reads;
+
+--echo # default
+
+SELECT @@global.wsrep_dirty_reads;
+SELECT @@session.wsrep_dirty_reads;
+
+--echo
+--echo # valid values for session
+SET @@session.wsrep_dirty_reads=OFF;
+SELECT @@session.wsrep_dirty_reads;
+SET @@session.wsrep_dirty_reads=ON;
+SELECT @@session.wsrep_dirty_reads;
+SET @@session.wsrep_dirty_reads=default;
+SELECT @@session.wsrep_dirty_reads;
+
+--echo
+--echo # valid values for global
+SET @@global.wsrep_dirty_reads=OFF;
+SELECT @@global.wsrep_dirty_reads;
+SET @@global.wsrep_dirty_reads=ON;
+SELECT @@global.wsrep_dirty_reads;
+SET @@global.wsrep_dirty_reads=default;
+SELECT @@global.wsrep_dirty_reads;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@session.wsrep_dirty_reads=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@session.wsrep_dirty_reads='junk';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_dirty_reads=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_dirty_reads='junk';
+
+--echo
+--echo # restore the initial values
+SET @@session.wsrep_dirty_reads = @wsrep_dirty_reads_session_saved;
+
+--echo # End of test

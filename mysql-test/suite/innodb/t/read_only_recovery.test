@@ -1,0 +1,46 @@
+--source include/have_innodb.inc
+# need to restart server
+--source include/not_embedded.inc
+
+--connect(con1, localhost, root)
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES(1);
+BEGIN;
+# Generate insert_undo log.
+INSERT INTO t VALUES(2);
+# Generate update_undo log.
+DELETE FROM t WHERE a=2;
+--connection default
+--echo # Normal MariaDB shutdown would roll back the above transaction.
+--echo # We want the transaction to remain open, so we will kill the server
+--echo # after ensuring that any non-transactional files are clean.
+FLUSH TABLES;
+--echo # Ensure that the above incomplete transaction becomes durable.
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+BEGIN;
+INSERT INTO t VALUES(0);
+ROLLBACK;
+--let $restart_parameters= --innodb-force-recovery=3
+--let $shutdown_timeout= 0
+--source include/restart_mysqld.inc
+--let $shutdown_timeout= 30
+--disconnect con1
+SELECT * FROM t;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t;
+UPDATE t SET a=3 WHERE a=1;
+--let $restart_parameters= --innodb-read-only
+--source include/restart_mysqld.inc
+--echo # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.
+--echo # In earlier versions, this would return the last committed version
+--echo # (empty table)!
+SELECT * FROM t;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM t;
+DROP TABLE t;
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--let SEARCH_PATTERN= Rolled back recovered transaction [^0]
+--source include/search_pattern_in_file.inc

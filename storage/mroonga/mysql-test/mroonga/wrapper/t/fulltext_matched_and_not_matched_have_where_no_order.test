@@ -1,0 +1,51 @@
+# Copyright(C) 2012 Kentoku SHIBA
+# Copyright(C) 2015 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/have_innodb.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS texts;
+--enable_warnings
+
+SET NAMES UTF8;
+CREATE TABLE texts (
+  id INT PRIMARY KEY,
+  matched TEXT,
+  not_matched TEXT,
+  FULLTEXT KEY (matched),
+  FULLTEXT KEY (not_matched)
+) DEFAULT CHARSET=UTF8 COMMENT='engine "InnoDB"';
+
+INSERT INTO texts VALUES (1, 'Hello1', 'World1');
+INSERT INTO texts VALUES (2, 'Hello2', 'World2');
+INSERT INTO texts VALUES (3, 'Hello3', 'World3');
+
+SELECT *
+  FROM (SELECT id,
+               matched,
+               not_matched,
+               MATCH(matched) AGAINST('+Hello' IN BOOLEAN MODE),
+               MATCH(not_matched) AGAINST('+Hello' IN BOOLEAN MODE)
+             FROM texts
+            WHERE MATCH(matched) AGAINST('+Hello' IN BOOLEAN MODE))
+        AS searched_texts
+ ORDER BY id;
+
+DROP TABLE texts;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

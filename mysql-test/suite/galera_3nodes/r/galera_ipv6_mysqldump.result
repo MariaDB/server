@@ -1,0 +1,40 @@
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to'");
+call mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+CREATE USER 'sst';
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
+SET GLOBAL wsrep_sst_auth = 'sst:';
+connection node_2;
+SET GLOBAL wsrep_sst_method = 'mysqldump';
+Shutting down server ...
+connection node_1;
+Cleaning var directory ...
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+Starting server ...
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
+DROP TABLE t1;
+SELECT VARIABLE_VALUE LIKE '%[::1]%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_incoming_addresses';
+VARIABLE_VALUE LIKE '%[::1]%'
+1
+connection node_1;
+CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+DROP USER sst;
+connection node_2;
+CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+CALL mtr.add_suppression("InnoDB: Error: Table \"mysql\"\\.\"innodb_index_stats\" not found");
+CALL mtr.add_suppression("Can't open and lock time zone table");
+CALL mtr.add_suppression("Can't open and lock privilege tables");
+CALL mtr.add_suppression("Info table is not ready to be used");
+CALL mtr.add_suppression("Native table .* has the wrong structure");
+CALL mtr.add_suppression("Table \'mysql.gtid_slave_pos\' doesn\'t exist");
+connection node_2;
+CALL mtr.add_suppression("Unsupported protocol downgrade: incremental data collection disabled. Expect abort");

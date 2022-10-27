@@ -1,0 +1,65 @@
+include/rpl_init.inc [topology=1->2->3]
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO
+MASTER_USE_GTID = SLAVE_POS, IGNORE_DOMAIN_IDS = (2,3);
+START SLAVE;
+connection server_3;
+include/stop_slave.inc
+CHANGE MASTER TO
+MASTER_USE_GTID = SLAVE_POS, IGNORE_DOMAIN_IDS = (2,3);
+START SLAVE;
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, "m1");
+INSERT INTO t1 VALUES (2, "m2"), (3, "m3"), (4, "m4");
+SET @@session.gtid_domain_id=2;
+# The following should get filetered on slave.
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1, "m1");
+INSERT INTO t2 VALUES (2, "m2"), (3, "m3"), (4, "m4");
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+# Only 't1' should have replicated to slaves.
+SHOW TABLES;
+Tables_in_test
+t1
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+# Only 't1' should have replicated to slaves.
+SHOW TABLES;
+Tables_in_test
+t1
+# Cleanup
+connection server_1;
+SET @@session.gtid_domain_id=1;
+DROP TABLE t1;
+SET @@session.gtid_domain_id=2;
+DROP TABLE t2;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+STOP SLAVE;
+CHANGE MASTER TO MASTER_USE_GTID = NO, IGNORE_DOMAIN_IDS = ();
+connection server_3;
+STOP SLAVE;
+CHANGE MASTER TO MASTER_USE_GTID = NO, IGNORE_DOMAIN_IDS = ();
+# End of test.

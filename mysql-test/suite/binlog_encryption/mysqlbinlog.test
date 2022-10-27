@@ -1,0 +1,24 @@
+source include/have_log_bin.inc;
+source include/have_debug.inc;
+
+let datadir=`select @@datadir`;
+RESET MASTER;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+REPLACE INTO t1 VALUES (4);
+DROP TABLE t1;
+FLUSH LOGS;
+
+let filename= master-bin.000001;
+let local=$datadir/$filename;
+let remote=--read-from-remote-server --protocol=tcp --host=127.0.0.1 --port=$MASTER_MYPORT -uroot $filename;
+let outfile=$MYSQLTEST_VARDIR/tmp/binlog_enc.sql;
+--error 1
+exec $MYSQL_BINLOG $local > $outfile;
+exec $MYSQL_BINLOG $local --force-read >> $outfile;
+exec $MYSQL_BINLOG $remote >> $outfile;
+--let SEARCH_FILE= $outfile
+--let SEARCH_PATTERN= Ignorable event type 164.*
+--source include/search_pattern_in_file.inc
+remove_file $outfile;
+

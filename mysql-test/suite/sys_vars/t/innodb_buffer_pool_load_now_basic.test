@@ -1,0 +1,49 @@
+#
+# Basic test for innodb_buffer_pool_load_now
+#
+
+-- source include/have_innodb.inc
+
+# Check the default value
+SELECT @@global.innodb_buffer_pool_load_now;
+
+# Make sure there is a dump file to load
+
+-- let $file = `SELECT CONCAT(@@datadir, @@global.innodb_buffer_pool_filename)`
+-- error 0,1
+-- file_exists $file
+if ($errno)
+{
+  # Dump file does not exist, get it created
+  --disable_query_log
+  --disable_result_log
+  --source innodb_buffer_pool_dump_now_basic.test
+  --enable_result_log
+  --enable_query_log
+}
+
+let $old_load_status=
+   `SELECT variable_value FROM information_schema.global_status
+    WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status'`;
+
+# Load the dump
+SET GLOBAL innodb_buffer_pool_load_now = ON;
+
+# Wait for the load to complete
+let $wait_condition =
+  SELECT variable_value != '$old_load_status' &&
+         SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) load completed at '
+  FROM information_schema.global_status
+  WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status';
+--disable_warnings
+-- source include/wait_condition.inc
+--enable_warnings
+
+# Show the status, interesting if the above timed out
+--disable_warnings
+-- replace_regex /[0-9]{6}[[:space:]]+[0-9]{1,2}:[0-9]{2}:[0-9]{2}/TIMESTAMP_NOW/
+SELECT variable_value
+FROM information_schema.global_status
+WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status';
+--enable_warnings
+

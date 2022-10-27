@@ -1,0 +1,11 @@
+SET GLOBAL query_cache_size= 16*1024*1024;
+SET GLOBAL query_cache_type= 1;
+CREATE TABLE t1 (i INT);
+CREATE TABLE t2 (i INT) ENGINE=FEDERATED CONNECTION="mysql://root@localhost:MASTER_MYPORT/test/t1";
+ALTER TABLE t2 DISABLE KEYS;
+ERROR HY000: Storage engine FEDERATED of the table `test`.`t2` doesn't have this option
+CREATE TABLE t3 (i INT) ENGINE=FEDERATED CONNECTION="mysql://root@localhost:MASTER_MYPORT/test/t1";
+# restart
+SET GLOBAL query_cache_size= default;
+SET GLOBAL query_cache_type= default;
+drop table t1, t2, t3;

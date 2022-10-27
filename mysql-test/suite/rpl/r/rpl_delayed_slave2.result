@@ -1,0 +1,58 @@
+include/master-slave.inc
+[connection master]
+connection master;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100));
+INSERT INTO t1 VALUES (1, "a");
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode=optimistic;
+SET @old_threads= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=10;
+connection master;
+INSERT INTO t1 VALUES (2, "b");
+INSERT INTO t1 VALUES (3, "b");
+INSERT INTO t1 VALUES (4, "b");
+SET timestamp= @@timestamp + 24*60*60;
+INSERT INTO t1 VALUES (5, "c");
+INSERT INTO t1 VALUES (6, "c");
+SET timestamp= 0;
+include/save_master_gtid.inc
+connection slave;
+CHANGE MASTER TO master_delay=1;
+include/start_slave.inc
+SELECT MASTER_GTID_WAIT('GTID1');
+MASTER_GTID_WAIT('GTID1')
+0
+SELECT MASTER_GTID_WAIT('GTID2', 2);
+MASTER_GTID_WAIT('GTID2', 2)
+-1
+include/stop_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	a
+2	b
+3	b
+4	b
+CHANGE MASTER TO master_delay=0;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	a
+2	b
+3	b
+4	b
+5	c
+6	c
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=no, master_delay=0;
+SET GLOBAL slave_parallel_mode=@old_mode;
+SET GLOBAL slave_parallel_threads=@old_threads;
+include/start_slave.inc
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

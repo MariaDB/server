@@ -1,0 +1,488 @@
+#
+# Check CREATE OR REPLACE TABLE
+#
+
+--source include/have_innodb.inc
+--source include/have_metadata_lock_info.inc
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+
+#
+# Create help table
+#
+
+CREATE TABLE t2 (a int);
+INSERT INTO t2 VALUES(1),(2),(3);
+
+--echo #
+--echo # Check first syntax and wrong usage
+--echo #
+
+--error ER_WRONG_USAGE
+CREATE OR REPLACE TABLE IF NOT EXISTS t1 (a int);
+
+# check that we don't try to create a log table in use
+--error ER_BAD_LOG_STATEMENT
+create or replace table mysql.general_log (a int);
+--error ER_BAD_LOG_STATEMENT
+create or replace table mysql.slow_log (a int);
+
+--echo #
+--echo # Usage when table doesn't exist
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a int);
+--error ER_TABLE_EXISTS_ERROR
+CREATE TABLE t1 (a int);
+DROP TABLE t1;
+CREATE OR REPLACE TEMPORARY TABLE t1 (a int);
+--error ER_TABLE_EXISTS_ERROR
+CREATE TEMPORARY TABLE t1 (a int, b int, c int);
+DROP TEMPORARY TABLE t1;
+
+--echo #
+--echo # Testing with temporary tables
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a int);
+CREATE OR REPLACE TEMPORARY TABLE t1 (a int);
+CREATE OR REPLACE TEMPORARY TABLE t1 (a int, b int);
+SHOW CREATE TABLE t1;
+DROP TEMPORARY TABLE t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# Test also with InnoDB
+create temporary table t1 (i int) engine=InnoDB;
+create or replace temporary table t1 (a int, b int) engine=InnoDB;
+create or replace temporary table t1 (j int);
+show create table t1;
+drop table t1;
+
+# Using lock tables on normal tables with create or replace on temp tables
+CREATE OR REPLACE TABLE t1 (a int);
+LOCK TABLES t1 write;
+CREATE OR REPLACE TEMPORARY TABLE t1 (a int);
+CREATE OR REPLACE TEMPORARY TABLE t1 (a int, b int);
+CREATE OR REPLACE TEMPORARY TABLE t1 (a int, b int) engine= innodb;
+CREATE OR REPLACE TEMPORARY TABLE t1 (a int) engine= innodb;
+CREATE OR REPLACE TEMPORARY TABLE t1 (a int, b int) engine=myisam;
+SHOW CREATE TABLE t1;
+DROP TEMPORARY TABLE t1;
+SHOW CREATE TABLE t1;
+# Verify that table is still locked
+--error ER_TABLE_NOT_LOCKED
+CREATE OR REPLACE TABLE t2 (a int);
+DROP TABLE t1;
+UNLOCK TABLES;
+
+#
+# Using CREATE SELECT
+#
+
+CREATE OR REPLACE TEMPORARY TABLE t1 (a int) SELECT * from t2;
+SELECT * FROM t1;
+CREATE OR REPLACE TEMPORARY TABLE t1 (b int) SELECT * from t2;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 AS SELECT a FROM t2;
+CREATE TEMPORARY TABLE IF NOT EXISTS t1(a int, b int) SELECT 1,2 FROM t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int);
+CREATE OR REPLACE TABLE t1 AS SELECT 1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+create table t1 (a int);
+--error ER_UPDATE_TABLE_USED
+create or replace table t1 as select * from t1;
+--error ER_UPDATE_TABLE_USED
+create or replace table t1 as select a from (select a from t1) as t3;
+--error ER_UPDATE_TABLE_USED
+create or replace table t1 as select a from t2 where t2.a in (select a from t1);
+drop table t1;
+
+--echo #
+--echo # Testing with normal tables
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a int);
+CREATE OR REPLACE TABLE t1 (a int, b int);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int) SELECT * from t2;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+CREATE TABLE IF NOT EXISTS t1 (a int) SELECT * from t2;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i int);
+CREATE OR REPLACE TABLE t1 AS SELECT 1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# Using lock tables with CREATE OR REPLACE
+CREATE OR REPLACE TABLE t1 (a int);
+LOCK TABLES t1 write,t2 write;
+CREATE OR REPLACE TABLE t1 (a int, b int);
+# Verify if table is still locked
+SELECT * FROM t1;
+INSERT INTO t1 values(1,1);
+CREATE OR REPLACE TABLE t1 (a int, b int, c int);
+INSERT INTO t1 values(1,1,1);
+--error ER_TABLE_NOT_LOCKED
+CREATE OR REPLACE TABLE t3 (a int);
+UNLOCK TABLES;
+DROP TABLE t1;
+
+# Using lock tables with CREATE OR REPLACE ... SELECT
+CREATE OR REPLACE TABLE t1 (a int);
+LOCK TABLES t1 write,t2 write;
+CREATE OR REPLACE TABLE t1 (a int, b int) select a,1 from t2;
+# Verify if table is still locked
+SELECT * FROM t2;
+SELECT * FROM t1;
+SELECT * FROM t1;
+INSERT INTO t1 values(1,1,1);
+CREATE OR REPLACE TABLE t1 (a int, b int, c int, d int);
+INSERT INTO t1 values(1,1,1,1);
+--error ER_TABLE_NOT_LOCKED
+CREATE OR REPLACE TABLE t3 (a int);
+UNLOCK TABLES;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a int);
+LOCK TABLES t1 write,t2 write, t1 as t1_read read;
+CREATE OR REPLACE TABLE t1 (a int, b int) select a,1 from t2;
+SELECT * FROM t1;
+SELECT * FROM t2;
+--error ER_TABLE_NOT_LOCKED
+SELECT * FROM t1 as t1_read;
+DROP TABLE t1;
+UNLOCK TABLES;
+
+CREATE OR REPLACE TABLE t1 (a int);
+LOCK TABLE t1 WRITE;
+CREATE OR REPLACE TABLE t1 AS SELECT 1;
+SELECT * from t1;
+--error ER_TABLE_NOT_LOCKED
+SELECT * from t2;
+DROP TABLE t1;
+
+--echo #
+--echo # Test also with InnoDB (transactional engine)
+--echo #
+
+create table t1 (i int) engine=innodb;
+lock table t1 write;
+create or replace table t1 (j int);
+unlock tables;
+show create table t1;
+drop table t1;
+
+create table t1 (i int) engine=InnoDB;
+lock table t1 write, t2 write;
+create or replace table t1 (j int) engine=innodb;
+unlock tables;
+drop table t1;
+
+create table t1 (i int) engine=InnoDB;
+create table t3 (i int) engine=InnoDB;
+insert into t3 values(1),(2),(3);
+create table t4 (i int) engine=InnoDB;
+insert into t4 values(1);
+lock table t1 write, t2 write, t3 write, t4 write;
+create or replace table t1 (a int, i int) engine=innodb select t2.a,t3.i from t2,t3;
+select * from t4;
+unlock tables;
+select * from t1 order by a,i;
+drop table t1,t3,t4;
+
+--echo #
+--echo # Test the meta data locks are freed properly
+--echo #
+
+create database mysqltest2;
+
+drop table if exists test.t1,mysqltest2.t2;
+create table test.t1 (i int) engine=myisam;
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create or replace table test.t1;
+show tables;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create or replace table mysqltest2.t2;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+create table t1 (i int);
+drop table t1;
+
+create table test.t1 (i int);
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+--error ER_DUP_FIELDNAME
+create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
+show tables;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+--error ER_DUP_FIELDNAME
+create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+create table t1 (i int);
+drop table t1;
+
+create table test.t1 (i int) engine=innodb;
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+unlock tables;
+drop table test.t1,mysqltest2.t2;
+
+create table test.t1 (i int) engine=aria transactional=1 checksum=1;
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+unlock tables;
+drop table t1;
+
+create table test.t1 (i int);
+drop database mysqltest2;
+
+--echo #
+--echo # Testing CREATE .. LIKE
+--echo #
+
+create or replace table t1 like t2;
+create or replace table t1 like t2;
+show create table t1;
+drop table t1;
+create table t1 (b int);
+lock tables t1 write, t2 read;
+create or replace table t1 like t2;
+SELECT * FROM t1;
+INSERT INTO t1 values(1);
+CREATE OR REPLACE TABLE t1 like t2;
+INSERT INTO t1 values(2);
+unlock tables;
+show create table t1;
+drop table t1;
+
+create or replace table t1 like t2;
+--error ER_NONUNIQ_TABLE
+create or replace table t1 like t1;
+drop table t1;
+
+CREATE TEMPORARY TABLE t1 like t2;
+--error ER_NONUNIQ_TABLE
+CREATE OR REPLACE TABLE t1 like t1;
+--error ER_NONUNIQ_TABLE
+CREATE OR REPLACE TABLE t1 like t1;
+drop table t1;
+
+CREATE TEMPORARY TABLE t1 like t2;
+CREATE OR REPLACE TEMPORARY TABLE t3 like t1;
+--error ER_NONUNIQ_TABLE
+CREATE OR REPLACE TEMPORARY TABLE t3 like t3;
+drop table t1,t3;
+
+--echo #
+--echo # Test with prepared statements
+--echo #
+
+prepare stmt1 from 'create or replace table t1 select * from t2';
+execute stmt1;
+select * from t1;
+execute stmt1;
+select * from t1;
+drop table t1;
+execute stmt1;
+select * from t1;
+deallocate prepare stmt1;
+drop table t1;
+
+--echo #
+--echo # Test with views
+--echo #
+
+create view t1 as select 1;
+create table if not exists t1 (a int);
+--error ER_IT_IS_A_VIEW
+create or replace table t1 (a int);
+--error ER_IT_IS_A_VIEW
+drop table t1;
+drop view t1;
+
+--echo #
+--echo # MDEV-5602 CREATE OR REPLACE obtains stricter locks than the
+--echo # connection had before
+--echo #
+
+create table t1 (a int);
+lock table t1 write, t2 read;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+create or replace table t1 (i int);
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+create or replace table t1 like t2;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+create or replace table t1 select 1 as f1;
+--replace_column 1 #
+--sorted_result
+select * from information_schema.metadata_lock_info;
+drop table t1;
+unlock tables;
+
+--echo #
+--echo # MDEV-6560
+--echo # Assertion `! is_set() ' failed in Diagnostics_area::set_ok_status
+--echo #
+
+CREATE TABLE t1 (col_int_nokey INT)  ENGINE=InnoDB;
+
+CREATE OR REPLACE TEMPORARY TABLE tmp LIKE t1;
+LOCK TABLE t1 WRITE;
+
+--connect (con1,localhost,root,,test)
+--let $con_id = `SELECT CONNECTION_ID()`
+--send CREATE OR REPLACE TABLE t1 LIKE tmp
+--connection default
+let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist
+  WHERE state= 'Waiting for table metadata lock';
+--source include/wait_condition.inc
+--replace_result $con_id con_id
+--eval KILL QUERY $con_id
+
+--connection con1
+--error ER_QUERY_INTERRUPTED
+--reap
+--send CREATE OR REPLACE TABLE t1 (a int)
+
+--connection default
+let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist
+  WHERE state= 'Waiting for table metadata lock';
+--source include/wait_condition.inc
+--replace_result $con_id con_id
+--eval KILL QUERY $con_id
+
+--connection con1
+--error ER_QUERY_INTERRUPTED
+--reap
+--disconnect con1
+--connection default
+
+drop table t1;
+
+#
+# Cleanup
+#
+DROP TABLE t2;
+
+--echo #
+--echo # MDEV-10824 - Crash in CREATE OR REPLACE TABLE t1 AS SELECT spfunc()
+--echo #
+CREATE TABLE t1(a INT);
+CREATE FUNCTION f1() RETURNS VARCHAR(16383) RETURN 'test';
+CREATE OR REPLACE TABLE t1 AS SELECT f1();
+LOCK TABLE t1 WRITE;
+CREATE OR REPLACE TABLE t1 AS SELECT f1();
+UNLOCK TABLES;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11129
+--echo # CREATE OR REPLACE TABLE t1 AS SELECT spfunc() crashes if spfunc()
+--echo # references t1
+--echo #
+
+CREATE OR REPLACE TABLE t1(a INT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS VARCHAR(16383)
+BEGIN
+  INSERT INTO t1 VALUES(1);
+  RETURN 'test';
+END;
+$$
+DELIMITER ;$$
+--error ER_UPDATE_TABLE_USED
+CREATE OR REPLACE TABLE t1 AS SELECT f1();
+LOCK TABLE t1 WRITE;
+--error ER_TABLE_NOT_LOCKED
+CREATE OR REPLACE TABLE t1 AS SELECT f1();
+UNLOCK TABLES;
+
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-14410 - Assertion `table->pos_in_locked_tables == __null ||
+--echo #              table->pos_in_locked_tables->table == table' failed in
+--echo #              mark_used_tables_as_free_for_reuse
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+
+CREATE TRIGGER tr1 BEFORE INSERT ON t3 FOR EACH ROW INSERT INTO t1 VALUES ();
+CREATE TRIGGER tr2 BEFORE INSERT ON t2 FOR EACH ROW INSERT INTO t3 SELECT * FROM t1;
+
+LOCK TABLE t1 WRITE, t2 WRITE;
+CREATE OR REPLACE TABLE t1 (i INT);
+UNLOCK TABLES;
+INSERT INTO t2 VALUES (1);
+
+# Cleanup
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-11071 - Assertion `thd->transaction.stmt.is_empty()' failed in
+--echo #              Locked_tables_list::unlock_locked_tables
+--echo #
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2(a INT);
+CREATE TABLE t3(a INT);
+LOCK TABLE t2 WRITE;
+SELECT * FROM t2;
+# drops t2
+--error ER_INVALID_DEFAULT
+CREATE OR REPLACE TEMPORARY TABLE t1(c INT DEFAULT '');
+# make sure we didn't leave locked tables mode
+--error ER_TABLE_NOT_LOCKED
+SELECT * FROM t3;
+# drops t1
+--error ER_INVALID_DEFAULT
+CREATE OR REPLACE TEMPORARY TABLE t2(c INT DEFAULT '');
+# make sure we didn't leave locked tables mode
+--error ER_TABLE_NOT_LOCKED
+SELECT * FROM t3;
+UNLOCK TABLES;
+DROP TABLE t3;

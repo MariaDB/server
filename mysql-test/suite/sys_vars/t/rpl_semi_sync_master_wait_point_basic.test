@@ -1,0 +1,39 @@
+source include/not_embedded.inc;
+select @@global.rpl_semi_sync_master_wait_point;
+SET @start_global_value = @@global.rpl_semi_sync_master_wait_point;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.rpl_semi_sync_master_wait_point;
+show global variables like 'rpl_semi_sync_master_wait_point';
+show session variables like 'rpl_semi_sync_master_wait_point';
+select * from information_schema.global_variables where variable_name='rpl_semi_sync_master_wait_point';
+select * from information_schema.session_variables where variable_name='rpl_semi_sync_master_wait_point';
+
+#
+# show that it's writable
+#
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+--error ER_GLOBAL_VARIABLE
+set session rpl_semi_sync_master_wait_point=AFTER_COMMIT;
+select @@global.rpl_semi_sync_master_wait_point;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.rpl_semi_sync_master_wait_point;
+show global variables like 'rpl_semi_sync_master_wait_point';
+show session variables like 'rpl_semi_sync_master_wait_point';
+select * from information_schema.global_variables where variable_name='rpl_semi_sync_master_wait_point';
+select * from information_schema.session_variables where variable_name='rpl_semi_sync_master_wait_point';
+
+#
+# incorrect types
+#
+--error ER_WRONG_TYPE_FOR_VAR
+set global rpl_semi_sync_master_wait_point=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global rpl_semi_sync_master_wait_point=1e1;
+
+
+#
+# Cleanup
+#
+SET @@global.rpl_semi_sync_master_wait_point = @start_global_value;
+select @@global.rpl_semi_sync_master_wait_point;

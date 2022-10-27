@@ -1,0 +1,74 @@
+--source ../include/select_with_backquote_init.inc
+--echo
+--echo this test is for MDEV-17204
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    txt_utf8 char(8) NOT NULL,
+    PRIMARY KEY (pkey)
+) MASTER_1_ENGINE DEFAULT CHARACTER SET utf8 MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    txt_utf8 char(8) NOT NULL,
+    PRIMARY KEY (pkey)
+) $MASTER_1_ENGINE DEFAULT CHARACTER SET utf8 $MASTER_1_COMMENT_2_1;
+--enable_query_log
+INSERT INTO tbl_a (pkey,txt_utf8) VALUES (0,'01234567'),(1,'12345678'),(2,'23456789'),(3,'34567890'),(4,'45678901'),(5,'56789012'),(6,'67890123'),(7,'78901234'),(8,'89012345'),(9,'90123456');
+FLUSH TABLES;
+
+--echo
+--echo test 1
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+SET NAMES utf8;
+SELECT `pkey`, LEFT(`txt_utf8`, 4) FROM `auto_test_local`.`tbl_a` ORDER BY LEFT(`txt_utf8`, 4) LIMIT 3;
+
+--connection child2_1
+SET NAMES utf8;
+eval $CHILD2_1_SELECT_ARGUMENT1;
+eval $CHILD2_1_SELECT_TABLES;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/select_with_backquote_deinit.inc
+--echo
+--echo end of test

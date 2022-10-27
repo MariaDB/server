@@ -1,0 +1,78 @@
+#
+# Test non-ascii table, column and index names
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $wsrep_sync_wait_orig = (SELECT @@wsrep_sync_wait)
+SET GLOBAL wsrep_sync_wait = 15;
+
+--connection node_2
+SET GLOBAL wsrep_sync_wait = 15;
+
+--connection node_1
+
+--let $innodb_num_tables_orig = `SELECT COUNT(*) FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES`
+
+# Spaces in identifiers
+
+CREATE DATABASE `database with space`;
+USE `database with space`;
+CREATE TABLE `table with space` (
+	`column with space` INTEGER AUTO_INCREMENT PRIMARY KEY,
+	`second column with space` INTEGER,
+	UNIQUE `index name with space` (`second column with space`)
+) engine=innodb;
+INSERT INTO `table with space` VALUES (1, 1);
+
+# Unicode identifiers
+
+CREATE DATABASE `база`;
+USE `база`;
+CREATE TABLE `таблица` (
+	`първа_колона` INTEGER PRIMARY KEY,
+	`втора_колона` INTEGER,
+	UNIQUE `индекс` (`втора_колона`)
+) engine=innodb;
+
+INSERT INTO `таблица` VALUES (1, 1);
+
+# Without a PK
+
+CREATE DATABASE `втора база`;
+USE `втора база`;
+CREATE TABLE `втора таблица` (
+	`първа колона` INTEGER,
+	`втора колона` INTEGER,
+	KEY `първи индекс` (`първа колона`)
+) engine=innodb;
+
+INSERT INTO `втора таблица` VALUES (1, 1);
+
+--connection node_2
+# Wait until 3 above tables with databases are created also to this node
+--let $wait_condition = SELECT COUNT(*) = $innodb_num_tables_orig + 3 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES;
+--source include/wait_condition.inc
+
+USE `database with space`;
+SELECT `second column with space` FROM `table with space`;
+
+USE `база`;
+SELECT * FROM `таблица`;
+
+USE `втора база`;
+SELECT `втора колона` FROM `втора таблица`;
+
+--eval SET GLOBAL wsrep_sync_wait = $wsrep_sync_wait_orig
+
+--connection node_1
+DROP TABLE `database with space`.`table with space`;
+DROP TABLE `база`.`таблица`;
+DROP TABLE `втора база`.`втора таблица`;
+
+DROP DATABASE `database with space`;
+DROP DATABASE `база`;
+DROP DATABASE `втора база`;
+--eval SET GLOBAL wsrep_sync_wait = $wsrep_sync_wait_orig
+

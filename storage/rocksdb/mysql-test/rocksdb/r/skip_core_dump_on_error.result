@@ -1,0 +1,31 @@
+create table mz(c int);
+affected rows: 0
+insert into mz values(1);
+affected rows: 1
+commit;
+affected rows: 0
+SET debug= '+d,abort_with_io_write_error';
+affected rows: 0
+set global binlog_error_action=1;
+affected rows: 0
+show session variables like 'debug';
+Variable_name	Value
+debug	d,abort_with_io_write_error
+affected rows: 1
+show global variables like 'binlog_error_action';
+Variable_name	Value
+binlog_error_action	ABORT_SERVER
+affected rows: 1
+show global variables like 'skip_core_dump_on_error';
+Variable_name	Value
+skip_core_dump_on_error	ON
+affected rows: 1
+# crash_during_update
+update mz set c=13;
+ERROR HY000: Binary logging not possible. Message: An error occurred during sync stage of the commit. 'binlog_error_action' is set to 'ABORT_SERVER'. Hence aborting the server.
+# server aborted
+Pattern "mysqld got signal 6" found
+# but no core written
+Pattern "Writing a core file" not found
+drop table mz;
+affected rows: 0

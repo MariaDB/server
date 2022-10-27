@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS memos;
+SET NAMES utf8;
+CREATE TABLE memos (
+content TEXT,
+FULLTEXT INDEX (content)
+) DEFAULT CHARSET=utf8;
+INSERT INTO memos VALUES ("Today is good day.");
+INSERT INTO memos VALUES ("Tomorrow will be good day.");
+INSERT INTO memos VALUES ("Yesterday was good day.");
+INSERT INTO memos VALUES ("Today is fine.");
+INSERT INTO memos VALUES ("Tomorrow will be fine.");
+INSERT INTO memos VALUES ("Yesterday was fine.");
+SELECT * FROM memos
+WHERE MATCH (content) AGAINST ("*D- good +day be" IN BOOLEAN MODE);
+content
+Today is good day.
+Yesterday was good day.
+DROP TABLE memos;

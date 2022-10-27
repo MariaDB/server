@@ -1,0 +1,36 @@
+'\" t
+.\"
+.TH "\FBGALERA_NEW_CLUSTER\FR" "1" "28 March 2019" "MariaDB 10\&.4" "MariaDB Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.SH NAME
+galera_new_cluster \- starting a new Galera cluster
+.SH DESCRIPTION
+Used to bootstrap a new Galera Cluster when all nodes are down\&.
+Run galera_new_cluster on the first node only\&.
+On the remaining nodes simply run 'service @DAEMON_NAME@ start'\&.
+.PP
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" galera_new_cluster: help option
+.\" help option: galera_new_cluster
+\fB\-\-help\fR,
+\fB\-h\fR
+.sp
+Display a help message and exit\&.
+.PP
+.sp
+.SH "SEE ALSO"
+For more information on configuration and usage see 
+https://mariadb.com/kb/en/mariadb/getting-started-with-mariadb-galera-cluster/

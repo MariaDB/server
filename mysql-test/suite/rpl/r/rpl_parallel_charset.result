@@ -1,0 +1,92 @@
+include/rpl_init.inc [topology=1->2]
+*** MDEV-6156: Parallel replication incorrectly caches charset between worker threads ***
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=5;
+include/start_slave.inc
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100) CHARACTER SET utf8);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) CHARACTER SET utf8 DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SET character_set_client=latin1;
+INSERT INTO t1 VALUES (1, 'R�dgr�d med fl�de 1');
+INSERT INTO t1 VALUES (2, 'R�dgr�d med fl�de 2');
+INSERT INTO t1 VALUES (3, 'R�dgr�d med fl�de 3');
+INSERT INTO t1 VALUES (4, 'R�dgr�d med fl�de 4');
+INSERT INTO t1 VALUES (5, 'R�dgr�d med fl�de 5');
+INSERT INTO t1 VALUES (6, 'R�dgr�d med fl�de 6');
+INSERT INTO t1 VALUES (7, 'R�dgr�d med fl�de 7');
+INSERT INTO t1 VALUES (8, 'R�dgr�d med fl�de 8');
+INSERT INTO t1 VALUES (9, 'R�dgr�d med fl�de 9');
+INSERT INTO t1 VALUES (10, 'R�dgr�d med fl�de 10');
+SET character_set_client=utf8;
+INSERT INTO t1 VALUES (11, 'Rødgrød med fløde 1');
+INSERT INTO t1 VALUES (12, 'Rødgrød med fløde 2');
+INSERT INTO t1 VALUES (13, 'Rødgrød med fløde 3');
+INSERT INTO t1 VALUES (14, 'Rødgrød med fløde 4');
+INSERT INTO t1 VALUES (15, 'Rødgrød med fløde 5');
+INSERT INTO t1 VALUES (16, 'Rødgrød med fløde 6');
+INSERT INTO t1 VALUES (17, 'Rødgrød med fløde 7');
+INSERT INTO t1 VALUES (18, 'Rødgrød med fløde 8');
+INSERT INTO t1 VALUES (19, 'Rødgrød med fløde 9');
+INSERT INTO t1 VALUES (20, 'Rødgrød med fløde 10');
+SET character_set_results=utf8;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	Rødgrød med fløde 1
+2	Rødgrød med fløde 2
+3	Rødgrød med fløde 3
+4	Rødgrød med fløde 4
+5	Rødgrød med fløde 5
+6	Rødgrød med fløde 6
+7	Rødgrød med fløde 7
+8	Rødgrød med fløde 8
+9	Rødgrød med fløde 9
+10	Rødgrød med fløde 10
+11	Rødgrød med fløde 1
+12	Rødgrød med fløde 2
+13	Rødgrød med fløde 3
+14	Rødgrød med fløde 4
+15	Rødgrød med fløde 5
+16	Rødgrød med fløde 6
+17	Rødgrød med fløde 7
+18	Rødgrød med fløde 8
+19	Rødgrød med fløde 9
+20	Rødgrød med fløde 10
+connection server_2;
+SET character_set_results=utf8;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	Rødgrød med fløde 1
+2	Rødgrød med fløde 2
+3	Rødgrød med fløde 3
+4	Rødgrød med fløde 4
+5	Rødgrød med fløde 5
+6	Rødgrød med fløde 6
+7	Rødgrød med fløde 7
+8	Rødgrød med fløde 8
+9	Rødgrød med fløde 9
+10	Rødgrød med fløde 10
+11	Rødgrød med fløde 1
+12	Rødgrød med fløde 2
+13	Rødgrød med fløde 3
+14	Rødgrød med fløde 4
+15	Rødgrød med fløde 5
+16	Rødgrød med fløde 6
+17	Rødgrød med fløde 7
+18	Rødgrød med fløde 8
+19	Rødgrød med fløde 9
+20	Rødgrød med fløde 10
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1;
+include/rpl_end.inc

@@ -1,0 +1,40 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
+SET GLOBAL wsrep_slave_threads = 2;
+LOCK TABLE t1 READ;
+connection node_1;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+connection node_2a;
+SET SESSION wsrep_sync_wait=0;
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE '%committing%';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE '%Waiting for table metadata lock%';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM t2;
+COUNT(*) = 0
+1
+connection node_2;
+UNLOCK TABLES;
+connection node_2a;
+SET SESSION wsrep_sync_wait = 15;;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t2;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 2  FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE '%committed%';
+COUNT(*) = 2
+1
+SET GLOBAL wsrep_slave_threads = 1;;
+DROP TABLE t1;
+DROP TABLE t2;

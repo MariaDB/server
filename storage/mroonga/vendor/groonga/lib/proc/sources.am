@@ -1,0 +1,18 @@
+libgrnproc_la_SOURCES =				\
+	proc_column.c				\
+	proc_config.c				\
+	proc_dump.c				\
+	proc_fuzzy_search.c			\
+	proc_highlight.c			\
+	proc_in_records.c			\
+	proc_lock.c				\
+	proc_object.c				\
+	proc_object_inspect.c			\
+	proc_object_list.c			\
+	proc_query.c				\
+	proc_query_log_flags.c			\
+	proc_schema.c				\
+	proc_select.c				\
+	proc_snippet.c				\
+	proc_table.c				\
+	proc_tokenize.c

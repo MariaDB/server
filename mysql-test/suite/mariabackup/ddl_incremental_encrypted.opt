@@ -1,0 +1,7 @@
+--plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+--innodb-file-per-table
+--innodb-encryption-threads=4
+--innodb-encrypt-tables
+--innodb-encrypt-log
+--loose-file-key-management
+--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt

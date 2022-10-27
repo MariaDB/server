@@ -1,0 +1,38 @@
+#
+#  Test how MyRocks behaves when RocksDB reports corrupted data.
+#
+#
+#  Test server crashes on corrupted data and restarts
+#
+create table t1 (
+pk int not null primary key,
+col1 varchar(10)
+) engine=rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+select * from t1 where pk=1;
+pk	col1
+1	1
+set session debug_dbug= "+d,rocksdb_return_status_corrupted";
+select * from t1 where pk=1;
+ERROR HY000: Lost connection to MySQL server during query
+FOUND 1 /data corruption detected/ in allow_to_start_after_corruption_debug.err
+#
+#  The same for scan queries
+#
+select * from t1;
+pk	col1
+1	1
+2	2
+3	3
+set session debug_dbug= "+d,rocksdb_return_status_corrupted";
+select * from t1;
+ERROR HY000: Lost connection to MySQL server during query
+FOUND 1 /data corruption detected/ in allow_to_start_after_corruption_debug.err
+#
+#  Test restart failure. The server is shutdown at this point.
+#
+FOUND 1 /The server will exit normally and stop restart attempts/ in allow_to_start_after_corruption_debug.err
+#
+#  Remove corruption file and restart cleanly
+#
+drop table t1;

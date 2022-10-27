@@ -1,0 +1,194 @@
+#
+# Verify that the wsrep XID gets updated in InnoDB rollback segment
+# properly and can be recovered with --wsrep-recover
+#
+# The test runs the following scenarios:
+#
+# 1) The server is started but no SQL is run
+# 2) DDL is executed
+# 3) INSERT is executed
+# 4) Two INSERTs are executed so that the first one in order will be
+#    blocked after certification and the second one before entering
+#    commit order critical section.
+# 5) Two DMLs are executed so that the prepare step is run out of order.
+#    Both transactions are blocked before commit order critical section.
+#
+# After each scenario server is killed and the recovered position
+# is validated.
+#
+
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_debug_sync.inc
+
+# Binlog option for recovery run. This must be set in the test because
+# combinations file causes log-bin option to be set from command line,
+# not via my.cnf.
+#
+--let $log_bin = `SELECT @@log_bin`
+if ($log_bin) {
+--let $wsrep_recover_binlog_opt = --log-bin
+}
+
+#
+# Scenario 1
+# The expected recovered seqno is 1 corresponding to initial cluster
+# configuration change.
+#
+let $restart_noprint=2;
+--source include/kill_mysqld.inc
+--source wsrep-recover-step.inc
+--echo Expect seqno 1
+--echo $wsrep_recover_start_position_seqno
+
+--let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+#
+# Senario 2
+# The expected recovered seqno is 3 corresponding to two configuration
+# change events and CREATE TABLE.
+#
+let $restart_noprint=2;
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+--source include/kill_mysqld.inc
+--source wsrep-recover-step.inc
+--echo Expect seqno 3
+--echo $wsrep_recover_start_position_seqno
+
+--let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+#
+# Scenario 3
+# The expected recovered seqno is 5 corresponding to three configuration
+# change events, CREATE TABLE and INSERT.
+#
+# The expected wsrep_last_committed after the server is restarted is 6.
+#
+let $restart_noprint=2;
+
+INSERT INTO t1 VALUES (5);
+--source include/kill_mysqld.inc
+--source wsrep-recover-step.inc
+--echo Expect seqno 5
+--echo $wsrep_recover_start_position_seqno
+--let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+SELECT VARIABLE_VALUE `expect 6` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
+
+#
+# Scenario 4
+#
+# This will cause the following
+#
+# Seqno 7 - the first INSERT is blocked after it is certified but before
+#           it gets prepared
+# Seqno 8 - the second INSERT is blocked before it will be ordered for
+#           commit, so it becomes prepared
+#
+# As an outcome, the recovery process should return seqno 6 because
+# the range of prepared transactions found after the crash recovery
+# is not continuous up to 8.
+#
+# The expected wsrep_last_committed after server is restarted is 7.
+#
+
+# Send INSERT which will block after certification
+--connect con1, localhost, root
+SET DEBUG_SYNC = "wsrep_after_certification SIGNAL after_certification_reached WAIT_FOR continue";
+--send INSERT INTO t1 VALUES (7)
+
+--connect con_ctrl, localhost, root
+SET DEBUG_SYNC = "now WAIT_FOR after_certification_reached";
+
+# Send INSERT which will block before commit order critical section
+--connect con2, localhost, root
+SET DEBUG_SYNC = "wsrep_before_commit_order_enter SIGNAL before_commit_order_reached WAIT_FOR continue";
+--send INSERT INTO t1 VALUES (8)
+
+--connection con_ctrl
+SET DEBUG_SYNC = "now WAIT_FOR before_commit_order_reached";
+
+--connection default
+let $restart_noprint=2;
+--source include/kill_mysqld.inc
+--source wsrep-recover-step.inc
+--echo Expect seqno 6
+--echo $wsrep_recover_start_position_seqno
+--let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+--disconnect con1
+--disconnect con2
+--disconnect con_ctrl
+--connection default
+
+SELECT VARIABLE_VALUE `expect 7` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
+
+#
+# Scenario 5
+#
+# This scenario will run two INSERTs in parallel so that they are
+# prepared out of order. The execution is stopped before commit
+# and the server is killed.
+#
+# The transactions will be recovered from InnoDB but
+# will be rolled back:
+# - If binlog is on, the binlog acts as a transaction coordinator.
+#   The transaction is not logged into binlog, so the transaction is rolled
+#   back.
+# - If binlog is not on, the transaction is 1PC and the wsrep XID
+#   is not persisted before commit is complete.
+#
+
+--connect con1, localhost, root
+SET DEBUG_SYNC = "wsrep_after_certification SIGNAL after_certification_reached WAIT_FOR continue_after_certification";
+SET DEBUG_SYNC = "wsrep_before_commit_order_enter SIGNAL before_commit_order_reached_1 WAIT_FOR continue_before_commit_order_1";
+--send INSERT INTO t1 VALUES (9)
+
+--connect con_ctrl, localhost, root
+SET DEBUG_SYNC = "now WAIT_FOR after_certification_reached";
+
+--connect con2, localhost, root
+SET DEBUG_SYNC = "wsrep_before_commit_order_enter SIGNAL before_commit_order_reached_2 WAIT_FOR continue_before_commit_order_2";
+--send INSERT INTO t1 VALUES (10)
+
+--connection con_ctrl
+SET DEBUG_SYNC = "now WAIT_FOR before_commit_order_reached_2";
+SET DEBUG_SYNC = "now SIGNAL continue_after_certification";
+SET DEBUG_SYNC = "now WAIT_FOR before_commit_order_reached_1";
+
+--connection default
+let $restart_noprint=2;
+--source include/kill_mysqld.inc
+--source wsrep-recover-step.inc
+--echo Expect seqno 7
+
+--echo $wsrep_recover_start_position_seqno
+--let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+--disconnect con1
+--disconnect con2
+--disconnect con_ctrl
+--connection default
+
+
+SELECT VARIABLE_VALUE `expect 8` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
+
+#
+# Final sanity check: The successful inserts into t1 should result single row
+#
+--echo Expect row 5
+SELECT * FROM t1;
+
+DROP TABLE t1;

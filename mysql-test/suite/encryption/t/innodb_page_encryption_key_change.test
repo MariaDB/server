@@ -1,0 +1,77 @@
+-- source include/have_innodb.inc
+-- source include/have_file_key_management_plugin.inc
+# embedded does not support restart
+-- source include/not_embedded.inc
+
+-- let $restart_parameters=--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+-- source include/restart_mysqld.inc
+
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+show warnings;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=2;
+show warnings;
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed encrypted=yes encryption_key_id=3;
+show warnings;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=4;
+show warnings;
+create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encrypted=yes encryption_key_id=5;
+show warnings;
+
+insert into innodb_normal values (1,'test1'),(2,'foo'),(3,'bar'),(4,'mariadb');
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_compressed select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+insert into innodb_redundant select * from innodb_normal;
+
+# Note there that these variables are updated only when real I/O is done, thus they are not reliable
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+
+alter table innodb_compact engine=innodb encryption_key_id = 6;
+alter table innodb_compressed engine=innodb encryption_key_id = 6;
+alter table innodb_dynamic engine=innodb encryption_key_id = 6;
+alter table innodb_redundant engine=innodb encryption_key_id = 6;
+
+select * from innodb_normal;
+select * from innodb_compact;
+select * from innodb_compressed;
+select * from innodb_dynamic;
+select * from innodb_redundant;
+
+# Note there that these variables are updated only when real I/O is done, thus they are not reliable
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+
+-- let $restart_parameters=--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
+-- source include/restart_mysqld.inc
+
+select * from innodb_normal;
+select * from innodb_compact;
+select * from innodb_compressed;
+select * from innodb_dynamic;
+select * from innodb_redundant;
+
+# Note there that these variables are updated only when real I/O is done, thus they are not reliable
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+
+alter table innodb_compact engine=innodb encryption_key_id = 2;
+alter table innodb_compressed engine=innodb encryption_key_id = 3;
+alter table innodb_dynamic engine=innodb encryption_key_id = 4;
+alter table innodb_redundant engine=innodb encryption_key_id = 5;
+
+select * from innodb_normal;
+select * from innodb_compact;
+select * from innodb_compressed;
+select * from innodb_dynamic;
+select * from innodb_redundant;
+
+# Note there that these variables are updated only when real I/O is done, thus they are not reliable
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_compressed;
+drop table innodb_dynamic;
+drop table innodb_redundant;

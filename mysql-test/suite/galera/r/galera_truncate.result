@@ -1,0 +1,49 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+TRUNCATE TABLE t1;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+connection node_1;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+connection node_2;
+CREATE TABLE t2 (f1 VARCHAR(255)) Engine=InnoDB;
+INSERT INTO t2 VALUES ('abc');
+connection node_1;
+TRUNCATE TABLE t2;
+connection node_2;
+SELECT COUNT(*) = 0 FROM t2;
+COUNT(*) = 0
+1
+connection node_1;
+CREATE TABLE t3 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t3 VALUES (DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT);
+CREATE TABLE t4 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB AUTO_INCREMENT=1234;
+INSERT INTO t4 VALUES (DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT);
+TRUNCATE TABLE t3;
+TRUNCATE TABLE t4;
+connection node_2;
+SELECT AUTO_INCREMENT = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('t3', 't4');
+AUTO_INCREMENT = 1
+1
+1
+connection node_1;
+TRUNCATE TABLE mysql.user;
+ERROR 42S02: Table 'mysql.user' doesn't exist
+TRUNCATE TABLE performance_schema.threads;
+ERROR HY000: Invalid performance_schema usage
+TRUNCATE TABLE information_schema.tables;
+ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+TRUNCATE TABLE mysql.innodb_index_stats;
+TRUNCATE TABLE foo.bar;
+ERROR 42S02: Table 'foo.bar' doesn't exist
+TRUNCATE TABLE t1;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+DROP TABLE t4;

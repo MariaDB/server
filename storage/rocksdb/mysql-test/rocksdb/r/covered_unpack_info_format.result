@@ -1,0 +1,73 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+id INT,
+fake_id INT,
+bigfield VARCHAR(4096),
+PRIMARY KEY (id),
+KEY bf (bigfield(32)),
+KEY fid (fake_id, bigfield(32))
+) ENGINE=rocksdb;
+INSERT INTO t1 VALUES (1, 1001, REPEAT('a', 1)),
+(8, 1008, REPEAT('b', 8)),
+(24, 1024, REPEAT('c', 24)),
+(31, 1031, REPEAT('d', 31)),
+(32, 1032, REPEAT('x', 32)),
+(33, 1033, REPEAT('y', 33)),
+(128, 1128, REPEAT('z', 128));
+SELECT * FROM t1;
+id	fake_id	bigfield
+1	1001	a
+8	1008	bbbbbbbb
+24	1024	cccccccccccccccccccccccc
+31	1031	ddddddddddddddddddddddddddddddd
+32	1032	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+33	1033	yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+128	1128	zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+# Eligible for optimization, access via fake_id only
+SELECT id, bigfield FROM t1 FORCE INDEX(fid) WHERE fake_id = 1031;
+id	bigfield
+31	ddddddddddddddddddddddddddddddd
+include/assert.inc [Eligible for optimization, access via fake_id only: 2 rocksdb_covered_secondary_key_lookups]
+# Not eligible for optimization, access via fake_id of big row.
+SELECT id, bigfield FROM t1 FORCE INDEX(fid) WHERE fake_id = 1033;
+id	bigfield
+33	yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+include/assert.inc [Not eligible for optimization, access via fake_id of big row.: 0 rocksdb_covered_secondary_key_lookups]
+DROP TABLE t1;
+set session debug= '+d,MYROCKS_NO_COVERED_BITMAP_FORMAT';
+CREATE TABLE t1 (
+id INT,
+fake_id INT,
+bigfield VARCHAR(4096),
+PRIMARY KEY (id),
+KEY bf (bigfield(32)),
+KEY fid (fake_id, bigfield(32))
+) ENGINE=rocksdb;
+set session debug= '-d,MYROCKS_NO_COVERED_BITMAP_FORMAT';
+INSERT INTO t1 VALUES (1, 1001, REPEAT('a', 1)),
+(8, 1008, REPEAT('b', 8)),
+(24, 1024, REPEAT('c', 24)),
+(31, 1031, REPEAT('d', 31)),
+(32, 1032, REPEAT('x', 32)),
+(33, 1033, REPEAT('y', 33)),
+(128, 1128, REPEAT('z', 128));
+SELECT * FROM t1;
+id	fake_id	bigfield
+1	1001	a
+8	1008	bbbbbbbb
+24	1024	cccccccccccccccccccccccc
+31	1031	ddddddddddddddddddddddddddddddd
+32	1032	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+33	1033	yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+128	1128	zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+# No longer eligible for optimization since no covered bitmap was stored.
+SELECT id, bigfield FROM t1 FORCE INDEX(fid) WHERE fake_id = 1031;
+id	bigfield
+31	ddddddddddddddddddddddddddddddd
+include/assert.inc [No longer eligible for optimization since no covered bitmap was stored.: 0 rocksdb_covered_secondary_key_lookups]
+# Not eligible for optimization.
+SELECT id, bigfield FROM t1 FORCE INDEX(fid) WHERE fake_id = 1033;
+id	bigfield
+33	yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+include/assert.inc [Not eligible for optimization.: 0 rocksdb_covered_secondary_key_lookups]
+DROP TABLE t1;

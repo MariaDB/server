@@ -1,0 +1,3 @@
+--loose-innodb-sys-indexes
+--loose-innodb-sys-tablespaces
+--loose-innodb-sys-datafiles

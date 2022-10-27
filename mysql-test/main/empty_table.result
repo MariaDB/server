@@ -1,0 +1,18 @@
+drop table if exists t1;
+create table t1 (nr int(5) not null auto_increment,b blob,str char(10), primary key (nr));
+select count(*) from t1;
+count(*)
+0
+select * from t1;
+nr	b	str
+select * from t1 limit 0;
+nr	b	str
+show status like "Empty_queries";
+Variable_name	Value
+Empty_queries	2
+drop table t1;
+select * from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+show status like "Empty_queries";
+Variable_name	Value
+Empty_queries	2

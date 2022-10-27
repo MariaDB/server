@@ -1,0 +1,53 @@
+#
+# wsrep_max_ws_size
+#
+# default
+SELECT @@global.wsrep_max_ws_size;
+@@global.wsrep_max_ws_size
+2147483647
+
+# scope
+SELECT @@session.wsrep_max_ws_size;
+ERROR HY000: Variable 'wsrep_max_ws_size' is a GLOBAL variable
+SET @@global.wsrep_max_ws_size=1;
+ERROR HY000: WSREP (galera) not started
+SELECT @@global.wsrep_max_ws_size;
+@@global.wsrep_max_ws_size
+2147483647
+
+# valid values
+SET @@global.wsrep_max_ws_size=1073741824;
+ERROR HY000: WSREP (galera) not started
+SELECT @@global.wsrep_max_ws_size;
+@@global.wsrep_max_ws_size
+2147483647
+SET @@global.wsrep_max_ws_size=1073741825;
+ERROR HY000: WSREP (galera) not started
+SELECT @@global.wsrep_max_ws_size;
+@@global.wsrep_max_ws_size
+2147483647
+SET @@global.wsrep_max_ws_size=0;
+ERROR HY000: WSREP (galera) not started
+SELECT @@global.wsrep_max_ws_size;
+@@global.wsrep_max_ws_size
+2147483647
+SET @@global.wsrep_max_ws_size=default;
+ERROR HY000: WSREP (galera) not started
+SELECT @global.wsrep_max_ws_size;
+@global.wsrep_max_ws_size
+NULL
+
+# invalid values
+SET @@global.wsrep_max_ws_size=NULL;
+ERROR 42000: Incorrect argument type to variable 'wsrep_max_ws_size'
+SET @@global.wsrep_max_ws_size='junk';
+ERROR 42000: Incorrect argument type to variable 'wsrep_max_ws_size'
+SELECT @global.wsrep_max_ws_size;
+@global.wsrep_max_ws_size
+NULL
+SET @@global.wsrep_max_ws_size=-1;
+ERROR HY000: WSREP (galera) not started
+SELECT @global.wsrep_max_ws_size;
+@global.wsrep_max_ws_size
+NULL
+# End of test

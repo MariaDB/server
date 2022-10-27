@@ -1,0 +1,28 @@
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[123]\\.ibd' cannot be decrypted\\.");
+call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
+call mtr.add_suppression("InnoDB: Unable to decompress ..test.t[1-3]\\.ibd\\[page id: space=[1-9][0-9]*, page number=[0-9]+\\]");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` is corrupted");
+# Restart mysqld --file-key-management-filename=keys2.txt
+# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
+SET GLOBAL innodb_file_per_table = ON;
+set GLOBAL innodb_default_encryption_key_id=4;
+create table t1(a int not null primary key, b blob, index(b(10))) engine=innodb row_format=compressed;
+create table t2(a int not null primary key, b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes;
+create table t3(a int not null primary key, b blob, index(b(10))) engine=innodb row_format=compressed encrypted=no;
+Warnings:
+Warning	140	InnoDB: ENCRYPTED=NO implies ENCRYPTION_KEY_ID=1
+insert into t1 values (1, repeat('secret',6000));
+insert into t2 values (1, repeat('secret',6000));
+insert into t3 values (1, repeat('secret',6000));
+# Restart mysqld --file-key-management-filename=keys3.txt
+# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys3.txt
+select count(*) from t1 FORCE INDEX (b) where b like 'secret%';
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
+select count(*) from t2 FORCE INDEX (b) where b like 'secret%';
+ERROR 42S02: Table 'test.t2' doesn't exist in engine
+select count(*) from t3 FORCE INDEX (b) where b like 'secret%';
+count(*)
+1
+# Restart mysqld --file-key-management-filename=keys2.txt
+# restart: --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
+drop table t1,t2,t3;

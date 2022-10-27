@@ -1,0 +1,1 @@
+ --log-bin --log-slave-updates --loose-galera-sr-gtid-unique

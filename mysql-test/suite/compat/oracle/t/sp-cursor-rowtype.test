@@ -1,0 +1,1597 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-12011 sql_mode=ORACLE: cursor%ROWTYPE in variable declarations
+--echo #
+
+--echo #
+--echo # A complete working example
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (10,'b10');
+INSERT INTO t1 VALUES (20,'b20');
+INSERT INTO t1 VALUES (30,'b30');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR c IS SELECT a,b FROM t1;
+BEGIN
+  DECLARE
+    rec c%ROWTYPE; 
+  BEGIN
+    OPEN c;
+    LOOP
+      FETCH c INTO rec;
+      EXIT WHEN c%NOTFOUND;
+      SELECT 'rec=(' || rec.a ||','|| rec.b||')' AS c FROM dual;
+      INSERT INTO t2 VALUES (rec.a, rec.b);
+    END LOOP;
+    CLOSE c;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # cursor%ROWTYPE referring to a table in a non-existing database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur IS SELECT * FROM tes2.t1;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE;
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+--error ER_NO_SUCH_TABLE
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # cursor%ROWTYPE referring to a table in the current database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE;
+  BEGIN
+    CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+    SHOW CREATE TABLE t2;
+    DROP TABLE t2;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+DROP TABLE t1;
+--error ER_NO_SUCH_TABLE
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # cursor%ROWTYPE referring to a table in an explicitly specified database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur IS SELECT * FROM test.t1;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE;
+  BEGIN
+    CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+    SHOW CREATE TABLE t2;
+    DROP TABLE t2;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+ 
+ 
+--echo #
+--echo # Cursor%ROWTYPE referring to a view in the current database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur IS SELECT * FROM v1;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE;
+  BEGIN
+    CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+    SHOW CREATE TABLE t2;
+    DROP TABLE t2;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CREATE VIEW v1 AS SELECT * FROM t1;
+CALL p1();
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # cursor%ROWTYPE referring to a view in an explicitly specified database
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur IS SELECT * FROM test.v1;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE;
+  BEGIN
+    CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+    SHOW CREATE TABLE t2;
+    DROP TABLE t2;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CREATE VIEW v1 AS SELECT * FROM t1;
+CALL p1();
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Checking that all cursor%ROWTYPE fields are NULL by default
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+  BEGIN
+    SELECT rec1.a, rec1.b, rec1.c, rec1.d;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A cursor%ROWTYPE variable with a ROW expression as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE := ROW(10,'bbb');
+  BEGIN
+    SELECT rec1.a, rec1.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A cursor%ROWTYPE variable with an incompatible ROW expression as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE := ROW(10,'bbb','ccc');
+  BEGIN
+    SELECT rec1.a, rec1.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A cursor%ROWTYPE variable with a ROW variable as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 ROW(a INT, b VARCHAR(10)):= ROW(10,'bbb');
+    rec2 cur%ROWTYPE := rec1;
+  BEGIN
+    SELECT rec2.a, rec2.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A ROW variable using a cursor%ROWTYPE variable as a default
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE := ROW(10,'bbb');
+    rec2 ROW(a INT, b VARCHAR(10)):= rec1;
+  BEGIN
+    SELECT rec2.a, rec2.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning cursor%ROWTYPE variables with a different column count
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE);
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  CURSOR cur2 IS SELECT * FROM t2;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+    rec2 cur2%ROWTYPE;
+  BEGIN
+    rec2:=rec1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP PROCEDURE p1;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  CURSOR cur2 IS SELECT * FROM t2;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+    rec2 cur2%ROWTYPE;
+  BEGIN
+    rec1:=rec2;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning compatible cursor%ROWTYPE variables (equal number of fields)
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (x INT, y VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  CURSOR cur2 IS SELECT * FROM t2;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+    rec2 cur2%ROWTYPE;
+  BEGIN
+    rec1.a:= 10;
+    rec1.b:= 'bbb';
+    rec2:=rec1;
+    SELECT rec2.x, rec2.y;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Assigning between incompatible cursor%ROWTYPE and explicit ROW variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+    rec2 ROW(x INT,y INT,z INT);
+  BEGIN
+    rec2.x:= 10;
+    rec2.y:= 20;
+    rec2.z:= 30;
+    rec1:= rec2;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+ 
+ 
+--echo #
+--echo # Assigning between compatible cursor%ROWTYPE and explicit ROW variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+    rec2 ROW(x INT,y INT);
+  BEGIN
+    rec2.x:= 10;
+    rec2.y:= 20;
+    rec1:= rec2;
+    SELECT rec1.a, rec1.b;
+    rec1.a:= 11;
+    rec1.b:= 21;
+    rec2:= rec1;
+    SELECT rec2.x, rec2.y;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+ 
+ 
+--echo #
+--echo # Assigning cursor%ROWTYPE from a ROW expression
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+  BEGIN
+    rec1:= ROW(10,20);
+    SELECT rec1.a, rec1.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+ 
+ 
+--echo #
+--echo # Fetching a cursor into a cursor%ROWTYPE variable with a wrong field count
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  CURSOR cur2 IS SELECT * FROM t2;
+BEGIN
+  DECLARE
+    rec2 cur2%ROWTYPE;
+  BEGIN
+    OPEN cur1;
+    FETCH cur1 INTO rec2;
+    CLOSE cur1;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_WRONG_NO_OF_FETCH_ARGS
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+ 
+ 
+--echo #
+--echo # Fetching a cursor into a cursor%ROWTYPE variable
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+INSERT INTO t1 VALUES (20,'bb2',222.222e2, 12.32);
+INSERT INTO t1 VALUES (30,'bb3',333.333e2, 12.33);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE;
+  BEGIN
+    OPEN cur;
+    LOOP
+      FETCH cur INTO rec;
+      EXIT WHEN cur%NOTFOUND;
+      SELECT rec.a, rec.b, rec.c, rec.d;
+      INSERT INTO t2 VALUES (rec.a, rec.b, rec.c, rec.d);
+    END LOOP;
+    CLOSE cur;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Fetching a cursor into a cursor%ROWTYPE variable, cur%ROWTYPE declared inside the LOOP
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+INSERT INTO t1 VALUES (20,'bb2',222.222e2, 12.32);
+INSERT INTO t1 VALUES (30,'bb3',333.333e2, 12.33);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  OPEN cur;
+  LOOP
+    DECLARE
+      rec cur%ROWTYPE;
+    BEGIN
+      FETCH cur INTO rec;
+      EXIT WHEN cur%NOTFOUND;
+      SELECT rec.a, rec.b, rec.c, rec.d;
+      INSERT INTO t2 VALUES (rec.a, rec.b, rec.c, rec.d);
+    END;
+  END LOOP;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Fetching a cursor into a cursor%ROWTYPE variable with different column names
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (x INT, y VARCHAR(10));
+INSERT INTO t1 VALUES (10,'bbb');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  CURSOR cur2 IS SELECT * FROM t2;
+BEGIN
+  DECLARE
+    rec2 cur2%ROWTYPE;
+  BEGIN
+    OPEN cur1;
+    FETCH cur1 INTO rec2;
+    SELECT rec2.x, rec2.y;
+    CLOSE cur1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Fetching a cursor into a cursor%ROWTYPE variable, with truncation
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t1 VALUES (10,'11x');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  CURSOR cur2 IS SELECT * FROM t2;
+BEGIN
+  DECLARE
+    rec2 cur2%ROWTYPE;
+  BEGIN
+    OPEN cur1;
+    FETCH cur1 INTO rec2;
+    SELECT rec2.a, rec2.b;
+    CLOSE cur1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+ 
+ 
+--echo #
+--echo # cursor%ROWTYPE variables are not allowed in LIMIT
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+DELIMITER $$;
+--error ER_WRONG_SPVAR_TYPE_IN_LIMIT
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE:=(1,2);
+  BEGIN
+    SELECT * FROM t1 LIMIT rec1.a;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+ 
+--echo #
+--echo # cursor%ROWTYPE variable fields as OUT parameters
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(a OUT INT,b OUT VARCHAR(10))
+AS
+BEGIN
+  a:=10;
+  b:='bb';
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+  BEGIN
+    CALL p1(rec1.a, rec1.b);
+    SELECT rec1.a, rec1.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+ 
+ 
+--echo #
+--echo # Passing the entire cursor%ROWTYPE variable
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(a ROW(a INT, b VARCHAR(10)))
+AS
+BEGIN
+  SELECT a.a, a.b;
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur%ROWTYPE:= ROW(10,'bb');
+  BEGIN
+    CALL p1(rec1);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+ 
+ 
+--echo #
+--echo # Passing the entire cursor%ROWTYPE variable as an OUT parameter
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1(a OUT ROW(a INT, b VARCHAR(10)))
+AS
+BEGIN
+  a:= ROW(10,'bb');
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur%ROWTYPE;
+  BEGIN
+    CALL p1(rec1);
+    SELECT rec1.a, rec1.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Assigning a cursor%ROWTYPE field to an OUT parameter
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 (res IN OUT INTEGER)
+AS
+  a INT:=10;
+  CURSOR cur1 IS SELECT a FROM DUAL;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+  BEGIN
+    OPEN cur1;
+    FETCH cur1 INTO rec1;
+    CLOSE cur1;
+    res:=rec1.a;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1(@res);
+SELECT @res;
+SET @res=NULL;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Testing Item_splocal_row_field_by_name::print
+--echo #
+ 
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec cur1%ROWTYPE:=ROW(10,'bb');
+  BEGIN
+    EXPLAIN EXTENDED SELECT rec.a, rec.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Run time error in the cursor statement
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur1 IS SELECT
+    10 AS a,
+    CONCAT(_latin1'a' COLLATE latin1_bin,
+           _latin1'a' COLLATE latin1_swedish_ci) AS b;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+  BEGIN
+    OPEN cur1;
+    FETCH cur1 INTO rec1;
+    CLOSE cur1;
+  SELECT a,b;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_CANT_AGGREGATE_2COLLATIONS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+
+--echo #
+--echo # Non-existing field
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec cur1%ROWTYPE;
+  BEGIN
+    SELECT rec.c;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1();
+ALTER TABLE t1 ADD c INT;
+#
+# The below ALTER is needed as a workaround to call sp_cache_invalidate()
+# Please remove it after fixing MDEV-12166
+#
+ALTER PROCEDURE p1 COMMENT 'test';
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that field names are case insensitive
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE:=ROW(10,'bb');
+  BEGIN
+    SELECT rec.A, rec.B;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that cursor%ROWTYPE uses temporary tables vs shadowed real tables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TEMPORARY TABLE t1 (x INT, y VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE:=ROW(10,'bb');
+  BEGIN
+    SELECT rec.A, rec.B;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1();
+DROP TEMPORARY TABLE t1;
+#
+# The below ALTER is needed as a workaround to call sp_cache_invalidate()
+# Please remove it after fixing MDEV-12166
+#
+ALTER PROCEDURE p1 COMMENT 'test';
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+ 
+--echo #
+--echo # Testing that the structure of cursor%ROWTYPE variables is determined at the CURSOR instantiation time
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  DROP TABLE t1;
+  CREATE TABLE t1 (a INT, b VARCHAR(32), c INT);
+  DECLARE
+    rec cur%ROWTYPE; -- This has a column "c"
+  BEGIN
+    rec.c:=10;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur IS SELECT * FROM t1;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE; -- This does not have a column "c"
+  BEGIN
+    DROP TABLE t1;
+    CREATE TABLE t1 (a INT, b VARCHAR(32), c INT);
+    rec.c:=10;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Duplicate field nams in a cursor referenced by %ROWTYPE
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur IS SELECT * FROM t1, t2;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE;
+  BEGIN
+    SELECT rec.a;
+    rec.a:=10;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_DUP_FIELDNAME
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Tricky field names a cursor referenced by %ROWTYPE
+--echo #
+
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur IS SELECT a, CONCAT(a,'a'), CONCAT(a,'ö') FROM t1;
+BEGIN
+  DECLARE
+    rec cur%ROWTYPE;
+  BEGIN
+    OPEN cur;
+    FETCH cur INTO rec;
+    CLOSE cur;
+    SELECT rec.a, rec."CONCAT(a,'a')", rec."CONCAT(a,'ö')";
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET NAMES latin1;
+
+
+--echo #
+--echo # Using definitions recursively (cursor%ROWTYPE variables in another cursor SELECT)
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b1'),(20,'b2'),(30,'b3');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur1 IS SELECT a,b FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE:=ROW(0,'b0');
+    CURSOR cur2 IS SELECT rec1.a AS a, rec1.b AS b FROM t1;
+  BEGIN
+    DECLARE
+      rec2 cur2%ROWTYPE;
+    BEGIN
+      OPEN cur2;
+      LOOP
+        FETCH cur2 INTO rec2;
+        EXIT WHEN cur2%NOTFOUND;
+        SELECT rec2.a, rec2.b;
+      END LOOP;
+      CLOSE cur2;
+    END;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing queries with auto-generated Items.
+--echo # An instance of Item_func_conv_charset is created during the below SELECT query.
+--echo # We check here that during an implicit cursor OPEN
+--echo # done in sp_instr_cursor_copy_struct::exec_core()
+--echo # all temporary Items are created on a proper memory root and are safely destroyed.
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES (0xFF, 'a');
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur1 IS SELECT CONCAT(a,b) AS c FROM t1;
+BEGIN
+  DECLARE
+    rec1 cur1%ROWTYPE;
+  BEGIN
+    OPEN cur1;
+    FETCH cur1 INTO rec1;
+    CLOSE cur1;
+    SELECT HEX(rec1.c);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-10581 sql_mode=ORACLE: Explicit cursor FOR LOOP
+--echo #
+
+--echo # IN followed by a non-identifier
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN 10
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # IN followed by a quoted identifier: table.column
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN c1.c2
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # IN followed by a quoted identifier: .table.column
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN .c1.c2
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # IN followed by a quoted identifier: schema.table.column
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN c1.c2.c3
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # IN followed by an unknown cursor name
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN c2
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Make sure "rec" shadows other declarations outside the loop
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10, 'b0');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  rec INT:=10;
+  CURSOR c1 IS SELECT a,b FROM t1;
+BEGIN
+  FOR rec IN c1
+  LOOP
+    SELECT rec.a;
+  END LOOP;
+  SELECT rec;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo # Make sure "rec" is not visible after END LOOP
+
+DELIMITER $$;
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
+CREATE PROCEDURE p1 AS
+  CURSOR c1 IS SELECT 'test' AS a FROM DUAL;
+BEGIN
+  FOR rec IN c1
+  LOOP
+    NULL;
+  END LOOP;
+  rec.a:= 10;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Make sure that duplicate column names are not allowed
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  CURSOR cur IS SELECT 'a' AS a, 'A' as a;
+BEGIN
+  FOR rec IN cur
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+--error ER_DUP_FIELDNAME
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # A complete working example
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b0');
+INSERT INTO t1 VALUES (11,'b1');
+INSERT INTO t1 VALUES (12,'b2');
+CREATE TABLE t2 LIKE t1;
+CREATE TABLE t3 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS 
+  CURSOR cur IS SELECT a, b FROM t1;
+BEGIN
+  FOR rec IN cur
+  LOOP
+    SELECT rec.a, rec.b;
+    INSERT INTO t2 VALUES (rec.a, rec.b);
+    rec.a:= rec.a + 1000;
+    rec.b:= 'b' || rec.b;
+    INSERT INTO t3 VALUES (rec.a, rec.b);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+SELECT * FROM t3;
+DROP PROCEDURE p1;
+DROP TABLE t3;
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-12314 Implicit cursor FOR LOOP for cursors with parameters
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b0');
+INSERT INTO t1 VALUES (11,'b1');
+INSERT INTO t1 VALUES (12,'b2');
+DELIMITER $$;
+CREATE PROCEDURE p1(pa INT, pb VARCHAR(32)) AS 
+  CURSOR cur(va INT, vb VARCHAR(32)) IS
+    SELECT a, b FROM t1 WHERE a=va AND b=vb;
+BEGIN
+  FOR rec IN cur(pa,pb)
+  LOOP
+    SELECT rec.a, rec.b;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1(10,'B0');
+CALL p1(11,'B1');
+CALL p1(12,'B2');
+CALL p1(12,'non-existing');
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12098 sql_mode=ORACLE: Implicit cursor FOR loop
+--echo #
+
+--echo # Parse error in the cursor SELECT statement
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 AS 
+BEGIN
+  FOR rec IN (SELECT a, b FROM)
+  LOOP
+    SELECT rec.a, rec.b;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Make sure "rec" is not visible after END LOOP
+
+DELIMITER $$;
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
+CREATE PROCEDURE p1 AS
+BEGIN
+  FOR rec IN (SELECT 'test' AS a)
+  LOOP
+    NULL;
+  END LOOP;
+  rec.a:= 10;
+END;
+$$
+DELIMITER ;$$
+
+--echo # Make sure "rec" is not visible inside the SELECT statement
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  FOR rec IN (SELECT rec)
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+--error ER_BAD_FIELD_ERROR
+CALL p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  FOR rec IN (SELECT rec.a)
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNKNOWN_TABLE
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # Totally confusing name mixture
+
+CREATE TABLE rec (rec INT);
+INSERT INTO rec VALUES (10);
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  FOR rec IN (SELECT rec FROM rec)
+  LOOP
+    SELECT rec.rec;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE rec;
+
+
+--echo # Make sure that duplicate column names are not allowed
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  FOR rec IN (SELECT 'a' AS a, 'A' as a)
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+--error ER_DUP_FIELDNAME
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo # A complete working example
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b0');
+INSERT INTO t1 VALUES (11,'b1');
+INSERT INTO t1 VALUES (12,'b2');
+CREATE TABLE t2 LIKE t1;
+CREATE TABLE t3 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1 AS 
+BEGIN
+  FOR rec IN (SELECT a, b FROM t1)
+  LOOP
+    SELECT rec.a, rec.b;
+    INSERT INTO t2 VALUES (rec.a, rec.b);
+    rec.a:= rec.a + 1000;
+    rec.b:= 'b'|| rec.b;
+    INSERT INTO t3 VALUES (rec.a, rec.b);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+SELECT * FROM t3;
+DROP PROCEDURE p1;
+DROP TABLE t3;
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo # A combination of explicit and implicit cursors
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b1');
+INSERT INTO t1 VALUES (11,'b2');
+INSERT INTO t1 VALUES (12,'b3');
+DELIMITER $$;
+CREATE PROCEDURE p1 AS 
+BEGIN
+  FOR rec1 IN (SELECT a, b FROM t1)
+  LOOP
+    DECLARE
+      CURSOR cur2 IS SELECT a+1000 AS a, 'bb'||b AS b FROM t1 WHERE a=rec1.a AND b=rec1.b;
+    BEGIN
+      SELECT rec1.a, rec1.b;
+      FOR rec2 IN cur2
+      LOOP
+        SELECT rec2.a, rec2.b;
+      END LOOP;
+    END;
+  END LOOP;
+  FOR rec1 IN (SELECT a,b FROM t1)
+  LOOP
+    FOR rec2 IN (SELECT a+2000 AS a,'bbb'||b AS b FROM t1 WHERE a=rec1.a AND b=rec1.b)
+    LOOP
+      SELECT rec2.a, rec2.b;
+    END LOOP;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15941 Explicit cursor FOR loop does not close the cursor
+--echo #
+
+DELIMITER $$;
+--error ER_SP_CURSOR_NOT_OPEN
+DECLARE
+  CURSOR cur IS SELECT 1 AS a FROM DUAL;
+  v INT;
+BEGIN
+  FOR rec IN cur
+  LOOP
+    NULL;
+  END LOOP;
+  FETCH cur INTO v;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_SP_CURSOR_NOT_OPEN
+DECLARE
+  CURSOR cur IS SELECT 1 AS a FROM DUAL;
+  v INT;
+BEGIN
+<<label>>
+  FOR rec IN cur
+  LOOP
+    NULL;
+  END LOOP label;
+  FETCH cur INTO v;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_SP_CURSOR_ALREADY_OPEN
+DECLARE
+  CURSOR cur IS SELECT 1 AS a FROM DUAL;
+BEGIN
+  OPEN cur;
+  FOR rec IN cur
+  LOOP
+    NULL;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+DECLARE
+  CURSOR cur IS SELECT 1 AS a FROM DUAL;
+BEGIN
+  FOR rec IN cur
+  LOOP
+    SELECT rec.a;
+  END LOOP;
+  SELECT cur%ISOPEN;
+  FOR rec IN cur
+  LOOP
+    SELECT rec.a;
+  END LOOP;
+  SELECT cur%ISOPEN;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+DECLARE
+  CURSOR cur IS SELECT 1 AS a FROM DUAL;
+BEGIN
+<<label1>>
+  FOR rec IN cur
+  LOOP
+    SELECT rec.a;
+  END LOOP label1;
+  SELECT cur%ISOPEN;
+<<label2>>
+  FOR rec IN cur
+  LOOP
+    SELECT rec.a;
+  END LOOP;
+  SELECT cur%ISOPEN;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # MDEV-14139 Anchored data types for variables
+--echo #
+
+DELIMITER $$;
+DECLARE
+  CURSOR c1 IS SELECT 10 AS a, 'bbb' AS b, TIME'10:20:30' AS c;
+  row1 c1%ROWTYPE;
+  a_row1 row1%TYPE;
+  aa_row1 a_row1%TYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT a_row1.a AS a, a_row1.b AS b, a_row1.c AS c;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+  CREATE TABLE t2 AS SELECT aa_row1.a AS a, aa_row1.b AS b, aa_row1.c AS c;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # MDEV-14388 Server crashes in handle_select / val_uint in ORACLE mode
+--echo #
+
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN INT is
+BEGIN
+  FOR v1 in (SELECT id FROM t1)
+  LOOP
+    NULL;
+  END LOOP;
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN INT IS
+  CURSOR cur IS SELECT id FROM t1;
+  rec cur%ROWTYPE;
+BEGIN
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-17278 CURSOR FOR LOOP - ERROR: unexpected end of stream, read 0 bytes (SERVER CRASH)
+--echo #
+
+CREATE TABLE t1 (id2 int, id int, en1 enum('aaa','a','b','c'));
+INSERT INTO t1 VALUES(1,1,'aaa'),(2,2,'a'),(3,3,'b'),(4,4,'c');
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+BEGIN
+  FOR rec IN (SELECT en1 FROM t1)
+  LOOP
+    SELECT rec.en1;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;

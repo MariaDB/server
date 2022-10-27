@@ -1,0 +1,21 @@
+DROP TABLE IF EXISTS tags;
+DROP TABLE IF EXISTS bugs;
+CREATE TABLE tags (
+name VARCHAR(64) PRIMARY KEY
+) DEFAULT CHARSET=utf8 COMMENT='default_tokenizer "TokenDelimit"';
+CREATE TABLE bugs (
+id INT UNSIGNED PRIMARY KEY,
+tags VARCHAR(40) COMMENT 'type "tags"'
+) DEFAULT CHARSET=utf8;
+INSERT INTO tags (name) VALUES ("Groonga");
+INSERT INTO bugs (id, tags) VALUES (1, "Groonga Mroonga");
+SELECT * FROM bugs;
+id	tags
+1	GROONGA MROONGA
+ALTER TABLE bugs ADD FULLTEXT INDEX bugs_tags_index (tags) COMMENT 'table "tags"';
+SELECT * FROM bugs
+WHERE MATCH(tags) AGAINST("Groonga");
+id	tags
+1	GROONGA MROONGA
+DROP TABLE bugs;
+DROP TABLE tags;

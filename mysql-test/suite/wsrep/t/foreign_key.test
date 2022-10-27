@@ -1,0 +1,20 @@
+--source include/have_wsrep_enabled.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+
+USE test;
+create table p(v varchar(20), i int, primary key(v,i)) engine=innodb character set = utf8;
+create table c(k int primary key, v varchar(20), i int, foreign key(v,i) references p(v,i)) engine=innodb character set = utf8;
+insert into p values (_utf32 0x000004100000041100000412, 1);
+insert into c values (1, _utf32 0x000004100000041100000412, 1);
+
+SELECT * FROM test.p;
+SELECT * FROM test.c;
+
+SELECT * FROM test.p;
+SELECT * FROM test.c;
+
+# Cleanup
+DROP TABLE c;
+DROP TABLE p;
+

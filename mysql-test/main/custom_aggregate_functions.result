@@ -1,0 +1,1224 @@
+create table t2 (sal int(10));
+create aggregate function f1(x INT) returns int
+begin
+declare continue handler for not found return 0;
+loop
+fetch group next row;
+insert into t2 (sal) values (x);
+end loop;
+end|
+create table t1 (sal int(10),id int(10));
+INSERT INTO t1 (sal,id) VALUES (5000,1);
+INSERT INTO t1 (sal,id) VALUES (2000,1);
+INSERT INTO t1 (sal,id) VALUES (1000,1);
+select f1(sal) from t1 where id>= 1;
+f1(sal)
+0
+Warnings:
+Note	4094	At line 5 in test.f1
+Note	4094	At line 5 in test.f1
+Note	4094	At line 5 in test.f1
+select * from t2;
+sal
+5000
+2000
+1000
+drop table t2;
+drop function f1;
+create aggregate function f1(x INT) returns INT
+begin
+insert into t1(sal) values (x);
+return x;
+end|
+ERROR HY000: Aggregate specific instruction(FETCH GROUP NEXT ROW) missing from the aggregate function
+create function f1(x INT) returns INT
+begin
+set x=5;
+fetch group next row;
+return x+1;
+end |
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+create aggregate function f1(x INT) returns INT
+begin
+declare continue handler for not found return x;
+loop
+fetch group next row;
+end loop;
+end |
+select f1(1);
+f1(1)
+1
+show create function f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` AGGREGATE FUNCTION `f1`(x INT) RETURNS int(11)
+begin
+declare continue handler for not found return x;
+loop
+fetch group next row;
+end loop;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci
+alter function f1 aggregate none;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'aggregate none' at line 1
+show create function f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` AGGREGATE FUNCTION `f1`(x INT) RETURNS int(11)
+begin
+declare continue handler for not found return x;
+loop
+fetch group next row;
+end loop;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci
+select f1(1);
+f1(1)
+1
+drop function f1;
+create aggregate function f2(i int) returns int
+begin
+FEtCH GROUP NEXT ROW;
+if i <= 0 then
+return 0;
+elseif i = 1  then
+return (select count(*) from t1 where id = i);
+else
+return (select count(*) + f2( i - 1) from t1 where id = i);
+end if;
+end|
+select f2(1)|
+f2(1)
+3
+select f2(2)|
+ERROR HY000: Recursive stored functions and triggers are not allowed
+select f2(3)|
+ERROR HY000: Recursive stored functions and triggers are not allowed
+drop function f2|
+create aggregate function f1(x int) returns int
+begin
+declare mini int default 0;
+declare continue handler for not found return mini;
+loop
+fetch group next row;
+set mini= mini+x;
+fetch group next row;
+end loop;
+end|
+select f1(10);
+f1(10)
+10
+select f1(sal) from t1;
+f1(sal)
+6000
+select f1(sal) from t1 where 1=0;
+f1(sal)
+NULL
+drop function f1;
+create aggregate function f1(x int) returns int
+begin
+declare mini int default 0;
+LOOP
+FETCH GROUP NEXT ROW;
+set mini = mini + x;
+END LOOP;
+end|
+ERROR 42000: No RETURN found in FUNCTION test.f1
+create aggregate function f1(x int) returns int
+begin
+declare mini int default 0;
+LOOP
+FETCH GROUP NEXT ROW;
+set mini = mini + x;
+END LOOP;
+return -1;
+end|
+select f1(sal) from t1|
+ERROR 02000: No data - zero rows fetched, selected, or processed
+drop function f1|
+create aggregate function f1(x int) returns int
+begin
+declare mini int default 0;
+declare continue handler for not found return mini;
+FETCH GROUP NEXT ROW;
+set mini = mini + x;
+end|
+select f1(sal) from t1|
+ERROR 2F005: FUNCTION f1 ended without RETURN
+drop function f1|
+create aggregate function f1(x int) returns int
+begin
+declare mini int default 0;
+declare continue handler for not found set mini=-1;
+LOOP
+FETCH GROUP NEXT ROW;
+set mini = mini + x;
+END LOOP;
+return 0;
+end|
+select f1(sal) from t1|
+ERROR 2F005: FUNCTION f1 ended without RETURN
+drop function f1|
+drop table t1|
+create table t1 (sal int, id int, val int, counter int, primary key(id));
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 1, 10, 2);
+INSERT INTO t1 (sal, id, val, counter) VALUES (2000, 2, 16, 2);
+INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 3, 18, 1);
+INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 4, 15, 3);
+INSERT INTO t1 (sal, id, val, counter) VALUES (3000, 5, 11, 5);
+create aggregate function f1(x INT) returns double
+begin
+declare  z double default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+select id, f1(sal) from t1 where id>= 1 group by counter order by val;
+id	f1(sal)
+1	3000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1;
+id	f1(sal)
+1	17000
+select id, f1(sal) from t1 where id>= 1;
+id	f1(sal)
+1	17000
+select id, f1(sal) from t1 where id>= 1 group by counter;
+id	f1(sal)
+1	3000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by id;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by val;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by counter order by counter;
+id	f1(sal)
+1	3000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by counter order by val;
+id	f1(sal)
+1	3000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by counter order by id;
+id	f1(sal)
+1	3000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by val order by counter;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by val order by id;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by val order by val;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+drop table t1;
+create table t1 (sal int, id int, val int, counter int, primary key(id), unique key(val));
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 1, 10, 2);
+INSERT INTO t1 (sal, id, val, counter) VALUES (2000, 2, NULL, 2);
+INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 3, 18, 1);
+INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 4, 15, 3);
+INSERT INTO t1 (sal, id, val, counter) VALUES (3000, 5, 11, 5);
+select id, f1(sal) from t1;
+id	f1(sal)
+1	17000
+select id, f1(sal) from t1 where id>= 1;
+id	f1(sal)
+1	17000
+select id, f1(sal) from t1 where id>= 1 group by counter;
+id	f1(sal)
+1	3000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by id;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by val;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by counter order by counter;
+id	f1(sal)
+1	3000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by counter order by val;
+id	f1(sal)
+1	3000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by counter order by id;
+id	f1(sal)
+1	3000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by val order by counter;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by val order by id;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by val order by val;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+drop table t1;
+create table t1 (sal int, id int, val int, counter int, primary key(id), INDEX name (val,counter));
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 1, 10, 2);
+INSERT INTO t1 (sal, id, val, counter) VALUES (2000, 2, 10, 4);
+INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 3, 18, 1);
+INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 4, 11, 3);
+INSERT INTO t1 (sal, id, val, counter) VALUES (3000, 5, 11, 5);
+select id, f1(sal) from t1;
+id	f1(sal)
+1	17000
+select id, f1(sal) from t1 where id>= 1;
+id	f1(sal)
+1	17000
+select id, f1(sal) from t1 where id>= 1 group by counter;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by id;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by val;
+id	f1(sal)
+1	3000
+3	6000
+4	8000
+select id, f1(sal) from t1 where id>= 1 group by counter order by counter;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by counter order by val;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by counter order by id;
+id	f1(sal)
+1	1000
+2	2000
+3	6000
+4	5000
+5	3000
+select id, f1(sal) from t1 where id>= 1 group by val order by counter;
+id	f1(sal)
+1	3000
+3	6000
+4	8000
+select id, f1(sal) from t1 where id>= 1 group by val order by id;
+id	f1(sal)
+1	3000
+3	6000
+4	8000
+select id, f1(sal) from t1 where id>= 1 group by val order by val;
+id	f1(sal)
+1	3000
+3	6000
+4	8000
+drop table t1;
+drop function f1;
+create aggregate function f1(x INT) returns double
+begin
+declare  z double default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+create aggregate function f2() returns double
+begin
+declare z int default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z = z+1;
+end loop;
+end|
+create table t1 (sal int, id int, val int, counter int);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 2, 10, 2);
+INSERT INTO t1 (sal, id, val, counter) VALUES (2000, 1, 16, 5);
+INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 2, 18, 1);
+INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 3, 15, 3);
+INSERT INTO t1 (sal, id, val, counter) VALUES (3000, 4, 11, 4);
+prepare test from "select f2() from t1 where id>= ?";
+set @param= 2;
+execute test using @param;
+f2()
+4
+execute test using @param;
+f2()
+4
+execute test using @param;
+f2()
+4
+execute test using @param;
+f2()
+4
+set @param= 1;
+execute test using @param;
+f2()
+5
+set @param= 3;
+execute test using @param;
+f2()
+2
+set @param= 4;
+execute test using @param;
+f2()
+1
+deallocate prepare test;
+prepare test from "select f1(sal) from t1 where id>= ?";
+set @param= 2;
+execute test using @param;
+f1(sal)
+15000
+execute test using @param;
+f1(sal)
+15000
+execute test using @param;
+f1(sal)
+15000
+execute test using @param;
+f1(sal)
+15000
+set @param= 1;
+execute test using @param;
+f1(sal)
+17000
+set @param= 3;
+execute test using @param;
+f1(sal)
+8000
+set @param= 4;
+execute test using @param;
+f1(sal)
+3000
+set @param= 5;
+execute test using @param;
+f1(sal)
+NULL
+deallocate prepare test;
+drop function f2;
+prepare test from "select f1(sal) from t1 where id>= ?";
+set @param= 2;
+execute test using @param;
+f1(sal)
+15000
+drop function f1;
+create function f1(x int) returns int
+return -1;
+execute test using @param;
+f1(sal)
+-1
+-1
+-1
+-1
+drop function f1;
+create aggregate function f1(x INT) returns double
+begin
+declare  z double default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+execute test using @param;
+f1(sal)
+15000
+deallocate prepare test;
+drop table t1;
+drop function f1;
+create table t1 (sal int, id int, val varchar(10), counter int);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 2, 'ab', 2);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 1, 'cd', 5);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 2, 'ef', 1);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 3, 'gh', 3);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 4, 'ij', 4);
+create table t2 (sal int, id int, val int, counter int);
+INSERT INTO t2 (sal, id, val, counter) VALUES (1000, 2, 10, 2);
+INSERT INTO t2 (sal, id, val, counter) VALUES (2000, 1, 16, 5);
+INSERT INTO t2 (sal, id, val, counter) VALUES (6000, 2, 18, 1);
+INSERT INTO t2 (sal, id, val, counter) VALUES (5000, 3, 15, 3);
+INSERT INTO t2 (sal, id, val, counter) VALUES (3000, 4, 11, 4);
+create aggregate function f1(x double) returns double
+begin
+declare  z double default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+create aggregate function f2(x INT) returns CHAR(10)
+begin
+declare mini INT default 0;
+declare continue handler for not found return mini;
+loop
+fetch group next row;
+set mini= mini + x;
+end loop;
+end|
+create aggregate function f3(x INT) returns CHAR(10)
+begin
+declare mini INT default 0;
+declare continue handler for not found return mini;
+loop
+fetch group next row;
+set mini= mini + x;
+fetch group next row;
+set mini= mini - x;
+end loop;
+end|
+create aggregate function f4(x INT, y varchar(10)) returns varchar(1000)
+begin
+declare str varchar(1000) default '';
+declare continue handler for not found return str;
+loop
+fetch group next row;
+set str= concat(str,y);
+end loop;
+end|
+create aggregate function f5(x INT) returns varchar(1000)
+begin
+declare z int default 0;
+DECLARE cur1 CURSOR FOR SELECT sal FROM test.t2;
+declare continue handler for not found return 0;
+loop
+fetch group next row;
+set z = z+x;
+end loop;
+end|
+create function f6(x int) returns int
+return (select f1(sal) from t1)|
+select f1(sal) from t1;
+f1(sal)
+5000
+select f1(sal) from t1 where id>= 1 group by counter;
+f1(sal)
+1000
+1000
+1000
+1000
+1000
+select f3(sal) from t1;
+f3(sal)
+1000
+select f2(val) from t1;
+ERROR 22007: Incorrect integer value: 'ab' for column ``.``.`x` at row 1
+select val, id, c from (select f1(sal) as c from t2) as t1, t2;
+val	id	c
+10	2	17000
+11	4	17000
+15	3	17000
+16	1	17000
+18	2	17000
+select f1(sal),f1(val), f1(id), f1(sal) from t2;
+f1(sal)	f1(val)	f1(id)	f1(sal)
+17000	70	12	17000
+select f4(sal, val) from t1;
+f4(sal, val)
+abcdefghij
+select c from (select f1(sal) as c from t2) as t1;
+c
+17000
+select f1((select val from t2 where 0 > 1))  from t1;
+f1((select val from t2 where 0 > 1))
+NULL
+select f1((select val from t2 where id= 1))  from t1;
+f1((select val from t2 where id= 1))
+80
+select f5(sal) from t1;
+f5(sal)
+0
+SELECT f1(sal)*f1(sal) FROM t1;
+f1(sal)*f1(sal)
+25000000
+SELECT (SELECT f1(sal) FROM t1) FROM t2;
+(SELECT f1(sal) FROM t1)
+5000
+5000
+5000
+5000
+5000
+select id, f1(sal) from t1;
+id	f1(sal)
+2	5000
+select id, f1(sal) from t1 where id>= 1;
+id	f1(sal)
+2	5000
+select f1(sal), f1(sal) from t1 where id>= 1 group by counter;
+f1(sal)	f1(sal)
+1000	1000
+1000	1000
+1000	1000
+1000	1000
+1000	1000
+select f1(sal), f1(sal) from t1 where id>= 1 group by id ;
+f1(sal)	f1(sal)
+1000	1000
+1000	1000
+1000	1000
+2000	2000
+select f1(sal) from t1 where id>= 1 group by id ;
+f1(sal)
+1000
+1000
+1000
+2000
+select f1(sal) from t1 where id>= 1 order by counter;
+f1(sal)
+5000
+select f1(sal) from t1 where id>= 1 group by id order by counter;
+f1(sal)
+2000
+1000
+1000
+1000
+select counter, id, f1(sal) from t1 where id>= 1 group by id order by counter;
+counter	id	f1(sal)
+2	2	2000
+3	3	1000
+4	4	1000
+5	1	1000
+select id, f1(sal) from t1 where id>= 1 group by id order by counter;
+id	f1(sal)
+2	2000
+3	1000
+4	1000
+1	1000
+drop table t1;
+drop table t2;
+drop function f1;
+drop function f2;
+drop function f3;
+drop function f4;
+drop function f5;
+drop function f6;
+create aggregate function f1(x INT) returns INT
+begin
+declare z double default 1000;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= (z&x);
+end loop;
+end|
+create table t1 (sal int, id int, val int, counter int);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 2, 10, 2);
+INSERT INTO t1 (sal, id, val, counter) VALUES (7000, 1, 16, 5);
+INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 2, 18, 1);
+INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 3, 15, 3);
+INSERT INTO t1 (sal, id, val, counter) VALUES (3000, 4, 11, 4);
+INSERT INTO t1 (sal, id, val, counter) VALUES (2000, 5, 10, 7);
+INSERT INTO t1 (sal, id, val, counter) VALUES (5000, 7, 13, 8);
+INSERT INTO t1 (sal, id, val, counter) VALUES (6000, 6, 19, 9);
+INSERT INTO t1 (sal, id, val, counter) VALUES (7000, 7, 12, 0);
+INSERT INTO t1 (sal, id, val, counter) VALUES (4000, 6, 14, 1);
+INSERT INTO t1 (sal, id, val, counter) VALUES (8000, 5, 19, 3);
+INSERT INTO t1 (sal, id, val, counter) VALUES (9000, 4, 11, 4);
+INSERT INTO t1 (sal, id, val, counter) VALUES (1000, 3, 11, 2);
+select f1(sal) from t1 where id>= 1;
+f1(sal)
+768
+drop function f1;
+create aggregate function f1(x INT) returns double
+begin
+declare z double default 0;
+declare count double default 0;
+declare continue handler for not found return z/count;
+loop
+fetch group next row;
+set z= z+x;
+set count= count+1;
+end loop;
+end|
+select f1(sal) from t1 where id>= 1;
+f1(sal)
+4923.076923076923
+drop function f1;
+create aggregate function f1(x INT) returns INT
+begin
+declare maxi INT default -1;
+declare continue handler for not found return maxi;
+loop
+fetch group next row;
+if maxi < x then
+set maxi= x;
+end if;
+end loop;
+end|
+select f1(sal) from t1 where id>= 1;
+f1(sal)
+9000
+drop function f1;
+create aggregate function f1(x INT) returns double
+begin
+declare mini INT default 100000;
+declare continue handler for not found return mini;
+loop
+fetch group next row;
+if mini > x then
+set mini = x;
+end if;
+end loop;
+end|
+select f1(sal) from t1 where id>= 1;
+f1(sal)
+1000
+drop function f1;
+create aggregate function f1(x INT) returns double
+begin
+declare z double default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z^x;
+end loop;
+end|
+select f1(sal) from t1 where id>= 1;
+f1(sal)
+16288
+drop function f1;
+create aggregate function f1(x INT) returns INT
+begin
+declare z int default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+select f1(sal) from t1 where id>= 1;
+f1(sal)
+64000
+create aggregate function f2() returns INT
+begin
+declare z double default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+1;
+end loop;
+end|
+select f2() from t1;
+f2()
+13
+create table t2 (sal int, id int);
+INSERT INTO t2 (sal, id) VALUES (NULL, 1);
+INSERT INTO t2 (sal, id) VALUES (2000, 1);
+INSERT INTO t2 (sal, id) VALUES (3000, 1);
+select f1(sal) from t2;
+f1(sal)
+NULL
+select f1(1);
+f1(1)
+1
+create function f3() returns int
+return (select f1(sal) from t1);
+select f3();
+f3()
+64000
+create function f4() returns INT
+return 1;
+create aggregate function f5() returns INT
+begin
+declare z double default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+f3();
+end loop;
+end|
+select f5() from t2;
+f5()
+192000
+Warnings:
+Note	4094	At line 6 in test.f5
+Note	4094	At line 6 in test.f5
+Note	4094	At line 6 in test.f5
+create aggregate function f6(x INT) returns INT
+begin
+declare z int default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+if x then
+set z= z+(select f1(sal) from t1);
+end if;
+end loop;
+end|
+select f6(sal) from t2;
+f6(sal)
+128000
+Warnings:
+Note	4094	At line 6 in test.f6
+Note	4094	At line 6 in test.f6
+select id, f1(sal) from t1 where id>= 1 group by id;
+id	f1(sal)
+1	7000
+2	7000
+3	6000
+4	12000
+5	10000
+6	10000
+7	12000
+select counter, f1(sal) from t1 where id>= 1 group by counter;
+counter	f1(sal)
+0	7000
+1	10000
+2	2000
+3	13000
+4	12000
+5	7000
+7	2000
+8	5000
+9	6000
+select val, f1(sal) from t1 where id>= 1 group by val;
+val	f1(sal)
+10	3000
+11	13000
+12	7000
+13	5000
+14	4000
+15	5000
+16	7000
+18	6000
+19	14000
+select counter, f1(sal) from t1 where id>= 1 group by id order by counter;
+counter	f1(sal)
+0	12000
+2	6000
+2	7000
+4	12000
+5	7000
+7	10000
+9	10000
+select counter, id, f1(sal), f1(sal) from t1 where id>= 1 group by id order by counter;
+counter	id	f1(sal)	f1(sal)
+0	7	12000	12000
+2	2	7000	7000
+2	3	6000	6000
+4	4	12000	12000
+5	1	7000	7000
+7	5	10000	10000
+9	6	10000	10000
+select counter, id, f1(sal), sum(distinct sal) from t1 where id>= 1 group by id order by counter desc;
+counter	id	f1(sal)	sum(distinct sal)
+0	7	12000	12000
+2	2	7000	7000
+2	3	6000	6000
+4	4	12000	12000
+5	1	7000	7000
+7	5	10000	10000
+9	6	10000	10000
+create table t3 (i int);
+INSERT INTO t3 (i) select f1(sal) from t1;
+select * from t3;
+i
+64000
+create aggregate function f7(x INT) returns INT
+begin
+declare z int default 0;
+DECLARE done BOOLEAN DEFAULT FALSE;
+DECLARE a,b,c  INT;
+DECLARE cur1 CURSOR FOR SELECT id FROM test.t2;
+declare continue handler for not found return z;
+outer_loop: LOOP
+FETCH GROUP NEXT ROW;
+set z= z+x;
+inner_block: begin
+DECLARE cur2 CURSOR FOR SELECT id FROM test.t2;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+OPEN cur2;
+read_loop: LOOP
+FETCH cur2 INTO a;
+IF done THEN
+CLOSE cur2;
+LEAVE read_loop;
+END IF;
+END LOOP read_loop;
+end inner_block;
+END LOOP outer_loop;
+end|
+select f7(sal) from t1;
+f7(sal)
+64000
+Warnings:
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+Note	4094	At line 9 in test.f7
+drop table t1;
+drop table t2;
+drop table t3;
+drop function f1;
+drop function f2;
+drop function f3;
+drop function f4;
+drop function f5;
+drop function f6;
+drop function f7;
+create aggregate function f1(x date) returns date
+begin
+declare continue handler for not found return x;
+loop
+fetch group next row;
+end loop;
+end|
+select f1('2001-01-01'),cast(f1('2001-01-01') as time);
+f1('2001-01-01')	cast(f1('2001-01-01') as time)
+2001-01-01	00:00:00
+drop function f1;
+#
+# MDEV-15957 Unexpected "Data too long" when doing CREATE..SELECT with stored functions
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+CREATE AGGREGATE FUNCTION f1(x INT) RETURNS INT(3)
+BEGIN
+DECLARE res INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN res-200;
+LOOP
+FETCH GROUP NEXT ROW;
+SET res= res + x;
+END LOOP;
+RETURN res;
+END;
+$$
+CREATE TABLE t2 AS SELECT CONCAT(f1(a)) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `CONCAT(f1(a))` varchar(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1,t2;
+DROP FUNCTION f1;
+CREATE AGGREGATE FUNCTION f1() RETURNS TINYTEXT CHARACTER SET latin1
+BEGIN
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN '';
+LOOP
+FETCH GROUP NEXT ROW;
+END LOOP;
+RETURN '';
+END;
+$$
+CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` tinytext DEFAULT NULL,
+  `c2` tinytext DEFAULT NULL,
+  `c3` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP FUNCTION f1;
+CREATE AGGREGATE FUNCTION f1() RETURNS TEXT CHARACTER SET latin1
+BEGIN
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN '';
+LOOP
+FETCH GROUP NEXT ROW;
+END LOOP;
+RETURN '';
+END;
+$$
+CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` text DEFAULT NULL,
+  `c2` text DEFAULT NULL,
+  `c3` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP FUNCTION f1;
+CREATE AGGREGATE FUNCTION f1() RETURNS MEDIUMTEXT CHARACTER SET latin1
+BEGIN
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN '';
+LOOP
+FETCH GROUP NEXT ROW;
+END LOOP;
+RETURN '';
+END;
+$$
+CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` mediumtext DEFAULT NULL,
+  `c2` mediumtext DEFAULT NULL,
+  `c3` mediumtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP FUNCTION f1;
+CREATE AGGREGATE FUNCTION f1() RETURNS LONGTEXT CHARACTER SET latin1
+BEGIN
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN '';
+LOOP
+FETCH GROUP NEXT ROW;
+END LOOP;
+RETURN '';
+END;
+$$
+CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` longtext DEFAULT NULL,
+  `c2` longtext DEFAULT NULL,
+  `c3` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP FUNCTION f1;
+CREATE AGGREGATE FUNCTION f1() RETURNS TINYTEXT CHARACTER SET utf8
+BEGIN
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN '';
+LOOP
+FETCH GROUP NEXT ROW;
+END LOOP;
+RETURN '';
+END;
+$$
+CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` tinytext CHARACTER SET utf8 DEFAULT NULL,
+  `c2` text CHARACTER SET utf8 DEFAULT NULL,
+  `c3` varchar(255) CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP FUNCTION f1;
+CREATE AGGREGATE FUNCTION f1() RETURNS TEXT CHARACTER SET utf8
+BEGIN
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN '';
+LOOP
+FETCH GROUP NEXT ROW;
+END LOOP;
+RETURN '';
+END;
+$$
+CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` text CHARACTER SET utf8 DEFAULT NULL,
+  `c2` mediumtext CHARACTER SET utf8 DEFAULT NULL,
+  `c3` mediumtext CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP FUNCTION f1;
+CREATE AGGREGATE FUNCTION f1() RETURNS MEDIUMTEXT CHARACTER SET utf8
+BEGIN
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN '';
+LOOP
+FETCH GROUP NEXT ROW;
+END LOOP;
+RETURN '';
+END;
+$$
+CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` mediumtext CHARACTER SET utf8 DEFAULT NULL,
+  `c2` longtext CHARACTER SET utf8 DEFAULT NULL,
+  `c3` longtext CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP FUNCTION f1;
+CREATE AGGREGATE FUNCTION f1() RETURNS LONGTEXT CHARACTER SET utf8
+BEGIN
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN '';
+LOOP
+FETCH GROUP NEXT ROW;
+END LOOP;
+RETURN '';
+END;
+$$
+CREATE TABLE t1 AS SELECT f1() AS c1, COALESCE(f1()) AS c2, CONCAT(f1()) AS c3;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` longtext CHARACTER SET utf8 DEFAULT NULL,
+  `c2` longtext CHARACTER SET utf8 DEFAULT NULL,
+  `c3` longtext CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP FUNCTION f1;
+#
+# MDEV-14520: Custom aggregate functions work incorrectly with WITH ROLLUP clause
+#
+create aggregate function agg_sum(x INT) returns INT
+begin
+declare z int default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+create table t1 (i int);
+insert into t1 values (1),(2),(2),(3);
+select i, agg_sum(i) from t1 group by i with rollup;
+i	agg_sum(i)
+1	1
+2	4
+3	3
+NULL	8
+#
+# Compare with
+select i, sum(i) from t1 group by i with rollup;
+i	sum(i)
+1	1
+2	4
+3	3
+NULL	8
+drop function agg_sum;
+drop table t1;
+#
+# User defined aggregate functions not working correctly when the schema is changed
+#
+CREATE SCHEMA IF NOT EXISTS common_schema;
+CREATE SCHEMA IF NOT EXISTS another_schema;
+DROP FUNCTION IF EXISTS common_schema.add_ints |
+Warnings:
+Note	1305	FUNCTION common_schema.add_ints does not exist
+CREATE FUNCTION common_schema.add_ints(int_1 INT, int_2 INT) RETURNS INT NO SQL
+BEGIN
+RETURN int_1 + int_2;
+END |
+DROP FUNCTION IF EXISTS common_schema.sum_ints |
+Warnings:
+Note	1305	FUNCTION common_schema.sum_ints does not exist
+CREATE AGGREGATE FUNCTION common_schema.sum_ints(int_val INT) RETURNS INT
+BEGIN
+DECLARE result INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR NOT FOUND RETURN result;
+LOOP FETCH GROUP NEXT ROW;
+SET result = common_schema.add_ints(result, int_val);
+END LOOP;
+END |
+use common_schema;
+SELECT common_schema.sum_ints(seq) FROM (SELECT 1 seq UNION ALL SELECT 2) t;
+common_schema.sum_ints(seq)
+3
+USE another_schema;
+SELECT common_schema.sum_ints(seq) FROM (SELECT 1 seq UNION ALL SELECT 2) t;
+common_schema.sum_ints(seq)
+3
+drop database common_schema;
+drop database another_schema;
+USE test;
+# End of 10.3 tests
+#
+# MDEV-18813 PROCEDURE and anonymous blocks silently ignore FETCH GROUP NEXT ROW
+#
+CREATE PROCEDURE p1()
+BEGIN
+FETCH GROUP NEXT ROW;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+BEGIN NOT ATOMIC
+FETCH GROUP NEXT ROW;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE DEFINER=root@localhost  FUNCTION f1() RETURNS INT
+BEGIN
+FETCH GROUP NEXT ROW;
+RETURN 0;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1
+AFTER INSERT ON t1 FOR EACH ROW 
+FETCH GROUP NEXT ROW;
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+DROP TABLE t1;
+CREATE EVENT ev1
+ON SCHEDULE EVERY 1 HOUR
+STARTS CURRENT_TIMESTAMP + INTERVAL 1 MONTH
+ENDS CURRENT_TIMESTAMP + INTERVAL 1 MONTH + INTERVAL 1 WEEK
+DO FETCH GROUP NEXT ROW;
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+# End of 10.4 tests

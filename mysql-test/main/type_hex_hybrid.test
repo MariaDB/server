@@ -1,0 +1,87 @@
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16426 Optimizer erroneously treats equal constants of different formats as same
+--echo #
+
+# It's important for CHARSET('a') and CHARSET(0x61) to have different lengths in this test.
+# 'latin1' and 'binary' have same lengths, so using 'utf8'.
+SET NAMES utf8;
+CREATE TABLE t1 (a DECIMAL(10,3));
+INSERT INTO t1 VALUES (10.0),(10.1);
+SELECT CHARSET('a'),CHARSET(0x61),LENGTH(CHARSET('a'))+a,LENGTH(CHARSET(0x61))+a FROM t1;
+SELECT * FROM t1 WHERE LENGTH(CHARSET('a'))+a<=>LENGTH(CHARSET(0x61))+a;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(CHARSET('a'))+a<=>LENGTH(CHARSET(0x61))+a;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23320 Hex hybrid constants 0xHHHH work badly in rounding functions
+--echo #
+
+--vertical_results
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE arg TEXT DEFAULT '';
+  DECLARE query TEXT DEFAULT
+    'CREATE TABLE t1 AS SELECT '
+    '0xFFFFFFFFFFFFFFFF+0 AS c1,'
+    'FLOOR(0xFFFFFFFFFFFFFFFF) AS c2,'
+    'CEILING(0xFFFFFFFFFFFFFFFF) AS c3,'
+    'ROUND(0xFFFFFFFFFFFFFFFF) AS c4,'
+    'TRUNCATE(0xFFFFFFFFFFFFFFFF,0) AS c5';
+  FOR i IN 1..9
+  DO
+    SET arg= CONCAT('0x',REPEAT('FF',i));
+    SELECT i, arg;
+    EXECUTE IMMEDIATE REPLACE(query,'0xFFFFFFFFFFFFFFFF', arg);
+    SHOW CREATE TABLE t1;
+    SELECT * FROM t1;
+    DROP TABLE t1;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+--horizontal_results
+
+
+--echo #
+--echo # MDEV-23368 ROUND(18446744073709551615,-11) returns a wrong result
+--echo #
+
+SELECT ROUND(0xFFFFFFFFFFFFFFFF,-10), ROUND(0xFFFFFFFFFFFFFFFF,-11);
+CREATE TABLE t1 AS SELECT ROUND(0xFFFFFFFFFFFFFFFF,-10), ROUND(0xFFFFFFFFFFFFFFFF,-11);
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-23366 ROUND(18446744073709551615,rand()*0) returns a wrong result
+--echo #
+
+--vertical_results
+SELECT
+  ROUND(0xFFFFFFFFFFFFFFFF,NULL) AS c1,
+  ROUND(0xFFFFFFFFFFFFFFFF,rand()*0) AS c2,
+  ROUND(0xFFFFFFFFFFFFFFFF,-1) AS c3,
+  ROUND(0xFFFFFFFFFFFFFFFF,-19) AS c4,
+  ROUND(0xFFFFFFFFFFFFFFFF,rand()*0-19) AS c5;
+
+CREATE OR REPLACE TABLE t1 AS
+SELECT
+  ROUND(0xFFFFFFFFFFFFFFFF,NULL) AS c1,
+  ROUND(0xFFFFFFFFFFFFFFFF,rand()*0) AS c2,
+  ROUND(0xFFFFFFFFFFFFFFFF,-1) AS c3,
+  ROUND(0xFFFFFFFFFFFFFFFF,-19) AS c4,
+  ROUND(0xFFFFFFFFFFFFFFFF,rand()*0-19) AS c5;
+
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--horizontal_results
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

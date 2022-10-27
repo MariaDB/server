@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+created_at DATETIME
+) DEFAULT CHARSET UTF8;
+INSERT INTO diaries (title, created_at)
+VALUES ('2038-01-19 03:14:07', '2038-01-19 03:14:07');
+INSERT INTO diaries (title, created_at)
+VALUES ('2038-01-19 03:14:08', '2038-01-19 03:14:08');
+SELECT * FROM diaries;
+id	title	created_at
+1	2038-01-19 03:14:07	2038-01-19 03:14:07
+2	2038-01-19 03:14:08	2038-01-19 03:14:08
+DROP TABLE diaries;

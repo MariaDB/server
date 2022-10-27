@@ -1,0 +1,28 @@
+--source include/have_wsrep.inc
+--let $datadir = `SELECT @@datadir`
+
+--echo #
+--echo # wsrep_data_home_dir (readonly)
+--echo #
+
+--echo # default
+--replace_result $datadir DATADIR
+SELECT @@global.wsrep_data_home_dir;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_data_home_dir;
+
+--echo
+--echo # valid values
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_data_home_dir='/tmp/data';
+--replace_result $datadir DATADIR
+SELECT @@global.wsrep_data_home_dir;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_data_home_dir=default;
+--replace_result $datadir DATADIR
+SELECT @@global.wsrep_data_home_dir;
+
+--echo # End of test

@@ -1,0 +1,69 @@
+# This test is to specifically test the TokuDB backup excluse functionality.
+# This is _not_ an illustration of how to exclude tables from a TokuDB backup,
+# if you exclude TokuDB database files in this way, you will have a useless
+# backup.
+source include/have_tokudb_backup.inc;
+
+disable_query_log;
+
+set @old_backup_exclude = @@session.tokudb_backup_exclude;
+
+enable_query_log;
+
+# This should create 20 files prefixed with '_test_t1'
+create table t1(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c)) engine='tokudb';
+create table t1a(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c)) engine='tokudb';
+create table t1b(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c)) engine='tokudb';
+create table t1c(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c)) engine='tokudb';
+
+# This should not filter any files
+disable_query_log;
+--exec mkdir $MYSQLTEST_VARDIR/tmp/backup
+--eval set session tokudb_backup_dir='$MYSQLTEST_VARDIR/tmp/backup'
+enable_query_log;
+
+select @@session.tokudb_backup_last_error;
+select @@session.tokudb_backup_last_error_string;
+
+# 20 files should be in the backup set
+--exec ls $MYSQLTEST_VARDIR/tmp/backup/mysql_data_dir | grep -c _test_t1
+
+--exec rm -rf $MYSQLTEST_VARDIR/tmp/backup
+
+
+# This should filter all files for the t1a and t1c tables
+set session tokudb_backup_exclude='(t1a|t1c)+';
+
+disable_query_log;
+--exec mkdir $MYSQLTEST_VARDIR/tmp/backup
+--eval set session tokudb_backup_dir='$MYSQLTEST_VARDIR/tmp/backup'
+enable_query_log;
+
+select @@session.tokudb_backup_last_error;
+select @@session.tokudb_backup_last_error_string;
+
+# 10 files should be in the backup set
+--exec ls $MYSQLTEST_VARDIR/tmp/backup/mysql_data_dir | grep -c _test_t1
+
+--exec rm -rf $MYSQLTEST_VARDIR/tmp/backup
+
+# This should filter all files for the t1a, t1b, and t1c tables
+set session tokudb_backup_exclude='t1[abc]+';
+
+disable_query_log;
+--exec mkdir $MYSQLTEST_VARDIR/tmp/backup
+--eval set session tokudb_backup_dir='$MYSQLTEST_VARDIR/tmp/backup'
+enable_query_log;
+
+select @@session.tokudb_backup_last_error;
+select @@session.tokudb_backup_last_error_string;
+
+# 5 files should be in the backup set
+--exec ls $MYSQLTEST_VARDIR/tmp/backup/mysql_data_dir | grep -c _test_t1
+
+--exec rm -rf $MYSQLTEST_VARDIR/tmp/backup
+
+drop table t1;
+drop table t1a;
+drop table t1b;
+drop table t1c;

@@ -1,0 +1,17 @@
+SET NAMES UTF8;
+DROP TABLE IF EXISTS synonyms;
+CREATE TABLE synonyms (
+term varchar(255),
+synonym varchar(255),
+INDEX (term)
+);
+INSERT INTO synonyms VALUES ('D+', '[D+]');
+INSERT INTO synonyms VALUES ('Rroonga', 'Rroonga');
+INSERT INTO synonyms VALUES ('Rroonga', 'Groonga Ruby');
+SELECT mroonga_query_expand('synonyms',
+'term',
+'synonym',
+'*D+ Mroonga Rroonga PGroonga') AS query;
+query
+*D+ Mroonga ((Rroonga) OR (Groonga Ruby)) PGroonga
+DROP TABLE synonyms;

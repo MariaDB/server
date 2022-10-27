@@ -1,0 +1,12 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+FLUSH TABLES WITH READ LOCK;
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+connection node_2;
+connection node_1;
+UNLOCK TABLES;
+DROP TABLE t1;

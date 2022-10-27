@@ -1,0 +1,68 @@
+include/master-slave.inc
+[connection master]
+connection master;
+set session sql_log_bin=0;
+delete from mysql.user where Host='fakehost';
+set session sql_log_bin=1;
+connection slave;
+set session sql_log_bin=0;
+delete from mysql.user where Host='fakehost';
+set session sql_log_bin=1;
+connection master;
+create user 'foo'@'fakehost';
+create user 'foo'@'fakehost', 'bar'@'fakehost';
+ERROR HY000: Operation CREATE USER failed for 'foo'@'fakehost'
+create user 'foo'@'fakehost', 'bar'@'fakehost';
+ERROR HY000: Operation CREATE USER failed for 'foo'@'fakehost','bar'@'fakehost'
+connection slave;
+select Host,User from mysql.user where Host='fakehost';
+Host	User
+fakehost	bar
+fakehost	foo
+connection master;
+rename user 'foo'@'fakehost' to 'foofoo'@'fakehost';
+rename user 'not_exist_user1'@'fakehost' to 'foobar'@'fakehost', 'bar'@'fakehost' to 'barbar'@'fakehost';
+ERROR HY000: Operation RENAME USER failed for 'not_exist_user1'@'fakehost'
+rename user 'not_exist_user1'@'fakehost' to 'foobar'@'fakehost', 'not_exist_user2'@'fakehost' to 'barfoo'@'fakehost';
+ERROR HY000: Operation RENAME USER failed for 'not_exist_user1'@'fakehost','not_exist_user2'@'fakehost'
+connection slave;
+select Host,User from mysql.user where Host='fakehost';
+Host	User
+fakehost	barbar
+fakehost	foofoo
+connection master;
+alter user 'foofoo'@'fakehost' identified by 'foo';
+alter user 'non_exist_user1'@'fakehost' identified by 'foo', 'barbar'@'fakehost' identified by 'bar';
+ERROR HY000: Operation ALTER USER failed for 'non_exist_user1'@'fakehost'
+alter user 'non_exist_user1'@'fakehost' identified by 'foo', 'non_exist_user2'@'fakehost' identified by 'bar';
+ERROR HY000: Operation ALTER USER failed for 'non_exist_user1'@'fakehost','non_exist_user2'@'fakehost'
+connection slave;
+connection master;
+drop user 'foofoo'@'fakehost';
+drop user 'not_exist_user1'@'fakehost', 'barbar'@'fakehost';
+ERROR HY000: Operation DROP USER failed for 'not_exist_user1'@'fakehost'
+drop user 'not_exist_user1'@'fakehost', 'not_exist_user2'@'fakehost';
+ERROR HY000: Operation DROP USER failed for 'not_exist_user1'@'fakehost','not_exist_user2'@'fakehost'
+connection slave;
+select Host,User from mysql.user where Host='fakehost';
+Host	User
+connection master;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; create user 'foo'@'fakehost'
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; create user 'foo'@'fakehost', 'bar'@'fakehost'
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; rename user 'foo'@'fakehost' to 'foofoo'@'fakehost'
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; rename user 'not_exist_user1'@'fakehost' to 'foobar'@'fakehost', 'bar'@'fakehost' to 'barbar'@'fakehost'
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; alter user 'foofoo'@'fakehost' identified by 'foo'
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; alter user 'non_exist_user1'@'fakehost' identified by 'foo', 'barbar'@'fakehost' identified by 'bar'
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; drop user 'foofoo'@'fakehost'
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; drop user 'not_exist_user1'@'fakehost', 'barbar'@'fakehost'
+include/rpl_end.inc

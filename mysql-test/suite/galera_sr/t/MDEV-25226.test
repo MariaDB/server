@@ -1,0 +1,33 @@
+#
+# MDEV-25226 - Test the case the where wsrep_on is set OFF
+# on a transaction that has already replicated a fragment.
+#
+# This would cause: Assertion `transaction_.active() == false ||
+# (transaction_.state() == wsrep::transaction::s_executing ||
+# transaction_.state() == wsrep::transaction::s_prepared ||
+# transaction_.state() == wsrep::transaction::s_aborted ||
+# transaction_.state() == wsrep::transaction::s_must_abort)'
+#
+
+--source include/galera_cluster.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES(1);
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+SET SESSION wsrep_on=OFF;
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+SET GLOBAL wsrep_on=OFF;
+INSERT INTO t1 VALUES(2);
+COMMIT;
+
+--connection node_1
+SELECT * FROM t1;
+
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1;

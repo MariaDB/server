@@ -1,0 +1,3 @@
+select distinct first_seen < DATE'2000-01-01', last_seen < DATE'2000-01-01' from performance_schema.events_statements_summary_by_digest;
+first_seen < DATE'2000-01-01'	last_seen < DATE'2000-01-01'
+0	0

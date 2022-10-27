@@ -1,0 +1,220 @@
+#
+# Test the safe_to_bootstrap in grastate.dat 
+#
+--source include/galera_cluster.inc
+--source include/force_restart.inc
+
+#
+# Create connection node_3 and save auto increment variables.
+#
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+--let $node_1 = node_1
+--let $node_2 = node_2
+--let $node_3 = node_3
+
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+#
+# At start, all grastate.dat files have safe_to_boostrap: 0
+#
+
+--let $assert_text= grastate.dat does not have 'safe_to_bootstrap: 0'
+--let $assert_select= safe_to_bootstrap: 0
+--let $assert_count= 1
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.3/data/grastate.dat
+--source include/assert_grep.inc
+
+#
+# Shut down one node
+#
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Still, all grastate.dat files should have safe_to_boostrap: 0
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.3/data/grastate.dat
+--source include/assert_grep.inc
+
+#
+# Shut down one more node
+#
+
+--connection node_3
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Now, nodes 2,3 should have safe_to_boostrap: 0
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.3/data/grastate.dat
+--source include/assert_grep.inc
+
+# But node #1 should have safe_to_boostrap: 1
+
+--let $assert_text= grastate.dat does not have 'safe_to_bootstrap: 1'
+--let $assert_select= safe_to_bootstrap: 1
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+--source include/assert_grep.inc
+
+# Restart one node
+--connection node_2
+let $restart_noprint=2;
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# All nodes should be back to 'safe_to_bootstrap: 0'
+
+--let $assert_text= grastate.dat does not have 'safe_to_bootstrap: 0'
+--let $assert_select= safe_to_bootstrap: 0
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--source include/assert_grep.inc
+
+--let $assert_file= $MYSQLTEST_VARDIR/mysqld.3/data/grastate.dat
+--source include/assert_grep.inc
+
+#
+# Kill the cluster
+#
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+SET SESSION wsrep_on = OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--source ../galera/include/kill_galera.inc
+
+#
+# Only node #1 should have safe_to_bootstrap: 1
+# include/assert_grep.inc requires a running server, so we revert to simple grep
+#
+
+--error 0
+--exec grep 'safe_to_bootstrap: 1' $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+
+--error 0
+--exec grep 'safe_to_bootstrap: 0' $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+
+--error 0
+--exec grep 'safe_to_bootstrap: 0' $MYSQLTEST_VARDIR/mysqld.3/data/grastate.dat
+
+#
+# Attempt to bootstrap nodes #2, #3, should fail 
+#
+
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.2 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-new-cluster --wsrep-cluster-address='gcomm://' | grep 'This node is not safe to bootstrap the cluster'
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.3 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-new-cluster --wsrep-cluster-address='gcomm://' | grep 'This node is not safe to bootstrap the cluster'
+
+#
+# Attempt to bootstrap starting from node #1, should succeed
+#
+
+--connection node_1
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+let $restart_noprint=2;
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+
+--connection node_2
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+let $restart_noprint=2;
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+
+--connection node_3
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+let $restart_noprint=2;
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: no nodes coming from prim view, prim not possible");
+CALL mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("WSREP: wsrep::connect(.*) failed: 7");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("WSREP: moving position backwards: [0-9]+ -> 0");
+CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
+CALL mtr.add_suppression("It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("Plugin 'wsrep' init function returned error.");
+CALL mtr.add_suppression("Plugin 'wsrep' registration as a STORAGE ENGINE failed.");
+CALL mtr.add_suppression("Failed to initialize plugins.");
+CALL mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg()");
+
+--connection node_3
+CALL mtr.add_suppression("WSREP: no nodes coming from prim view, prim not possible");
+CALL mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("WSREP: wsrep::connect(.*) failed: 7");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("WSREP: moving position backwards: [0-9]+ -> 0");
+CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
+CALL mtr.add_suppression("It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("Plugin 'wsrep' init function returned error.");
+CALL mtr.add_suppression("Plugin 'wsrep' registration as a STORAGE ENGINE failed.");
+CALL mtr.add_suppression("Failed to initialize plugins.");
+CALL mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg()");
+
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
+#
+# Restore auto increment variables.
+#
+--source ../galera/include/auto_increment_offset_restore.inc

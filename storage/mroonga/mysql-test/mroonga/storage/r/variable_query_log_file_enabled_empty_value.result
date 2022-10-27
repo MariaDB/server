@@ -1,0 +1,10 @@
+SET GLOBAL mroonga_query_log_file = "groonga-query.log";
+SET GLOBAL mroonga_log_file = "groonga-query-log.log";
+SET GLOBAL mroonga_query_log_file = "";
+SHOW GLOBAL VARIABLES LIKE "mroonga_query_log_file";
+Variable_name	Value
+mroonga_query_log_file	
+log file is changed: <groonga.log> -> <groonga-query-log.log>
+query log file is disabled: <groonga-query.log>
+SET GLOBAL mroonga_query_log_file = DEFAULT;
+SET GLOBAL mroonga_log_file = DEFAULT;

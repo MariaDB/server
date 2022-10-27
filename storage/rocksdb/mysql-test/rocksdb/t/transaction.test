@@ -1,0 +1,158 @@
+--source include/have_rocksdb.inc
+
+create table t1 (id int primary key, value int, value2 varchar(100), index(value)) engine=rocksdb;
+
+insert into t1 values (1,1,1),(2,2,2),(3,3,3),(4,4,4),(5,5,5),(6,6,6),(8,8,8),(9,9,9),(10,10,10);
+
+# insert
+begin;
+insert into t1 values (11,11,11);
+--source transaction_select.inc
+rollback;
+
+# insert in the middle
+begin;
+insert into t1 values (7,7,7);
+--source transaction_select.inc
+rollback;
+
+# update non-index column by primary key
+begin;
+update t1 set value2=100 where id=1;
+--source transaction_select.inc
+rollback;
+
+# update secondary key by primary key
+begin;
+update t1 set value=100 where id=1;
+--source transaction_select.inc
+rollback;
+
+# update primary key by primary key
+begin;
+update t1 set id=100 where id=1;
+--source transaction_select.inc
+rollback;
+
+# update non-index column key by secondary key
+begin;
+update t1 set value2=100 where value=1;
+--source transaction_select.inc
+rollback;
+
+# update secondary key by secondary key
+begin;
+update t1 set value=100 where value=1;
+--source transaction_select.inc
+rollback;
+
+# update primary key by secondary key
+begin;
+update t1 set id=100 where value=1;
+--source transaction_select.inc
+rollback;
+
+# update non-index column by non-index column
+begin;
+update t1 set value2=100 where value2=1;
+--source transaction_select.inc
+rollback;
+
+# update secondary key by non-index column
+begin;
+update t1 set value=100 where value2=1;
+--source transaction_select.inc
+rollback;
+
+# update primary key column by non-index column
+begin;
+update t1 set id=100 where value2=1;
+--source transaction_select.inc
+rollback;
+
+
+# delete by primary key
+begin;
+delete from t1 where id=1;
+--source transaction_select.inc
+rollback;
+
+# delete by secondary key
+begin;
+delete from t1 where value=1;
+--source transaction_select.inc
+rollback;
+
+# delete by non-index column
+begin;
+delete from t1 where value2=1;
+--source transaction_select.inc
+rollback;
+
+# mixed
+begin;
+insert into t1 values (11,11,11);
+insert into t1 values (12,12,12);
+insert into t1 values (13,13,13);
+delete from t1 where id=9;
+delete from t1 where value=8;
+update t1 set id=100 where value2=5;
+update t1 set value=103 where value=4;
+update t1 set id=115 where id=3;
+--source transaction_select.inc
+rollback;
+
+drop table t1;
+
+--echo #
+--echo #  #802: MyRocks: Statement rollback doesnt work correctly for nested statements
+--echo #
+create table t1 (a varchar(100)) engine=rocksdb;
+create table t2(a int) engine=rocksdb;
+insert into t2 values (1), (2);
+
+create table t3(a varchar(100)) engine=rocksdb;
+
+delimiter //;
+create function func() returns varchar(100) deterministic 
+begin
+  insert into t3 values ('func-called');
+  set @a= (select a from t2);
+  return 'func-returned';
+end;//
+delimiter ;//
+
+begin;
+--error ER_SUBQUERY_NO_1_ROW 
+insert into t1 values (func());
+select * from t1;
+--echo # The following must not produce 'func-called':
+select * from t3;
+
+rollback;
+drop function func;
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-16710: Slave SQL: Could not execute Update_rows_v1 event with RocksDB and triggers
+--echo # Issue#857: MyRocks: Incorrect behavior when multiple statements fail inside a transaction
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (b INT PRIMARY KEY) ENGINE=RocksDB;
+
+CREATE TRIGGER tr AFTER INSERT ON t2 FOR EACH ROW INSERT INTO non_existing_table VALUES (NULL);
+
+BEGIN;
+DELETE FROM t1;
+--error 0,ER_NO_SUCH_TABLE
+INSERT INTO t2 VALUES (1);
+--error 0,ER_NO_SUCH_TABLE
+INSERT INTO t2 VALUES (2);
+--echo # Must return empty result:
+SELECT * FROM t1;
+COMMIT;
+
+drop table t1,t2;
+

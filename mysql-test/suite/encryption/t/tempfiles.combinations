@@ -1,0 +1,5 @@
+[none]
+binlog-checksum=NONE
+
+[crc32]
+binlog-checksum=CRC32

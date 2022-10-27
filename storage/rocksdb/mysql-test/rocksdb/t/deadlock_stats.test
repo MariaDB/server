@@ -1,0 +1,3 @@
+let $engine=rocksdb;
+
+--source include/deadlock_stats.inc

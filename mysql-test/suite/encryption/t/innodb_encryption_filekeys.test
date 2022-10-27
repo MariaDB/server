@@ -1,0 +1,133 @@
+-- source include/have_innodb.inc
+-- source include/have_file_key_management_plugin.inc
+
+--disable_query_log
+let $encrypt_tables = `SELECT @@innodb_encrypt_tables`;
+let $threads = `SELECT @@innodb_encryption_threads`;
+let $key_id = `SELECT @@innodb_default_encryption_key_id`;
+--enable_query_log
+
+SET GLOBAL innodb_encrypt_tables = OFF;
+SET GLOBAL innodb_encryption_threads = 4;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB;
+SHOW CREATE TABLE t1;
+CREATE TABLE t2 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=YES;
+CREATE TABLE t3 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=NO;
+CREATE TABLE t4 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+
+--disable_warnings
+--disable_query_log
+begin;
+let $i = 10;
+while ($i)
+{
+INSERT INTO t1 values(NULL, substring(MD5(RAND()), -128));
+dec $i;
+}
+
+INSERT INTO t2 select * from t1;
+INSERT INTO t3 select * from t1;
+INSERT INTO t4 select * from t1;
+commit;
+--enable_warnings
+--enable_query_log
+
+SET GLOBAL innodb_encrypt_tables = on;
+
+--echo # Wait max 10 min for key encryption threads to encrypt required all spaces
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT NAME,ENCRYPTION_SCHEME,MIN_KEY_VERSION, ROTATING_OR_FLUSHING FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+SELECT COUNT(1) FROM t1;
+SELECT COUNT(1) FROM t2;
+SELECT COUNT(1) FROM t3;
+SELECT COUNT(1) FROM t4;
+
+SET GLOBAL innodb_encrypt_tables = off;
+
+--echo # Wait max 10 min for key encryption threads to decrypt all required spaces
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT NAME,ENCRYPTION_SCHEME,MIN_KEY_VERSION, ROTATING_OR_FLUSHING FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+SET GLOBAL innodb_encrypt_tables = ON;
+set GLOBAL innodb_default_encryption_key_id=4;
+CREATE TABLE t5 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB;
+SHOW CREATE TABLE t5;
+INSERT INTO t5 select * from t1;
+
+--echo # Wait max 10 min for key encryption threads to encrypt required all spaces
+let $cnt=600;
+while ($cnt)
+{
+    let $success=`SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0`;
+    if ($success)
+    {
+        let $cnt=0;
+    }
+    if (!$success)
+    {
+        real_sleep 1;
+        dec $cnt;
+    }
+}
+if (!$success)
+{
+    SELECT NAME,ENCRYPTION_SCHEME,MIN_KEY_VERSION, ROTATING_OR_FLUSHING FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SHOW STATUS LIKE 'innodb_encryption%';
+    -- die Timeout waiting for encryption threads
+}
+--echo # Success!
+
+SELECT COUNT(1) FROM t1;
+SELECT COUNT(1) FROM t2;
+SELECT COUNT(1) FROM t3;
+SELECT COUNT(1) FROM t4;
+SELECT COUNT(1) FROM t5;
+
+drop table t1,t2,t3,t4, t5;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_encrypt_tables = $encrypt_tables;
+EVAL SET GLOBAL innodb_encryption_threads = $threads;
+EVAL set GLOBAL innodb_default_encryption_key_id = $key_id;
+--enable_query_log

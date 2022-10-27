@@ -1,0 +1,1075 @@
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
+#
+#
+# Missing table
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TYPE OF t1.a;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+DROP PROCEDURE p1;
+#
+# Missing column
+#
+CREATE TABLE t1 (b INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TYPE OF t1.a;
+END;
+$$
+CALL p1();
+ERROR 42S22: Unknown column 'a' in 't1'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# One TYPE OF variable
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TYPE OF t1.a;
+SET a= 123;
+SELECT a;
+END;
+$$
+CALL p1();
+a
+123
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Two TYPE OF variables, with a truncation warning on assignment
+#
+SET sql_mode='';
+CREATE TABLE t1 (a TINYINT, b INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TYPE OF t1.a;
+DECLARE b TYPE OF t1.b;
+SET a= 200;
+SET b= 200;
+SELECT a, b;
+END;
+$$
+CALL p1();
+a	b
+127	200
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# TYPE OF variables for fields with various attributes
+#
+CREATE TABLE t1 (
+id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+a TINYINT NOT NULL,
+b INT NOT NULL,
+ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+UNIQUE(a)
+);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE id TYPE OF t1.id;
+DECLARE a  TYPE OF t1.a;
+DECLARE b  TYPE OF t1.b;
+DECLARE ts TYPE OF t1.ts;
+SELECT id, a, b, ts;
+CREATE TABLE t2 AS SELECT id, a, b, ts;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+id	a	b	ts
+NULL	NULL	NULL	NULL
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  `a` tinyint(4) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `ts` timestamp NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# TYPE OF + virtual columns
+#
+CREATE TABLE t1 (
+a INT NOT NULL,
+b VARCHAR(32),
+c INT AS (a + 10) VIRTUAL,
+d VARCHAR(5) AS (left(b,5)) PERSISTENT
+);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c TYPE OF t1.c;
+DECLARE d TYPE OF t1.d;
+SELECT c, d;
+CREATE TABLE t2 AS SELECT c, d;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+c	d
+NULL	NULL
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL,
+  `d` varchar(5) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# TYPE OF + the ZEROFILL attribute
+#
+CREATE TABLE t1 (
+dz DECIMAL(10,3) ZEROFILL
+);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE dzr TYPE OF t1.dz DEFAULT 10;
+DECLARE dzt DECIMAL(10,3) ZEROFILL DEFAULT 10;
+SELECT dzr, dzt;
+CREATE TABLE t2 AS SELECT dzr,dzt;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+dzr	dzt
+0000010.000	0000010.000
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `dzr` decimal(10,3) unsigned DEFAULT NULL,
+  `dzt` decimal(10,3) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Temporary tables shadow real tables for TYPE OF purposes
+#
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('t1');
+CREATE TEMPORARY TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+a
+10
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TYPE OF t1.a DEFAULT 11;
+CREATE TABLE t2 AS SELECT a;
+END;
+$$
+#
+# Should use INT(11) as TYPE OF, as in the temporary table
+#
+CALL p1();
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2;
+a
+11
+DROP TABLE t2;
+SELECT * FROM t1;
+a
+10
+DROP TEMPORARY TABLE t1;
+SELECT * FROM t1;
+a
+t1
+#
+# Should use VARCHAR(10) as TYPE OF, as in the real table
+#
+CALL p1();
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2;
+a
+11
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# "TYPE OF t1.a" searches for "t1" in the current database
+#
+CREATE TABLE t1 (a VARCHAR(10));
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TYPE OF t1.a DEFAULT 11;
+CREATE TABLE test.t2 AS SELECT a;
+END;
+$$
+#
+# This interprets "TYPE OF t1.a" as VARCHAR(10), as in test.t1.a
+#
+USE test;
+CALL test.p1();
+SHOW CREATE TABLE test.t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE test.t2;
+#
+# This interprets "TYPE OF t1.a" as INT, as in test1.t1.a
+#
+USE test1;
+CALL test.p1();
+SHOW CREATE TABLE test.t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE test.t2;
+#
+# Error if there is no an active database
+#
+DROP DATABASE test1;
+CALL test.p1();
+ERROR 3D000: No database selected
+USE test;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# A reference to a table in a non-existing database
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TYPE OF test1.t1.a;
+CREATE TABLE t1 AS SELECT a;
+END;
+$$
+CALL p1;
+ERROR 42S02: Table 'test1.t1' doesn't exist
+DROP PROCEDURE p1;
+#
+# A reference to a table in a different database
+#
+CREATE TABLE t1(a INT);
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TYPE OF t1.a;
+DECLARE b TYPE OF test1.t1.a;
+CREATE TABLE t2 AS SELECT a,b;
+END;
+$$
+CALL p1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP DATABASE test1;
+DROP TABLE t1;
+#
+# Using a table before it appears in a TYPE OF declaration + multiple TYPE OF declarations
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 (a,b) VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+INSERT INTO t1 (a,b) VALUES (11, 'b11');
+SELECT * FROM t1;
+BEGIN
+DECLARE va TYPE OF t1.a DEFAULT 30;
+DECLARE vb TYPE OF t1.b DEFAULT 'b30';
+INSERT INTO t1 (a,b) VALUES (12,'b12');
+SELECT * FROM t1;
+INSERT INTO t1 (a,b) VALUES (va, vb);
+SELECT * FROM t1;
+END;
+BEGIN
+DECLARE va TYPE OF t1.a DEFAULT 40;
+DECLARE vb TYPE OF t1.b DEFAULT 'b40';
+INSERT INTO t1 (a,b) VALUES (va,vb);
+SELECT * FROM t1;
+END;
+END;
+$$
+CALL p1;
+a	b
+10	b10
+11	b11
+a	b
+10	b10
+11	b11
+12	b12
+a	b
+10	b10
+11	b11
+12	b12
+30	b30
+a	b
+10	b10
+11	b11
+12	b12
+30	b30
+40	b40
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# TYPE OF variables + TABLE vs VIEW
+#
+CREATE TABLE t1 (
+bit6 BIT(6),
+bit7 BIT(7),
+bit8 BIT(8),
+i1 TINYINT,
+i2 SMALLINT,
+i3 MEDIUMINT,
+i4 INT,
+i8 BIGINT,
+ff FLOAT,
+fd DOUBLE,
+cc CHAR(10),
+cv VARCHAR(10),
+cvu VARCHAR(10) CHARACTER SET utf8,
+t1 TINYTEXT,
+t2 TEXT,
+t3 MEDIUMTEXT,
+t4 LONGTEXT,
+enum1 ENUM('a','b','c'),
+set1  SET('a','b','c'),
+blob1 TINYBLOB,
+blob2 BLOB,
+blob3 MEDIUMBLOB,
+blob4 LONGBLOB,
+yy  YEAR,
+dd  DATE,
+tm0 TIME,
+tm3 TIME(3),
+tm6 TIME(6),
+dt0 DATETIME,
+dt3 DATETIME(3),
+dt6 DATETIME(6),
+ts0 TIMESTAMP,
+ts3 TIMESTAMP(3),
+ts6 TIMESTAMP(6),
+dc100 DECIMAL(10,0),
+dc103 DECIMAL(10,3),
+dc209 DECIMAL(20,9)
+);
+CREATE PROCEDURE p1(command enum('create','select'))
+BEGIN
+DECLARE  bit6   TYPE OF t1.bit6  DEFAULT 0x30;
+DECLARE  bit7   TYPE OF t1.bit7  DEFAULT 0x41;
+DECLARE  bit8   TYPE OF t1.bit8  DEFAULT 0x7E;
+DECLARE  i1     TYPE OF t1.i1    DEFAULT 11;
+DECLARE  i2     TYPE OF t1.i2    DEFAULT 12;
+DECLARE  i3     TYPE OF t1.i3    DEFAULT 13;
+DECLARE  i4     TYPE OF t1.i4    DEFAULT 14;
+DECLARE  i8     TYPE OF t1.i8    DEFAULT 18;
+DECLARE  ff     TYPE OF t1.ff    DEFAULT 21;
+DECLARE  fd     TYPE OF t1.fd    DEFAULT 22;
+DECLARE  cc     TYPE OF t1.cc    DEFAULT 'char';
+DECLARE  cv     TYPE OF t1.cv    DEFAULT 'varchar';
+DECLARE  cvu    TYPE OF t1.cvu   DEFAULT 'varcharu8';
+DECLARE  t1     TYPE OF t1.t1    DEFAULT 'text1';
+DECLARE  t2     TYPE OF t1.t2    DEFAULT 'text2';
+DECLARE  t3     TYPE OF t1.t3    DEFAULT 'text3';
+DECLARE  t4     TYPE OF t1.t4    DEFAULT 'text4';
+DECLARE  enum1  TYPE OF t1.enum1 DEFAULT 'b';
+DECLARE  set1   TYPE OF t1.set1  DEFAULT 'a,c';
+DECLARE  blob1  TYPE OF t1.blob1 DEFAULT 'blob1';
+DECLARE  blob2  TYPE OF t1.blob2 DEFAULT 'blob2';
+DECLARE  blob3  TYPE OF t1.blob3 DEFAULT 'blob3';
+DECLARE  blob4  TYPE OF t1.blob4 DEFAULT 'blob4';
+DECLARE  yy     TYPE OF t1.yy    DEFAULT 2001;
+DECLARE  dd     TYPE OF t1.dd    DEFAULT '2001-01-01';
+DECLARE  tm0    TYPE OF t1.tm0   DEFAULT '00:00:01';
+DECLARE  tm3    TYPE OF t1.tm3   DEFAULT '00:00:03.333';
+DECLARE  tm6    TYPE OF t1.tm6   DEFAULT '00:00:06.666666';
+DECLARE  dt0    TYPE OF t1.dt0   DEFAULT '2001-01-01 00:00:01';
+DECLARE  dt3    TYPE OF t1.dt3   DEFAULT '2001-01-03 00:00:01.333';
+DECLARE  dt6    TYPE OF t1.dt6   DEFAULT '2001-01-06 00:00:01.666666';
+DECLARE  ts0    TYPE OF t1.ts0   DEFAULT '2002-01-01 00:00:01';
+DECLARE  ts3    TYPE OF t1.ts3   DEFAULT '2002-01-03 00:00:01.333';
+DECLARE  ts6    TYPE OF t1.ts6   DEFAULT '2002-01-06 00:00:01.666666';
+DECLARE  dc100  TYPE OF t1.dc100 DEFAULT 10;
+DECLARE  dc103  TYPE OF t1.dc103 DEFAULT 10.123;
+DECLARE  dc209  TYPE OF t1.dc209 DEFAULT 10.123456789;
+CASE
+WHEN command='create' THEN
+CREATE TABLE t2 AS SELECT
+bit6, bit7, bit8,
+i1,i2,i3,i4,i8,
+ff,fd, dc100, dc103, dc209,
+cc,cv,cvu,
+t1,t2,t3,t4,
+enum1, set1,
+blob1, blob2, blob3, blob4,
+dd, yy,
+tm0, tm3, tm6,
+dt0, dt3, dt6,
+ts0, ts3, ts6;
+WHEN command='select' THEN
+SELECT
+bit6, bit7, bit8,
+i1,i2,i3,i4,i8,
+ff,fd, dc100, dc103, dc209,
+cc,cv,cvu,
+t1,t2,t3,t4,
+enum1, set1,
+blob1, blob2, blob3, blob4,
+dd, yy,
+tm0, tm3, tm6,
+dt0, dt3, dt6,
+ts0, ts3, ts6;
+END CASE;
+END;
+$$
+#
+# TABLE
+#
+CALL p1('create');
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `bit6` bit(6) DEFAULT NULL,
+  `bit7` bit(7) DEFAULT NULL,
+  `bit8` bit(8) DEFAULT NULL,
+  `i1` tinyint(4) DEFAULT NULL,
+  `i2` smallint(6) DEFAULT NULL,
+  `i3` mediumint(9) DEFAULT NULL,
+  `i4` int(11) DEFAULT NULL,
+  `i8` bigint(20) DEFAULT NULL,
+  `ff` float DEFAULT NULL,
+  `fd` double DEFAULT NULL,
+  `dc100` decimal(10,0) DEFAULT NULL,
+  `dc103` decimal(10,3) DEFAULT NULL,
+  `dc209` decimal(20,9) DEFAULT NULL,
+  `cc` char(10) DEFAULT NULL,
+  `cv` varchar(10) DEFAULT NULL,
+  `cvu` varchar(10) CHARACTER SET utf8 DEFAULT NULL,
+  `t1` tinytext DEFAULT NULL,
+  `t2` text DEFAULT NULL,
+  `t3` mediumtext DEFAULT NULL,
+  `t4` longtext DEFAULT NULL,
+  `enum1` char(1) DEFAULT NULL,
+  `set1` char(5) DEFAULT NULL,
+  `blob1` tinyblob DEFAULT NULL,
+  `blob2` blob DEFAULT NULL,
+  `blob3` mediumblob DEFAULT NULL,
+  `blob4` longblob DEFAULT NULL,
+  `dd` date DEFAULT NULL,
+  `yy` year(4) DEFAULT NULL,
+  `tm0` time DEFAULT NULL,
+  `tm3` time(3) DEFAULT NULL,
+  `tm6` time(6) DEFAULT NULL,
+  `dt0` datetime DEFAULT NULL,
+  `dt3` datetime(3) DEFAULT NULL,
+  `dt6` datetime(6) DEFAULT NULL,
+  `ts0` timestamp NULL DEFAULT NULL,
+  `ts3` timestamp(3) NULL DEFAULT NULL,
+  `ts6` timestamp(6) NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2;
+bit6	0
+bit7	A
+bit8	~
+i1	11
+i2	12
+i3	13
+i4	14
+i8	18
+ff	21
+fd	22
+dc100	10
+dc103	10.123
+dc209	10.123456789
+cc	char
+cv	varchar
+cvu	varcharu8
+t1	text1
+t2	text2
+t3	text3
+t4	text4
+enum1	b
+set1	a,c
+blob1	blob1
+blob2	blob2
+blob3	blob3
+blob4	blob4
+dd	2001-01-01
+yy	2001
+tm0	00:00:01
+tm3	00:00:03.333
+tm6	00:00:06.666666
+dt0	2001-01-01 00:00:01
+dt3	2001-01-03 00:00:01.333
+dt6	2001-01-06 00:00:01.666666
+ts0	2002-01-01 00:00:01
+ts3	2002-01-03 00:00:01.333
+ts6	2002-01-06 00:00:01.666666
+DROP TABLE t2;
+CALL p1('select');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				bit6	bit6	16	6	1	Y	32	0	63
+def				bit7	bit7	16	7	1	Y	32	0	63
+def				bit8	bit8	16	8	1	Y	32	0	63
+def				i1	i1	1	4	2	Y	32768	0	63
+def				i2	i2	2	6	2	Y	32768	0	63
+def				i3	i3	9	9	2	Y	32768	0	63
+def				i4	i4	3	11	2	Y	32768	0	63
+def				i8	i8	8	20	2	Y	32768	0	63
+def				ff	ff	4	12	2	Y	32768	31	63
+def				fd	fd	5	22	2	Y	32768	31	63
+def				dc100	dc100	246	11	2	Y	32768	0	63
+def				dc103	dc103	246	12	6	Y	32768	3	63
+def				dc209	dc209	246	22	12	Y	32768	9	63
+def				cc	cc	254	10	4	Y	0	0	8
+def				cv	cv	253	10	7	Y	0	0	8
+def				cvu	cvu	253	10	9	Y	0	0	8
+def				t1	t1	252	255	5	Y	16	0	8
+def				t2	t2	252	65535	5	Y	16	0	8
+def				t3	t3	252	16777215	5	Y	16	0	8
+def				t4	t4	252	4294967295	5	Y	16	0	8
+def				enum1	enum1	254	1	1	Y	256	0	8
+def				set1	set1	254	5	3	Y	2048	0	8
+def				blob1	blob1	252	255	5	Y	144	0	63
+def				blob2	blob2	252	65535	5	Y	144	0	63
+def				blob3	blob3	252	16777215	5	Y	144	0	63
+def				blob4	blob4	252	4294967295	5	Y	144	0	63
+def				dd	dd	10	10	10	Y	128	0	63
+def				yy	yy	13	4	4	Y	32864	0	63
+def				tm0	tm0	11	10	8	Y	128	0	63
+def				tm3	tm3	11	14	12	Y	128	3	63
+def				tm6	tm6	11	17	15	Y	128	6	63
+def				dt0	dt0	12	19	19	Y	128	0	63
+def				dt3	dt3	12	23	23	Y	128	3	63
+def				dt6	dt6	12	26	26	Y	128	6	63
+def				ts0	ts0	7	19	19	Y	9376	0	63
+def				ts3	ts3	7	23	23	Y	160	3	63
+def				ts6	ts6	7	26	26	Y	160	6	63
+bit6	0
+bit7	A
+bit8	~
+i1	11
+i2	12
+i3	13
+i4	14
+i8	18
+ff	21
+fd	22
+dc100	10
+dc103	10.123
+dc209	10.123456789
+cc	char
+cv	varchar
+cvu	varcharu8
+t1	text1
+t2	text2
+t3	text3
+t4	text4
+enum1	b
+set1	a,c
+blob1	blob1
+blob2	blob2
+blob3	blob3
+blob4	blob4
+dd	2001-01-01
+yy	2001
+tm0	00:00:01
+tm3	00:00:03.333
+tm6	00:00:06.666666
+dt0	2001-01-01 00:00:01
+dt3	2001-01-03 00:00:01.333
+dt6	2001-01-06 00:00:01.666666
+ts0	2002-01-01 00:00:01
+ts3	2002-01-03 00:00:01.333
+ts6	2002-01-06 00:00:01.666666
+#
+# VIEW
+#
+ALTER TABLE t1 RENAME t0;
+CREATE VIEW t1 AS SELECT * FROM t0;
+CALL p1('create');
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `bit6` bit(6) DEFAULT NULL,
+  `bit7` bit(7) DEFAULT NULL,
+  `bit8` bit(8) DEFAULT NULL,
+  `i1` tinyint(4) DEFAULT NULL,
+  `i2` smallint(6) DEFAULT NULL,
+  `i3` mediumint(9) DEFAULT NULL,
+  `i4` int(11) DEFAULT NULL,
+  `i8` bigint(20) DEFAULT NULL,
+  `ff` float DEFAULT NULL,
+  `fd` double DEFAULT NULL,
+  `dc100` decimal(10,0) DEFAULT NULL,
+  `dc103` decimal(10,3) DEFAULT NULL,
+  `dc209` decimal(20,9) DEFAULT NULL,
+  `cc` char(10) DEFAULT NULL,
+  `cv` varchar(10) DEFAULT NULL,
+  `cvu` varchar(10) CHARACTER SET utf8 DEFAULT NULL,
+  `t1` tinytext DEFAULT NULL,
+  `t2` text DEFAULT NULL,
+  `t3` mediumtext DEFAULT NULL,
+  `t4` longtext DEFAULT NULL,
+  `enum1` char(1) DEFAULT NULL,
+  `set1` char(5) DEFAULT NULL,
+  `blob1` tinyblob DEFAULT NULL,
+  `blob2` blob DEFAULT NULL,
+  `blob3` mediumblob DEFAULT NULL,
+  `blob4` longblob DEFAULT NULL,
+  `dd` date DEFAULT NULL,
+  `yy` year(4) DEFAULT NULL,
+  `tm0` time DEFAULT NULL,
+  `tm3` time(3) DEFAULT NULL,
+  `tm6` time(6) DEFAULT NULL,
+  `dt0` datetime DEFAULT NULL,
+  `dt3` datetime(3) DEFAULT NULL,
+  `dt6` datetime(6) DEFAULT NULL,
+  `ts0` timestamp NULL DEFAULT NULL,
+  `ts3` timestamp(3) NULL DEFAULT NULL,
+  `ts6` timestamp(6) NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2;
+bit6	0
+bit7	A
+bit8	~
+i1	11
+i2	12
+i3	13
+i4	14
+i8	18
+ff	21
+fd	22
+dc100	10
+dc103	10.123
+dc209	10.123456789
+cc	char
+cv	varchar
+cvu	varcharu8
+t1	text1
+t2	text2
+t3	text3
+t4	text4
+enum1	b
+set1	a,c
+blob1	blob1
+blob2	blob2
+blob3	blob3
+blob4	blob4
+dd	2001-01-01
+yy	2001
+tm0	00:00:01
+tm3	00:00:03.333
+tm6	00:00:06.666666
+dt0	2001-01-01 00:00:01
+dt3	2001-01-03 00:00:01.333
+dt6	2001-01-06 00:00:01.666666
+ts0	2002-01-01 00:00:01
+ts3	2002-01-03 00:00:01.333
+ts6	2002-01-06 00:00:01.666666
+DROP TABLE t2;
+CALL p1('select');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				bit6	bit6	16	6	1	Y	32	0	63
+def				bit7	bit7	16	7	1	Y	32	0	63
+def				bit8	bit8	16	8	1	Y	32	0	63
+def				i1	i1	1	4	2	Y	32768	0	63
+def				i2	i2	2	6	2	Y	32768	0	63
+def				i3	i3	9	9	2	Y	32768	0	63
+def				i4	i4	3	11	2	Y	32768	0	63
+def				i8	i8	8	20	2	Y	32768	0	63
+def				ff	ff	4	12	2	Y	32768	31	63
+def				fd	fd	5	22	2	Y	32768	31	63
+def				dc100	dc100	246	11	2	Y	32768	0	63
+def				dc103	dc103	246	12	6	Y	32768	3	63
+def				dc209	dc209	246	22	12	Y	32768	9	63
+def				cc	cc	254	10	4	Y	0	0	8
+def				cv	cv	253	10	7	Y	0	0	8
+def				cvu	cvu	253	10	9	Y	0	0	8
+def				t1	t1	252	255	5	Y	16	0	8
+def				t2	t2	252	65535	5	Y	16	0	8
+def				t3	t3	252	16777215	5	Y	16	0	8
+def				t4	t4	252	4294967295	5	Y	16	0	8
+def				enum1	enum1	254	1	1	Y	256	0	8
+def				set1	set1	254	5	3	Y	2048	0	8
+def				blob1	blob1	252	255	5	Y	144	0	63
+def				blob2	blob2	252	65535	5	Y	144	0	63
+def				blob3	blob3	252	16777215	5	Y	144	0	63
+def				blob4	blob4	252	4294967295	5	Y	144	0	63
+def				dd	dd	10	10	10	Y	128	0	63
+def				yy	yy	13	4	4	Y	32864	0	63
+def				tm0	tm0	11	10	8	Y	128	0	63
+def				tm3	tm3	11	14	12	Y	128	3	63
+def				tm6	tm6	11	17	15	Y	128	6	63
+def				dt0	dt0	12	19	19	Y	128	0	63
+def				dt3	dt3	12	23	23	Y	128	3	63
+def				dt6	dt6	12	26	26	Y	128	6	63
+def				ts0	ts0	7	19	19	Y	160	0	63
+def				ts3	ts3	7	23	23	Y	160	3	63
+def				ts6	ts6	7	26	26	Y	160	6	63
+bit6	0
+bit7	A
+bit8	~
+i1	11
+i2	12
+i3	13
+i4	14
+i8	18
+ff	21
+fd	22
+dc100	10
+dc103	10.123
+dc209	10.123456789
+cc	char
+cv	varchar
+cvu	varcharu8
+t1	text1
+t2	text2
+t3	text3
+t4	text4
+enum1	b
+set1	a,c
+blob1	blob1
+blob2	blob2
+blob3	blob3
+blob4	blob4
+dd	2001-01-01
+yy	2001
+tm0	00:00:01
+tm3	00:00:03.333
+tm6	00:00:06.666666
+dt0	2001-01-01 00:00:01
+dt3	2001-01-03 00:00:01.333
+dt6	2001-01-06 00:00:01.666666
+ts0	2002-01-01 00:00:01
+ts3	2002-01-03 00:00:01.333
+ts6	2002-01-06 00:00:01.666666
+DROP VIEW t1;
+DROP TABLE t0;
+DROP PROCEDURE p1;
+#
+# VIEW with subqueries
+#
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (10,1),(20,2),(30,3),(40,4);
+SELECT AVG(a) FROM t1;
+AVG(a)
+25.0000
+CREATE VIEW v1 AS SELECT a,1 as b FROM t1 WHERE a>(SELECT AVG(a) FROM t1) AND b>(SELECT 1);
+SELECT * FROM v1;
+a	b
+30	1
+40	1
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TYPE OF v1.a DEFAULT 10;
+DECLARE b TYPE OF v1.b DEFAULT 1;
+SELECT a,b;
+END;
+$$
+CALL p1;
+a	b
+10	1
+DROP PROCEDURE p1;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DECLARE a TYPE OF v1.a DEFAULT 10;
+DECLARE b TYPE OF v1.b DEFAULT 1;
+RETURN a+b;
+END;
+$$
+SELECT f1();
+f1()
+11
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# TYPE OF variables + INFORMATION_SCHEMA
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE tables_table_name TYPE OF INFORMATION_SCHEMA.TABLES.TABLE_NAME;
+DECLARE tables_table_rows TYPE OF INFORMATION_SCHEMA.TABLES.TABLE_ROWS;
+DECLARE processlist_info  TYPE OF INFORMATION_SCHEMA.PROCESSLIST.INFO;
+DECLARE processlist_info_binary TYPE OF INFORMATION_SCHEMA.PROCESSLIST.INFO_BINARY;
+CREATE TABLE t1 AS SELECT
+tables_table_name,
+tables_table_rows,
+processlist_info,
+processlist_info_binary;
+END;
+$$
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `tables_table_name` varchar(64) CHARACTER SET utf8 DEFAULT NULL,
+  `tables_table_rows` bigint(21) unsigned DEFAULT NULL,
+  `processlist_info` longtext CHARACTER SET utf8 DEFAULT NULL,
+  `processlist_info_binary` blob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# TYPE OF + Table structure change
+# Data type for both a0 and a1 is chosen in the very beginning
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a0 TYPE OF t1.a;
+ALTER TABLE t1 MODIFY a VARCHAR(10); -- This does not affect a1
+BEGIN
+DECLARE a1 TYPE OF t1.a;
+CREATE TABLE t2 AS SELECT a0, a1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+END
+$$
+CREATE TABLE t1 (a INT);
+CALL p1;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a0` int(11) DEFAULT NULL,
+  `a1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# TYPE OF in parameters
+#
+CREATE TABLE t1 (a VARCHAR(10));
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (b SMALLINT);
+CREATE PROCEDURE p1(a TYPE OF t1.a, b TYPE OF test1.t1.b)
+BEGIN
+CREATE TABLE t2 AS SELECT a, b;
+END;
+$$
+CALL p1('test', 123);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(10) DEFAULT NULL,
+  `b` smallint(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2;
+a	b
+test	123
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE test1.t1;
+DROP DATABASE test1;
+DROP TABLE t1;
+#
+# TYPE OF in a stored function variables and arguments
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1 (prm TYPE OF t1.a) RETURNS INT
+BEGIN
+DECLARE a TYPE OF t1.a DEFAULT prm;
+RETURN a;
+END;
+$$
+SELECT f1(20);
+f1(20)
+20
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# TYPE OF in function RETURN clause is not supported yet
+#
+CREATE FUNCTION f1() RETURN TYPE OF t1.a
+BEGIN
+RETURN 0;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'RETURN TYPE OF t1.a
+BEGIN
+RETURN 0;
+END' at line 1
+#
+# Using TYPE OF variables as FETCH targets
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10),c DATETIME(3));
+INSERT INTO t1 VALUES (1,'b1','2001-01-01 10:20:30.123');
+INSERT INTO t1 VALUES (2,'b2','2001-01-02 10:20:30.123');
+CREATE TABLE t2 LIKE t1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE v_a TYPE OF t1.a;
+DECLARE v_b TYPE OF t1.b;
+DECLARE v_c TYPE OF t1.c;
+DECLARE c CURSOR FOR SELECT a,b,c FROM t1;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN c;
+read_loop: LOOP
+FETCH c INTO v_a, v_b, v_c;
+IF done THEN
+LEAVE read_loop;
+END IF;
+INSERT INTO t2 (a,b,c) VALUES (v_a, v_b, v_c);
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1();
+SELECT * FROM t2;
+a	b	c
+1	b1	2001-01-01 10:20:30.123
+2	b2	2001-01-02 10:20:30.123
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Using TYPE OF variables as SELECT INTO targets
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10),c DATETIME(3));
+INSERT INTO t1 VALUES (1,'b1','2001-01-01 10:20:30.123');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v_a TYPE OF t1.a;
+DECLARE v_b TYPE OF t1.b;
+DECLARE v_c TYPE OF t1.c;
+SELECT * FROM t1 INTO v_a, v_b, v_c;
+SELECT v_a, v_b, v_c;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+v_a	v_b	v_c
+1	b1	2001-01-01 10:20:30.123
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# End of MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
+#
+#
+# MDEV-14139 Anchored data types for variables
+#
+BEGIN NOT ATOMIC
+DECLARE a TYPE OF a;
+END;
+$$
+ERROR 42000: Undeclared variable: a
+BEGIN NOT ATOMIC
+DECLARE int11 INT;
+DECLARE dec103 DECIMAL(10,3);
+DECLARE flt0 FLOAT;
+DECLARE dbl0 DOUBLE;
+DECLARE enum0 ENUM('a','b');
+DECLARE bit3 BIT(3);
+DECLARE varchar10 VARCHAR(10);
+DECLARE text1 TEXT;
+DECLARE tinytext1 TINYTEXT;
+DECLARE mediumtext1 MEDIUMTEXT;
+DECLARE longtext1 LONGTEXT;
+DECLARE time3 TIME(3);
+DECLARE datetime4 DATETIME(4);
+DECLARE timestamp5 TIMESTAMP(5);
+DECLARE date0 DATE;
+DECLARE a_int11 TYPE OF int11;
+DECLARE a_dec103 TYPE OF dec103;
+DECLARE a_flt0 TYPE OF flt0;
+DECLARE a_dbl0 TYPE OF dbl0;
+DECLARE a_bit3 TYPE OF bit3;
+DECLARE a_enum0 TYPE OF enum0;
+DECLARE a_varchar10 TYPE OF varchar10;
+DECLARE a_text1 TYPE OF text1;
+DECLARE a_tinytext1 TYPE OF tinytext1;
+DECLARE a_mediumtext1 TYPE OF mediumtext1;
+DECLARE a_longtext1 TYPE OF longtext1;
+DECLARE a_time3 TYPE OF time3;
+DECLARE a_datetime4 TYPE OF datetime4;
+DECLARE a_timestamp5 TYPE OF timestamp5;
+DECLARE a_date0 TYPE OF date0;
+DECLARE aa_int11 TYPE OF a_int11;
+DECLARE aa_dec103 TYPE OF a_dec103;
+DECLARE aa_flt0 TYPE OF a_flt0;
+DECLARE aa_dbl0 TYPE OF a_dbl0;
+DECLARE aa_bit3 TYPE OF a_bit3;
+DECLARE aa_enum0 TYPE OF a_enum0;
+DECLARE aa_varchar10 TYPE OF a_varchar10;
+DECLARE aa_text1 TYPE OF a_text1;
+DECLARE aa_tinytext1 TYPE OF a_tinytext1;
+DECLARE aa_mediumtext1 TYPE OF a_mediumtext1;
+DECLARE aa_longtext1 TYPE OF a_longtext1;
+DECLARE aa_time3 TYPE OF a_time3;
+DECLARE aa_datetime4 TYPE OF a_datetime4;
+DECLARE aa_timestamp5 TYPE OF a_timestamp5;
+DECLARE aa_date0 TYPE OF a_date0;
+CREATE TABLE t1 AS
+SELECT a_int11,a_dec103,a_flt0,a_dbl0,a_bit3,
+a_enum0,a_varchar10,
+a_text1,a_tinytext1,a_mediumtext1,a_longtext1,
+a_time3,a_datetime4,a_timestamp5,a_date0;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+CREATE TABLE t1 AS
+SELECT aa_int11,aa_dec103,aa_flt0,aa_dbl0,aa_bit3,
+aa_enum0,aa_varchar10,
+aa_text1,aa_tinytext1,aa_mediumtext1,aa_longtext1,
+aa_time3,aa_datetime4,aa_timestamp5,aa_date0;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a_int11` int(11) DEFAULT NULL,
+  `a_dec103` decimal(10,3) DEFAULT NULL,
+  `a_flt0` float DEFAULT NULL,
+  `a_dbl0` double DEFAULT NULL,
+  `a_bit3` bit(3) DEFAULT NULL,
+  `a_enum0` char(1) DEFAULT NULL,
+  `a_varchar10` varchar(10) DEFAULT NULL,
+  `a_text1` text DEFAULT NULL,
+  `a_tinytext1` tinytext DEFAULT NULL,
+  `a_mediumtext1` mediumtext DEFAULT NULL,
+  `a_longtext1` longtext DEFAULT NULL,
+  `a_time3` time(3) DEFAULT NULL,
+  `a_datetime4` datetime(4) DEFAULT NULL,
+  `a_timestamp5` timestamp(5) NULL DEFAULT NULL,
+  `a_date0` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `aa_int11` int(11) DEFAULT NULL,
+  `aa_dec103` decimal(10,3) DEFAULT NULL,
+  `aa_flt0` float DEFAULT NULL,
+  `aa_dbl0` double DEFAULT NULL,
+  `aa_bit3` bit(3) DEFAULT NULL,
+  `aa_enum0` char(1) DEFAULT NULL,
+  `aa_varchar10` varchar(10) DEFAULT NULL,
+  `aa_text1` text DEFAULT NULL,
+  `aa_tinytext1` tinytext DEFAULT NULL,
+  `aa_mediumtext1` mediumtext DEFAULT NULL,
+  `aa_longtext1` longtext DEFAULT NULL,
+  `aa_time3` time(3) DEFAULT NULL,
+  `aa_datetime4` datetime(4) DEFAULT NULL,
+  `aa_timestamp5` timestamp(5) NULL DEFAULT NULL,
+  `aa_date0` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1

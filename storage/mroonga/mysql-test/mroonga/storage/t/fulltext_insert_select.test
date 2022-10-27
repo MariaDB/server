@@ -1,0 +1,41 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+create table t1 (c1 int primary key, c2 varchar(100), fulltext index(c2)) default charset utf8;
+create table t2 (c1 int primary key, c2 text, fulltext index(c2)) default charset utf8;
+insert into t1 values (1, "aa ii uu ee oo");
+insert into t1 values (2, "ka ki ku ke ko");
+insert into t1 values (3, "aa ii ii ii oo");
+insert into t1 values (4, "sa si su se so");
+insert into t1 values (5, "ta ti ii ii to");
+insert into t2 (c1,c2) select c1,c2 from t1;
+select * from t1;
+select * from t2;
+select * from t1 where c1=3;
+select * from t2 where c1=3;
+select * from t1 where c1>3 order by c1 desc;
+select * from t2 where c1>3 order by c1 asc;
+select * from t1 where c2>"s" order by c2 desc;
+select * from t2 where c2>"s" order by c1 asc;
+drop table t1,t2;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

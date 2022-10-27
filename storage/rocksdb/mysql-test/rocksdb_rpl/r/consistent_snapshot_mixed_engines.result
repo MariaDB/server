@@ -1,0 +1,68 @@
+DROP TABLE IF EXISTS t1;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+create table i1 (id int primary key , value int) engine=innodb;
+create table r1 (id int primary key , value int) engine=rocksdb;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection con2;
+insert into i1 values (1,1);
+insert into r1 values (1,1);
+connection con1;
+select * from i1;
+id	value
+select * from r1;
+id	value
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	1115	uuid:1-5
+connection con2;
+insert into i1 values (2,2);
+insert into r1 values (2,2);
+connection con1;
+select * from i1;
+id	value
+1	1
+2	2
+select * from r1;
+id	value
+1	1
+connection con2;
+insert into i1 values (3,2);
+insert into r1 values (3,2);
+connection con1;
+select * from i1;
+id	value
+1	1
+2	2
+select * from r1;
+id	value
+1	1
+START TRANSACTION WITH CONSISTENT INNODB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	2015	uuid:1-9
+connection con2;
+insert into r1 values (4,4);
+connection con1;
+select * from r1;
+id	value
+1	1
+2	2
+3	2
+4	4
+connection con2;
+insert into r1 values (5,5);
+connection con1;
+select * from r1;
+id	value
+1	1
+2	2
+3	2
+4	4
+drop table i1;
+drop table r1;
+connection default;
+disconnect con1;
+disconnect con2;
+reset master;

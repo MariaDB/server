@@ -1,0 +1,69 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+connection node_2;
+connection node_1;
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+connection node_3;
+connection node_1;
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 1']
+connection node_2;
+connection node_1;
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+include/assert_grep.inc [grastate.dat does not have 'safe_to_bootstrap: 0']
+connection node_2;
+connection node_1;
+SET SESSION wsrep_on = OFF;
+Killing server ...
+safe_to_bootstrap: 1
+safe_to_bootstrap: 0
+safe_to_bootstrap: 0
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_2;
+CALL mtr.add_suppression("WSREP: no nodes coming from prim view, prim not possible");
+CALL mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("WSREP: wsrep::connect(.*) failed: 7");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("WSREP: moving position backwards: [0-9]+ -> 0");
+CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
+CALL mtr.add_suppression("It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("Plugin 'wsrep' init function returned error.");
+CALL mtr.add_suppression("Plugin 'wsrep' registration as a STORAGE ENGINE failed.");
+CALL mtr.add_suppression("Failed to initialize plugins.");
+CALL mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg()");
+connection node_3;
+CALL mtr.add_suppression("WSREP: no nodes coming from prim view, prim not possible");
+CALL mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("WSREP: wsrep::connect(.*) failed: 7");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("WSREP: moving position backwards: [0-9]+ -> 0");
+CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
+CALL mtr.add_suppression("It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("Plugin 'wsrep' init function returned error.");
+CALL mtr.add_suppression("Plugin 'wsrep' registration as a STORAGE ENGINE failed.");
+CALL mtr.add_suppression("Failed to initialize plugins.");
+CALL mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg()");
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;

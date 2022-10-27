@@ -1,0 +1,119 @@
+#
+# The test checks that basic DDL and DML events are encrypted 
+# in the relay and binary logs on slave.
+# The test is to be run with all binlog formats 
+# (combinations for rpl_init.inc take care of that).
+#
+# The test runs with the non-encrypted master and encrypted slave. 
+# It generates a sequence of events on master and checks that
+# relay logs and binary logs are encrypted on slave.
+#
+
+--source include/have_partition.inc
+--source encryption_algorithms.inc
+--source include/have_innodb.inc
+
+--echo #################
+--echo # Initialization
+--echo #################
+
+--let $rpl_topology= 1->2
+--source include/rpl_init.inc
+
+--enable_connect_log
+--connection server_2
+
+# We stop SQL thread because we want to have
+# all relay logs at the end of the test flow
+
+--disable_connect_log
+--source include/stop_slave_sql.inc
+--enable_connect_log
+
+--echo #################
+--echo # Test flow
+--echo #################
+
+--connection server_1
+--source testdata.inc
+
+--echo #################
+--echo # Master binlog checks
+--echo #################
+
+--let $master_datadir= `SELECT @@datadir`
+
+--let SEARCH_RANGE = 500000
+--let SEARCH_FILE= $master_datadir/master-bin.0*
+--let SEARCH_PATTERN= _to_encrypt.*
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $master_datadir/master-bin.0*
+--let SEARCH_PATTERN= COMMIT.*
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $master_datadir/master-bin.0*
+--let SEARCH_PATTERN= TIMESTAMP.*
+--source include/search_pattern_in_file.inc
+
+--disable_connect_log
+--source include/save_master_pos.inc
+--enable_connect_log
+
+--echo #################
+--echo # Relay log checks
+--echo #################
+
+--connection server_2
+--disable_connect_log
+--source include/sync_io_with_master.inc
+--enable_connect_log
+
+--let $slave_datadir= `SELECT @@datadir`
+
+--let SEARCH_FILE= $slave_datadir/slave-relay-bin.0*
+--let SEARCH_PATTERN= _to_encrypt
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $slave_datadir/slave-relay-bin.0*
+--let SEARCH_PATTERN= COMMIT
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $slave_datadir/slave-relay-bin.0*
+--let SEARCH_PATTERN= TIMESTAMP
+--source include/search_pattern_in_file.inc
+
+--echo #################
+--echo # Slave binlog checks
+--echo #################
+
+# Re-enable SQL thread, let it catch up with IO thread
+# and check slave binary logs
+
+--disable_connect_log
+--source include/start_slave.inc
+--source include/sync_slave_sql_with_io.inc
+--enable_connect_log
+
+--disable_connect_log
+--source include/sync_io_with_master.inc
+--enable_connect_log
+
+--let SEARCH_FILE= $slave_datadir/slave-bin.0*
+--let SEARCH_PATTERN= _to_encrypt
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $slave_datadir/slave-bin.0*
+--let SEARCH_PATTERN= COMMIT
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $slave_datadir/slave-bin.0*
+--let SEARCH_PATTERN= TIMESTAMP
+--source include/search_pattern_in_file.inc
+
+--echo ##########
+--echo # Cleanup
+--echo ##########
+
+--disable_connect_log
+--source include/rpl_end.inc

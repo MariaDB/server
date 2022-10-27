@@ -1,0 +1,17 @@
+--source include/master-slave.inc
+
+connection master;
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE INDEX i1 ON t1 (a);
+CREATE OR REPLACE INDEX i1 ON t1 (a, b);
+sync_slave_with_master;
+
+SHOW CREATE TABLE t1;
+
+connection master;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+sync_slave_with_master;
+
+--source include/rpl_end.inc

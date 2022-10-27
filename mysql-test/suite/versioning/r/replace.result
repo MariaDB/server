@@ -1,0 +1,63 @@
+create or replace table t(
+id int,
+KEY_TYPE(id),
+x int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning;
+insert t values (1, 2);
+replace t values (1, 3);
+select *, current_row(row_end) as current from t for system_time all order by x;
+id	x	current
+1	2	0
+1	3	1
+drop table t;
+create table t (
+id int unique,
+x int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert t values (1, 2);
+replace t values (1, 3);
+select *, current_row(row_end) as current from t for system_time all order by x;
+id	x	current
+1	2	0
+1	3	1
+drop table t;
+# MDEV-15645 Assertion `table->insert_values' failed in write_record upon REPLACE into a view with underlying versioned table
+create or replace table t1 (a int, b int, primary key (a), unique(b)) with system versioning;
+insert into t1 values (1,1);
+create or replace table t2 (c int);
+create or replace view v as select t1.* from t1 join t2;
+replace into v (a, b) select a, b from t1;
+drop view v;
+drop tables t1, t2;
+CREATE TABLE t1 (
+pk INT AUTO_INCREMENT,
+f INT,
+row_start SYS_DATATYPE AS ROW START INVISIBLE,
+row_end SYS_DATATYPE AS ROW END INVISIBLE,
+PRIMARY KEY(pk),
+UNIQUE(f),
+PERIOD FOR SYSTEM_TIME(row_start, row_end)
+) WITH SYSTEM VERSIONING;
+INSERT INTO t1 () VALUES (),(),(),(),(),();
+UPDATE IGNORE t1 SET f = 1;
+REPLACE t1 SELECT * FROM t1;
+DROP TABLE t1;
+# MDEV-22540 ER_DUP_ENTRY upon REPLACE or Assertion failed
+set timestamp=1589245268.41934;
+create table t1 (a int primary key) with system versioning;
+insert into t1 values (1),(2);
+connect  con1,localhost,root,,test;
+set timestamp=1589245268.52093;
+replace into t1 values (1),(2);
+connection default;
+replace into t1 values (1),(2);
+connection con1;
+replace into t1 values (1),(2);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+drop table t1;

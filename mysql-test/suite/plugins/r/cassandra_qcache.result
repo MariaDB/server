@@ -1,0 +1,16 @@
+drop table if exists t1, t2;
+create table t1 (rowkey int primary key, a int) engine=cassandra
+thrift_host='localhost' keyspace='mariadbtest2' column_family='cf1';
+create table t2 like t1;
+set global query_cache_size=1024*1024;
+select * from t1;
+rowkey	a
+insert into t2 values (1,1);
+select * from t1;
+rowkey	a
+1	1
+select sql_no_cache * from t1;
+rowkey	a
+1	1
+drop table t1,t2;
+set global QUERY_CACHE_SIZE=0;

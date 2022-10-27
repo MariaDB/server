@@ -1,0 +1,4784 @@
+include/rpl_init.inc [topology=1->2->3]
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CON: 'server_1', IMG: 'MINIMAL', RESTART SLAVE: 'N'
+connection server_1;
+SET SESSION binlog_row_image= 'MINIMAL';
+SET GLOBAL binlog_row_image= 'MINIMAL';
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	MINIMAL
+CON: 'server_2', IMG: 'MINIMAL', RESTART SLAVE: 'Y'
+connection server_2;
+SET SESSION binlog_row_image= 'MINIMAL';
+SET GLOBAL binlog_row_image= 'MINIMAL';
+include/stop_slave.inc
+include/start_slave.inc
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	MINIMAL
+CON: 'server_3', IMG: 'MINIMAL', RESTART SLAVE: 'Y'
+connection server_3;
+SET SESSION binlog_row_image= 'MINIMAL';
+SET GLOBAL binlog_row_image= 'MINIMAL';
+include/stop_slave.inc
+include/start_slave.inc
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	MINIMAL
+connection server_1;
+### engines: MyISAM, MyISAM, MyISAM
+connection server_1;
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes in master, but NULLABLE on first slave
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Primary key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: One key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: No keys
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+### engines: MyISAM, MyISAM, InnoDB
+connection server_1;
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes in master, but NULLABLE on first slave
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Primary key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: One key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: No keys
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+### engines: MyISAM, InnoDB, MyISAM
+connection server_1;
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes in master, but NULLABLE on first slave
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Primary key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: One key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: No keys
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+### engines: MyISAM, InnoDB, InnoDB
+connection server_1;
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes in master, but NULLABLE on first slave
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Primary key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: One key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: No keys
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+### engines: InnoDB, MyISAM, MyISAM
+connection server_1;
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes in master, but NULLABLE on first slave
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Primary key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: One key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: No keys
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+### engines: InnoDB, MyISAM, InnoDB
+connection server_1;
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes in master, but NULLABLE on first slave
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Primary key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: One key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: No keys
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+### engines: InnoDB, InnoDB, MyISAM
+connection server_1;
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes in master, but NULLABLE on first slave
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Primary key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: One key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: No keys
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= MyISAM;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+### engines: InnoDB, InnoDB, InnoDB
+connection server_1;
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes in master, but NULLABLE on first slave
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite NOT NULL Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int NOT NULL, c2 char(1), c3 char(1) NOT NULL, c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key with holes
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c3)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Primary Key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Primary key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), primary key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Unique key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), unique key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+****** TEST: One Composite key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1,c2)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: One key
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1), key(c1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+connection server_1;
+SET SQL_LOG_BIN=0;
+connection server_2;
+SET SQL_LOG_BIN=0;
+connection server_3;
+SET SQL_LOG_BIN=0;
+******* TEST: No keys
+connection server_1;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_2;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_3;
+CREATE TABLE t (c1 int, c2 char(1), c3 char(1), c4 char(1)) engine= InnoDB;;
+connection server_1;
+SET SQL_LOG_BIN=1;
+connection server_2;
+SET SQL_LOG_BIN=1;
+connection server_3;
+SET SQL_LOG_BIN=1;
+connection server_1;
+INSERT INTO t VALUES (1, '1', '1', '1' );
+INSERT INTO t VALUES (4, '4', '4', '4' );
+INSERT INTO t VALUES (7, '7', '7', '7' );
+INSERT INTO t VALUES (9, '9', '9', NULL );
+INSERT INTO t VALUES (2, '1', '2', '2' );
+INSERT INTO t VALUES (3, '1', '3', '2' );
+include/rpl_sync.inc
+connection server_1;
+UPDATE t SET c4 = '7';
+UPDATE t SET c4 = '5' WHERE c1 = 1;
+UPDATE t SET c2 = '5' WHERE c1 = 1;
+UPDATE t SET c1 = '5' WHERE c1 = 1;
+UPDATE t SET c4 = '8' WHERE c2 = '4';
+UPDATE t SET c1 = '8' WHERE c2 = '4';
+UPDATE t SET c2 = '8' WHERE c2 = '4';
+UPDATE t SET c3 = '0' WHERE c4 = NULL;
+UPDATE t SET c2 = '0' WHERE c4 = '0';
+UPDATE t SET c2 = '2' WHERE c4 = '2';
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DELETE FROM t WHERE c1 = 7;
+DELETE FROM t WHERE c1 = 8;
+DELETE FROM t;
+include/rpl_sync.inc
+include/diff_tables.inc [server_1:test.t, server_2:test.t, server_3:test.t]
+connection server_1;
+DROP TABLE t;
+include/rpl_sync.inc
+CON: 'server_1', IMG: 'FULL', RESTART SLAVE: 'N'
+connection server_1;
+SET SESSION binlog_row_image= 'FULL';
+SET GLOBAL binlog_row_image= 'FULL';
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	FULL
+CON: 'server_2', IMG: 'FULL', RESTART SLAVE: 'Y'
+connection server_2;
+SET SESSION binlog_row_image= 'FULL';
+SET GLOBAL binlog_row_image= 'FULL';
+include/stop_slave.inc
+include/start_slave.inc
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	FULL
+CON: 'server_3', IMG: 'FULL', RESTART SLAVE: 'Y'
+connection server_3;
+SET SESSION binlog_row_image= 'FULL';
+SET GLOBAL binlog_row_image= 'FULL';
+include/stop_slave.inc
+include/start_slave.inc
+FLUSH TABLES;
+SHOW VARIABLES LIKE 'binlog_row_image';
+Variable_name	Value
+binlog_row_image	FULL
+connection server_1;
+include/rpl_end.inc

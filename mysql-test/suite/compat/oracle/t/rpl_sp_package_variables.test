@@ -1,0 +1,36 @@
+--source include/master-slave.inc
+
+connection master;
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-13139 Package-wide variables in CREATE PACKAGE
+--echo #
+connection master;
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  va INT:=10;
+  PROCEDURE p1 AS
+  BEGIN
+    INSERT INTO t1 VALUES (va);
+  END;
+BEGIN
+  CREATE OR REPLACE TABLE t1 (a INT);
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT * FROM t1;
+sync_slave_with_master;
+SELECT * FROM t1;
+connection master;
+DROP PACKAGE p1;
+DROP TABLE t1;
+sync_slave_with_master;
+
+--source include/rpl_end.inc

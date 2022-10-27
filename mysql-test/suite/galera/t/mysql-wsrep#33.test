@@ -1,0 +1,28 @@
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source suite/galera/include/auto_increment_offset_save.inc
+
+--source suite/galera/include/galera_sst_set_mysqldump.inc
+
+--source suite/galera/include/galera_st_disconnect_slave.inc
+
+--source suite/galera/include/galera_st_shutdown_slave.inc
+--source suite/galera/include/galera_st_clean_slave.inc
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+--connection node_2
+
+--source suite/galera/include/auto_increment_offset_restore.inc
+--source suite/galera/include/galera_sst_restore.inc
+
+# We have to manually restore global_log and slow_query_log due to mysql-wsrep#108
+# Otherwise MTR's check_testcases complains
+
+SET GLOBAL general_log = ON;
+SET GLOBAL slow_query_log = ON;

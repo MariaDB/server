@@ -1,0 +1,126 @@
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+connection con1;
+--disable_warnings
+drop table if exists t1,t2;
+drop view if exists v1;
+--enable_warnings
+
+# Add a lot of keys to slow down check
+create table t1(n int not null, key(n), key(n), key(n), key(n));
+let $1=10000;
+--disable_query_log
+begin;
+while ($1)
+{
+ eval insert into t1 values ($1);
+ dec $1;
+}
+commit;
+--enable_query_log
+send check table t1 extended;
+connection con2;
+insert into t1 values (200000);
+connection con1;
+reap;
+connection default;
+disconnect con1;
+disconnect con2;
+drop table t1;
+
+
+# End of 4.1 tests
+
+#
+# Bug#9897 Views: 'Check Table' crashes MySQL, with a view and a table
+#          in the statement
+#
+Create table t1(f1 int);
+Create table t2(f1 int);
+Create view v1 as Select * from t1;
+Check Table v1,t2;
+drop view v1;
+drop table t1, t2;
+
+
+#
+# Bug#26325 TEMPORARY TABLE "corrupt" after first read, according to CHECK TABLE
+#
+CREATE TEMPORARY TABLE t1(a INT);
+CHECK TABLE t1;
+REPAIR TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Bug#56422 CHECK TABLE run when the table is locked reports corruption
+--echo #           along with timeout
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1(a INT);
+LOCK TABLE t1 WRITE;
+
+connect(con1, localhost, root);
+SET lock_wait_timeout= 1;
+CHECK TABLE t1;
+
+connection default;
+UNLOCK TABLES;
+DROP TABLE t1;
+disconnect con1;
+
+
+# Wait till we reached the initial number of concurrent sessions
+--source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-15338
+--echo # Assertion `!table || (!table->read_set ||
+--echo # bitmap_is_set(table->read_set, field_index))'
+--echo # failed on dropping column with CHECK
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, CHECK (a>0)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,2),(3,4);
+ALTER TABLE t1 DROP COLUMN a;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, CHECK (a>0)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP COLUMN b;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, CHECK (a+b>0)) ENGINE=MyISAM;
+--error ER_BAD_FIELD_ERROR
+ALTER TABLE t1 DROP COLUMN b;
+ALTER TABLE t1 DROP COLUMN a, DROP COLUMN b;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, CHECK (a+b>0)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP CONSTRAINT `CONSTRAINT_1`;
+SHOW CREATE TABLE t1;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, CHECK (a+b>0)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP COLUMN b, DROP CONSTRAINT `CONSTRAINT_1`;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+#
+# MDEV-16903 Assertion `!auto_increment_field_not_null' failed in TABLE::init after unsuccessful attempt to add CHECK constraint on temporary table
+#
+create temporary table t1 (
+  id int not null auto_increment primary key,
+  f int not null default 0
+);
+insert into t1 () values ();
+alter ignore table t1 add constraint check (f > 0);
+alter table t1;
+drop table t1;
+
+#
+# MDEV-16905 ASAN heap-use-after-free in __interceptor_strnlen / ... / TABLE::verify_constraints upon INSERT into temporary table with CHECK constraint
+#
+create temporary table t1 (a int default 0, check (a > 0));
+alter table t1 drop constraint if exists non_existing_constraint;
+--error ER_CONSTRAINT_FAILED
+insert into t1 () values ();
+drop table t1;

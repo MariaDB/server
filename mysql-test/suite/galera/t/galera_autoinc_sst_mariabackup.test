@@ -1,0 +1,71 @@
+#
+# Test that autoincrement works correctly while the cluster membership
+# is changing and SST takes place.
+#
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_mariabackup.inc
+--source include/force_restart.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+
+# Kill and restart node #2
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--source include/kill_galera.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+
+--connection node_1
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+
+--connection node_2a
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SELECT COUNT(*) FROM t1;
+
+--connection node_2a
+SELECT COUNT(*) FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+
+CALL mtr.add_suppression("gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
+CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member 0");
+
+--let $node_1=node_1a
+--let $node_2=node_2a
+--source include/auto_increment_offset_restore.inc
+
+--disconnect node_1a
+--disconnect node_2a

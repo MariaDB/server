@@ -1,0 +1,7 @@
+create function udf_sequence returns integer soname "UDF_EXAMPLE_LIB";
+create table t1 (n int key not null auto_increment,  msg int as (udf_sequence()) virtual);
+select * from t1;
+n	msg
+# restart
+drop table t1;
+drop function udf_sequence;

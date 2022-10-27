@@ -1,0 +1,27 @@
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=1;
+set @@use_stat_tables= NEVER;
+set @@session.max_heap_table_size=16*1024*1024;
+create table t1 select * from information_schema.session_status where variable_name like 'Opened%';
+create temporary table t2 (a int) engine=memory;
+select variable_name, session_status.variable_value - t1.variable_value
+from information_schema.session_status join t1 using (variable_name);
+variable_name	session_status.variable_value - t1.variable_value
+OPENED_FILES	0
+OPENED_PLUGIN_LIBRARIES	0
+OPENED_TABLE_DEFINITIONS	2
+OPENED_TABLES	1
+OPENED_VIEWS	0
+truncate table t2;
+select variable_name, session_status.variable_value - t1.variable_value
+from information_schema.session_status join t1 using (variable_name);
+variable_name	session_status.variable_value - t1.variable_value
+OPENED_FILES	0
+OPENED_PLUGIN_LIBRARIES	0
+OPENED_TABLE_DEFINITIONS	2
+OPENED_TABLES	1
+OPENED_VIEWS	0
+set @@use_stat_tables= @save_use_stat_tables;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+drop table t1;

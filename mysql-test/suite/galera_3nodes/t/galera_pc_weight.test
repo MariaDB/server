@@ -1,0 +1,144 @@
+#
+# Test the pc.weight wsrep provider option. We set Node #1 to have a high
+# weight and then suspend it. This will cause Nodes #2 and #3 to transition
+# to non-primary component.
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+
+--connection node_1
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
+SET GLOBAL wsrep_provider_options = 'pc.weight=3';
+SELECT VARIABLE_VALUE = 5 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
+
+# Isolate node_1 from the cluster.
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+
+--connection node_2
+# Do not wait for causality as we are no longer in the primary component
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+
+# We can not use SELECT queries here, as only SHOW is allowed to run.
+# For nodes #2 and #3, we expect a non-primary component of size 2
+# and cluster weight 0
+SHOW STATUS LIKE 'wsrep_cluster_size';
+SHOW STATUS LIKE 'wsrep_cluster_weight';
+SHOW STATUS LIKE 'wsrep_cluster_status';
+SHOW STATUS LIKE 'wsrep_connected';
+SHOW STATUS LIKE 'wsrep_ready';
+SHOW STATUS LIKE 'wsrep_local_state';
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+--connection node_3
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+
+SHOW STATUS LIKE 'wsrep_cluster_size';
+SHOW STATUS LIKE 'wsrep_cluster_weight';
+SHOW STATUS LIKE 'wsrep_cluster_status';
+SHOW STATUS LIKE 'wsrep_connected';
+SHOW STATUS LIKE 'wsrep_ready';
+SHOW STATUS LIKE 'wsrep_local_state';
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+
+--connection node_1
+
+# For Node #1, we expect a primary component of size 1
+# (NOTE: this is a bit racy as nodes 2 and 3 will try to reconnect ASAP.
+#  to avoid the raice they should be suspended first as well, but that's
+#  not currently possible)
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_connected';
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state';
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
+
+# Resume cluster connectivity on node_1
+--connection node_1
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2
+--source include/wait_condition.inc
+
+--connection node_3
+--source include/wait_condition.inc
+
+--connection node_1
+--source include/wait_condition.inc
+
+# wait until nodes 2 and 3 have declared ready state (can happen after cluster_size raaise)
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+
+--connection node_3
+--source include/wait_condition.inc
+
+
+# On all nodes, we now expect a Primary component of size 3, weight 3, Synced and ready
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_connected';
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state';
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+
+--connection node_2
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_connected';
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state';
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+
+--connection node_3
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_weight';
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_connected';
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state';
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+
+--connection node_1
+
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
+--let $wait_condition = SELECT @@wsrep_provider_options LIKE '%pc.weight = 1%'
+--source include/wait_condition.inc
+
+CALL mtr.add_suppression('WSREP: gcs_caused\\(\\) returned -1');
+
+--connection node_2
+CALL mtr.add_suppression('overriding reported weight for');
+CALL mtr.add_suppression('SYNC message from member');
+CALL mtr.add_suppression('user message in state LEAVING');
+CALL mtr.add_suppression('sending install message failed: (Transport endpoint is not connected|Socket is not connected)');
+
+--connection node_3
+CALL mtr.add_suppression('WSREP: user message in state LEAVING');
+CALL mtr.add_suppression('sending install message failed: (Transport endpoint is not connected|Socket is not connected)');
+CALL mtr.add_suppression('overriding reported weight for');

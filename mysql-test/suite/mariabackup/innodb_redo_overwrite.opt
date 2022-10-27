@@ -1,0 +1,1 @@
+--loose-innodb-log-file-size=1048576 --loose-innodb-log-files-in-group=2

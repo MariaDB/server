@@ -1,0 +1,32 @@
+call mtr.add_suppression("InnoDB: Table `test`\\.`t[15]` (has an unreadable root page|is corrupted)");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[15]\\.ibd' cannot be decrypted\\.");
+call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
+call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t[15].ibd looks corrupted; key_version=1");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t[15]` is corrupted");
+call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
+# restart: --innodb-encrypt-tables=ON --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
+create table t5 (
+`intcol1` int(32) DEFAULT NULL,
+`intcol2` int(32) DEFAULT NULL,
+`charcol1` varchar(128) DEFAULT NULL,
+`charcol2` varchar(128) DEFAULT NULL,
+`charcol3` varchar(128) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+insert into t5 values (1,2,'maria','db','encryption');
+CREATE TABLE `t1` (
+`intcol1` int(32) DEFAULT NULL,
+`intcol2` int(32) DEFAULT NULL,
+`charcol1` varchar(128) DEFAULT NULL,
+`charcol2` varchar(128) DEFAULT NULL,
+`charcol3` varchar(128) DEFAULT NULL
+) ENGINE=InnoDB;
+insert into t1 values (1,2,'maria','db','encryption');
+alter table t1 encrypted='yes' `encryption_key_id`=1;
+# restart: --innodb-encrypt-tables=OFF
+select * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
+select * from t5;
+ERROR 42S02: Table 'test.t5' doesn't exist in engine
+# restart: --innodb-encrypt-tables=ON --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=MYSQL_TEST_DIR/std_data/keys2.txt
+drop table t1;
+drop table t5;

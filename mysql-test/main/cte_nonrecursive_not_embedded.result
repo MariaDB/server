@@ -1,0 +1,48 @@
+#
+# MDEV-20751: query using many CTEs with grant_tables enabled
+#
+connection default;
+CREATE DATABASE db;
+USE db;
+CREATE TABLE t1 (a int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES (3), (7), (1);
+CREATE TABLE t2 (a int) ENGINE=MYISAM;
+INSERT INTO t2 VALUES (2), (8), (4);
+CREATE USER 'u1'@'localhost';
+GRANT USAGE ON db.* TO 'u1'@'localhost';
+GRANT SELECT ON db.t1 TO 'u1'@'localhost';
+FLUSH PRIVILEGES;
+connect  u1,'localhost',u1,,;
+connection u1;
+USE db;
+WITH
+cte1 AS
+(SELECT a FROM t1),
+cte2 AS
+(SELECT cte1.a FROM t1,cte1 WHERE cte1.a = t1.a),
+cte3 AS
+(SELECT cte2.a FROM t1,cte1,cte2 WHERE cte1.a = t1.a AND t1.a = cte2.a),
+cte4 AS
+(SELECT cte2.a FROM t1,cte2 WHERE cte2.a = t1.a)
+SELECT * FROM cte4 as r;
+a
+3
+7
+1
+WITH
+cte1 AS
+(SELECT a FROM t2),
+cte2 AS
+(SELECT cte1.a FROM t2,cte1 WHERE cte1.a = t2.a),
+cte3 AS
+(SELECT cte2.a FROM t2,cte1,cte2 WHERE cte1.a = t2.a AND t2.a = cte2.a),
+cte4 AS
+(SELECT cte2.a FROM t2,cte2 WHERE cte2.a = t2.a)
+SELECT * FROM cte4 as r;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table 't2'
+disconnect u1;
+connection default;
+DROP USER 'u1'@'localhost';
+DROP DATABASE db;
+USE test;
+# End of 10.2 tests

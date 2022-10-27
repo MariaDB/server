@@ -1,0 +1,36 @@
+# If timestamping is used, it can (rarely) fail, when public timestamping service has issues.
+#
+# To handle the error gracefully and tranparently, we'll retry the signtool command,
+# second time without "/t URL" parameter
+SET(SIGNTOOL_PARAMETERS_NO_TIMESTAMP "@SIGNTOOL_PARAMETERS@")
+LIST(FIND SIGNTOOL_PARAMETERS_NO_TIMESTAMP /t idx)
+IF(NOT(idx EQUAL -1))
+ LIST(REMOVE_AT SIGNTOOL_PARAMETERS_NO_TIMESTAMP ${idx})
+ #remove the URL following /t , as well
+ LIST(REMOVE_AT SIGNTOOL_PARAMETERS_NO_TIMESTAMP ${idx})
+ENDIF()
+
+GET_FILENAME_COMPONENT(SIGNTOOL_DIR "@SIGNTOOL_EXECUTABLE@" DIRECTORY)
+GET_FILENAME_COMPONENT(SIGNTOOL_NAME "@SIGNTOOL_EXECUTABLE@" NAME)
+
+FILE(GLOB_RECURSE files "@CMAKE_BINARY_DIR@/*.signme")
+MESSAGE(STATUS "signing files")
+
+
+FOREACH(f ${files})
+  STRING(REPLACE ".signme" "" exe_location "${f}")
+
+  string (REPLACE ";" " " params "@SIGNTOOL_PARAMETERS@")
+
+  EXECUTE_PROCESS(COMMAND
+     cmd /c "${SIGNTOOL_NAME}" sign @SIGNTOOL_PARAMETERS@ "${exe_location}" 2>NUL
+     || "${SIGNTOOL_NAME}" sign ${SIGNTOOL_PARAMETERS_NO_TIMESTAMP} "${exe_location}"
+     WORKING_DIRECTORY ${SIGNTOOL_DIR}
+     RESULT_VARIABLE ERR)
+  IF(NOT ${ERR} EQUAL 0)
+    MESSAGE( "Error ${ERR} signing ${exe_location}")
+  ELSE()
+    FILE(REMOVE ${f})
+  ENDIF()
+
+ENDFOREACH()

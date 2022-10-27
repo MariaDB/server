@@ -1,0 +1,8 @@
+-- source include/have_maria.inc
+
+--echo #
+--echo # MDEV-15352 AUTO_INCREMENT breaks after updating a column value to a negative number
+--echo #
+
+SET @engine='ARIA';
+--source include/autoinc_mdev15353.inc

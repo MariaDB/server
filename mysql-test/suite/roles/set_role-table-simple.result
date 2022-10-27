@@ -1,0 +1,69 @@
+create user test_user@localhost;
+create role test_role1;
+create role test_role2;
+grant test_role1 to test_user@localhost;
+grant test_role2 to test_role1;
+select user, host from mysql.user where user not like 'root';
+User	Host
+mariadb.sys	localhost
+test_role1	
+test_role2	
+test_user	localhost
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+	test_role1	test_role2	N
+localhost	root	test_role1	Y
+localhost	root	test_role2	Y
+localhost	test_user	test_role1	N
+grant select on mysql.roles_mapping to test_role2;
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+show grants;
+Grants for test_user@localhost
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+GRANT `test_role1` TO `test_user`@`localhost`
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	NULL
+set role test_role1;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	test_role1
+show grants;
+Grants for test_user@localhost
+GRANT SELECT ON `mysql`.`roles_mapping` TO `test_role2`
+GRANT USAGE ON *.* TO `test_role1`
+GRANT USAGE ON *.* TO `test_role2`
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+GRANT `test_role1` TO `test_user`@`localhost`
+GRANT `test_role2` TO `test_role1`
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+	test_role1	test_role2	N
+localhost	root	test_role1	Y
+localhost	root	test_role2	Y
+localhost	test_user	test_role1	N
+show grants;
+Grants for test_user@localhost
+GRANT SELECT ON `mysql`.`roles_mapping` TO `test_role2`
+GRANT USAGE ON *.* TO `test_role1`
+GRANT USAGE ON *.* TO `test_role2`
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+GRANT `test_role1` TO `test_user`@`localhost`
+GRANT `test_role2` TO `test_role1`
+use mysql;
+set role none;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	NULL
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+drop user 'test_user'@'localhost';
+select * from mysql.tables_priv;
+Host	Db	User	Table_name	Grantor	Timestamp	Table_priv	Column_priv
+localhost	mysql	mariadb.sys	global_priv	root@localhost	0000-00-00 00:00:00	Select,Delete	
+	mysql	test_role2	roles_mapping	root@localhost	0000-00-00 00:00:00	Select	
+revoke select on mysql.roles_mapping from test_role2;
+delete from mysql.user where user like'test_%';
+delete from mysql.roles_mapping where Role like 'test%';
+flush privileges;

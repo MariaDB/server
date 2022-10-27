@@ -1,0 +1,70 @@
+--source include/have_log_bin.inc
+--source include/have_rocksdb.inc
+--source include/count_sessions.inc
+--disable_warnings
+#--source include/have_gtid.inc
+--enable_warnings
+#-- let $uuid = `select @@server_uuid;`
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+connection con1;
+CREATE TABLE t1 (id INT, value int, PRIMARY KEY (id), INDEX (value)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,1);
+
+# Read-only, long-running transaction. SingleDelete/Put shouldn't increase much.
+select variable_value into @p from information_schema.global_status where variable_name='rocksdb_number_sst_entry_put';
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+#-- replace_result $uuid uuid
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection con2;
+--disable_query_log
+let $i = 1;
+while ($i <= 10000) {
+  let $update = UPDATE t1 SET value=value+1 WHERE id=1;
+  inc $i;
+  eval $update;
+}
+--enable_query_log
+
+connection con1;
+select case when variable_value-@p < 1000 then 'true' else variable_value-@p end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_put';
+select case when variable_value-@s < 100 then 'true' else variable_value-@s end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+SELECT * FROM t1;
+--error ER_UPDATES_WITH_CONSISTENT_SNAPSHOT
+INSERT INTO t1 values (2, 2);
+ROLLBACK;
+SELECT * FROM t1;
+INSERT INTO t1 values (2, 2);
+SELECT * FROM t1 ORDER BY id;
+
+# Regular long-running transaction.
+# No "Transaction could not check for conflicts for opearation" error should happen.
+BEGIN;
+
+connection con2;
+--disable_query_log
+let $i = 5;
+while ($i <= 10000) {
+  let $insert = INSERT INTO t1 VALUES ($i, $i);
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+
+connection con1;
+SELECT COUNT(*) FROM t1;
+COMMIT;
+
+connection default;
+disconnect con1;
+disconnect con2;
+OPTIMIZE TABLE t1;
+DROP TABLE t1;
+reset master;

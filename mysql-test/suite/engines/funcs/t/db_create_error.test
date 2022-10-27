@@ -1,0 +1,12 @@
+--disable_warnings
+DROP DATABASE IF EXISTS d4;
+--enable_warnings
+CREATE DATABASE d4;
+--sorted_result
+SHOW DATABASES;
+--error 1007
+CREATE DATABASE d4;
+DROP DATABASE d4;
+--sorted_result
+SHOW DATABASES;
+

@@ -1,0 +1,42 @@
+#
+# This test is for testing virtual columnm support in galera cluster
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# test case for verifying that cascaded delete in a table with virtual column does not crash slave node
+#
+
+--connection node_1
+
+CREATE TABLE p (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT) ENGINE = InnoDB;
+CREATE TABLE c (id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, pid INT UNSIGNED, bitmap TINYINT UNSIGNED NOT NULL DEFAULT 0, bitmap5 TINYINT UNSIGNED GENERATED ALWAYS AS (bitmap&(1<<5)) VIRTUAL, FOREIGN KEY (pid) REFERENCES p (id) ON DELETE CASCADE ON UPDATE CASCADE);
+
+# not sure of this index is needed for the test
+CREATE INDEX bitmap5 ON c(bitmap5) USING BTREE;
+
+INSERT INTO p VALUES(1);
+INSERT INTO c(pid) VALUES(1);
+
+
+--connection node_2
+# wait until both INSERTS have arrived in node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM c
+--source include/wait_condition.inc
+
+--connection node_1
+# delete from parent table, it will cascade into child table
+# node_2 might have problem in applying this cascaded delete
+DELETE FROM p WHERE id=1;
+
+SELECT * FROM p;
+SELECT * FROM c;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM c;
+--source include/wait_condition.inc
+
+--connection node_1
+DROP TABLE c;
+DROP TABLE p;

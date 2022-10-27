@@ -1,0 +1,36 @@
+# TokuDB PFS crash test:
+# Make sure FTI instrumentation is on, execute base DDL, DML queries
+# and make sure there is no crash.
+
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+--source include/have_tokudb.inc
+
+SELECT COUNT(*) > 0 FROM performance_schema.setup_consumers
+  WHERE ENABLED = "NO";
+SELECT COUNT(*) > 0 FROM performance_schema.setup_instruments
+  WHERE NAME LIKE "%/fti/%" AND (ENABLED = 'NO' OR TIMED = "NO");
+
+CREATE TABLE t(a INT AUTO_INCREMENT PRIMARY KEY, b INT) ENGINE=TokuDB;
+INSERT INTO t (b) VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+                         (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+                         (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+                         (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+                         (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+                         (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+                         (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+                         (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+                         (1), (2), (3), (4), (5), (6), (7), (8), (9), (10),
+                         (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+INSERT INTO t (b) SELECT b FROM t;
+
+UPDATE t SET b = 11 WHERE b = 10;
+DELETE FROM t WHERE b = 1;
+
+ALTER TABLE t ADD COLUMN c CHAR(10) default NULL;
+TRUNCATE TABLE t;
+RENAME TABLE t TO t1;
+RENAME TABLE t1 TO t;
+
+SELECT COUNT(*) > 0 FROM t;
+DROP TABLE t;

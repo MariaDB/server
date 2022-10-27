@@ -1,0 +1,11 @@
+--source include/have_partition.inc
+
+#
+# MDEV-19254
+# Server crashes in maria_status / ha_maria::info upon SELECT with partition
+# pruning
+#
+
+CREATE TABLE t (a INT, KEY(a)) ENGINE=Aria PARTITION BY KEY(a) PARTITIONS 2;
+SELECT * FROM t PARTITION (p1);
+DROP TABLE t;

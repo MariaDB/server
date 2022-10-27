@@ -1,0 +1,44 @@
+select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
+grant select on *.* to current_role;
+ERROR 0L000: Invalid definer
+revoke select on *.* from current_role;
+ERROR 0L000: Invalid definer
+revoke all, grant option from current_role;
+ERROR 0L000: Invalid definer
+create role r1;
+grant insert on test.* to r1;
+grant r1 to current_user;
+set role r1;
+select current_role();
+current_role()
+r1
+grant select on *.* to current_role;
+show grants for current_role;
+Grants for r1
+GRANT SELECT ON *.* TO `r1`
+GRANT INSERT ON `test`.* TO `r1`
+revoke insert on test.* from current_role;
+show grants for current_role;
+Grants for r1
+GRANT SELECT ON *.* TO `r1`
+revoke all, grant option from current_role;
+show grants for current_role;
+Grants for r1
+GRANT USAGE ON *.* TO `r1`
+set password=password('foobar');
+show grants;
+Grants for root@localhost
+GRANT `r1` TO `root`@`localhost` WITH ADMIN OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` IDENTIFIED BY PASSWORD '*9B500343BC52E2911172EB52AE5CF4847604C6E5' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `r1`
+grant r1 to current_user() identified by 'barfoo';
+show grants;
+Grants for root@localhost
+GRANT `r1` TO `root`@`localhost` WITH ADMIN OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` IDENTIFIED BY PASSWORD '*343915A8181B5728EADBDC73E1F7E6B0C3998483' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `r1`
+set password='';
+drop role r1;
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

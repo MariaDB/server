@@ -1,0 +1,511 @@
+CREATE TABLE t1 (
+a int PRIMARY KEY,
+b int NOT NULL,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (2, 2);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+2
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int PRIMARY KEY,
+b BIGINT UNSIGNED NOT NULL,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=10;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, UNIX_TIMESTAMP());
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (2, UNIX_TIMESTAMP());
+INSERT INTO t1 values (3, UNIX_TIMESTAMP());
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+# 1 should be hidden
+SELECT a FROM t1 FORCE INDEX (PRIMARY);
+a
+2
+3
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+2
+3
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+# none should be hidden yet, compaction runs but records aren't expired
+SELECT a FROM t1 FORCE INDEX (PRIMARY);
+a
+2
+3
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+2
+3
+# all should be hidden now, even though compaction hasn't run again
+set global rocksdb_debug_ttl_read_filter_ts = -310;
+SELECT a FROM t1 FORCE INDEX (PRIMARY);
+a
+SELECT a FROM t1 FORCE INDEX (kb);
+a
+set global rocksdb_debug_ttl_read_filter_ts = 0;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int PRIMARY KEY,
+b int NOT NULL,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (3, 3);
+INSERT INTO t1 values (5, 5);
+INSERT INTO t1 values (7, 7);
+set global rocksdb_debug_ttl_rec_ts = 0;
+# should return nothing.
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+set global rocksdb_enable_ttl_read_filtering=0;
+# should return everything
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+1	1
+3	3
+5	5
+7	7
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+1	1
+3	3
+5	5
+7	7
+set global rocksdb_enable_ttl_read_filtering=1;
+# should return nothing.
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+DROP TABLE t1;
+set global rocksdb_compact_cf= 'default';
+# Read filtering index scan tests (None of these queries should return any results)
+CREATE TABLE t1 (
+a int,
+b int,
+c int,
+PRIMARY KEY (a,b,c),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (0,0,0);
+INSERT INTO t1 values (0,0,1);
+INSERT INTO t1 values (0,1,0);
+INSERT INTO t1 values (0,1,1);
+INSERT INTO t1 values (1,1,2);
+INSERT INTO t1 values (1,2,1);
+INSERT INTO t1 values (1,2,2);
+INSERT INTO t1 values (1,2,3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_force_flush_memtable_now=1;
+SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE a=1 AND b=2 AND c=2;
+a	b	c
+SELECT * FROM t1 FORCE INDEX (kb) WHERE a=1 AND b=2 AND c=2;
+a	b	c
+SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE a = 1;
+a	b	c
+SELECT * FROM t1 FORCE INDEX (kb) WHERE a = 1;
+a	b	c
+SELECT max(a) FROM t1 FORCE INDEX (PRIMARY) WHERE a < 3;
+max(a)
+NULL
+SELECT max(a) FROM t1 FORCE INDEX (kb) WHERE a < 3;
+max(a)
+NULL
+SELECT max(a) FROM t1 FORCE INDEX (PRIMARY) WHERE a < 2 AND b = 1 AND c < 3;
+max(a)
+NULL
+SELECT max(a) FROM t1 FORCE INDEX (kb) WHERE a < 2 AND b = 1 AND c < 3;
+max(a)
+NULL
+SELECT min(a) FROM t1 FORCE INDEX (PRIMARY) WHERE a >= 1;
+min(a)
+NULL
+SELECT min(a) FROM t1 FORCE INDEX (kb) WHERE a >= 1;
+min(a)
+NULL
+SELECT min(a) FROM t1 FORCE INDEX (PRIMARY) WHERE a > 1;
+min(a)
+NULL
+SELECT min(a) FROM t1 FORCE INDEX (kb) WHERE a > 1;
+min(a)
+NULL
+SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE a=1 and b in (1) order by c desc;
+a	b	c
+SELECT * FROM t1 FORCE INDEX (kb) WHERE a=1 and b in (1) order by c desc;
+a	b	c
+SELECT max(a) FROM t1 FORCE INDEX (PRIMARY) WHERE a <=10;
+max(a)
+NULL
+SELECT max(a) FROM t1 FORCE INDEX (kb) WHERE a <=10;
+max(a)
+NULL
+SELECT a FROM t1 FORCE INDEX (PRIMARY) WHERE a > 0 and a <= 2;
+a
+SELECT a FROM t1 FORCE INDEX (kb) WHERE a > 0 and a <= 2;
+a
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+0
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+8
+DROP TABLE t1;
+# Attempt to update expired value, should filter out
+set global rocksdb_force_flush_memtable_now=1;
+CREATE TABLE t1 (
+a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a
+SELECT * FROM t1;
+a
+# No error is thrown here, under the hood index_next_with_direction is
+# filtering out the record from being seen in the first place.
+UPDATE t1 set a = 1;
+DROP TABLE t1;
+# Ensure no rows can disappear in the middle of long-running transactions
+# Also ensure repeatable-read works as expected
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+CREATE TABLE t1 (
+a int PRIMARY KEY,
+b int NOT NULL,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;';
+INSERT INTO t1 values (1, 1);
+connection con1;
+# Creating Snapshot (start transaction)
+BEGIN;
+# Nothing filtered out here
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+1	1
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+1	1
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+1	1
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+1	1
+# Switching to connection 2
+connection con2;
+# compaction doesn't do anything since con1 snapshot is still open
+set global rocksdb_debug_ttl_ignore_pk = 1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+set global rocksdb_debug_ttl_ignore_pk = 0;
+# read filtered out, because on a different connection, on
+# this connection the records have 'expired' already so they are filtered out
+# even though they have not yet been removed by compaction
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+# Switching to connection 1
+connection con1;
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+1	1
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+1	1
+UPDATE t1 set a = a + 1;
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+2	1
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+2	1
+COMMIT;
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+DROP TABLE t1;
+disconnect con1;
+disconnect con2;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+CREATE TABLE t1 (
+a int PRIMARY KEY,
+b int NOT NULL,
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+# On Connection 1
+connection con1;
+# Creating Snapshot (start transaction)
+BEGIN;
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+# On Connection 2
+connection con2;
+set global rocksdb_debug_ttl_rec_ts = -2;
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (3, 3);
+INSERT INTO t1 values (5, 5);
+INSERT INTO t1 values (7, 7);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+# On Connection 1
+connection con1;
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+# On Connection 2
+connection con2;
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+set global rocksdb_enable_ttl_read_filtering=0;
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+a	b
+1	1
+3	3
+5	5
+7	7
+SELECT * FROM t1 FORCE INDEX (kb);
+a	b
+1	1
+3	3
+5	5
+7	7
+set global rocksdb_enable_ttl_read_filtering=1;
+disconnect con2;
+disconnect con1;
+connection default;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int,
+b int,
+ts bigint(20) UNSIGNED NOT NULL,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;ttl_col=ts;';
+set global rocksdb_debug_ttl_rec_ts = 100;
+INSERT INTO t1 VALUES (1, 1, UNIX_TIMESTAMP());
+INSERT INTO t1 VALUES (2, 2, UNIX_TIMESTAMP());
+INSERT INTO t1 VALUES (3, 3, UNIX_TIMESTAMP());
+INSERT INTO t1 VALUES (4, 4, UNIX_TIMESTAMP());
+INSERT INTO t1 VALUES (5, 5, UNIX_TIMESTAMP());
+INSERT INTO t1 VALUES (6, 6, UNIX_TIMESTAMP());
+INSERT INTO t1 VALUES (7, 7, UNIX_TIMESTAMP());
+INSERT INTO t1 VALUES (8, 8, UNIX_TIMESTAMP());
+INSERT INTO t1 VALUES (9, 9, UNIX_TIMESTAMP());
+INSERT INTO t1 VALUES (10, 10, UNIX_TIMESTAMP());
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+# None are expired
+SELECT a, b FROM t1 FORCE INDEX (kb);
+a	b
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+10	10
+set global rocksdb_debug_ttl_rec_ts = -100;
+UPDATE t1 SET ts=(UNIX_TIMESTAMP()+1) WHERE a IN (4, 7);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+# 4 and 7 should be gone
+SELECT a, b FROM t1 FORCE INDEX (kb);
+a	b
+1	1
+2	2
+3	3
+5	5
+6	6
+8	8
+9	9
+10	10
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+PRIMARY KEY (c1, c2),
+KEY kc2 (c2)
+) ENGINE=ROCKSDB
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -1200;
+INSERT INTO t1 values (1,1,'a');
+INSERT INTO t1 values (2,2,'b');
+set global rocksdb_debug_ttl_rec_ts = 1200;
+INSERT INTO t1 values (3,3,'c');
+INSERT INTO t1 values (4,4,'d');
+set global rocksdb_debug_ttl_rec_ts = -1200;
+INSERT INTO t1 values (5,5,'e');
+INSERT INTO t1 values (6,6,'f');
+set global rocksdb_debug_ttl_rec_ts = 1200;
+INSERT INTO t1 values (7,7,'g');
+INSERT INTO t1 values (8,8,'h');
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+c1	c2	name
+3	3	c
+4	4	d
+7	7	g
+8	8	h
+SELECT * FROM t1 FORCE INDEX (kc2);
+c1	c2	name
+3	3	c
+4	4	d
+7	7	g
+8	8	h
+SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE c1 > 5;
+c1	c2	name
+7	7	g
+8	8	h
+SELECT * FROM t1 FORCE INDEX (kc2) WHERE c2 > 5;
+c1	c2	name
+7	7	g
+8	8	h
+SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE 3 < c1 AND c1 < 6;
+c1	c2	name
+4	4	d
+SELECT * FROM t1 FORCE INDEX (kc2) WHERE 3 < c2 AND c2 < 6;
+c1	c2	name
+4	4	d
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int,
+b int,
+PRIMARY KEY (a),
+KEY kb (b)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1800;';
+set global rocksdb_debug_ttl_rec_ts = 0;
+INSERT INTO t1 values (1,1);
+INSERT INTO t1 values (2,2);
+INSERT INTO t1 values (7,7);
+INSERT INTO t1 values (10,10);
+INSERT INTO t1 values (11,11);
+INSERT INTO t1 values (12,12);
+set global rocksdb_debug_ttl_rec_ts = 450;
+INSERT INTO t1 values (3,3);
+INSERT INTO t1 values (4,4);
+INSERT INTO t1 values (8,8);
+INSERT INTO t1 values (16,16);
+INSERT INTO t1 values (17,17);
+INSERT INTO t1 values (18,18);
+set global rocksdb_debug_ttl_rec_ts = 900;
+INSERT INTO t1 values (5,5);
+INSERT INTO t1 values (6,6);
+INSERT INTO t1 values (9,9);
+INSERT INTO t1 values (13,13);
+INSERT INTO t1 values (14,14);
+INSERT INTO t1 values (15,15);
+set global rocksdb_debug_ttl_rec_ts = 0;
+# Should see everything
+SELECT * FROM t1;
+a	b
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+13	13
+14	14
+15	15
+16	16
+17	17
+18	18
+# Should have no records from the first group
+set global rocksdb_debug_ttl_read_filter_ts = -1800;
+SELECT * FROM t1;
+a	b
+3	3
+4	4
+5	5
+6	6
+8	8
+9	9
+13	13
+14	14
+15	15
+16	16
+17	17
+18	18
+SELECT * FROM t1 FORCE INDEX (kb) WHERE a > 5 AND a < 15;
+a	b
+6	6
+8	8
+9	9
+13	13
+14	14
+# Should only have records from the last group
+set global rocksdb_debug_ttl_read_filter_ts = -1800 - 450;
+SELECT * FROM t1;
+a	b
+5	5
+6	6
+9	9
+13	13
+14	14
+15	15
+SELECT * FROM t1 FORCE INDEX (kb) WHERE a < 10;
+a	b
+5	5
+6	6
+9	9
+# Should be empty
+set global rocksdb_debug_ttl_read_filter_ts = -1800 - 900;
+SELECT * FROM t1;
+a	b
+set global rocksdb_debug_ttl_read_filter_ts = 0;
+DROP TABLE t1;

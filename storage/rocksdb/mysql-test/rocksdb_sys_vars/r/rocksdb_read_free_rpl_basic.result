@@ -1,0 +1,58 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES('PK_SK');
+INSERT INTO valid_values VALUES('OFF');
+INSERT INTO valid_values VALUES('PK_ONLY');
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('a');
+SET @start_global_value = @@global.ROCKSDB_READ_FREE_RPL;
+SELECT @start_global_value;
+@start_global_value
+OFF
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_READ_FREE_RPL to PK_SK"
+SET @@global.ROCKSDB_READ_FREE_RPL   = PK_SK;
+SELECT @@global.ROCKSDB_READ_FREE_RPL;
+@@global.ROCKSDB_READ_FREE_RPL
+PK_SK
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_READ_FREE_RPL = DEFAULT;
+SELECT @@global.ROCKSDB_READ_FREE_RPL;
+@@global.ROCKSDB_READ_FREE_RPL
+OFF
+"Trying to set variable @@global.ROCKSDB_READ_FREE_RPL to OFF"
+SET @@global.ROCKSDB_READ_FREE_RPL   = OFF;
+SELECT @@global.ROCKSDB_READ_FREE_RPL;
+@@global.ROCKSDB_READ_FREE_RPL
+OFF
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_READ_FREE_RPL = DEFAULT;
+SELECT @@global.ROCKSDB_READ_FREE_RPL;
+@@global.ROCKSDB_READ_FREE_RPL
+OFF
+"Trying to set variable @@global.ROCKSDB_READ_FREE_RPL to PK_ONLY"
+SET @@global.ROCKSDB_READ_FREE_RPL   = PK_ONLY;
+SELECT @@global.ROCKSDB_READ_FREE_RPL;
+@@global.ROCKSDB_READ_FREE_RPL
+PK_ONLY
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_READ_FREE_RPL = DEFAULT;
+SELECT @@global.ROCKSDB_READ_FREE_RPL;
+@@global.ROCKSDB_READ_FREE_RPL
+OFF
+"Trying to set variable @@session.ROCKSDB_READ_FREE_RPL to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_READ_FREE_RPL   = 444;
+ERROR HY000: Variable 'rocksdb_read_free_rpl' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_READ_FREE_RPL to a"
+SET @@global.ROCKSDB_READ_FREE_RPL   = a;
+Got one of the listed errors
+SELECT @@global.ROCKSDB_READ_FREE_RPL;
+@@global.ROCKSDB_READ_FREE_RPL
+OFF
+SET @@global.ROCKSDB_READ_FREE_RPL = @start_global_value;
+SELECT @@global.ROCKSDB_READ_FREE_RPL;
+@@global.ROCKSDB_READ_FREE_RPL
+OFF
+SET GLOBAL ROCKSDB_READ_FREE_RPL=DEFAULT;
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

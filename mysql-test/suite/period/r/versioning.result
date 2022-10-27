@@ -1,0 +1,90 @@
+# DELETE
+create table t (
+s date, e date,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for apptime(s, e),
+period for system_time (row_start, row_end)) with system versioning;
+insert into t values('1999-01-01', '2018-12-12'),
+('1999-01-01', '1999-12-12');
+select row_start into @ins_time from t limit 1;
+select * from t order by s, e;
+s	e
+1999-01-01	1999-12-12
+1999-01-01	2018-12-12
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+from t for system_time all
+order by s, e, row_start;
+s	e	if(row_start = @ins_time, "OLD", "NEW")	check_row(row_start, row_end)
+1999-01-01	1999-12-12	OLD	CURRENT ROW
+1999-01-01	2000-01-01	NEW	CURRENT ROW
+1999-01-01	2018-12-12	OLD	HISTORICAL ROW
+2018-01-01	2018-12-12	NEW	CURRENT ROW
+# same for trigger case
+delete from t;
+delete history from t;
+insert into t values('1999-01-01', '2018-12-12'),
+('1999-01-01', '1999-12-12');
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t before update on t
+for each row call log(CONCAT('>UPD: ', old.s, ", ",  old.e, ' -> ', new.s, ", ",  new.e));
+create trigger tr2upd_t after  update on t
+for each row call log(CONCAT('<UPD: ', old.s, ", ",  old.e, ' -> ', new.s, ", ",  new.e));
+create trigger tr1del_t before delete on t
+for each row call log(CONCAT('>DEL: ', old.s, ", ",  old.e));
+create trigger tr2del_t after  delete on t
+for each row call log(CONCAT('<DEL: ', old.s, ", ",  old.e));
+create trigger tr1ins_t before insert on t
+for each row call log(CONCAT('>INS: ', new.s, ", ",  new.e));
+create trigger tr2ins_t after  insert on t
+for each row call log(CONCAT('<INS: ', new.s, ", ",  new.e));
+select row_start into @ins_time from t limit 1;
+select * from t order by s, e;
+s	e
+1999-01-01	1999-12-12
+1999-01-01	2018-12-12
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+from t for system_time all
+order by s, e, row_start;
+s	e	if(row_start = @ins_time, "OLD", "NEW")	check_row(row_start, row_end)
+1999-01-01	1999-12-12	OLD	CURRENT ROW
+1999-01-01	2000-01-01	NEW	CURRENT ROW
+1999-01-01	2018-12-12	OLD	HISTORICAL ROW
+2018-01-01	2018-12-12	NEW	CURRENT ROW
+select * from log_tbl order by id;
+id	log
+1	>DEL: 1999-01-01, 2018-12-12
+2	>INS: 1999-01-01, 2000-01-01
+3	<INS: 1999-01-01, 2000-01-01
+4	>INS: 2018-01-01, 2018-12-12
+5	<INS: 2018-01-01, 2018-12-12
+6	<DEL: 1999-01-01, 2018-12-12
+# UPDATE
+create or replace table t (x int, s date, e date,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for apptime(s, e),
+period for system_time(row_start, row_end)) with system versioning;
+insert into t values(1, '1999-01-01', '2018-12-12'),
+(2, '1999-01-01', '1999-12-12');
+select row_start into @ins_time from t limit 1;
+select * from t;
+x	s	e
+1	1999-01-01	2018-12-12
+2	1999-01-01	1999-12-12
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+from t for system_time all
+order by x, s, e, row_start;
+x	s	e	if(row_start = @ins_time, "OLD", "NEW")	check_row(row_start, row_end)
+1	1999-01-01	2000-01-01	NEW	CURRENT ROW
+1	1999-01-01	2018-12-12	OLD	HISTORICAL ROW
+1	2018-01-01	2018-12-12	NEW	CURRENT ROW
+2	1999-01-01	1999-12-12	OLD	CURRENT ROW
+6	2000-01-01	2018-01-01	NEW	CURRENT ROW
+drop table t,log_tbl;
+drop procedure log;

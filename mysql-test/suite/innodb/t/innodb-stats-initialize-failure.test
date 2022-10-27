@@ -1,0 +1,40 @@
+# MDEV-6424: Mariadb server crashes with assertion failure in file ha_innodb.cc
+--source include/have_innodb.inc
+
+# DEBUG_SYNC must be compiled in.
+--source include/have_debug_sync.inc
+
+call mtr.add_suppression("InnoDB: Warning: Index.*");
+# This caused crash earlier
+SET @saved_dbug = @@SESSION.debug_dbug;
+set DEBUG_DBUG='+d,ib_ha_innodb_stat_not_initialized';
+create table t1(a int not null primary key, b int, c int, key(b), key(c)) engine=innodb;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into t1 values(current_num, current_num, current_num);
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(10000);
+commit;
+set autocommit=1;
+
+select count(1) from t1;
+select count(1) from t1 where a between 5 and 100;
+select count(1) from t1 where b between 5 and 256;
+select count(1) from t1 where c between 7 and 787;
+
+
+
+drop procedure innodb_insert_proc;
+drop table t1;
+SET debug_dbug= @saved_dbug;

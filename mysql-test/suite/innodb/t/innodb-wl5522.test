@@ -1,0 +1,1078 @@
+# Not supported in embedded
+--source include/not_embedded.inc
+
+-- source include/have_innodb.inc
+-- source include/have_sequence.inc
+-- source include/innodb_checksum_algorithm.inc
+
+call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
+call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
+FLUSH TABLES;
+
+let $MYSQLD_TMPDIR = `SELECT @@tmpdir`;
+let $MYSQLD_DATADIR = `SELECT @@datadir`;
+let $checksum_algorithm = `SELECT @@innodb_checksum_algorithm`;
+
+CREATE TABLE t1
+(a INT AUTO_INCREMENT PRIMARY KEY,
+ b char(22),
+ c varchar(255),
+ KEY (b))
+ENGINE = InnoDB;
+
+CREATE TEMPORARY TABLE t (b char(22),c varchar(255));
+INSERT INTO t VALUES
+('Apa', 'Filler........'),
+('Banan', 'Filler........'), ('Cavalry', '..asdasdfaeraf'),
+('Devotion', 'asdfuihknaskdf'), ('Evolution', 'lsjndofiabsoibeg');
+
+INSERT INTO t1 (b,c) SELECT b,c FROM t,seq_1_to_128;
+DROP TEMPORARY TABLE t;
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
+SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
+
+CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+
+--list_files $MYSQLD_DATADIR/test
+--source include/restart_mysqld.inc
+FLUSH TABLE t1, t2 FOR EXPORT;
+--echo # List before copying files
+--list_files $MYSQLD_DATADIR/test
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_TMPDIR/t1.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_TMPDIR/t1.ibd
+--move_file $MYSQLD_DATADIR/test/t2.cfg $MYSQLD_TMPDIR/t2.cfg
+--copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_TMPDIR/t2.ibd
+UNLOCK TABLES;
+INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
+SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
+--echo # Restarting server
+-- source include/restart_mysqld.inc
+--echo # Done restarting server
+--echo # List before t1 DISCARD
+--list_files $MYSQLD_DATADIR/test
+ALTER TABLE t1 DISCARD TABLESPACE;
+--echo # List after t1 DISCARD
+--list_files $MYSQLD_DATADIR/test
+--copy_file $MYSQLD_TMPDIR/t1.cfg $MYSQLD_DATADIR/test/t1.cfg
+--copy_file $MYSQLD_TMPDIR/t1.ibd $MYSQLD_DATADIR/test/t1.ibd
+ALTER TABLE t1 IMPORT TABLESPACE;
+ALTER TABLE t1 ENGINE InnoDB;
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
+SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
+--list_files $MYSQLD_DATADIR/test
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
+SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
+DROP TABLE t1;
+--remove_file $MYSQLD_TMPDIR/t1.cfg
+--remove_file $MYSQLD_TMPDIR/t1.ibd
+
+ALTER TABLE t2 ROW_FORMAT=DYNAMIC;
+ALTER TABLE t2 DISCARD TABLESPACE;
+--echo # List after t2 DISCARD
+--list_files $MYSQLD_DATADIR/test
+--move_file $MYSQLD_TMPDIR/t2.ibd $MYSQLD_DATADIR/test/t2.ibd
+--move_file $MYSQLD_TMPDIR/t2.cfg $MYSQLD_DATADIR/test/t2.cfg
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t2 IMPORT TABLESPACE;
+--remove_file $MYSQLD_DATADIR/test/t2.cfg
+
+let $error_code = ER_TABLE_SCHEMA_MISMATCH;
+
+if ($checksum_algorithm == "full_crc32") {
+ let $error_code = 0;
+}
+
+if ($checksum_algorithm == "strict_full_crc32") {
+ let $error_code = 0;
+}
+
+--replace_regex /(FSP_SPACE_FLAGS=0x)[0-9a-f]+(,.*0x)[0-9a-f]+(.*)/\1*\2*\3/
+--error $error_code
+ALTER TABLE t2 IMPORT TABLESPACE;
+DROP TABLE t2;
+
+SET GLOBAL innodb_file_per_table = 1;
+SELECT @@innodb_file_per_table;
+
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+
+# Try importing when tablespace already exists
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT) ENGINE=InnoDB;
+
+INSERT INTO t1(c2) VALUES(1);
+--error ER_TABLESPACE_EXISTS
+ALTER TABLE t1 IMPORT TABLESPACE;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# Export/import on the same instance, with --innodb-file-per-table=1
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT) ENGINE=InnoDB;
+
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+
+--list_files $MYSQLD_DATADIR/test
+
+FLUSH TABLES t1 FOR EXPORT;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+--list_files $MYSQLD_DATADIR/test
+
+UNLOCK TABLES;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT) ENGINE=InnoDB;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--list_files $MYSQLD_DATADIR/test
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+SELECT COUNT(*) FROM t1;
+
+DROP TABLE t1;
+
+# Export/import on the same instance, with --innodb-file-per-table=1
+# Insert some more records to move the LSN forward and then drop the
+# table and restore
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT) ENGINE=InnoDB;
+
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+
+--list_files $MYSQLD_DATADIR/test
+FLUSH TABLES t1 FOR EXPORT;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+--list_files $MYSQLD_DATADIR/test
+UNLOCK TABLES;
+
+--list_files $MYSQLD_DATADIR/test
+
+# Move the LSN forward
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT) ENGINE=InnoDB;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--list_files $MYSQLD_DATADIR/test
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+SELECT COUNT(*) FROM t1;
+
+DROP TABLE t1;
+
+# Export/import on the same instance, with --innodb-file-per-table=1
+# Insert some more records to move the LSN forward and then drop the
+# table and restore, this time the table has a secondary index too.
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX(c2)) ENGINE=InnoDB;
+
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+
+FLUSH TABLES t1 FOR EXPORT;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+--list_files $MYSQLD_DATADIR/test
+UNLOCK TABLES;
+
+# Move the LSN forward
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX(c2)) ENGINE=InnoDB;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+SELECT COUNT(*) FROM t1 WHERE c2 = 1;
+
+DROP TABLE t1;
+
+# Export/import on the same instance, with --innodb-file-per-table=1
+# Insert some more records to move the LSN forward and then drop the
+# table and restore, this time the table has a secondary index too.
+# Rename the index on the create so that the IMPORT fails, drop index
+# Create with proper name and then do an IMPORT.
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB;
+
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+
+FLUSH TABLES t1 FOR EXPORT;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+UNLOCK TABLES;
+
+# Move the LSN forward
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX x(c2)) ENGINE=InnoDB;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+# This is really a name mismatch error, need better error codes.
+-- error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+ALTER TABLE t1 DROP INDEX x;
+ALTER TABLE t1 ADD INDEX idx(c2);
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_cleanup("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+#
+# Export/import on the same instance, with --innodb-file-per-table=0
+# This should fail because it is not supported
+SET GLOBAL innodb_file_per_table = 0;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT) ENGINE=InnoDB;
+
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+SHOW CREATE TABLE t1;
+
+# This should fail, InnoDB should return a warning
+FLUSH TABLES t1 FOR EXPORT;
+
+UNLOCK TABLES;
+
+DROP TABLE t1;
+
+#
+# Tests that check for schema mismatch during IMPORT
+#
+
+SET GLOBAL innodb_file_per_table = 1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB;
+
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+
+SHOW CREATE TABLE t1;
+
+FLUSH TABLES t1 FOR EXPORT;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+
+DROP TABLE t1;
+
+# Table without the secondary index
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT) ENGINE=InnoDB;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+# This should fail because of a missing secondary index
+-- error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+# Table with an additional column
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT,
+	c3 INT, INDEX idx(c2)) ENGINE=InnoDB;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+# This should fail because the table has an additional column
+-- error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+# Change the column type of c2
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 BIGINT, INDEX idx(c2)) ENGINE=InnoDB;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+# This should fail because c2 is now a BIGINT and not INT
+-- error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+# This should be OK.
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_cleanup("test", "t1");
+EOF
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+#
+# EXPORT ROW_FORMAT=REDUNDANT
+#
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+
+SHOW CREATE TABLE t1;
+
+FLUSH TABLES t1 FOR EXPORT;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_cleanup("test", "t1");
+EOF
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+# This should be OK.
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_cleanup("test", "t1");
+EOF
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+#
+# EXPORT ROW_FORMAT=COMPACT
+#
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+
+SHOW CREATE TABLE t1;
+
+FLUSH TABLES t1 FOR EXPORT;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_cleanup("test", "t1");
+EOF
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+# This should be OK.
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_cleanup("test", "t1");
+EOF
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+#
+# EXPORT ROW_FORMAT=DYNAMIC
+#
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+
+SHOW CREATE TABLE t1;
+
+FLUSH TABLES t1 FOR EXPORT;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_cleanup("test", "t1");
+EOF
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+# This should be OK.
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_cleanup("test", "t1");
+EOF
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+#
+# EXPORT ROW_FORMAT=COMPRESSED
+#
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+
+SHOW CREATE TABLE t1;
+
+FLUSH TABLES t1 FOR EXPORT;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_cleanup("test", "t1");
+EOF
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB
+	ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+DROP TABLE t1;
+
+# This should be OK.
+CREATE TABLE t1(
+	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+SELECT * FROM t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_cleanup("test", "t1");
+EOF
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+call mtr.add_suppression("Got error -1 when reading table '.*'");
+call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'");
+call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");
+
+# cleanup
+--remove_file $MYSQLTEST_VARDIR/tmp/t1.cfg
+--remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd

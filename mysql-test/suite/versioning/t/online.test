@@ -1,0 +1,198 @@
+--source suite/versioning/innodb.inc
+--source suite/versioning/common.inc
+--source include/maybe_debug.inc
+
+set system_versioning_alter_history=keep;
+
+create or replace table t (a int);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t add system versioning, lock=none;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t add system versioning, algorithm=inplace;
+alter table t add system versioning, lock=shared;
+
+alter table t add column b int, change column a a int without system versioning, lock=none;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t drop system versioning, lock=none;
+alter table t drop system versioning, algorithm=inplace;
+
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t (
+  a int, b int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning;
+insert into t values (1, 0);
+insert into t values (2, 0);
+delete from t where a = 2;
+alter table t drop column b, lock=none;
+alter table t add index idx(a), lock=none;
+
+select a, check_row(row_start, row_end) from t for system_time all order by a;
+
+--echo # MDEV-17038 ALTER TABLE CHANGE COLUMN c1 c1 bigint NOT NULL -
+--echo # generates error if table uses SYSTEM VERSIONING [tempesta-tech/mariadb#540]
+create or replace table t1 (a int, key(a)) with system versioning;
+create or replace table t2 like t;
+alter table t2 add foreign key(a) references t1(a);
+alter table t2 modify column a int not null, lock=none;
+
+drop table t2;
+drop table t1;
+
+--echo # MDEV-16330 Allow instant change of WITH SYSTEM VERSIONING column attribute
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t1 (
+  a int,
+  b int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning;
+
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t2 (
+  a int without system versioning,
+  b int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning;
+
+insert into t1 values (1,1);
+insert into t2 values (1,1);
+
+set @@system_versioning_alter_history=keep;
+
+--enable_info
+--echo # without rebuild
+alter table t1
+  change a a int without system versioning,
+  algorithm=instant;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t2
+  change a a int with system versioning,
+  add primary key pk (a),
+  algorithm=instant;
+
+--echo # with rebuild
+alter table t2
+  change a a int with system versioning,
+  add primary key pk (a);
+--disable_info
+
+--source include/restart_mysqld.inc
+
+update t1 set a=2;
+select count(*) from t1 for system_time all;
+
+update t2 set a=2;
+select count(*) from t2 for system_time all;
+
+drop table t1, t2;
+
+--echo # rollback ALTER TABLE: nothing should change
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t (
+  a int,
+  b int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning;
+
+insert into t values (1, 1);
+
+select c.prtype from information_schema.innodb_sys_columns as c
+  join information_schema.innodb_sys_tables as t on c.table_id=t.table_id
+  where t.name='test/t' and c.name='b';
+
+set @@system_versioning_alter_history=keep;
+
+if ($have_debug) {
+--disable_query_log
+--disable_result_log
+set debug_dbug='+d,ib_commit_inplace_fail_1';
+--error ER_INTERNAL_ERROR
+alter table t
+  change b b int without system versioning;
+set debug_dbug= default;
+--enable_query_log
+--enable_result_log
+}
+
+select c.prtype from information_schema.innodb_sys_columns as c
+  join information_schema.innodb_sys_tables as t on c.table_id=t.table_id
+  where t.name='test/t' and c.name='b';
+
+--replace_result $sys_datatype_expl SYS_DATATYPE
+show create table t;
+
+select count(*) from t for system_time all;
+update t set b=11;
+select count(*) from t for system_time all;
+drop table t;
+
+--echo # Start of 10.4 tests
+
+create or replace table t (a int, b int) engine=innodb;
+alter table t
+  add s bigint unsigned as row start,
+  add e bigint unsigned as row end,
+  add period for system_time(s, e),
+  add system versioning;
+alter table t drop column b, algorithm=instant;
+alter table t add index idx(a), lock=none;
+alter table t drop column s, drop column e;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t drop system versioning, lock=none;
+
+--echo #
+--echo # MDEV-17697 Broken versioning info after instant drop column
+--echo #
+set @@system_versioning_alter_history= keep;
+create or replace table t1 (a int, b int) with system versioning;
+insert into t1 values (1, 1);
+alter table t1 drop column b, algorithm=instant;
+alter table t1 drop system versioning;
+
+create or replace table t1 (a int, b int) with system versioning;
+insert into t1 values (1, 1);
+
+if ($have_debug) {
+--disable_query_log
+--disable_result_log
+set debug_dbug='+d,ib_commit_inplace_fail_1';
+--error ER_INTERNAL_ERROR
+alter table t1 drop column b, algorithm=instant;
+set debug_dbug= default;
+--enable_query_log
+--enable_result_log
+}
+alter table t1 drop system versioning;
+
+--echo #
+--echo # MDEV-18173 Assertion `o->ind == vers_end' or `o->ind == vers_start' failed in dict_table_t::instant_column
+--echo #
+set @@system_versioning_alter_history= keep;
+create or replace table t1 (pk integer primary key, a int, b int, v int as (a))
+with system versioning;
+
+alter table t1 force;
+alter table t1 drop column b;
+
+--echo #
+--echo # MDEV-18122 Assertion `table->versioned() == m_prebuilt->table->versioned()' failed in ha_innobase::open
+--echo #
+create or replace table t1 (
+  x int,
+  v int as (x) virtual,
+  y int
+) with system versioning;
+alter table t1 drop system versioning;
+
+drop tables t, t1;
+
+--source suite/versioning/common_finish.inc

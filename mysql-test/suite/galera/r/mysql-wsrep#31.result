@@ -1,0 +1,20 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('test');
+CREATE DATABASE db;
+connection node_2;
+Shutting down server 2 ...
+Recovering server 2 ...
+Performing --wsrep-recover ...
+Restarting server ...
+Using --wsrep-start-position when starting mysqld ...
+connection node_1;
+DROP TABLE t1;
+DROP DATABASE db;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+disconnect node_2;
+disconnect node_1;

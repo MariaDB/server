@@ -1,0 +1,121 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+SET @old_innodb_flush_log_at_trx_commit= @@global.innodb_flush_log_at_trx_commit;
+SET @@global.innodb_flush_log_at_trx_commit= 0;
+connection master;
+SET @old_innodb_flush_log_at_trx_commit= @@global.innodb_flush_log_at_trx_commit;
+SET @@global.innodb_flush_log_at_trx_commit= 0;
+SET @@session.binlog_direct_non_transactional_updates= FALSE;
+connection master;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+connection slave;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+connection master;
+create table t1(n int);
+connection slave;
+stop slave;
+include/wait_for_slave_to_stop.inc
+connection master;
+connection slave;
+start slave;
+stop slave io_thread;
+start slave io_thread;
+include/wait_for_slave_to_start.inc
+connection master;
+drop table t1;
+connection slave;
+connection master;
+create table t1i(n int primary key) engine=innodb;
+create table t2m(n int primary key) engine=myisam;
+begin;
+insert into t1i values (1);
+insert into t1i values (2);
+insert into t1i values (3);
+commit;
+connection slave;
+connection slave;
+begin;
+insert into t1i values (5);
+connection master;
+begin;
+insert into t1i values (4);
+insert into t2m values (1);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction
+insert into t1i values (5);
+commit;
+connection slave;
+zero
+0
+connection slave1;
+stop slave;
+connection slave;
+rollback;
+connection slave1;
+include/wait_for_slave_to_stop.inc
+*** sql thread is *not* running: No ***
+connection master;
+connection slave;
+*** the prove: the stopped slave has finished the current transaction ***
+five
+5
+zero
+0
+one
+1
+include/start_slave.inc
+connection master;
+drop table t1i, t2m;
+connection slave;
+#
+# Bug#56096 STOP SLAVE hangs if executed in parallel with user sleep
+#
+connection master;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT );
+connection slave;
+connection slave1;
+# lock table for synchronization
+LOCK TABLES t1 WRITE;
+connection master;
+# insert into the table
+INSERT INTO t1 SELECT SLEEP(4);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+connection slave;
+# Slave: wait for the insert
+# send slave stop
+STOP SLAVE;
+connection slave1;
+# wait for stop slave
+# Slave1: unlock the table
+UNLOCK TABLES;
+connection slave;
+# wait for the slave to stop
+include/wait_for_slave_to_stop.inc
+# Start slave again
+include/start_slave.inc
+# Clean up
+connection master;
+DROP TABLE t1;
+connection slave;
+connection master;
+RESET MASTER;
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_log_pos=MASTER_POS;
+START SLAVE;
+include/wait_for_slave_param.inc [Last_IO_Errno]
+Last_IO_Errno = '1236'
+Last_IO_Error = 'Got fatal error 1236 from master when reading data from binary log: 'Client requested master to start replication from impossible position; the first event 'master-bin.000001' at XXX, the last event read from 'master-bin.000001' at XXX, the last byte read from 'master-bin.000001' at XXX.''
+include/stop_slave.inc
+RESET SLAVE;
+connection master;
+RESET MASTER;
+connection slave;
+SET @@global.innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;
+call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
+connection master;
+SET @@global.innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;
+include/rpl_end.inc

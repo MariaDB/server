@@ -1,0 +1,93 @@
+drop table if exists t1Aa,t2Aa,v1Aa,v2Aa;
+drop view if exists t1Aa,t2Aa,v1Aa,v2Aa;
+drop database if exists MySQLTest;
+create database MySQLTest;
+use MySQLTest;
+create table TaB (Field int);
+create view ViE as select * from TAb;
+show create table VIe;
+View	Create View	character_set_client	collation_connection
+vie	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vie` AS select `tab`.`Field` AS `Field` from `tab`	latin1	latin1_swedish_ci
+drop database MySQLTest;
+use test;
+create table t1Aa (col1 int);
+create table t2aA (col1 int);
+create view v1Aa as select * from t1aA;
+create view v2aA as select * from v1aA;
+create view v3Aa as select v2Aa.col1 from v2aA,t2Aa where v2Aa.col1 = t2aA.col1;
+insert into v2Aa values ((select max(col1) from v1aA));
+ERROR HY000: The definition of table 'v1aA' prevents operation INSERT on table 'v2Aa'
+insert into t1aA values ((select max(col1) from v1Aa));
+ERROR HY000: The definition of table 'v1Aa' prevents operation INSERT on table 't1aA'
+insert into v2aA values ((select max(col1) from v1aA));
+ERROR HY000: The definition of table 'v1aA' prevents operation INSERT on table 'v2aA'
+insert into v2Aa values ((select max(col1) from t1Aa));
+ERROR HY000: The definition of table 'v2Aa' prevents operation INSERT on table 'v2Aa'
+insert into t1aA values ((select max(col1) from t1Aa));
+ERROR HY000: Table 't1aA' is specified twice, both as a target for 'INSERT' and as a separate source for data
+insert into v2aA values ((select max(col1) from t1aA));
+ERROR HY000: The definition of table 'v2aA' prevents operation INSERT on table 'v2aA'
+insert into v2Aa values ((select max(col1) from v2aA));
+ERROR HY000: Table 'v2Aa' is specified twice, both as a target for 'INSERT' and as a separate source for data
+insert into t1Aa values ((select max(col1) from v2Aa));
+ERROR HY000: The definition of table 'v2Aa' prevents operation INSERT on table 't1Aa'
+insert into v2aA values ((select max(col1) from v2Aa));
+ERROR HY000: Table 'v2aA' is specified twice, both as a target for 'INSERT' and as a separate source for data
+insert into v3Aa (col1) values ((select max(col1) from v1Aa));
+ERROR HY000: The definition of table 'v1Aa' prevents operation INSERT on table 'v3Aa'
+insert into v3aA (col1) values ((select max(col1) from t1aA));
+ERROR HY000: The definition of table 'v3aA' prevents operation INSERT on table 'v3aA'
+insert into v3Aa (col1) values ((select max(col1) from v2aA));
+ERROR HY000: The definition of table 'v2aA' prevents operation INSERT on table 'v3Aa'
+drop view v3aA,v2Aa,v1aA;
+drop table t1Aa,t2Aa;
+create table t1Aa (col1 int);
+create view v1Aa as select col1 from t1Aa as AaA;
+show create view v1AA;
+View	Create View	character_set_client	collation_connection
+v1aa	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1aa` AS select `aaa`.`col1` AS `col1` from `t1aa` `aaa`	latin1	latin1_swedish_ci
+drop view v1AA;
+select Aaa.col1 from t1Aa as AaA;
+col1
+create view v1Aa as select Aaa.col1 from t1Aa as AaA;
+drop view v1AA;
+create view v1Aa as select AaA.col1 from t1Aa as AaA;
+show create view v1AA;
+View	Create View	character_set_client	collation_connection
+v1aa	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1aa` AS select `aaa`.`col1` AS `col1` from `t1aa` `aaa`	latin1	latin1_swedish_ci
+drop view v1AA;
+drop table t1Aa;
+CREATE TABLE  t1 (a int, b int);
+select X.a from t1 AS X group by X.b having (X.a = 1);
+a
+select X.a from t1 AS X group by X.b having (x.a = 1);
+a
+select X.a from t1 AS X group by X.b having (x.b = 1);
+a
+CREATE OR REPLACE VIEW v1 AS
+select X.a from t1 AS X group by X.b having (X.a = 1);
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `x`.`a` AS `a` from `t1` `x` group by `x`.`b` having `x`.`a` = 1	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+a
+DROP VIEW v1;
+DROP TABLE t1;
+End of 5.0 tests.
+#
+# Bug #53095: SELECT column_name FROM INFORMATION_SCHEMA.STATISTICS
+#  returns nothing
+#
+CREATE TABLE `ttt` (
+`f1` char(3) NOT NULL,
+PRIMARY KEY (`f1`)
+) ENGINE=myisam DEFAULT CHARSET=latin1;
+SELECT count(COLUMN_NAME) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME =
+'TTT';
+count(COLUMN_NAME)
+1
+SELECT count(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_NAME = 'TTT';
+count(*)
+1
+DROP TABLE `ttt`;
+End of 5.0 tests.

@@ -1,0 +1,7 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+auto_increment_offset=1
+
+[mysqld.2]
+auto_increment_offset=2

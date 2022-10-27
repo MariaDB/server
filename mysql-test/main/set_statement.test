@@ -1,0 +1,1180 @@
+--echo '# SET STATEMENT ..... FOR ....  TEST'
+############################ STATEMENT_SET #############################
+#                                                                      #
+# Testing working functionality of SET STATEMENT                       #
+#                                                                      #
+#                                                                      #
+# There is important documentation within                              #
+#                                                                      #
+#                                                                      #
+# Author: Joe Lukas                                                    #
+# Creation:                                                            #
+# 2009-08-02 Implement this test as part of                            #
+#                   WL#681 Per query variable settings                 #
+#                                                                      #
+########################################################################
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP FUNCTION IF EXISTS myProc;
+DROP PROCEDURE IF EXISTS p1;
+DROP PROCEDURE IF EXISTS p2;
+DROP PROCEDURE IF EXISTS p3;
+DROP PROCEDURE IF EXISTS p4;
+DROP PROCEDURE IF EXISTS p5;
+DROP PROCEDURE IF EXISTS p6;
+DROP VIEW IF EXISTS v1;
+DROP TABLE IF EXISTS STATEMENT;
+--enable_warnings
+SET @save_binlog_format           = @@binlog_format;
+SET @save_keep_files_on_create    = @@keep_files_on_create;
+SET @save_max_join_size           = @@max_join_size;
+SET @save_myisam_repair_threads   = @@myisam_repair_threads;
+SET @save_myisam_sort_buffer_size = @@myisam_sort_buffer_size;
+SET @save_sort_buffer_size        = @@sort_buffer_size;
+####################################################################
+#Set up current database
+####################################################################
+--echo '# Setup database'
+CREATE TABLE t1 (v1 INT, v2 INT);
+INSERT INTO t1 VALUES (1,2);
+INSERT INTO t1 VALUES (3,4);
+--echo ''
+--echo '#------------------ STATEMENT Test 1 -----------------------#'
+####################################################################
+#   Checks with variable value type ulong                          #
+####################################################################
+--echo '# Initialize variables to known setting'
+SET SESSION sort_buffer_size=100000;
+--echo ''
+--echo '# Pre-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'sort_buffer_size';
+SET STATEMENT sort_buffer_size=150000 FOR SELECT *,@@sort_buffer_size FROM t1;
+--echo ''
+--echo '# Post-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'sort_buffer_size';
+--echo ''
+--echo '#------------------ STATEMENT Test 2 -----------------------#'
+####################################################################
+#   Checks for multiple set values inside STATEMENT ... FOR        #
+####################################################################
+--echo '# Initialize variables to known setting'
+SET SESSION binlog_format=mixed;
+SET SESSION sort_buffer_size=100000;
+--echo '# Pre-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'sort_buffer_size';
+SHOW SESSION VARIABLES LIKE 'binlog_format';
+SET STATEMENT sort_buffer_size=150000, binlog_format=row
+ FOR SELECT *,@@sort_buffer_size,@@binlog_format FROM t1;
+--echo '# Post-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'sort_buffer_size';
+SHOW SESSION VARIABLES LIKE 'binlog_format';
+
+--echo ''
+--echo '#------------------ STATEMENT Test 3 -----------------------#'
+####################################################################
+#   Check current variable value is stored in using stored         #
+#   statements.                                                    #
+####################################################################
+--echo '# set initial variable value, make prepared statement
+SET SESSION binlog_format=row;
+PREPARE stmt1 FROM 'SET STATEMENT binlog_format=row FOR SELECT *,@@binlog_format FROM t1';
+--echo ''
+--echo '# Change variable setting'
+SET SESSION binlog_format=mixed;
+--echo ''
+--echo '# Pre-STATEMENT variable value'
+--echo ''
+SHOW SESSION VARIABLES LIKE 'binlog_format';
+--echo ''
+EXECUTE stmt1;
+--echo ''
+--echo '# Post-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'binlog_format';
+
+--echo ''
+DEALLOCATE PREPARE stmt1;
+--echo '#------------------ STATEMENT Test 4 -----------------------#'
+####################################################################
+#   Check works with OPTIMIZE TABLE command                        #
+#   Checks works with a variable value of type INT                 #
+#   Checks works with variable type ULONGLONG                      #
+####################################################################
+--echo '# set initial variable value, make prepared statement
+SET SESSION myisam_sort_buffer_size=500000, myisam_repair_threads=1;
+--echo ''
+--echo '# Pre-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'myisam_sort_buffer_size';
+SHOW SESSION VARIABLES LIKE 'myisam_repair_threads';
+--echo ''
+SET STATEMENT myisam_sort_buffer_size=800000,
+              myisam_repair_threads=2 FOR OPTIMIZE TABLE t1;
+--echo ''
+--echo '# Post-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'myisam_sort_buffer_size';
+SHOW SESSION VARIABLES LIKE 'myisam_repair_threads';
+
+--echo ''
+--echo '#------------------ STATEMENT Test 5 -----------------------#'
+####################################################################
+#   Checks if variable reset after error in statement after FOR    #
+####################################################################
+--echo '# Initialize variables to known setting'
+SET SESSION sort_buffer_size=100000;
+--echo ''
+--echo '# Pre-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'sort_buffer_size';
+--echo ''
+--error ER_NO_SUCH_TABLE
+SET STATEMENT sort_buffer_size=150000 FOR SELECT * FROM t2;
+--echo ''
+--echo '# Post-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'sort_buffer_size';
+
+--echo ''
+--echo '#------------------ STATEMENT Test 6 -----------------------#'
+####################################################################
+#   Checks works with variable type MY_BOOL                        #
+####################################################################
+--echo '# Initialize variables to known setting'
+SET SESSION  keep_files_on_create=ON;
+--echo ''
+--echo '# Pre-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'keep_files_on_create';
+--echo ''
+SET STATEMENT keep_files_on_create=OFF FOR SELECT *,@@keep_files_on_create FROM t1;
+--echo ''
+--echo '# Post-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'keep_files_on_create';
+
+--echo ''
+--echo '#------------------ STATEMENT Test 7 -----------------------#'
+####################################################################
+#   Checks works with variable type HA_ROWS                        #
+####################################################################
+--echo '# Initialize variables to known setting'
+SET SESSION  max_join_size=2222220000000;
+--echo ''
+--echo '# Pre-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'max_join_size';
+--echo ''
+SET STATEMENT max_join_size=1000000000000 FOR SELECT *,@@max_join_size FROM t1;
+--echo ''
+--echo '# Post-STATEMENT variable value'
+SHOW SESSION VARIABLES LIKE 'max_join_size';
+
+--echo ''
+--echo '#------------------Test 8-----------------------#'
+####################################################################
+#   Ensure variable of each type is set to proper value during     #
+#   statement after FOR execution                                  #
+####################################################################
+--echo '# Initialize test variables'
+SET SESSION myisam_sort_buffer_size=500000,
+            myisam_repair_threads=1,
+            sort_buffer_size = 200000,
+            max_join_size=2222220000000,
+            keep_files_on_create=ON;
+
+--echo ''
+--echo '#  LONG    '
+SHOW SESSION VARIABLES LIKE 'sort_buffer_size';
+SET STATEMENT sort_buffer_size = 100000
+              FOR SHOW SESSION VARIABLES LIKE 'sort_buffer_size';
+SHOW SESSION VARIABLES LIKE 'sort_buffer_size';
+--echo ''
+--echo '# MY_BOOL     '
+SHOW SESSION VARIABLES LIKE 'keep_files_on_create';
+SET STATEMENT keep_files_on_create=OFF
+              FOR SHOW SESSION VARIABLES LIKE 'keep_files_on_create';
+SHOW SESSION VARIABLES LIKE 'keep_files_on_create';
+
+--echo ''
+--echo '# INT/LONG    '
+SHOW SESSION VARIABLES LIKE 'myisam_repair_threads';
+SET STATEMENT myisam_repair_threads=2
+              FOR SHOW SESSION VARIABLES LIKE 'myisam_repair_threads';
+SHOW SESSION VARIABLES LIKE 'myisam_repair_threads';
+--echo ''
+--echo '# ULONGLONG     '
+SHOW SESSION VARIABLES LIKE 'max_join_size';
+SET STATEMENT max_join_size=2000000000000
+              FOR SHOW SESSION VARIABLES LIKE 'max_join_size';
+SHOW SESSION VARIABLES LIKE 'max_join_size';
+
+--echo ''
+--echo '#------------------Test 9-----------------------#'
+####################################################################
+#   No 1 - Check works with CREATE ... BEGIN ... END  command      #
+#          Display variables during execution                      #
+#   No 2 - Test with DROP command                                  #
+####################################################################
+--echo '# set initial variable values
+SET SESSION myisam_sort_buffer_size=500000,
+            myisam_repair_threads=1,
+            sort_buffer_size=100000,
+            binlog_format=mixed,
+            keep_files_on_create=ON,
+            max_join_size=2222220000000;
+--echo ''
+--echo ''
+--echo '# Pre-STATEMENT variable value
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+DELIMITER |;
+CREATE FUNCTION myProc (cost DECIMAL(10,2))
+   RETURNS DECIMAL(10,2)
+
+   SQL SECURITY DEFINER
+
+   tax: BEGIN
+       DECLARE order_tax DECIMAL(10,2);
+       SET order_tax = cost * .05 + @@sort_buffer_size;
+       RETURN order_tax;
+   END|
+DELIMITER ;|
+--echo ''
+--echo '# During Execution values
+SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=2,
+              sort_buffer_size=200000,
+              binlog_format=row,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000000 FOR
+              SELECT myProc(123.45);
+SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=2,
+              sort_buffer_size=300000,
+              binlog_format=row,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000000 FOR
+              SELECT myProc(123.45);
+--echo ''
+--echo '# Post-STATEMENT No 1 variable value Pre-STATEMENT for No 2'
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=2,
+              sort_buffer_size=200000,
+              binlog_format=row,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000000 FOR
+              DROP FUNCTION myProc;
+--echo ''
+--echo '# Post-STATEMENT No 2 variable value
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+
+--echo ''
+--echo '#------------------Test 11-----------------------#'
+####################################################################
+#   No 1 - Check with PREPARE statement                            #
+#          check with different variable on inside PREPARE         #
+#   No 2 - Check with EXECUTE statement                            #
+####################################################################
+--echo '# set initial variable values
+SET SESSION myisam_sort_buffer_size=500000,
+            myisam_repair_threads=1,
+            sort_buffer_size=100000,
+            binlog_format=mixed,
+            keep_files_on_create=ON,
+            max_join_size=2222220000000;
+--echo ''
+--echo ''
+--echo '# Pre-STATEMENT variable value
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=2,
+              sort_buffer_size=200000,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000000 FOR
+              PREPARE stmt1 FROM
+             'SET STATEMENT binlog_format=row FOR SELECT *,@@binlog_format,@@sort_buffer_size FROM t1';
+--echo ''
+--echo 'Test No 1 Post Value & Test 2 Pre values'
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=2,
+              sort_buffer_size=200000,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000000 FOR
+              EXECUTE stmt1;
+--echo ''
+--echo '# Post-STATEMENT No 2
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+--echo '#------------------Test 12-----------------------#'
+####################################################################
+#   No 1 - Check with PROCEDURE     (show variables in procedure)  #
+#   No 2 - Check with CALL statement show variables in PROCEDURE   #
+####################################################################
+--echo '# set initial variable values
+SET SESSION myisam_sort_buffer_size=500000,
+            myisam_repair_threads=1,
+            sort_buffer_size=100000,
+            binlog_format=mixed,
+            keep_files_on_create=ON,
+            max_join_size=2222220000000;
+--echo ''
+--echo ''
+--echo '# Pre-STATEMENT variable value
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+DELIMITER |;
+SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=2,
+              sort_buffer_size=200000,
+              binlog_format=row,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000000 FOR
+              CREATE PROCEDURE p1() BEGIN
+              SELECT @@myisam_sort_buffer_size,
+                     @@myisam_repair_threads,
+                     @@sort_buffer_size,
+                     @@binlog_format,
+                     @@keep_files_on_create,
+                     @@max_join_size;
+              END|
+DELIMITER ;|
+--echo ''
+--echo 'Test No 1 Post Value & Test 2 Pre values'
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+SET STATEMENT myisam_sort_buffer_size=400001,
+              myisam_repair_threads=3,
+              sort_buffer_size=200001,
+              binlog_format=row,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000001 FOR
+              CALL p1();
+--echo ''
+--echo '# Post-STATEMENT No 2
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+
+--echo '#------------------Test 13-----------------------#'
+####################################################################
+#   Check PROCEDURE containing SET STATEMENT FOR                   #
+#      p1() from test 12 will be used to display variables         #
+####################################################################
+--echo '# set initial variable values
+SET SESSION myisam_sort_buffer_size=500000,
+            myisam_repair_threads=1,
+            sort_buffer_size=100000,
+            binlog_format=mixed,
+            keep_files_on_create=ON,
+            max_join_size=2222220000000;
+--echo ''
+--echo ''
+DELIMITER |;
+CREATE PROCEDURE p2() BEGIN
+       SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=3,
+              sort_buffer_size=300000,
+              binlog_format=mixed,
+              keep_files_on_create=OFF,
+              max_join_size=3333330000000 FOR
+              CALL p1();
+              END|
+DELIMITER ;|
+--echo ''
+--echo '# Pre-STATEMENT variable value
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=2,
+              sort_buffer_size=200000,
+              binlog_format=row,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000000 FOR
+              CALL p2();
+--echo ''
+--echo '# Post-STATEMENT
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+--echo '#------------------Test 14-----------------------#'
+####################################################################
+#   Check PROCEDURE containing compound SET STATEMENT FOR          #
+#      p2() will be used as compounding statement from test 13     #
+####################################################################
+--echo '# set initial variable values
+SET SESSION myisam_sort_buffer_size=500000,
+            myisam_repair_threads=1,
+            sort_buffer_size=100000,
+            binlog_format=mixed,
+            keep_files_on_create=ON,
+            max_join_size=2222220000000;
+--echo ''
+--echo ''
+DELIMITER |;
+CREATE PROCEDURE p3() BEGIN
+       SELECT @@myisam_sort_buffer_size,
+              @@myisam_repair_threads,
+              @@sort_buffer_size,
+              @@binlog_format,
+              @@keep_files_on_create,
+              @@max_join_size;
+       SET STATEMENT myisam_sort_buffer_size=320000,
+              myisam_repair_threads=2,
+              sort_buffer_size=220022,
+              binlog_format=row,
+              keep_files_on_create=ON,
+              max_join_size=2222220000000 FOR
+              CALL p2();
+              END|
+DELIMITER ;|
+--echo ''
+--echo '# Pre-STATEMENT variable value
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=2,
+              sort_buffer_size=200000,
+              binlog_format=row,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000000 FOR
+              CALL p3();
+--echo ''
+--echo '# Post-STATEMENT
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+
+       --echo ''
+--echo ''
+--echo '#------------------Test 15-----------------------#'
+####################################################################
+#   Check PROCEDURE containing compound SET STATEMENT FOR          #
+#      call multiple SET STATEMENT .. FOR showing SELECT           #
+####################################################################
+--echo '# set initial variable values
+SET SESSION myisam_sort_buffer_size=500000,
+            myisam_repair_threads=1,
+            sort_buffer_size=100000,
+            binlog_format=mixed,
+            keep_files_on_create=ON,
+            max_join_size=2222220000000;
+--echo ''
+--echo ''
+DELIMITER |;
+CREATE PROCEDURE p4() BEGIN
+       SELECT @@myisam_sort_buffer_size,
+              @@myisam_repair_threads,
+              @@sort_buffer_size,
+              @@binlog_format,
+              @@keep_files_on_create,
+              @@max_join_size;
+       SET STATEMENT myisam_sort_buffer_size=320000,
+              myisam_repair_threads=2,
+              sort_buffer_size=220022,
+              binlog_format=row,
+              keep_files_on_create=ON,
+              max_join_size=2222220000000 FOR
+              SELECT @@myisam_sort_buffer_size,
+              @@myisam_repair_threads,
+              @@sort_buffer_size,
+              @@binlog_format,
+              @@keep_files_on_create,
+              @@max_join_size;
+       SET STATEMENT myisam_sort_buffer_size=320000,
+              myisam_repair_threads=2,
+              sort_buffer_size=220022,
+              binlog_format=row,
+              keep_files_on_create=ON,
+              max_join_size=2222220000000 FOR
+              SELECT @@myisam_sort_buffer_size,
+              @@myisam_repair_threads,
+              @@sort_buffer_size,
+              @@binlog_format,
+              @@keep_files_on_create,
+              @@max_join_size;
+       SET STATEMENT myisam_sort_buffer_size=320000,
+              myisam_repair_threads=2,
+              sort_buffer_size=220022,
+              binlog_format=row,
+              keep_files_on_create=ON,
+              max_join_size=2222220000000 FOR
+              SELECT @@myisam_sort_buffer_size,
+              @@myisam_repair_threads,
+              @@sort_buffer_size,
+              @@binlog_format,
+              @@keep_files_on_create,
+              @@max_join_size;
+              END|
+DELIMITER ;|
+--echo ''
+--echo '# Pre-STATEMENT variable value
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=2,
+              sort_buffer_size=200000,
+              binlog_format=row,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000000 FOR
+              CALL p4();
+--echo ''
+--echo '# Post-STATEMENT
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+
+--echo ''
+--echo ''
+--echo '#------------------Test 16-----------------------#'
+####################################################################
+#   Test Effect on parsing                                         #
+####################################################################
+--echo ''
+--echo '# Pre-STATEMENT variable value
+SELECT @@sql_mode;
+--echo ''
+--echo ''
+SET STATEMENT sql_mode='ansi' FOR PREPARE stmt FROM 'SELECT "t1".* FROM t1';
+execute stmt;
+ALTER TABLE t1 ADD COLUMN v3 int;
+# repreparation with other mode does not cause an error
+execute stmt;
+ALTER TABLE t1 drop COLUMN v3;
+deallocate prepare stmt;
+--echo ''
+--echo '# Post-STATEMENT
+SELECT @@sql_mode;
+--echo check the same behaviour in normal set
+SET sql_mode='ansi';
+PREPARE stmt FROM 'SELECT "t1".* FROM t1';
+SET sql_mode=default;
+execute stmt;
+ALTER TABLE t1 ADD COLUMN v3 int;
+# repreparation with other mode does not cause an error
+execute stmt;
+ALTER TABLE t1 drop COLUMN v3;
+deallocate prepare stmt;
+# the above test about SP
+SELECT @@sql_mode;
+SET sql_mode='ansi';
+SELECT @@sql_mode;
+DELIMITER |;
+              CREATE PROCEDURE p6() BEGIN
+              SELECT @@sql_mode;
+              SELECT "t1".* FROM t1;
+              END|
+DELIMITER ;|
+SET sql_mode=default;
+call p6;
+ALTER TABLE t1 ADD COLUMN v3 int;
+#force SP stack invalidation
+create view v1 as select * from t1;
+drop view v1;
+call p6;
+ALTER TABLE t1 drop COLUMN v3;
+drop procedure p6;
+
+
+SELECT @@sql_mode;
+DELIMITER |;
+--echo # SET and the statement parsed as one unit before the SET takes effect
+--error ER_PARSE_ERROR
+SET STATEMENT sql_mode='ansi' FOR
+              CREATE PROCEDURE p6() BEGIN
+              SELECT @@sql_mode;
+              SELECT "t1".* FROM t1;
+              END|
+DELIMITER ;|
+#call p1;
+#ALTER TABLE t1 ADD COLUMN v3 int;
+#--echo # no reparsing for now
+#call p1;
+#ALTER TABLE t1 drop COLUMN v3;
+#drop procedure p1;
+
+
+# the above test about compound statement
+SELECT @@sql_mode;
+SET sql_mode='ansi';
+SELECT @@sql_mode;
+DELIMITER |;
+BEGIN NOT ATOMIC
+              SELECT @@sql_mode;
+              SELECT "t1".* FROM t1;
+END|
+DELIMITER ;|
+SET sql_mode=default;
+
+
+SELECT @@sql_mode;
+DELIMITER |;
+--echo # SET and the statement parsed as one unit before the SET takes effect
+--error ER_PARSE_ERROR
+SET STATEMENT sql_mode='ansi' FOR
+BEGIN NOT ATOMIC
+              SELECT @@sql_mode;
+              SELECT "t1".* FROM t1;
+END|
+SET STATEMENT sql_mode='ansi' FOR
+BEGIN NOT ATOMIC
+              SELECT @@sql_mode;
+              SELECT * FROM t1;
+              SELECT @@sql_mode;
+END|
+DELIMITER ;|
+--echo ''
+--echo ''
+--echo '#------------------Test 17-----------------------#'
+####################################################################
+#   Test effect of SET STATEMENT FOR with SET SESSION modifying    #
+#   the same variables as the SET STATEMENT                        #
+####################################################################
+--echo '# set initial variable values
+SET SESSION myisam_sort_buffer_size=500000,
+            myisam_repair_threads=1,
+            sort_buffer_size=100000,
+            binlog_format=mixed,
+            keep_files_on_create=ON,
+            max_join_size=2222220000000;
+--echo ''
+--echo '# Pre-STATEMENT variable value
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+SET STATEMENT myisam_sort_buffer_size=320000,
+           myisam_repair_threads=2,
+           sort_buffer_size=220022,
+           binlog_format=row,
+           keep_files_on_create=ON,
+           max_join_size=2222220000000
+           FOR SET SESSION
+           myisam_sort_buffer_size=260000,
+           myisam_repair_threads=3,
+           sort_buffer_size=230013,
+           binlog_format=row,
+           keep_files_on_create=ON,
+           max_join_size=2323230000000;
+
+--echo ''
+--echo '# Post-STATEMENT
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+
+--echo ''
+--echo ''
+--echo '#------------------Test 18-----------------------#'
+####################################################################
+#   Test effect of SET SESSION inside a stored procedure with      #
+#   with a SET STATEMENT on outside variables                      #
+####################################################################
+--echo '# set initial variable values
+SET SESSION myisam_sort_buffer_size=500000,
+            myisam_repair_threads=1,
+            sort_buffer_size=100000,
+            binlog_format=mixed,
+            keep_files_on_create=ON,
+            max_join_size=2222220000000;
+--echo ''
+--echo '# Pre-STATEMENT variable value
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+--echo ''
+--echo ''
+DELIMITER |;
+CREATE PROCEDURE p5() BEGIN
+	  SELECT @@myisam_sort_buffer_size,
+             @@myisam_repair_threads,
+             @@sort_buffer_size,
+             @@binlog_format,
+             @@keep_files_on_create,
+             @@max_join_size;
+		SET SESSION
+           myisam_sort_buffer_size=260000,
+           myisam_repair_threads=3,
+           sort_buffer_size=230013,
+           binlog_format=row,
+           keep_files_on_create=ON,
+           max_join_size=2323230000000;
+      SELECT @@myisam_sort_buffer_size,
+             @@myisam_repair_threads,
+             @@sort_buffer_size,
+             @@binlog_format,
+             @@keep_files_on_create,
+             @@max_join_size;
+        END|
+DELIMITER ;|
+--echo ''
+--echo ''
+SET STATEMENT myisam_sort_buffer_size=400000,
+              myisam_repair_threads=2,
+              sort_buffer_size=200000,
+              binlog_format=row,
+              keep_files_on_create=OFF,
+              max_join_size=4444440000000 FOR
+              CALL p5();
+
+--echo ''
+--echo '# Post-STATEMENT
+SELECT @@myisam_sort_buffer_size,
+       @@myisam_repair_threads,
+       @@sort_buffer_size,
+       @@binlog_format,
+       @@keep_files_on_create,
+       @@max_join_size;
+
+--echo ''
+--echo ''
+--echo '#------------------Test 19-----------------------#'
+#Test for bad syntax
+--error ER_PARSE_ERROR 
+SET STATEMENT max_error_count=100 FOR;
+--error ER_PARSE_ERROR
+SET STATEMENT max_error_count=100 INSERT t1 VALUES (1,2);
+--error ER_PARSE_ERROR
+SET STATEMENT FOR INSERT INTO t1 VALUES (1,2);
+--error ER_PARSE_ERROR
+SET max_error_count=100 FOR INSERT INTO t1 VALUES (1,2);
+--error ER_PARSE_ERROR
+SET STATEMENT GLOBAL max_error_count=100 FOR INSERT INTO t1 VALUES (1,2);
+--error ER_PARSE_ERROR
+SET STATEMENT @@global.max_error_count=100 FOR INSERT INTO t1 VALUES (1,2);
+
+--echo ''
+--echo ''
+--echo '#------------------Test 20-----------------------#'
+#Test for global-only variables
+--error ER_GLOBAL_VARIABLE
+SET STATEMENT connect_timeout=100 FOR INSERT INTO t1 VALUES (1,2); 
+
+--echo ''
+--echo ''
+--echo '#------------------Test 21-----------------------#'
+#Test for recursion
+SELECT @@myisam_sort_buffer_size, @@sort_buffer_size;
+SET STATEMENT myisam_sort_buffer_size = 700000, sort_buffer_size = 3000000
+  FOR SET STATEMENT myisam_sort_buffer_size=200000
+    FOR SELECT @@myisam_sort_buffer_size, @@sort_buffer_size;
+SELECT @@myisam_sort_buffer_size, @@sort_buffer_size;
+
+--echo ''
+--echo ''
+--echo '#------------------Test 22-----------------------#'
+#Test for STATEMENT keyword
+CREATE TABLE STATEMENT(a INT);
+DROP TABLE STATEMENT;
+
+--echo ''
+--echo '# Cleanup'
+DROP TABLE t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+DROP PROCEDURE p4;
+DROP PROCEDURE p5;
+
+#
+# Limitation of opening tables for set operation
+#
+CREATE TABLE t1 (v1 INT, v2 INT);
+insert into t1 values (1,1);
+DELIMITER |;
+CREATE FUNCTION myProc ()
+   RETURNS INT
+
+   SQL SECURITY DEFINER
+
+   BEGIN
+       DECLARE mx INT;
+       SET mx = (select max(v1) from t1);
+       RETURN mx;
+   END|
+DELIMITER ;|
+--error ER_SUBQUERIES_NOT_SUPPORTED
+SET STATEMENT myisam_repair_threads=(select max(v1) from t1) FOR
+  select 1;
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+SET STATEMENT myisam_repair_threads=myProc() FOR
+  select 1;
+drop function myProc;
+drop table t1;
+
+#
+# Prepared Statement
+#
+set session binlog_format=mixed;
+PREPARE stmt1 FROM 'SELECT @@binlog_format';
+execute stmt1;
+set statement binlog_format=row for execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+set statement binlog_format=row for PREPARE stmt1 FROM 'SELECT @@binlog_format';
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+PREPARE stmt1 FROM 'set statement binlog_format=row for SELECT @@binlog_format';
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+set session binlog_format=default;
+
+#
+# Percona server bug#1341438
+# SET SESSION statement combined with SET STATEMENT has no effect
+#
+set session binlog_format=mixed;
+SET STATEMENT sort_buffer_size=150000 FOR set session binlog_format=row;
+SELECT @@binlog_format;
+
+#
+# restore variables of original tests
+#
+SET @@binlog_format           = @save_binlog_format;
+SET @@keep_files_on_create    = @save_keep_files_on_create;
+SET @@max_join_size           = @save_max_join_size;
+SET @@myisam_repair_threads   = @save_myisam_repair_threads;
+SET @@myisam_sort_buffer_size = @save_myisam_sort_buffer_size;
+SET @@sort_buffer_size        = @save_sort_buffer_size;
+
+#
+# Percona sever bug#1341606
+# SET STATEMENT incorrectly restore vaues of some variables
+#
+--echo #Correctly set timestamp
+set session timestamp=4646464;
+select @@timestamp != 4646464;
+select @@timestamp != 4646464;
+--echo #Correctly returned normal behaviour
+set session timestamp=default;
+select @@timestamp != 4646464;
+select @@timestamp != 4646464;
+--echo #here timestamp should be set only for the statement then restored default
+set statement timestamp=4646464 for select @@timestamp;
+set @save_tm=@@timestamp;
+select @@timestamp != 4646464;
+select @@timestamp != 4646464;
+let $wait_condition=select @@timestamp != @save_tm;
+source include/wait_condition.inc;
+eval $wait_condition;
+
+#
+# Test of temporary changing default storage engine
+#
+set @save_dfs=@@default_storage_engine;
+SET @@default_storage_engine=MyISAM;
+SET STATEMENT default_storage_engine=MEMORY for CREATE TABLE t1 (a int);
+SHOW CREATE TABLE t1;
+select @@default_storage_engine;
+drop table t1;
+SET STATEMENT default_storage_engine=MyISAM for CREATE TABLE t1 (a int);
+SHOW CREATE TABLE t1;
+drop table t1;
+SET @@default_storage_engine=@save_dfs;
+
+#
+# MDEV-6946:Assertion `0' failed in mysql_execute_command on SET STATEMENT
+# keycache1.key_buffer_size=.. FOR
+#
+--error ER_GLOBAL_VARIABLE
+SET STATEMENT keycache1.key_buffer_size=1024 FOR SELECT 1;
+
+
+#
+# MDEV-6940: SET STATEMENT executed after SET GLOBAL does not work
+#
+set @save_general_log=@@global.general_log;
+--echo # SET STATEMENT works (OK)
+set statement lock_wait_timeout=1 for select @@lock_wait_timeout;
+--echo # Setting a totally unrelated global variable
+set global general_log=0;
+--echo # SET STATEMENT should work
+set statement lock_wait_timeout=1 for select @@lock_wait_timeout;
+set global general_log=@save_general_log;
+
+--echo # MDEV-7006 MDEV-7007: SET statement and slow log
+
+set @save_long_query_time= @@long_query_time;
+set @save_slow_query_log= @@slow_query_log;
+set @save_log_output= @@log_output;
+
+let $long_query_time=`select @@long_query_time`;
+--replace_result $long_query_time DEFAULT
+set statement long_query_time=default for select @@long_query_time;
+
+# Disable result log as the results depends on the values of the variables
+--disable_result_log
+set statement log_slow_filter=default for select @@log_slow_filter;
+set statement log_slow_verbosity=default for select @@log_slow_verbosity;
+set statement log_slow_rate_limit=default for select @@log_slow_rate_limit;
+set statement slow_query_log=default for select @@slow_query_log;
+--enable_result_log
+
+truncate table mysql.slow_log;
+set slow_query_log= 1;
+set global log_output='TABLE';
+
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+set @@long_query_time=0.01;
+--echo #should be written
+select sleep(0.1);
+set @@long_query_time=@save_long_query_time;
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+--echo #---
+--echo #should be written
+set statement long_query_time=0.01 for select sleep(0.1);
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+--echo #---
+set @@long_query_time=0.01;
+--echo #should NOT be written
+set statement slow_query_log=0 for select sleep(0.1);
+set @@long_query_time=@save_long_query_time;
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+--echo #---
+--echo #should NOT be written
+set statement long_query_time=0.01,log_slow_filter='full_scan' for select sleep(0.1);
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+--echo #---
+--echo #should NOT be written
+set statement long_query_time=0.01,log_slow_rate_limit=9999 for select sleep(0.1);
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+--echo #---
+--echo #should NOT be written
+set statement long_query_time=0.01,min_examined_row_limit=50 for select sleep(0.1);
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+--echo #---
+#
+# log_slow_verbosity is impossible to check because results are not written
+# in TABLE mode
+#
+
+set global log_output= @save_log_output;
+set @@slow_query_log= @save_slow_query_log;
+set @@long_query_time= @save_long_query_time;
+truncate table mysql.slow_log;
+
+
+#
+# Prohibited Variables
+#
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement autocommit=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement tx_isolation=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement skip_replication=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement sql_log_off=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement character_set_client=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement character_set_connection=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement character_set_filesystem=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement collation_connection=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement query_cache_type=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement wait_timeout=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement interactive_timeout=default for select 1;
+
+# MDEV-6996: SET STATEMENT default_week_format = .. has no effect
+set @save_week_format=@@default_week_format;
+set @@default_week_format=0;
+SET STATEMENT default_week_format = 2 FOR SELECT WEEK('2000-01-01');
+create table t1 (a date);
+insert t1 values ('2000-01-01');
+explain extended select week(a) from t1;
+prepare stmt1 from "select week(a) from t1";
+execute stmt1;
+set default_week_format = 2;
+execute stmt1;
+alter table t1 engine=myisam;
+execute stmt1;
+deallocate prepare stmt1;
+drop table t1;
+set @@default_week_format=@save_week_format;
+
+# MDEV-7015: SET STATEMENT old_passwords has no effect
+set @save_old_passwords=@@old_passwords;
+set @@old_passwords=0;
+set statement OLD_PASSWORDS = 0 for select password('test');
+set statement OLD_PASSWORDS = 1 for select password('test');
+set statement OLD_PASSWORDS = 0 for explain extended select password('test');
+set statement OLD_PASSWORDS = 1 for explain extended select password('test');
+create table t1 (a char(10));
+insert t1 values ('qwertyuiop');
+prepare stmt1 from "select password(a) from t1";
+execute stmt1;
+set old_passwords=1;
+execute stmt1;
+alter table t1 engine=myisam;
+execute stmt1;
+deallocate prepare stmt1;
+drop table t1;
+set @@old_passwords=@save_old_passwords;
+
+--echo #
+--echo #MDEV-6951:Erroneous SET STATEMENT produces two identical errors 
+--echo #
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+set statement non_existing=1 for select 1;
+show errors;
+
+--echo #
+--echo # MDEV-6954: SET STATEMENT rand_seedX = ...FOR ... makes
+--echo # the next rand() to return 0
+--echo #
+set @rnd=1;
+let $1=10;
+--disable_query_log
+--echo # test that rand() is not always 0 after restoring rand_seed, rand_seed2...
+while ($1)
+{
+  --disable_result_log
+  set statement rand_seed1=1, rand_seed2=1 for select 1;
+  --enable_result_log
+  set @rnd= rand()=0 and @rnd;
+  dec $1;
+}
+--enable_query_log
+--echo # @rnd should be 0
+select @rnd;
+
+
+--echo #
+--echo # MDEV-24860: Incorrect behaviour of SET STATEMENT in case
+--echo #             it is executed as a prepared statement
+--echo #
+PREPARE stmt FROM "SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR CREATE TABLE t1 AS SELECT CONCAT('abc') AS c1";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo # Show definition of the table t1 created using Prepared Statement
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
+--echo # Create the table t1 with the same definition as it used before
+--echo # using regular statement execution mode.
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR CREATE TABLE t1 AS SELECT CONCAT('abc') AS c1;
+
+--echo # Show that the table has the same definition as it is in case the table
+--echo # created in prepared statement mode.
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
+create table t (a int);
+SET sql_mode=ORACLE;
+SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;
+SET sql_mode=default;
+SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;
+drop table t;
+
+
+--echo #
+--echo # MDEV-18358: Server crash when using SET STATEMENT max_statement_time
+--echo #
+SET sql_mode=ORACLE;
+SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unknown';
+SET sql_mode=default;
+SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unknown';
+
+--echo # End of 10.4 tests

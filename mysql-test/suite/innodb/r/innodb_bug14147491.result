@@ -1,0 +1,21 @@
+# Ensure that purge will not crash on the table after we corrupt it.
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+SET GLOBAL innodb_fast_shutdown=0;
+# Create and populate the table to be corrupted
+set global innodb_file_per_table=ON;
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
+INSERT INTO t1 (b) VALUES ('corrupt me');
+INSERT INTO t1 (b) VALUES ('corrupt me');
+# Corrupt the table
+Munged a string.
+Munged a string.
+# restart
+# Now t1 is corrupted but we should not crash
+SELECT * FROM t1;
+Got one of the listed errors
+INSERT INTO t1(b) VALUES('abcdef');
+Got one of the listed errors
+UPDATE t1 set b = 'deadbeef' where a = 1;
+Got one of the listed errors
+# Cleanup, this must be possible
+DROP TABLE t1;

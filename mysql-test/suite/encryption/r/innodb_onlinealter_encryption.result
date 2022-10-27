@@ -1,0 +1,140 @@
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
+CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB;
+CREATE TABLE t3 (id INT, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
+CREATE TABLE t4 (id INT, a VARCHAR(255)) engine=InnoDB;
+CREATE TABLE t5 (id INT NOT NULL PRIMARY KEY, a TEXT(500), b VARCHAR(255), FULLTEXT(b)) ENGINE=InnoDB encrypted=yes;
+CREATE TABLE t6 (id INT, a TEXT(500), b VARCHAR(255), FULLTEXT(b)) ENGINE=InnoDB;
+CREATE TABLE t7 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB row_format=compressed encrypted=yes;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+declare current_num int;
+set current_num = 0;
+while current_num < repeat_count do
+insert into t1 values (current_num,repeat('foobar',12));
+insert into t2 values (current_num,repeat('tempsecret', 12));
+insert into t3 values (current_num,repeat('barfoo',42));
+insert into t4 values (current_num,repeat('repeat',42));
+insert into t5 values (current_num,substring('A BC DEF GHIJ KLM NOPQRS TUV WXYZ 012 3456789', rand()*36+1, 100), repeat('author new',22));
+insert into t6 values (current_num,substring('A BC DEF GHIJ KLM NOPQRS TUV WXYZ 012 3456789', rand()*36+1, 100), repeat('mangled old',22));
+insert into t7 values (current_num,repeat('mysql',42));
+set current_num = current_num + 1;
+end while;
+end//
+commit;
+set autocommit=0;
+call innodb_insert_proc(1500);
+commit;
+set autocommit=1;
+# Wait max 10 min for key encryption threads to encrypt all spaces
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobar/ in t1.ibd
+# t2 ... on expecting NOT FOUND
+NOT FOUND /tempsecret/ in t2.ibd
+# t3 ... on expecting NOT FOUND
+NOT FOUND /barfoo/ in t3.ibd
+# t4 ... on expecting NOT FOUND
+NOT FOUND /repeat/ in t4.ibd
+# t5 ... on expecting NOT FOUND
+NOT FOUND /author/ in t5.ibd
+# t6 ... on expecting NOT FOUND
+NOT FOUND /mangled/ in t6.ibd
+# t7 ... on expecting NOT FOUND
+NOT FOUND /mysql/ in t7.ibd
+# restart
+SET GLOBAL innodb_file_per_table = ON;
+ALTER TABLE t1 ADD COLUMN b int default 2;
+ALTER TABLE t2 ADD COLUMN b int default 2;
+ALTER TABLE t7 ADD COLUMN b int default 2;
+ALTER TABLE t1 ADD KEY a(a), ADD KEY b(b);
+ALTER TABLE t2 ADD KEY a(a), ADD KEY b(b);
+ALTER TABLE t3 ADD COLUMN c int default 5;
+ALTER TABLE t4 ADD COLUMN c int default 5;
+ALTER TABLE t3 ADD KEY (a), ADD KEY c(c);
+ALTER TABLE t4 ADD KEY (a), ADD KEY c(c);
+ALTER TABLE t5 ADD FULLTEXT(a);
+ALTER TABLE t6 ADD FULLTEXT(a);
+ALTER TABLE t7 ADD KEY a(a), ADD key b(b);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `a` varchar(255) DEFAULT NULL,
+  `b` int(11) DEFAULT 2,
+  PRIMARY KEY (`id`),
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `a` varchar(255) DEFAULT NULL,
+  `b` int(11) DEFAULT 2,
+  PRIMARY KEY (`id`),
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `id` int(11) DEFAULT NULL,
+  `a` varchar(255) DEFAULT NULL,
+  `c` int(11) DEFAULT 5,
+  KEY `a` (`a`),
+  KEY `c` (`c`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `id` int(11) DEFAULT NULL,
+  `a` varchar(255) DEFAULT NULL,
+  `c` int(11) DEFAULT 5,
+  KEY `a` (`a`),
+  KEY `c` (`c`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t5;
+Table	Create Table
+t5	CREATE TABLE `t5` (
+  `id` int(11) NOT NULL,
+  `a` text DEFAULT NULL,
+  `b` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  FULLTEXT KEY `b` (`b`),
+  FULLTEXT KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes
+SHOW CREATE TABLE t6;
+Table	Create Table
+t6	CREATE TABLE `t6` (
+  `id` int(11) DEFAULT NULL,
+  `a` text DEFAULT NULL,
+  `b` varchar(255) DEFAULT NULL,
+  FULLTEXT KEY `b` (`b`),
+  FULLTEXT KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t7;
+Table	Create Table
+t7	CREATE TABLE `t7` (
+  `id` int(11) NOT NULL,
+  `a` varchar(255) DEFAULT NULL,
+  `b` int(11) DEFAULT 2,
+  PRIMARY KEY (`id`),
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED `encrypted`=yes
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobar/ in t1.ibd
+# t2 ... on expecting NOT FOUND
+NOT FOUND /tempsecret/ in t2.ibd
+# t3 ... on expecting NOT FOUND
+NOT FOUND /barfoo/ in t3.ibd
+# t4 ... on expecting NOT FOUND
+NOT FOUND /repeat/ in t4.ibd
+# t5 ... on expecting NOT FOUND
+NOT FOUND /author/ in t5.ibd
+# t6 ... on expecting NOT FOUND
+NOT FOUND /mangled/ in t6.ibd
+# t7 ... on expecting NOT FOUND
+NOT FOUND /mysql/ in t7.ibd
+# restart
+DROP PROCEDURE innodb_insert_proc;
+DROP TABLE t1, t2, t3, t4, t5, t6, t7;

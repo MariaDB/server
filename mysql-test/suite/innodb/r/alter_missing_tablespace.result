@@ -1,0 +1,52 @@
+#
+# Bug#13955083 ALLOW IN-PLACE DDL OPERATIONS ON MISSING
+# OR DISCARDED TABLESPACES
+#
+SET GLOBAL innodb_file_per_table=1;
+CREATE TABLE t(a SERIAL)ENGINE=InnoDB;
+CREATE TABLE `x..d` (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t1(a SERIAL)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2),(3);
+# restart
+SELECT * FROM t;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+ALTER TABLE t ADD INDEX (a), ALGORITHM=INPLACE;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1812	Tablespace is missing for table 'test/t'
+Error	1030	Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+ALTER TABLE t ADD INDEX (a), ALGORITHM=COPY;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1812	Tablespace is missing for table 'test/t'
+Error	1030	Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+ALTER TABLE t AUTO_INCREMENT=1, ALGORITHM=INPLACE;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+ALTER TABLE t AUTO_INCREMENT=1, ALGORITHM=COPY;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+ALTER TABLE t ALGORITHM=INPLACE, DISCARD TABLESPACE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DISCARD TABLESPACE' at line 1
+ALTER TABLE t ALGORITHM=COPY, DISCARD TABLESPACE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DISCARD TABLESPACE' at line 1
+ALTER TABLE t ALGORITHM=DEFAULT, DISCARD TABLESPACE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DISCARD TABLESPACE' at line 1
+ALTER TABLE t DISCARD TABLESPACE;
+Warnings:
+Warning	1812	Tablespace is missing for table 'test/t'
+Warning	1812	Tablespace is missing for table 'test/t'
+RENAME TABLE t TO u;
+RENAME TABLE u TO v;
+DROP TABLE v;
+SELECT * FROM `x..d`;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+DROP TABLE `x..d`;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 AUTO_INCREMENT=1, ALGORITHM=INPLACE;
+ERROR HY000: Tablespace has been discarded for table `t1`
+ALTER TABLE t1 AUTO_INCREMENT=1, FORCE, ALGORITHM=INPLACE;
+ERROR HY000: Tablespace has been discarded for table `t1`
+ALTER TABLE t1 AUTO_INCREMENT=1, ALGORITHM=COPY;
+ERROR HY000: Tablespace has been discarded for table `t1`
+DROP TABLE t1;

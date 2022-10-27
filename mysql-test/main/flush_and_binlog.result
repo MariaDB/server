@@ -1,0 +1,33 @@
+#
+# MDEV-23843 Assertions in Diagnostics_area upon table operations under
+# FTWRL
+#
+CREATE TABLE t1 (a INT);
+FLUSH TABLES WITH READ LOCK;
+connect  con1,localhost,root,,;
+SET lock_wait_timeout= 1;
+OPTIMIZE TABLE t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+UNLOCK TABLES;
+DROP TABLE t1;
+FLUSH TABLES WITH READ LOCK;
+connect  con1,localhost,root,,test;
+SET lock_wait_timeout= 1;
+FLUSH TABLES;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+disconnect con1;
+unlock tables;
+# Second test from MDEV-23843
+CREATE TABLE t (a INT);
+FLUSH TABLES WITH READ LOCK;
+connect  con1,localhost,root,,;
+SET lock_wait_timeout= 1;
+ANALYZE TABLE t;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+UNLOCK TABLES;
+DROP TABLE t;

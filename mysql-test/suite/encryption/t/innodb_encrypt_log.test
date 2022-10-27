@@ -1,0 +1,96 @@
+-- source include/have_innodb.inc
+-- source include/not_embedded.inc
+-- source filekeys_plugin.inc
+
+--echo #
+--echo # MDEV-9011: Redo log encryption does not work
+--echo #
+
+--echo #
+--echo # MDEV-9422 Encrypted redo log checksum errors
+--echo # on restart after killing busy server instance
+--echo #
+
+--let $MYSQLD_DATADIR=`select @@datadir`
+
+SET GLOBAL innodb_log_checksums=0;
+SELECT @@global.innodb_log_checksums;
+
+CREATE TABLE t0 (
+  pk bigint auto_increment,
+  col_int int,
+  col_int_key int,
+  col_char char(12),
+  col_char_key char(12),
+  primary key (pk),
+  key (col_int_key),
+  key (col_char_key)
+) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
+CREATE TEMPORARY TABLE t LIKE t0;
+
+INSERT INTO t VALUES
+(NULL,1,1,'private','secret'),(NULL,2,2,'sacred','success'),
+(NULL,3,3,'story','secure'),(NULL,4,4,'security','sacrament');
+
+# Prevent change buffering of key(col_char_key), so that
+# after the restart, the data ('secret','success','secure','sacrament')
+# cannot be emitted to the unencrypted redo log by change buffer merge.
+SET GLOBAL innodb_change_buffering=none;
+
+# Force a redo log flush at the next commit.
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+INSERT INTO t0
+  SELECT NULL, t1.col_int, t1.col_int_key, t1.col_char, t1.col_char_key
+    FROM t t1, t t2, t t3, t t4, t t5;
+
+--source include/kill_mysqld.inc
+
+--let SEARCH_RANGE = 10000000
+--let SEARCH_PATTERN=private|secret|sacr(ed|ament)|success|story|secur(e|ity)
+
+--echo # ibdata1 expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/ibdata1
+-- source include/search_pattern_in_file.inc
+--echo # t0.ibd expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t0.ibd
+-- source include/search_pattern_in_file.inc
+--echo # ib_logfile0 expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/ib_logfile0
+-- source include/search_pattern_in_file.inc
+
+--echo # Restart without redo log encryption
+-- let $restart_parameters=--skip-innodb-encrypt-log --innodb-log-files-in-group=1
+-- source include/start_mysqld.inc
+
+SELECT COUNT(*) FROM t0;
+CHECK TABLE t0;
+# Force a redo log flush at the next commit.
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+# If we tested with UPDATE, we would get clear-text redo log for
+# encrypted undo log written with the old secret values.
+INSERT INTO t0 VALUES(NULL, 5, 5, 'public', 'gossip');
+
+--source include/kill_mysqld.inc
+
+--echo # ib_logfile0 expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/ib_logfile0
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=(public|gossip).*
+--echo # ib_logfile0 expecting FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/ib_logfile0
+-- source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=private|secret|sacr(ed|ament)|success|story|secur(e|ity)|public|gossip
+--echo # ibdata1 expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/ibdata1
+-- source include/search_pattern_in_file.inc
+--echo # t0.ibd expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t0.ibd
+-- source include/search_pattern_in_file.inc
+
+--let $restart_parameters=
+--source include/start_mysqld.inc
+
+SELECT COUNT(*) FROM t0;
+CHECK TABLE t0;
+DROP TABLE t0;

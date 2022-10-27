@@ -1,0 +1,26 @@
+# ticket 895 is a query optimization problem with the primary key
+
+--source include/have_tokudb.inc
+SET DEFAULT_STORAGE_ENGINE = 'tokudb';
+
+--disable_warnings
+DROP TABLE IF EXISTS foo,bar;
+--enable_warnings
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+create table foo (a int, b int);
+create table bar (a int, key(a));
+
+--source include/shutdown_mysqld.inc
+remove_file $MYSQLD_DATADIR/test/foo.frm;
+copy_file $MYSQLD_DATADIR/test/bar.frm $MYSQLD_DATADIR/test/foo.frm;
+remove_file $MYSQLD_DATADIR/test/bar.frm;
+--source include/start_mysqld.inc
+
+show create table foo;
+show create table bar;
+
+# Final cleanup.
+DROP TABLE foo,bar;
+

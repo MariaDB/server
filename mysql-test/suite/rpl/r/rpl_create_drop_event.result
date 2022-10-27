@@ -1,0 +1,32 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET GLOBAL event_scheduler=off;
+CREATE TABLE t1 (a INT);
+CREATE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO INSERT INTO t1 VALUES (10);
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+CREATE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO INSERT INTO t1 VALUES (11);
+ERROR HY000: Event 'ev1' already exists
+CREATE OR REPLACE EVENT ev1 ON SCHEDULE EVERY 1 SECOND DO INSERT INTO t1 VALUES (11);
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+SELECT EVENT_NAME,STATUS,EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
+EVENT_NAME	STATUS	EVENT_DEFINITION
+ev1	ENABLED	INSERT INTO t1 VALUES (11)
+SET GLOBAL event_scheduler=on;
+SET GLOBAL event_scheduler=off;
+SELECT DISTINCT a FROM t1;
+a
+11
+DELETE FROM t1;
+# Syncing slave with master
+connection slave;
+SELECT EVENT_NAME,STATUS,EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
+EVENT_NAME	STATUS	EVENT_DEFINITION
+ev1	SLAVESIDE_DISABLED	INSERT INTO t1 VALUES (11)
+connection master;
+DROP TABLE t1;
+DROP EVENT ev1;
+connection slave;
+include/rpl_end.inc

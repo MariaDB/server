@@ -1,0 +1,31 @@
+#
+# wsrep_gtid_mode
+#
+# save the initial value
+SET @wsrep_gtid_mode_global_saved = @@global.wsrep_gtid_mode;
+# default
+SELECT @@global.wsrep_gtid_mode;
+@@global.wsrep_gtid_mode
+0
+SELECT @@session.wsrep_gtid_mode;
+ERROR HY000: Variable 'wsrep_gtid_mode' is a GLOBAL variable
+
+# scope and valid values
+SET @@global.wsrep_gtid_mode=OFF;
+SELECT @@global.wsrep_gtid_mode;
+@@global.wsrep_gtid_mode
+0
+SET @@global.wsrep_gtid_mode=ON;
+SELECT @@global.wsrep_gtid_mode;
+@@global.wsrep_gtid_mode
+1
+
+# invalid values
+SET @@global.wsrep_gtid_mode=NULL;
+ERROR 42000: Variable 'wsrep_gtid_mode' can't be set to the value of 'NULL'
+SET @@global.wsrep_gtid_mode='junk';
+ERROR 42000: Variable 'wsrep_gtid_mode' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_gtid_mode = @wsrep_gtid_mode_global_saved;
+# End of test

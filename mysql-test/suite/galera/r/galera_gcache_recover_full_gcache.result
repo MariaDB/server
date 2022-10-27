@@ -1,0 +1,36 @@
+connection node_2;
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 LONGBLOB) ENGINE=InnoDB;
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+Killing server ...
+connection node_1;
+INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
+INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
+INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
+INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
+INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
+Killing server ...
+connection node_1;
+Performing --wsrep-recover ...
+Using --wsrep-start-position when starting mysqld ...
+connection node_2;
+Performing --wsrep-recover ...
+Using --wsrep-start-position when starting mysqld ...
+connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+5
+connection node_2;
+SET SESSION wsrep_sync_wait = 15;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+5
+include/diff_servers.inc [servers=1 2]
+connection node_1;
+DROP TABLE t1;
+CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
+include/assert_grep.inc [not found from cache, falling back to SST]
+connection node_2;
+CALL mtr.add_suppression("Skipped GCache ring buffer recovery");

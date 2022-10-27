@@ -1,0 +1,57 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_desync
+--echo #
+
+# expected as no wsrep provider is currently loaded
+call mtr.add_suppression("WSREP: SET desync failed 9 for schema: test, query: SET @@global.wsrep_desync=ON");
+
+--echo # save the initial value
+SET @wsrep_desync_global_saved = @@global.wsrep_desync;
+
+--echo # default
+SELECT @@global.wsrep_desync;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_desync;
+--disable_warnings
+--error 0,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_desync=OFF;
+--enable_warnings
+SELECT @@global.wsrep_desync;
+# expected as no wsrep provider is currently loaded
+--error ER_CANNOT_USER,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_desync=ON;
+SELECT @@global.wsrep_desync;
+
+--echo
+--echo # valid values
+--error 0,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_desync='OFF';
+SELECT @@global.wsrep_desync;
+# expected as no wsrep provider is currently loaded
+--error ER_CANNOT_USER,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_desync=ON;
+SELECT @@global.wsrep_desync;
+--error 0,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_desync=default;
+SELECT @@global.wsrep_desync;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_desync=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_desync='junk';
+
+--echo
+--echo # restore the initial value
+--disable_warnings
+--error 0,ER_WRONG_ARGUMENTS
+SET @@global.wsrep_desync = @wsrep_desync_global_saved;
+--enable_warnings
+
+--echo # End of test

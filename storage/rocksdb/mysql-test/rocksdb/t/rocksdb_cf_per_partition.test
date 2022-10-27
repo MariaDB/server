@@ -1,0 +1,513 @@
+--source include/have_rocksdb.inc
+
+--source include/have_partition.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+--enable_warnings
+
+#
+# Create a table with multiple partitions, but in the comment don't specify
+# that per-partition based column families (CF) should be created. Expect that
+# default CF will be used and new one won't be created.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'testcomment'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+# Expecting no results here.
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='testcomment';
+
+DROP TABLE t1;
+
+#
+# Same test case as above, only with the reverse CF. Should result in the same
+# behavior. No new CF-s created, only default one will be used.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'rev:testrevcomment'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+# Expecting no results here.
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='rev:testrevcomment';
+
+DROP TABLE t1;
+
+#
+# Create a table with multiple partitions and request for separate CF to be
+# created per every partition. As a result we expect three different CF-s to be
+# created.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=my_custom_cf;custom_p2_cfname=baz'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+set @@global.rocksdb_compact_cf = 'foo';
+set @@global.rocksdb_compact_cf = 'my_custom_cf';
+set @@global.rocksdb_compact_cf = 'baz';
+
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='foo';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='my_custom_cf';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='baz';
+
+DROP TABLE t1;
+
+#
+# Same test case as above, only one of the partitions has "rev:" prefix. The
+# intent here is to make sure that qualifier can specify reverse CF as well.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=t1-p0;custom_p1_cfname=rev:bar;custom_p2_cfname=t1-p2'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+set @@global.rocksdb_compact_cf = 't1-p0';
+set @@global.rocksdb_compact_cf = 'rev:bar';
+set @@global.rocksdb_compact_cf = 't1-p2';
+
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='t1-p0';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='rev:bar';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='t1-p2';
+
+DROP TABLE t1;
+
+
+#
+# Create a table with multiple partitions and assign two partitions to the same
+# CF, third one gets a separate partition, and fourth one will belong to a
+# default one. As a result we expect two new CF-s to be created.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=cf-zero;custom_p1_cfname=cf-one;custom_p2_cfname=cf-zero'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9),
+    PARTITION custom_p3 VALUES IN (10, 20, 30)
+);
+
+set @@global.rocksdb_compact_cf = 'cf-zero';
+set @@global.rocksdb_compact_cf = 'cf-one';
+
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='cf-zero';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='cf-one';
+
+DROP TABLE t1;
+
+#
+# Create a table with CF-s per partition and verify that ALTER TABLE + DROP
+# INDEX work for that scenario and data is persisted.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+INSERT INTO t1 VALUES (1, 1, "one", null);
+INSERT INTO t1 VALUES (2, 2, "two", null);
+INSERT INTO t1 VALUES (3, 3, "three", null);
+INSERT INTO t1 VALUES (5, 5, "five", null);
+INSERT INTO t1 VALUES (9, 9, "nine", null);
+
+SELECT * FROM t1;
+ALTER TABLE t1 DROP PRIMARY KEY;
+SELECT * FROM t1;
+
+#
+# Verify that we can compact custom CF-s.
+#
+set @@global.rocksdb_compact_cf = 'foo';
+set @@global.rocksdb_compact_cf = 'bar';
+set @@global.rocksdb_compact_cf = 'baz';
+
+DROP TABLE t1;
+
+#
+# Create a table with CF-s per partition and verify that ALTER TABLE + DROP
+# INDEX + ADD INDEX work for that scenario and data is persisted and new cf_name_str
+# are created.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+INSERT INTO t1 VALUES (1, 1, "one", null);
+INSERT INTO t1 VALUES (2, 2, "two", null);
+INSERT INTO t1 VALUES (3, 3, "three", null);
+INSERT INTO t1 VALUES (5, 5, "five", null);
+INSERT INTO t1 VALUES (9, 9, "nine", null);
+
+ALTER TABLE t1 DROP PRIMARY KEY;
+ALTER TABLE t1 ADD PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=p0_cf;custom_p1_cfname=p1_cf';
+
+set @@global.rocksdb_compact_cf = 'p0_cf';
+set @@global.rocksdb_compact_cf = 'p1_cf';
+
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='p0_cf';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='p1_cf';
+
+DROP TABLE t1;
+
+#
+# Create a table CF-s per partition, use ALTER TABLE to change the way it's
+# partitioned and verify that new CF-s will be created.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+INSERT INTO t1 VALUES (1, 1, "one", null);
+INSERT INTO t1 VALUES (2, 2, "two", null);
+INSERT INTO t1 VALUES (3, 3, "three", null);
+INSERT INTO t1 VALUES (5, 5, "five", null);
+INSERT INTO t1 VALUES (9, 9, "nine", null);
+
+ALTER TABLE t1 PARTITION BY LIST(c1) (
+    PARTITION custom_p3 VALUES IN (1, 4, 7),
+    PARTITION custom_p4 VALUES IN (2, 5, 8, 3, 6, 9)
+);
+
+ALTER TABLE t1 DROP PRIMARY KEY;
+ALTER TABLE t1 ADD PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p3_cfname=p3_cf;custom_p4_cfname=p4_cf';
+
+set @@global.rocksdb_compact_cf = 'p3_cf';
+set @@global.rocksdb_compact_cf = 'p4_cf';
+
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='p3_cf';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='p4_cf';
+
+DROP TABLE t1;
+
+#
+# Create a table CF-s per partition, use empty qualifier name. Verify that no
+# new CF-s are created. This will also make sure that nothing gets added for
+# `custom_p2`.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=;'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+DROP TABLE t1;
+
+#
+# Verify some basic partition related operations when using PARTITION BY LIST
+# COLUMNS on a VARBINARY column on a table with more complicated schema.
+#
+
+#
+# Verify that creating the table without COMMENT actually works.
+#
+CREATE TABLE `t2` (
+  `col1` bigint(20) NOT NULL,
+  `col2` varbinary(64) NOT NULL,
+  `col3` varbinary(256) NOT NULL,
+  `col4` bigint(20) NOT NULL,
+  `col5` mediumblob NOT NULL,
+  PRIMARY KEY (`col1`,`col2`,`col3`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+  PARTITION BY LIST COLUMNS (`col2`) (
+    PARTITION custom_p0 VALUES IN (0x12345),
+    PARTITION custom_p1 VALUES IN (0x23456),
+    PARTITION custom_p2 VALUES IN (0x34567),
+    PARTITION custom_p3 VALUES IN (0x45678),
+    PARTITION custom_p4 VALUES IN (0x56789),
+    PARTITION custom_p5 VALUES IN (0x6789A),
+    PARTITION custom_p6 VALUES IN (0x789AB),
+    PARTITION custom_p7 VALUES IN (0x89ABC)
+);
+
+DROP TABLE t2;
+
+#
+# Create the same table with two custom CF-s per partition as specified in the
+# COMMENT.
+#
+CREATE TABLE `t2` (
+  `col1` bigint(20) NOT NULL,
+  `col2` varbinary(64) NOT NULL,
+  `col3` varbinary(256) NOT NULL,
+  `col4` bigint(20) NOT NULL,
+  `col5` mediumblob NOT NULL,
+  PRIMARY KEY (`col1`,`col2`,`col3`) COMMENT 'custom_p0_cfname=my_cf0;custom_p1_cfname=my_cf1'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+  PARTITION BY LIST COLUMNS (`col2`) (
+    PARTITION custom_p0 VALUES IN (0x12345),
+    PARTITION custom_p1 VALUES IN (0x23456),
+    PARTITION custom_p2 VALUES IN (0x34567),
+    PARTITION custom_p3 VALUES IN (0x45678),
+    PARTITION custom_p4 VALUES IN (0x56789),
+    PARTITION custom_p5 VALUES IN (0x6789A),
+    PARTITION custom_p6 VALUES IN (0x789AB),
+    PARTITION custom_p7 VALUES IN (0x89ABC)
+);
+
+# Verify that CF-s were created earlier.
+set @@global.rocksdb_compact_cf = 'my_cf0';
+set @@global.rocksdb_compact_cf = 'my_cf1';
+
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='my_cf0';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='my_cf1';
+
+# Insert some random data.
+INSERT INTO t2 VALUES (100, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (200, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (300, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (100, 0x23456, 0x2, 1, 0x3);
+INSERT INTO t2 VALUES (100, 0x34567, 0x4, 1, 0x5);
+INSERT INTO t2 VALUES (400, 0x89ABC, 0x4, 1, 0x5);
+
+# Verify it's there.
+SELECT col1, HEX(col2), HEX(col3), col4, HEX(col5) FROM t2;
+
+# Verify it's being fetched from the right partition. This tests partitioning
+# functionality, but we want to make sure that by adding CF-s per partition we
+# don't regress anything.
+EXPLAIN PARTITIONS SELECT HEX(col2) FROM t2 where col2 = 0x12345;
+EXPLAIN PARTITIONS SELECT HEX(col2) FROM t2 where col2 = 0x23456;
+
+# Delete the current PK and create a new one referencing different CF-s. We
+# need to verity that new CF-s will be created and no data will be lost in
+# process.
+ALTER TABLE t2 DROP PRIMARY KEY;
+ALTER TABLE t2 ADD  PRIMARY KEY (`col1`,`col2`,`col3`) COMMENT 'custom_p0_cfname=new_cf0;custom_p1_cfname=new_cf1';
+
+# Verify that new CF-s are created as well.
+set @@global.rocksdb_compact_cf = 'new_cf0';
+set @@global.rocksdb_compact_cf = 'new_cf1';
+
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='new_cf0';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='new_cf1';
+
+# Insert some more random data.
+INSERT INTO t2 VALUES (500, 0x12345, 0x5, 1, 0x2);
+INSERT INTO t2 VALUES (700, 0x23456, 0x7, 1, 0x3);
+
+# Verify that partition mappings are still intact.
+EXPLAIN PARTITIONS SELECT HEX(col2) FROM t2 where col2 = 0x12345;
+EXPLAIN PARTITIONS SELECT HEX(col2) FROM t2 where col2 = 0x23456;
+
+# Verify that no data is lost.
+SELECT col1, HEX(col2), HEX(col3), col4, HEX(col5) FROM t2;
+
+DROP TABLE t2;
+
+#
+# Create the same table with two custom CF-s per partition as specified in the
+# COMMENT. Use both the PK and SK when creating the table.
+#
+CREATE TABLE `t2` (
+  `col1` bigint(20) NOT NULL,
+  `col2` varbinary(64) NOT NULL,
+  `col3` varbinary(256) NOT NULL,
+  `col4` bigint(20) NOT NULL,
+  `col5` mediumblob NOT NULL,
+  PRIMARY KEY (`col1`,`col2`,`col3`) COMMENT 'custom_p0_cfname=test_cf0;custom_p1_cfname=test_cf1',
+  KEY (`col2`, `col4`) COMMENT 'custom_p5_cfname=test_cf5'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+  PARTITION BY LIST COLUMNS (`col2`) (
+    PARTITION custom_p0 VALUES IN (0x12345),
+    PARTITION custom_p1 VALUES IN (0x23456),
+    PARTITION custom_p2 VALUES IN (0x34567),
+    PARTITION custom_p3 VALUES IN (0x45678),
+    PARTITION custom_p4 VALUES IN (0x56789),
+    PARTITION custom_p5 VALUES IN (0x6789A),
+    PARTITION custom_p6 VALUES IN (0x789AB),
+    PARTITION custom_p7 VALUES IN (0x89ABC)
+);
+
+# Verify that CF-s were created for PK.
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='test_cf0';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='test_cf1';
+
+# Verify that CF-s were created for SK.
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='test_cf5';
+
+# Insert some random data.
+INSERT INTO t2 VALUES (100, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (200, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (300, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (100, 0x23456, 0x2, 1, 0x3);
+INSERT INTO t2 VALUES (100, 0x34567, 0x4, 1, 0x5);
+INSERT INTO t2 VALUES (400, 0x89ABC, 0x4, 1, 0x5);
+INSERT INTO t2 VALUES (500, 0x6789A, 0x5, 1, 0x7);
+
+# Basic verification that correct partition and key are used when searching.
+EXPLAIN PARTITIONS SELECT  * FROM t2 WHERE col2 = 0x6789A AND col4 = 1;
+
+# Remove the key.
+ALTER TABLE t2 DROP KEY `col2`;
+
+# Add a new key and expect new CF to be created as well.
+ALTER TABLE t2 ADD KEY (`col3`, `col4`) COMMENT 'custom_p5_cfname=another_cf_for_p5';
+
+# Verify that CF-s were created for SK.
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='another_cf_for_p5';
+
+# Verify that correct partition and key are used when searching.
+ANALYZE TABLE t2;
+--replace_column 10 #
+EXPLAIN PARTITIONS SELECT  * FROM t2 WHERE col3 = 0x4 AND col2 = 0x34567;
+
+DROP TABLE t2;
+
+#
+# Verify the same scenario as before, but with a UNIQUE KEY in addition to PK.
+#
+CREATE TABLE `t2` (
+  `col1` bigint(20) NOT NULL,
+  `col2` varbinary(64) NOT NULL,
+  `col3` varbinary(256) NOT NULL,
+  `col4` bigint(20) NOT NULL,
+  `col5` mediumblob NOT NULL,
+  PRIMARY KEY (`col1`,`col2`,`col3`) COMMENT 'custom_p0_cfname=test_cf0;custom_p1_cfname=test_cf1',
+  UNIQUE KEY (`col2`, `col4`) COMMENT 'custom_p5_cfname=unique_test_cf5'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+  PARTITION BY LIST COLUMNS (`col2`) (
+    PARTITION custom_p0 VALUES IN (0x12345),
+    PARTITION custom_p1 VALUES IN (0x23456),
+    PARTITION custom_p2 VALUES IN (0x34567),
+    PARTITION custom_p3 VALUES IN (0x45678),
+    PARTITION custom_p4 VALUES IN (0x56789),
+    PARTITION custom_p5 VALUES IN (0x6789A),
+    PARTITION custom_p6 VALUES IN (0x789AB),
+    PARTITION custom_p7 VALUES IN (0x89ABC)
+);
+
+# Verify that CF-s were created for SK.
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='unique_test_cf5';
+
+INSERT INTO t2 VALUES (100, 0x12345, 0x1, 1, 0x2);
+
+--error ER_DUP_ENTRY
+INSERT INTO t2 VALUES (200, 0x12345, 0x1, 1, 0x2);
+
+--error ER_DUP_ENTRY
+INSERT INTO t2 VALUES (300, 0x12345, 0x1, 1, 0x2);
+
+INSERT INTO t2 VALUES (100, 0x23456, 0x2, 1, 0x3);
+INSERT INTO t2 VALUES (100, 0x34567, 0x4, 1, 0x5);
+INSERT INTO t2 VALUES (400, 0x89ABC, 0x4, 1, 0x5);
+INSERT INTO t2 VALUES (500, 0x6789A, 0x5, 1, 0x7);
+
+DROP TABLE t2;
+
+#
+# Verify that both partitioned and non-partitioned table can share a CF.
+#
+CREATE TABLE t1 (
+  `a` int,
+  PRIMARY KEY (a) COMMENT "sharedcf"
+) ENGINE=ROCKSDB;
+
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='sharedcf';
+
+#
+# We expect this to succeed.
+#
+CREATE TABLE t2 (
+  `a` INT,
+  `b` DATE,
+  `c` VARCHAR(42),
+  PRIMARY KEY (`a`) COMMENT "custom_p0_cfname=sharedcf;custom_p2_cfname=notsharedcf"
+) ENGINE=ROCKSDB
+  PARTITION BY LIST(`a`) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='notsharedcf';
+
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+
+
+# Test that truncating table actually removes rows.
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  PRIMARY KEY (a) COMMENT 'p1_cfname=foo;'
+) ENGINE=ROCKSDB
+PARTITION BY LIST COLUMNS(a)
+(PARTITION p1 VALUES IN (1) ENGINE = ROCKSDB);
+
+INSERT INTO t1 values (1);
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+

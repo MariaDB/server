@@ -1,0 +1,1280 @@
+#
+# Testing of misc functions
+#
+
+--source include/default_optimizer_switch.inc
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2;
+--enable_warnings
+
+select format(1.5555,0),format(123.5555,1),format(1234.5555,2),format(12345.55555,3),format(123456.5555,4),format(1234567.5555,5),format("12345.2399",2);
+
+select inet_ntoa(inet_aton("255.255.255.255.255.255.255.255"));
+select inet_aton("255.255.255.255.255"),inet_aton("255.255.1.255"),inet_aton("0.1.255");
+select inet_ntoa(1099511627775),inet_ntoa(4294902271),inet_ntoa(511);
+
+select hex(inet_aton('127'));
+select hex(inet_aton('127.1'));
+select hex(inet_aton('127.1.1'));
+
+select length(uuid()), charset(uuid()), length(unhex(replace(uuid(),_utf8'-',_utf8'')));
+
+# As we can assume we are the only user for the mysqld server, the difference
+# between two calls should be -1
+set @a= uuid_short();
+set @b= uuid_short();
+select @b - @a;
+
+#
+# Test for core dump with nan
+#
+select length(format('nan', 2)) > 0;
+
+#
+# Test for bug #628
+#
+select concat("$",format(2500,2));
+
+# Test for BUG#7716
+create table t1 ( a timestamp );
+insert into t1 values ( '2004-01-06 12:34' );
+select a from t1 where left(a+0,6) in ( left(20040106,6) );
+select a from t1 where left(a+0,6) = ( left(20040106,6) );
+
+select a from t1 where right(a+0,6) in ( right(20040106123400,6) );
+select a from t1 where right(a+0,6) = ( right(20040106123400,6) );
+
+select a from t1 where mid(a+0,6,3) in ( mid(20040106123400,6,3) );
+select a from t1 where mid(a+0,6,3) = ( mid(20040106123400,6,3) );
+
+drop table t1;
+
+
+#
+# Bug#16501: IS_USED_LOCK does not appear to work
+#
+
+CREATE TABLE t1 (conn CHAR(7), connection_id INT);
+INSERT INTO t1 VALUES ('default', CONNECTION_ID());
+
+SELECT GET_LOCK('bug16501',600);
+
+connect (con1,localhost,root,,);
+INSERT INTO t1 VALUES ('con1', CONNECTION_ID());
+SELECT IS_USED_LOCK('bug16501') = connection_id
+FROM t1
+WHERE conn = 'default';
+send SELECT GET_LOCK('bug16501',600);
+
+connection default;
+SELECT IS_USED_LOCK('bug16501') = CONNECTION_ID();
+SELECT RELEASE_LOCK('bug16501');
+connection con1;
+reap;
+connection default;
+SELECT IS_USED_LOCK('bug16501') = connection_id
+FROM t1
+WHERE conn = 'con1';
+
+connection con1;
+SELECT IS_USED_LOCK('bug16501') = CONNECTION_ID();
+SELECT RELEASE_LOCK('bug16501');
+SELECT IS_USED_LOCK('bug16501');
+
+disconnect con1;
+connection default;
+
+DROP TABLE t1;
+
+#
+# Bug #21531: EXPORT_SET() doesn't accept args with coercible character sets
+#
+select export_set(3, _latin1'foo', _utf8'bar', ',', 4);
+
+--echo End of 4.1 tests
+
+
+#
+# Test for BUG#9535
+#
+--disable_warnings
+create table t1 as select uuid(), length(uuid());
+--enable_warnings
+show create table t1;
+drop table t1;
+
+#
+# Bug #21466: INET_ATON() returns signed, not unsigned
+#
+
+create table t1 select INET_ATON('255.255.0.1') as `a`;
+show create table t1;
+drop table t1;
+
+#
+# Bug#26093 (SELECT BENCHMARK() for SELECT statements does not produce
+#   valid results)
+#
+
+--disable_warnings
+drop table if exists table_26093;
+drop function if exists func_26093_a;
+drop function if exists func_26093_b;
+--enable_warnings
+
+create table table_26093(a int);
+insert into table_26093 values
+(1), (2), (3), (4), (5),
+(6), (7), (8), (9), (10);
+
+delimiter //;
+
+create function func_26093_a(x int) returns int
+begin
+  set @invoked := @invoked + 1;
+  return x;
+end//
+
+create function func_26093_b(x int, y int) returns int
+begin
+  set @invoked := @invoked + 1;
+  return x;
+end//
+
+delimiter ;//
+
+select avg(a) from table_26093;
+
+select benchmark(100, (select avg(a) from table_26093));
+
+set @invoked := 0;
+select benchmark(100, (select avg(func_26093_a(a)) from table_26093));
+# Returns only 10, since intermediate results are cached.
+select @invoked;
+
+set @invoked := 0;
+select benchmark(100, (select avg(func_26093_b(a, rand())) from table_26093));
+# Returns 1000, due to rand() preventing caching.
+select @invoked;
+
+--error ER_SUBQUERY_NO_1_ROW
+select benchmark(100, (select (a) from table_26093));
+
+--error ER_OPERAND_COLUMNS
+select benchmark(100, (select 1, 1));
+
+drop table table_26093;
+drop function func_26093_a;
+drop function func_26093_b;
+
+#
+# Bug #30832: Assertion + crash with select name_const('test',now());
+#
+--error ER_WRONG_ARGUMENTS
+SELECT NAME_CONST('test', NOW());
+--error ER_WRONG_ARGUMENTS
+SELECT NAME_CONST('test', UPPER('test'));
+
+SELECT NAME_CONST('test', NULL);
+SELECT NAME_CONST('test', 1);
+SELECT NAME_CONST('test', -1);
+SELECT NAME_CONST('test', 1.0);
+SELECT NAME_CONST('test', -1.0);
+SELECT NAME_CONST('test', 'test');
+
+#
+# Bug #34749: Server crash when using NAME_CONST() with an aggregate function
+#
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+# NAME_CONST() + aggregate.
+SELECT NAME_CONST('flag',1)    * MAX(a) FROM t1;
+SELECT NAME_CONST('flag',1.5)  * MAX(a) FROM t1;
+# Now, wrap the INT_ITEM in Item_func_neg and watch the pretty explosions
+SELECT NAME_CONST('flag',-1)   * MAX(a) FROM t1;
+SELECT NAME_CONST('flag',-1.5) * MAX(a) FROM t1;
+--error ER_WRONG_ARGUMENTS
+SELECT NAME_CONST('flag', SQRT(4)) * MAX(a) FROM t1;
+--error ER_WRONG_ARGUMENTS
+SELECT NAME_CONST('flag',-SQRT(4)) * MAX(a) FROM t1;
+DROP TABLE t1;
+
+#
+# Bug #27545: erroneous usage of NAME_CONST with a name as the first parameter
+#             resolved against a column name of a derived table hangs the client
+#
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (5), (2);
+
+--error ER_WRONG_ARGUMENTS
+SELECT NAME_CONST(x,2) FROM (SELECT a x FROM t1) t;
+
+DROP TABLE t1;
+
+
+#
+# Bug #32559: connection hangs on query with name_const
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (), (), ();
+--error ER_WRONG_ARGUMENTS
+SELECT NAME_CONST(a, '1') FROM t1;
+--error ER_WRONG_ARGUMENTS
+SET INSERT_ID= NAME_CONST(a, a);
+DROP TABLE t1;
+
+#
+# Bug #31349: ERROR 1062 (23000): Duplicate entry '' for key 'group_key'
+#
+create table t1 (a int not null);
+insert into t1 values (-1), (-2);
+select min(a) from t1 group by inet_ntoa(a);
+drop table t1;
+
+#
+# BUG#34289 - Incorrect NAME_CONST substitution in stored procedures breaks
+# replication
+#
+SELECT NAME_CONST('var', 'value') COLLATE latin1_general_cs;
+
+#
+# Bug #35848: UUID() returns UUIDs with the wrong time
+#
+select @@session.time_zone into @save_tz;
+
+# make sure all times are UTC so the DayNr won't differ
+set @@session.time_zone='UTC';
+select uuid() into @my_uuid;
+# if version nibble isn't 1, the following calculations will be rubbish
+select mid(@my_uuid,15,1);
+select 24 * 60 * 60 * 1000 * 1000 * 10 into @my_uuid_one_day;
+select concat('0',mid(@my_uuid,16,3),mid(@my_uuid,10,4),left(@my_uuid,8)) into @my_uuidate;
+select floor(conv(@my_uuidate,16,10)/@my_uuid_one_day) into @my_uuid_date;
+select 141427 + datediff(curdate(),'1970-01-01') into @my_uuid_synthetic;
+# these should be identical; date part of UUID should be current date
+select @my_uuid_date - @my_uuid_synthetic;
+
+set @@session.time_zone=@save_tz;
+
+
+#
+# Bug#42014: Crash, name_const with collate
+#
+CREATE TABLE t1 (a DATE);
+SELECT * FROM t1 WHERE a = NAME_CONST('reportDate',
+  _binary'2009-01-09' COLLATE 'binary');
+DROP TABLE t1;
+
+#
+# Bug#35515: Aliases of variables in binary log are ignored with NAME_CONST
+#
+select NAME_CONST('_id',1234) as id;
+
+--echo End of 5.0 tests
+
+#
+# Bug #30389: connection_id() always return 0 in embedded server
+#
+
+select connection_id() > 0;
+
+--echo #
+--echo # Bug #54461: crash with longblob and union or update with subquery
+--echo #
+
+CREATE TABLE t1 (a INT, b LONGBLOB);
+INSERT INTO t1 VALUES (1, '2'), (2, '3'), (3, '2');
+
+SELECT DISTINCT LEAST(a, (SELECT b FROM t1 LIMIT 1)) FROM t1 UNION SELECT 1;
+SELECT DISTINCT GREATEST(a, (SELECT b FROM t1 LIMIT 1)) FROM t1 UNION SELECT 1;
+
+DROP TABLE t1;
+
+
+#
+# Bug #57283: inet_ntoa() crashes
+#
+SELECT INET_NTOA(0);
+SELECT '1' IN ('1', INET_NTOA(0));
+
+#
+# MDEV-5655 Server crashes on NAME_CONST containing AND/OR expressions
+#
+--error ER_WRONG_ARGUMENTS
+SELECT NAME_CONST('a', -(1 OR 2)) OR 1;
+--error ER_WRONG_ARGUMENTS
+SELECT NAME_CONST('a', -(1 AND 2)) AND 1;
+SELECT NAME_CONST('a', -(1)) OR 1;
+
+--echo #
+--echo #MDEV-5446: Assertion `!table || (!table->read_set ||
+--echo #bitmap_is_set(table->read_set, field_index))' fails on
+--echo #EXPLAIN EXTENDED with VALUES function
+--echo #
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,10);
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+EXPLAIN EXTENDED SELECT VALUE(b) FROM v1;
+
+drop view v1;
+drop table t1;
+
+--echo End of 5.3 tests
+
+--echo # 
+--echo # Bug #52165: Assertion failed: file .\dtoa.c, line 465
+--echo # 
+
+CREATE TABLE t1 (a SET('a'), b INT);
+INSERT INTO t1 VALUES ('', 0);
+
+SELECT COALESCE(a) = COALESCE(b) FROM t1;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # Bug #54461: crash with longblob and union or update with subquery
+--echo #
+
+CREATE TABLE t1 (a INT, b LONGBLOB);
+INSERT INTO t1 VALUES (1, '2'), (2, '3'), (3, '2');
+
+SELECT DISTINCT LEAST(a, (SELECT b FROM t1 LIMIT 1)) FROM t1 UNION SELECT 1;
+SELECT DISTINCT GREATEST(a, (SELECT b FROM t1 LIMIT 1)) FROM t1 UNION SELECT 1;
+
+DROP TABLE t1;
+
+
+#
+# Bug #57283: inet_ntoa() crashes
+#
+SELECT INET_NTOA(0);
+SELECT '1' IN ('1', INET_NTOA(0));
+
+
+--echo #
+--echo # End of 5.1 tests
+--echo #
+
+
+--echo #
+--echo # Bug #58199: name_const in the having clause crashes
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+# NAME_CONST() would seg.fault when used wrongly in a HAVING clause
+--error ER_WRONG_ARGUMENTS
+SELECT 1 from t1 HAVING NAME_CONST('', a);
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test or correct maybe_null of last_value
+--echo #
+CREATE TABLE t1 (a char(2) not null );
+INSERT INTO t1 VALUES (4),(7),(1);
+set @optimizer_switch_save= @@optimizer_switch;
+set optimizer_switch='materialization=off';
+CREATE TABLE tv (e char(2) not null );
+INSERT INTO tv VALUES (1);
+CREATE ALGORITHM=MERGE VIEW v_merge AS SELECT * FROM tv;
+CREATE ALGORITHM=MERGE VIEW vm AS SELECT * FROM tv;
+explain extended
+select a from t1 left join v_merge on (a=e) where last_value(NULL,e) not in (select last_value(NULL,e) from vm);
+explain extended
+select a from t1 left join v_merge on (a=e) where e not in (select last_value(NULL,e) from vm);
+set optimizer_switch=@optimizer_switch_save;
+drop view  v_merge, vm;
+drop table t1,tv;
+
+--echo #
+--echo # MDEV-4017 - GET_LOCK() with negative timeouts has strange behavior
+--echo #
+SELECT GET_LOCK('ul1', NULL);
+SELECT GET_LOCK('ul1', -1);
+
+--echo #
+--echo # MDEV-8624 MariaDB hangs on query with many logical condition
+--echo #
+CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `submitdate` datetime DEFAULT NULL,
+  `lastpage` int(11) DEFAULT NULL,
+  `startlanguage` varchar(20) COLLATE utf8_unicode_ci NOT NULL,
+  `token` varchar(36) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `datestamp` datetime NOT NULL,
+  `startdate` datetime NOT NULL,
+  `ipaddr` text COLLATE utf8_unicode_ci,
+  `refurl` text COLLATE utf8_unicode_ci,
+  `57813X540X1723` text COLLATE utf8_unicode_ci,
+  `57813X540X1724` text COLLATE utf8_unicode_ci,
+  `57813X540X1725` text COLLATE utf8_unicode_ci,
+  `57813X540X1726` double DEFAULT NULL,
+  `57813X540X1909` double DEFAULT NULL,
+  `57813X541X17271` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X541X17272` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X541X17273` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X541X17274` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X541X17275` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X541X17276` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X541X17281` text COLLATE utf8_unicode_ci,
+  `57813X541X17282` text COLLATE utf8_unicode_ci,
+  `57813X541X17283` text COLLATE utf8_unicode_ci,
+  `57813X541X17284` text COLLATE utf8_unicode_ci,
+  `57813X541X17285` text COLLATE utf8_unicode_ci,
+  `57813X541X17286` text COLLATE utf8_unicode_ci,
+  `57813X542X18131` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X542X18132` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X542X18133` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X542X18134` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X542X18135` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X542X18136` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X542X18137` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X542X18138` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X542X18139` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X542X18141` text COLLATE utf8_unicode_ci,
+  `57813X542X18142` text COLLATE utf8_unicode_ci,
+  `57813X542X18143` text COLLATE utf8_unicode_ci,
+  `57813X542X18144` text COLLATE utf8_unicode_ci,
+  `57813X542X18145` text COLLATE utf8_unicode_ci,
+  `57813X542X18146` text COLLATE utf8_unicode_ci,
+  `57813X542X18147` text COLLATE utf8_unicode_ci,
+  `57813X542X18148` text COLLATE utf8_unicode_ci,
+  `57813X542X18149` text COLLATE utf8_unicode_ci,
+  `57813X543X18451` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X543X18452` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X543X18453` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X543X18454` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X543X18455` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X543X18456` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X543X18461` text COLLATE utf8_unicode_ci,
+  `57813X543X18462` text COLLATE utf8_unicode_ci,
+  `57813X543X18463` text COLLATE utf8_unicode_ci,
+  `57813X543X18464` text COLLATE utf8_unicode_ci,
+  `57813X543X18465` text COLLATE utf8_unicode_ci,
+  `57813X543X18466` text COLLATE utf8_unicode_ci,
+  `57813X544X18711` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X544X18712` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X544X18713` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X544X18714` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X544X18715` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X544X18716` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X544X18717` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X544X18718` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X544X18721` text COLLATE utf8_unicode_ci,
+  `57813X544X18722` text COLLATE utf8_unicode_ci,
+  `57813X544X18723` text COLLATE utf8_unicode_ci,
+  `57813X544X18724` text COLLATE utf8_unicode_ci,
+  `57813X544X18725` text COLLATE utf8_unicode_ci,
+  `57813X544X18726` text COLLATE utf8_unicode_ci,
+  `57813X544X18727` text COLLATE utf8_unicode_ci,
+  `57813X544X18728` text COLLATE utf8_unicode_ci,
+  `57813X546X1902` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X546X1903` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X546X1904` varchar(5) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `57813X545X1901` varchar(1) COLLATE utf8_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `lime_survey_57813_idx` (`token`),
+  KEY `57813X540X1723` (`57813X540X1723`(100)),
+  KEY `57813X540X1724` (`57813X540X1724`(100)),
+  KEY `57813X540X1726` (`57813X540X1726`),
+  KEY `57813X540X1725` (`57813X540X1725`(100)),
+  KEY `57813X546X1902` (`57813X546X1902`),
+  KEY `57813X546X1903` (`57813X546X1903`),
+  KEY `57813X546X1904` (`57813X546X1904`)
+);
+
+SELECT 
+COUNT(*) as `N`, 
+ROUND( 
+      ( 
+        SUM( 
+            ( 
+             ( 
+	      IF( 57813X541X17271 IS NOT NULL AND 57813X541X17271 != '' AND 57813X541X17271 != '99', 57813X541X17271, 0 ) + 
+              IF( 57813X541X17272 IS NOT NULL AND 57813X541X17272 != '' AND 57813X541X17272 != '99', 57813X541X17272, 0 ) + 
+              IF( 57813X541X17273 IS NOT NULL AND 57813X541X17273 != '' AND 57813X541X17273 != '99', 57813X541X17273, 0 ) + 
+              IF( 57813X541X17274 IS NOT NULL AND 57813X541X17274 != '' AND 57813X541X17274 != '99', 57813X541X17274, 0 ) + 
+              IF( 57813X541X17275 IS NOT NULL AND 57813X541X17275 != '' AND 57813X541X17275 != '99', 57813X541X17275, 0 ) +
+              IF( 57813X541X17276 IS NOT NULL AND 57813X541X17276 != '' AND 57813X541X17276 != '99', 57813X541X17276, 0 ) + 
+              IF( 57813X542X18131 IS NOT NULL AND 57813X542X18131 != '' AND 57813X542X18131 != '99', 57813X542X18131, 0 ) + 
+              IF( 57813X542X18132 IS NOT NULL AND 57813X542X18132 != '' AND 57813X542X18132 != '99', 57813X542X18132, 0 ) + 
+              IF( 57813X542X18133 IS NOT NULL AND 57813X542X18133 != '' AND 57813X542X18133 != '99', 57813X542X18133, 0 ) + 
+              IF( 57813X542X18134 IS NOT NULL AND 57813X542X18134 != '' AND 57813X542X18134 != '99', 57813X542X18134, 0 ) + 
+              IF( 57813X542X18135 IS NOT NULL AND 57813X542X18135 != '' AND 57813X542X18135 != '99', 57813X542X18135, 0 ) + 
+              IF( 57813X542X18136 IS NOT NULL AND 57813X542X18136 != '' AND 57813X542X18136 != '99', 57813X542X18136, 0 ) + 
+              IF( 57813X542X18137 IS NOT NULL AND 57813X542X18137 != '' AND 57813X542X18137 != '99', 57813X542X18137, 0 ) + 
+              IF( 57813X542X18138 IS NOT NULL AND 57813X542X18138 != '' AND 57813X542X18138 != '99', 57813X542X18138, 0 ) + 
+              IF( 57813X542X18139 IS NOT NULL AND 57813X542X18139 != '' AND 57813X542X18139 != '99', 57813X542X18139, 0 ) + 
+              IF( 57813X543X18451 IS NOT NULL AND 57813X543X18451 != '' AND 57813X543X18451 != '99', 57813X543X18451, 0 ) + 
+              IF( 57813X543X18452 IS NOT NULL AND 57813X543X18452 != '' AND 57813X543X18452 != '99', 57813X543X18452, 0 ) + 
+              IF( 57813X543X18453 IS NOT NULL AND 57813X543X18453 != '' AND 57813X543X18453 != '99', 57813X543X18453, 0 ) + 
+              IF( 57813X543X18454 IS NOT NULL AND 57813X543X18454 != '' AND 57813X543X18454 != '99', 57813X543X18454, 0 ) + 
+              IF( 57813X543X18455 IS NOT NULL AND 57813X543X18455 != '' AND 57813X543X18455 != '99', 57813X543X18455, 0 ) + 
+              IF( 57813X543X18456 IS NOT NULL AND 57813X543X18456 != '' AND 57813X543X18456 != '99', 57813X543X18456, 0 ) + 
+              IF( 57813X544X18711 IS NOT NULL AND 57813X544X18711 != '' AND 57813X544X18711 != '99', 57813X544X18711, 0 ) + 
+              IF( 57813X544X18712 IS NOT NULL AND 57813X544X18712 != '' AND 57813X544X18712 != '99', 57813X544X18712, 0 ) + 
+              IF( 57813X544X18713 IS NOT NULL AND 57813X544X18713 != '' AND 57813X544X18713 != '99', 57813X544X18713, 0 ) + 
+              IF( 57813X544X18714 IS NOT NULL AND 57813X544X18714 != '' AND 57813X544X18714 != '99', 57813X544X18714, 0 ) + 
+              IF( 57813X544X18715 IS NOT NULL AND 57813X544X18715 != '' AND 57813X544X18715 != '99', 57813X544X18715, 0 ) + 
+              IF( 57813X544X18716 IS NOT NULL AND 57813X544X18716 != '' AND 57813X544X18716 != '99', 57813X544X18716, 0 ) + 
+              IF( 57813X544X18717 IS NOT NULL AND 57813X544X18717 != '' AND 57813X544X18717 != '99', 57813X544X18717, 0 ) + 
+              IF( 57813X544X18718 IS NOT NULL AND 57813X544X18718 != '' AND 57813X544X18718 != '99', 57813X544X18718, 0 ) 
+             ) 
+             / 
+             (
+              IF( 57813X541X17271 IS NOT NULL AND 57813X541X17271 != '' AND 57813X541X17271 != '99', 1, 0 ) + 
+              IF( 57813X541X17272 IS NOT NULL AND 57813X541X17272 != '' AND 57813X541X17272 != '99', 1, 0 ) + 
+              IF( 57813X541X17273 IS NOT NULL AND 57813X541X17273 != '' AND 57813X541X17273 != '99', 1, 0 ) + 
+              IF( 57813X541X17274 IS NOT NULL AND 57813X541X17274 != '' AND 57813X541X17274 != '99', 1, 0 ) + 
+              IF( 57813X541X17275 IS NOT NULL AND 57813X541X17275 != '' AND 57813X541X17275 != '99', 1, 0 ) + 
+              IF( 57813X541X17276 IS NOT NULL AND 57813X541X17276 != '' AND 57813X541X17276 != '99', 1, 0 ) + 
+              IF( 57813X542X18131 IS NOT NULL AND 57813X542X18131 != '' AND 57813X542X18131 != '99', 1, 0 ) + 
+              IF( 57813X542X18132 IS NOT NULL AND 57813X542X18132 != '' AND 57813X542X18132 != '99', 1, 0 ) + 
+              IF( 57813X542X18133 IS NOT NULL AND 57813X542X18133 != '' AND 57813X542X18133 != '99', 1, 0 ) + 
+              IF( 57813X542X18134 IS NOT NULL AND 57813X542X18134 != '' AND 57813X542X18134 != '99', 1, 0 ) + 
+              IF( 57813X542X18135 IS NOT NULL AND 57813X542X18135 != '' AND 57813X542X18135 != '99', 1, 0 ) + 
+              IF( 57813X542X18136 IS NOT NULL AND 57813X542X18136 != '' AND 57813X542X18136 != '99', 1, 0 ) + 
+              IF( 57813X542X18137 IS NOT NULL AND 57813X542X18137 != '' AND 57813X542X18137 != '99', 1, 0 ) + 
+              IF( 57813X542X18138 IS NOT NULL AND 57813X542X18138 != '' AND 57813X542X18138 != '99', 1, 0 ) + 
+              IF( 57813X542X18139 IS NOT NULL AND 57813X542X18139 != '' AND 57813X542X18139 != '99', 1, 0 ) + 
+              IF( 57813X543X18451 IS NOT NULL AND 57813X543X18451 != '' AND 57813X543X18451 != '99', 1, 0 ) + 
+              IF( 57813X543X18452 IS NOT NULL AND 57813X543X18452 != '' AND 57813X543X18452 != '99', 1, 0 ) + 
+              IF( 57813X543X18453 IS NOT NULL AND 57813X543X18453 != '' AND 57813X543X18453 != '99', 1, 0 ) + 
+              IF( 57813X543X18454 IS NOT NULL AND 57813X543X18454 != '' AND 57813X543X18454 != '99', 1, 0 ) + 
+              IF( 57813X543X18455 IS NOT NULL AND 57813X543X18455 != '' AND 57813X543X18455 != '99', 1, 0 ) + 
+              IF( 57813X543X18456 IS NOT NULL AND 57813X543X18456 != '' AND 57813X543X18456 != '99', 1, 0 ) + 
+              IF( 57813X544X18711 IS NOT NULL AND 57813X544X18711 != '' AND 57813X544X18711 != '99', 1, 0 ) + 
+              IF( 57813X544X18712 IS NOT NULL AND 57813X544X18712 != '' AND 57813X544X18712 != '99', 1, 0 ) + 
+              IF( 57813X544X18713 IS NOT NULL AND 57813X544X18713 != '' AND 57813X544X18713 != '99', 1, 0 ) + 
+              IF( 57813X544X18714 IS NOT NULL AND 57813X544X18714 != '' AND 57813X544X18714 != '99', 1, 0 ) + 
+              IF( 57813X544X18715 IS NOT NULL AND 57813X544X18715 != '' AND 57813X544X18715 != '99', 1, 0 ) + 
+              IF( 57813X544X18716 IS NOT NULL AND 57813X544X18716 != '' AND 57813X544X18716 != '99', 1, 0 ) + 
+              IF( 57813X544X18717 IS NOT NULL AND 57813X544X18717 != '' AND 57813X544X18717 != '99', 1, 0 ) + 
+              IF( 57813X544X18718 IS NOT NULL AND 57813X544X18718 != '' AND 57813X544X18718 != '99', 1, 0 ) 
+              ) 
+             ) 
+            ) 
+        / COUNT(*) ), 4) as `AVG`
+FROM `t1` 
+WHERE `submitdate` IS NOT NULL 
+AND ( 
+     ( 57813X541X17271 IS NOT NULL AND 57813X541X17271 != '' AND 57813X541X17271 != '99' ) OR 
+     ( 57813X541X17272 IS NOT NULL AND 57813X541X17272 != '' AND 57813X541X17272 != '99' ) OR 
+     ( 57813X541X17273 IS NOT NULL AND 57813X541X17273 != '' AND 57813X541X17273 != '99' ) OR 
+     ( 57813X541X17274 IS NOT NULL AND 57813X541X17274 != '' AND 57813X541X17274 != '99' ) OR 
+     ( 57813X541X17275 IS NOT NULL AND 57813X541X17275 != '' AND 57813X541X17275 != '99' ) OR 
+     ( 57813X541X17276 IS NOT NULL AND 57813X541X17276 != '' AND 57813X541X17276 != '99' ) OR 
+     ( 57813X542X18131 IS NOT NULL AND 57813X542X18131 != '' AND 57813X542X18131 != '99' ) OR 
+     ( 57813X542X18132 IS NOT NULL AND 57813X542X18132 != '' AND 57813X542X18132 != '99' ) OR 
+     ( 57813X542X18133 IS NOT NULL AND 57813X542X18133 != '' AND 57813X542X18133 != '99' ) OR 
+     ( 57813X542X18134 IS NOT NULL AND 57813X542X18134 != '' AND 57813X542X18134 != '99' ) OR 
+     ( 57813X542X18135 IS NOT NULL AND 57813X542X18135 != '' AND 57813X542X18135 != '99' ) OR 
+     ( 57813X542X18136 IS NOT NULL AND 57813X542X18136 != '' AND 57813X542X18136 != '99' ) OR 
+     ( 57813X542X18137 IS NOT NULL AND 57813X542X18137 != '' AND 57813X542X18137 != '99' ) OR 
+     ( 57813X542X18138 IS NOT NULL AND 57813X542X18138 != '' AND 57813X542X18138 != '99' ) OR 
+     ( 57813X542X18139 IS NOT NULL AND 57813X542X18139 != '' AND 57813X542X18139 != '99' ) OR 
+     ( 57813X543X18451 IS NOT NULL AND 57813X543X18451 != '' AND 57813X543X18451 != '99' ) OR 
+     ( 57813X543X18452 IS NOT NULL AND 57813X543X18452 != '' AND 57813X543X18452 != '99' ) OR 
+     ( 57813X543X18453 IS NOT NULL AND 57813X543X18453 != '' AND 57813X543X18453 != '99' ) OR 
+     ( 57813X543X18454 IS NOT NULL AND 57813X543X18454 != '' AND 57813X543X18454 != '99' ) OR 
+     ( 57813X543X18455 IS NOT NULL AND 57813X543X18455 != '' AND 57813X543X18455 != '99' ) OR 
+     ( 57813X543X18456 IS NOT NULL AND 57813X543X18456 != '' AND 57813X543X18456 != '99' ) OR 
+     ( 57813X544X18711 IS NOT NULL AND 57813X544X18711 != '' AND 57813X544X18711 != '99' ) OR 
+     ( 57813X544X18712 IS NOT NULL AND 57813X544X18712 != '' AND 57813X544X18712 != '99' ) OR 
+     ( 57813X544X18713 IS NOT NULL AND 57813X544X18713 != '' AND 57813X544X18713 != '99' ) OR 
+     ( 57813X544X18714 IS NOT NULL AND 57813X544X18714 != '' AND 57813X544X18714 != '99' ) OR 
+     ( 57813X544X18715 IS NOT NULL AND 57813X544X18715 != '' AND 57813X544X18715 != '99' ) OR 
+     ( 57813X544X18716 IS NOT NULL AND 57813X544X18716 != '' AND 57813X544X18716 != '99' ) OR 
+     ( 57813X544X18717 IS NOT NULL AND 57813X544X18717 != '' AND 57813X544X18717 != '99' ) OR 
+     ( 57813X544X18718 IS NOT NULL AND 57813X544X18718 != '' AND 57813X544X18718 != '99' ) ) 
+AND 57813X540X1723 = 'Test';
+
+drop table t1;
+
+#
+# Bug#12735545 - PARSER STACK OVERFLOW WITH NAME_CONST
+#                CONTAINING OR EXPRESSION
+#
+--error ER_WRONG_ARGUMENTS
+SELECT NAME_CONST('a', -(1 OR 2)) OR 1;
+--error ER_WRONG_ARGUMENTS
+SELECT NAME_CONST('a', -(1 AND 2)) OR 1;
+SELECT NAME_CONST('a', -(1)) OR 1;
+
+--echo #
+--echo # MDEV-15630 uuid() function evaluates at wrong time in query
+--echo #
+
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+--replace_column 2 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+SELECT COUNT(1), UUID() as uid FROM t1 GROUP BY uid;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # GET_LOCK, RELEASE_LOCK, IS_USED_LOCK functions test
+--echo #
+
+--echo # IS_USED_LOCK, IS_FREE_LOCK: the  lock is not acquired
+--echo # Note: IS_USED_LOCK returns NULL if the lock is unused
+select is_used_lock('test');
+select is_free_lock('test');
+
+--echo # GET_LOCK returns 1 if it manages to acquire a lock
+select get_lock('test', 0);
+
+--echo # IS_USED_LOCK, IS_FREE_LOCK: the  lock is acquired
+select is_free_lock('test');
+select is_used_lock('test') = connection_id();
+
+connect (con1,localhost,root,,);
+connection con1;
+--echo # IS_USED_LOCK, IS_FREE_LOCK: the  lock is acquired in another
+--echo # connection
+select is_used_lock('test') = connection_id();
+select is_free_lock('test');
+
+--echo # GET_LOCK returns 0 if it can't acquire a lock (wait timeout)
+select get_lock('test', 0);
+
+--echo # RELEASE_LOCK returns 0 if the lock belongs to another connection 
+select release_lock('test');
+
+connection default;
+
+--echo # RELEASE_LOCK returns 1 if it successfully releases a lock
+select release_lock('test');
+--echo # RELEASE_LOCK returns NULL if it doesn't release a lock and there is no such lock
+select release_lock('test');
+
+--echo # Test that get_lock() returns NULL if error.
+select get_lock('test', 0);
+connection con1;
+create table t1 select connection_id() as id;
+send select get_lock('test', 7200);
+
+connection default;
+let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE info LIKE 'select%' AND state='User lock';
+source include/wait_condition.inc;
+select (@id := id) - id from t1;
+kill query @id;
+
+connection con1;
+reap;
+
+connection default;
+
+--echo # GET_LOCK() works recursively 
+select get_lock('test', 0);
+select get_lock('test', 0);
+select get_lock('test', 0);
+
+--echo # RELEASE_LOCK() needs to be called recursively then, too
+select release_lock('test');
+select release_lock('test');
+select release_lock('test');
+
+--echo # Once the last instance of the lock is released, 
+--echo # the next call returns NULL
+select release_lock('test');
+
+
+--echo # Multiple locks in the same session are OK
+select get_lock('test1', 0);
+select get_lock('test2', 0);
+select get_lock('test3', 0);
+
+select release_lock('test1');
+select release_lock('test2');
+select release_lock('test3');
+
+--echo # Deadlocks are detected e.g. in case of a mutual wait
+select get_lock('test1', 0);
+
+connection con1;
+select get_lock('test2', 0);
+send select get_lock('test1', 7200);
+
+connection default;
+let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE info LIKE 'select%' AND state='User lock';
+source include/wait_condition.inc;
+--error ER_LOCK_DEADLOCK
+select get_lock('test2', 7200);
+
+select release_lock('test1');
+
+connection con1;
+reap;
+select release_lock('test2');
+select release_lock('test1');
+
+connection default;
+
+--echo # LOCK/UNLOCK TABLES works fine with a user lock.
+lock table t1 write;
+select get_lock('test', 0);
+unlock tables;
+commit;
+select release_lock('test');
+
+--echo # GLOBAL READ LOCK works with fine with user locks
+select get_lock('test1', 0);
+flush tables with read lock;
+select get_lock('test2', 0);
+unlock tables;
+commit;
+select release_lock('test1');
+select release_lock('test2');
+
+--echo # BEGIN/COMMIT/ROLLBACK don't unlock user locks.
+begin;
+select get_lock('test1', 0);
+select  get_lock('test2', 0);
+select count(*) from t1;
+rollback;
+select release_lock('test1');
+select release_lock('test2');
+
+--echo # Deadlocks between user locks and LOCK TABLES locks
+--echo # are detected OK.
+select get_lock('test', 0);
+
+connection con1;
+lock table t1 write;
+send select get_lock('test', 7200);
+
+connection default;
+let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE info LIKE 'select%' AND state = 'User lock';
+source include/wait_condition.inc;
+--error ER_LOCK_DEADLOCK
+lock table t1 read;
+
+select release_lock('test');
+
+connection con1;
+reap;
+select release_lock('test');
+unlock tables;
+
+--echo # cleanup
+disconnect con1;
+connection default;
+drop table t1;
+
+--echo # check too long identifier names
+select get_lock(repeat('a', 192), 0);
+select is_used_lock(repeat('a', 192)) = connection_id();
+select is_free_lock(repeat('a', 192));
+select release_lock(repeat('a', 192));
+--error ER_TOO_LONG_IDENT
+select get_lock(repeat('a', 193), 0);
+--error ER_TOO_LONG_IDENT
+select is_used_lock(repeat('a', 193));
+--error ER_TOO_LONG_IDENT
+select is_free_lock(repeat('a', 193));
+--error ER_TOO_LONG_IDENT
+select release_lock(repeat('a', 193));
+
+
+--echo
+--echo # --
+--echo # -- WL#5787: IPv6-capable INET_ATON and INET_NTOA functions.
+--echo # --
+
+--echo
+--echo # -- INET6_ATON: checking NULL, invalid types, out-of range values...
+--echo
+
+SELECT INET6_ATON(NULL) IS NULL;
+SELECT INET6_ATON(123) IS NULL;
+SELECT INET6_ATON(123.45) IS NULL;
+SELECT INET6_ATON(NOW()) IS NULL;
+
+SELECT INET6_ATON('1.2.3') IS NULL;
+SELECT INET6_ATON('1.2.3.') IS NULL;
+SELECT INET6_ATON('1..3.4') IS NULL;
+SELECT INET6_ATON('-1.2.3.4') IS NULL;
+SELECT INET6_ATON('1.2.3.256') IS NULL;
+SELECT INET6_ATON('1.2.3.4.5') IS NULL;
+SELECT INET6_ATON('0001.2.3.4') IS NULL;
+SELECT INET6_ATON('0x1.2.3.4') IS NULL;
+SELECT INET6_ATON('a.2.3.4') IS NULL;
+
+SELECT INET6_ATON('1.2.3.4:80') IS NULL;
+SELECT INET6_ATON('1.2.3.4/32') IS NULL;
+
+SELECT INET6_ATON('mysql.com') IS NULL;
+
+SELECT INET6_ATON(':::') IS NULL;
+SELECT INET6_ATON(':1:2:3') IS NULL;
+SELECT INET6_ATON('1:2:3:') IS NULL;
+SELECT INET6_ATON(':1::2:3') IS NULL;
+SELECT INET6_ATON('1::2:3:') IS NULL;
+SELECT INET6_ATON('::00001') IS NULL;
+SELECT INET6_ATON('::00001:2') IS NULL;
+SELECT INET6_ATON('::12345') IS NULL;
+SELECT INET6_ATON('1020::3040::5060') IS NULL;
+SELECT INET6_ATON('::ABCZ') IS NULL;
+
+SELECT INET6_ATON('::0x1.2.3.4') IS NULL;
+SELECT INET6_ATON('::1.0x2.3.4') IS NULL;
+SELECT INET6_ATON('::a.b.c.d') IS NULL;
+
+SELECT INET6_ATON('::FFFF:0x1.2.3.4') IS NULL;
+SELECT INET6_ATON('::FFFF:1.0x2.3.4') IS NULL;
+SELECT INET6_ATON('::FFFF:a.b.c.d') IS NULL;
+
+SELECT INET6_ATON('::1.2.3.4:ABCD') IS NULL;
+
+--echo # NOTE: such addresses are supported because getaddrinfo() supports them.
+--echo # This is just to record the current behaviour.
+SELECT HEX(INET6_ATON('::ABCD:1.2.3.4'));
+
+--echo
+--echo # -- INET6_ATON: checking binary representation...
+--echo
+
+SELECT HEX(INET6_ATON('0.0.0.0'));
+SELECT HEX(INET6_ATON('00.00.00.00'));
+SELECT HEX(INET6_ATON('000.000.000.000'));
+SELECT HEX(INET6_ATON('1.2.3.4'));
+SELECT HEX(INET6_ATON('01.02.03.04'));
+SELECT HEX(INET6_ATON('001.002.003.004'));
+SELECT HEX(INET6_ATON('255.255.255.255'));
+SELECT HEX(INET6_ATON('::'));
+SELECT HEX(INET6_ATON('0::0'));
+SELECT HEX(INET6_ATON('1::2'));
+SELECT HEX(INET6_ATON('0::'));
+SELECT HEX(INET6_ATON('1::'));
+SELECT HEX(INET6_ATON('::0'));
+SELECT HEX(INET6_ATON('::1'));
+SELECT HEX(INET6_ATON('1:2:3:4:5:6:7:8'));
+SELECT HEX(INET6_ATON('::2:3:4:5:6:7:8'));
+SELECT HEX(INET6_ATON('1::3:4:5:6:7:8'));
+SELECT HEX(INET6_ATON('1:2::4:5:6:7:8'));
+SELECT HEX(INET6_ATON('1:2:3::5:6:7:8'));
+SELECT HEX(INET6_ATON('1:2:3:4::6:7:8'));
+SELECT HEX(INET6_ATON('1:2:3:4:5::7:8'));
+SELECT HEX(INET6_ATON('1:2:3:4:5:6::8'));
+SELECT HEX(INET6_ATON('1:2:3:4:5:6:7::'));
+SELECT HEX(INET6_ATON('0000:0000::0000:0001'));
+SELECT HEX(INET6_ATON('1234:5678:9abc:def0:4321:8765:cba9:0fed'));
+SELECT HEX(INET6_ATON('0000:0000:0000:0000:0000:0000:0000:0001'));
+SELECT HEX(INET6_ATON('::C0A8:0102'));
+SELECT HEX(INET6_ATON('::c0a8:0102'));
+SELECT HEX(INET6_ATON('::192.168.1.2'));
+SELECT HEX(INET6_ATON('::FfFf:C0a8:0102'));
+SELECT HEX(INET6_ATON('::ffff:c0a8:0102'));
+SELECT HEX(INET6_ATON('::ffff:192.168.1.2'));
+SELECT HEX(INET6_ATON('::01.2.3.4'));
+SELECT HEX(INET6_ATON('::1.02.3.4'));
+SELECT HEX(INET6_ATON('::1.2.03.4'));
+SELECT HEX(INET6_ATON('::1.2.3.04'));
+SELECT HEX(INET6_ATON('::1.2.3.00'));
+SELECT HEX(INET6_ATON('::FFFF:01.2.3.4'));
+SELECT HEX(INET6_ATON('::FFFF:1.02.3.4'));
+SELECT HEX(INET6_ATON('::FFFF:1.2.03.4'));
+SELECT HEX(INET6_ATON('::FFFF:1.2.3.04'));
+SELECT HEX(INET6_ATON('::FFFF:1.2.3.00'));
+
+--echo
+--echo # -- INET6_ATON: checking the length is either 4 or 16...
+--echo
+
+SELECT LENGTH(INET6_ATON('0.0.0.0'));
+SELECT LENGTH(INET6_ATON('255.255.255.255'));
+SELECT LENGTH(INET6_ATON('::'));
+SELECT LENGTH(INET6_ATON('1020:3040:5060:7080:90A0:B0C0:D0E0:F010'));
+
+--echo
+--echo # -- INET6_NTOA: checking NULL, invalid types, out-of range values...
+--echo
+
+SELECT INET6_NTOA(NULL);
+SELECT INET6_NTOA(123);
+SELECT INET6_NTOA(123.456);
+SELECT INET6_NTOA(NOW());
+SELECT INET6_NTOA(UNHEX('C0A801'));     # 3 bytes -> NULL
+SELECT INET6_NTOA(UNHEX('C0A80102'));   # 4 bytes -> 192.168.1.2
+SELECT INET6_NTOA(UNHEX('C0A8010203')); # 5 bytes -> NULL
+SELECT INET6_NTOA(UNHEX('0102030405060708090A0B0C0D0E0F'));     # 15 bytes -> NULL
+SELECT INET6_NTOA(UNHEX('0102030405060708090A0B0C0D0E0F10'));   # 16 bytes -> IP
+SELECT INET6_NTOA(UNHEX('0102030405060708090A0B0C0D0E0F1011')); # 17 bytes -> NULL
+
+SELECT INET6_NTOA('1234'), INET6_NTOA(BINARY('1234'));
+SELECT INET6_NTOA('0123456789abcdef'), INET6_NTOA(BINARY('0123456789abcdef'));
+
+--echo
+--echo # -- Checking double-conversion...
+--echo
+
+SELECT INET6_NTOA(INET6_ATON('::'));
+SELECT INET6_NTOA(INET6_ATON('0::0'));
+SELECT INET6_NTOA(INET6_ATON('1::2'));
+SELECT INET6_NTOA(INET6_ATON('0::'));
+SELECT INET6_NTOA(INET6_ATON('1::'));
+SELECT INET6_NTOA(INET6_ATON('::0'));
+SELECT INET6_NTOA(INET6_ATON('::1'));
+SELECT INET6_NTOA(INET6_ATON('1:2:3:4:5:6:7:8'));
+SELECT INET6_NTOA(INET6_ATON('::2:3:4:5:6:7:8'));
+SELECT INET6_NTOA(INET6_ATON('1::3:4:5:6:7:8'));
+SELECT INET6_NTOA(INET6_ATON('1:2::4:5:6:7:8'));
+SELECT INET6_NTOA(INET6_ATON('1:2:3::5:6:7:8'));
+SELECT INET6_NTOA(INET6_ATON('1:2:3:4::6:7:8'));
+SELECT INET6_NTOA(INET6_ATON('1:2:3:4:5::7:8'));
+SELECT INET6_NTOA(INET6_ATON('1:2:3:4:5:6::8'));
+SELECT INET6_NTOA(INET6_ATON('1:2:3:4:5:6:7::'));
+SELECT INET6_NTOA(INET6_ATON('0000:0000::0000:0001'));
+SELECT INET6_NTOA(INET6_ATON('1234:5678:9abc:def0:4321:8765:cba9:0fed'));
+SELECT INET6_NTOA(INET6_ATON('0000:0000:0000:0000:0000:0000:0000:0001'));
+SELECT INET6_NTOA(INET6_ATON('::C0A8:0102'));
+SELECT INET6_NTOA(INET6_ATON('::c0a8:0102'));
+SELECT INET6_NTOA(INET6_ATON('::192.168.1.2'));
+SELECT INET6_NTOA(INET6_ATON('::FfFf:C0a8:0102'));
+SELECT INET6_NTOA(INET6_ATON('::ffff:c0a8:0102'));
+SELECT INET6_NTOA(INET6_ATON('::ffff:192.168.1.2'));
+SELECT INET6_NTOA(INET6_ATON('::01.2.3.4'));
+SELECT INET6_NTOA(INET6_ATON('::1.02.3.4'));
+SELECT INET6_NTOA(INET6_ATON('::1.2.03.4'));
+SELECT INET6_NTOA(INET6_ATON('::1.2.3.04'));
+SELECT INET6_NTOA(INET6_ATON('::1.2.3.00'));
+SELECT INET6_NTOA(INET6_ATON('::FFFF:01.2.3.4'));
+SELECT INET6_NTOA(INET6_ATON('::FFFF:1.02.3.4'));
+SELECT INET6_NTOA(INET6_ATON('::FFFF:1.2.03.4'));
+SELECT INET6_NTOA(INET6_ATON('::FFFF:1.2.3.04'));
+SELECT INET6_NTOA(INET6_ATON('::FFFF:1.2.3.00'));
+
+--echo
+--echo # -- Comparing INET_ATON() and INET6_ATON()...
+--echo
+
+SELECT HEX(INET_ATON('192.168.1.2'));
+SELECT HEX(INET6_ATON('192.168.1.2'));
+
+SELECT HEX(INET_ATON('255.255.255.255'));
+SELECT HEX(INET6_ATON('255.255.255.255'));
+
+SELECT HEX(INET_ATON('192.168.08.2'));
+SELECT HEX(INET6_ATON('192.168.08.2'));
+
+SELECT HEX(INET_ATON('192.168.0x8.2'));
+SELECT HEX(INET6_ATON('192.168.0x8.2'));
+
+SELECT HEX(INET_ATON('1.2.255'));
+SELECT HEX(INET6_ATON('1.2.255'));
+
+SELECT HEX(INET_ATON('1.2.256'));
+SELECT HEX(INET6_ATON('1.2.256'));
+
+SELECT HEX(INET_ATON('1.0002.3.4'));
+SELECT HEX(INET6_ATON('1.0002.3.4'));
+
+SELECT HEX(INET_ATON('1.2.3.4.5'));
+SELECT HEX(INET6_ATON('1.2.3.4.5'));
+
+--echo
+--echo # -- Checking mix of INET- and INET6- functions...
+--echo
+
+SELECT HEX(INET6_ATON(INET_NTOA(INET_ATON('1.2.3.4')))) AS x;
+
+--echo
+--echo # -- Checking IS_IPV4() / IS_IPV6()...
+--echo
+
+SELECT IS_IPV4(NULL);
+SELECT IS_IPV4(1);
+SELECT IS_IPV4(1.0);
+SELECT IS_IPV4('1.2.3.4');
+SELECT IS_IPV4('001.02.000.255');
+SELECT IS_IPV4('::1.2.0.255');
+SELECT IS_IPV4('::1');
+SELECT IS_IPV4(BINARY('1.2.3.4'));
+
+SELECT IS_IPV6(NULL);
+SELECT IS_IPV6(1);
+SELECT IS_IPV6(1.0);
+SELECT IS_IPV6('1.2.3.4');
+SELECT IS_IPV6('001.02.000.255');
+SELECT IS_IPV6('::001.02.000.255');
+SELECT IS_IPV6('::1.2.0.255');
+SELECT IS_IPV6('::1');
+SELECT IS_IPV6('0000:0000:0000:0000:0000:0000:0000:0001');
+SELECT IS_IPV6(BINARY('0000:0000:0000:0000:0000:0000:0000:0001'));
+
+--echo
+--echo # -- Checking IS_IPV4_MAPPED() and IS_IPV4_COMPAT()...
+--echo
+
+SELECT IS_IPV4_MAPPED(INET6_ATON('1.2.3.4')),
+       IS_IPV4_COMPAT(INET6_ATON('1.2.3.4'));
+SELECT IS_IPV4_MAPPED(INET6_ATON('::1.2.3.4')),
+       IS_IPV4_COMPAT(INET6_ATON('::1.2.3.4'));
+SELECT IS_IPV4_MAPPED(INET6_ATON('::FFFF:1.2.3.4')),
+       IS_IPV4_COMPAT(INET6_ATON('::FFFF:1.2.3.4'));
+SELECT IS_IPV4_MAPPED(INET6_ATON('::ABCD:1.2.3.4')),
+       IS_IPV4_COMPAT(INET6_ATON('::ABCD:1.2.3.4'));
+SELECT IS_IPV4_MAPPED(INET6_ATON('::1')),
+       IS_IPV4_COMPAT(INET6_ATON('::1'));
+SELECT IS_IPV4_MAPPED(INET6_ATON('::')),
+       IS_IPV4_COMPAT(INET6_ATON('::'));
+
+# NOTE: IS_IPV4_COMPAT() / IS_IPV4_MAPPED() could work with "regular strings in
+# binary collation" too, but there is no way to create a "regular string"
+# starting with \0.
+
+--echo
+--echo # -- Checking IS_IPV4_COMPAT()...
+--echo
+
+--echo
+--echo # -- Working with a table...
+--echo
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+--enable_warnings
+
+CREATE TABLE t1(ip INT UNSIGNED);
+CREATE TABLE t2(ip VARBINARY(16));
+
+--echo
+
+INSERT INTO t1 VALUES
+  (INET_ATON('1.2.3.4')), (INET_ATON('255.255.255.255'));
+SELECT INET_NTOA(ip) FROM t1;
+
+--echo
+
+INSERT INTO t2 SELECT INET6_ATON(INET_NTOA(ip)) FROM t1;
+SELECT INET6_NTOA(ip), HEX(ip), LENGTH(ip) FROM t2;
+DELETE FROM t2;
+
+--echo
+
+INSERT INTO t2 VALUES
+  (INET6_ATON('1.2.3.4')), (INET6_ATON('255.255.255.255')),
+  (INET6_ATON('::1.2.3.4')), (INET6_ATON('::ffff:255.255.255.255')),
+  (INET6_ATON('::')), (INET6_ATON('::1')),
+  (INET6_ATON('1020:3040:5060:7080:90A0:B0C0:D0E0:F010'));
+SELECT INET6_NTOA(ip), HEX(ip), LENGTH(ip) FROM t2;
+
+--echo
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # MDEV-4018 : Microseconds in GET_LOCK()
+--echo #
+
+connection default;
+select is_used_lock('test') = connection_id();
+
+--echo # GET_LOCK returns 1 if it manages to acquire a lock
+select get_lock('test', 0);
+
+connect (con1,localhost,root,,);
+connection con1;
+select is_used_lock('test') = connection_id();
+select get_lock('test', 0);
+select get_lock('test', 1.0);
+select get_lock('test', 1.5);
+select get_lock('test', 0.1);
+select get_lock('test', 0.000001);
+select get_lock('test', 0.0000000000000001);
+
+connection default;
+select is_used_lock('test') = connection_id();
+select release_lock('test');
+
+--echo
+--echo # -- Done.
+--echo
+
+
+--echo #
+--echo # MDEV-13685 Can not replay binary log due to Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb4_general_ci,COERCIBLE) for operation 'concat'
+--echo #
+SET NAMES utf8;
+SELECT COERCIBILITY(NAME_CONST('name','test'));
+SELECT COERCIBILITY(NAME_CONST('name',TIME'00:00:00'));
+SELECT COERCIBILITY(NAME_CONST('name',15));
+SELECT CONCAT(NAME_CONST('name',15),'오');
+SET NAMES latin1;
+
+--echo #
+--echo # MDEV-14116 INET6_NTOA output is set as null to varchar(39) variable
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE ip_full_addr varchar(39) DEFAULT "";
+  SELECT INET6_NTOA(UNHEX('20000000000000000000000000000000')) into ip_full_addr;
+  SELECT ip_full_addr;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-18195 ASAN use-after-poison in my_strcasecmp_utf8 / Item::eq upon prepared statement with ORDER BY NAME_CONST
+--echo #
+
+PREPARE stmt FROM "SELECT 'x' ORDER BY NAME_CONST( 'f', 'foo' )";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # MDEV-19680: Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index) ||
+--echo #             (!(ptr >= table->record[0] && ptr < table->record[0] + table->s->reclength)))'
+--echo #             or alike failed upon SELECT with mix of functions from simple view
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT ISNULL( BENCHMARK(1, MIN(a))) FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+CREATE TABLE t1 (
+  a VARCHAR(30),
+  b BIGINT DEFAULT INET_ATON(a),
+  a1 VARCHAR(30) DEFAULT INET_NTOA(b),
+  c INT DEFAULT IS_IPV4(a),
+  d INT DEFAULT IS_IPV6(a)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('192.168.001.001'),('::1'),('xxx');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  str VARCHAR(128),
+  addr VARBINARY(16) DEFAULT INET6_ATON(str),
+  str1 VARCHAR(128) DEFAULT INET6_NTOA(addr),
+  b INT DEFAULT IS_IPV4_COMPAT(addr),
+  c INT DEFAULT IS_IPV4_MAPPED(addr)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (str) VALUES ('::FFFF:192.168.0.1'),('::10.0.5.9');
+SELECT str, str1, b,c FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14613: Assertion `fixed == 0' failed in Item_func::fix_fields
+--echo #
+
+CREATE TABLE `t1` (
+  `numgtfmt` char(10) COLLATE utf8_bin NOT NULL 
+) DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+ 
+create view v1(numgtfmt)
+as
+select 'x' from t1
+union
+select 'x' from t1 ;
+ 
+SELECT * FROM v1 WHERE numgtfmt =  NAME_CONST('wnumgtfmt',_utf8'QEDITIONS' COLLATE 'utf8_bin');
+ 
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20517 Assertion `!is_expensive()' failed in Item::value_depends_on_sql_mode_const_item
+--echo #
+
+SELECT ( 1 LIKE GET_LOCK( 'foo', 0 ) ) - 2;
+SELECT RELEASE_LOCK('foo');
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+
+SELECT INET_ATON("255.255.255.255.255.255.255.255");
+
+--enable_ps_protocol
+--disable_metadata
+
+--echo #
+--echo # MDEV-8049 name_const() is not consistent about its signess
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+SELECT 18446744073709551615 AS c1, name_const('a',18446744073709551615) AS c2;
+--enable_ps_protocol
+--disable_metadata
+
+CREATE TABLE t1 AS SELECT 18446744073709551615 AS c1, name_const('a',18446744073709551615) AS c2;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16309 Split ::create_tmp_field() into virtual methods in Item
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a TEXT;
+  DECLARE c CURSOR FOR SELECT NAME_CONST('x','y') FROM t1;
+  OPEN c;
+  FETCH c INTO a;
+  CLOSE c;
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

@@ -1,0 +1,121 @@
+connect  con1,localhost,root,,;
+SET lock_wait_timeout=1;
+connection default;
+DROP TABLE IF EXISTS t1, t2, t3;
+CREATE TABLE t1 (id INT, id2 INT, pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (id,id2) VALUES (1,1),(1,2),(1,3);
+LOCK TABLE t1 LOW_PRIORITY WRITE;
+SELECT id2,COUNT(DISTINCT id) FROM t1 GROUP BY id2;
+id2	COUNT(DISTINCT id)
+1	1
+2	1
+3	1
+UPDATE t1 SET id=-1 WHERE id=1;
+connection con1;
+SELECT id,id2 FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+LOCK TABLE t1 READ;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+LOCK TABLE t1 READ;
+UPDATE t1 SET id=1 WHERE id=1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+connection con1;
+SELECT COUNT(DISTINCT id) FROM t1;
+COUNT(DISTINCT id)
+1
+UPDATE t1 SET id=2 WHERE id=2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+LOCK TABLE t1 WRITE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+LOCK TABLE t1 READ;
+UNLOCK TABLES;
+connection default;
+CREATE TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+UNLOCK TABLES;
+CREATE TABLE t2 (id INT, id2 INT, pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+LOCK TABLE t1 WRITE, t2 WRITE;
+INSERT INTO t2 (id,id2) SELECT id,id2 FROM t1;
+UPDATE t1 SET id=1 WHERE id=-1;
+DROP TABLE t1,t2;
+CREATE TABLE t1 (i1 INT, nr INT, pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+CREATE TABLE t2 (nr INT, nm INT, pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t2 (nr,nm) VALUES (1,3);
+INSERT INTO t2 (nr,nm) VALUES (2,4);
+LOCK TABLES t1 WRITE, t2 READ;
+INSERT INTO t1 (i1,nr) SELECT 1, nr FROM t2 WHERE nm=3;
+INSERT INTO t1 (i1,nr) SELECT 2, nr FROM t2 WHERE nm=4;
+UNLOCK TABLES;
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 (i1,nr) SELECT i1, nr FROM t1;
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+LOCK TABLES t1 WRITE, t1 AS t1_alias READ;
+INSERT INTO t1 (i1,nr) SELECT i1, nr FROM t1 AS t1_alias;
+DROP TABLE t1,t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+UNLOCK TABLES;
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+CREATE TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(b)) ENGINE=rocksdb;
+CREATE TABLE t3 (a INT, b CHAR(8), pk INT PRIMARY KEY) ENGINE=rocksdb;
+LOCK TABLES t1 WRITE, t2 WRITE, t3 WRITE;
+DROP TABLE t2, t3, t1;
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+CREATE TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(b)) ENGINE=rocksdb;
+CREATE TABLE t3 (a INT, b CHAR(8), pk INT PRIMARY KEY) ENGINE=rocksdb;
+LOCK TABLES t1 WRITE, t2 WRITE, t3 WRITE, t1 AS t4 READ;
+ALTER TABLE t2 ADD COLUMN c2 INT;
+DROP TABLE t1, t2, t3;
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+CREATE TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(b)) ENGINE=rocksdb;
+LOCK TABLE t1 READ, t2 READ;
+FLUSH TABLE t1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+FLUSH TABLES;
+ERROR HY000: Table 't2' was locked with a READ lock and can't be updated
+FLUSH TABLES t1, t2 WITH READ LOCK;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLES t1, t2 WITH READ LOCK;
+connection con1;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+UNLOCK TABLES;
+FLUSH TABLES WITH READ LOCK;
+connection con1;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection default;
+UNLOCK TABLES;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+FLUSH TABLES WITH READ LOCK;
+DROP TABLE t1, t2;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+disconnect con1;
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+CREATE TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(b)) ENGINE=rocksdb;
+LOCK TABLE t1 WRITE, t2 WRITE;
+SELECT a,b FROM t1;
+a	b
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+HANDLER t1 OPEN h;
+CREATE TABLE t2 (i INT) ENGINE=RocksDB;
+LOCK TABLES t2 WRITE;
+connect  con1,localhost,root,,test;
+connection con1;
+FLUSH TABLES WITH READ LOCK;
+connection default;
+INSERT INTO t2 VALUES (1);
+UNLOCK TABLES;
+HANDLER h CLOSE;
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE t1, t2;

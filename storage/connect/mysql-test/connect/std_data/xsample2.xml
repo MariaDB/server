@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BIBLIO SUBJECT="XML">
+  <BOOK ISBN="9782212090819" LANG="fr" SUBJECT="applications">
+    <AUTHOR>
+      <FIRSTNAME>Jean-Christophe</FIRSTNAME>
+      <LASTNAME>Bernadac</LASTNAME>
+    </AUTHOR>
+    <AUTHOR>
+      <FIRSTNAME>François</FIRSTNAME>
+      <LASTNAME>Knab</LASTNAME>
+    </AUTHOR>
+    <TITLE>Construire une application XML</TITLE>
+    <PUBLISHER>
+      <NAME>Eyrolles</NAME>
+      <PLACE>Paris</PLACE>
+    </PUBLISHER>
+    <DATEPUB>1999</DATEPUB>
+  </BOOK>
+  <BOOK ISBN="9782840825685" LANG="fr" SUBJECT="applications">
+    <AUTHOR>
+      <FIRSTNAME>William J.</FIRSTNAME>
+      <LASTNAME>Pardi</LASTNAME>
+    </AUTHOR>
+    <TRANSLATOR PREFIX="adapté de l'anglais par">
+      <FIRSTNAME>James</FIRSTNAME>
+      <LASTNAME>Guerin</LASTNAME>
+    </TRANSLATOR>
+    <TITLE>XML en Action</TITLE>
+    <PUBLISHER>
+      <NAME>Microsoft Press</NAME>
+      <PLACE>Paris</PLACE>
+    </PUBLISHER>
+    <DATEPUB>1999</DATEPUB>
+  </BOOK>
+  <BOOK ISBN="9782212090529" LANG="fr" SUBJECT="général">
+    <AUTHOR>
+      <FIRSTNAME>Alain</FIRSTNAME>
+      <LASTNAME>Michard</LASTNAME>
+    </AUTHOR>
+    <TITLE>XML, Langage et Applications</TITLE>
+    <PUBLISHER>
+      <NAME>Eyrolles</NAME>
+      <PLACE>Paris</PLACE>
+    </PUBLISHER>
+    <DATEPUB>2003</DATEPUB>
+  </BOOK>
+</BIBLIO>

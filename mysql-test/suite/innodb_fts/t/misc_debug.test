@@ -1,0 +1,100 @@
+# Miscellanous FULLTEXT INDEX tests for debug-instrumented servers.
+# Note: These tests used to be part of a larger test, innodb_fts_misc_debug
+# or innodb_fts.misc_debug. A large part of that test can be run on a
+# non-debug server and has been renamed to innodb_fts.crash_recovery.
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+# Following test is for Bug 14668777 - ASSERT ON IB_VECTOR_SIZE(
+# TABLE->FTS->INDEXES, ALTER TABLE
+CREATE TABLE articles (
+        id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+        title VARCHAR(200),
+        body TEXT,
+        FULLTEXT (title,body)
+        ) ENGINE=InnoDB;
+
+# Abort the operation in dict_create_index_step by setting
+# return status of dict_create_index_tree_step() to DB_OUT_OF_MEMORY
+# The newly create dict_index_t should be removed from fts cache
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,ib_dict_create_index_tree_fail";
+--error ER_OUT_OF_RESOURCES
+CREATE FULLTEXT INDEX idx ON articles(body);
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+# This simply go through ha_innobase::commit_inplace_alter_table
+# and do a fts_check_cached_index()
+ALTER TABLE articles STATS_PERSISTENT=DEFAULT;
+
+DROP TABLE articles;
+
+# This test used to be called innodb_fts.innobase_drop_fts_index_table:
+
+CREATE TABLE t (a INT, b TEXT) engine=innodb;
+SET debug_dbug='+d,alter_table_rollback_new_index';
+-- error ER_UNKNOWN_ERROR
+ALTER TABLE t ADD FULLTEXT INDEX (b(64));
+SET SESSION debug_dbug=@saved_debug_dbug;
+
+DROP TABLE t;
+
+# MDEV-21550 Assertion `!table->fts->in_queue' failed in
+# fts_optimize_remove_table
+CREATE TABLE t1 (pk INT, a VARCHAR(8), PRIMARY KEY(pk),
+		 FULLTEXT KEY(a)) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT, FOREIGN KEY(b) REFERENCES t1(pk)) ENGINE=InnoDB;
+--error ER_ROW_IS_REFERENCED_2
+DROP TABLE t1;
+SET DEBUG_DBUG="+d,fts_instrument_sync";
+INSERT INTO t1 VALUES(1, "mariadb");
+ALTER TABLE t1 FORCE;
+# Cleanup
+DROP TABLE t2, t1;
+
+--echo #
+--echo # MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
+--echo #
+CREATE TABLE t1(a INT, b TEXT, c TEXT, FULLTEXT INDEX(b)) ENGINE=InnoDB;
+connect(con1,localhost,root,,test);
+let $ID= `SELECT @id := CONNECTION_ID()`;
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL s1 WAIT_FOR g1';
+SET DEBUG_SYNC='innodb_commit_inplace_alter_table_enter SIGNAL s2 WAIT_FOR g2';
+send ALTER TABLE t1 ADD FULLTEXT(c);
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s1';
+let $ignore= `SELECT @id := $ID`;
+KILL QUERY @id;
+SET DEBUG_SYNC='now SIGNAL g1 WAIT_FOR s2';
+START TRANSACTION;
+SELECT * FROM t1;
+SET DEBUG_SYNC='now SIGNAL s2';
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+disconnect con1;
+connection default;
+SET DEBUG_SYNC=RESET;
+# Exploit MDEV-17468 to force the table definition to be reloaded
+ALTER TABLE t1 ADD bl INT AS (LENGTH(b)) VIRTUAL;
+CHECK TABLE t1;
+DROP TABLE t1;
+--source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-25663 Double free of transaction during TRUNCATE
+--echo #
+call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
+SET DEBUG_DBUG='-d,ib_create_table_fail_too_many_trx';
+
+CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
+SET @save_dbug= @@debug_dbug;
+SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
+--error ER_GET_ERRNO
+TRUNCATE t1;
+SET debug_dbug=@save_dbug;
+DROP TABLE t1;
+--echo # End of 10.3 tests

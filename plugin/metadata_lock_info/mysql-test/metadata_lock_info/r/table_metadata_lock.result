@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS t1(a int);
+BEGIN;
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+lock_mode	lock_duration	lock_type	table_schema	table_name
+SELECT * FROM t1;
+a
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+lock_mode	lock_duration	lock_type	table_schema	table_name
+MDL_SHARED_READ	NULL	Table metadata lock	test	t1
+ROLLBACK;
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+lock_mode	lock_duration	lock_type	table_schema	table_name
+DROP TABLE t1;

@@ -1,0 +1,26 @@
+connection node_2;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 (f1) SELECT (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+INSERT INTO t1 (f1) SELECT MAX(f1) FROM t1;
+connection node_2;
+ALTER TABLE t1 ADD PRIMARY KEY (f1);
+ERROR 23000: Duplicate entry '111110' for key 'PRIMARY'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection node_1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP TABLE ten;
+CALL mtr.add_suppression("Ignoring error 'Duplicate entry '111110' for key 'PRIMARY'' on query.");
+connection node_2;
+CALL mtr.add_suppression("Ignoring error 'Duplicate entry '111110' for key 'PRIMARY'' on query.");

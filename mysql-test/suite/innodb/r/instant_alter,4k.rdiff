@@ -1,0 +1,325 @@
+--- instant_alter.result
++++ instant_alter,4k.result
+@@ -244,7 +244,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++6
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -255,7 +255,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ BEGIN;
+ UPDATE t2 SET d1 = repeat(id, 200);
+@@ -267,7 +267,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -278,11 +278,17 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ALTER TABLE t2 DROP p;
++ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 1979. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
++SET innodb_strict_mode = OFF;
++ALTER TABLE t2 DROP p;
+ affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 0
++info: Records: 0  Duplicates: 0  Warnings: 1
++Warnings:
++Warning	139	Row size too large (> 1979). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
++SET innodb_strict_mode = ON;
+ SELECT * FROM t2;
+ id	c1	d1
+ 1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+@@ -326,8 +332,14 @@
+ affected rows: 0
+ info: Records: 0  Duplicates: 0  Warnings: 0
+ ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
++ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 1979. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
++SET innodb_strict_mode = OFF;
+ affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 0
++ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
++affected rows: 0
++info: Records: 0  Duplicates: 0  Warnings: 1
++Warnings:
++Warning	139	Row size too large (> 1979). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ INSERT INTO t3 SET id=4;
+ ERROR HY000: Field 'c2' doesn't have a default value
+ INSERT INTO t3 SET id=4, c2=0, b=0xf09f98b1;
+@@ -340,7 +352,9 @@
+ ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
+ CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
+ affected rows: 4
+-info: Records: 4  Duplicates: 0  Warnings: 0
++info: Records: 4  Duplicates: 0  Warnings: 1
++Warnings:
++Warning	139	Row size too large (> 1979). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ INSERT INTO t3 SET id=5, c2=9;
+ Warnings:
+ Note	1265	Data truncated for column 'c7' at row 1
+@@ -354,7 +368,9 @@
+ 5	9	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	ääH	binary line of business
+ ALTER TABLE t3 DROP c3, DROP c7;
+ affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 0
++info: Records: 0  Duplicates: 0  Warnings: 1
++Warnings:
++Warning	139	Row size too large (> 1979). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ SELECT * FROM t3;
+ id	c2	c4	c5	c6	c8	phrase	b
+ 1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+@@ -382,6 +398,8 @@
+ (id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
+ p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
+ ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
++Warnings:
++Warning	139	Row size too large (> 1979). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ BEGIN;
+ INSERT INTO big
+ SET id=1, c1=REPEAT('a', 200), c2=REPEAT('b', 200), c3=REPEAT('c', 159);
+@@ -400,13 +418,15 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++8
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+ d3 TIMESTAMP NOT NULL DEFAULT current_timestamp ON UPDATE current_timestamp);
+ affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 0
++info: Records: 0  Duplicates: 0  Warnings: 1
++Warnings:
++Warning	139	Row size too large (> 1979). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ CHECKSUM TABLE big;
+ Table	Checksum
+ test.big	1705165209
+@@ -424,7 +444,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++28
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -438,7 +458,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++8
+ connection default;
+ InnoDB		0 transactions not purged
+ DROP TABLE t1,t2,t3,t4,big;
+@@ -1162,7 +1182,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++6
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -1173,7 +1193,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ BEGIN;
+ UPDATE t2 SET d1 = repeat(id, 200);
+@@ -1185,7 +1205,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -1196,11 +1216,13 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ALTER TABLE t2 DROP p;
+ affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 0
++info: Records: 0  Duplicates: 0  Warnings: 1
++Warnings:
++Warning	139	Row size too large (> 1982). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ SELECT * FROM t2;
+ id	c1	d1
+ 1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+@@ -1245,7 +1267,9 @@
+ info: Records: 0  Duplicates: 0  Warnings: 0
+ ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
+ affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 0
++info: Records: 0  Duplicates: 0  Warnings: 1
++Warnings:
++Warning	139	Row size too large (> 1982). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ INSERT INTO t3 SET id=4;
+ ERROR HY000: Field 'c2' doesn't have a default value
+ INSERT INTO t3 SET id=4, c2=0, b=0xf09f98b1;
+@@ -1258,7 +1282,9 @@
+ ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
+ CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
+ affected rows: 4
+-info: Records: 4  Duplicates: 0  Warnings: 0
++info: Records: 4  Duplicates: 0  Warnings: 1
++Warnings:
++Warning	139	Row size too large (> 1982). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ INSERT INTO t3 SET id=5, c2=9;
+ Warnings:
+ Note	1265	Data truncated for column 'c7' at row 1
+@@ -1272,7 +1298,9 @@
+ 5	9	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	ääH	binary line of business
+ ALTER TABLE t3 DROP c3, DROP c7;
+ affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 0
++info: Records: 0  Duplicates: 0  Warnings: 1
++Warnings:
++Warning	139	Row size too large (> 1982). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ SELECT * FROM t3;
+ id	c2	c4	c5	c6	c8	phrase	b
+ 1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+@@ -1300,6 +1328,8 @@
+ (id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
+ p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
+ ENGINE=InnoDB ROW_FORMAT=COMPACT;
++Warnings:
++Warning	139	Row size too large (> 1982). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ BEGIN;
+ INSERT INTO big
+ SET id=1, c1=REPEAT('a', 200), c2=REPEAT('b', 200), c3=REPEAT('c', 159);
+@@ -1318,13 +1348,15 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++7
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+ d3 TIMESTAMP NOT NULL DEFAULT current_timestamp ON UPDATE current_timestamp);
+ affected rows: 0
+-info: Records: 0  Duplicates: 0  Warnings: 0
++info: Records: 0  Duplicates: 0  Warnings: 1
++Warnings:
++Warning	139	Row size too large (> 1982). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+ CHECKSUM TABLE big;
+ Table	Checksum
+ test.big	1705165209
+@@ -1342,7 +1374,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++23
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -1356,7 +1388,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++7
+ connection default;
+ InnoDB		0 transactions not purged
+ DROP TABLE t1,t2,t3,t4,big;
+@@ -2080,7 +2112,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++6
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -2091,7 +2123,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ BEGIN;
+ UPDATE t2 SET d1 = repeat(id, 200);
+@@ -2103,7 +2135,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ROLLBACK;
+ connection analyze;
+@@ -2114,7 +2146,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/t2';
+ clust_index_size
+-1
++4
+ connection default;
+ ALTER TABLE t2 DROP p;
+ affected rows: 0
+@@ -2236,7 +2268,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++7
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+@@ -2260,7 +2292,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++23
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -2274,7 +2306,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++7
+ connection default;
+ InnoDB		0 transactions not purged
+ DROP TABLE t1,t2,t3,t4,big;
+@@ -2816,7 +2848,7 @@
+ FROM information_schema.global_status
+ WHERE variable_name = 'innodb_instant_alter_column';
+ instants
+-206
++208
+ SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
+ SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
+ #

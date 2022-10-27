@@ -1,0 +1,34 @@
+--echo #
+--echo # MDEV-7285 SERVER: CREATE OR REPLACE and CREATE IF NOT EXISTS
+--echo #
+
+CREATE SERVER IF NOT EXISTS server1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'user1', HOST 'localhost', DATABASE 'test0');
+SELECT server_name, username, db FROM mysql.servers;
+CREATE SERVER IF NOT EXISTS server1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'user2', HOST 'localhost', DATABASE 'test1');
+SELECT server_name, username, db FROM mysql.servers;
+CREATE OR REPLACE SERVER server1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'user3', HOST 'localhost', DATABASE 'test2');
+SELECT server_name, username, db FROM mysql.servers;
+DROP SERVER IF EXISTS server1;
+SELECT server_name, username, db FROM mysql.servers;
+DROP SERVER IF EXISTS server1;
+
+
+CREATE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test0');
+--error ER_FOREIGN_SERVER_EXISTS
+CREATE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test1');
+CREATE SERVER IF NOT EXISTS server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
+SELECT server_name, username, db FROM mysql.servers;
+--error ER_WRONG_USAGE
+CREATE OR REPLACE SERVER IF NOT EXISTS server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test3');
+CREATE OR REPLACE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test4');
+SELECT server_name, username, db FROM mysql.servers;
+DROP SERVER server_1;
+
+
+# MDEV-726 convert host names to lowercase
+
+CREATE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'Remote', HOST 'Server.Example.Com', DATABASE 'test');
+SELECT Host FROM mysql.servers WHERE Server_Name = 'server_1';
+ALTER SERVER server_1 OPTIONS(HOST 'Server.Example.Org');
+SELECT Host FROM mysql.servers WHERE Server_Name = 'server_1';
+DROP SERVER server_1;

@@ -1,0 +1,73 @@
+--source include/master-slave.inc
+
+#
+# Test for domain-id based filter on slave restart in GTID-mode.
+#
+
+
+connection slave;
+
+source include/stop_slave.inc;
+let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
+let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
+--echo DO_DOMAIN_IDS (BEFORE)     : $do_domain_ids_before
+--echo IGNORE_DOMAIN_IDS (BEFORE) : $ignore_domain_ids_before
+
+# Ignore events belonging to "domain_id 1".
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
+source include/start_slave.inc;
+
+let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
+let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
+--echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
+--echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
+
+connection master;
+SET @@session.gtid_domain_id= 0;
+CREATE TABLE t1(i INT);
+CREATE TABLE t2(i INT);
+
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1;
+
+SET @@session.gtid_domain_id= 1;
+# the following will get filtered out.
+INSERT INTO t2 VALUES(1);
+SELECT * FROM t2;
+
+sync_slave_with_master;
+
+connection slave;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+# restart the slave
+--let $rpl_server_number= 2
+--source include/rpl_restart_server.inc
+
+# Replicate_Do_Domain_Ids/Replicate_Ignore_Domain_Ids should reinitialize
+# properly on restart.
+connection slave;
+let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
+let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
+--echo DO_DOMAIN_IDS (AFTER RESTART)     : $do_domain_ids_after
+--echo IGNORE_DOMAIN_IDS (AFTER RESTART) : $ignore_domain_ids_after
+
+# Now, lets clear IGNORE_DOMAIN_IDS.
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=();
+--source include/start_slave.inc
+
+let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
+let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
+--echo DO_DOMAIN_IDS (AFTER)     : $do_domain_ids_after
+--echo IGNORE_DOMAIN_IDS (AFTER) : $ignore_domain_ids_after
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+connection master;
+SET @@session.gtid_domain_id= 0;
+DROP TABLE t1, t2;
+sync_slave_with_master;
+
+--source include/rpl_end.inc

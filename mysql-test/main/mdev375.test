@@ -1,0 +1,35 @@
+#
+# MDEV-375 Server crashes in THD::print_aborted_warning with log_warnings > 3
+#
+--source include/not_embedded.inc
+
+set @save_log_warnings=@@log_warnings, @save_max_connections=@@max_connections;
+SET GLOBAL log_warnings=4;
+SET GLOBAL max_connections=10;
+
+--connect (tmp_con1,localhost,root,,)
+--connect (tmp_con2,localhost,root,,)
+--connect (tmp_con3,localhost,root,,)
+--connect (tmp_con4,localhost,root,,)
+--connect (tmp_con5,localhost,root,,)
+--connect (tmp_con6,localhost,root,,)
+--connect (tmp_con7,localhost,root,,)
+--connect (tmp_con8,localhost,root,,)
+
+--connect (con1,localhost,root,,)
+SELECT 1;
+--connect (con2,localhost,root,,)
+SELECT 2;
+--disable_query_log
+--error ER_CON_COUNT_ERROR
+--connect (con3,localhost,root,,)
+--enable_query_log
+
+--connection default
+SELECT 0;
+let $count_sessions=11;
+--source include/wait_until_count_sessions.inc
+show status like "Threads_connected";
+
+SET GLOBAL log_warnings=@save_log_warnings;
+SET GLOBAL max_connections=@save_max_connections;

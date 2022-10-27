@@ -1,0 +1,29 @@
+call mtr.add_suppression("InnoDB: Cannot add field `c1` in table `test`\\.`tab0`");
+SELECT @@innodb_strict_mode;
+@@innodb_strict_mode
+1
+SELECT @@innodb_file_per_table;
+@@innodb_file_per_table
+1
+SET SQL_MODE=strict_all_tables;
+CREATE TABLE tab0 (c1 VARCHAR(65530), KEY(c1(3073))) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
+SHOW CREATE TABLE tab0;
+Table	Create Table
+tab0	CREATE TABLE `tab0` (
+  `c1` varchar(65530) DEFAULT NULL,
+  KEY `c1` (`c1`(3072))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+DROP TABLE tab0;
+CREATE TABLE tab0 (c1 VARCHAR(65530), KEY(c1(3073))) ENGINE=InnoDB KEY_BLOCK_SIZE=2;
+ERROR 42000: Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
+CREATE TABLE tab0(c1 INT,c2 LONGBLOB ) ENGINE=InnoDB ROW_FORMAT=Dynamic;
+DROP TABLE tab0;
+SET GLOBAL innodb_strict_mode=OFF;
+SET GLOBAL innodb_strict_mode=Default;
+SELECT @@innodb_strict_mode;
+@@innodb_strict_mode
+1
+CREATE TABLE tab1(c1 int ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+DROP TABLE tab1;

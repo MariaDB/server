@@ -1,0 +1,200 @@
+#
+# Check log files with multi-source
+#
+
+--source include/not_embedded.inc
+--source include/binlog_start_pos.inc
+--let $rpl_server_count= 0
+
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--let $datadir = `SELECT @@datadir`
+
+#
+# Check creation and updating of multi-source *info* logs
+#
+
+--echo #
+--echo # List of files matching '*info*' pattern before starting any slaves
+--list_files $datadir *info*
+--echo # End of list
+--echo #
+--echo # Contents of multi-master.info
+--cat_file $datadir/multi-master.info
+--echo # EOF
+--echo #
+
+# Start replication from the first master
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'master1' to
+master_port=$SERVER_MYPORT_1,
+master_host='127.0.0.1',
+master_user='root';
+
+start slave 'master1';
+set default_master_connection = 'master1';
+--source include/wait_for_slave_to_start.inc
+
+# Check the files
+
+--echo #
+--echo # List of files matching '*info*' pattern while 'master1' is running
+--list_files $datadir *info*
+--echo # End of list
+--echo #
+--echo # Contents of multi-master.info
+--cat_file $datadir/multi-master.info
+--echo # EOF
+--echo #
+
+# Start replication from the second master
+
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master 'MASTER 2.2' to
+master_port=$SERVER_MYPORT_2,
+master_host='127.0.0.1',
+master_user='root';
+
+start slave 'MASTER 2.2';
+set default_master_connection = 'MASTER 2.2';
+--source include/wait_for_slave_to_start.inc
+
+--connect (master2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,'MASTER 2.2'
+
+# Check the files
+
+--echo #
+--echo # List of files matching '*info*' pattern
+--echo #  while 'master1' and 'MASTER 2.2' are running
+--list_files $datadir *info*
+--echo # End of list
+--echo #
+--echo # Contents of multi-master.info
+--cat_file $datadir/multi-master.info
+--echo # EOF
+--echo #
+
+# Remove master1 configuration
+
+stop slave 'master1';
+set default_master_connection = 'master1';
+--source include/wait_for_slave_to_stop.inc
+reset slave 'master1' all;
+
+# Check the files
+
+--echo #
+--echo # List of files matching '*info*' pattern
+--echo #  after 'master1' was completely reset, 'MASTER 2.2' still running
+--list_files $datadir *info*
+--echo # End of list
+--echo #
+--echo # Contents of multi-master.info
+--cat_file $datadir/multi-master.info
+--echo # EOF
+--echo #
+
+# Start replication from the first master,
+# now with the default empty name
+
+set default_master_connection = '';
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master to
+master_port=$SERVER_MYPORT_1,
+master_host='127.0.0.1',
+master_user='root';
+
+start slave;
+--source include/wait_for_slave_to_start.inc
+
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--save_master_pos
+
+--connection slave
+--sync_with_master
+
+# Check the files
+
+--echo #
+--echo # List of files matching '*info*' pattern
+--echo #   while 'MASTER 2.2' and '' are running
+--list_files $datadir *info*
+--echo # End of list
+--echo #
+--echo # Contents of multi-master.info
+--cat_file $datadir/multi-master.info
+--echo # EOF
+--echo #
+
+let $wait_for_all= 1; 
+let $show_statement= SHOW ALL SLAVES STATUS;
+let $field= Slave_IO_State;
+let $condition= = 'Waiting for master to send event';
+--source include/wait_show_condition.inc
+
+let read_master_log_pos=`select $binlog_start_pos + 73`;
+let relay_log_pos=`select 2*$binlog_start_pos + 117`;
+let relay_log_space1=`select 3*$binlog_start_pos + 160`;
+let relay_log_space2=`select 3*$binlog_start_pos + 179`;
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
+show all slaves status;
+
+# Restart the slave server
+
+--enable_reconnect
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
+restart
+EOF
+--shutdown_server
+--source include/wait_until_connected_again.inc
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'MASTER 2.2';
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+
+let $wait_for_all= 1; 
+let $show_statement= SHOW ALL SLAVES STATUS;
+let $field= Slave_IO_State;
+let $condition= = 'Waiting for master to send event';
+--source include/wait_show_condition.inc
+
+
+let relay_log_pos=`select 2*$binlog_start_pos + 44`;
+let relay_log_space1=`select 3*$binlog_start_pos + 87`;
+let relay_log_space2=`select 3*$binlog_start_pos + 106`;
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
+show all slaves status;
+
+# Check the files
+
+--echo #
+--echo # List of files matching '*info*' pattern
+--echo #   after slave server restart
+--echo #   while 'MASTER 2.2' and '' are running
+--list_files $datadir *info*
+--echo # End of list
+--echo #
+--echo # Contents of multi-master.info
+--cat_file $datadir/multi-master.info
+--echo # EOF
+--echo #
+
+
+# Cleanup
+
+--source include/reset_master_slave.inc
+--disconnect slave
+
+--connection master1
+--source include/reset_master_slave.inc
+--disconnect master1
+
+--connection master2
+--source include/reset_master_slave.inc
+--disconnect master2
+

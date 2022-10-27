@@ -1,0 +1,23 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 TEXT) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+connection node_2;
+connection node_1;
+INSERT INTO t1 VALUES (REPEAT('x', 65535));
+connection node_2;
+wsrep_last_committed_delta
+1
+connection node_1;
+COMMIT;
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+SELECT LENGTH(f1) = 65535 FROM t1;
+LENGTH(f1) = 65535
+1
+DROP TABLE t1;

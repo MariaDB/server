@@ -1,0 +1,42 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_load_data_splitting
+--echo #
+
+--echo # save the initial value
+SET @wsrep_load_data_splitting_global_saved = @@global.wsrep_load_data_splitting;
+
+--echo # default
+SELECT @@global.wsrep_load_data_splitting;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_load_data_splitting;
+SET @@global.wsrep_load_data_splitting=OFF;
+SELECT @@global.wsrep_load_data_splitting;
+SET @@global.wsrep_load_data_splitting=ON;
+SELECT @@global.wsrep_load_data_splitting;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_load_data_splitting='OFF';
+SELECT @@global.wsrep_load_data_splitting;
+SET @@global.wsrep_load_data_splitting=ON;
+SELECT @@global.wsrep_load_data_splitting;
+SET @@global.wsrep_load_data_splitting=default;
+SELECT @@global.wsrep_load_data_splitting;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_load_data_splitting=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_load_data_splitting='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_load_data_splitting = @wsrep_load_data_splitting_global_saved;
+
+--echo # End of test

@@ -1,0 +1,21 @@
+# test that char field updates are fast
+# test that char field primary keys are fast
+source include/have_tokudb.inc;
+
+set tokudb_enable_fast_update=1;
+source ../include/setup_fast_update_upsert.inc;
+
+create table tt (id int primary key, x int) engine = tokudb;
+
+replace_regex /MariaDB/XYZ/ /MySQL/XYZ/;
+error ER_UNSUPPORTED_EXTENSION;
+update tt set x=1 where id='abc';
+
+replace_regex /MariaDB/XYZ/ /MySQL/XYZ/;
+error ER_UNSUPPORTED_EXTENSION;
+update tt set x='abc' where id=1;
+
+drop table tt;
+
+
+

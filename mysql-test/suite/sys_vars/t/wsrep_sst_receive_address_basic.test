@@ -1,0 +1,49 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_sst_receive_address
+--echo #
+
+--echo # save the initial value
+SET @wsrep_sst_receive_address_global_saved = @@global.wsrep_sst_receive_address;
+
+--echo # default
+SELECT @@global.wsrep_sst_receive_address;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_sst_receive_address;
+SELECT @@global.wsrep_sst_receive_address;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_sst_receive_address=AUTO;
+SELECT @@global.wsrep_sst_receive_address;
+SET @@global.wsrep_sst_receive_address=default;
+SELECT @@global.wsrep_sst_receive_address;
+SET @@global.wsrep_sst_receive_address='192.168.2.254';
+SELECT @@global.wsrep_sst_receive_address;
+
+--echo
+--echo # invalid values
+SELECT @@global.wsrep_sst_receive_address;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_receive_address=NULL;
+SELECT @@global.wsrep_sst_receive_address;
+# Currently there is no strict checking performed for wsrep_sst_receive_address
+# so following values jusr pass through.
+SET @@global.wsrep_sst_receive_address='OFF';
+SELECT @@global.wsrep_sst_receive_address;
+SET @@global.wsrep_sst_receive_address=ON;
+SELECT @@global.wsrep_sst_receive_address;
+SET @@global.wsrep_sst_receive_address='';
+SELECT @@global.wsrep_sst_receive_address;
+SET @@global.wsrep_sst_receive_address='junk';
+SELECT @@global.wsrep_sst_receive_address;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_sst_receive_address = @wsrep_sst_receive_address_global_saved;
+
+--echo # End of test

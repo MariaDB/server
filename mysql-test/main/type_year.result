@@ -1,0 +1,679 @@
+create table t1 (y year,y2 year(2));
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+insert into t1 values (0,0),(1999,1999),(2000,2000),(2001,2001),(70,70),(69,69);
+select * from t1;
+y	y2
+0000	00
+1999	99
+2000	00
+2001	01
+1970	70
+2069	69
+select * from t1 order by y;
+y	y2
+0000	00
+1970	70
+1999	99
+2000	00
+2001	01
+2069	69
+select * from t1 order by y2;
+y	y2
+1970	70
+1999	99
+0000	00
+2000	00
+2001	01
+2069	69
+drop table t1;
+#
+# Bug 2335
+#
+create table t1 (y year);
+insert ignore into t1 values (now());
+Warnings:
+Warning	1265	Data truncated for column 'y' at row 1
+select if(y = now(), 1, 0) from t1;
+if(y = now(), 1, 0)
+1
+drop table t1;
+#
+# Bug #27176: Assigning a string to an year column has unexpected results
+#
+create table t1(a year);
+insert into t1 values (2000.5), ('2000.5'), ('2001a'), ('2.001E3');
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 3
+select * from t1;
+a
+2001
+2001
+2001
+2001
+drop table t1;
+#
+# End of 5.0 tests
+#
+#
+# Bug #49480: WHERE using YEAR columns returns unexpected results
+#
+CREATE TABLE t2(yy YEAR(2), c2 CHAR(4));
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+CREATE TABLE t4(yyyy YEAR(4), c4 CHAR(4));
+INSERT INTO t2 (c2) VALUES (NULL),(1970),(1999),(2000),(2001),(2069);
+INSERT INTO t4 (c4) SELECT c2 FROM t2;
+UPDATE t2 SET yy = c2;
+UPDATE t4 SET yyyy = c4;
+SELECT * FROM t2;
+yy	c2
+NULL	NULL
+70	1970
+99	1999
+00	2000
+01	2001
+69	2069
+SELECT * FROM t4;
+yyyy	c4
+NULL	NULL
+1970	1970
+1999	1999
+2000	2000
+2001	2001
+2069	2069
+# Comparison of YEAR(2) with YEAR(4)
+SELECT * FROM t2, t4 WHERE yy = yyyy;
+yy	c2	yyyy	c4
+70	1970	1970	1970
+99	1999	1999	1999
+00	2000	2000	2000
+01	2001	2001	2001
+69	2069	2069	2069
+SELECT * FROM t2, t4 WHERE yy <=> yyyy;
+yy	c2	yyyy	c4
+NULL	NULL	NULL	NULL
+70	1970	1970	1970
+99	1999	1999	1999
+00	2000	2000	2000
+01	2001	2001	2001
+69	2069	2069	2069
+SELECT * FROM t2, t4 WHERE yy < yyyy;
+yy	c2	yyyy	c4
+70	1970	1999	1999
+70	1970	2000	2000
+99	1999	2000	2000
+70	1970	2001	2001
+99	1999	2001	2001
+00	2000	2001	2001
+70	1970	2069	2069
+99	1999	2069	2069
+00	2000	2069	2069
+01	2001	2069	2069
+SELECT * FROM t2, t4 WHERE yy > yyyy;
+yy	c2	yyyy	c4
+99	1999	1970	1970
+00	2000	1970	1970
+01	2001	1970	1970
+69	2069	1970	1970
+00	2000	1999	1999
+01	2001	1999	1999
+69	2069	1999	1999
+01	2001	2000	2000
+69	2069	2000	2000
+69	2069	2001	2001
+# Comparison of YEAR(2) with YEAR(2)
+SELECT * FROM t2 a, t2 b WHERE a.yy = b.yy;
+yy	c2	yy	c2
+70	1970	70	1970
+99	1999	99	1999
+00	2000	00	2000
+01	2001	01	2001
+69	2069	69	2069
+SELECT * FROM t2 a, t2 b WHERE a.yy <=> b.yy;
+yy	c2	yy	c2
+NULL	NULL	NULL	NULL
+70	1970	70	1970
+99	1999	99	1999
+00	2000	00	2000
+01	2001	01	2001
+69	2069	69	2069
+SELECT * FROM t2 a, t2 b WHERE a.yy < b.yy;
+yy	c2	yy	c2
+70	1970	99	1999
+70	1970	00	2000
+99	1999	00	2000
+70	1970	01	2001
+99	1999	01	2001
+00	2000	01	2001
+70	1970	69	2069
+99	1999	69	2069
+00	2000	69	2069
+01	2001	69	2069
+# Comparison of YEAR(4) with YEAR(4)
+SELECT * FROM t4 a, t4 b WHERE a.yyyy = b.yyyy;
+yyyy	c4	yyyy	c4
+1970	1970	1970	1970
+1999	1999	1999	1999
+2000	2000	2000	2000
+2001	2001	2001	2001
+2069	2069	2069	2069
+SELECT * FROM t4 a, t4 b WHERE a.yyyy <=> b.yyyy;
+yyyy	c4	yyyy	c4
+NULL	NULL	NULL	NULL
+1970	1970	1970	1970
+1999	1999	1999	1999
+2000	2000	2000	2000
+2001	2001	2001	2001
+2069	2069	2069	2069
+SELECT * FROM t4 a, t4 b WHERE a.yyyy < b.yyyy;
+yyyy	c4	yyyy	c4
+1970	1970	1999	1999
+1970	1970	2000	2000
+1999	1999	2000	2000
+1970	1970	2001	2001
+1999	1999	2001	2001
+2000	2000	2001	2001
+1970	1970	2069	2069
+1999	1999	2069	2069
+2000	2000	2069	2069
+2001	2001	2069	2069
+# Comparison with constants:
+SELECT * FROM t2 WHERE yy = NULL;
+yy	c2
+SELECT * FROM t4 WHERE yyyy = NULL;
+yyyy	c4
+SELECT * FROM t2 WHERE yy <=> NULL;
+yy	c2
+NULL	NULL
+SELECT * FROM t4 WHERE yyyy <=> NULL;
+yyyy	c4
+NULL	NULL
+SELECT * FROM t2 WHERE yy < NULL;
+yy	c2
+SELECT * FROM t2 WHERE yy > NULL;
+yy	c2
+SELECT * FROM t2 WHERE yy = NOW();
+yy	c2
+SELECT * FROM t4 WHERE yyyy = NOW();
+yyyy	c4
+SELECT * FROM t2 WHERE yy = 99;
+yy	c2
+99	1999
+SELECT * FROM t2 WHERE 99 = yy;
+yy	c2
+99	1999
+SELECT * FROM t4 WHERE yyyy = 99;
+yyyy	c4
+1999	1999
+SELECT * FROM t2 WHERE yy = 'test';
+yy	c2
+00	2000
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'test'
+SELECT * FROM t4 WHERE yyyy = 'test';
+yyyy	c4
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'test'
+SELECT * FROM t2 WHERE yy = '1999';
+yy	c2
+99	1999
+SELECT * FROM t4 WHERE yyyy = '1999';
+yyyy	c4
+1999	1999
+SELECT * FROM t2 WHERE yy = 1999;
+yy	c2
+99	1999
+SELECT * FROM t4 WHERE yyyy = 1999;
+yyyy	c4
+1999	1999
+SELECT * FROM t2 WHERE yy = 1999.1;
+yy	c2
+99	1999
+SELECT * FROM t4 WHERE yyyy = 1999.1;
+yyyy	c4
+1999	1999
+SELECT * FROM t2 WHERE yy = 1998.9;
+yy	c2
+99	1999
+SELECT * FROM t4 WHERE yyyy = 1998.9;
+yyyy	c4
+1999	1999
+# Coverage tests for YEAR with zero/2000 constants:
+SELECT * FROM t2 WHERE yy = 0;
+yy	c2
+00	2000
+SELECT * FROM t2 WHERE yy = '0';
+yy	c2
+00	2000
+SELECT * FROM t2 WHERE yy = '0000';
+yy	c2
+00	2000
+SELECT * FROM t2 WHERE yy = '2000';
+yy	c2
+00	2000
+SELECT * FROM t2 WHERE yy = 2000;
+yy	c2
+00	2000
+SELECT * FROM t4 WHERE yyyy = 0;
+yyyy	c4
+SELECT * FROM t4 WHERE yyyy = '0';
+yyyy	c4
+2000	2000
+SELECT * FROM t4 WHERE yyyy = '0000';
+yyyy	c4
+SELECT * FROM t4 WHERE yyyy = '2000';
+yyyy	c4
+2000	2000
+SELECT * FROM t4 WHERE yyyy = 2000;
+yyyy	c4
+2000	2000
+# Comparison with constants those are out of YEAR range
+# (coverage test for backward compatibility)
+SELECT COUNT(yy) FROM t2;
+COUNT(yy)
+5
+SELECT COUNT(yyyy) FROM t4;
+COUNT(yyyy)
+5
+SELECT COUNT(*) FROM t2 WHERE yy = -1;
+COUNT(*)
+0
+SELECT COUNT(*) FROM t4 WHERE yyyy > -1;
+COUNT(*)
+5
+SELECT COUNT(*) FROM t2 WHERE yy > -1000000000000000000;
+COUNT(*)
+5
+SELECT COUNT(*) FROM t4 WHERE yyyy > -1000000000000000000;
+COUNT(*)
+5
+SELECT COUNT(*) FROM t2 WHERE yy < 2156;
+COUNT(*)
+5
+SELECT COUNT(*) FROM t4 WHERE yyyy < 2156;
+COUNT(*)
+5
+SELECT COUNT(*) FROM t2 WHERE yy < 1000000000000000000;
+COUNT(*)
+5
+SELECT COUNT(*) FROM t4 WHERE yyyy < 1000000000000000000;
+COUNT(*)
+5
+SELECT * FROM t2 WHERE yy < 123;
+yy	c2
+70	1970
+99	1999
+00	2000
+01	2001
+69	2069
+SELECT * FROM t2 WHERE yy > 123;
+yy	c2
+SELECT * FROM t4 WHERE yyyy < 123;
+yyyy	c4
+SELECT * FROM t4 WHERE yyyy > 123;
+yyyy	c4
+1970	1970
+1999	1999
+2000	2000
+2001	2001
+2069	2069
+DROP TABLE t2, t4;
+#
+# Bug #49910: Behavioural change in SELECT/WHERE on YEAR(4) data type
+#
+CREATE TABLE t1 (y YEAR NOT NULL, s VARCHAR(4));
+INSERT IGNORE INTO t1 (s) VALUES ('bad');
+Warnings:
+Warning	1364	Field 'y' doesn't have a default value
+INSERT INTO t1 (y, s) VALUES (0, 0), (2000, 2000), (2001, 2001);
+SELECT * FROM t1 ta, t1 tb WHERE ta.y = tb.y;
+y	s	y	s
+0000	bad	0000	bad
+0000	0	0000	bad
+0000	bad	0000	0
+0000	0	0000	0
+2000	2000	2000	2000
+2001	2001	2001	2001
+SELECT * FROM t1 WHERE t1.y = 0;
+y	s
+0000	bad
+0000	0
+SELECT * FROM t1 WHERE t1.y = 2000;
+y	s
+2000	2000
+SELECT ta.y AS ta_y, ta.s, tb.y AS tb_y, tb.s FROM t1 ta, t1 tb HAVING ta_y = tb_y;
+ta_y	s	tb_y	s
+0000	bad	0000	bad
+0000	0	0000	bad
+0000	bad	0000	0
+0000	0	0000	0
+2000	2000	2000	2000
+2001	2001	2001	2001
+DROP TABLE t1;
+#
+# Bug #59211: Select Returns Different Value for min(year) Function
+#
+CREATE TABLE t1(c1 YEAR(4));
+INSERT INTO t1 VALUES (1901),(2155),(0000);
+SELECT * FROM t1;
+c1
+1901
+2155
+0000
+SELECT COUNT(*) AS total_rows, MIN(c1) AS min_value, MAX(c1) FROM t1;
+total_rows	min_value	MAX(c1)
+3	0	2155
+SELECT COUNT(*) AS total_rows, MIN(c1+0) AS min_value, MAX(c1+0) FROM t1;
+total_rows	min_value	MAX(c1+0)
+3	0	2155
+DROP TABLE t1;
+#
+# WL#6219: Deprecate and remove YEAR(2) type
+#
+CREATE TABLE t1 (c1 YEAR(2), c2 YEAR(4));
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+ALTER TABLE t1 MODIFY COLUMN c2 YEAR(2);
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+DROP TABLE t1;
+#
+# End of 5.1 tests
+#
+create function y2k() returns int deterministic return 2000;
+create table t1 (a year(2), b int);
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+insert t1 values (0,2000);
+select a from t1 where a=2000;
+a
+00
+select a from t1 where a=1000+1000;
+a
+00
+select a from t1 where a=(select 2000 from dual where 1);
+a
+00
+select a from t1 where a=y2k();
+a
+00
+select a from t1 where a=b;
+a
+drop table t1;
+drop function y2k;
+#
+# MDEV-17257 Server crashes in Item::field_type_for_temporal_comparison or in get_datetime_value on SELECT with YEAR field and IN
+#
+CREATE TABLE t1 (y YEAR);
+SELECT * FROM t1 WHERE y IN ( CAST( '1993-03-26 10:14:20' AS DATE ), NULL );
+y
+DROP TABLE t1;
+#
+# End of 10.0 tests
+#
+#
+# MDEV-8741 Equal field propagation leaves some remainders after simplifying WHERE zerofill_column=2010 AND zerofill_column>=2010
+#
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (2010),(2020);
+SELECT * FROM t1 WHERE a=2010 AND a>=2010;
+a
+2010
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND a>=2010;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
+SELECT * FROM t1 WHERE a=2010 AND a>=10;
+a
+2010
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND a>=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
+SELECT * FROM t1 WHERE a=10 AND a>=2010;
+a
+2010
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10 AND a>=2010;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
+SELECT * FROM t1 WHERE a=10 AND a>=10;
+a
+2010
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10 AND a>=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
+DROP TABLE t1;
+#
+# MDEV-16958 Assertion `field_length < 5' failed in Field_year::val_str or data corruption upon SELECT with UNION and aggregate functions
+#
+CREATE TABLE t1 (f YEAR);
+INSERT IGNORE INTO t1 VALUES (1971),(1972);
+SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1 UNION SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1;
+f
+1972
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#
+#
+# MDEV-9392 Copying from DECIMAL to YEAR is not consistent about warnings
+#
+CREATE TABLE t1 (a YEAR);
+INSERT IGNORE INTO t1 VALUES (-0.1);
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 (a DECIMAL(10,1));
+INSERT INTO t2 VALUES (-0.1);
+INSERT IGNORE INTO t1 SELECT * FROM t2;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a DECIMAL(10,1));
+INSERT INTO t1 VALUES (-0.1);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+ALTER TABLE t1 MODIFY a YEAR;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a YEAR);
+INSERT IGNORE INTO t1 VALUES (-0.1e0);
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 (a DOUBLE);
+INSERT INTO t2 VALUES (-0.1);
+INSERT IGNORE INTO t1 SELECT * FROM t2;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (-0.1);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+ALTER TABLE t1 MODIFY a YEAR;
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP TABLE t1;
+#
+# Various widths of the YEAR
+#
+create or replace table t1 (a YEAR(0));
+Warnings:
+Note	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` year(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a YEAR(1));
+Warnings:
+Note	1287	'YEAR(1)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` year(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a YEAR(2));
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` year(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a YEAR(3));
+Warnings:
+Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` year(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a YEAR(4));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` year(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a YEAR(5));
+Warnings:
+Note	1287	'YEAR(5)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` year(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a YEAR(100));
+Warnings:
+Note	1287	'YEAR(100)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` year(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+#
+# End of 10.2 tests
+#
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-16451 Split Item_equal::add_const() into a virtual method in type_handler()
+#
+CREATE TABLE t1 (a YEAR(4));
+INSERT INTO t1 VALUES (93),(94);
+SELECT * FROM t1;
+a
+1993
+1994
+SELECT * FROM t1 WHERE a=1993 and a=93;
+a
+1993
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1993 and a=93;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1993
+DROP TABLE t1;
+CREATE TABLE t1 (a YEAR(2));
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+INSERT INTO t1 VALUES (93),(94);
+SELECT * FROM t1;
+a
+93
+94
+SELECT * FROM t1 WHERE a=1993 and a=93;
+a
+93
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1993 and a=93;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 93
+DROP TABLE t1;
+#
+# MDEV-16926 CAST(COALESCE(year_field)) returns wrong value
+#
+CREATE OR REPLACE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (1970),(1978),(2000),(2069);
+SELECT a, CAST(a AS DATE), CAST(COALESCE(a) AS DATE) FROM t1;
+a	CAST(a AS DATE)	CAST(COALESCE(a) AS DATE)
+1970	1970-00-00	1970-00-00
+1978	1978-00-00	1978-00-00
+2000	2000-00-00	2000-00-00
+2069	2069-00-00	2069-00-00
+SELECT MIN(a), MAX(a) FROM t1;
+MIN(a)	MAX(a)
+1970	2069
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a YEAR(2));
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+INSERT INTO t1 VALUES (1970),(1978),(2000),(2069);
+SELECT a, CAST(a AS DATE), CAST(COALESCE(a) AS DATE) FROM t1;
+a	CAST(a AS DATE)	CAST(COALESCE(a) AS DATE)
+70	1970-00-00	1970-00-00
+78	1978-00-00	1978-00-00
+00	2000-00-00	2000-00-00
+69	2069-00-00	2069-00-00
+SELECT MIN(a), MAX(a) FROM t1;
+MIN(a)	MAX(a)
+70	69
+DROP TABLE t1;
+#
+# MDEV-17015 Assertion `m_year <= 9999' failed in Year::Year upon bad argument to MAKEDATE
+#
+SELECT MAKEDATE(18446744073709551615, 1);
+MAKEDATE(18446744073709551615, 1)
+NULL
+#
+# MDEV-17607 DATE(COALESCE(year_column)) returns a wrong result
+#
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (NULL);
+SELECT COALESCE(a), DATE(COALESCE(a)) FROM t1;
+COALESCE(a)	DATE(COALESCE(a))
+NULL	NULL
+DROP TABLE t1;
+#
+# MDEV-23337 Rounding functions create a wrong data type for numeric input
+#
+CREATE TABLE t1 (a YEAR(2));
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+DESC t2;
+Field	Type	Null	Key	Default	Extra
+a	year(2)	YES		NULL	
+ROUND(a)	int(2) unsigned	YES		NULL	
+TRUNCATE(a,0)	int(2) unsigned	YES		NULL	
+FLOOR(a)	int(2) unsigned	YES		NULL	
+CEILING(a)	int(2) unsigned	YES		NULL	
+DROP TABLE t2,t1;
+CREATE TABLE t1 (a YEAR(4));
+CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+DESC t2;
+Field	Type	Null	Key	Default	Extra
+a	year(4)	YES		NULL	
+ROUND(a)	int(4) unsigned	YES		NULL	
+TRUNCATE(a,0)	int(4) unsigned	YES		NULL	
+FLOOR(a)	int(4) unsigned	YES		NULL	
+CEILING(a)	int(4) unsigned	YES		NULL	
+DROP TABLE t2,t1;
+#
+# End of 10.4 tests
+#

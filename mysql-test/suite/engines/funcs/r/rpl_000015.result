@@ -1,0 +1,46 @@
+include/master-slave.inc
+[connection master]
+reset master;
+show master status;
+File	Position	Binlog_Do_DB	Binlog_Ignore_DB
+master-bin.000001	329		
+connection slave;
+include/stop_slave.inc
+reset slave;
+Slave_IO_Running = 'No'
+Slave_SQL_Running = 'No'
+Last_SQL_Errno = '0'
+Last_SQL_Error = ''
+Exec_Master_Log_Pos = '0'
+change master to master_host='127.0.0.1';
+Slave_IO_Running = 'No'
+Slave_SQL_Running = 'No'
+Last_SQL_Errno = '0'
+Last_SQL_Error = ''
+Exec_Master_Log_Pos = '0'
+change master to master_host='127.0.0.1',master_user='root', 
+master_password='',master_port=MASTER_PORT;
+include/start_slave.inc
+Slave_IO_Running = 'Yes'
+Slave_SQL_Running = 'Yes'
+Last_SQL_Errno = '0'
+Last_SQL_Error = ''
+Exec_Master_Log_Pos = '329'
+connection master;
+create table t1 (n int, PRIMARY KEY(n));
+insert into t1 values (10),(45),(90);
+connection slave;
+SELECT * FROM t1 ORDER BY n;
+n
+10
+45
+90
+connection master;
+SELECT * FROM t1 ORDER BY n;
+n
+10
+45
+90
+drop table t1;
+connection slave;
+include/rpl_end.inc

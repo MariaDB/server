@@ -1,0 +1,46 @@
+#!/bin/sh
+# Copyright (c) 2007 MySQL AB, 2008 Sun Microsystems, Inc.
+# Use is subject to license terms.
+# 
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
+
+# See file compile-solaris-amd64 for basic pre-requisites.
+
+# This build uses the Sun Studio compilers (cc, CC), available from:
+#     http://developers.sun.com/sunstudio/downloads/index.jsp
+# Note that you may want to apply current patches, as the downloaded version
+# is typically out of date. Download the PKG version if you intend to patch!
+
+# After installing, add /opt/SUNWspro/bin to your $PATH
+
+gmake -k clean || true
+/bin/rm -f */.deps/*.P config.cache
+ 
+path=`dirname $0`
+. "$path/SETUP.sh"
+
+extra_flags="-m64 -fast -mt -D_FORTEC_ -xbuiltin=%all -xlibmil -xlibmopt -fns=no -xprefetch=auto -xprefetch_level=3"
+extra_configs="$max_configs --with-libevent"
+
+warnings=""
+c_warnings=""
+cxx_warnings=""
+base_cxxflags="-noex"
+
+CC=cc
+CFLAGS="-xstrconst"
+CXX=CC
+LDFLAGS="-lmtmalloc"
+
+. "$path/FINISH.sh"

@@ -1,0 +1,20 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-16929 Assertion ... in close_thread_tables upon killing connection
+--echo # running SHOW on sequence
+--echo #
+
+CREATE SEQUENCE s ENGINE=InnoDB;
+RENAME TABLE s TO s1;
+--connect (con1,localhost,root,,test)
+--let $conid= `SELECT CONNECTION_ID()`
+--send
+  SHOW CREATE SEQUENCE s1;
+--connection default
+--replace_result $conid thread_id
+--eval KILL $conid
+
+# Cleanup
+--connection default
+drop sequence s1;

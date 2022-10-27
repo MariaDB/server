@@ -1,0 +1,230 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--echo *** MDEV-5509: Incorrect value for Seconds_Behind_Master if parallel replication ***
+
+--connection server_2
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+set @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=5;
+set global slave_parallel_mode= optimistic;
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave");
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--connection server_1
+INSERT INTO t1 VALUES (1,sleep(2));
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+# The slave position (which --sync_with_master waits for) is updated just
+# before the Seconds_Behind_Master. So we have to wait for the zero status
+# to appear, otherwise there is a small window between --sync_with_master
+# and SHOW SLAVE STATUS where we can see a non-zero value.
+--let $slave_param= Seconds_Behind_Master
+--let $slave_param_value= 0
+--source include/wait_for_slave_param.inc
+--echo Seconds_Behind_Master should be zero here because the slave is fully caught up and idle.
+--let $status_items= Seconds_Behind_Master
+--source include/show_slave_status.inc
+
+
+--echo *** MDEV-8294: Inconsistent behavior of slave parallel threads at runtime ***
+
+--connection server_1
+INSERT INTO t1 VALUES (10,0);
+# Force a duplicate key error on the slave.
+SET sql_log_bin= 0;
+DELETE FROM t1 WHERE a=10;
+SET sql_log_bin= 1;
+INSERT INTO t1 VALUES (10,0);
+--save_master_pos
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+
+--connection server_2
+--let $slave_sql_errno= 1062
+--source include/wait_for_slave_sql_error.inc
+
+# At this point, the worker threads should have stopped also.
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.processlist WHERE User = "system user" AND State = "Waiting for work from SQL thread";
+--source include/wait_condition.inc
+
+# Check that the pool can still be resized, but remains inactive as no slave
+# SQL thread is running.
+SET GLOBAL slave_parallel_threads=8;
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.processlist WHERE User = "system user" AND State = "Waiting for work from SQL thread";
+--source include/wait_condition.inc
+
+STOP SLAVE;
+# At this point, the worker threads should have stopped.
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.processlist WHERE User = "system user" AND State = "Waiting for work from SQL thread";
+--source include/wait_condition.inc
+
+
+SET GLOBAL sql_slave_skip_counter= 1;
+--source include/start_slave.inc
+# At this point, the worker threads should have been spawned.
+--let $wait_condition= SELECT COUNT(*)=8 FROM information_schema.processlist WHERE User = "system user" AND State = "Waiting for work from SQL thread";
+--source include/wait_condition.inc
+--sync_with_master
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+
+
+--echo *** MDEV-7818: Deadlock occurring with parallel replication and FTWRL ***
+
+--connection server_1
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,0), (2,0), (3,0);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+
+--connection server_1
+# Create a group commit with two transactions, will be used to provoke the
+# problematic thread interaction with FTWRL on the slave.
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @commit_id= 4242;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+
+BEGIN;
+UPDATE t2 SET b=b+1 WHERE a=2;
+COMMIT;
+
+BEGIN;
+INSERT INTO t2 VALUES (4,10);
+COMMIT;
+
+SET SESSION debug_dbug= @old_dbug;
+
+INSERT INTO t2 VALUES (5,0);
+INSERT INTO t2 VALUES (6,0);
+INSERT INTO t2 VALUES (7,0);
+INSERT INTO t2 VALUES (8,0);
+INSERT INTO t2 VALUES (9,0);
+INSERT INTO t2 VALUES (10,0);
+INSERT INTO t2 VALUES (11,0);
+INSERT INTO t2 VALUES (12,0);
+INSERT INTO t2 VALUES (13,0);
+INSERT INTO t2 VALUES (14,0);
+INSERT INTO t2 VALUES (15,0);
+INSERT INTO t2 VALUES (16,0);
+INSERT INTO t2 VALUES (17,0);
+INSERT INTO t2 VALUES (18,0);
+INSERT INTO t2 VALUES (19,0);
+--save_master_pos
+
+--connection server_2
+
+--connect (s1, 127.0.0.1, root,, test, $SLAVE_MYPORT,)
+# Block one transaction on a row lock.
+BEGIN;
+SELECT * FROM t2 WHERE a=2 FOR UPDATE;
+
+--connection server_2
+
+# Wait for slave thread of the other transaction to have the commit lock.
+--source include/start_slave.inc
+--let $wait_condition= SELECT COUNT(*) > 0 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+--connect (s2, 127.0.0.1, root,, test, $SLAVE_MYPORT,)
+send FLUSH TABLES WITH READ LOCK;
+# The bug was that at this point we were deadlocked.
+# The FTWRL command would wait forever for T2 to commit.
+# T2 would wait for T1 to commit first, but T1 is waiting for
+# the global read lock to be released.
+
+--connection s1
+# Release the lock that blocs T1 from replicating.
+COMMIT;
+
+--connection s1
+send STOP SLAVE;
+
+--connection s2
+reap;
+
+--connection server_1
+SELECT * FROM t2 ORDER BY a;
+
+--connection s2
+UNLOCK TABLES;
+
+SELECT "after UNLOCK TABLES" as state;
+
+--connection s1
+reap;
+
+SELECT "after reap of STOP SLAVE" as state;
+
+--connection server_2
+--source include/wait_for_slave_to_stop.inc
+--source include/start_slave.inc
+--sync_with_master
+
+SELECT * FROM t2 ORDER BY a;
+
+
+
+--echo *** MDEV-8318: Assertion `!pool->busy' failed in pool_mark_busy(rpl_parallel_thread_pool*) on concurrent FTWRL ***
+
+--connection server_1
+LOCK TABLE t2 WRITE;
+
+
+--connect (m1,localhost,root,,test)
+--connection m1
+--let $cid=`SELECT CONNECTION_ID()`
+send FLUSH TABLES WITH READ LOCK;
+
+--connect (m2,localhost,root,,test)
+# We cannot force the race with DEBUG_SYNC, because the race does not
+# exist after fixing the bug. At best we could force a debug sync to
+# time out, which is effectively just a sleep.
+# So just put a small sleep here; it is enough to trigger the bug in
+# most run before the bug fix, and the code should work correctly
+# however the thread scheduling happens.
+--sleep 0.1
+send FLUSH TABLES WITH READ LOCK;
+
+--connection server_1
+--replace_result $cid CID
+eval KILL QUERY $cid;
+
+--connection m1
+--error ER_QUERY_INTERRUPTED
+reap;
+
+--connection server_1
+UNLOCK TABLES;
+
+--connection m2
+reap;
+UNLOCK TABLES;
+
+
+# Clean up.
+--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+set global slave_parallel_mode= @old_parallel_mode;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1, t2;
+
+--source include/rpl_end.inc

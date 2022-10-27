@@ -1,0 +1,9 @@
+SET GLOBAL gtid_binlog_pos= '';
+ERROR HY000: Variable 'gtid_binlog_pos' is a read only variable
+SELECT variable_name FROM information_schema.global_variables
+WHERE variable_name='gtid_binlog_pos';
+variable_name
+GTID_BINLOG_POS
+SELECT @@gtid_binlog_pos;
+SELECT @@session.gtid_binlog_pos;
+ERROR HY000: Variable 'gtid_binlog_pos' is a GLOBAL variable

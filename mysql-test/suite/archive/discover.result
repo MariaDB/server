@@ -1,0 +1,156 @@
+create table t1 (a int) engine=archive;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+insert t1 values (1);
+show tables;
+Tables_in_test
+t1
+#
+# simple discover on use
+#
+flush tables;
+insert t1 values (2);
+select * from t1;
+a
+1
+2
+db.opt
+t1.ARZ
+t1.frm
+#
+# show tables
+#
+create table t2 (a int) engine=archive;
+select * from t2;
+a
+flush tables;
+show tables;
+Tables_in_test
+t1
+t2
+db.opt
+t1.ARZ
+t2.ARZ
+t2.frm
+#
+# show full tables
+#
+flush tables;
+show full tables;
+Tables_in_test	Table_type
+t1	BASE TABLE
+t2	BASE TABLE
+db.opt
+t1.ARZ
+t2.ARZ
+t2.frm
+#
+# discover on truncate
+#
+flush tables;
+truncate table t1;
+ERROR HY000: Storage engine ARCHIVE of the table `test`.`t1` doesn't have this option
+db.opt
+t1.ARZ
+t1.frm
+t2.ARZ
+t2.frm
+#
+# discover on rename
+#
+flush tables;
+rename table t2 to t0;
+db.opt
+t0.ARZ
+t1.ARZ
+t1.frm
+#
+# discover on HA_ERR_TABLE_DEF_CHANGED
+#
+alter table t1 modify a int default 5;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+#
+# discover on drop
+#
+flush tables;
+drop table t1;
+db.opt
+t0.ARZ
+#
+# discover of table non-existance on drop
+#
+select * from t0;
+a
+flush tables;
+drop table t0;
+db.opt
+show status like 'Handler_discover';
+Variable_name	Value
+Handler_discover	6
+#
+# Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
+#
+create table t1 (a int) engine=archive;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+insert into t1 values (1);
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+flush tables;
+insert into t1 values (2);
+select * from t1 order by a;
+a
+1
+2
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+drop table t1;
+#
+# BUG#58205 - Valgrind failure in fn_format when called from
+#             archive_discover
+#
+create table `a/../`(a int) engine=archive;
+select * from `a/../`;
+a
+flush tables;
+drop table `a/../`;
+create database test1;
+create table test1.t1 (i int) engine=archive;
+drop database test1;
+create table t1 (a int) engine=archive;
+select * from t1;
+a
+flush tables;
+select * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+db.opt
+create table t1 (a int) engine=archive;
+select * from t1;
+a
+flush tables;
+create table t1 (a int) engine=archive;
+flush tables;
+create table t1 (a int) engine=archive;
+ERROR 42S01: Table 't1' already exists
+drop table t1;
+CREATE OR REPLACE TABLE t1 ( pk INT AUTO_INCREMENT PRIMARY KEY ) ENGINE = ARCHIVE;
+CREATE OR REPLACE TABLE t1 ( pk INT AUTO_INCREMENT PRIMARY KEY ) ENGINE = ARCHIVE;
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 ( pk INT AUTO_INCREMENT PRIMARY KEY ) ENGINE = ARCHIVE;
+SELECT * FROM t1;
+pk
+DROP TABLE t1;

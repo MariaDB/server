@@ -1,0 +1,66 @@
+# Test case for validating acl statistics for the feedback plugin.
+--source include/not_embedded.inc
+
+# First get a baseline of the initial statistics.
+SHOW STATUS LIKE 'Acl%';
+SELECT count(*) COLUMN_GRANTS from mysql.columns_priv;
+SELECT count(*) DATABASE_GRANTS from mysql.db;
+SELECT count(*) FUNCTION_GRANTS from mysql.procs_priv where routine_type='FUNCTION';
+SELECT count(*) PROCEDURE_GRANTS from mysql.procs_priv where routine_type='PROCEDURE';
+SELECT count(*) PROXY_USERS from mysql.proxies_priv;
+SELECT count(*) ROLE_GRANTS from mysql.roles_mapping;
+SELECT count(*) ROLES from mysql.user where is_role='Y';
+SELECT count(*) TABLE_GRANTS from mysql.tables_priv;
+SELECT count(*) USERS from mysql.user where is_role='N';
+
+# Next add some users, roles and privileges to them.
+CREATE USER u1;
+CREATE ROLE r1;
+CREATE ROLE r2;
+GRANT PROXY ON root TO u1;
+GRANT SELECT ON *.* to u1;
+GRANT SELECT ON *.* to r1;
+GRANT DELETE ON mysql.* to u1;
+GRANT DELETE ON mysql.* to r1;
+GRANT INSERT ON mysql.user to u1;
+GRANT INSERT ON mysql.user to r1;
+GRANT UPDATE (host) ON mysql.user to u1;
+GRANT UPDATE (host) ON mysql.user to r1;
+
+GRANT r1 to u1;
+GRANT r2 to r1;
+
+delimiter |;
+create procedure mysql.test_proc (OUT param1 INT)
+begin
+  select COUNT(*) into param1 from mysql.roles_mapping;
+end|
+delimiter ;|
+GRANT EXECUTE ON PROCEDURE mysql.test_proc TO r1;
+GRANT EXECUTE ON PROCEDURE mysql.test_proc TO u1;
+
+CREATE FUNCTION mysql.test_func (param INT) RETURNS INT
+  RETURN (SELECT COUNT(*) FROM mysql.user);
+GRANT EXECUTE ON FUNCTION mysql.test_func TO r1;
+GRANT EXECUTE ON FUNCTION mysql.test_func TO u1;
+# Extra grant to differentiate procedure from function grants.
+GRANT EXECUTE ON FUNCTION mysql.test_func TO r2;
+
+# Recheck how statistics are updated. Make sure that both the information
+# schema and the actualy physical rows are the same.
+SHOW STATUS LIKE 'Acl%';
+SELECT count(*) COLUMN_GRANTS from mysql.columns_priv;
+SELECT count(*) DATABASE_GRANTS from mysql.db;
+SELECT count(*) FUNCTION_GRANTS from mysql.procs_priv where routine_type='FUNCTION';
+SELECT count(*) PROCEDURE_GRANTS from mysql.procs_priv where routine_type='PROCEDURE';
+SELECT count(*) PROXY_USERS from mysql.proxies_priv;
+SELECT count(*) ROLE_GRANTS from mysql.roles_mapping;
+SELECT count(*) ROLES from mysql.user where is_role='Y';
+SELECT count(*) TABLE_GRANTS from mysql.tables_priv;
+SELECT count(*) USERS from mysql.user where is_role='N';
+
+DROP PROCEDURE mysql.test_proc;
+DROP FUNCTION mysql.test_func;
+DROP ROLE r2;
+DROP ROLE r1;
+DROP USER u1;

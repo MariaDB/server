@@ -1,0 +1,36 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# This tests MyISAM tables in transactions. No MyISAM updates arrive on the slave, but InnoDB ones do.
+#
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=MyISAM;
+CREATE TABLE t3 (f1 INTEGER) ENGINE=MyISAM;
+
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t3 VALUES (NEW.f1);
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+COMMIT;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) = 0 FROM t2;
+SELECT COUNT(*) = 0 FROM t2;
+
+--connection node_1
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+ROLLBACK;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) = 0 FROM t2;
+SELECT COUNT(*) = 0 FROM t2;
+
+DROP TABLE t1, t2, t3;

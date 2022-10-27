@@ -1,0 +1,29 @@
+include/master-slave.inc
+[connection master]
+connection master;
+drop table if exists r1;
+create table r1 (id1 int, id2 int, primary key (id1, id2), index i (id2)) engine=rocksdb;
+insert into r1 values (1, 1000);
+set sql_log_bin=0;
+delete from r1 where id1=1 and id2=1000;
+set sql_log_bin=1;
+connection slave;
+connection slave;
+set global rocksdb_force_flush_memtable_now=1;
+connection master;
+insert into r1 values (1, 1000);
+connection slave;
+connection slave;
+delete r1 from r1 force index (i) where id2=1000;
+select id1,id2 from r1 force index (primary);
+id1	id2
+select id2 from r1 force index (i);
+id2
+set global rocksdb_compact_cf='default';
+select id1,id2 from r1 force index (primary);
+id1	id2
+select id2 from r1 force index (i);
+id2
+connection master;
+drop table r1;
+include/rpl_end.inc

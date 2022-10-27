@@ -1,0 +1,37 @@
+# Tests of grants and users
+
+source include/not_embedded.inc;
+source include/master-slave.inc;
+
+connection master;
+
+CREATE USER dummy@localhost;
+CREATE USER dummy1@localhost, dummy2@localhost;
+
+SELECT user, host FROM mysql.user WHERE user like 'dummy%';
+SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
+sync_slave_with_master;
+--echo **** On Slave ****
+SELECT user,host FROM mysql.user WHERE user like 'dummy%';
+SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
+
+connection master;
+
+# No user exists
+error ER_CANNOT_USER;
+DROP USER nonexisting@localhost;
+
+# At least one user exists, but not all
+error ER_CANNOT_USER;
+DROP USER nonexisting@localhost, dummy@localhost;
+
+# All users exist
+DROP USER dummy1@localhost, dummy2@localhost;
+
+SELECT user, host FROM mysql.user WHERE user like 'dummy%';
+SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
+sync_slave_with_master;
+SELECT user,host FROM mysql.user WHERE user like 'dummy%';
+SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
+
+--source include/rpl_end.inc

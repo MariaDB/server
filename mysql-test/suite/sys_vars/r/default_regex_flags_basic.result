@@ -1,0 +1,59 @@
+SET default_regex_flags='';
+SELECT @@default_regex_flags;
+@@default_regex_flags
+
+SET default_regex_flags=DEFAULT;
+SELECT @@default_regex_flags;
+@@default_regex_flags
+
+SET default_regex_flags=NULL;
+ERROR 42000: Variable 'default_regex_flags' can't be set to the value of 'NULL'
+SELECT @@default_regex_flags;
+@@default_regex_flags
+
+SET default_regex_flags='UNKNOWN';
+ERROR 42000: Variable 'default_regex_flags' can't be set to the value of 'UNKNOWN'
+SET default_regex_flags=123;
+ERROR 42000: Variable 'default_regex_flags' can't be set to the value of '123'
+SET default_regex_flags=123.0;
+ERROR 42000: Incorrect argument type to variable 'default_regex_flags'
+SET default_regex_flags=123e0;
+ERROR 42000: Incorrect argument type to variable 'default_regex_flags'
+SET default_regex_flags='DOTALL';
+SELECT @@default_regex_flags;
+@@default_regex_flags
+DOTALL
+SET default_regex_flags=NULL;
+ERROR 42000: Variable 'default_regex_flags' can't be set to the value of 'NULL'
+SELECT @@default_regex_flags;
+@@default_regex_flags
+DOTALL
+SET @@default_regex_flags=63;
+SELECT @@default_regex_flags;
+@@default_regex_flags
+DOTALL,DUPNAMES,EXTENDED,EXTRA,MULTILINE,UNGREEDY
+SET @@default_regex_flags='DOTALL';
+SELECT @@default_regex_flags;
+@@default_regex_flags
+DOTALL
+SET @@default_regex_flags='DOTALL,DUPNAMES,EXTENDED,EXTRA,MULTILINE,UNGREEDY';
+SELECT @@default_regex_flags;
+@@default_regex_flags
+DOTALL,DUPNAMES,EXTENDED,EXTRA,MULTILINE,UNGREEDY
+SET @@default_regex_flags=DEFAULT;
+SET @@global.default_regex_flags='MULTILINE';
+SELECT @@session.default_regex_flags;
+@@session.default_regex_flags
+
+connect  con1,localhost,root,,;
+connection con1;
+SELECT @@session.default_regex_flags;
+@@session.default_regex_flags
+MULTILINE
+connection default;
+disconnect con1;
+SELECT @@session.default_regex_flags;
+@@session.default_regex_flags
+
+SET @@global.default_regex_flags=DEFAULT;
+SET default_regex_flags=DEFAULT;

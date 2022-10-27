@@ -1,0 +1,9 @@
+-- source mongo.inc
+
+let $DRV= C;
+let $VERS= 0;
+let $PROJ= {"projection":;
+let $ENDP= };
+let $TYPE= MONGO;
+
+-- source mongo_test.inc

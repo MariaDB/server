@@ -1,0 +1,9 @@
+alter table mysql.time_zone_name engine=InnoDB;
+create table envois3 (starttime datetime) engine=InnoDB;
+insert envois3 values ('2008-08-11 22:43:00');
+# restart
+select convert_tz(starttime,'UTC','Europe/Moscow') starttime from envois3;
+starttime
+2008-08-12 02:43:00
+drop table envois3;
+alter table mysql.time_zone_name engine=Aria;

@@ -1,0 +1,82 @@
+create table t1 (a double not null, primary key(a)) engine='InnoDB' 
+partition by key (a) (
+partition pa1 max_rows=20 min_rows=2,
+partition pa2 max_rows=30 min_rows=3,
+partition pa3 max_rows=30 min_rows=4,
+partition pa4 max_rows=40 min_rows=2);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` double NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
+ PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
+ PARTITION `pa3` MAX_ROWS = 30 MIN_ROWS = 4 ENGINE = InnoDB,
+ PARTITION `pa4` MAX_ROWS = 40 MIN_ROWS = 2 ENGINE = InnoDB)
+insert into t1 values (-2.2250738585072014E+208), (-2.2250738585072014E-208), (-1.5), (-1), (0), (1.5), (1234.567), (2.2250738585072014E+208);
+select * from t1;
+a
+-2.2250738585072016e208
+-1.5
+-1
+-2.2250738585072014e-208
+0
+1.5
+1234.567
+2.2250738585072016e208
+select * from t1 where a=1.5;
+a
+1.5
+delete from t1 where a=1.5;
+select * from t1;
+a
+-2.2250738585072016e208
+-1.5
+-1
+-2.2250738585072014e-208
+0
+1234.567
+2.2250738585072016e208
+drop table t1;
+create table t2 (a double not null, primary key(a)) engine='InnoDB' 
+partition by key (a) partitions 10;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` double NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+PARTITIONS 10
+insert into t2 values (-2.2250738585072014E+208), (-2.2250738585072014E-208), (-1.5), (-1), (0), (1.5), (1234.567), (2.2250738585072014E+208);
+select * from t2;
+a
+-2.2250738585072016e208
+-1.5
+-1
+-2.2250738585072014e-208
+0
+1.5
+1234.567
+2.2250738585072016e208
+select * from t2 where a=1234.567;
+a
+1234.567
+delete from t2 where a=1234.567;
+select * from t2;
+a
+-2.2250738585072016e208
+-1.5
+-1
+-2.2250738585072014e-208
+0
+1.5
+2.2250738585072016e208
+delete from t2;
+1024*3 inserts;
+select count(*) from t2;
+count(*)
+3072
+drop table t2;

@@ -1,0 +1,258 @@
+SET @save_character_set_client=    @@global.character_set_client;
+SET @save_collation_connection=    @@global.collation_connection;
+SET @@global.character_set_server= @@character_set_server;
+SET @@global.collation_server=     @@collation_server;
+SET @@global.character_set_client= @@character_set_server;
+SET @@global.collation_connection= @@collation_server;
+SET @old_general_log= @@global.general_log;
+SET @old_slow_query_log= @@global.slow_query_log;
+call mtr.add_suppression(" Error reading file './client_test_db/test_frm_bug.frm'");
+call mtr.add_suppression(" IP address .* could not be resolved");
+ok
+
+# cat MYSQL_TMP_DIR/test_wl4435.out.log
+# ------------------------------------
+
+exec_counter: 0
+num_fields: 4
+  - 0: name: 'a1'/'a1'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 1: name: 'a2'/'a2'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 32; max_length: 0; type: 254; decimals: 0
+  - 2: name: 'a3'/'a3'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 3: name: 'a4'/'a4'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 5; max_length: 0; type: 246; decimals: 1
+Data:
+  int: 1; str: '11'; dbl: 12.340000; dec: '56.7';
+  int: 2; str: '12'; dbl: 56.780000; dec: '90.1';
+  int: 3; str: '13'; dbl: 23.450000; dec: '67.8';
+EOF
+mysql_stmt_next_result(): 0; field_count: 5
+num_fields: 5
+  - 0: name: 'b0'/'b0'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 1: name: 'b1'/'b1'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 2: name: 'b2'/'b2'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 32; max_length: 0; type: 254; decimals: 0
+  - 3: name: 'b3'/'b3'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 4: name: 'b4'/'b4'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 5; max_length: 0; type: 246; decimals: 1
+Data:
+  int: 100; int: 10; str: '110'; dbl: 70.700000; dec: '10.1';
+  int: 200; int: 20; str: '120'; dbl: 80.800000; dec: '20.2';
+  int: 300; int: 30; str: '130'; dbl: 90.900000; dec: '30.3';
+EOF
+mysql_stmt_next_result(): 0; field_count: 8
+num_fields: 8
+  - 0: name: 'v_str_1'/'v_str_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 32; max_length: 0; type: 254; decimals: 0
+  - 1: name: 'v_dbl_1'/'v_dbl_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 2: name: 'v_dec_1'/'v_dec_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 8; max_length: 0; type: 246; decimals: 3
+  - 3: name: 'v_int_1'/'v_int_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 4: name: 'v_str_2'/'v_str_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 64; max_length: 0; type: 254; decimals: 0
+  - 5: name: 'v_dbl_2'/'v_dbl_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 5; max_length: 0; type: 5; decimals: 3
+  - 6: name: 'v_dec_2'/'v_dec_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 9; max_length: 0; type: 246; decimals: 4
+  - 7: name: 'v_int_2'/'v_int_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+Data:
+  str: 'test_1'; dbl: 12.340000; dec: '567.891'; int: 2345; str: 'test_2'; dbl: 67.891000; dec: '234.6789'; int: 6789;
+EOF
+mysql_stmt_next_result(): 0; field_count: 0
+
+exec_counter: 1
+num_fields: 4
+  - 0: name: 'a1'/'a1'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 1: name: 'a2'/'a2'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 32; max_length: 0; type: 254; decimals: 0
+  - 2: name: 'a3'/'a3'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 3: name: 'a4'/'a4'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 5; max_length: 0; type: 246; decimals: 1
+Data:
+  int: 1; str: '11'; dbl: 12.340000; dec: '56.7';
+  int: 2; str: '12'; dbl: 56.780000; dec: '90.1';
+  int: 3; str: '13'; dbl: 23.450000; dec: '67.8';
+EOF
+mysql_stmt_next_result(): 0; field_count: 5
+num_fields: 5
+  - 0: name: 'b0'/'b0'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 1: name: 'b1'/'b1'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 2: name: 'b2'/'b2'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 32; max_length: 0; type: 254; decimals: 0
+  - 3: name: 'b3'/'b3'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 4: name: 'b4'/'b4'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 5; max_length: 0; type: 246; decimals: 1
+Data:
+  int: 100; int: 10; str: '110'; dbl: 70.700000; dec: '10.1';
+  int: 200; int: 20; str: '120'; dbl: 80.800000; dec: '20.2';
+  int: 300; int: 30; str: '130'; dbl: 90.900000; dec: '30.3';
+EOF
+mysql_stmt_next_result(): 0; field_count: 8
+num_fields: 8
+  - 0: name: 'v_str_1'/'v_str_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 32; max_length: 0; type: 254; decimals: 0
+  - 1: name: 'v_dbl_1'/'v_dbl_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 2: name: 'v_dec_1'/'v_dec_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 8; max_length: 0; type: 246; decimals: 3
+  - 3: name: 'v_int_1'/'v_int_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 4: name: 'v_str_2'/'v_str_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 64; max_length: 0; type: 254; decimals: 0
+  - 5: name: 'v_dbl_2'/'v_dbl_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 5; max_length: 0; type: 5; decimals: 3
+  - 6: name: 'v_dec_2'/'v_dec_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 9; max_length: 0; type: 246; decimals: 4
+  - 7: name: 'v_int_2'/'v_int_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+Data:
+  str: 'test_1'; dbl: 12.340000; dec: '567.891'; int: 2345; str: 'test_2'; dbl: 67.891000; dec: '234.6789'; int: 6789;
+EOF
+mysql_stmt_next_result(): 0; field_count: 0
+
+exec_counter: 2
+num_fields: 4
+  - 0: name: 'a1'/'a1'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 1: name: 'a2'/'a2'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 32; max_length: 0; type: 254; decimals: 0
+  - 2: name: 'a3'/'a3'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 3: name: 'a4'/'a4'; table: 't1'/'t1'; db: 'client_test_db'; catalog: 'def'; length: 5; max_length: 0; type: 246; decimals: 1
+Data:
+  int: 1; str: '11'; dbl: 12.340000; dec: '56.7';
+  int: 2; str: '12'; dbl: 56.780000; dec: '90.1';
+  int: 3; str: '13'; dbl: 23.450000; dec: '67.8';
+EOF
+mysql_stmt_next_result(): 0; field_count: 5
+num_fields: 5
+  - 0: name: 'b0'/'b0'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 1: name: 'b1'/'b1'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 2: name: 'b2'/'b2'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 32; max_length: 0; type: 254; decimals: 0
+  - 3: name: 'b3'/'b3'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 4: name: 'b4'/'b4'; table: 't2'/'t2'; db: 'client_test_db'; catalog: 'def'; length: 5; max_length: 0; type: 246; decimals: 1
+Data:
+  int: 100; int: 10; str: '110'; dbl: 70.700000; dec: '10.1';
+  int: 200; int: 20; str: '120'; dbl: 80.800000; dec: '20.2';
+  int: 300; int: 30; str: '130'; dbl: 90.900000; dec: '30.3';
+EOF
+mysql_stmt_next_result(): 0; field_count: 8
+num_fields: 8
+  - 0: name: 'v_str_1'/'v_str_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 32; max_length: 0; type: 254; decimals: 0
+  - 1: name: 'v_dbl_1'/'v_dbl_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 2: name: 'v_dec_1'/'v_dec_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 8; max_length: 0; type: 246; decimals: 3
+  - 3: name: 'v_int_1'/'v_int_1'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+  - 4: name: 'v_str_2'/'v_str_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 64; max_length: 0; type: 254; decimals: 0
+  - 5: name: 'v_dbl_2'/'v_dbl_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 5; max_length: 0; type: 5; decimals: 3
+  - 6: name: 'v_dec_2'/'v_dec_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 9; max_length: 0; type: 246; decimals: 4
+  - 7: name: 'v_int_2'/'v_int_2'; table: 'p1'/'p1'; db: 'client_test_db'; catalog: 'def'; length: 11; max_length: 0; type: 3; decimals: 0
+Data:
+  str: 'test_1'; dbl: 12.340000; dec: '567.891'; int: 2345; str: 'test_2'; dbl: 67.891000; dec: '234.6789'; int: 6789;
+EOF
+mysql_stmt_next_result(): 0; field_count: 0
+# ------------------------------------
+
+
+# cat MYSQL_TMP_DIR/test_explain_meta.out.log
+# ------------------------------------
+SELECT number of fields: 1
+EXPALIN number of fields: 10
+  - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
+  - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
+  - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 3: name: 'type'/''; table: ''/''; db: ''; catalog: 'def'; length: 30; max_length: 0; type: 253; decimals: 39
+  - 4: name: 'possible_keys'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+EXPALIN JSON number of fields: 1
+  - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
+ANALYZE number of fields: 13
+  - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
+  - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
+  - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 3: name: 'type'/''; table: ''/''; db: ''; catalog: 'def'; length: 30; max_length: 0; type: 253; decimals: 39
+  - 4: name: 'possible_keys'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+ANALYZE JSON number of fields: 1
+  - 0: name: 'ANALYZE'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
+EXPALIN INSERT number of fields: 10
+  - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
+  - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
+  - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 3: name: 'type'/''; table: ''/''; db: ''; catalog: 'def'; length: 30; max_length: 0; type: 253; decimals: 39
+  - 4: name: 'possible_keys'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+EXPALIN JSON INSERT number of fields: 1
+  - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
+ANALYZE INSERT number of fields: 13
+  - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
+  - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
+  - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 3: name: 'type'/''; table: ''/''; db: ''; catalog: 'def'; length: 30; max_length: 0; type: 253; decimals: 39
+  - 4: name: 'possible_keys'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+ANALYZE JSON INSERT number of fields: 1
+  - 0: name: 'ANALYZE'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
+EXPALIN UPDATE number of fields: 10
+  - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
+  - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
+  - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 3: name: 'type'/''; table: ''/''; db: ''; catalog: 'def'; length: 30; max_length: 0; type: 253; decimals: 39
+  - 4: name: 'possible_keys'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+EXPALIN JSON UPDATE number of fields: 1
+  - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
+ANALYZE UPDATE number of fields: 13
+  - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
+  - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
+  - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 3: name: 'type'/''; table: ''/''; db: ''; catalog: 'def'; length: 30; max_length: 0; type: 253; decimals: 39
+  - 4: name: 'possible_keys'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+ANALYZE JSON UPDATE number of fields: 1
+  - 0: name: 'ANALYZE'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
+EXPALIN DELETE number of fields: 10
+  - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
+  - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
+  - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 3: name: 'type'/''; table: ''/''; db: ''; catalog: 'def'; length: 30; max_length: 0; type: 253; decimals: 39
+  - 4: name: 'possible_keys'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+EXPALIN JSON DELETE number of fields: 1
+  - 0: name: 'EXPLAIN'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
+ANALYZE DELETE number of fields: 13
+  - 0: name: 'id'/''; table: ''/''; db: ''; catalog: 'def'; length: 3; max_length: 0; type: 8; decimals: 0
+  - 1: name: 'select_type'/''; table: ''/''; db: ''; catalog: 'def'; length: 57; max_length: 0; type: 253; decimals: 39
+  - 2: name: 'table'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 3: name: 'type'/''; table: ''/''; db: ''; catalog: 'def'; length: 30; max_length: 0; type: 253; decimals: 39
+  - 4: name: 'possible_keys'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 5: name: 'key'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 6: name: 'key_len'/''; table: ''/''; db: ''; catalog: 'def'; length: 12288; max_length: 0; type: 253; decimals: 39
+  - 7: name: 'ref'/''; table: ''/''; db: ''; catalog: 'def'; length: 6144; max_length: 0; type: 253; decimals: 39
+  - 8: name: 'rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 9: name: 'r_rows'/''; table: ''/''; db: ''; catalog: 'def'; length: 192; max_length: 0; type: 253; decimals: 39
+  - 10: name: 'filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 11: name: 'r_filtered'/''; table: ''/''; db: ''; catalog: 'def'; length: 4; max_length: 0; type: 5; decimals: 2
+  - 12: name: 'Extra'/''; table: ''/''; db: ''; catalog: 'def'; length: 765; max_length: 0; type: 253; decimals: 39
+ANALYZE JSON DELETE number of fields: 1
+  - 0: name: 'ANALYZE'/''; table: ''/''; db: ''; catalog: 'def'; length: 234; max_length: 0; type: 253; decimals: 39
+# ------------------------------------
+
+SET @@global.general_log= @old_general_log;
+SET @@global.slow_query_log= @old_slow_query_log;
+SET @@global.character_set_server= @save_character_set_server;
+SET @@global.collation_server= @save_collation_server;
+SET @@global.character_set_client= @save_character_set_client;
+SET @@global.collation_connection= @save_collation_connection;

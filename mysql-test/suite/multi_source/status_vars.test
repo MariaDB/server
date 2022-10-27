@@ -1,0 +1,139 @@
+#
+# Status variables related to a replication connection
+#
+
+--source include/not_embedded.inc
+--let $rpl_server_count= 0
+
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+call mtr.add_suppression("Connection 'master1' already exists");
+
+# Start replication from the first master
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'master1' to 
+master_port=$SERVER_MYPORT_1, 
+master_host='127.0.0.1', 
+master_user='root',
+master_heartbeat_period = 25;
+
+start slave 'master1';
+set default_master_connection = 'master1';
+--source include/wait_for_slave_to_start.inc
+
+
+# Set up a proper 'default' connection to master2
+
+set default_master_connection = '';
+
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master to
+master_port=$SERVER_MYPORT_2,
+master_host='127.0.0.1',
+master_user='root',
+master_heartbeat_period=35;
+
+start slave;
+--source include/wait_for_slave_to_start.inc
+
+--echo #
+--echo # Check how status works for the default connection, anonymous or named
+--echo #
+
+--echo # Slave_running and Slave_heartbeat_period should be local for a connection
+--echo #
+
+set default_master_connection = '';
+show status like 'Slave_running';
+show status like 'Slave_heartbeat_period';
+stop slave io_thread;
+--source include/wait_for_slave_io_to_stop.inc
+show status like 'Slave_running';
+
+set default_master_connection = 'master1';
+show status like 'Slave_running';
+show status like 'Slave_heartbeat_period';
+
+--echo #
+--echo # Slave_received_heartbeats should also be local
+--echo #
+
+set default_master_connection = '';
+stop slave sql_thread;
+--source include/wait_for_slave_sql_to_stop.inc
+change master to master_heartbeat_period=1;
+show status like 'Slave_received_heartbeats';
+start slave;
+--source include/wait_for_slave_to_start.inc
+
+--let $status_var = Slave_received_heartbeats
+--let $status_var_value = 2
+# The units are tens of seconds
+--let $status_timeout = 30 
+--source include/wait_for_status_var.inc
+show status like 'Slave_received_heartbeats';
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+
+set default_master_connection = 'master1';
+show status like 'Slave_received_heartbeats';
+
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+change master to master_heartbeat_period=2;
+start slave;
+--source include/wait_for_slave_to_start.inc
+
+--let $status_var = Slave_received_heartbeats
+--let $status_var_value = 1
+--let $status_timeout = 30
+--source include/wait_for_status_var.inc
+show status like 'Slave_received_heartbeats';
+
+
+--echo #
+--echo # Slave_open_temp_tables should be global
+--echo #
+
+set default_master_connection = '';
+start slave;
+--source include/wait_for_slave_to_start.inc
+
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+set binlog_format = statement;
+create temporary table tmp1 (i int) engine=MyISAM;
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,'master1'
+show status like 'Slave_open_temp_tables';
+
+set default_master_connection = 'master1';
+show status like 'Slave_open_temp_tables';
+
+--connect (master2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+set binlog_format = statement;
+create temporary table tmp1 (i int) engine=MyISAM;
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,''
+show status like 'Slave_open_temp_tables';
+
+set default_master_connection = '';
+show status like 'Slave_open_temp_tables';
+
+
+# Cleanup
+
+--source include/reset_master_slave.inc
+--disconnect slave
+--connection master1
+--source include/reset_master_slave.inc
+--disconnect master1
+--connection master2
+--source include/reset_master_slave.inc
+--disconnect master2
+
+

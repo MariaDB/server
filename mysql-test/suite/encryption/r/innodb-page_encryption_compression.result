@@ -1,0 +1,88 @@
+set global innodb_compression_algorithm = 1;
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb page_compressed=1;
+show warnings;
+Level	Code	Message
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1 page_compressed=1;
+show warnings;
+Level	Code	Message
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=2 page_compressed=1;
+show warnings;
+Level	Code	Message
+show create table innodb_normal;
+Table	Create Table
+innodb_normal	CREATE TABLE `innodb_normal` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1
+show create table innodb_compact;
+Table	Create Table
+innodb_compact	CREATE TABLE `innodb_compact` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT `encrypted`=yes `encryption_key_id`=1 `page_compressed`=1
+show create table innodb_dynamic;
+Table	Create Table
+innodb_dynamic	CREATE TABLE `innodb_dynamic` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC `encrypted`=yes `encryption_key_id`=2 `page_compressed`=1
+create procedure innodb_insert_proc (repeat_count int)
+begin
+declare current_num int;
+set current_num = 0;
+while current_num < repeat_count do
+insert into innodb_normal values(current_num, substring(MD5(RAND()), -128));
+set current_num = current_num + 1;
+end while;
+end//
+commit;
+begin;
+call innodb_insert_proc(2000);
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+commit;
+FLUSH TABLES innodb_compact FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT;
+UNLOCK TABLES;
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
+variable_value > 0
+1
+# restart: --innodb-encrypt-tables=OFF
+set global innodb_compression_algorithm = 1;
+alter table innodb_normal engine=innodb page_compressed=DEFAULT;
+show create table innodb_normal;
+Table	Create Table
+innodb_normal	CREATE TABLE `innodb_normal` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+alter table innodb_compact engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT page_compressed=DEFAULT;
+show create table innodb_compact;
+Table	Create Table
+innodb_compact	CREATE TABLE `innodb_compact` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT page_compressed=DEFAULT;
+show create table innodb_dynamic;
+Table	Create Table
+innodb_dynamic	CREATE TABLE `innodb_dynamic` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+FLUSH TABLES innodb_normal FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT;
+UNLOCK TABLES;
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_PAGE_DECOMPRESSED';
+variable_value > 0
+1
+drop procedure innodb_insert_proc;
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_dynamic;

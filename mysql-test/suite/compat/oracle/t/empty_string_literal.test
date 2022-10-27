@@ -1,0 +1,8 @@
+USE test;
+--echo #
+--echo # MDEV-14013 : sql_mode=EMPTY_STRING_IS_NULL
+--echo #
+
+set @mode='ORACLE,EMPTY_STRING_IS_NULL';
+
+--source include/empty_string_literal.inc

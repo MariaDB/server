@@ -1,0 +1,60 @@
+--source include/have_rocksdb.inc
+
+--source include/have_partition.inc
+--source include/not_windows.inc
+
+#
+# Check that when either DATA DIRECTORY or INDEX DIRECTORY are specified
+# then MyRocks returns an appropriate error. We don't support this
+# functionality and therefore shouldn't just silently accept the values.
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+# On a Mac, strerror()  prints "Unknown error: nn", as 
+#  opposed to "Unknown error nn" on Linux/etc.
+# Replacing 'error:' with 'error' below to make the output uniform.
+
+--replace_result error: error
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb DATA DIRECTORY = '/foo/bar/data';
+--replace_result error: error
+show warnings;
+
+--replace_result error: error
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb INDEX DIRECTORY = '/foo/bar/index';
+--replace_result error: error
+show warnings;
+
+#
+# Verify that we'll get the same error codes when using the partitions.
+#
+
+--replace_result error: error
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=rocksdb PARTITION BY RANGE (id)
+(
+    PARTITION P0 VALUES LESS THAN (1000)
+        DATA DIRECTORY =  '/foo/bar/data/',
+    PARTITION P1 VALUES LESS THAN (2000)
+        DATA DIRECTORY =  '/foo/bar/data/',
+    PARTITION P2 VALUES LESS THAN (MAXVALUE)
+);
+--replace_result error: error
+show warnings;
+
+--replace_result error: error
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t1 (id int not null primary key) ENGINE=rocksdb PARTITION BY RANGE (id)
+(
+   PARTITION P0 VALUES LESS THAN (1000)
+       INDEX DIRECTORY =  '/foo/bar/data/',
+   PARTITION P1 VALUES LESS THAN (2000)
+       INDEX DIRECTORY =  '/foo/bar/data/',
+   PARTITION P2 VALUES LESS THAN (MAXVALUE)
+);
+--replace_result error: error
+show warnings;

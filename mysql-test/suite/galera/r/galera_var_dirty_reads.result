@@ -1,0 +1,55 @@
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP has not yet prepared node for application use");
+connection node_1;
+connection node_2;
+connection node_2;
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1;
+i
+1
+SET @@global.wsrep_cluster_address = '';
+SET @@session.wsrep_dirty_reads=OFF;
+SET SESSION wsrep_sync_wait=0;
+SHOW STATUS LIKE 'wsrep_ready';
+Variable_name	Value
+wsrep_ready	OFF
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Disconnected
+SELECT * FROM t1;
+Got one of the listed errors
+SELECT 1 FROM t1;
+Got one of the listed errors
+SET @@session.wsrep_dirty_reads=ON;
+SELECT * FROM t1;
+i
+1
+SELECT 1 FROM t1;
+1
+1
+SELECT i, variable_name, variable_value FROM t1, information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads" AND i = 1;
+i	variable_name	variable_value
+1	WSREP_DIRTY_READS	ON
+SET @@session.wsrep_dirty_reads=OFF;
+SELECT i, variable_name, variable_value FROM t1, information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads" AND i = 1;
+Got one of the listed errors
+SELECT 1;
+1
+1
+USE information_schema;
+SELECT * FROM information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads";
+VARIABLE_NAME	VARIABLE_VALUE
+WSREP_DIRTY_READS	OFF
+SELECT COUNT(*) >= 10 FROM performance_schema.events_statements_history;
+COUNT(*) >= 10
+1
+connection node_1;
+USE test;
+SELECT * FROM t1;
+i
+1
+DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

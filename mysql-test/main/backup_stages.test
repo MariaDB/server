@@ -1,0 +1,385 @@
+########################################################################
+# Test what is locked in each stage for LOCK FOR BACKUP (MDEV-5336)
+########################################################################
+
+--source include/not_embedded.inc
+# A transactional engine
+--source include/have_innodb.inc
+--source include/have_metadata_lock_info.inc
+# As non transactional engine we have MyISAM anyway.
+
+# Save the initial number of concurrent sessions.
+--source include/count_sessions.inc
+
+let $old_lock_wait_timeout = `SELECT @@global.lock_wait_timeout`;
+
+--echo #-----------------------------------------------------------------------
+--echo # Multi-threaded tests
+--echo #-----------------------------------------------------------------------
+--echo # Show that only one connection can hold the backup lock.
+
+--connection default
+let $default_id= `SELECT CONNECTION_ID()`;
+BACKUP STAGE START;
+
+# con1, root high privileged user
+--connect(con1,localhost,root,,)
+let $con1_id= `SELECT CONNECTION_ID()`;
+--error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT lock_wait_timeout=0 FOR BACKUP STAGE START;
+send BACKUP STAGE START;
+--connection default
+
+--echo # Show that the connection con1 has to wait for the backup lock and the
+--echo # corresponding representation within the processlist.
+
+--replace_result $con1_id <con1_id>
+
+eval SET @con1_id = $con1_id;
+# Output expected here is
+# ID        USER COMMAND STATE                   INFO               INFO_BINARY
+# <con1_id> root   Query Waiting for backup lock BACKUP STAGE START BACKUP STAGE START
+let $wait_condition=
+    SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+    WHERE STATE = "Waiting for backup lock" and INFO = "BACKUP STAGE START";
+--source include/wait_condition.inc
+--replace_column 1 <con1_id>
+eval
+SELECT ID, USER, COMMAND, STATE, INFO, STAGE, MAX_STAGE, INFO_BINARY
+FROM information_schema.processlist WHERE id = @con1_id;
+# con1 uses @@global.lock_wait_timeout
+
+BACKUP STAGE END;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+
+--connection con1
+--echo # The connection default has removed the backup lock.
+--echo # And so the current connection con1 can reap for its BACKUP STAGE START
+--reap
+
+# con2, root high privileged user
+--connect(con2,localhost,root,,)
+let $con2_id= `SELECT CONNECTION_ID()`;
+--echo # The connection con2 cannot continue the work of con1 by setting the
+--echo # next BACKUP STAGE FLUSH.
+--error ER_BACKUP_NOT_RUNNING
+BACKUP STAGE FLUSH;
+send
+BACKUP STAGE START;
+
+--connection default
+--replace_result $con2_id <con2_id>
+eval SET @con2_id = $con2_id;
+--echo # Connection con2 waits for the backup lock held by con1.
+--source include/wait_condition.inc
+--replace_column 1 <con2_id>
+eval
+SELECT ID, USER, COMMAND, STATE, INFO, STAGE, MAX_STAGE, INFO_BINARY
+FROM information_schema.processlist WHERE id = @con2_id;
+
+--disconnect con1
+
+--connection con2
+--echo # Connection con1 frees the backup lock held by disconnecting.
+--echo # So connection con2 gets the backup lock.
+--reap
+
+--connect(con3,localhost,root,,)
+let $con3_id= `SELECT CONNECTION_ID()`;
+send
+BACKUP STAGE START;
+
+--connection default
+--replace_result $con3_id <con3_id>
+eval SET @con3_id = $con3_id;
+--echo # Connection con3 waits for the backup lock held by con2.
+--source include/wait_condition.inc
+--replace_column 1 <con3_id>
+eval
+SELECT ID, USER, COMMAND, STATE, INFO, STAGE, MAX_STAGE, INFO_BINARY
+FROM information_schema.processlist WHERE id = @con3_id;
+KILL CONNECTION @con2_id;
+
+--connection con3
+--echo # Connection con2 frees the backup lock held by getting killed.
+--echo # So connection con3 gets the backup lock.
+--reap
+BACKUP STAGE END;
+disconnect con3;
+--connection default
+
+CREATE TABLE t_permanent_innodb (col1 INT) ENGINE = InnoDB;
+INSERT INTO t_permanent_innodb SET col1 = 1;
+CREATE TABLE t_permanent_myisam (col1 INT) ENGINE = MyISAM;
+INSERT INTO t_permanent_myisam SET col1 = 1;
+
+# backup : Try the BACKUP STAGE sequence
+# con11  : Try DDL + DML with AUTOCOMMIT = 0
+# con12  : Try DML with AUTOCOMMIT = 1
+--connect(backup,localhost,root,,)
+--connect(con11,localhost,root,,)
+SET AUTOCOMMIT = 0;
+set session lock_wait_timeout=1;
+--connect(con12,localhost,root,,)
+SET AUTOCOMMIT = 1;
+
+--echo # Between (connection default) BACKUP STAGE START and FLUSH
+--echo # no restrictions for concurrent sessions regarding DDL or DML
+--echo # affecting transactional/non transactional permanent tables.
+
+--connection backup
+BACKUP STAGE START;
+--connection con11
+UPDATE t_permanent_innodb SET col1 = 2;
+UPDATE t_permanent_myisam SET col1 = 2;
+SELECT COUNT(*) FROM t_permanent_innodb;
+HANDLER t_permanent_innodb OPEN;
+HANDLER t_permanent_innodb READ FIRST;
+HANDLER t_permanent_innodb CLOSE;
+SELECT COUNT(*) FROM t_permanent_myisam;
+HANDLER t_permanent_myisam OPEN;
+HANDLER t_permanent_myisam READ FIRST;
+HANDLER t_permanent_myisam CLOSE;
+CREATE TABLE t_con1_innodb (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t_con1_myisam (col1 INT) ENGINE = InnoDB;
+ALTER TABLE t_permanent_innodb ADD COLUMN col2 INT;
+ALTER TABLE t_permanent_myisam ADD COLUMN col2 INT;
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_innodb;
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_myisam;
+--connection con12
+UPDATE t_permanent_innodb SET col1 = 3;
+UPDATE t_permanent_myisam SET col1 = 3;
+
+--echo # Between (connection default) BACKUP STAGE FLUSH and BLOCK_DDL
+--echo # concurrent sessions
+--echo # - can change transactional permanent tables with DDL and DML
+--echo # - can run DROP/CREATE transactional/non transactional TABLE
+--echo # - cannot modify non transactional permanent tables with DDL or DML
+
+--connection backup
+BACKUP STAGE FLUSH;
+--connection con11
+UPDATE t_permanent_innodb SET col1 = 4;
+--error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT lock_wait_timeout=0 FOR UPDATE t_permanent_myisam SET col1 = 4;
+SELECT COUNT(*) FROM t_permanent_innodb;
+HANDLER t_permanent_innodb OPEN;
+HANDLER t_permanent_innodb READ FIRST;
+HANDLER t_permanent_innodb CLOSE;
+SELECT COUNT(*) FROM t_permanent_myisam;
+HANDLER t_permanent_myisam OPEN;
+HANDLER t_permanent_myisam READ FIRST;
+HANDLER t_permanent_myisam CLOSE;
+DROP TABLE t_con1_innodb;
+DROP TABLE t_con1_myisam;
+CREATE TABLE t_con1_innodb (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t_con1_myisam (col1 INT) ENGINE = InnoDB;
+ALTER TABLE t_permanent_innodb ADD COLUMN col3 INT;
+--error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT lock_wait_timeout=0 FOR ALTER TABLE t_permanent_myisam ADD COLUMN col3 INT;
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_innodb;
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_myisam;
+--connection con12
+UPDATE t_permanent_innodb SET col1 = 5;
+
+
+--echo # Between (connection default) BACKUP STAGE BLOCK_DDL and BLOCK_COMMIT
+--echo # concurrent sessions
+--echo # - can change transactional permanent tables with DML
+--echo # - cannot run DDL
+--echo # - cannot change non transactional permanent tables with DML
+
+--connection backup
+BACKUP STAGE BLOCK_DDL;
+--connection con11
+
+UPDATE t_permanent_innodb SET col1 = 6;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t_permanent_myisam SET col1 = 6;
+SELECT COUNT(*) FROM t_permanent_innodb;
+HANDLER t_permanent_innodb OPEN;
+HANDLER t_permanent_innodb READ FIRST;
+HANDLER t_permanent_innodb CLOSE;
+SELECT COUNT(*) FROM t_permanent_myisam;
+HANDLER t_permanent_myisam OPEN;
+HANDLER t_permanent_myisam READ FIRST;
+HANDLER t_permanent_myisam CLOSE;
+--error ER_LOCK_WAIT_TIMEOUT
+DROP TABLE t_con1_innodb;
+--error ER_LOCK_WAIT_TIMEOUT
+CREATE TABLE throw_away (col1 INT) ENGINE = InnoDB;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t_permanent_innodb ADD COLUMN col4 INT;
+--error ER_LOCK_WAIT_TIMEOUT
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_innodb;
+--error ER_LOCK_WAIT_TIMEOUT
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_myisam;
+--connection con12
+UPDATE t_permanent_innodb SET col1 = 7;
+
+
+--echo # Between (connection default) BACKUP STAGE BLOCK_COMMIT and END
+--echo # concurrent sessions
+--echo # - can change transactional permanent tables with DML
+--echo # - cannot run DDL
+--echo # - cannot change non transactional permanent tables with DML
+
+--connection backup
+BACKUP STAGE BLOCK_COMMIT;
+--connection con11
+UPDATE t_permanent_innodb SET col1 = 8;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t_permanent_myisam SET col1 = 8;
+SELECT COUNT(*) FROM t_permanent_innodb;
+HANDLER t_permanent_innodb OPEN;
+HANDLER t_permanent_innodb READ FIRST;
+HANDLER t_permanent_innodb CLOSE;
+SELECT COUNT(*) FROM t_permanent_myisam;
+HANDLER t_permanent_myisam OPEN;
+HANDLER t_permanent_myisam READ FIRST;
+HANDLER t_permanent_myisam CLOSE;
+--error ER_LOCK_WAIT_TIMEOUT
+DROP TABLE t_con1_innodb;
+--error ER_LOCK_WAIT_TIMEOUT
+DROP TABLE t_con1_myisam;
+--connection con12
+--error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT lock_wait_timeout=1 FOR UPDATE t_permanent_innodb SET col1 = 9;
+
+--connection backup
+BACKUP STAGE END;
+--connection con11
+COMMIT;
+SELECT * FROM t_permanent_innodb ORDER BY col1;
+SELECT * FROM t_permanent_myisam ORDER BY col1;
+SET AUTOCOMMIT = 0;
+SET GLOBAL tx_read_only = 1;
+--connection con12
+BACKUP STAGE START;
+BACKUP STAGE END;
+SET GLOBAL tx_read_only = 0;
+DROP VIEW v_some_view;
+DROP TABLE t_con1_innodb;
+DROP TABLE t_con1_myisam;
+
+--echo # Connection backup holds the backup log and is on some stage.
+--echo # Connection con11 tries to LOCK TABLEs or to set read_only.
+
+--connection backup
+BACKUP STAGE START;
+--connection con11
+--echo # Between BACKUP STAGE START and FLUSH:
+--echo # No restrictions for other connection around LOCK TABLES or read-only.
+LOCK TABLES t_permanent_innodb READ;
+LOCK TABLES t_permanent_myisam READ;
+LOCK TABLES t_permanent_innodb WRITE;
+LOCK TABLES t_permanent_myisam WRITE;
+UNLOCK TABLES;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+--connection backup
+BACKUP STAGE FLUSH;
+--connection con11
+--echo # Between BACKUP STAGE FLUSH and BLOCK_COMMIT:
+--echo # Connection con11 not holding the backup lock cannot
+--echo # LOCK WRITE non transactional table.
+LOCK TABLES t_permanent_innodb READ;
+LOCK TABLES t_permanent_myisam READ;
+LOCK TABLES t_permanent_innodb WRITE;
+--error ER_LOCK_WAIT_TIMEOUT
+LOCK TABLES t_permanent_myisam WRITE;
+UNLOCK TABLES;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+--connection backup
+BACKUP STAGE BLOCK_DDL;
+--connection con11
+--echo # Between BACKUP STAGE FLUSH and BLOCK_COMMIT:
+--echo # Connection con11 not holding the backup lock cannot
+--echo # LOCK WRITE transactional or non transactional table.
+LOCK TABLES t_permanent_innodb READ;
+LOCK TABLES t_permanent_myisam READ;
+--error ER_LOCK_WAIT_TIMEOUT
+LOCK TABLES t_permanent_innodb WRITE;
+--error ER_LOCK_WAIT_TIMEOUT
+LOCK TABLES t_permanent_myisam WRITE;
+UNLOCK TABLES;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+--connection backup
+BACKUP STAGE BLOCK_COMMIT;
+--connection con11
+--echo # Between BACKUP BLOCK_COMMIT FLUSH and END:
+--echo # Connection con11 not holding the backup lock cannot
+--echo # LOCK WRITE transactional or non transactional table.
+LOCK TABLES t_permanent_innodb READ;
+LOCK TABLES t_permanent_myisam READ;
+--error ER_LOCK_WAIT_TIMEOUT
+LOCK TABLES t_permanent_innodb WRITE;
+--error ER_LOCK_WAIT_TIMEOUT
+LOCK TABLES t_permanent_myisam WRITE;
+UNLOCK TABLES;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+--connection backup
+BACKUP STAGE END;
+
+DROP TABLE t_permanent_innodb;
+DROP TABLE t_permanent_myisam;
+
+--echo #
+--echo # Log tables
+--echo #
+
+--connection backup
+
+SET @old_general_log = @@general_log;
+SET @old_slow_query_log = @@slow_query_log;
+SET @old_log_output = @@log_output;
+
+SET GLOBAL log_output = 'TABLE';
+SET GLOBAL general_log = ON;
+SET GLOBAL slow_query_log = ON;
+
+
+--connection con11
+SET @old_long_query_time = @@SESSION.long_query_time;
+SET SESSION long_query_time = 0;
+
+--connection backup
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+
+--connection con11
+SELECT 1;
+
+--connection backup
+SELECT 1;
+
+--connection con11
+SET SESSION long_query_time = @old_long_query_time;
+
+--connection backup
+BACKUP STAGE END;
+
+SET GLOBAL log_output = @old_log_output;
+SET GLOBAL slow_query_log = @old_slow_query_log;
+SET GLOBAL general_log = @old_general_log;
+
+--echo #-----------------------------------------------------------------------
+--echo # Cleanup
+--echo #-----------------------------------------------------------------------
+
+--replace_result $old_lock_wait_timeout <old_lock_wait_timeout>
+eval
+SET GLOBAL lock_wait_timeout = $old_lock_wait_timeout;
+
+--disconnect con2
+--disconnect con11
+--disconnect con12
+--disconnect backup
+
+--connection default
+--source include/wait_until_count_sessions.inc

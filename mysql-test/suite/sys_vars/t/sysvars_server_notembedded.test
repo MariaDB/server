@@ -1,0 +1,2 @@
+source include/not_embedded.inc;
+source inc/sysvars_server.inc;

@@ -1,0 +1,39 @@
+# Copyright(C) 2012 Kentoku SHIBA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (c1 int primary key, c2 decimal(65,30), c3 decimal(65,30), unique key uk1(c2,c3));
+insert into t1 values(1,123.456,0.000000000000000000000000000001);
+insert into t1 values(2,-123.456,123.456);
+insert into t1 values(3,98765432109876543210987654321098765.432109876543210987654321098765,-123.456);
+insert into t1 values(4,-98765432109876543210987654321098765.432109876543210987654321098765,98765432109876543210987654321098765.432109876543210987654321098765);
+insert into t1 values(5,0.000000000000000000000000000001,-98765432109876543210987654321098765.432109876543210987654321098765);
+select c1, c2, c3 from t1 force index(uk1) where c2 = -98765432109876543210987654321098765.432109876543210987654321098765 and c3 = 98765432109876543210987654321098765.432109876543210987654321098765;
+select c1, c2, c3 from t1 force index(uk1) order by c2, c3;
+select c1, c2, c3 from t1 force index(uk1) order by c2 desc, c3 desc;
+select c2, c3 from t1 force index(uk1) order by c2, c3;
+--error ER_DUP_ENTRY
+insert into t1 values(6,123.456,0.000000000000000000000000000001);
+delete from t1 where c1 = 1;
+insert into t1 values(1,123.456,0.000000000000000000000000000001);
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

@@ -1,0 +1,36 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+create table t1 (c1 int primary key, c2 text, fulltext index (c2));
+insert into t1 values(10, "aa ii uu ee");
+insert into t1 values(20, "ka ki ku ke");
+insert into t1 values(30, "sa si su se");
+
+select * from t1;
+select * from t1 where match(c2) against("ki");
+delete from t1 where c1=20;
+select * from t1;
+select * from t1 where match(c2) against("ki");
+
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

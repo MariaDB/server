@@ -1,0 +1,244 @@
+##################################################################
+# Author: Giuseppe                                               #
+# Date: 2006-12-20                                               #
+# Purpose: To test that event effects are replicated.            #
+##################################################################
+
+--source include/master-slave.inc
+
+SET @old_event_scheduler = @@global.event_scheduler;
+set global event_scheduler=1;
+
+# first, we need a table to record something from an event
+
+eval CREATE TABLE `t1` (
+  `id` INT(10) UNSIGNED NOT NULL,
+  `c` VARCHAR(50) NOT NULL,
+  `ts` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) DEFAULT CHARSET=utf8;
+
+INSERT INTO t1 (id, c) VALUES (1, 'manually');
+
+# We create the event so that it inserts exactly 1 row in the table
+# A recuring event is used so that we can be sure the event will
+# fire regardless of timing delays on the server. Otherwise, it is
+# possible for the event to timeout before it has inserted a row.
+--echo "Creating event test.justonce on the master"
+CREATE EVENT test.justonce ON SCHEDULE EVERY 2 SECOND DO
+  INSERT IGNORE INTO t1 (id, c) VALUES (2, 'from justonce');
+
+# Show the event is alive and present on master
+--echo "Checking event is active on master"
+SELECT db, name, status, originator FROM mysql.event WHERE db = 'test' AND name = 'justonce';
+
+# Wait until event has fired. We know this because t1 will contain
+# the row from the event.
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM t1 WHERE c = 'from justonce';
+--source include/wait_condition.inc
+
+# check that table t1 contains something
+--echo "Checking event data on the master"
+let $events_done=`SELECT count(*)  FROM t1 id`;
+--disable_query_log
+eval SELECT $events_done > 0 as ONE;
+--enable_query_log
+
+sync_slave_with_master;
+
+--echo "Checking event data on the slave"
+--disable_query_log
+eval SELECT count(*) - $events_done as ZERO FROM t1 id;
+--enable_query_log
+
+--echo "Checking event is inactive on slave"
+SELECT db, name, status, originator FROM mysql.event WHERE db = 'test' AND name = 'justonce';
+
+# Create an event on the slave and check to see what the originator is.
+--echo "Dropping event test.slave_once on the slave"
+--disable_warnings
+DROP EVENT IF EXISTS test.slave_once;
+--enable_warnings
+
+# Create an event on slave and check its state. An event shouldn't be executed
+# so set start time in 1 hour.
+CREATE EVENT test.slave_once ON SCHEDULE EVERY 5 MINUTE STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO
+  INSERT IGNORE INTO t1(id, c) VALUES (3, 'from slave_once');
+
+--echo "Checking event status on the slave for originator value = slave's server_id"
+SELECT db, name, status, originator FROM mysql.event WHERE db = 'test' AND name = 'slave_once';
+
+--echo "Dropping event test.slave_once on the slave"
+--disable_warnings
+DROP EVENT IF EXISTS test.slave_once;
+--enable_warnings
+
+connection master;
+
+# BUG#20384 - disable events on slave
+--echo "Dropping event test.justonce on the master"
+--disable_warnings
+DROP EVENT IF EXISTS test.justonce;
+--enable_warnings
+
+# Create an event on master and check its state on slave. An event shouldn't be executed
+# so set start time in 1 hour. Check that changes of event statement replicated to slave
+
+--echo "Creating event test.er on the master"
+CREATE EVENT test.er ON SCHEDULE EVERY 3 SECOND STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO
+  INSERT IGNORE INTO t1(id, c) VALUES (4, 'from er');
+
+--echo "Checking event status on the master"
+SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
+
+sync_slave_with_master;
+
+--echo "Checking event status on the slave"
+SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
+
+connection master;
+--echo "Altering event test.er on the master"
+ALTER EVENT test.er ON SCHEDULE EVERY 5 SECOND STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO
+  INSERT IGNORE INTO t1(id, c) VALUES (5, 'from alter er');
+
+--echo "Checking event status on the master"
+SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
+
+sync_slave_with_master;
+
+--echo "Checking event status on the slave"
+SELECT db, name, status, originator, body FROM mysql.event WHERE db = 'test' AND name = 'er';
+
+connection master;
+--echo "Dropping event test.er on the master"
+DROP EVENT test.er;
+
+--echo "Checking event status on the master"
+SELECT db, name, status, originator FROM mysql.event WHERE db = 'test';
+
+--disable_info
+
+sync_slave_with_master;
+
+--echo "Checking event status on the slave"
+SELECT db, name, status, originator FROM mysql.event WHERE db = 'test';
+
+# test the DISABLE ON SLAVE for setting event SLAVESIDE_DISABLED as status
+# on CREATE EVENT
+
+# Create an event on slave and check its status. An event shouldn't be executed
+# so set start time in 1 hour.
+
+--echo "Creating event test.slave_terminate on the slave"
+CREATE EVENT test.slave_terminate ON SCHEDULE EVERY 3 SECOND STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO
+  INSERT IGNORE INTO t1(id, c) VALUES (6, 'from slave_terminate');
+
+--echo "Checking event status on the slave"
+SELECT db, name, status, originator FROM mysql.event WHERE db = 'test' AND name = 'slave_terminate';
+
+--echo "Dropping event test.slave_terminate on the slave"
+DROP EVENT test.slave_terminate;
+
+--echo "Creating event test.slave_terminate with DISABLE ON SLAVE on the slave"
+CREATE EVENT test.slave_terminate ON SCHEDULE EVERY 3 SECOND DISABLE ON SLAVE DO
+  INSERT IGNORE INTO t1(c) VALUES (7, 'from slave_terminate');
+
+--echo "Checking event status on the slave"
+SELECT db, name, status, originator FROM mysql.event WHERE db = 'test' AND name = 'slave_terminate';
+
+--echo "Dropping event test.slave_terminate on the slave"
+DROP EVENT test.slave_terminate;
+
+--echo "Cleanup"
+
+connection master;
+DROP TABLE t1;
+sync_slave_with_master;
+connection master;
+
+#
+# Bug #28953  	Using events in a replication let the slave crash.
+#
+
+CREATE TABLE t28953 (a INT);
+
+DELIMITER |;
+CREATE EVENT event1 ON SCHEDULE EVERY 1 YEAR
+DO BEGIN
+	select * from t28953;
+END;|
+DELIMITER ;|
+
+ALTER EVENT event1 RENAME TO event2;
+
+sync_slave_with_master;
+
+connection master;
+
+DROP EVENT event2;
+
+#
+# BUG#44331
+# This test verifies if the definer is consistent between master and slave,
+# when the event is created without the DEFINER clause set explicitly or the
+# DEFINER is set to CURRENT_USER
+#
+CREATE TABLE test.t1(details CHAR(30));
+
+CREATE EVENT /*!50000 event44331_1 */
+  ON SCHEDULE AT CURRENT_TIMESTAMP
+  ON COMPLETION PRESERVE DISABLE
+  DO INSERT INTO test.t1 VALUES('event event44331_1 fired - no definer');
+
+CREATE DEFINER=CURRENT_USER /*!50000 EVENT event44331_2 */
+  ON SCHEDULE AT CURRENT_TIMESTAMP
+  ON COMPLETION PRESERVE DISABLE
+  DO INSERT INTO test.t1 VALUES('event event44331_2 fired - DEFINER=CURRENT_USER');
+
+CREATE DEFINER=CURRENT_USER() EVENT event44331_3
+  ON SCHEDULE AT CURRENT_TIMESTAMP
+  ON COMPLETION PRESERVE DISABLE
+  DO INSERT INTO test.t1 VALUES('event event44331_3 fired - DEFINER=CURRENT_USER() function');
+
+DELIMITER |;
+CREATE /*!50000 DEFINER='user44331' */ EVENT event44331_4
+  ON SCHEDULE AT CURRENT_TIMESTAMP
+  ON COMPLETION PRESERVE DISABLE
+  DO INSERT INTO test.t1 VALUES('event event44331_4 fired - DEFINER=user1');
+# Test for bug#50095 Multi-statement including CREATE EVENT causes rotten
+# binlog entry
+  SELECT 'ABC';
+  SELECT '123'|
+DELIMITER ;|
+
+select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
+  where EVENT_NAME='event44331_1';
+select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
+  where EVENT_NAME='event44331_2';
+select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
+  where EVENT_NAME='event44331_3';
+select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
+  where EVENT_NAME='event44331_4';
+
+sync_slave_with_master;
+connection slave;
+select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
+  where EVENT_NAME='event44331_1';
+select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
+  where EVENT_NAME='event44331_2';
+select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
+  where EVENT_NAME='event44331_3';
+select EVENT_SCHEMA, EVENT_NAME, DEFINER from information_schema.events
+  where EVENT_NAME='event44331_4';
+
+connection master;
+SET @@global.event_scheduler= @old_event_scheduler;
+DROP TABLE t28953;
+DROP TABLE t1;
+DROP EVENT event44331_1;
+DROP EVENT event44331_2;
+DROP EVENT event44331_3;
+DROP EVENT event44331_4;
+sync_slave_with_master;
+--source include/rpl_end.inc

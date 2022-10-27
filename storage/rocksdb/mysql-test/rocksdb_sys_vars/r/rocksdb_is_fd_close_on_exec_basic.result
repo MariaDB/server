@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_IS_FD_CLOSE_ON_EXEC;
+SELECT @start_global_value;
+@start_global_value
+1
+"Trying to set variable @@global.ROCKSDB_IS_FD_CLOSE_ON_EXEC to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_IS_FD_CLOSE_ON_EXEC   = 444;
+ERROR HY000: Variable 'rocksdb_is_fd_close_on_exec' is a read only variable

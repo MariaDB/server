@@ -1,0 +1,29 @@
+DROP TABLE IF EXISTS timestamps;
+CREATE TABLE timestamps (
+id INT PRIMARY KEY AUTO_INCREMENT,
+create_dt DATE
+) DEFAULT CHARSET UTF8;
+SHOW CREATE TABLE timestamps;
+Table	Create Table
+timestamps	CREATE TABLE `timestamps` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `create_dt` date DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8
+SET sql_mode = '';
+INSERT INTO timestamps (create_dt) VALUES ("2012-00-01");
+Warnings:
+Warning	1265	Data truncated for column 'create_dt' at row 1
+INSERT INTO timestamps (create_dt) VALUES ("2012-01-00");
+Warnings:
+Warning	1265	Data truncated for column 'create_dt' at row 1
+SET sql_mode = DEFAULT;
+SELECT * FROM timestamps;
+id	create_dt
+1	2012-01-01
+2	2012-01-01
+SELECT * FROM timestamps WHERE create_dt = "2012-01-01";
+id	create_dt
+1	2012-01-01
+2	2012-01-01
+DROP TABLE timestamps;

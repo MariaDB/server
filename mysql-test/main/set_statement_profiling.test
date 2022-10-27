@@ -1,0 +1,9 @@
+source include/have_profiling.inc;
+
+#
+# Prohibited Variables
+#
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement profiling=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement profiling_history_size=default for select 1;

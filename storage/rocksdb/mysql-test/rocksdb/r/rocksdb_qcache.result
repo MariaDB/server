@@ -1,0 +1,45 @@
+set @save_query_cache_type=@@global.query_cache_type;
+set @save_query_cache_size=@@global.query_cache_size;
+set @@global.query_cache_type=1;
+set @@global.query_cache_size=1024*1024;
+create table t1 (pk int primary key, c char(8)) engine=RocksDB;
+insert into t1 values (1,'new'),(2,'new');
+select * from t1;
+pk	c
+1	new
+2	new
+connect  con1,localhost,root,,;
+update t1 set c = 'updated';
+connection default;
+flush status;
+show status like 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	0
+show global status like 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	0
+select * from t1;
+pk	c
+1	updated
+2	updated
+select sql_no_cache * from t1;
+pk	c
+1	updated
+2	updated
+select * from t1 where pk = 1;
+pk	c
+1	updated
+show status like 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	0
+# MariaDB: Qcache_not_cached is not incremented for select sql_no_cache queries
+#          so the following query produces 2, not 3:
+show status like 'Qcache_not_cached';
+Variable_name	Value
+Qcache_not_cached	2
+show global status like 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	0
+drop table t1;
+set @@global.query_cache_type=@save_query_cache_type;
+set @@global.query_cache_size=@save_query_cache_size;

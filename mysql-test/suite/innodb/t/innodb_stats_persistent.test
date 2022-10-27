@@ -1,0 +1,87 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+SET @saved_include_delete_marked = @@GLOBAL.innodb_stats_include_delete_marked;
+SET GLOBAL innodb_stats_include_delete_marked = ON;
+SET @saved_traditional = @@GLOBAL.innodb_stats_traditional;
+SET GLOBAL innodb_stats_traditional=false;
+SET @saved_modified_counter = @@GLOBAL.innodb_stats_modified_counter;
+SET GLOBAL innodb_stats_modified_counter=1;
+
+CREATE TABLE t1 (id SERIAL, val INT UNSIGNED NOT NULL, KEY(val))
+ENGINE=INNODB STATS_PERSISTENT=1,STATS_AUTO_RECALC=1;
+CREATE TABLE t2 LIKE t1;
+
+INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
+ANALYZE TABLE t1;
+
+connect(con1, localhost, root,,);
+START TRANSACTION;
+DELETE FROM t1;
+send SELECT COUNT(*) FROM t1;
+
+connection default;
+--echo # With innodb_stats_include_delete_marked=ON,
+--echo # DELETE must not affect statistics before COMMIT.
+EXPLAIN SELECT * FROM t1 WHERE val=4;
+
+connection con1;
+reap;
+ROLLBACK;
+SELECT COUNT(*) FROM t1;
+EXPLAIN SELECT * FROM t1 WHERE val=4;
+
+BEGIN;
+DELETE FROM t1;
+COMMIT;
+SELECT COUNT(*) FROM t1;
+
+connection default;
+BEGIN;
+INSERT INTO t2 (val) SELECT 4 FROM seq_1_to_16;
+
+--echo # The INSERT will show up before COMMIT.
+EXPLAIN SELECT * FROM t2 WHERE val=4;
+SELECT COUNT(*) FROM t2;
+--echo # The ROLLBACK of the INSERT must affect the statistics.
+ROLLBACK;
+SELECT COUNT(*) FROM t2;
+
+connection con1;
+EXPLAIN SELECT * FROM t2 WHERE val=4;
+--source include/wait_all_purged.inc
+--echo # After COMMIT and purge, the DELETE must show up.
+EXPLAIN SELECT * FROM t1 WHERE val=4;
+
+SET GLOBAL innodb_stats_include_delete_marked = OFF;
+BEGIN;
+INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
+EXPLAIN SELECT * FROM t1 WHERE val=4;
+ROLLBACK;
+EXPLAIN SELECT * FROM t1 WHERE val=4;
+BEGIN;
+INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
+COMMIT;
+EXPLAIN SELECT * FROM t1 WHERE val=4;
+BEGIN;
+DELETE FROM t1;
+SELECT COUNT(*) FROM t1;
+--echo # With innodb_stats_include_delete_marked=OFF,
+--echo # DELETE must affect statistics even before COMMIT.
+--echo # However, if there was a WHERE condition,
+--echo # ha_innobase::records_in_range() would count the delete-marked records.
+EXPLAIN SELECT * FROM t1;
+ROLLBACK;
+EXPLAIN SELECT * FROM t1;
+SELECT COUNT(*) FROM t1;
+disconnect con1;
+
+connection default;
+
+DROP TABLE t1,t2;
+SET GLOBAL innodb_stats_include_delete_marked = @saved_include_delete_marked;
+SET GLOBAL innodb_stats_traditional = @saved_traditional;
+SET GLOBAL innodb_stats_modified_counter = @saved_modified_counter;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

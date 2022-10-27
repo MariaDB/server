@@ -1,0 +1,7 @@
+#
+# MDEV-13715 ha_partition::engine_name() segfault fix
+#
+create sequence s;
+alter table s partition by hash(start_value) partitions 2;
+ERROR HY000: Table storage engine 'partition' does not support the create option 'SEQUENCE'
+drop sequence s;

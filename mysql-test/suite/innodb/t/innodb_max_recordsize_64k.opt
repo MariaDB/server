@@ -1,0 +1,4 @@
+--innodb-page-size=64K
+--innodb_buffer_pool_size=32M
+--skip-innodb-stats-persistent
+--innodb-sys-tablestats

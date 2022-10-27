@@ -1,0 +1,317 @@
+--source include/have_rocksdb.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection server_2
+--source include/stop_slave.inc
+
+# Set GTID cleanup limit high enough that cleanup will not run and we
+# can rely on consistent table output in .result.
+--let $old_gtid_cleanup_batch_size=`SELECT @@GLOBAL.gtid_cleanup_batch_size`
+SET GLOBAL gtid_cleanup_batch_size = 999999999;
+
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET sql_log_bin=0;
+CREATE TABLE mysql.gtid_slave_pos_innodb LIKE mysql.gtid_slave_pos;
+ALTER TABLE mysql.gtid_slave_pos_innodb ENGINE=InnoDB;
+CREATE TABLE mysql.gtid_slave_pos_rocksdb LIKE mysql.gtid_slave_pos;
+ALTER TABLE mysql.gtid_slave_pos_rocksdb ENGINE=rocksdb;
+CREATE TABLE mysql.gtid_slave_pos_myisam_redundant LIKE mysql.gtid_slave_pos;
+CREATE TABLE mysql.gtid_slave_pos_innodb_redundant LIKE mysql.gtid_slave_pos;
+ALTER TABLE mysql.gtid_slave_pos_innodb_redundant ENGINE=InnoDB;
+call mtr.add_suppression("Ignoring redundant table.*since.*has the same storage engine");
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t3 VALUES (1);
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+SELECT * FROM mysql.gtid_slave_pos ORDER BY sub_id;
+SELECT * FROM ( SELECT * FROM mysql.gtid_slave_pos_innodb
+      UNION ALL SELECT * FROM mysql.gtid_slave_pos_innodb_redundant) inner_select
+ ORDER BY sub_id;
+SELECT * FROM mysql.gtid_slave_pos_rocksdb ORDER BY sub_id;
+
+
+# Test status variable Transactions_multi_engine.
+--connection server_2
+FLUSH NO_WRITE_TO_BINLOG STATUS;
+SET sql_log_bin=0;
+SHOW STATUS LIKE "Transactions_multi_engine";
+INSERT INTO t1 VALUES (100);
+SHOW STATUS LIKE "Transactions_multi_engine";
+INSERT INTO t2 VALUES (101);
+SHOW STATUS LIKE "Transactions_multi_engine";
+INSERT INTO t3 VALUES (101);
+SHOW STATUS LIKE "Transactions_multi_engine";
+BEGIN;
+INSERT INTO t3 VALUES (102);
+INSERT INTO t2 VALUES (103);
+COMMIT;
+SHOW STATUS LIKE "Transactions_multi_engine";
+BEGIN;
+INSERT INTO t2 VALUES (104);
+INSERT INTO t3 VALUES (105);
+COMMIT;
+SHOW STATUS LIKE "Transactions_multi_engine";
+UPDATE t2, t3 SET t2.a=106, t3.a=107 WHERE t2.a=104 AND t3.a=105;
+SHOW STATUS LIKE "Transactions_multi_engine";
+# Try again with binlog enabled.
+SET sql_log_bin=1;
+INSERT INTO t1 VALUES (200);
+SHOW STATUS LIKE "Transactions_multi_engine";
+INSERT INTO t2 VALUES (201);
+SHOW STATUS LIKE "Transactions_multi_engine";
+INSERT INTO t3 VALUES (201);
+SHOW STATUS LIKE "Transactions_multi_engine";
+BEGIN;
+INSERT INTO t3 VALUES (202);
+INSERT INTO t2 VALUES (203);
+COMMIT;
+SHOW STATUS LIKE "Transactions_multi_engine";
+BEGIN;
+INSERT INTO t2 VALUES (204);
+INSERT INTO t3 VALUES (205);
+COMMIT;
+SHOW STATUS LIKE "Transactions_multi_engine";
+UPDATE t2, t3 SET t2.a=206, t3.a=207 WHERE t2.a=204 AND t3.a=205;
+SHOW STATUS LIKE "Transactions_multi_engine";
+
+DELETE FROM t1 WHERE a >= 100;
+DELETE FROM t2 WHERE a >= 100;
+DELETE FROM t3 WHERE a >= 100;
+
+
+# Create a bunch more GTIDs in mysql.gtid_slave_pos* tables to test with.
+--connection server_1
+--disable_query_log
+let $i=10;
+while ($i) {
+  eval INSERT INTO t1 VALUES (300+$i);
+  eval INSERT INTO t2 VALUES (300+$i);
+  eval INSERT INTO t3 VALUES (300+$i);
+  dec $i;
+}
+--enable_query_log
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+# Check that we have many rows in mysql.gtid_slave_pos now (since
+# @@gtid_cleanup_batch_size was set to a huge value). No need to check
+# for an exact number, since that will require changing .result if
+# anything changes prior to this point, and we just need to know that
+# we have still have some data in the tables to make the following
+# test effective.
+SELECT COUNT(*)>=10 FROM mysql.gtid_slave_pos;
+SELECT COUNT(*)>=10 FROM ( SELECT * FROM mysql.gtid_slave_pos_innodb
+      UNION ALL SELECT * FROM mysql.gtid_slave_pos_innodb_redundant) inner_select;
+SELECT COUNT(*)>=10 FROM mysql.gtid_slave_pos_rocksdb;
+
+# Check that old GTID rows will be deleted when batch delete size is
+# set reasonably. Old row deletion is not 100% deterministic (by design), so
+# we must wait for it to occur, but it should occur eventually.
+SET GLOBAL gtid_cleanup_batch_size = 3;
+let $i=40;
+--disable_query_log
+--let $keep_include_silent=1
+while ($i) {
+  let N=`SELECT 1+($i MOD 3)`;
+  --connection server_1
+  eval UPDATE t$N SET a=a+1 WHERE a=(SELECT MAX(a) FROM t$N);
+  --source include/save_master_gtid.inc
+  --connection server_2
+  --source include/sync_with_master_gtid.inc
+  let $j=50;
+  while ($j) {
+    let $is_done=`SELECT SUM(a)=1 FROM (
+	 SELECT COUNT(*) AS a FROM mysql.gtid_slave_pos
+	 UNION ALL
+	 SELECT COUNT(*) AS a FROM ( SELECT * FROM mysql.gtid_slave_pos_innodb
+	       UNION ALL SELECT * FROM mysql.gtid_slave_pos_innodb_redundant) inner_select
+	 UNION ALL
+	 SELECT COUNT(*) AS a FROM mysql.gtid_slave_pos_rocksdb) outer_select`;
+    if ($is_done) {
+      let $j=0;
+    }
+    if (!$is_done) {
+      real_sleep 0.1;
+      dec $j;
+    }
+  }
+  dec $i;
+  if ($is_done) {
+    let $i=0;
+  }
+}
+--enable_query_log
+--let $keep_include_silent=0
+if (!$is_done) {
+  --echo Timed out waiting for mysql.gtid_slave_pos* tables to be cleaned up
+}
+
+--disable_query_log
+DELETE FROM t1 WHERE a >= 100;
+DELETE FROM t2 WHERE a >= 100;
+DELETE FROM t3 WHERE a >= 100;
+--enable_query_log
+
+
+# Test status variables Rpl_transactions_multi_engine and Transactions_gtid_foreign_engine.
+# Have mysql.gtid_slave_pos* for myisam and innodb but not rocksdb.
+--connection server_2
+--source include/stop_slave.inc
+SET sql_log_bin=0;
+DROP TABLE mysql.gtid_slave_pos_rocksdb;
+DROP TABLE mysql.gtid_slave_pos_myisam_redundant;
+DROP TABLE mysql.gtid_slave_pos_innodb_redundant;
+SET sql_log_bin=1;
+FLUSH NO_WRITE_TO_BINLOG STATUS;
+--source include/start_slave.inc
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+INSERT INTO t1 VALUES (100);
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+INSERT INTO t2 VALUES (101);
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+INSERT INTO t3 VALUES (101);
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+BEGIN;
+INSERT INTO t3 VALUES (102);
+INSERT INTO t2 VALUES (103);
+COMMIT;
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+BEGIN;
+INSERT INTO t2 VALUES (104);
+INSERT INTO t3 VALUES (105);
+COMMIT;
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+UPDATE t2, t3 SET t2.a=106, t3.a=107 WHERE t2.a=104 AND t3.a=105;
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+# Now the same thing, but without binlogging on the slave.
+--connection server_2
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+# Restart without binary log.
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-log-bin
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+SHOW VARIABLES LIKE 'log_bin';
+--source include/start_slave.inc
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+INSERT INTO t1 VALUES (200);
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+INSERT INTO t2 VALUES (201);
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+INSERT INTO t3 VALUES (201);
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+BEGIN;
+INSERT INTO t3 VALUES (202);
+INSERT INTO t2 VALUES (203);
+COMMIT;
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+BEGIN;
+INSERT INTO t2 VALUES (204);
+INSERT INTO t3 VALUES (205);
+COMMIT;
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+--connection server_1
+UPDATE t2, t3 SET t2.a=206, t3.a=207 WHERE t2.a=204 AND t3.a=205;
+--save_master_pos
+--connection server_2
+--sync_with_master
+SHOW STATUS LIKE "%transactions%engine";
+
+
+--connection server_2
+SET sql_log_bin=0;
+DROP TABLE mysql.gtid_slave_pos_innodb;
+SET sql_log_bin=1;
+--disable_query_log
+eval SET GLOBAL gtid_cleanup_batch_size = $old_gtid_cleanup_batch_size;
+--enable_query_log
+
+--connection server_1
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+
+--source include/rpl_end.inc

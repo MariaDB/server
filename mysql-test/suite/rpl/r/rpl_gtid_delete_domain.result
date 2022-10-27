@@ -1,0 +1,82 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET @@SESSION.gtid_domain_id=0;
+CREATE TABLE t (a INT);
+connection slave;
+connection slave;
+call mtr.add_suppression("connecting slave requested to start from.*which is not in the master's binlog");
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+connection master;
+SET @@SESSION.gtid_domain_id=11;
+SET @@SESSION.server_id=111;
+SET @@SESSION.gtid_seq_no=1;
+INSERT INTO t SET a=1;
+connection slave;
+SET @save.gtid_slave_pos=@@global.gtid_slave_pos;
+SET @@global.gtid_slave_pos=concat(@@global.gtid_slave_pos,  ",", 11, "-", 111, "-", 1 + 1);
+Warnings:
+Warning	1947	Specified GTID 0-1-1 conflicts with the binary log which contains a more recent GTID 0-2-2. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_error.inc [errno=1236]
+connection master;
+FLUSH BINARY LOGS;
+include/wait_for_purge.inc "master-bin.000002"
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(11);
+SELECT @@global.gtid_binlog_pos, @@global.gtid_binlog_state;
+@@global.gtid_binlog_pos	@@global.gtid_binlog_state
+0-1-1	0-1-1
+connection slave;
+SELECT @@global.gtid_slave_pos;
+@@global.gtid_slave_pos
+0-1-1,11-111-2
+include/start_slave.inc
+==== BEGIN include/start_slave.inc ====
+ con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+START SLAVE;
+.==== BEGIN include/wait_for_slave_to_start.inc ====
+. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+..==== BEGIN include/wait_for_slave_io_to_start.inc ====
+.. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+...==== BEGIN include/wait_for_slave_param.inc [Slave_IO_Running] ====
+... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+Waiting until 'Slave_IO_Running' = 'Yes' [$slave_error_param='Last_IO_Errno']
+[connection slave]
+...==== END include/wait_for_slave_param.inc [Slave_IO_Running] ====
+... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+[connection slave]
+..==== END include/wait_for_slave_io_to_start.inc ====
+.. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+..==== BEGIN include/wait_for_slave_sql_to_start.inc ====
+.. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+...==== BEGIN include/wait_for_slave_param.inc [Slave_SQL_Running] ====
+... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+Waiting until 'Slave_SQL_Running' = 'Yes' [$slave_error_param='1']
+[connection slave]
+...==== END include/wait_for_slave_param.inc [Slave_SQL_Running] ====
+... con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+[connection slave]
+..==== END include/wait_for_slave_sql_to_start.inc ====
+.. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+[connection slave]
+.==== END include/wait_for_slave_to_start.inc ====
+. con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+[connection slave]
+==== END include/start_slave.inc ====
+ con='slave' warn='1' qlog='1' rlog='1' aborterr='1'
+connection master;
+INSERT INTO t SET a=1;
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1236]
+connection master;
+FLUSH BINARY LOGS;
+PURGE BINARY LOGS TO 'master-bin.000004';;
+FLUSH BINARY LOGS DELETE_DOMAIN_ID=(11);
+connection slave;
+include/start_slave.inc
+connection master;
+SET @@SESSION.gtid_domain_id=0;
+DROP TABLE t;
+connection slave;
+include/rpl_end.inc

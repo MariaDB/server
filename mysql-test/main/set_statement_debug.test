@@ -1,0 +1,26 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+call mtr.add_suppression("Sort aborted.*");
+
+set @save_debug_dbug= @@debug_dbug;
+
+# check that change debug_dbug visible in SELECT
+set statement  debug_dbug="d,something" for select @@debug_dbug;
+set @@debug_dbug= @save_debug_dbug;
+
+#check that change debug_dbug has influence of hooks... 
+CREATE TABLE t1(f0 int auto_increment primary key, f1 int);
+INSERT INTO t1(f1) VALUES (0),(1),(2),(3),(4),(5);
+CALL mtr.add_suppression("Out of sort memory");
+--error ER_OUT_OF_SORTMEMORY
+SET statement debug_dbug= '+d,alloc_sort_buffer_fail' for SELECT * FROM t1 ORDER BY f1 ASC, f0;
+
+# ... and works only for one statement
+SELECT * FROM t1 ORDER BY f1 ASC, f0;
+
+DROP TABLE t1;
+set @@debug_dbug= @save_debug_dbug;
+
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement DEBUG_SYNC = 'now SIGNAL hi' for select 1;

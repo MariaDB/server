@@ -1,0 +1,26 @@
+--source include/have_rocksdb.inc
+
+# Tests if locks are held for the secondary keys of old rows in updates
+
+connect (con, localhost, root,,);
+
+connection default;
+create table t1 (a int primary key, b int unique key) engine = rocksdb;
+insert into t1 values(1, 1);
+
+connection con;
+begin;
+update t1 set b = 2 where b = 1; # this should lock the row where b = 1
+
+connection default;
+error ER_LOCK_WAIT_TIMEOUT;
+insert into t1 values(2, 1); # should error out with lock_wait_timeout
+
+connection con;
+rollback;
+select * from t1;
+
+# Cleanup
+connection default;
+drop table t1;
+disconnect con;

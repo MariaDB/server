@@ -1,0 +1,22 @@
+#
+# Bug#51770: UNINSTALL PLUGIN requires no privileges
+#
+CREATE USER bug51770@localhost;
+GRANT INSERT ON mysql.plugin TO bug51770@localhost;
+connect con1,localhost,bug51770,,;
+INSTALL PLUGIN example SONAME 'ha_example.so';
+UNINSTALL PLUGIN example;
+ERROR 42000: DELETE command denied to user 'bug51770'@'localhost' for table 'plugin'
+connection default;
+GRANT DELETE ON mysql.plugin TO bug51770@localhost;
+connection con1;
+UNINSTALL PLUGIN example;
+disconnect con1;
+connection default;
+DROP USER bug51770@localhost;
+INSTALL PLUGIN example SONAME '../ha_example.so';
+ERROR HY000: No paths allowed for shared library
+insert mysql.plugin values ();
+# restart
+delete from mysql.plugin where name = '';
+# End of 5.5 tests

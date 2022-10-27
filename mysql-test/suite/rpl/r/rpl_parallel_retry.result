@@ -1,0 +1,400 @@
+include/rpl_init.inc [topology=1->2]
+*** Test retry of transactions that fail to replicate due to deadlock or similar temporary error. ***
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1);
+SET sql_log_bin=0;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=5;
+include/start_slave.inc
+SET sql_log_bin=0;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+include/stop_slave.inc
+connection server_1;
+SET gtid_seq_no = 100;
+BEGIN;
+INSERT INTO t1 VALUES (2,1);
+UPDATE t1 SET b=b+1 WHERE a=1;
+INSERT INTO t1 VALUES (3,1);
+COMMIT;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	1
+3	1
+connection server_2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100";
+include/start_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+retries
+1
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	1
+3	1
+*** Test that double retry works when the first retry also fails with temp error ***
+include/stop_slave.inc
+connection server_1;
+SET gtid_seq_no = 100;
+SET @old_server_id = @@server_id;
+SET server_id = 10;
+BEGIN;
+INSERT INTO t1 VALUES (4,1);
+UPDATE t1 SET b=b+1 WHERE a=1;
+INSERT INTO t1 VALUES (5,1);
+INSERT INTO t1 VALUES (6,1);
+COMMIT;
+SET server_id = @old_server_id;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	3
+2	1
+3	1
+4	1
+5	1
+6	1
+connection server_2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parallel_simulate_double_temp_err_gtid_0_x_100";
+include/start_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+retries
+2
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	3
+2	1
+3	1
+4	1
+5	1
+6	1
+*** Test too many retries, eventually causing failure. ***
+include/stop_slave.inc
+connection server_1;
+SET gtid_seq_no = 100;
+SET @old_server_id = @@server_id;
+SET server_id = 11;
+BEGIN;
+INSERT INTO t1 VALUES (7,1);
+UPDATE t1 SET b=b+1 WHERE a=1;
+INSERT INTO t1 VALUES (8,1);
+INSERT INTO t1 VALUES (9,1);
+COMMIT;
+SET server_id = @old_server_id;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	4
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+8	1
+9	1
+connection server_2;
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Slave worker thread retried transaction 10 time\\(s\\) in vain, giving up");
+CALL mtr.add_suppression("Slave: Deadlock found when trying to get lock; try restarting transaction");
+CALL mtr.add_suppression("Slave worker thread retried transaction .* in vain, giving up");
+SET sql_log_bin=1;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parallel_simulate_infinite_temp_err_gtid_0_x_100";
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1213]
+SET GLOBAL debug_dbug=@old_dbug;
+retries
+10
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	3
+2	1
+3	1
+4	1
+5	1
+6	1
+STOP SLAVE IO_THREAD;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	4
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+8	1
+9	1
+*** Test retry of event group that spans multiple relay log files. ***
+connection server_1;
+CREATE TABLE t2 (a int PRIMARY KEY, b BLOB) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,"Hulubullu");
+connection server_2;
+include/stop_slave.inc
+SET @old_max= @@GLOBAL.max_relay_log_size;
+SET GLOBAL max_relay_log_size=4096;
+connection server_1;
+SET gtid_seq_no = 100;
+SET @old_server_id = @@server_id;
+SET server_id = 12;
+BEGIN;
+INSERT INTO t1 VALUES (10, 4);
+COMMIT;
+SET server_id = @old_server_id;
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a	b
+10	4
+SELECT a, LENGTH(b) FROM t2 ORDER BY a;
+a	LENGTH(b)
+1	9
+2	5006
+3	5012
+connection server_2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100";
+include/start_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+retries
+1
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a	b
+10	4
+SELECT a, LENGTH(b) FROM t2 ORDER BY a;
+a	LENGTH(b)
+1	9
+2	5006
+3	5012
+connection server_1;
+INSERT INTO t1 VALUES (11,11);
+connection server_2;
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a	b
+10	4
+11	11
+SELECT a, LENGTH(b) FROM t2 ORDER BY a;
+a	LENGTH(b)
+1	9
+2	5006
+3	5012
+4	5000
+SET GLOBAL max_relay_log_size=@old_max;
+*** MDEV-7065: Incorrect relay log position in parallel replication after retry of transaction ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+BEGIN;
+INSERT INTO t1 VALUES (100, 0);
+INSERT INTO t1 VALUES (101, 0);
+INSERT INTO t1 VALUES (102, 0);
+INSERT INTO t1 VALUES (103, 0);
+COMMIT;
+SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
+a	b
+100	0
+101	0
+102	0
+103	0
+connection server_2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_xid";
+include/start_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+retries
+1
+SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
+a	b
+100	0
+101	0
+102	0
+103	0
+include/stop_slave_sql.inc
+connection server_1;
+INSERT INTO t1 VALUES (104, 1);
+INSERT INTO t1 VALUES (105, 1);
+INSERT INTO t1 VALUES (106, 1);
+INSERT INTO t1 VALUES (107, 1);
+INSERT INTO t1 VALUES (108, 1);
+INSERT INTO t1 VALUES (109, 1);
+connection server_2;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
+a	b
+100	0
+101	0
+102	0
+103	0
+104	1
+105	1
+106	1
+107	1
+108	1
+109	1
+*** MDEV-6917: Parallel replication: "Commit failed due to failure of an earlier commit on which this one depends", but no prior failure seen **
+connection server_1;
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT, KEY b_idx(b)) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+CREATE TABLE t4 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=no;
+connection server_1;
+connect  con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+BEGIN;
+INSERT INTO t4 VALUES (10, foo(1, 'before_execute_sql_command WAIT_FOR t1_start', ''));
+UPDATE t3 SET b=NULL WHERE a=6;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+COMMIT;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connect  con2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+BEGIN;
+INSERT INTO t4 VALUES (20, foo(2, 'group_commit_waiting_for_prior SIGNAL t2_waiting', ''));
+DELETE FROM t3 WHERE b <= 3;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+COMMIT;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+connect  con3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+BEGIN;
+INSERT INTO t4 VALUES (30, foo(3, 'before_execute_sql_command WAIT_FOR t3_start', 'group_commit_waiting_for_prior SIGNAL t3_waiting'));
+INSERT INTO t3 VALUES (7,7);
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3';
+COMMIT;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued3';
+SET debug_sync='now SIGNAL master_cont1';
+connection con1;
+SET binlog_format=@old_format;
+connection con2;
+SET binlog_format=@old_format;
+connection con3;
+SET debug_sync='RESET';
+SET binlog_format=@old_format;
+connection server_1;
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	NULL
+3	NULL
+4	4
+5	NULL
+6	NULL
+7	7
+connection server_2;
+SET @old_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,thd_need_ordering_with_force";
+include/start_slave.inc
+SET debug_sync='now WAIT_FOR t2_waiting';
+SET debug_sync='now SIGNAL t3_start';
+SET debug_sync='now WAIT_FOR t3_waiting';
+SET debug_sync='now SIGNAL t1_start';
+SET GLOBAL debug_dbug=@old_dbug;
+SET debug_sync='RESET';
+retries
+1
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	NULL
+3	NULL
+4	4
+5	NULL
+6	NULL
+7	7
+connection server_1;
+SET binlog_format=@old_format;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1, t2, t3, t4;
+DROP function foo;
+connection server_2;
+connection server_1;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+connection server_2;
+include/stop_slave.inc
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @@GLOBAL.slave_parallel_threads=5;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET @@GLOBAL.slave_parallel_mode='aggressive';
+SET @old_lock_wait_timeout=@@GLOBAL.innodb_lock_wait_timeout;
+SET @@GLOBAL.innodb_lock_wait_timeout=2;
+SET @old_slave_transaction_retries=@@GLOBAL.slave_transaction_retries;
+SET @@GLOBAL.slave_transaction_retries=1;
+# Spoilers on the slave side causing temporary errors
+connect  spoiler_21,127.0.0.1,root,,test,$SLAVE_MYPORT;
+BEGIN;
+INSERT INTO t1 SET a=1,b=2;
+connect  spoiler_22,127.0.0.1,root,,test,$SLAVE_MYPORT;
+BEGIN;
+INSERT INTO t1 SET a=2,b=2;
+# Master payload
+connection server_1;
+SET @@SESSION.GTID_SEQ_NO=1000;
+INSERT INTO t1 SET a=1,b=1;
+SET @@SESSION.GTID_SEQ_NO=1001;
+INSERT INTO t1 SET a=2,b=1;
+# Start slave whose both appliers is destined to being blocked
+connection server_2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug="+d,rpl_parallel_simulate_wait_at_retry";
+include/start_slave.inc
+# Make sure both workers are waiting at their sync points
+# Signal to the 1st to proceed after it has reached termination state
+SET @@DEBUG_SYNC='now SIGNAL proceed_by_1000';
+connection spoiler_21;
+ROLLBACK;
+# Release the 2nd worker to proceed
+connection spoiler_22;
+ROLLBACK;
+connection server_2;
+SET @@DEBUG_SYNC='now SIGNAL proceed_by_1001';
+# observe how it all ends
+# Wait for the workers to go home and check the result of applying
+# which is OK
+connection server_2;
+include/stop_slave.inc
+SET @@GLOBAL.slave_parallel_threads=@old_parallel_threads;
+SET @@GLOBAL.slave_parallel_mode=@old_parallel_mode;
+SET @@GLOBAL.innodb_lock_wait_timeout=@old_lock_wait_timeout;
+SET @@GLOBAL.slave_transaction_retries=@old_slave_transaction_retries;
+SET @@GLOBAL.debug_dbug=@old_dbug;
+SET debug_sync='RESET';
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1;
+connection server_2;
+include/rpl_end.inc

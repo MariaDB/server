@@ -1,0 +1,103 @@
+--source include/have_aria.inc
+--source include/innodb_page_size.inc
+
+# see suite.pm "check for exact values, in case the default changes to be small everywhere"
+if (`select @@max_binlog_stmt_cache_size = 4294963200 and @@innodb_page_size = 65536`) {
+  skip skipped on 32bit; # tries to allocate 1GB of memory
+  }
+
+call mtr.add_suppression("InnoDB: New log files created");
+
+let basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
+
+CREATE TABLE t_aria(i INT) ENGINE ARIA;
+CREATE TABLE t(i INT PRIMARY KEY) ENGINE INNODB;
+BEGIN;
+INSERT INTO t VALUES(2);
+connect (con1,localhost,root,,);
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+INSERT INTO t VALUES(1);
+
+echo # Create full backup , modify table, then create incremental/differential backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 --target-dir=$basedir;
+--enable_result_log
+BEGIN;
+INSERT INTO t VALUES(0);
+DELETE FROM t WHERE i=0;
+connection default;
+COMMIT;
+
+--echo # Generate enough aria log records to increase area log file size
+--disable_query_log
+--disable_result_log
+INSERT INTO t_aria VALUES
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+--let $i = 4
+while ($i) {
+INSERT INTO t_aria SELECT * FROM seq_1_to_2000;
+--dec $i
+}
+--enable_query_log
+--enable_result_log
+
+SELECT * FROM t;
+# wf_incremental_init() allocates (page_size/4)*page_size bytes with mmap()
+# in each data file copy thread, what can fail on 32-bit platforms if threads
+# are too much, that's why don't set too big --parallel option value.
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --parallel=2 --ftwrl-wait-timeout=5 --ftwrl-wait-threshold=300 --ftwrl-wait-query-type=all --target-dir=$incremental_dir --incremental-basedir=$basedir;
+
+--disable_result_log
+echo # Prepare full backup, apply incremental one;
+exec $XTRABACKUP --prepare --target-dir=$basedir;
+exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir ;
+
+let perl_result_file=$MYSQLTEST_VARDIR/tmp/check_file_size_result.inc;
+
+--perl END_OF_FILE
+  use strict;
+  use warnings;
+
+  my $dst_file = "$ENV{'basedir'}/aria_log.00000001";
+  my $src_file = "$ENV{'incremental_dir'}/aria_log.00000001";
+  my $out_file = $ENV{'perl_result_file'};
+
+  my $dst_size = -s $dst_file;
+  my $src_size = -s $src_file;
+
+  open (my $output, '>', $out_file) or die $!;
+  if ($dst_size >= $src_size) {
+    print $output '--echo # Aria log file was updated during applying incremental backup'."\n";
+  }
+  else {
+    print $output '--echo #  Aria log file was NOT updated during applying incremental backup'."\n";
+  }
+  close $output;
+END_OF_FILE
+
+--source $perl_result_file
+--remove_file $perl_result_file
+
+disconnect con1;
+echo # Restore and check results;
+let $targetdir=$basedir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+SELECT * FROM t;
+DROP TABLE t;
+DROP TABLE t_aria;
+
+# Cleanup
+rmdir $basedir;
+rmdir $incremental_dir;

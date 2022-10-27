@@ -1,0 +1,32 @@
+#
+# MW-44: DDL is logged in the general_log on the slave
+#
+
+--source include/galera_cluster.inc
+
+--connection node_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument NOT LIKE '%mysql.general_log%'
+--let $wait_condition_on_error_output = SELECT * FROM mysql.general_log
+--source include/wait_condition_with_debug.inc
+
+--connection node_1
+SET SESSION wsrep_osu_method=TOI;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_osu_method=RSU;
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+SET SESSION wsrep_osu_method=TOI;
+
+--let $wait_condition = SELECT COUNT(*) = 2 FROM mysql.general_log WHERE argument LIKE "CREATE%" OR argument LIKE "ALTER%"
+--let $wait_condition_on_error_output = SELECT * FROM mysql.general_log
+--source include/wait_condition_with_debug.inc
+
+--connection node_2
+
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument LIKE "CREATE%" OR argument LIKE "ALTER%"
+--let $wait_condition_on_error_output = SELECT * FROM mysql.general_log
+--source include/wait_condition_with_debug.inc
+
+DROP TABLE t1;

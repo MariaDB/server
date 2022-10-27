@@ -1,0 +1,36 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+# Ensure bin log is enabled.
+SHOW GLOBAL VARIABLES LIKE "log_bin";
+
+# Create the table and insert some keys
+CREATE TABLE t1 (i INT, PRIMARY KEY (i) COMMENT 'cf_t1') ENGINE = ROCKSDB;
+
+--disable_query_log
+let $max = 1000;
+let $i = 1;
+while ($i <= $max) {
+  let $insert = INSERT INTO t1 VALUES ($i);
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+
+# Restart the server
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+--exec echo "wait" > $restart_file
+--shutdown_server
+--source include/wait_until_disconnected.inc
+-- exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- enable_reconnect
+-- source include/wait_until_connected_again.inc
+
+# Verify table has correct rows
+SELECT COUNT(*) FROM t1;
+
+#cleanup
+DROP TABLE t1;

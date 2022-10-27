@@ -1,0 +1,100 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test the effect of Cluster Configuration Change on a concurrently-running SR transaction
+# We use SET GLOBAL wsrep_cluster_address = '' to cause the master (node_2) to temporarily
+# leave the cluster.
+#
+
+CALL mtr.add_suppression("WSREP: discarding established.*");
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_2
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+--let $wsrep_trx_fragment_size_orig = `SELECT @@wsrep_trx_fragment_size`
+SET SESSION wsrep_trx_fragment_size = 1;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+#
+# Trigger CC . The transaction is aborted and we expect the SR tables to be cleaned up
+#
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET SESSION wsrep_sync_wait=0;
+--let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
+SET GLOBAL wsrep_cluster_address = '';
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_2
+--error 2013 # CR_SERVER_LOST
+INSERT INTO t1 VALUES (6);
+
+--connection node_1
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+# Restore cluster
+
+--connection node_2a
+--disable_query_log
+--eval SET GLOBAL wsrep_cluster_address='$wsrep_cluster_address_orig'
+--enable_query_log
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2b
+--source include/galera_wait_ready.inc
+SELECT * FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+# Repeat transaction to confirm no locks are left from previous transaction
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+COMMIT;
+
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+DROP TABLE t1;
+
+--connection node_2b
+CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for");
+
+--disconnect node_2
+--connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

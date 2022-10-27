@@ -1,0 +1,4 @@
+#
+# Bug#20198490 : LOWER_CASE_TABLE_NAMES=0 ON WINDOWS LEADS TO PROBLEMS
+#
+FOUND 1 /\[ERROR\] The server option \'lower_case_table_names\' is configured to use case sensitive table names/ in my_restart.err

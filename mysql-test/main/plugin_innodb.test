@@ -1,0 +1,20 @@
+--source include/not_embedded.inc
+--source include/have_example_plugin.inc
+--source include/have_static_innodb.inc
+
+--replace_regex /\.dll/.so/
+eval install plugin example soname '$HA_EXAMPLE_SO';
+create table t1(a int) engine=example;
+drop table t1;
+
+alter table mysql.plugin engine=innodb;
+--echo restart
+--source include/restart_mysqld.inc
+
+create table t1(a int) engine=example;
+select * from t1;
+drop table t1;
+
+alter table mysql.plugin engine=aria;
+uninstall plugin example;
+

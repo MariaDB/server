@@ -1,0 +1,87 @@
+#--source include/innodb_page_size.inc
+--source include/have_partition.inc
+
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1), (2), (3);
+
+CREATE TABLE t2(a INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (4), (5), (6);
+
+CREATE TABLE p (
+  a int
+) ENGINE=InnoDB
+PARTITION BY RANGE (a)
+(PARTITION p0 VALUES LESS THAN (100),
+ PARTITION p1 VALUES LESS THAN (200),
+ PARTITION p2 VALUES LESS THAN (300),
+ PARTITION p3 VALUES LESS THAN (400));
+
+INSERT INTO p VALUES (1), (101), (201), (301);
+
+CREATE TABLE isam_t1(a INT) ENGINE=MyISAM;
+INSERT INTO isam_t1 VALUES (1), (2), (3);
+
+CREATE TABLE isam_t2(a INT) ENGINE=MyISAM;
+INSERT INTO isam_t2 VALUES (4), (5), (6);
+
+CREATE TABLE isam_p (
+  a int
+) ENGINE=MyISAM
+PARTITION BY RANGE (a)
+(PARTITION p0 VALUES LESS THAN (100),
+ PARTITION p1 VALUES LESS THAN (200),
+ PARTITION p2 VALUES LESS THAN (300),
+ PARTITION p3 VALUES LESS THAN (400));
+
+INSERT INTO isam_p VALUES (1), (101), (201), (301);
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir/full;
+--enable_result_log
+
+DROP TABLE t1;
+DROP TABLE t2;
+CREATE TABLE t2(a INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (40), (50), (60);
+
+ALTER TABLE p DROP PARTITION p0;
+ALTER TABLE p DROP PARTITION p1;
+ALTER TABLE p ADD PARTITION (PARTITION p4 VALUES LESS THAN (500));
+ALTER TABLE p ADD PARTITION (PARTITION p5 VALUES LESS THAN (600));
+
+INSERT INTO p VALUES (401), (501);
+
+
+DROP TABLE isam_t1;
+DROP TABLE isam_t2;
+CREATE TABLE isam_t2(a INT) ENGINE=MyISAM;
+
+INSERT INTO isam_t2 VALUES (40), (50), (60);
+
+ALTER TABLE isam_p DROP PARTITION p0;
+ALTER TABLE isam_p DROP PARTITION p1;
+ALTER TABLE isam_p ADD PARTITION (PARTITION p4 VALUES LESS THAN (500));
+ALTER TABLE isam_p ADD PARTITION (PARTITION p5 VALUES LESS THAN (600));
+
+INSERT INTO isam_p VALUES (401), (501);
+
+--disable_result_log
+exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --incremental --no-timestamp --incremental-basedir=$targetdir/full $targetdir/inc;
+exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --apply-log $targetdir/full;
+exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --apply-log --incremental-dir=$targetdir/inc $targetdir/full;
+
+let $targetdir=$targetdir/full;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+SELECT * from p;
+SELECT * from isam_p;
+
+DROP TABLE isam_p;
+DROP TABLE isam_t2;
+DROP TABLE p;
+DROP TABLE t2;
+rmdir $MYSQLTEST_VARDIR/tmp/full;
+rmdir $MYSQLTEST_VARDIR/tmp/inc;

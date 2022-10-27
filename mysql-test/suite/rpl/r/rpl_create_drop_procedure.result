@@ -1,0 +1,74 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE TABLE t1 (id INT);
+CREATE PROCEDURE proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+CALL proc1(@cnt);
+SELECT @cnt;
+@cnt
+0
+INSERT INTO t1 VALUES (1), (2), (3);
+CALL proc1(@cnt);
+SELECT @cnt;
+@cnt
+3
+# Syncing with slave
+connection slave;
+CALL proc1(@cnt);
+SELECT @cnt;
+@cnt
+3
+connection master;
+CREATE PROCEDURE proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+ERROR 42000: PROCEDURE proc1 already exists
+CREATE PROCEDURE IF NOT EXISTS proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+Warnings:
+Note	1304	PROCEDURE proc1 already exists
+CREATE OR REPLACE PROCEDURE IF NOT EXISTS proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
+CREATE OR REPLACE PROCEDURE proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+# Syncing with slave
+connection slave;
+CALL proc1(@cnt);
+SELECT @cnt;
+@cnt
+3
+connection master;
+DROP PROCEDURE proc1;
+CREATE PROCEDURE IF NOT EXISTS proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+INSERT INTO t1 VALUES (1), (2), (3);
+CALL proc1(@cnt);
+SELECT @cnt;
+@cnt
+6
+# Syncing with slave
+connection slave;
+CALL proc1(@cnt);
+SELECT @cnt;
+@cnt
+6
+connection master;
+DROP PROCEDURE proc1;
+CREATE OR REPLACE PROCEDURE proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+INSERT INTO t1 VALUES (1), (2), (3);
+CALL proc1(@cnt);
+SELECT @cnt;
+@cnt
+9
+# Syncing with slave
+connection slave;
+CALL proc1(@cnt);
+SELECT @cnt;
+@cnt
+9
+connection master;
+DROP TABLE IF EXISTS t1;
+DROP PROCEDURE proc1;
+DROP PROCEDURE IF EXISTS proc2;
+Warnings:
+Note	1305	PROCEDURE test.proc2 does not exist
+# Syncing with slave
+connection slave;
+DROP PROCEDURE proc1;
+ERROR 42000: PROCEDURE test.proc1 does not exist
+include/rpl_end.inc

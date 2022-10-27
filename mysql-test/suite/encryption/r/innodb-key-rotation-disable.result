@@ -1,0 +1,61 @@
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+SET GLOBAL innodb_file_per_table = ON;
+set global innodb_compression_algorithm = 1;
+create database enctests;
+use enctests;
+create table t1(a int not null primary key, b char(200)) engine=innodb;
+create table t2(a int not null primary key, b char(200)) engine=innodb row_format=compressed;
+create table t3(a int not null primary key, b char(200)) engine=innodb page_compressed=yes;
+create table t4(a int not null primary key, b char(200)) engine=innodb encrypted=yes;
+create table t5(a int not null primary key, b char(200)) engine=innodb encrypted=yes row_format=compressed;
+create table t6(a int not null primary key, b char(200)) engine=innodb encrypted=yes page_compressed=yes;
+create table t7(a int not null primary key, b char(200)) engine=innodb encrypted=no;
+create table t8(a int not null primary key, b char(200)) engine=innodb encrypted=no row_format=compressed;
+create table t9(a int not null primary key, b char(200)) engine=innodb encrypted=no page_compressed=yes;
+insert into t1 values (1, 'secredmessage');
+insert into t2 values (1, 'secredmessage');
+insert into t3 values (1, 'secredmessagecompressedaaaaaaaaabbbbbbbbbbbbbbccccccccccccccc');
+insert into t4 values (1, 'secredmessage');
+insert into t5 values (1, 'secredmessage');
+insert into t6 values (1, 'secredmessagecompressedaaaaaaaaabbbbbbbbbbbbbbccccccccccccccc');
+insert into t7 values (1, 'publicmessage');
+insert into t8 values (1, 'publicmessage');
+insert into t9 values (1, 'pugliccompressedaaaaaaaaabbbbbbbbbbbbbbccccccccccccccc');
+# should list tables t1-t6
+SELECT NAME,ENCRYPTION_SCHEME,CURRENT_KEY_ID FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'enctests%';
+NAME	ENCRYPTION_SCHEME	CURRENT_KEY_ID
+enctests/t1	1	1
+enctests/t2	1	1
+enctests/t3	1	1
+enctests/t4	1	1
+enctests/t5	1	1
+enctests/t6	1	1
+# should list tables t7-t9
+SELECT NAME,ENCRYPTION_SCHEME,CURRENT_KEY_ID FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 and NAME LIKE 'enctests%';
+NAME	ENCRYPTION_SCHEME	CURRENT_KEY_ID
+enctests/t7	0	1
+enctests/t8	0	1
+enctests/t9	0	1
+# t1 default on expecting NOT FOUND
+NOT FOUND /secred/ in t1.ibd
+# t2 default on expecting NOT FOUND
+NOT FOUND /secred/ in t2.ibd
+# t3 default on expecting NOT FOUND
+NOT FOUND /secred/ in t3.ibd
+# t4 on expecting NOT FOUND
+NOT FOUND /secred/ in t4.ibd
+# t5 on expecting NOT FOUND
+NOT FOUND /secred/ in t5.ibd
+# t6 on expecting NOT FOUND
+NOT FOUND /secred/ in t6.ibd
+# t7 off expecting FOUND
+FOUND 1 /public/ in t7.ibd
+# t8 row compressed expecting NOT FOUND
+FOUND 1 /public/ in t8.ibd
+# t9 page compressed expecting NOT FOUND
+NOT FOUND /public/ in t9.ibd
+# restart
+drop database enctests;

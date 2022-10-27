@@ -1,0 +1,6 @@
+[redundant]
+innodb_default_row_format=redundant
+[dynamic]
+innodb_default_row_format=dynamic
+[compact]
+innodb_default_row_format=compact

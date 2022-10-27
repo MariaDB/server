@@ -1,0 +1,48 @@
+SET GLOBAL tokudb_dir_per_db=true;
+######
+# Tokudb and mysql data dirs are the same, rename to existent db
+###
+CREATE DATABASE new_db;
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
+ALTER TABLE test.t1 RENAME new_db.t1;
+The content of "test" directory:
+db.opt
+The content of "new_db" directory:
+db.opt
+t1.frm
+t1_main_id.tokudb
+t1_status_id.tokudb
+DROP DATABASE new_db;
+######
+# Tokudb and mysql data dirs are the same, rename to nonexistent db
+###
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
+CALL mtr.add_suppression("because destination db does not exist");
+ALTER TABLE test.t1 RENAME foo.t1;
+ERROR HY000: Error on rename of './test/t1' to './foo/t1' (errno: 2 "No such file or directory")
+DROP TABLE t1;
+# restart
+SELECT @@tokudb_data_dir;
+@@tokudb_data_dir
+NULL
+SELECT @@tokudb_dir_per_db;
+@@tokudb_dir_per_db
+0
+######
+# Tokudb and mysql data dirs are different, rename to existent db
+###
+CREATE DATABASE new_db;
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
+ALTER TABLE test.t1 RENAME new_db.t1;
+The content of "test" direcotry:
+The content of "new_db" directory:
+DROP DATABASE new_db;
+######
+# Tokudb and mysql data dirs are different, rename to nonexistent db
+###
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
+CALL mtr.add_suppression("because destination db does not exist");
+ALTER TABLE test.t1 RENAME foo.t1;
+ERROR HY000: Error on rename of './test/t1' to './foo/t1' (errno: 2 "No such file or directory")
+DROP TABLE t1;
+SET GLOBAL tokudb_dir_per_db=default;

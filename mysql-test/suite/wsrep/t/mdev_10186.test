@@ -1,0 +1,12 @@
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # MDEV-10186: mysqld crash when runtime setting
+--echo # wsrep_cluster_address without wsrep_on=ON
+--echo #
+
+SELECT @@wsrep_on;
+SET @@GLOBAL.wsrep_cluster_address='gcomm://';
+

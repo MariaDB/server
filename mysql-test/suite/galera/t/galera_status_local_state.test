@@ -1,0 +1,28 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test wsrep_local_state . We can not reliably produce all possible statuses in MTR, but
+# we can at least test for the ones we can.
+#
+
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state';
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+
+SET GLOBAL wsrep_desync = 1;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state';
+--source include/wait_condition.inc
+
+SELECT VARIABLE_VALUE = 'Donor/Desynced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+
+SET GLOBAL wsrep_desync = 0;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state';
+--source include/wait_condition.inc
+
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+
+
+
+

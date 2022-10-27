@@ -1,0 +1,4 @@
+#
+# MDEV-15923 option to control who can set session @@timestamp
+#
+source inc/secure_timestamp_func.inc;

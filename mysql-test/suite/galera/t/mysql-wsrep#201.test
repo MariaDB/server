@@ -1,0 +1,32 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_query_cache.inc
+
+CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (DEFAULT);
+
+--connection node_2
+--let $qcache_size_orig = `SELECT @@GLOBAL.query_cache_size`
+SET GLOBAL query_cache_size=1355776;
+
+--disable_query_log
+
+--let $count = 500
+while ($count)
+{
+  --connection node_1
+  INSERT INTO t1 VALUES (DEFAULT);
+  --let $val1 = `SELECT LAST_INSERT_ID()`
+  --connection node_2
+  --let $val2 = `SELECT MAX(id) FROM t1`
+  --let $val3 = `SELECT $val1 != $val2`
+  if ($val3)
+  {
+    --echo $val1 $val2
+    --die wsrep_sync_wait failed
+  }
+  --dec $count
+}
+
+--eval SET GLOBAL query_cache_size = $qcache_size_orig
+DROP TABLE t1;

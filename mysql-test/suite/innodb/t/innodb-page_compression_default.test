@@ -1,0 +1,8 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+# All page compression test use the same
+--source include/innodb-page-compression.inc
+
+-- echo #done
+

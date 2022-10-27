@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_ERROR_ON_SUBOPTIMAL_COLLATION;
+SELECT @start_global_value;
+@start_global_value
+1
+"Trying to set variable @@global.ROCKSDB_ERROR_ON_SUBOPTIMAL_COLLATION to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_ERROR_ON_SUBOPTIMAL_COLLATION   = 444;
+ERROR HY000: Variable 'rocksdb_error_on_suboptimal_collation' is a read only variable

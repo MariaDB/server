@@ -1,0 +1,10 @@
+alter_table_add_index_token_filters_one_token_filter : Bundled Mroonga does not support token filter yet.
+alter_table_change_token_filter : Bundled Mroonga does not support token filter yet.
+fulltext_token_filters_skip : Bundled Mroonga does not support token filter yet.
+create_table_token_filters_index_comment_multiple_token_filters : Bundled Mroonga does not support token filter yet.
+create_table_token_filters_index_comment_one_token_filter : Bundled Mroonga does not support token filter yet.
+create_table_token_filters_table_comment_multiple_token_filters : Bundled Mroonga does not support token filter yet.
+create_table_token_filters_table_comment_one_token_filter : Bundled Mroonga does not support token filter yet.
+foreign_key_create : Bundled Mroonga does not support this test yet.
+partition_insert : Bundled Mroonga does not support this test yet.
+

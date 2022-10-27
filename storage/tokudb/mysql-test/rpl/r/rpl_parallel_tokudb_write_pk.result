@@ -1,0 +1,21 @@
+include/master-slave.inc
+[connection master]
+connection master;
+drop table if exists t;
+connection slave;
+show variables like 'tokudb_rpl_unique_checks%';
+Variable_name	Value
+connection master;
+create table t (a bigint not null, primary key(a)) engine=tokudb;
+insert into t values (1);
+insert into t values (2),(3);
+insert into t values (4);
+connection slave;
+connection master;
+connection slave;
+connection master;
+include/diff_tables.inc [master:test.t, slave:test.t]
+connection master;
+drop table if exists t;
+connection slave;
+include/rpl_end.inc

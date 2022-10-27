@@ -1,0 +1,72 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+
+--let $rpl_topology=1->2,1->3
+--source include/rpl_init.inc
+
+connection server_1;
+create table t1 (n int);
+insert into t1 values (1);
+insert into t1 values (2);
+save_master_pos;
+
+connection server_3;
+sync_with_master;
+source include/stop_slave.inc;
+source include/wait_for_slave_to_stop.inc;
+
+connection server_2;
+sync_with_master;
+source include/stop_slave.inc;
+source include/wait_for_slave_to_stop.inc;
+reset slave all;
+
+connection server_1;
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_2,
+     master_user='root', MASTER_USE_GTID=CURRENT_POS;
+source include/start_slave.inc;
+source include/wait_for_slave_to_start.inc;
+
+connection server_2;
+flush logs;
+insert into t1 values (3);
+insert into t1 values (4);
+flush logs;
+save_master_pos;
+
+connection server_3;
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_2,
+     MASTER_USE_GTID=CURRENT_POS;
+source include/start_slave.inc;
+sync_with_master;
+
+select * from t1 order by n;
+source include/show_binary_logs.inc;
+let $binlog_file=LAST;
+source include/show_binlog_events.inc;
+
+connection server_1;
+--sync_with_master
+source include/stop_slave.inc;
+source include/wait_for_slave_to_stop.inc;
+reset slave all;
+
+connection server_2;
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_1,
+     master_user = 'root', MASTER_USE_GTID=CURRENT_POS;
+source include/start_slave.inc;
+
+connection server_3;
+source include/stop_slave.inc;
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_1,
+     MASTER_USE_GTID=CURRENT_POS;
+source include/start_slave.inc;
+
+connection server_1;
+drop table t1;
+
+--source include/rpl_end.inc

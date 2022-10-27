@@ -1,0 +1,61 @@
+--source include/master-slave.inc
+--source include/have_binlog_format_statement.inc
+set sql_mode="";
+connection slave;
+set sql_mode="";
+connection master;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+--enable_warnings
+
+call mtr.add_suppression("Unsafe statement written to the binary log*");
+CREATE TABLE t1 (a bigint unsigned not null);
+CREATE TABLE t2 (a char(255) not null);
+
+--echo
+--echo There are the following types of variables:
+--echo 1) variables that are NOT replicated correctly when using STATEMENT mode;
+--echo
+
+--let $rpl_ssvt_var_name=max_join_size
+--let $rpl_ssvt_var_value=2
+--let $rpl_ssvt_table=t1
+--source suite/rpl/include/rpl_set_statement.inc
+
+--echo 
+--echo 2) variables thar ARE replicated correctly 
+--echo They must be replicated correctly with "SET STATEMENT" too.
+--echo 
+--let $rpl_ssvt_var_name=auto_increment_increment
+--let $rpl_ssvt_var_value=10
+--let $rpl_ssvt_table=t1
+--source suite/rpl/include/rpl_set_statement.inc
+
+--echo
+--echo 3) sql_mode which is replicated correctly exept NO_DIR_IN_CREATE value;
+--echo
+--let $rpl_ssvt_var_name=sql_mode
+--let $rpl_ssvt_var_value='ERROR_FOR_DIVISION_BY_ZERO'
+--let $rpl_ssvt_table=t2
+--source suite/rpl/include/rpl_set_statement.inc
+--let $rpl_ssvt_var_name=sql_mode
+--let $rpl_ssvt_var_value='NO_DIR_IN_CREATE'
+--let $rpl_ssvt_table=t2
+--source suite/rpl/include/rpl_set_statement.inc
+
+--echo
+--echo 4) variables that are not replicated at all:
+--echo default_storage_engine, storage_engine, max_heap_table_size
+--echo
+--let $rpl_ssvt_var_name=max_heap_table_size
+--let $rpl_ssvt_var_value=16384
+--let $rpl_ssvt_table=t1
+--source suite/rpl/include/rpl_set_statement.inc
+
+connection master;
+DROP TABLE t1;
+DROP TABLE t2;
+sync_slave_with_master;
+source include/stop_slave.inc;

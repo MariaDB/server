@@ -1,0 +1,99 @@
+--source include/have_rocksdb.inc
+
+# 
+# Basic INSERT statements
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2;
+--enable_warnings
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+
+# INSERT [INTO] .. VALUES|VALUE ..
+
+INSERT INTO t1 VALUES (100,'foobar',100),(1,'a',101),(2,'b',103),(3,'c',104),(4,'d',105),(5,'e',106);
+--sorted_result
+SELECT a,b FROM t1;
+
+INSERT t1 VALUE (10,'foo',107),(11,'abc',108);
+--sorted_result
+SELECT a,b FROM t1;
+
+INSERT INTO t1 (b,a) VALUES ('test',0);
+--sorted_result
+SELECT a,b FROM t1;
+
+INSERT INTO t1 VALUES (DEFAULT,DEFAULT,NULL);
+--sorted_result
+SELECT a,b FROM t1;
+
+INSERT t1 (a) VALUE (10),(20);
+--sorted_result
+SELECT a,b FROM t1;
+
+# INSERT [INTO] .. SET 
+
+INSERT INTO t1 SET a = 11, b = 'f';
+--sorted_result
+SELECT a,b FROM t1;
+
+INSERT t1 SET b = DEFAULT;
+--sorted_result
+SELECT a,b FROM t1;
+
+
+# INSERT .. SELECT
+
+CREATE TABLE t2 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+
+INSERT INTO t2 SELECT a,b,pk FROM t1;
+INSERT INTO t1 (a) SELECT a FROM t2 WHERE b = 'foo';
+--sorted_result
+SELECT a,b FROM t1;
+
+INSERT t1 (a,b) SELECT a,b FROM t1;
+--sorted_result
+SELECT a,b FROM t1;
+
+DROP TABLE t1, t2;
+
+# 
+# Transactional INSERT
+#
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+
+BEGIN;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(100,'foo');
+INSERT t1 (a,b) VALUE (10,'foo'),(11,'abc');
+COMMIT;
+--sorted_result
+SELECT a,b FROM t1;
+
+BEGIN;
+INSERT INTO t1 (b,a) VALUES ('test',0);
+SAVEPOINT spt1;
+INSERT INTO t1 (a,b) VALUES (DEFAULT,DEFAULT);
+RELEASE SAVEPOINT spt1;
+INSERT INTO t1 (a,b) VALUES (DEFAULT,DEFAULT);
+ROLLBACK;
+--sorted_result
+SELECT a,b FROM t1;
+
+BEGIN;
+INSERT t1 (a) VALUE (10),(20);
+SAVEPOINT spt1;
+INSERT INTO t1 SET a = 11, b = 'f';
+INSERT t1 SET b = DEFAULT;
+--error ER_ROLLBACK_TO_SAVEPOINT
+ROLLBACK TO SAVEPOINT spt1;
+INSERT INTO t1 (b,a) VALUES ('test1',10);
+--error ER_ROLLBACK_ONLY
+COMMIT;
+--sorted_result
+SELECT a,b FROM t1;
+
+DROP TABLE t1;
+
+

@@ -1,0 +1,48 @@
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_binlog_format_row.inc
+
+call mtr.add_suppression("WSREP: MariaDB Galera does not support binlog format");
+call mtr.add_suppression("WSREP: Cannot get fake transaction ID from storage engine.");
+
+--echo #
+--echo # MDEV-4227: Galera server should stop crashing on setting binlog_format STATEMENT
+--echo #
+
+SHOW VARIABLES LIKE 'binlog_format';
+SET binlog_format=STATEMENT;
+SHOW WARNINGS;
+SHOW VARIABLES LIKE 'binlog_format';
+CREATE TABLE IF NOT EXISTS test.t1 AS SELECT * FROM information_schema.routines WHERE 1 = 0;
+SET binlog_format=MIXED;
+SHOW WARNINGS;
+SHOW VARIABLES LIKE 'binlog_format';
+CREATE TABLE IF NOT EXISTS test.t2 AS SELECT * FROM information_schema.routines WHERE 1 = 0;
+SET binlog_format=ROW;
+SHOW WARNINGS;
+SHOW VARIABLES LIKE 'binlog_format';
+CREATE TABLE IF NOT EXISTS test.t3 AS SELECT * FROM information_schema.routines WHERE 1 = 0;
+DROP TABLE IF EXISTS test.t1;
+DROP TABLE IF EXISTS test.t2;
+DROP TABLE IF EXISTS test.t3;
+
+--echo #
+--echo # MDEV-7322: Option to allow setting the binlog_format with Galera
+--echo #
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET @@GLOBAL.binlog_format=STATEMENT;
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET @@GLOBAL.binlog_format=MIXED;
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET @@GLOBAL.binlog_format=DEFAULT;
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+
+SET @@GLOBAL.binlog_format=ROW;
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+
+--echo # End of test.

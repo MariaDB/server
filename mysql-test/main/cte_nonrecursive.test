@@ -1,0 +1,1583 @@
+--source include/default_optimizer_switch.inc
+
+create table t1 (a int, b  varchar(32));
+insert into t1 values
+  (4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');  
+insert into t1 values
+  (3,'eee'), (7,'bb'), (1,'fff'), (4,'ggg');
+create table t2 (c int);
+insert into t2 values
+  (2), (4), (5), (3);  
+
+--echo # select certain field in the specification of t
+with t as (select a from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+select * from t2, (select a from t1 where b >= 'c') as t
+   where t2.c=t.a;
+explain 
+with t as (select a from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+explain
+select * from t2, (select a from t1 where b >= 'c') as t
+   where t2.c=t.a;
+
+--echo # select '*' in the specification of t
+with t as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+select * from t2, (select * from t1 where b >= 'c') as t
+   where t2.c=t.a;
+explain
+with t as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+explain
+select * from t2, (select * from t1 where b >= 'c') as t
+   where t2.c=t.a;
+
+--echo # rename fields returned by the specication when defining t
+with t(f1,f2) as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.f1;
+explain
+with t(f1,f2) as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.f1;
+
+--echo # materialized query specifying t
+with t as (select a, count(*) from t1 where b >= 'c' group by a) 
+ select * from t2,t where t2.c=t.a;
+select * from t2, (select a, count(*) from t1 where b >= 'c' group by a) as t 
+ where t2.c=t.a;
+explain
+with t as (select a, count(*) from t1 where b >= 'c' group by a) 
+ select * from t2,t where t2.c=t.a;
+explain
+select * from t2, (select a, count(*) from t1 where b >= 'c' group by a) as t 
+  where t2.c=t.a;
+
+--echo # specivication of t contains having
+with t as (select a, count(*) from t1 where b >= 'c'
+             group by a having count(*)=1 ) 
+ select * from t2,t where t2.c=t.a; 
+select * from t2, (select a, count(*) from t1 where b >= 'c'
+                      group by a having count(*)=1) t
+ where t2.c=t.a; 
+
+--echo # main query contains having
+with t as (select * from t2 where c <= 4) 
+  select a, count(*) from t1,t where t1.a=t.c group by a having count(*)=1; 
+select a, count(*) from t1, (select * from t2 where c <= 4) t 
+  where t1.a=t.c group by a having count(*)=1; 
+
+--echo # main query contains group by + order by
+with t as (select * from t2 where c <= 4 ) 
+  select a, count(*) from t1,t where t1.a=t.c group by a order by count(*); 
+select a, count(*) from t1, (select * from t2 where c <= 4 ) t
+  where t1.a=t.c group by a order by count(*); 
+
+--echo # main query contains group by + order by + limit
+with t as (select * from t2 where c <= 4 ) 
+  select a, count(*) from t1,t
+    where t1.a=t.c group by a order by count(*) desc limit 1; 
+select a, count(*) from t1, (select * from t2 where c <= 4 ) t
+  where t1.a=t.c group by a order by count(*) desc limit 1; 
+
+
+--echo # t is used in a subquery
+with t as (select a from t1 where a<5)
+  select * from t2 where c in (select a from t);
+select * from t2 
+  where c in (select a from (select a from t1 where a<5) as t);
+explain
+with t as (select a from t1 where a<5)
+  select * from t2 where c in (select a from t);
+explain
+select * from t2 
+  where c in (select a from (select a from t1 where a<5) as t);
+
+--echo # materialized t is used in a subquery
+with t as (select count(*) as c from t1 where b >= 'c' group by a)
+  select * from t2 where c in (select c from t);
+select * from t2
+  where c in (select c from (select count(*) as c from t1
+                               where b >= 'c' group by a) as t);
+explain
+with t as (select count(*) as c from t1 where b >= 'c' group by a)
+  select * from t2 where c in (select c from t);
+explain
+select * from t2
+  where c in (select c from (select count(*) as c from t1
+                               where b >= 'c' group by a) as t);
+
+--echo # two references to t specified by a query
+--echo # selecting a field:  both in main query
+with t as (select a from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+select * from (select a from t1 where b >= 'c') as r1,
+              (select a from t1 where b >= 'c') as r2 
+  where r1.a=r2.a;
+explain
+with t as (select a from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+explain
+select * from (select a from t1 where b >= 'c') as r1,
+              (select a from t1 where b >= 'c') as r2 
+  where r1.a=r2.a;
+
+--echo # two references to materialized t: both in main query
+with t as (select distinct a from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+select * from (select distinct a from t1 where b >= 'c') as r1,
+              (select distinct a from t1 where b >= 'c') as r2 
+  where r1.a=r2.a;
+explain
+with t as (select distinct a from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+explain
+select * from (select distinct a from t1 where b >= 'c') as r1,
+              (select distinct a from t1 where b >= 'c') as r2 
+  where r1.a=r2.a;
+
+--echo # two references to t specified by a query
+--echo # selecting all fields:  both in main query
+with t as (select * from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+select * from (select * from t1 where b >= 'c') as r1,
+              (select * from t1 where b >= 'c') as r2
+  where r1.a=r2.a;
+explain
+with t as (select * from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+explain
+select * from (select * from t1 where b >= 'c') as r1,
+              (select * from t1 where b >= 'c') as r2
+  where r1.a=r2.a;
+
+--echo # two references to t specifying explicitly column names
+with t(c) as (select a from t1 where b >= 'c')
+  select * from t r1, t r2 where r1.c=r2.c;
+
+--echo # t two references of t used in different parts of a union
+with t as (select a from t1 where b >= 'c')
+  select * from t where a < 2
+  union
+  select * from t where a >= 4;
+select * from (select a from t1 where b >= 'c') as t
+  where t.a < 2
+union
+select * from (select a from t1 where b >= 'c') as t
+  where t.a >= 4;
+explain
+with t as (select a from t1 where b >= 'c')
+  select * from t where a < 2
+  union
+  select * from t where a >= 4;
+explain
+select * from (select a from t1 where b >= 'c') as t
+  where t.a < 2
+union
+select * from (select a from t1 where b >= 'c') as t
+  where t.a >= 4;
+
+--echo # specification of t contains union
+with t as (select a from t1 where b >= 'f' 
+           union
+           select c as a from t2 where c < 4) 
+  select * from t2,t where t2.c=t.a;
+select * from t2, 
+              (select a from t1 where b >= 'f' 
+               union
+               select c as a from t2 where c < 4) as t 
+ where t2.c=t.a;
+explain
+with t as (select a from t1 where b >= 'f' 
+           union
+           select c as a from t2 where c < 4) 
+  select * from t2,t where t2.c=t.a;
+explain
+select * from t2, 
+              (select a from t1 where b >= 'f' 
+               union
+               select c as a from t2 where c < 4) as t 
+ where t2.c=t.a;
+
+--echo # t is defined in the with clause of a subquery
+select t1.a,t1.b from t1,t2
+  where t1.a>t2.c and
+        t2.c in (with t as (select * from t1 where t1.a<5)
+                   select t2.c from t2,t where t2.c=t.a);
+select t1.a,t1.b from t1,t2
+  where t1.a>t2.c and
+        t2.c in (select t2.c
+                   from t2,(select * from t1 where t1.a<5) as t
+                   where t2.c=t.a);
+explain
+select t1.a,t1.b from t1,t2
+  where t1.a>t2.c and
+        t2.c in (with t as (select * from t1 where t1.a<5)
+                   select t2.c from t2,t where t2.c=t.a);
+explain
+select t1.a,t1.b from t1,t2
+  where t1.a>t2.c and
+        t2.c in (select t2.c
+                   from t2,(select * from t1 where t1.a<5) as t
+                   where t2.c=t.a);
+
+--echo # two different definitions of t: one in the with clause of the main query,
+--echo # the other in the with clause of a subquery 
+with t as (select c from t2 where c >= 4)
+  select t1.a,t1.b from t1,t
+    where t1.a=t.c and
+          t.c in (with t as (select * from t1 where t1.a<5)
+                    select t2.c from t2,t where t2.c=t.a);
+select t1.a,t1.b from t1, (select c from t2 where c >= 4) as t
+  where t1.a=t.c and
+        t.c in (select t2.c from t2,  (select * from t1 where t1.a<5) as t
+                 where t2.c=t.a);
+explain
+with t as (select c from t2 where c >= 4)
+  select t1.a,t1.b from t1,t
+    where t1.a=t.c and
+          t.c in (with t as (select * from t1 where t1.a<5)
+                    select t2.c from t2,t where t2.c=t.a);
+explain
+select t1.a,t1.b from t1, (select c from t2 where c >= 4) as t
+  where t1.a=t.c and
+        t.c in (select t2.c from t2,  (select * from t1 where t1.a<5) as t
+                 where t2.c=t.a);
+
+--echo # another with table tt is defined in the with clause of a subquery
+--echo # from the specification of t
+with t as (select * from t1
+              where a>2 and
+                    b in (with tt as (select * from t2 where t2.c<5)
+                           select t1.b from t1,tt where t1.a=tt.c))
+  select t.a, count(*) from t1,t where t1.a=t.a  group by t.a;
+select t.a, count(*)
+  from t1,
+       (select * from t1
+          where a>2 and
+                b in (select t1.b
+                        from t1,
+                             (select * from t2 where t2.c<5) as tt
+                          where t1.a=tt.c)) as t
+    where t1.a=t.a  group by t.a;
+explain
+with t as (select * from t1
+              where a>2 and
+                    b in (with tt as (select * from t2 where t2.c<5)
+                           select t1.b from t1,tt where t1.a=tt.c))
+  select t.a, count(*) from t1,t where t1.a=t.a  group by t.a;
+explain
+select t.a, count(*)
+  from t1,
+       (select * from t1
+          where a>2 and
+                b in (select t1.b
+                        from t1,
+                             (select * from t2 where t2.c<5) as tt
+                          where t1.a=tt.c)) as t
+    where t1.a=t.a  group by t.a;
+
+--echo # with clause in the specification of a derived table
+select *
+  from t1, 
+       (with t as (select a from t1 where b >= 'c') 
+          select * from t2,t where t2.c=t.a) as tt
+  where t1.b > 'f' and tt.a=t1.a; 
+select *
+  from t1, 
+       (select * from t2,
+                     (select a from t1 where b >= 'c') as t
+          where t2.c=t.a) as tt
+  where t1.b > 'f' and tt.a=t1.a; 
+explain
+select *
+  from t1, 
+       (with t as (select a from t1 where b >= 'c') 
+          select * from t2,t where t2.c=t.a) as tt
+  where t1.b > 'f' and tt.a=t1.a; 
+explain
+select *
+  from t1, 
+       (select * from t2,
+                     (select a from t1 where b >= 'c') as t
+          where t2.c=t.a) as tt
+  where t1.b > 'f' and tt.a=t1.a; 
+
+--echo # with claused in the specification of a view
+create view v1 as 
+with t as (select a from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+show create view v1;
+select * from v1;
+explain
+select * from v1;
+
+--echo # with claused in the specification of a materialized view
+create view v2 as 
+with t as (select a, count(*) from t1 where b >= 'c' group by a) 
+  select * from t2,t where t2.c=t.a;
+show create view v2;
+select * from v2;
+explain
+select * from v2;
+
+--echo # with clause in the specification of a view that whose definition
+--echo # table alias for a with table
+create view v3 as
+with t(c) as (select a from t1 where b >= 'c')
+select * from t r1 where r1.c=4;
+show create view v3;
+select * from v3;
+
+--echo # with clause in the specification of a view that whose definition
+--echo # two table aliases for for the same with table
+create view v4(c,d) as
+with t(c) as (select a from t1 where b >= 'c')
+select * from t r1, t r2 where r1.c=r2.c and r2.c=4;
+show create view v4;
+select * from v4;
+explain
+select * from v4;
+
+drop view v1,v2,v3,v4;
+
+
+--echo # currently any views containing with clause are not updatable
+create view v1(a) as 
+with t as (select a from t1 where b >= 'c') 
+  select t.a from t2,t where t2.c=t.a;
+--error ER_NON_UPDATABLE_TABLE
+update v1 set a=0 where a > 4;
+drop view v1;
+
+
+--echo # prepare of a query containing a definition of a with table t
+prepare stmt1 from "
+with t as (select a from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.a;
+";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+--echo # prepare of a query containing a definition of a materialized t
+prepare stmt1 from "
+with t as (select a, count(*) from t1 where b >= 'c' group by a) 
+ select * from t2,t where t2.c=t.a;
+";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+--echo # prepare of a query containing two references to with table t
+prepare stmt1 from "
+with t as (select * from t1 where b >= 'c')
+  select * from t as r1, t as r2 where r1.a=r2.a;
+";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+--ERROR ER_WITH_COL_WRONG_LIST
+with t(f) as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.f1;
+
+--ERROR ER_DUP_FIELDNAME
+with t(f1,f1) as (select * from t1 where b >= 'c') 
+  select * from t2,t where t2.c=t.f1;
+
+--ERROR ER_DUP_QUERY_NAME
+with t as (select * from t2 where c>3),
+     t as (select a from t1 where a>2)
+ select * from t,t1 where t1.a=t.c;
+
+--ERROR ER_NO_SUCH_TABLE
+with t as (select a from s where a<5),
+     s as (select a from t1 where b>='d')
+  select * from t,s where t.a=s.a;
+
+with recursive
+     t as (select a from s where a<5),
+     s as (select a from t1 where b>='d')
+  select * from t,s where t.a=s.a;
+
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive t as (select * from s where a>2),
+               s as (select a from t1,r where t1.a>r.c), 
+               r as (select c from t,t2 where t.a=t2.c) 
+  select * from r where r.c<7;
+
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive
+     t as (select * from s where a>2),
+     s as (select a from t1,r where t1.a>r.c), 
+     r as (select c from t,t2 where t.a=t2.c) 
+  select * from r where r.c<7;
+
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive
+     t as (select * from t1
+             where a in (select c from s where b<='ccc') and  b>'b'),
+     s as (select * from t1,t2
+             where t1.a=t2.c and t1.c in (select a from t where a<5))
+ select * from s where s.b>'aaa';
+
+--ERROR ER_RECURSIVE_WITHOUT_ANCHORS
+with recursive 
+  t as (select * from t1 where b>'aaa' and b <='d') 
+  select t.b from t,t2
+    where t.a=t2.c and
+          t2.c in (with recursive
+                   s as (select t1.a from s,t1 where t1.a=s.a and t1.b<'c')
+                   select * from s);
+--echo #erroneous definition of unreferenced with table t
+--ERROR ER_BAD_FIELD_ERROR
+with t as (select count(*) from t1 where d>='f' group by a)
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+with t as (select count(*) from t1 where b>='f' group by a)
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+--echo #erroneous definition of s referring to unreferenced t
+--ERROR ER_BAD_FIELD_ERROR
+with t(d) as (select count(*) from t1 where b<='ccc' group by b),
+     s as (select * from t1 where a in (select t2.d from t2,t where t2.c=t.d))
+  select t1.b from t1,t2 where t1.a=t2.c;
+--ERROR ER_BAD_FIELD_ERROR
+with t(d) as (select count(*) from t1 where b<='ccc' group by b),
+     s as (select * from t1 where a in (select t2.c from t2,t where t2.c=t.c))
+  select t1.b from t1,t2 where t1.a=t2.c;
+
+with t(d) as (select count(*) from t1 where b<='ccc' group by b),
+     s as (select * from t1 where a in (select t2.c from t2,t where t2.c=t.d))
+  select t1.b from t1,t2 where t1.a=t2.c;
+
+--echo #erroneous definition of unreferenced with table t
+--ERROR ER_WITH_COL_WRONG_LIST
+with t(f) as (select * from t1 where b >= 'c') 
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+--echo #erroneous definition of unreferenced with table t
+--ERROR ER_DUP_FIELDNAME
+with t(f1,f1) as (select * from t1 where b >= 'c') 
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+--echo # explain for query with unreferenced with table
+
+explain 
+with t as (select a from t1 where b >= 'c') 
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+explain 
+with t as (select a, count(*) from t1 where b >= 'c' group by a)
+  select t1.b from t2,t1 where t1.a = t2.c;
+
+--echo # too many with elements in with clause
+let $m= 65;
+let $i= $m;
+dec $i;
+let $q= with s$m as (select * from t1);
+while ($i)
+{
+  let $q= $q, s$i as (select * from t1) ;
+  dec $i;
+ }
+let $q= $q select * from s$m;
+--ERROR ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE
+eval $q;
+
+drop table t1,t2;
+
+--echo #
+--echo # Bug mdev-9937: View used in the specification of with table 
+--echo #                refers to the base table with the same name 
+--echo #
+
+create table t1 (a int);
+insert into t1 values (20), (30), (10);
+create view v1 as select * from t1 where a > 10;
+
+with t1 as (select * from v1) select * from t1;
+
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # Bug mdev-10058: Invalid derived table with WITH clause  
+--echo #                 
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE TABLE t3 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+INSERT INTO t2 VALUES (1),(2),(3);
+INSERT INTO t3 VALUES (1),(2),(3);
+
+--ERROR ER_PARSE_ERROR
+SELECT * FROM (WITH a AS (SELECT * FROM t1) (t2 NATURAL JOIN t3));
+
+SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT * FROM t2 NATURAL JOIN t3) AS d1;
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # Bug mdev-10344: the WITH clause of the query refers to a view that uses 
+--echo #     a base table with the same name as a  CTE table from the clause 
+--echo #
+
+
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+ 
+create table one_k(a int primary key);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+ 
+create view v1 as select * from ten;
+
+select * from v1;
+
+drop view v1;
+drop table ten, one_k;
+
+--echo #
+--echo # MDEV-10057 : Crash with EXPLAIN + WITH + constant query
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT 1) AS t1;
+EXPLAIN SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT 1) AS t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10058: Suspicious EXPLAIN output for a derived table + WITH + joined table	
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE TABLE t3 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+INSERT INTO t2 VALUES (1),(2),(3);
+INSERT INTO t3 VALUES (1),(2),(3);
+--error ER_PARSE_ERROR
+EXPLAIN SELECT * FROM (WITH a AS (SELECT * FROM t1) (t2 NATURAL JOIN t3));
+explain SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT * FROM t2 NATURAL JOIN t3) AS d1;
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-10729: Server crashes in st_select_lex::set_explain_type
+--echo #
+CREATE TABLE t1 (i1 INT, KEY(i1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4),(8);
+                        
+CREATE TABLE t2 (a2 INT, b2 INT, KEY(b2)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8,7);
+            
+CREATE TABLE t3 (i3 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (2),(6);
+ 
+SELECT * FROM t1, t2 WHERE a2 = i1 and b2 >= i1 AND i1 IN ( SELECT i3 FROM t3 )
+UNION
+SELECT * FROM t1, t2 WHERE a2 = i1 and b2 >= i1 AND i1 IN ( SELECT i3 FROM t3 )
+;
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-10923: mergeable CTE used twice in the query
+--echo #
+
+create table employees (
+  name varchar(32),
+  dept varchar(32),
+  country varchar(8)
+);
+ 
+insert into employees 
+values 
+('Sergei Golubchik', 'Development', 'DE'),
+('Claudio Nanni', 'Support', 'ES'),
+('Sergei Petrunia', 'Development', 'RU');
+
+with eng as 
+(
+   select * from employees
+   where dept in ('Development','Support')
+),
+eu_eng  as 
+(
+  select * from eng where country IN ('DE','ES','RU')
+)
+select * from eu_eng T1 
+where 
+  not exists (select 1 from eu_eng T2 
+              where T2.country=T1.country
+              and T2.name <> T1.name);
+
+drop table employees;
+
+--echo #
+--echo # MDEV-11818: EXPLAIN EXTENDED for a query with optimized away CTE table
+--echo #
+
+CREATE TABLE t1 (i INT, c VARCHAR(3));
+INSERT INTO t1 VALUES (1,'foo');
+
+EXPLAIN EXTENDED
+WITH cte AS ( SELECT * FROM t1 ) SELECT i FROM cte;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12185: view defintion contains WITH clause with 
+--echo #             several specifications of CTE
+--echo #
+
+with
+  alias1 as (select 1 as one),
+  alias2 as (select 2 as two)
+select one, two from alias1, alias2;
+
+create view v1 as 
+with
+  alias1 as (select 1 as one),
+  alias2 as (select 2 as two)
+select one, two from alias1, alias2;
+
+select * from v1;
+show create view v1;
+
+drop view v1;
+
+--echo #
+--echo # MDEV-12440: the same CTE table is used twice
+--echo #
+
+create table t1 (a int, b  varchar(32));
+insert into t1 values
+  (4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');  
+
+--echo # cte2 is used in the main query and in the spec for ct3
+with
+cte1 as (select * from t1 where  b >= 'c'),
+cte2 as (select * from cte1 where a < 7),
+cte3 as (select * from cte2 where a > 1)
+select * from cte2, cte3 where cte2.a = cte3.a;
+
+--echo # cte2 is used twice in the spec for ct3
+with
+cte1 as (select * from t1 where  b >= 'b'),
+cte2 as (select * from cte1 where b > 'c'),
+cte3 as (select * from cte2 where a > 1 union select * from cte2 where a > 1)
+select * from cte3;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-12558: CTE with the same name as temporary table
+--echo #
+
+CREATE TABLE t ENGINE=MyISAM AS SELECT 1 AS i;
+CREATE TEMPORARY TABLE cte ENGINE=MyISAM AS SELECT 2 AS f;
+
+WITH cte AS ( SELECT i FROM t ) SELECT * FROM cte;
+WITH cte AS ( SELECT i FROM t GROUP BY i) SELECT * FROM cte;
+
+SELECT * FROM cte;
+
+DROP TABLE cte;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-13107: SHOW TABLE STATUS, SHOW CREATE VIEW 
+--echo #             for CTEs that use derived tables
+--echo #
+
+create table t1(a int) engine=myisam;
+insert into t1 values (3), (1), (2);
+create table t2 (b int) engine=myisam;
+insert into t2 values (2), (10);
+
+create view v1 as
+with t as (select s.a from (select t1.a from t1) s),
+     r as(select t.a from t2, t where t2.b=t.a)
+ select a from r;
+
+create view v2 as
+with t as (select s.a from (select t1.a from t1) s),
+     r as(select t.a from t2, t where t2.b=t.a)
+ select a from t1;
+
+--disable_result_log
+show table status;
+--enable_result_log
+
+show create view v1;
+show create view v2;
+
+select * from v1;
+select * from v2;
+
+prepare stmt1 from "select * from v1";
+execute stmt1;
+execute stmt1;
+prepare stmt2 from "select * from v2";
+execute stmt2;
+execute stmt2;
+
+deallocate prepare stmt1;
+deallocate prepare stmt2;
+
+drop view v1,v2;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-13796: UNION of two materialized CTEs
+--echo #
+
+CREATE TABLE t1 (id int, k int);
+CREATE TABLE t2 (id int);
+INSERT INTO t1 VALUES (3,5), (1,7), (4,3);
+INSERT INTO t2 VALUES (4), (3), (2);
+
+let $q=
+WITH d1 AS (SELECT SUM(k) FROM t1, t2 as t2 WHERE t1.id = t2.id),
+     d2 AS (SELECT SUM(k) FROM t1, t2 as t2 WHERE t1.id = t2.id)
+SELECT * FROM d1 UNION  SELECT * FROM d2;
+
+eval $q;
+eval explain $q;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-13780: tower of embedding CTEs with multiple usage of them
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (2), (4), (7), (1), (2), (5);
+
+let $q=
+with cte_e as
+(
+  with cte_o as
+  (
+    with cte_i as (select * from t1 where a < 7)
+    select * from cte_i where a > 1
+  )
+  select * from cte_o as cto_o1 where a < 3
+  union
+  select * from cte_o as cto_o2 where a > 4
+)
+select * from cte_e as cte_e1 where a > 1
+union
+select * from cte_e as cte_e2;
+
+eval $q;
+eval explain extended $q;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-13753: embedded CTE in a VIEW created in prepared statement
+--echo #
+
+SET @sql_query = "
+  CREATE OR REPLACE VIEW cte_test AS
+   WITH  cte1  AS ( SELECT 1 as a from dual )
+    ,    cte2  AS ( SELECT * FROM cte1 )
+    SELECT * FROM cte2;
+";
+PREPARE stmt FROM @sql_query;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SHOW CREATE VIEW cte_test;
+SELECT * FROM cte_test;
+
+DROP VIEW cte_test;
+
+--echo #
+--echo # mdev-14755 : PS for query using CTE in select with subquery
+--echo #
+
+create table t1 (a int);
+insert into t1 values
+  (7), (2), (8), (1), (3), (2), (7), (5), (4), (7), (9), (8);
+
+let $q1=
+with cte as
+(select a from t1 where a between 4 and 7 group by a)
+(select a from cte where exists( select a from t1 where cte.a=t1.a ))
+union
+(select a from t1 where a < 2);
+
+eval $q1;
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q2=
+with cte as
+(select a from t1 where a between 4 and 7 group by a)
+(select a from t1 where a < 2)
+union
+(select a from cte where exists( select a from t1 where cte.a=t1.a ));
+
+eval $q2;
+eval prepare stmt from "$q2";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q3=
+with cte as
+(select a from t1 where a between 4 and 7)
+(select a from t1 where a < 2)
+union
+(select a from cte where exists( select a from t1 where cte.a=t1.a ));
+
+eval $q3;
+eval prepare stmt from "$q3";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q4=
+with cte as
+(select a from t1 where a between 4 and 7)
+(select a from cte
+   where exists( select a from t1 where t1.a < 2 and cte.a=t1.a ))
+union
+(select a from cte where exists( select a from t1 where cte.a=t1.a ));
+
+eval $q4;
+eval prepare stmt from "$q4";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-14852: CTE using temporary table in query
+--echo #             with two references to the CTE
+--echo #
+
+create temporary table t1 (i int);
+insert into t1 values (5),(4),(1),(2),(3);
+
+with
+c1 as (select i from t1),
+c2 as (select i from c1 where c1.i=2)
+select i from c1 where i > 3 union  select i from c2;
+
+drop table t1;
+
+create table t1 (term char(10));
+create temporary table t2 (term char(10));
+
+insert into t1 values ('TERM01'),('TERM02'),('TERM03');
+insert into t2 values ('TERM02'),('TERM03'),('TERM04');
+
+with c1 as (select * from t1), c2 as (select * from t2)
+(select * from c1 left outer join c2 on c1.term = c2.term)
+union all
+(select * from c1 right outer join c2 on c1.term = c2.term
+  where c1.term is null);
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-14969: view using subquery with attached CTE
+--echo #
+
+create table region (
+  r_regionkey int,
+  r_name char(25),
+  primary key (r_regionkey)
+);
+insert into region values
+(0,'AFRICA'), (1,'AMERICA'), (2,'ASIA'), (3,'EUROPE'), (4,'MIDDLE EAST');
+
+create table nation (
+  n_nationkey int,
+  n_name char(25),
+  n_regionkey int,
+  primary key (n_nationkey),
+  key i_n_regionkey (n_regionkey)
+);
+insert into nation values
+(0,'ALGERIA',0), (1,'ARGENTINA',1), (2,'BRAZIL',1), (3,'CANADA',1),
+(4,'EGYPT',4), (5,'ETHIOPIA',0), (6,'FRANCE',3), (7,'GERMANY',3),
+(8,'INDIA',2), (9,'INDONESIA',2), (10,'IRAN',4), (11,'IRAQ',4),
+(12,'JAPAN',2), (13,'JORDAN',4), (14,'KENYA',0), (15,'MOROCCO',0),
+(16,'MOZAMBIQUE',0), (17,'PERU',1), (18,'CHINA',2), (19,'ROMANIA',3),
+(20,'SAUDI ARABIA',4), (21,'VIETNAM',2), (22,'RUSSIA',3),
+(23,'UNITED KINGDOM',3), (24,'UNITED STATES',1);
+
+select * from nation n ,region r
+  where n.n_regionkey = r.r_regionkey and
+        r.r_regionkey in
+        (with t as (select * from region where r_regionkey <= 3 )
+           select r_regionkey from t where r_name <> "ASIA");
+
+create view v as
+select * from nation n ,region r
+  where n.n_regionkey = r.r_regionkey and
+        r.r_regionkey in
+        (with t as (select * from region where r_regionkey <= 3)
+           select r_regionkey from t where r_name <> "ASIA");
+
+show create view v;
+select * from v;
+
+drop view v;
+drop table region, nation;
+
+--echo #
+--echo # MDEV-15120: cte name used with database name
+--echo #
+
+--error ER_NO_SUCH_TABLE
+WITH cte AS (SELECT 1 AS a) SELECT test.cte.a FROM test.cte;
+
+CREATE DATABASE db1;
+USE db1;
+
+--error ER_NO_SUCH_TABLE
+WITH cte AS (SELECT 1 AS a) SELECT db1.cte.a FROM db1.cte;
+
+DROP DATABASE db1;
+USE test;
+
+--echo #
+--echo # MDEV-15119: CTE c2 specified after CTE c1 and is used in
+--echo #             CTE c3 that is embedded into the spec of c1
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+--error ER_NO_SUCH_TABLE
+WITH c1 AS (WITH c3 AS (SELECT * FROM c2) SELECT * FROM c3),
+     c2 AS (SELECT * FROM t1)
+SELECT * FROM c1;
+
+WITH RECURSIVE c1 AS (WITH c3 AS (SELECT * FROM c2) SELECT * FROM c3),
+     c2 AS (SELECT * FROM t1)
+SELECT * FROM c1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14297: Lost name of a explicitly named CTE column used in
+--echo #             the non-recursive CTE via prepared statement
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+PREPARE stmt FROM "WITH cte(a) AS (SELECT 1) SELECT * FROM cte";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM "CREATE VIEW v1 AS WITH cte(a) AS (SELECT 1) SELECT * FROM cte";
+EXECUTE stmt;
+SELECT * FROM v1;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM "CREATE VIEW v2 AS WITH cte(a) AS (SELECT * FROM t1) SELECT * FROM cte";
+EXECUTE stmt;
+SELECT * FROM v2;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1;
+DROP VIEW v1,v2;
+
+--echo #
+--echo # MDEV-15478: Lost name of a explicitly named CTE column used in
+--echo #             the non-recursive CTE defined with UNION
+--echo #
+
+CREATE TABLE t1 (x int, y int);
+INSERT INTO t1 VALUES (1,2),(2,7),(3,3);
+
+WITH cte(a) AS (SELECT 1 UNION SELECT 2) SELECT * FROM cte;
+
+WITH cte(a) AS (SELECT 1 UNION SELECT 2) SELECT a FROM cte;
+
+WITH cte(a) AS (SELECT 1 UNION ALL SELECT 1) SELECT a FROM cte;
+
+WITH cte(a) AS (SELECT x from t1 UNION SELECT 4) SELECT a FROM cte;
+
+WITH cte(a) AS (SELECT 4 UNION SELECT x FROM t1 UNION SELECT 5)
+SELECT a FROM cte;
+
+WITH cte(a,b) AS (SELECT 4,5 UNION SELECT 4,3) SELECT a,b FROM cte;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16353: unreferenced CTE specified by query with UNION
+--echo #
+
+with cte as
+  (select 1 union select 2 union select 3)
+select 1 as f;
+
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (4);
+
+with cte as
+  (select * from t1 where a < 2 union select * from t1 where a > 5)
+select 2 as f;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-16473: query with CTE when no database is set
+--echo #
+
+create database db_mdev_16473;
+use db_mdev_16473;
+drop database db_mdev_16473;
+
+--echo # Now no default database is set
+select database();
+
+with cte as (select 1 as a) select * from cte;
+
+create database db_mdev_16473;
+create table db_mdev_16473.t1 (a int);
+insert into db_mdev_16473.t1 values (2), (7), (3), (1);
+with cte as (select * from db_mdev_16473.t1) select * from cte;
+
+--error ER_NO_DB_ERROR
+with cte as (select * from db_mdev_16473.t1)
+select * from cte, t1 as t where cte.a=t.a;
+with cte as (select * from db_mdev_16473.t1)
+select * from cte, db_mdev_16473.t1 as t where cte.a=t.a;
+
+drop database db_mdev_16473;
+
+use test;
+
+--echo #
+--echo # MDEV-17154: using parameter markers for PS within CTEs more than once
+--echo #             using local variables in SP within CTEs more than once
+--echo #
+
+prepare stmt from "
+with cte(c) as (select ? ) select r.c, s.c+10  from cte as r, cte as s;
+";
+set @a=2;
+execute stmt using @a;
+set @a=5;
+execute stmt using @a;
+deallocate prepare stmt;
+
+prepare stmt from "
+with cte(c) as (select ? ) select c from cte union select c+10 from cte;
+";
+set @a=2;
+execute stmt using @a;
+set @a=5;
+execute stmt using @a;
+deallocate prepare stmt;
+
+prepare stmt from "
+with cte_e(a,b) as
+(
+  with cte_o(c) as (select ?)
+  select r.c+10, s.c+20 from cte_o as r, cte_o as s
+)
+select * from cte_e as cte_e1 where a > 12
+union all
+select * from cte_e as cte_e2;
+";
+set @a=2;
+execute stmt using @a;
+set @a=5;
+execute stmt using @a;
+deallocate prepare stmt;
+
+create table t1 (a int, b int);
+insert into t1 values
+  (3,33), (1,17), (7,72), (4,45), (2,27), (3,35), (4,47), (3,38), (2,22);
+
+prepare stmt from "
+with cte as (select * from t1 where a < ? and b > ?)
+  select r.a, r.b+10, s.a, s.b+20 from cte as r, cte as s where r.a=s.a+1;
+";
+set @a=4, @b=20;
+execute stmt using @a,@b;
+set @a=5, @b=20;
+execute stmt using @a,@b;
+deallocate prepare stmt;
+
+delimiter |;
+
+create procedure p1()
+begin
+  declare i int;
+  set i = 0;
+  while i < 4 do
+    insert into t1
+      with cte(a) as (select i) select r.a-1, s.a+1 from cte as r, cte as s;
+    set i = i+1;
+  end while;
+end|
+
+create procedure p2(in i int)
+begin
+ insert into t1
+   with cte(a) as (select i) select r.a-1, s.a+1 from cte as r, cte as s;
+end|
+
+delimiter ;|
+
+delete from t1;
+call p1();
+select * from t1;
+call p1();
+select * from t1;
+
+delete from t1;
+call p2(3);
+select * from t1;
+call p2(7);
+select * from t1;
+
+drop procedure p1;
+drop procedure p2;
+drop table t1;
+
+--echo #
+--echo # MDEV-17107: PS for CREATE OR REPLACE VIEW defined by SELECT with CTEs
+--echo #
+
+create table t1(a int);
+insert into t1 values (3), (1), (2);
+create table t2 (b int);
+insert into t2 values (2), (10);
+
+prepare stmt from
+"create or replace view v1 as
+ with t as (select s.a from (select t1.a from t1) s),
+      r as(select t.a from t2, t where t2.b=t.a)
+ select a from r;";
+
+execute stmt;
+select * from v1;
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-19112: CTE usage when information_schema is set as default db
+--echo #
+
+with t as (select 1 as t ) select * from t;
+
+use information_schema;
+with t as (select 1 as t) select * from t;
+with columns as (select 1 as t) select * from columns;
+
+use test;
+
+--echo #
+--echo # MDEV-18460: Server crashed in strmake / tdc_create_key /
+--echo # THD::create_tmp_table_def_key
+--echo #
+
+--connect con1,localhost,root,,
+--change_user root,,
+
+CREATE TEMPORARY TABLE test.t (a INT);
+WITH cte AS (SELECT 1) SELECT * FROM cte;
+WITH t AS (SELECT 1) SELECT * FROM t;
+--error ER_NO_DB_ERROR
+WITH cte AS (SELECT 1) SELECT * FROM t;
+DROP TABLE test.t;
+
+--connection default
+--disconnect con1
+
+--echo #
+--echo # MDEV-22781: create view with CTE without default database
+--echo #
+
+drop database test;
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3),(7),(1);
+
+create view db1.v1 as with t as (select * from db1.t1) select * from t;
+show create view db1.v1;
+select * from db1.v1;
+drop view db1.v1;
+
+prepare stmt from "
+create view db1.v1 as with t as (select * from db1.t1) select * from t;
+";
+execute stmt;
+deallocate prepare stmt;
+show create view db1.v1;
+select * from db1.v1;
+drop view db1.v1;
+
+drop table db1.t1;
+drop database db1;
+
+create database test;
+use test;
+
+--echo #
+--echo # MDEV-24597: CTE with union used multiple times in query
+--echo #
+
+with cte(a) as
+(select 1 as d union select 2 as d)
+select a from cte as r1
+union
+select a from cte as r2;
+
+create table t1 (a int, b int) engine=myisam;
+insert into t1 values
+(3,30), (7,70), (1,10), (7,71), (2,20), (7,72), (3,33), (4,44),
+(5,50), (4,40), (3,33), (4,42), (4,43), (5,51);
+
+with cte(c) as
+(select a from t1 where b < 30 union select a from t1 where b > 40)
+select * from cte as r1, cte as r2 where r1.c = r2.c;
+
+with cte(a,c) as
+(
+  select a, count(*) from t1 group by a having count(*) = 1
+  union
+  select a, count(*) from t1 group by a having count(*) = 3
+)
+select a, c from cte as r1 where a < 3
+union
+select a, c from cte as r2 where a > 4;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-23886: Stored Function returning the result of a query
+--echo #             that uses CTE over a table twice
+--echo #
+
+create table t1 (c1 int);
+insert into t1 values (1),(2),(6);
+
+create function f1() returns int return
+( with cte1 as (select c1 from t1)
+  select sum(c1) from
+  (select * from cte1 union all select * from cte1) dt
+);
+select f1();
+
+create function f2() returns int return
+( with cte1 as (select c1 from t1)
+  select sum(s.c1) from cte1 as s, cte1 as t where s.c1=t.c1
+);
+select f2();
+
+create function f3() returns int return
+( with cte1 as (select c1 from t1)
+  select
+  case
+    when exists(select 1 from cte1 where c1 between 1 and 2) then 1
+    when exists(select 1 from cte1 where c1 between 5 and 6) then 2
+    else 0
+  end
+);
+select f3();
+
+create view v1 as (select c1 from t1);
+
+create function f4() returns int return
+( select sum(c1) from
+  (select * from v1 union all select * from v1) dt
+);
+select f4();
+
+create function f5() returns int return
+( select sum(s.c1) from v1 as s, v1 as t where s.c1=t.c1
+);
+select f5();
+
+create view v2(s) as
+with cte1 as (select c1 from t1)
+select sum(c1) from (select * from cte1 union all select * from cte1) dt;
+
+create function f6() returns int return
+(select s from v2);
+select f6();
+
+create function f7() returns int return
+( select r.s from v2 as r, v2 as t where r.s=t.s
+);
+select f7();
+
+select f5() + f6();
+
+prepare stmt from "select f5() + f6();";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop function f1;
+drop function f2;
+drop function f3;
+drop function f4;
+drop function f5;
+drop function f6;
+drop function f7;
+
+drop view v1;
+drop view v2;
+
+create table t2 (a int, b int);
+
+insert into t2
+with cte1 as (select c1 from t1)
+select * from cte1 as s, cte1 as t where s.c1=t.c1 and s.c1 > 5;
+
+select * from t2;
+
+delimiter |;
+
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select c1 from t1)
+select * from cte1 as s, cte1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+
+delimiter ;|
+
+call p1();
+select * from t2;
+
+drop procedure p1;
+
+--echo # checking CTE resolution for queries with hanging CTEs
+
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from cte3;
+
+select * from t2;
+
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from t2;
+
+--error ER_BAD_FIELD_ERROR
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where c1 >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from t2;
+
+--error ER_BAD_FIELD_ERROR
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.c1)
+select * from t2;
+
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select * from cte2;
+
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select * from t2;
+
+--error ER_NON_UNIQ_ERROR
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=c1)
+select * from t2;
+
+with cte3 as
+( with cte2(a,b) as
+  ( with cte1 as (select * from t1 where c1 <= 2)
+    select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+  select r1.a,r2.b from cte2 as r1, cte2 as r2)
+select * from cte3;
+
+with cte3 as
+( with cte2(a,b) as
+  ( with cte1 as (select * from t1 where c1 <= 2)
+    select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+  select r1.a,r2.b from cte2 as r1, cte2 as r2)
+select * from t2;
+
+--error ER_BAD_FIELD_ERROR
+with cte3 as
+( with cte2(a,b) as
+  ( with cte1 as (select * from t1 where c1 <= 2)
+    select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+  select r1.c1,r2.c1 from cte2 as r1, cte2 as r2)
+select * from t2;
+
+delimiter |;
+
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select c1 from t1)
+select * from t1 as s, t1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+
+delimiter ;|
+
+call p1();
+select * from t2;
+
+drop procedure p1;
+
+delimiter |;
+
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select a from t1)
+select * from t1 as s, t1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+
+delimiter ;|
+
+--error ER_BAD_FIELD_ERROR
+call p1();
+
+drop procedure p1;
+
+drop table t1,t2;
+
+--echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-21673: several references to CTE that uses
+--echo #             local variables / parameters of SP
+--echo #
+
+CREATE TABLE t1 (col1 int);
+CREATE TABLE t2 (col1 int, col2 date, col3 varchar(16), col4 int);
+CREATE TABLE t3 (col1 int, col2 date);
+CREATE TABLE t4 (col1 int, col2 date);
+INSERT INTO t1 VALUES (3), (7), (9), (1);
+INSERT INTO t2 VALUES
+  (3,'2019-09-01','AAA',2), (7,'2019-10-01','AAA',4), (3,'2019-10-01','AAA',8),
+  (1,'2019-10-01','BBB',9), (1,'2019-10-01','AAA',4), (1,'2019-10-01','AAA',6);
+INSERT INTO t3 VALUES
+  (4,'2018-10-01'), (6,'2018-10-01'), (4,'2017-10-01'), (7,'2017-10-01');
+INSERT INTO t4 VALUES
+  (5,'2018-10-01'), (8,'2017-10-01'), (4,'2017-10-01');
+
+DELIMITER |;
+
+CREATE OR REPLACE PROCEDURE SP1()
+BEGIN
+DECLARE p_date date;
+DECLARE p_var2 varchar(16);
+SET p_date='2019-10-01';
+SET p_var2='AAA';
+WITH cte_first(col) AS
+(
+  SELECT DISTINCT col4
+  FROM t1, t2
+  WHERE t2.col1 = t1.col1 AND t2.col2 = p_date AND t2.col3 = p_var2
+),
+cte2 AS
+(
+  SELECT DISTINCT col2
+  FROM t3
+  WHERE col1 IN ( SELECT col FROM cte_first )
+),
+cte3 AS (
+  SELECT distinct t4.col1
+  FROM cte2, t4
+  WHERE t4.col2 = cte2.col2 AND t4.col1 IN ( SELECT col FROM cte_first )
+)
+SELECT * FROM cte3;
+END|
+
+CREATE PROCEDURE SP2(IN d date)
+BEGIN
+DECLARE p_var2 varchar(16);
+SET p_var2='AAA';
+WITH cte_first(col) AS
+(
+  SELECT DISTINCT col4
+  FROM t1, t2
+  WHERE t2.col1 = t1.col1 AND t2.col2 = d AND t2.col3 = p_var2
+),
+cte2 AS
+(
+  SELECT DISTINCT col2
+  FROM t3
+  WHERE col1 IN ( SELECT col FROM cte_first )
+),
+cte3 AS (
+  SELECT distinct t4.col1
+  FROM cte2, t4
+  WHERE t4.col2 = cte2.col2 AND t4.col1 IN ( SELECT col FROM cte_first )
+)
+SELECT * FROM cte3;
+END|
+
+DELIMITER ;|
+
+
+CREATE TABLE t AS
+SELECT col4 AS col
+FROM t1, t2
+WHERE t2.col1 = t1.col1 AND t2.col2 ='2019-10-01' AND t2.col3 = 'AAA';
+SELECT * FROM t;
+
+CREATE TABLE tt AS
+SELECT col2
+FROM t3
+WHERE col1 IN ( SELECT col FROM t );
+SELECT * FROM tt;
+
+SELECT t4.col1
+FROM tt, t4
+WHERE t4.col2 = tt.col2 AND t4.col1 IN ( SELECT col FROM t );
+
+DROP TABLE t,tt;
+
+CALL SP1();
+CALL SP1();
+
+CALL SP2('2019-10-01');
+CALL SP2('2019-10-01');
+
+DROP PROCEDURE SP1;
+DROP PROCEDURE SP2;
+DROP TABLE t1,t2,t3,t4;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-20730: Syntax error on SELECT INTO @variable with CTE
+--echo #
+
+with data as (select 1 as id)
+select id into @myid from data;
+set @save_sql_mode = @@sql_mode;
+set sql_mode="oracle";
+with data as (select 1 as id)
+select id into @myid from data;
+set sql_mode= @save_sql_mode;
+
+--echo # End of 10.4 tests

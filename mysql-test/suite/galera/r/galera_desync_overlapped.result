@@ -1,0 +1,52 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t1 (f1 INTEGER, PRIMARY KEY (f1)) Engine=InnoDB;
+CREATE TABLE t2 (f1 INTEGER, PRIMARY KEY (f1)) Engine=InnoDB;
+SET GLOBAL wsrep_desync = 1;
+show status like 'wsrep_desync_count';
+Variable_name	Value
+wsrep_desync_count	1
+SET DEBUG_SYNC='before_execute_sql_command SIGNAL alter1 WAIT_FOR alter2';
+INSERT INTO t1 (f1) SELECT 0000 + (100 * a1.f1) + (10 * a2.f1) + a3.f1 FROM ten AS a1, ten AS a2, ten AS a3;
+connection node_1a;
+SET GLOBAL wsrep_desync = 1;
+Warnings:
+Warning	1231	'wsrep_desync' is already ON.
+show status like 'wsrep_desync_count';
+Variable_name	Value
+wsrep_desync_count	1
+SET DEBUG_SYNC='now WAIT_FOR alter1';
+SET DEBUG_SYNC='before_execute_sql_command SIGNAL alter2';
+INSERT INTO t2 (f1) SELECT 0000 + (100 * a1.f1) + (10 * a2.f1) + a3.f1 FROM ten AS a1, ten AS a2, ten AS a3;
+connection node_1;
+connection node_1a;
+connection node_1;
+SET DEBUG_SYNC='RESET';
+SET GLOBAL wsrep_desync = 0;
+show status like 'wsrep_desync_count';
+Variable_name	Value
+wsrep_desync_count	0
+SET GLOBAL wsrep_desync = 0;
+Warnings:
+Warning	1231	'wsrep_desync' is already OFF.
+show status like 'wsrep_desync_count';
+Variable_name	Value
+wsrep_desync_count	0
+show status like 'wsrep_desync_count';
+Variable_name	Value
+wsrep_desync_count	0
+SET GLOBAL wsrep_desync = 0;
+Warnings:
+Warning	1231	'wsrep_desync' is already OFF.
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1000
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+1000
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE ten;

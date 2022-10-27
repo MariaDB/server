@@ -1,0 +1,467 @@
+CREATE TABLE t1 (name CHAR(10), test double, score DECIMAL(19,4));
+INSERT INTO t1 VALUES
+('Chun', 0, 3), ('Chun', 0, 7),
+('Kaolin', 0.5, 3), ('Kaolin', 0.6, 7),
+('Kaolin', 0.5, 4),
+('Tatiana', 0.8, 4), ('Tata', 0.8, 4);
+#
+# Test invalid syntax
+#
+# Order by clause has more than one element
+select percentile_disc(0.5) within group(order by score,test) over (partition by name) from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'test) over (partition by name) from t1' at line 1
+select percentile_cont(0.5) within group(order by score,test) over (partition by name) from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'test) over (partition by name) from t1' at line 1
+# Order by clause has no element
+select percentile_disc(0.5) within group() over (partition by name) from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') over (partition by name) from t1' at line 1
+select percentile_cont(0.5) within group() over (partition by name) from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') over (partition by name) from t1' at line 1
+# No parameters to the percentile functions
+select percentile_disc() within group() over (partition by name) from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') within group() over (partition by name) from t1' at line 1
+select percentile_cont() within group() over (partition by name) from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') within group() over (partition by name) from t1' at line 1
+#
+# Test simple syntax
+#
+select name, percentile_cont(0.5)  within group(order by score) over (partition by name) as c from t1;
+name	c
+Chun	5.0000000000
+Chun	5.0000000000
+Kaolin	4.0000000000
+Kaolin	4.0000000000
+Kaolin	4.0000000000
+Tata	4.0000000000
+Tatiana	4.0000000000
+select name, percentile_disc(0.5)  within group(order by score) over (partition by name) as c from t1;
+name	c
+Chun	3.0000
+Chun	3.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Tata	4.0000
+Tatiana	4.0000
+# no partition clause
+select name, percentile_disc(0.5) within group(order by score)  over ()  from t1;
+name	percentile_disc(0.5) within group(order by score)  over ()
+Chun	4.0000
+Chun	4.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Tata	4.0000
+Tatiana	4.0000
+select name, percentile_cont(0.5) within group(order by score)  over ()  from t1;
+name	percentile_cont(0.5) within group(order by score)  over ()
+Chun	4.0000000000
+Chun	4.0000000000
+Kaolin	4.0000000000
+Kaolin	4.0000000000
+Kaolin	4.0000000000
+Tata	4.0000000000
+Tatiana	4.0000000000
+# argument set to null
+select name, percentile_cont(null)  within group(order by score) over (partition by name) from t1;
+ERROR HY000: percentile_cont function only accepts arguments that can be converted to numerical types
+select name, percentile_disc(null)  within group(order by score) over (partition by name) from t1;
+ERROR HY000: percentile_disc function only accepts arguments that can be converted to numerical types
+#subqueries having percentile functions
+select * from ( select name , percentile_cont(0.5) within group ( order by score) over (partition by name ) from t1 ) as t;
+name	percentile_cont(0.5) within group ( order by score) over (partition by name )
+Chun	5.0000000000
+Chun	5.0000000000
+Kaolin	4.0000000000
+Kaolin	4.0000000000
+Kaolin	4.0000000000
+Tata	4.0000000000
+Tatiana	4.0000000000
+select * from ( select name , percentile_disc(0.5) within group ( order by score) over (partition by name ) from t1 ) as t;
+name	percentile_disc(0.5) within group ( order by score) over (partition by name )
+Chun	3.0000
+Chun	3.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Kaolin	4.0000
+Tata	4.0000
+Tatiana	4.0000
+select name from t1 a where (select  percentile_disc(0.5) within group (order by score) over (partition by name) from t1 b limit 1) >= 0.5;
+name
+Chun
+Chun
+Kaolin
+Kaolin
+Kaolin
+Tata
+Tatiana
+#disallowed fields in order by
+select score,  percentile_cont(0.5)  within group(order by name) over (partition by score) from t1;
+ERROR HY000: Numeric datatype is required for percentile_cont function
+select score,  percentile_disc(0.5)  within group(order by name) over (partition by score) from t1;
+ERROR HY000: Numeric datatype is required for percentile_disc function
+#parameter value should be in the range of [0,1]
+select percentile_disc(1.5) within group(order by score) over (partition by name) from t1;
+ERROR HY000: Argument to the percentile_disc function does not belong to the range [0,1]
+select percentile_cont(1.5) within group(order by score) over (partition by name) from t1;
+ERROR HY000: Argument to the percentile_cont function does not belong to the range [0,1]
+#Argument should remain constant for the entire partition
+select name,percentile_cont(test) within group(order by score) over (partition by name) from t1;
+ERROR HY000: Argument to the percentile_cont function is not a constant for a partition
+select name, percentile_disc(test) within group(order by score) over (partition by name) from t1;
+ERROR HY000: Argument to the percentile_disc function is not a constant for a partition
+#only numerical types are allowed as argument to percentile functions
+select name, percentile_cont(name) within group(order by score) over (partition by name) from t1;
+ERROR HY000: percentile_cont function only accepts arguments that can be converted to numerical types
+select name, percentile_disc(name) within group(order by score) over (partition by name) from t1;
+ERROR HY000: percentile_disc function only accepts arguments that can be converted to numerical types
+#complete query with partition column
+select name,cume_dist() over (partition by name order by score), percentile_disc(0.5)  within group(order by score) over (partition by name) as c from t1;
+name	cume_dist() over (partition by name order by score)	c
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	4.0000
+Kaolin	0.6666666667	4.0000
+Kaolin	1.0000000000	4.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select name, percentile_cont(0.5)  within group(order by score) over (partition by name) as c from t1;
+name	c
+Chun	5.0000000000
+Chun	5.0000000000
+Kaolin	4.0000000000
+Kaolin	4.0000000000
+Kaolin	4.0000000000
+Tata	4.0000000000
+Tatiana	4.0000000000
+select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.1)  within group(order by score) over (partition by name) as c from t1;
+name	b	c
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	3.0000
+Kaolin	0.6666666667	3.0000
+Kaolin	1.0000000000	3.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.2)  within group(order by score) over (partition by name) as c from t1;
+name	b	c
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	3.0000
+Kaolin	0.6666666667	3.0000
+Kaolin	1.0000000000	3.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.3)  within group(order by score) over (partition by name) as c from t1;
+name	b	c
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	3.0000
+Kaolin	0.6666666667	3.0000
+Kaolin	1.0000000000	3.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.4)  within group(order by score) over (partition by name) as c from t1;
+name	b	c
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	4.0000
+Kaolin	0.6666666667	4.0000
+Kaolin	1.0000000000	4.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.5)  within group(order by score) over (partition by name) as c from t1;
+name	b	c
+Chun	0.5000000000	3.0000
+Chun	1.0000000000	3.0000
+Kaolin	0.3333333333	4.0000
+Kaolin	0.6666666667	4.0000
+Kaolin	1.0000000000	4.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.6)  within group(order by score) over (partition by name) as c from t1;
+name	b	c
+Chun	0.5000000000	7.0000
+Chun	1.0000000000	7.0000
+Kaolin	0.3333333333	4.0000
+Kaolin	0.6666666667	4.0000
+Kaolin	1.0000000000	4.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.7)  within group(order by score) over (partition by name) as c from t1;
+name	b	c
+Chun	0.5000000000	7.0000
+Chun	1.0000000000	7.0000
+Kaolin	0.3333333333	7.0000
+Kaolin	0.6666666667	7.0000
+Kaolin	1.0000000000	7.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.8)  within group(order by score) over (partition by name) as c from t1;
+name	b	c
+Chun	0.5000000000	7.0000
+Chun	1.0000000000	7.0000
+Kaolin	0.3333333333	7.0000
+Kaolin	0.6666666667	7.0000
+Kaolin	1.0000000000	7.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select name,cume_dist() over (partition by name order by score) as b, percentile_disc(0.9)  within group(order by score) over (partition by name) as c from t1;
+name	b	c
+Chun	0.5000000000	7.0000
+Chun	1.0000000000	7.0000
+Kaolin	0.3333333333	7.0000
+Kaolin	0.6666666667	7.0000
+Kaolin	1.0000000000	7.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select name,cume_dist() over (partition by name order by score) as b, percentile_disc(1)  within group(order by score) over (partition by name) as c from t1;
+name	b	c
+Chun	0.5000000000	7.0000
+Chun	1.0000000000	7.0000
+Kaolin	0.3333333333	7.0000
+Kaolin	0.6666666667	7.0000
+Kaolin	1.0000000000	7.0000
+Tata	1.0000000000	4.0000
+Tatiana	1.0000000000	4.0000
+select median(score) over (partition by name), percentile_cont(0)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	3.0000000000
+5.0000000000	3.0000000000
+4.0000000000	3.0000000000
+4.0000000000	3.0000000000
+4.0000000000	3.0000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+select median(score) over (partition by name), percentile_cont(0.1)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	3.4000000000
+5.0000000000	3.4000000000
+4.0000000000	3.2000000000
+4.0000000000	3.2000000000
+4.0000000000	3.2000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+select median(score) over (partition by name), percentile_cont(0.2)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	3.8000000000
+5.0000000000	3.8000000000
+4.0000000000	3.4000000000
+4.0000000000	3.4000000000
+4.0000000000	3.4000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+select median(score) over (partition by name), percentile_cont(0.3)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	4.2000000000
+5.0000000000	4.2000000000
+4.0000000000	3.6000000000
+4.0000000000	3.6000000000
+4.0000000000	3.6000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+select median(score) over (partition by name), percentile_cont(0.4)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	4.6000000000
+5.0000000000	4.6000000000
+4.0000000000	3.8000000000
+4.0000000000	3.8000000000
+4.0000000000	3.8000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+select median(score) over (partition by name), percentile_cont(0.5)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	5.0000000000
+5.0000000000	5.0000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+select median(score) over (partition by name), percentile_cont(0.6)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	5.4000000000
+5.0000000000	5.4000000000
+4.0000000000	4.6000000000
+4.0000000000	4.6000000000
+4.0000000000	4.6000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+select median(score) over (partition by name), percentile_cont(0.7)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	5.8000000000
+5.0000000000	5.8000000000
+4.0000000000	5.2000000000
+4.0000000000	5.2000000000
+4.0000000000	5.2000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+select median(score) over (partition by name), percentile_cont(0.8)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	6.2000000000
+5.0000000000	6.2000000000
+4.0000000000	5.8000000000
+4.0000000000	5.8000000000
+4.0000000000	5.8000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+select median(score) over (partition by name), percentile_cont(0.9)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	6.6000000000
+5.0000000000	6.6000000000
+4.0000000000	6.4000000000
+4.0000000000	6.4000000000
+4.0000000000	6.4000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+select median(score) over (partition by name), percentile_cont(1)  within group(order by score) over (partition by name) as c from t1;
+median(score) over (partition by name)	c
+5.0000000000	7.0000000000
+5.0000000000	7.0000000000
+4.0000000000	7.0000000000
+4.0000000000	7.0000000000
+4.0000000000	7.0000000000
+4.0000000000	4.0000000000
+4.0000000000	4.0000000000
+drop table t1;
+#
+# MDEV-13352: MEDIAN window function over a table with virtual column
+#             in select with CTE and ORDER BY
+#
+CREATE TABLE t1 (f1 int ,f2 int ,f3 int, f4 int, v1 int AS (-f4) virtual);
+INSERT INTO t1(f1,f2,f3,f4) VALUES
+(1,10,100,10), (7,11,112,15), (3,14,121,12);
+WITH CTE AS (SELECT MIN(f3) OVER () FROM t1)
+SELECT  MEDIAN(f3) OVER () FROM t1
+ORDER BY f1, f2, f3, f4, v1;
+MEDIAN(f3) OVER ()
+112.0000000000
+112.0000000000
+112.0000000000
+DROP TABLE t1;
+#
+# MDEV-15846: Sever crashed with MEDIAN() window function
+#
+CREATE TABLE t1 ( pk int PRIMARY KEY, a1 int, a2 int);
+SELECT MEDIAN(`a1`) OVER (),
+MEDIAN(`a2`) OVER (PARTITION BY `pk`)
+FROM t1;
+MEDIAN(`a1`) OVER ()	MEDIAN(`a2`) OVER (PARTITION BY `pk`)
+DROP TABLE t1;
+#
+# MDEV-17137: Syntax errors with VIEW using MEDIAN
+#
+CREATE TABLE t1(val int);
+INSERT INTO t1 VALUES (1), (2), (3);
+CREATE VIEW v1 AS SELECT MEDIAN(val) OVER() FROM t1;
+select * from v1;
+MEDIAN(val) OVER()
+2.0000000000
+2.0000000000
+2.0000000000
+select median(val) OVER () FROM t1;
+median(val) OVER ()
+2.0000000000
+2.0000000000
+2.0000000000
+drop table t1;
+drop view v1;
+#
+# MDEV-20278 PERCENTILE_DISC() returns a wrong data type
+#
+# INT variants
+CREATE TABLE t1 (name CHAR(30), star_rating INT);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+CREATE OR REPLACE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `name` char(30) DEFAULT NULL,
+  `pc` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+# UNSIGNED INT variants
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating BIGINT UNSIGNED);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 0x8000000000000005);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 0x8000000000000003);
+INSERT INTO t1 VALUES ('Lady of the Flies', 0x8000000000000001);
+INSERT INTO t1 VALUES ('Lady of the Flies', 0x8000000000000002);
+INSERT INTO t1 VALUES ('Lady of the Flies', 0x8000000000000003);
+CREATE OR REPLACE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `name` char(30) DEFAULT NULL,
+  `pc` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT name, pc, HEX(pc) FROM t2 ORDER BY name, pc;
+name	pc	HEX(pc)
+Lady of the Flies	9223372036854775810	8000000000000002
+Lady of the Flies	9223372036854775810	8000000000000002
+Lady of the Flies	9223372036854775810	8000000000000002
+Lord of the Ladybirds	9223372036854775811	8000000000000003
+Lord of the Ladybirds	9223372036854775811	8000000000000003
+DROP TABLE t2, t1;
+# FLOAT variants
+CREATE TABLE t1 (name CHAR(30), star_rating FLOAT);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+CREATE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `name` char(30) DEFAULT NULL,
+  `pc` float DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+# DECIMAL variants
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating DECIMAL(30,2));
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 50000000000);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 30000000000);
+INSERT INTO t1 VALUES ('Lady of the Flies', 10000000000);
+INSERT INTO t1 VALUES ('Lady of the Flies', 20000000000);
+INSERT INTO t1 VALUES ('Lady of the Flies', 50000000000);
+CREATE OR REPLACE TABLE t2 AS SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `name` char(30) DEFAULT NULL,
+  `pc` decimal(30,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2 ORDER BY name, pc;
+name	pc
+Lady of the Flies	20000000000.00
+Lady of the Flies	20000000000.00
+Lady of the Flies	20000000000.00
+Lord of the Ladybirds	30000000000.00
+Lord of the Ladybirds	30000000000.00
+DROP TABLE t2, t1;
+#
+# MDEV-20272 PERCENTILE_DISC() crashes on a temporal type input
+#
+CREATE OR REPLACE TABLE t1 (name CHAR(30), star_rating TIME);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 5);
+INSERT INTO t1 VALUES ('Lord of the Ladybirds', 3);
+INSERT INTO t1 VALUES ('Lady of the Flies', 1);
+INSERT INTO t1 VALUES ('Lady of the Flies', 2);
+INSERT INTO t1 VALUES ('Lady of the Flies', 5);
+SELECT name, PERCENTILE_DISC(0.5)
+WITHIN GROUP (ORDER BY star_rating)
+OVER (PARTITION BY name) AS pc FROM t1;
+ERROR HY000: Numeric datatype is required for percentile_disc function
+DROP TABLE t1;

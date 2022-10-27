@@ -1,0 +1,55 @@
+DROP TABLE IF EXISTS ids;
+CREATE TABLE ids (
+id INT,
+KEY (id)
+);
+INSERT INTO ids VALUES (1);
+INSERT INTO ids SELECT id + 1  FROM ids;
+INSERT INTO ids SELECT id + 2  FROM ids;
+INSERT INTO ids SELECT id + 4  FROM ids;
+INSERT INTO ids SELECT id + 8  FROM ids;
+INSERT INTO ids SELECT id + 16 FROM ids;
+SELECT * FROM ids;
+id
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+SELECT * FROM ids WHERE id BETWEEN 10 AND 16;
+id
+10
+11
+12
+13
+14
+15
+16
+DROP TABLE ids;

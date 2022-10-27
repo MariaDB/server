@@ -1,0 +1,37 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # GRANT
+--echo #
+
+create database s_db;
+create sequence s_db.s1;
+grant select on s_db.s1 to normal_1@'%' identified by 'pass';
+
+connect(m_normal_1, localhost, normal_1, pass, s_db);
+select * from s1;
+--error ER_TABLEACCESS_DENIED_ERROR
+select nextval(s1);
+show create sequence s1;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter sequence s1 restart 50;
+connection default;
+grant insert on s_db.s1 to normal_1@'%';
+connection m_normal_1;
+select nextval(s1);
+--error ER_TABLEACCESS_DENIED_ERROR
+alter sequence s1 restart 50;
+connection default;
+grant alter on s_db.s1 to normal_1@'%';
+connection m_normal_1;
+alter sequence s1 restart 50;
+select nextval(s1);
+--error ER_TABLEACCESS_DENIED_ERROR
+drop sequence s1;
+
+connection default;
+disconnect m_normal_1;
+drop database s_db;
+drop user normal_1@'%';

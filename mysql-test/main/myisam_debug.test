@@ -1,0 +1,72 @@
+--source include/have_debug.inc
+
+# We disable this test in embedded mode because of BUG#43733
+--source include/not_embedded.inc
+
+--echo #
+--echo # BUG#40827 - Killing insert-select to MyISAM can cause table corruption
+--echo #
+
+CONNECT (insertConn, localhost, root,,);
+
+CREATE TABLE `t1` (
+`id` BIGINT(20) ,
+`id1` BIGINT(20) AUTO_INCREMENT,
+ KEY(id1), KEY(id)
+) ENGINE=MyISAM;
+
+CREATE TABLE `t2` (
+`id` BIGINT(20) ,
+`id1` BIGINT(20) AUTO_INCREMENT,
+ KEY (id1), KEY(id)
+) ENGINE=MyISAM;
+
+INSERT INTO t2 (id) VALUES (123);
+
+let $i = 10; 
+--disable_query_log
+begin;
+while ($i)
+{
+  INSERT INTO t2 (id) SELECT id  FROM t2; 
+  dec $i; 
+}
+commit;
+--enable_query_log
+
+CONNECTION insertConn;
+SET SESSION debug_dbug='+d,wait_in_enable_indexes';
+--echo # Send insert data
+SEND INSERT INTO t1(id) SELECT id  FROM t2; 
+
+CONNECTION default;
+--echo # Wait for insert data to reach the debug point
+
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+  WHERE STATE = "wait_in_enable_indexes" AND 
+  INFO = "INSERT INTO t1(id) SELECT id  FROM t2";
+--source include/wait_condition.inc
+
+SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE STATE = 'wait_in_enable_indexes' AND 
+INFO = "INSERT INTO t1(id) SELECT id  FROM t2" 
+INTO @thread_id;
+
+KILL QUERY @thread_id;
+CHECK TABLE t1; 
+DROP TABLE t1,t2;
+DISCONNECT insertConn;
+
+#
+# MDEV-12761 Error return from external_lock make the server crash
+#
+call mtr.add_suppression("Index for table '.*test.t1\\.MYI' is corrupt; try to repair it");
+create table t1 (a int, index(a));
+lock tables t1 write;
+insert t1 values (1),(2),(1);
+set @old_dbug=@@debug_dbug;
+SET debug_dbug='+d,mi_lock_database_failure';
+unlock tables;
+SET debug_dbug=@old_dbug;
+drop table t1;

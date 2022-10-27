@@ -1,0 +1,290 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--echo *** Test that we check against incorrect table definition for mysql.gtid_slave_pos ***
+--connection master
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+--sync_slave_with_master
+
+--connection slave
+--source include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos CHANGE seq_no seq_no VARCHAR(20);
+START SLAVE;
+
+--connection master
+INSERT INTO t1 VALUES (1);
+
+--connection slave
+CALL mtr.add_suppression("Slave: Failed to open mysql.gtid_slave_pos");
+--let $slave_sql_errno=1944
+--source include/wait_for_slave_sql_error.inc
+
+--source include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos CHANGE seq_no seq_no BIGINT UNSIGNED NOT NULL;
+ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
+ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (sub_id, domain_id);
+START SLAVE;
+--let $slave_sql_errno=1944
+--source include/wait_for_slave_sql_error.inc
+
+--source include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
+START SLAVE;
+--let $slave_sql_errno=1944
+--source include/wait_for_slave_sql_error.inc
+
+--source include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (sub_id);
+START SLAVE;
+--let $slave_sql_errno=1944
+--source include/wait_for_slave_sql_error.inc
+
+--source include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
+ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (domain_id, sub_id);
+--source include/start_slave.inc
+
+--connection master
+--sync_slave_with_master
+
+--connection slave
+SELECT * FROM t1;
+
+
+--echo *** Test that setting @@gtid_domain_id or @@gtid_seq_no is not allowed inside a transaction. ***
+BEGIN;
+INSERT INTO t1 VALUES (100);
+--error ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
+SET SESSION gtid_domain_id= 100;
+--error ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
+SET SESSION gtid_seq_no= 100;
+SET @old_domain= @@GLOBAL.gtid_domain_id;
+SET GLOBAL gtid_domain_id= 100;
+SELECT @@SESSION.gtid_domain_id;
+SET GLOBAL gtid_domain_id= @old_domain;
+INSERT INTO t1 VALUES (101);
+SELECT * FROM t1 ORDER BY a;
+ROLLBACK;
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** Test requesting an explicit GTID position that conflicts with newer GTIDs of our own in the binlog. ***
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+RESET MASTER;
+# This insert will be GTID 0-1-1
+INSERT INTO t1 VALUES (2);
+# And this will be GTID 0-1-2
+INSERT INTO t1 VALUES (4);
+--source include/save_master_gtid.inc
+
+--connection slave
+SET sql_log_bin = 0;
+INSERT INTO t1 VALUES (2);
+SET sql_log_bin = 1;
+INSERT INTO t1 VALUES (3);
+
+CHANGE MASTER TO master_use_gtid=current_pos;
+# Most not change @@GLOBAL.gtid_slave_pos in the middle of a transaction.
+BEGIN;
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+SET GLOBAL gtid_slave_pos = "100-100-100";
+INSERT INTO t1 VALUES (100);
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+SET GLOBAL gtid_slave_pos = "100-100-100";
+ROLLBACK;
+
+# In gtid non-strict mode, we get warnings for setting @@gtid_slave_pos back
+# to earlier than what is in the binlog. In strict mode, we get an error.
+SET GLOBAL gtid_strict_mode= 1;
+--error ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
+SET GLOBAL gtid_slave_pos = "0-1-1";
+--error ER_MASTER_GTID_POS_MISSING_DOMAIN
+SET GLOBAL gtid_slave_pos = "";
+SET GLOBAL gtid_strict_mode= 0;
+SET GLOBAL gtid_slave_pos = "0-1-1";
+SET GLOBAL gtid_slave_pos = "";
+RESET MASTER;
+SET GLOBAL gtid_slave_pos = "0-1-1";
+
+START SLAVE;
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--echo *** MDEV-4688: Empty value of @@GLOBAL.gtid_slave_pos ***
+# The problem was that record_gtid() deleted too much of the in-memory state,
+# leaving the state empty until after commit when we add the newly committed
+# GTID. Test this by forcing an error after the delete of the old data but
+# before the add of new data.
+
+--source include/stop_slave.inc
+
+--connection master
+# This will be GTID 0-1-3
+INSERT INTO t1 VALUES (5);
+--source include/save_master_gtid.inc
+
+--connection slave
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
+SET GLOBAL debug_dbug="+d,gtid_fail_after_record_gtid";
+SET sql_log_bin=0;
+CALL mtr.add_suppression('Got error 131 "Command not supported by the engine" during COMMIT');
+SET sql_log_bin=1;
+START SLAVE;
+--let $slave_sql_errno= 1180
+--source include/wait_for_slave_sql_error.inc
+# The bug was that @@GLOBAL.gtid_slave_pos was empty here.
+SELECT @@GLOBAL.gtid_slave_pos;
+SELECT * FROM t1 ORDER BY a;
+SET GLOBAL debug_dbug= @old_dbug;
+START SLAVE SQL_THREAD;
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** Test slave requesting a GTID that is not present in the master's binlog ***
+--source include/stop_slave.inc
+SET GLOBAL gtid_slave_pos = "0-1-4";
+START SLAVE;
+
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Got fatal error .* from master when reading data from binary log: 'Error: connecting slave requested to start from GTID .*, which is not in the master's binlog'");
+SET sql_log_bin=1;
+--let $slave_io_errno= 1236
+--source include/wait_for_slave_io_error.inc
+--let $status_items= Slave_IO_State, Last_IO_Errno, Last_IO_Error, Using_Gtid
+--source include/show_slave_status.inc
+
+--let $rpl_only_running_threads= 1
+--source include/stop_slave.inc
+SET GLOBAL gtid_slave_pos = "0-1-3";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+--connection master
+INSERT INTO t1 VALUES (6);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** MDEV-4278: Slave does not detect that master is not GTID-aware ***
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,simulate_non_gtid_aware_master";
+
+--connection slave
+START SLAVE;
+--let $slave_io_errno= 1233
+--source include/wait_for_slave_io_error.inc
+
+--connection master
+SET GLOBAL debug_dbug= @old_dbug;
+INSERT INTO t1 VALUES (7);
+--save_master_pos
+
+--connection slave
+START SLAVE;
+--sync_with_master
+SET sql_log_bin=0;
+CALL mtr.add_suppression("The slave I/O thread stops because master does not support MariaDB global transaction id");
+SET sql_log_bin=1;
+
+
+--echo *** Test error during record_gtid() (non-xid cases) ***
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+CREATE TABLE t2 (a INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1);
+--save_master_pos
+
+--connection slave
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,gtid_inject_record_gtid";
+
+START SLAVE;
+--let $slave_sql_errno= 1942
+--source include/wait_for_slave_sql_error.inc
+
+SET GLOBAL debug_dbug= @old_dbug;
+
+START SLAVE SQL_THREAD;
+--sync_with_master
+
+SELECT * FROM t2;
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Slave: Could not update replication slave gtid state");
+SET sql_log_bin=1;
+
+
+--echo *** MDEV-4906: When event apply fails, next SQL thread start erroneously commits the failing GTID to gtid_slave_pos ***
+
+--connection slave
+--source include/stop_slave.inc
+SET sql_log_bin=0;
+DELETE FROM t2;
+SET sql_log_bin=1;
+SET @old_format=@@binlog_format;
+SET GLOBAL binlog_format='row';
+--source include/start_slave.inc
+
+--connection master
+SET @old_format=@@binlog_format;
+SET binlog_format='row';
+--let $gtid_pos1=`SELECT @@GLOBAL.gtid_binlog_pos`
+DELETE FROM t2;
+SET binlog_format=@old_format;
+--save_master_pos
+
+--connection slave
+--let $slave_sql_errno= 1032
+--source include/wait_for_slave_sql_error.inc
+# Disable query to avoid result file update if precise GTID value changes.
+--disable_query_log
+SET @x=@@GLOBAL.gtid_slave_pos;
+eval SELECT IF(@x='$gtid_pos1', "OK", CONCAT("ERROR: expected $gtid_pos1 got ", @x)) AS result;
+--enable_query_log
+
+# The bug was that upon restarting the SQL thread, the GTID for the
+# failing event group was not cleared, so we would update it in the
+# gtid_slave_pos as part of the first rotate event, corrupting the
+# replication.
+STOP SLAVE IO_THREAD;
+START SLAVE;
+--let $slave_sql_errno= 1032
+--source include/wait_for_slave_sql_error.inc
+# Disable query to avoid result file update if precise GTID value changes.
+--disable_query_log
+SET @x=@@GLOBAL.gtid_slave_pos;
+eval SELECT IF(@x='$gtid_pos1', "OK", CONCAT("ERROR: expected $gtid_pos1 got ", @x)) AS result;
+--enable_query_log
+
+STOP SLAVE IO_THREAD;
+SET sql_log_bin=0;
+INSERT INTO t2 VALUES (1);
+CALL mtr.add_suppression("Slave: Can't find record in 't2' Error_code: 1032");
+SET sql_log_bin=1;
+--source include/start_slave.inc
+--sync_with_master
+SET GLOBAL binlog_format=@old_format;
+
+--connection master
+DROP TABLE t1;
+DROP TABLE t2;
+
+call mtr.add_suppression("Can't find record in 't2'");
+
+--source include/rpl_end.inc

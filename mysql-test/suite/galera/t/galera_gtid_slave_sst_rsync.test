@@ -1,0 +1,199 @@
+#
+# Test Galera as a slave to a MariaDB master using GTIDs
+#
+# suite/galera/galera_2nodes_as_slave.cnf describes the setup of the nodes
+#
+# In addition to performing DDL and DML, we check that the gtid of the master is preserved inside the cluster
+#
+
+--source include/big_test.inc
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+# As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
+# we open the node_3 connection here
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--echo #Connection 2
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3,master_use_gtid=slave_pos;
+--enable_query_log
+START SLAVE;
+--sleep 1
+
+--echo #Connection 3
+--connection node_3
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY, f2 int unique) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1,11);
+INSERT INTO t2 VALUES(2,22);
+INSERT INTO t2 VALUES(3,33);
+
+SELECT @@global.gtid_binlog_state;
+--source include/save_master_gtid.inc
+--echo #Connection 2
+--connection node_2
+--source include/sync_with_master_gtid.inc
+SELECT @@global.gtid_binlog_state;
+
+INSERT INTO t2 VALUES(4,44);
+INSERT INTO t2 VALUES(5,55);
+INSERT INTO t2 VALUES(6,66);
+SELECT @@global.gtid_binlog_state;
+--echo #Connection 1
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME= 't2';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 6 FROM t2;
+--source include/wait_condition.inc
+
+INSERT INTO t2 VALUES(7,77);
+INSERT INTO t2 VALUES(8,88);
+SELECT @@global.gtid_binlog_state;
+
+#Perform SST
+--echo #Connection 3
+--connection node_3
+CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node1_committed_before');
+INSERT INTO t1 VALUES ('node1_committed_before');
+COMMIT;
+--source include/save_master_gtid.inc
+--echo #Connection 2
+--connection node_2
+--source include/sync_with_master_gtid.inc
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node2_committed_before');
+INSERT INTO t1 VALUES ('node2_committed_before');
+COMMIT;
+--echo #Connection 1
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME= 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
+--source include/wait_condition.inc
+--let $node_1= node_1
+--let $node_2= node_2
+--source include/auto_increment_offset_save.inc
+--echo #Connection 2
+--connection node_2
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+--echo #Connection 1
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node1_committed_during');
+INSERT INTO t1 VALUES ('node1_committed_during');
+COMMIT;
+--echo #Connection 2
+--connection node_2
+--echo Starting server ...
+--source include/start_mysqld.inc
+
+--source include/wait_until_ready.inc
+--source include/auto_increment_offset_restore.inc
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node2_committed_after');
+INSERT INTO t1 VALUES ('node2_committed_after');
+COMMIT;
+--echo #Connection 1
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 8 FROM t1;
+--source include/wait_condition.inc
+Select * from t1 order by f1;
+--echo #Connection 2
+--connection node_2
+Select * from t1 order by f1;
+
+#SST Done
+--sleep 1
+--echo #Connection 1
+--connection node_1
+SELECT @@global.gtid_binlog_state;
+--echo #Connection 2
+--connection node_2
+SELECT @@global.gtid_binlog_state;
+--echo #Connection 3
+--connection node_3
+SET AUTOCOMMIT=ON;
+#drop table t1;
+#CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
+--echo #Connection 2
+--connection node_2
+SET AUTOCOMMIT=ON;
+--echo #Connection 1
+--connection node_1
+SET AUTOCOMMIT=ON;
+
+#
+#stop slave on node 2
+--echo #Connection 2
+--connection node_2
+STOP slave;
+--sleep 1
+INSERT INTO t1 VALUES ('node2_slave_stoped');
+--echo #Connection 3
+--connection node_3
+INSERT INTO t1 VALUES ('node3_normal_entry');
+--source include/save_master_gtid.inc
+
+#start slave
+--echo #Connection 2
+--connection node_2
+INSERT INTO t1 VALUES ('node2_slave_stoped_inserted');
+start slave;
+--source include/sync_with_master_gtid.inc
+INSERT INTO t1 VALUES ('node2_slave_started');
+SELECT count(*) from t1;
+SELECT @@global.gtid_binlog_state;
+--echo #Connection 1
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 12 FROM t1;
+--source include/wait_condition.inc
+SELECT count(*) from t1;
+SELECT @@global.gtid_binlog_state;
+--echo #Connection 3
+--connection node_3
+DROP TABLE t2,t1;
+
+# Unfortunately without the sleep below the following statement fails with "query returned no rows", which
+# is difficult to understand given that it is an aggregate query. A "query execution was interrupted"
+# warning is also reported by MTR, which is also weird.
+#
+
+--sleep 3
+--echo #Connection 2
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+--source include/wait_condition.inc
+--echo #Connection 1
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--echo #Connection 2
+--connection node_2
+STOP SLAVE;
+RESET SLAVE ALL;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+
+--disable_warnings
+set global gtid_slave_pos="";
+--enable_warnings
+
+--echo #Connection 1
+--connection node_1
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+--echo #Connection 3
+--connection node_3
+reset master;

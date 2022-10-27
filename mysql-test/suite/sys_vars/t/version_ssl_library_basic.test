@@ -1,0 +1,2 @@
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set @@global.version_malloc_library=1;

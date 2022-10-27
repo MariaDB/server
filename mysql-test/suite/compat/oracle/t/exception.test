@@ -1,0 +1,457 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # sql_mode=ORACLE: Predefined exceptions: TOO_MANY_ROWS, NO_DATA_FOUND, DUP_VAL_ON_INDEX
+--echo #
+
+--echo #
+--echo # Testing NO_DATA_FOUND and TOO_MANY_ROWS
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1(lim INT, res OUT VARCHAR)
+AS
+  a INT;
+BEGIN
+  SELECT a INTO a FROM t1 LIMIT lim;
+EXCEPTION
+  WHEN TOO_MANY_ROWS THEN res:='--- too_many_rows cought ---';
+  WHEN NO_DATA_FOUND THEN res:='--- no_data_found cought ---';
+END;
+$$
+DELIMITER ;$$
+SET @res='';
+CALL p1(0, @res);
+SELECT @res;
+CALL p1(2, @res);
+SELECT @res;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing DUP_VAL_ON_INDEX
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY);
+DELIMITER $$;
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+BEGIN
+  INSERT INTO t1 VALUES (10);
+  INSERT INTO t1 VALUES (10);
+EXCEPTION
+  WHEN DUP_VAL_ON_INDEX THEN res:='--- dup_val_on_index cought ---';
+END;
+$$
+DELIMITER ;$$
+SET @res='';
+CALL p1(@res);
+SELECT @res;
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-10840 sql_mode=ORACLE: RAISE statement for predefined exceptions
+--echo #
+
+--echo #
+--echo # RAISE outside of an SP context
+--echo #
+
+--error ER_SP_COND_MISMATCH
+RAISE NO_DATA_FOUND;
+--error ER_SP_COND_MISMATCH
+RAISE INVALID_CURSOR;
+--error ER_SP_COND_MISMATCH
+RAISE DUP_VAL_ON_INDEX;
+--error ER_SP_COND_MISMATCH
+RAISE TOO_MANY_ROWS;
+
+--error ER_RESIGNAL_WITHOUT_ACTIVE_HANDLER
+RAISE;
+
+
+--echo #
+--echo # RAISE for an undefinite exception
+--echo #
+
+DELIMITER $$;
+--error ER_SP_COND_MISMATCH
+CREATE PROCEDURE p1
+AS
+BEGIN
+  RAISE xxx;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # RAISE for predefined exceptions
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  RAISE no_data_found;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  RAISE invalid_cursor;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_CURSOR_NOT_OPEN
+CALL p1();
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  RAISE dup_val_on_index;
+END;
+$$
+DELIMITER ;$$
+--error ER_DUP_ENTRY
+CALL p1();
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  raise too_many_rows;
+END;
+$$
+DELIMITER ;$$
+--error ER_TOO_MANY_ROWS
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # RAISE with no exception name (resignal)
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+BEGIN
+  RAISE;
+END;
+$$
+DELIMITER ;$$
+--error ER_RESIGNAL_WITHOUT_ACTIVE_HANDLER
+CALL p1();
+DROP PROCEDURE p1;
+
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1(lim INT)
+AS
+  a INT;
+BEGIN
+  SELECT a INTO a FROM t1 LIMIT lim;
+EXCEPTION
+  WHEN TOO_MANY_ROWS THEN RAISE;
+  WHEN NO_DATA_FOUND THEN RAISE;
+END;
+$$
+DELIMITER ;$$
+CALL p1(0);
+--error ER_TOO_MANY_ROWS
+CALL p1(2);
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1(lim INT)
+AS
+  a INT;
+BEGIN
+  SELECT a INTO a FROM t1 LIMIT lim;
+EXCEPTION
+  WHEN OTHERS THEN RAISE;
+END;
+$$
+DELIMITER ;$$
+CALL p1(0);
+--error ER_TOO_MANY_ROWS
+CALL p1(2);
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a INT;
+  CURSOR c IS SELECT a FROM t1;
+BEGIN
+  FETCH c INTO a;
+EXCEPTION
+  WHEN INVALID_CURSOR THEN RAISE;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_CURSOR_NOT_OPEN
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a INT;
+  CURSOR c IS SELECT a FROM t1;
+BEGIN
+  FETCH c INTO a;
+EXCEPTION
+  WHEN OTHERS THEN RAISE;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_CURSOR_NOT_OPEN
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing that warning-alike errors are caught by OTHERS
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+  a INT:=10;
+BEGIN
+  SELECT a INTO a FROM t1;
+  RETURN 'OK';
+EXCEPTION
+  WHEN OTHERS THEN RETURN 'Exception';
+END;
+$$
+DELIMITER ;$$
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of MDEV-10840 sql_mode=ORACLE: RAISE statement for predefined exceptions
+--echo #
+
+
+--echo #
+--echo # MDEV-10587 sql_mode=ORACLE: User defined exceptions
+--echo #
+
+--echo #
+--echo # Checking that duplicate WHEN clause is not allowed
+--echo #
+
+DELIMITER $$;
+--error ER_SP_DUP_HANDLER
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+  e EXCEPTION;
+BEGIN
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN e THEN RETURN 'Got exception e';
+  WHEN e THEN RETURN 'Got exception e';
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Checking that raised user exceptions are further caught by name
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+  e EXCEPTION;
+  f EXCEPTION;
+BEGIN
+  IF c = 'e' THEN RAISE e; END IF;
+  IF c = 'f' THEN RAISE f; END IF;
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN e THEN RETURN 'Got exception e';
+END;
+$$
+DELIMITER ;$$
+SELECT f1('');
+SELECT f1('e');
+--error ER_SIGNAL_EXCEPTION
+SELECT f1('f');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Checking that raised user exceptions are further caught by OTHERS
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+  e EXCEPTION;
+  f EXCEPTION;
+BEGIN
+  IF c = 'e' THEN RAISE e; END IF;
+  IF c = 'f' THEN RAISE f; END IF;
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN OTHERS THEN RETURN 'Got some exception';
+END;
+$$
+DELIMITER ;$$
+SELECT f1('');
+SELECT f1('e');
+SELECT f1('f');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Checking that 'WHEN e .. WHEN f' does not produce ER_SP_DUP_HANDLER
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+  e EXCEPTION;
+  f EXCEPTION;
+  a VARCHAR(64):='';
+BEGIN
+  BEGIN
+    IF c = 'e' THEN RAISE e; END IF;
+    IF c = 'f' THEN RAISE f; END IF;
+  EXCEPTION
+    WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE e; END;
+    WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE f; END;
+  END;
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN OTHERS THEN RETURN a || 'Got EXCEPTION2/OTHERS;';
+END;
+$$
+DELIMITER ;$$
+SELECT f1('');
+SELECT f1('e');
+SELECT f1('f');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Checking that resignaled user exceptions are further caught by name
+--echo #
+DELIMITER $$;
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+  e EXCEPTION;
+  f EXCEPTION;
+  a VARCHAR(64):='';
+BEGIN
+  BEGIN
+    IF c = 'e' THEN RAISE e; END IF;
+    IF c = 'f' THEN RAISE f; END IF;
+  EXCEPTION
+    WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE; END;
+    WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE; END;
+  END;
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN e THEN RETURN a || 'Got EXCEPTION2/e;';
+END;
+$$
+DELIMITER ;$$
+SELECT f1('');
+SELECT f1('e');
+--error ER_SIGNAL_EXCEPTION
+SELECT f1('f');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Checking that resignaled user exceptions are further caught by OTHERS
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+  e EXCEPTION;
+  f EXCEPTION;
+  a VARCHAR(64):='';
+BEGIN
+  BEGIN
+    IF c = 'e' THEN RAISE e; END IF;
+    IF c = 'f' THEN RAISE f; END IF;
+  EXCEPTION
+    WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE; END;
+    WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE; END;
+  END;
+  RETURN 'Got no exceptions';
+EXCEPTION
+  WHEN OTHERS THEN RETURN a || 'Got EXCEPTION2/OTHERS;';
+END;
+$$
+DELIMITER ;$$
+SELECT f1('');
+SELECT f1('e');
+SELECT f1('f');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # End of MDEV-10587 sql_mode=ORACLE: User defined exceptions
+--echo #
+
+--echo #
+--echo # MDEV-12088 sql_mode=ORACLE: Do not require BEGIN..END in multi-statement exception handlers in THEN clause
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (10),(20),(30);
+DELIMITER $$;
+CREATE PROCEDURE p1(a INT) AS
+BEGIN
+  INSERT INTO t1 (a) VALUES (a);
+EXCEPTION
+  WHEN DUP_VAL_ON_INDEX THEN
+    a:= a+1;
+    INSERT INTO t1 VALUES (a);
+  WHEN OTHERS THEN
+    NULL;
+    NULL;
+END;
+$$
+DELIMITER ;$$
+CALL p1(30);
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;

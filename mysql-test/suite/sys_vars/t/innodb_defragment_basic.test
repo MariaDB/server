@@ -1,0 +1,20 @@
+-- source include/have_innodb.inc
+
+# Check the default value
+SET @orig = @@global.innodb_defragment;
+SELECT @orig;
+
+# Turn off
+SET GLOBAL innodb_defragment = OFF;
+SELECT @@global.innodb_defragment;
+
+# Turn on
+SET GLOBAL innodb_defragment = ON;
+SELECT @@global.innodb_defragment;
+
+# Wrong value
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_defragment = 100;
+SELECT @@global.innodb_defragment;
+
+SET GLOBAL innodb_defragment = @orig;

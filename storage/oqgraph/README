@@ -1,0 +1,33 @@
+OQGraph storage engine v3
+Copyright (C) 2007-2014 Arjen G Lentz & Antony T Curtis for Open Query, & Andrew McDonnell
+
+The Open Query GRAPH engine (OQGRAPH) is a computation engine allowing
+hierarchies and more complex graph structures to be handled in a
+relational fashion. In a nutshell, tree structures and
+friend-of-a-friend style searches can now be done using standard SQL
+syntax, and results joined onto other tables.
+
+Based on a concept by Arjen Lentz
+v3 implementation by Antony Curtis, Arjen Lentz, Andrew McDonnell
+For more information, documentation, support, enhancement engineering,
+see http://openquery.com/graph or contact graph@openquery.com
+
+INSTALLATION
+
+OQGraph requires at least version 1.40.0 of the Boost Graph library. To
+obtain a copy of the Boost library, see http://www.boost.org/
+This can be obtained in Debian Wheezy by `apt-get install libboost-graph-dev`
+
+OQGraph requires libjudy - http://judy.sourceforge.net/
+This can be obtained in Debian Wheezy by `apt-get install libjudy-dev`
+
+BUILD (example)
+
+cd path/to/maria/source
+mkdir build   # use symlink to scratch
+cd build    
+CONFIGURE="-DWITH_EXTRA_CHARSETS=complex -DWITH_PLUGIN_ARIA=1 -DWITH_READLINE=1 -DWITH_SSL=bundled -DWITH_MAX=1 -DWITH_EMBEDDED_SERVER=1"
+cmake .. $CONFIGURE     
+make -j5
+mysql-test-run --suite oqgraph
+

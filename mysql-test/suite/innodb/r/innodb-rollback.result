@@ -1,0 +1,10 @@
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+connect  con1,localhost,root,,test;
+ALTER TABLE t1;
+connect  con2,localhost,root,,test;
+SELECT f() FROM t1;
+ERROR 42000: FUNCTION test.f does not exist
+disconnect con2;
+disconnect con1;
+connection default;
+DROP TABLE t1;

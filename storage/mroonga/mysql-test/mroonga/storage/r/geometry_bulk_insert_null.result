@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS shops;
+CREATE TABLE shops (
+location GEOMETRY NOT NULL
+);
+INSERT IGNORE INTO shops VALUES (NULL), (NULL);
+Warnings:
+Warning	1048	Column 'location' cannot be null
+Warning	1048	Column 'location' cannot be null
+SELECT ST_AsText(location) FROM shops;
+ST_AsText(location)
+POINT(0 0)
+POINT(0 0)
+DROP TABLE shops;

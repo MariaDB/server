@@ -1,0 +1,27 @@
+###################### tmp_memory_table_size_func.test ########################
+
+--source include/have_aria_used_for_temp_tables.inc
+
+--source include/load_sysvars.inc
+--source include/have_sequence.inc
+
+--echo
+--echo "Ensure that we get an error if we exceed tmp_disk_table_size"
+--echo
+
+SET @start_tmp_memory_table_size=@@session.tmp_memory_table_size;
+SET @start_tmp_disk_table_size=@@session.tmp_disk_table_size;
+
+set @@session.tmp_memory_table_size=1000;
+set @@session.tmp_disk_table_size=3000000;
+
+create table t1 (a int primary key, b varchar(2000));
+insert into t1 select seq,repeat(char(mod(seq,62)+64),seq) from seq_1_to_2000;
+insert into t1 values (20000,"A");
+select count(*) as c from t1 group by b having c>1;
+show status like "created_tmp_disk%";
+set @@session.tmp_disk_table_size=1000000;
+--error ER_RECORD_FILE_FULL
+select count(*) as c from t1 group by b having c>1;
+show status like "created_tmp_disk%";
+drop table t1;

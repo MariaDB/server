@@ -1,0 +1,228 @@
+#
+#  Tests for "ANALYZE FORMAT=JSON $statement" syntax
+#
+--disable_warnings
+drop table if exists t0,t1,t2,t3;
+--enable_warnings
+
+--source include/default_optimizer_switch.inc
+
+create table t0 (a int);
+INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+--echo # r_filtered=30%, because 3 rows match: 0,1,2
+--source include/analyze-format.inc
+analyze format=json select * from t0 where a<3;
+
+create table t1 (a int, b int, c int, key(a));
+insert into t1 select A.a*10 + B.a, A.a*10 + B.a, A.a*10 + B.a from t0 A, t0 B;
+
+--source include/analyze-format.inc
+analyze
+select * from t0, t1 where t1.a=t0.a and t0.a > 9;
+--source include/analyze-format.inc
+analyze format=json 
+select * from t0, t1 where t1.a=t0.a and t0.a > 9;
+
+analyze
+select * from t0, t1 where t1.a=t0.a and t1.b<4;
+
+--source include/analyze-format.inc
+analyze format=json
+select * from t0, t1 where t1.a=t0.a and t1.b<4;
+
+analyze 
+select * from t1 tbl1, t1 tbl2 where tbl1.b<2 and tbl2.b>5;
+
+--source include/analyze-format.inc
+analyze format=json
+select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60;
+
+--source include/analyze-format.inc
+analyze format=json
+select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60 and tbl1.c > tbl2.c;
+
+drop table t1;
+drop table t0;
+
+--echo #
+--echo # MDEV-7674: ANALYZE shows r_rows=0
+--echo #
+
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (a int, key(a));
+insert into t2 values (0),(1);
+
+--source include/analyze-format.inc
+analyze format=json select * from t1 straight_join t2 force index(a) where t2.a=t1.a;
+
+drop table t1,t2;
+
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+--echo #
+--echo # MDEV-7679: ANALYZE crashes when printing WHERE when no default db
+--echo #
+
+select database();
+connect (con1,localhost,root,,*NO-ONE*);
+connection con1;
+select database();
+--source include/analyze-format.inc
+analyze format=json select * from test.t1 where t1.a<5;
+disconnect con1;
+connection default;
+drop table t1;
+
+
+--echo #
+--echo # MDEV-7812: ANALYZE FORMAT=JSON UPDATE/DELETE doesnt print
+--echo # the r_total_time_ms
+--echo #
+
+create table t2(a int);
+insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t3(a int);
+insert into t3 select A.a + B.a* 10 + C.a * 100 from t2 A, t2 B, t2 C;
+
+create table t1 (pk int primary key);
+insert into t1 select a from t3;
+alter table t1 add b int;
+
+--source include/analyze-format.inc
+analyze format=json
+update t1 set b=pk;
+
+--source include/analyze-format.inc
+analyze format=json
+select * from t1 where pk < 10 and b > 4;
+
+--source include/analyze-format.inc
+analyze format=json
+delete from t1 where pk < 10 and b > 4;
+
+drop table t1, t3, t2;
+
+--echo #
+--echo # MDEV-7833:ANALYZE FORMAT=JSON and Range checked for each record
+--echo #
+create table t3(a int);
+insert into t3 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t4(a int);
+insert into t4 select A.a + B.a* 10 + C.a * 100 from t3 A, t3 B, t3 C;
+
+create table t1 (lb1 int, rb1 int, lb2 int, rb2 int, c1 int, c2 int);
+
+insert into t1 values (1,2,10,20,15,15);
+insert into t1 values (3,5,10,20,15,15);
+insert into t1 values (10,20,10,20,15,15);
+insert into t1 values (10,20,1,2,15,15);
+insert into t1 values (10,20,10,20,1,3);
+
+create table t2 (key1 int, key2 int, key3 int, key4 int, col1 int,
+                 key(key1), key(key2), key(key3), key(key4));
+insert into t2 select a,a,a,a,a from t3;
+insert into t2 select 15,15,15,15,15 from t4;
+
+--source include/analyze-format.inc
+analyze format=json
+select * from t1, t2 where (t2.key1 between t1.lb1 and t1.rb1) and
+                           (t2.key2 between t1.lb2 and t1.rb2) and
+                           (t2.key3=t1.c1  OR t2.key4=t1.c2);
+
+drop table t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-7904: ANALYZE FORMAT=JSON SELECT .. UNION SELECT doesn't print r_rows for union output
+--echo #
+create table t0 (a int);
+INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (a int);
+INSERT INTO t1 select * from t0;
+
+--source include/analyze-format.inc
+analyze format=json (select * from t1 tbl1 where a<5) union (select * from t1 tbl2 where a in (2,3));
+
+drop table t0, t1;
+
+
+--echo #
+--echo # MDEV-7970: EXPLAIN FORMAT=JSON does not print HAVING
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+  a int, 
+  b int, 
+  key (a)
+);
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+--echo # normal HAVING
+--source include/analyze-format.inc
+analyze format=json select a, max(b) as TOP from t2 group by a having TOP > a;
+--echo # HAVING is always TRUE (not printed)
+--source include/analyze-format.inc
+analyze format=json select a, max(b) as TOP from t2 group by a having 1<>2;
+--echo # HAVING is always FALSE (intercepted by message)
+--source include/analyze-format.inc
+analyze format=json select a, max(b) as TOP from t2 group by a having 1=2;
+--echo # HAVING is absent
+--source include/analyze-format.inc
+analyze format=json select a, max(b) as TOP from t2 group by a;
+drop table t0, t1, t2;
+
+--echo #
+--echo # MDEV-7267: Server crashes in Item_field::print on ANALYZE FORMAT=JSON	
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT STRAIGHT_JOIN * FROM t1, t2 WHERE b IN ( SELECT a FROM t1 );
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-8864: Server crash #2 in Item_field::print on ANALYZE FORMAT=JSON
+--echo #
+CREATE TABLE t1 (f1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2),(3);
+
+CREATE TABLE t3 (f3 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (3),(4);
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON 
+SELECT GROUP_CONCAT(f3) AS gc, ( SELECT MAX(f1) FROM t1, t2 WHERE f2 = f3 ) sq
+FROM t2, t3
+WHERE f3 IN ( 1, 2 ) 
+GROUP BY sq ORDER BY gc;
+
+drop table t1,t2,t3;
+
+
+--echo #
+--echo # MDEV-13286: Floating point exception in Filesort_tracker::print_json_members(Json_writer*)
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int, c int);
+insert into t1 select a,a,a from t0;
+create table t2 as select * from t1;
+--source include/analyze-format.inc
+analyze format=json select a, (select t2.b from t2 where t2.a<t1.a order by t2.c limit 1) from t1 where t1.a<0;
+drop table t0,t1,t2;

@@ -1,0 +1,25 @@
+drop table if exists diaries;
+set @mroonga_default_tokenizer_backup=@@mroonga_default_tokenizer;
+set global mroonga_default_tokenizer=TokenBigramSplitSymbolAlphaDigit;
+create table diaries (
+id int primary key auto_increment,
+body text,
+fulltext index body_index (body)
+) default charset utf8;
+insert into diaries (body) values ("will start Groonga!");
+insert into diaries (body) values ("starting Groonga...");
+insert into diaries (body) values ("started Groonga.");
+insert into diaries (body) values ("finished Groonga.");
+select * from diaries;
+id	body
+1	will start Groonga!
+2	starting Groonga...
+3	started Groonga.
+4	finished Groonga.
+select * from diaries where match(body) against("+start" IN BOOLEAN MODE) order by id;
+id	body
+1	will start Groonga!
+2	starting Groonga...
+3	started Groonga.
+drop table diaries;
+set global mroonga_default_tokenizer=@mroonga_default_tokenizer_backup;

@@ -1,0 +1,22 @@
+
+#
+# Tests concurrent inserts for tables with no primary key.
+#
+
+--source include/have_rocksdb.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+--echo # Binary must be compiled with debug for this test
+--source include/have_debug.inc
+
+# create the actual table
+CREATE TABLE t1 (a INT) ENGINE=rocksdb;
+
+let $exec = python ../storage/rocksdb/mysql-test/rocksdb/t/rocksdb_concurrent_insert.py root 127.0.0.1 $MASTER_MYPORT test t1 100 4;
+exec $exec;
+
+SELECT COUNT(*) from t1;
+DROP TABLE t1;

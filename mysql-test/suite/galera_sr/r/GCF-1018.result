@@ -1,0 +1,25 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 CHAR(255)) ENGINE=InnoDB;
+INSERT INTO t1 (f2) VALUES ('a');
+INSERT INTO t1 (f2) VALUES ('b');
+INSERT INTO t1 (f2) VALUES ('c');
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_certify_apply_monitor_enter';
+connection node_2;
+SET SESSION wsrep_retry_autocommit = 0;
+SET SESSION wsrep_trx_fragment_size = 64;
+DELETE FROM t1 ORDER BY f1 DESC LIMIT 2;;
+connection node_2a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+connection node_1;
+INSERT INTO t1 (f2) VALUES ('d'),('e');
+connection node_2a;
+SET GLOBAL wsrep_provider_options = 'signal=after_certify_apply_monitor_enter';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_2;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;

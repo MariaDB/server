@@ -1,0 +1,184 @@
+-- source include/have_ucs2.inc
+
+delimiter |;
+
+#
+# BUG#17615: problem with character set
+#
+--disable_warnings
+drop function if exists bug17615|
+--enable_warnings
+
+create table t3 (a varchar(256) unicode)|
+
+create function bug17615() returns varchar(256) unicode
+begin
+  declare tmp_res varchar(256) unicode;
+  set tmp_res= 'foo string';
+  return tmp_res;
+end|
+
+insert into t3 values(bug17615())|
+select * from t3|
+
+drop function bug17615|
+drop table t3|
+
+
+#
+# Testing COLLATE clause in
+# - IN parameter
+# - RETURNS
+# - DELCARE
+#
+
+CREATE FUNCTION f(f1 VARCHAR(64) CHARACTER SET ucs2 COLLATE ucs2_unicode_ci)
+  RETURNS VARCHAR(64) CHARACTER SET ucs2 COLLATE ucs2_danish_ci
+BEGIN
+  DECLARE f2 VARCHAR(64) CHARACTER SET ucs2 COLLATE ucs2_swedish_ci;
+  DECLARE f3 VARCHAR(64) CHARACTER SET ucs2 COLLATE ucs2_bin;
+  SET f1= concat(collation(f1), ' ', collation(f2), ' ', collation(f3));
+  RETURN f1;
+END|
+SELECT f('a')|
+SELECT collation(f('a'))|
+DROP FUNCTION f|
+
+#
+# Testing keywords UNICODE + BINARY
+#
+CREATE FUNCTION f()
+  RETURNS VARCHAR(64) UNICODE BINARY
+BEGIN
+  RETURN '';
+END|
+SHOW CREATE FUNCTION f|
+DROP FUNCTION f|
+
+CREATE FUNCTION f()
+  RETURNS VARCHAR(64) BINARY UNICODE
+BEGIN
+  RETURN '';
+END|
+SHOW CREATE FUNCTION f|
+DROP FUNCTION f|
+
+
+#
+# Testing keywords ASCII + BINARY
+#
+CREATE FUNCTION f()
+  RETURNS VARCHAR(64) ASCII BINARY
+BEGIN
+  RETURN '';
+END|
+SHOW CREATE FUNCTION f|
+DROP FUNCTION f|
+
+CREATE FUNCTION f()
+  RETURNS VARCHAR(64) BINARY ASCII
+BEGIN
+  RETURN '';
+END|
+SHOW CREATE FUNCTION f|
+DROP FUNCTION f|
+
+#
+# Testing COLLATE in OUT parameter
+#
+
+CREATE PROCEDURE p1(IN  f1 VARCHAR(64) CHARACTER SET ucs2 COLLATE ucs2_czech_ci,
+                    OUT f2 VARCHAR(64) CHARACTER SET ucs2 COLLATE ucs2_polish_ci)
+BEGIN
+  SET f2= f1;
+  SET f2= concat(collation(f1), ' ', collation(f2));
+END|
+
+
+CREATE FUNCTION f1()
+  RETURNS VARCHAR(64) CHARACTER SET ucs2
+BEGIN
+  DECLARE f1 VARCHAR(64) CHARACTER SET ucs2;
+  DECLARE f2 VARCHAR(64) CHARACTER SET ucs2;
+  SET f1='str';
+  CALL p1(f1, f2);
+  RETURN f2;
+END|
+
+
+SELECT f1()|
+DROP PROCEDURE p1|
+DROP FUNCTION f1|
+
+
+#
+# COLLATE with no CHARACTER SET in IN param
+#
+CREATE FUNCTION f(f1 VARCHAR(64) COLLATE ucs2_unicode_ci)
+  RETURNS VARCHAR(64) CHARACTER SET ucs2
+BEGIN
+  RETURN 'str';
+END|
+DROP FUNCTION f|
+
+
+#
+# COLLATE with no CHARACTER SET in RETURNS
+#
+CREATE FUNCTION f(f1 VARCHAR(64) CHARACTER SET ucs2)
+  RETURNS VARCHAR(64) COLLATE ucs2_unicode_ci
+BEGIN
+  RETURN 'str';
+END|
+DROP FUNCTION f|
+
+
+#
+# COLLATE with no CHARACTER SET in DECLARE
+#
+CREATE FUNCTION f(f1 VARCHAR(64) CHARACTER SET ucs2)
+  RETURNS VARCHAR(64) CHARACTER SET ucs2
+BEGIN
+  DECLARE f2 VARCHAR(64) COLLATE ucs2_unicode_ci;
+  RETURN 'str';
+END|
+DROP FUNCTION f|
+
+
+delimiter ;|
+
+#
+# Bug#48766 SHOW CREATE FUNCTION returns extra data in return clause
+#
+SET NAMES utf8;
+#
+# Test that Latin letters are not prepended with extra '\0'.
+#
+CREATE FUNCTION bug48766 ()
+  RETURNS ENUM( 'w' ) CHARACTER SET ucs2
+  RETURN 0;
+SHOW CREATE FUNCTION bug48766;
+SELECT DTD_IDENTIFIER FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_NAME='bug48766';
+DROP FUNCTION bug48766;
+#
+# Test non-Latin characters
+#
+CREATE FUNCTION bug48766 ()
+  RETURNS ENUM('а','б','в','г') CHARACTER SET ucs2
+  RETURN 0;
+SHOW CREATE FUNCTION bug48766;
+SELECT DTD_IDENTIFIER FROM INFORMATION_SCHEMA.ROUTINES
+WHERE ROUTINE_NAME='bug48766';
+
+DROP FUNCTION bug48766;
+
+#
+#
+#
+call mtr.add_suppression('invalid value in column mysql.proc.');
+set collation_connection=ucs2_general_ci;
+insert into mysql.proc (db, name, type, specific_name, language, sql_data_access, is_deterministic, security_type, param_list, returns, body, definer, created, modified, sql_mode, comment, character_set_client, collation_connection, db_collation, body_utf8 ) values ( 'a', 'a', 'function', 'bug14233_1', 'sql', 'reads_sql_data', 'no', 'definer', '', 'int(10)', 'select * from mysql.user', 'root@localhost', now(), '0000-00-00 00:00:00', '', '', '', '', '', 'select * from mysql.user' );
+select routine_name from information_schema.routines where routine_name='a';
+set collation_connection=default;
+delete from mysql.proc where name='a';

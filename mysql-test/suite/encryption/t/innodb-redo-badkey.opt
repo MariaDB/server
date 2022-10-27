@@ -1,0 +1,7 @@
+--innodb-change-buffering=all
+--innodb-encrypt-tables=on
+--innodb-tablespaces-encryption
+--innodb-encryption-threads=2
+--innodb-default-encryption-key-id=4
+--innodb-purge-rseg-truncate-frequency=1
+--skip-innodb-fast-shutdown

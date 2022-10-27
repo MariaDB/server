@@ -1,0 +1,63 @@
+--disable_query_log
+
+DROP FUNCTION bson_test;
+DROP FUNCTION bsonvalue;
+DROP FUNCTION bson_make_array;
+DROP FUNCTION bson_array_add_values;
+DROP FUNCTION bson_array_add;
+DROP FUNCTION bson_array_delete;
+DROP FUNCTION bson_make_object;
+DROP FUNCTION bson_object_nonull;
+DROP FUNCTION bson_object_key;
+DROP FUNCTION bson_object_add;
+DROP FUNCTION bson_object_delete;
+DROP FUNCTION bson_object_list;
+DROP FUNCTION bson_object_values;
+DROP FUNCTION bsonset_def_prec;
+DROP FUNCTION bsonget_def_prec;
+DROP FUNCTION bsonset_grp_size;
+DROP FUNCTION bsonget_grp_size;
+DROP FUNCTION bson_array_grp;
+DROP FUNCTION bson_object_grp;
+DROP FUNCTION bsonlocate;
+DROP FUNCTION bson_locate_all;
+DROP FUNCTION bson_contains;
+DROP FUNCTION bsoncontains_path;
+DROP FUNCTION bson_item_merge;
+DROP FUNCTION bson_get_item;
+DROP FUNCTION bson_delete_item;
+DROP FUNCTION bsonget_string;
+DROP FUNCTION bsonget_int;
+DROP FUNCTION bsonget_real;
+DROP FUNCTION bson_set_item;
+DROP FUNCTION bson_insert_item;
+DROP FUNCTION bson_update_item;
+DROP FUNCTION bson_serialize;
+DROP FUNCTION bson_file;
+DROP FUNCTION bfile_make;
+DROP FUNCTION bfile_convert;
+DROP FUNCTION bfile_bjson;
+DROP FUNCTION bbin_make_array;
+DROP FUNCTION bbin_array_add;
+DROP FUNCTION bbin_array_add_values;
+DROP FUNCTION bbin_array_delete;
+DROP FUNCTION bbin_array_grp;
+DROP FUNCTION bbin_object_grp;
+DROP FUNCTION bbin_make_object;
+DROP FUNCTION bbin_object_nonull;
+DROP FUNCTION bbin_object_key;
+DROP FUNCTION bbin_object_add;
+DROP FUNCTION bbin_object_delete;
+DROP FUNCTION bbin_object_list;
+DROP FUNCTION bbin_object_values;
+DROP FUNCTION bbin_get_item;
+DROP FUNCTION bbin_set_item;
+DROP FUNCTION bbin_insert_item;
+DROP FUNCTION bbin_update_item;
+DROP FUNCTION bbin_item_merge;
+DROP FUNCTION bbin_delete_item;
+DROP FUNCTION bbin_locate_all;
+DROP FUNCTION bbin_file;
+
+--enable_query_log
+

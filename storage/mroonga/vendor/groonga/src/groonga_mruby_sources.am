@@ -1,0 +1,2 @@
+groonga_mruby_SOURCES =				\
+	groonga_mruby.c

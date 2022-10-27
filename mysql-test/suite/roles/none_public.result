@@ -1,0 +1,48 @@
+create role role1;
+create role none;
+ERROR OP000: Invalid role specification `none`
+create role public;
+ERROR OP000: Invalid role specification `public`
+drop role none;
+ERROR HY000: Operation DROP ROLE failed for 'none'
+grant none to role1;
+ERROR OP000: Invalid role specification `none`
+grant role1 to none;
+ERROR OP000: Invalid role specification `none`
+grant select on *.* to none;
+ERROR OP000: Invalid role specification `none`
+grant public to role1;
+ERROR OP000: Invalid role specification `public`
+grant role1 to public;
+ERROR OP000: Invalid role specification `public`
+grant select on *.* to public;
+ERROR OP000: Invalid role specification `public`
+grant role1 to current_role;
+ERROR OP000: Invalid role specification `NONE`
+revoke none from role1;
+ERROR OP000: Invalid role specification `none`
+revoke role1 from none;
+ERROR OP000: Invalid role specification `none`
+revoke select on *.* from none;
+ERROR OP000: Invalid role specification `none`
+revoke public from role1;
+ERROR OP000: Invalid role specification `public`
+revoke role1 from public;
+ERROR OP000: Invalid role specification `public`
+revoke select on *.* from public;
+ERROR OP000: Invalid role specification `public`
+show grants for none;
+ERROR OP000: Invalid role specification `none`
+show grants for public;
+ERROR OP000: Invalid role specification `public`
+create definer=none view test.v1 as select 1;
+ERROR OP000: Invalid role specification `none`
+create definer=public view test.v1 as select 1;
+ERROR OP000: Invalid role specification `public`
+drop role role1;
+insert mysql.global_priv values ('', 'none', '{"is_role":true}'), ('', 'public', '{"is_role":true}');
+flush privileges;
+Warnings:
+Error	1959	Invalid role specification `none`
+Error	1959	Invalid role specification `public`
+delete from mysql.global_priv where host='';

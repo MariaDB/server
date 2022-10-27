@@ -1,0 +1,250 @@
+include/rpl_init.inc [topology=1->2]
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE FUNCTION extract_gtid(d VARCHAR(100), s VARCHAR(100))
+RETURNS VARCHAR(100) DETERMINISTIC
+BEGIN
+SET s= CONCAT(",", s, ",");
+SET s= SUBSTR(s FROM LOCATE(CONCAT(",", d, "-"), s) + 1);
+SET s= SUBSTR(s FROM 1 FOR LOCATE(",", s) - 1);
+RETURN s;
+END|
+connection server_2;
+include/stop_slave.inc
+include/start_slave.inc
+START SLAVE UNTIL master_gtid_pos = "";
+ERROR HY000: Slave is already running
+include/stop_slave_io.inc
+START SLAVE UNTIL master_gtid_pos = "";
+ERROR HY000: Slave is already running
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+include/stop_slave_sql.inc
+START SLAVE UNTIL master_gtid_pos = "";
+ERROR HY000: Slave is already running
+include/stop_slave_io.inc
+START SLAVE UNTIL master_gtid_pos = "";
+ERROR HY000: START SLAVE UNTIL master_gtid_pos requires that slave is using GTID
+CHANGE MASTER TO master_use_gtid=current_pos;
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+connection server_2;
+START SLAVE UNTIL master_gtid_pos = "0-1-100,1-1-100,2-2-200,1-3-100,4-4-400";
+ERROR HY000: GTID 1-3-100 and 1-1-100 conflict (duplicate domain id 1)
+START SLAVE UNTIL master_log_file = "master-bin.000001", master_log_pos = 4, master_gtid_pos = "";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'master_gtid_pos = ""' at line 1
+START SLAVE IO_THREAD UNTIL master_gtid_pos = "";
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+START SLAVE SQL_THREAD UNTIL master_gtid_pos = "";
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+START SLAVE UNTIL master_gtid_pos = '0-1-4';
+include/wait_for_slave_to_stop.inc
+SELECT * FROM t1;
+a
+1
+include/start_slave.inc
+connection server_1;
+connection server_2;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+include/stop_slave.inc
+START SLAVE UNTIL master_gtid_pos = "1-10-100,2-20-200,0-1-300";
+include/wait_for_slave_to_start.inc
+Using_Gtid = 'Current_Pos'
+Until_Condition = 'Gtid'
+connection server_1;
+INSERT INTO t1 VALUES (3);
+DELETE FROM t1 WHERE a=3;
+connection server_2;
+include/stop_slave.inc
+*** Test UNTIL condition in an earlier binlog than the start GTID. ***
+connection server_2;
+connection server_1;
+SET gtid_domain_id = 1;
+INSERT INTO t1 VALUES (3);
+SET gtid_domain_id = 2;
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (3);
+FLUSH LOGS;
+SET gtid_domain_id = 1;
+INSERT INTO t1 VALUES (4);
+SET gtid_domain_id = 2;
+INSERT INTO t2 VALUES (4);
+FLUSH LOGS;
+SET gtid_domain_id = 1;
+INSERT INTO t1 VALUES (5);
+SET gtid_domain_id = 2;
+INSERT INTO t2 VALUES (5);
+FLUSH LOGS;
+SET gtid_domain_id = 1;
+INSERT INTO t1 VALUES (6);
+SET gtid_domain_id = 2;
+INSERT INTO t2 VALUES (6);
+SET gtid_domain_id = 0;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+connection server_2;
+START SLAVE UNTIL master_gtid_pos='1-1-3,2-1-4';
+include/wait_for_slave_to_stop.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+SELECT * FROM t2 ORDER BY a;
+a
+3
+4
+5
+START SLAVE UNTIL master_gtid_pos='1-1-4,2-1-2';
+include/wait_for_slave_to_stop.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+SELECT * FROM t2 ORDER BY a;
+a
+3
+4
+5
+START SLAVE UNTIL master_gtid_pos='1-1-3';
+include/wait_for_slave_to_stop.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+SELECT * FROM t2 ORDER BY a;
+a
+3
+4
+5
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+SELECT * FROM t2 ORDER BY a;
+a
+3
+4
+5
+6
+*** Test when the UNTIL position is right at the end of the binlog file prior to the starting position ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+FLUSH LOGS;
+SET gtid_domain_id = 1;
+INSERT INTO t1 VALUES (7);
+SET gtid_domain_id = 0;
+connection server_2;
+START SLAVE UNTIL master_gtid_pos='1-1-4';
+include/wait_for_slave_to_stop.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+*** Test when UNTIL condition is after a stand-alone event (not a transaction). ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+CREATE TABLE t3 (a INT);
+DROP TABLE t3;
+connection server_2;
+START SLAVE UNTIL master_gtid_pos='UNTIL_CONDITION';
+include/wait_for_slave_to_stop.inc
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+include/start_slave.inc
+*** Test UNTIL condition that has not yet been logged. ***
+connection server_2;
+include/stop_slave.inc
+RESET SLAVE ALL;
+RESET MASTER;
+SET GLOBAL gtid_slave_pos='';
+connection server_1;
+RESET MASTER;
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+DELETE FROM t1 WHERE a >= 10;
+RESET MASTER;
+INSERT INTO t1 VALUES (10);
+connection server_2;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1,
+master_user = "root", master_use_gtid = current_pos;
+START SLAVE UNTIL master_gtid_pos = '0-1-2';
+include/wait_for_slave_to_start.inc
+connection server_1;
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+connection server_2;
+include/wait_for_slave_to_stop.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+10
+11
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+10
+11
+12
+connection server_1;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP FUNCTION extract_gtid;
+include/rpl_end.inc

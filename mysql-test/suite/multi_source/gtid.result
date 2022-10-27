@@ -1,0 +1,130 @@
+connect  slave1,127.0.0.1,root,,,$SERVER_MYPORT_3;
+connect  slave2,127.0.0.1,root,,,$SERVER_MYPORT_4;
+connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connection slave1;
+CHANGE MASTER 'slave1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root';
+CHANGE MASTER 'slave2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
+set default_master_connection = 'slave1';
+START SLAVE;
+include/wait_for_slave_to_start.inc
+set default_master_connection = 'slave2';
+START SLAVE;
+include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+connection slave2;
+CHANGE MASTER TO master_port=MYPORT_3, master_host='127.0.0.1', master_user='root';
+start all slaves;
+Warnings:
+Note	1937	SLAVE '' started
+include/wait_for_slave_to_start.inc
+connection master1;
+SET GLOBAL gtid_domain_id= 1;
+SET SESSION gtid_domain_id= 1;
+CREATE TABLE t3 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, "initial");
+INSERT INTO t3 VALUES (101, "initial 1");
+connection slave1;
+connection master2;
+SET GLOBAL gtid_domain_id= 2;
+SET SESSION gtid_domain_id= 2;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1, "initial");
+SET SQL_LOG_BIN=0;
+CREATE TABLE t3 (a INT PRIMARY KEY, b VARCHAR(10));
+SET SQL_LOG_BIN=1;
+INSERT INTO t3 VALUES (201, "initial 2");
+connection slave2;
+*** Now move slave2 to replicate from both master1 and master2 instead of just slave1 ***
+STOP ALL SLAVES;
+Warnings:
+Note	1938	SLAVE '' stopped
+connection master1;
+INSERT INTO t1 VALUES (2, "switch1");
+INSERT INTO t3 VALUES (102, "switch1 a");
+connection master2;
+INSERT INTO t2 VALUES (2, "switch1");
+INSERT INTO t3 VALUES (202, "switch1 b");
+connection slave2;
+CHANGE MASTER 'slave1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+CHANGE MASTER 'slave2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+SET default_master_connection = 'slave1';
+START SLAVE;
+include/wait_for_slave_to_start.inc
+SET default_master_connection = 'slave2';
+START SLAVE;
+include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+*** Move slave1 to replicate from slave2 instead of from master1 and master2 ***
+connection slave1;
+STOP SLAVE 'slave1';
+connection master1;
+INSERT INTO t1 VALUES (3, "switch 2");
+INSERT INTO t3 VALUES (103, "switch 2 a");
+connection slave2;
+connection master2;
+INSERT INTO t2 VALUES (3, "switch 2");
+INSERT INTO t3 VALUES (203, "switch 2 b");
+include/save_master_gtid.inc
+connection slave1;
+STOP SLAVE 'slave2';
+connection master2;
+INSERT INTO t2 VALUES (4, "switch 3");
+INSERT INTO t3 VALUES (204, "switch 3 b");
+connection slave2;
+include/sync_with_master_gtid.inc
+connection slave1;
+CHANGE MASTER TO master_port=MYPORT_4, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+START SLAVE;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	initial
+2	switch1
+3	switch 2
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	initial
+2	switch1
+3	switch 2
+4	switch 3
+SELECT * FROM t3 ORDER BY a;
+a	b
+101	initial 1
+102	switch1 a
+103	switch 2 a
+201	initial 2
+202	switch1 b
+203	switch 2 b
+204	switch 3 b
+connection master1;
+DROP TABLE t1;
+SET SQL_LOG_BIN=0;
+DROP TABLE t3;
+SET SQL_LOG_BIN=1;
+connection master2;
+DROP TABLE t2;
+DROP TABLE t3;
+connection slave1;
+SET GLOBAL gtid_domain_id=0;
+STOP ALL SLAVES;
+Warnings:
+Note	1938	SLAVE '' stopped
+include/reset_master_slave.inc
+disconnect slave1;
+connection slave2;
+SET GLOBAL gtid_domain_id=0;
+STOP ALL SLAVES;
+Warnings:
+Note	1938	SLAVE 'slave1' stopped
+Note	1938	SLAVE 'slave2' stopped
+include/reset_master_slave.inc
+disconnect slave2;
+connection master1;
+SET GLOBAL gtid_domain_id=0;
+include/reset_master_slave.inc
+disconnect master1;
+connection master2;
+SET GLOBAL gtid_domain_id=0;
+include/reset_master_slave.inc
+disconnect master2;

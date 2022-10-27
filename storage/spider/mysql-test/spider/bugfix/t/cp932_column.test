@@ -1,0 +1,80 @@
+--source ../include/cp932_column_init.inc
+--echo
+--echo this test is for MDEV-18992
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    txt_utf8 char(8) NOT NULL,
+    txt_cp932 char(8) NOT NULL COLLATE cp932_japanese_ci,
+    PRIMARY KEY (pkey)
+) MASTER_1_ENGINE DEFAULT CHARACTER SET utf8 MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    txt_utf8 char(8) NOT NULL,
+    txt_cp932 char(8) NOT NULL COLLATE cp932_japanese_ci,
+    PRIMARY KEY (pkey)
+) $MASTER_1_ENGINE DEFAULT CHARACTER SET utf8 $MASTER_1_COMMENT_2_1;
+--enable_query_log
+INSERT INTO tbl_a (pkey,txt_utf8,txt_cp932) VALUES (0,'',''),(1,'',''),(2,'',''),(3,'',''),(4,'',''),(5,'',''),(6,'',''),(7,'',''),(8,'',''),(9,'','');
+FLUSH TABLES;
+
+--echo
+--echo test 1
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+SET NAMES cp932;
+INSERT INTO tbl_a (pkey,txt_utf8,txt_cp932) VALUES (10,'','íÜçë');
+INSERT INTO tbl_a (pkey,txt_utf8,txt_cp932) VALUES (0,'','') ON DUPLICATE KEY UPDATE txt_cp932 = 'íÜçë';
+UPDATE tbl_a SET txt_cp932 = 'íÜçë' WHERE pkey = 2;
+SET NAMES utf8;
+
+--connection child2_1
+SET NAMES cp932;
+eval $CHILD2_1_SELECT_ARGUMENT1;
+eval $CHILD2_1_SELECT_TABLES;
+SET NAMES utf8;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/cp932_column_deinit.inc
+--echo
+--echo end of test

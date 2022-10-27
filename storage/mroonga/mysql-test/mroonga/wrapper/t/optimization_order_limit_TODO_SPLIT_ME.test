@@ -1,0 +1,60 @@
+# Copyright(C) 2010 Kentoku SHIBA
+# Copyright(C) 2011 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/have_innodb.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+flush status;
+create table t1 (
+  c1 int primary key,
+  c2 int,
+  c3 text,
+  key idx1(c2),
+  fulltext index ft(c3)
+) comment = 'engine "innodb"';
+insert into t1 values(1,10,"aa ii uu ee oo");
+insert into t1 values(2,20,"ka ki ku ke ko");
+insert into t1 values(3,30,"ii si ii se ii");
+insert into t1 values(4,40,"ta ti tu te to");
+insert into t1 values(5,50,"aa ii uu ii oo");
+
+select c3, match(c3) against("ii") from t1
+  where match(c3) against("ii") order by match(c3) against("ii") desc;
+show status like 'mroonga_fast_order_limit';
+
+select c3, match(c3) against("ii") from t1
+  where match(c3) against("ii") order by match(c3) against("ii") desc limit 1, 1;
+show status like 'mroonga_fast_order_limit';
+
+select c3, match(c3) against("ii") from t1
+  where match(c3) against("ii") order by match(c3) against("ii");
+show status like 'mroonga_fast_order_limit';
+
+select c3, match(c3) against("ii") from t1
+  where match(c3) against("ii") order by match(c3) against("ii") limit 1;
+show status like 'mroonga_fast_order_limit';
+
+select count(*) from t1 where match(c3) against("ii") limit 1;
+show status like 'mroonga_fast_order_limit';
+
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

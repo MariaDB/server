@@ -1,0 +1,102 @@
+SET @n_pages= @@GLOBAL.innodb_defragment_n_pages;
+SET @accuracy= @@GLOBAL.innodb_defragment_stats_accuracy;
+SET @sp= @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+set global innodb_defragment_stats_accuracy = 80;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+b VARCHAR(256),
+c INT,
+g GEOMETRY NOT NULL,
+t VARCHAR(256),
+KEY second(a, b),
+KEY third(c),
+SPATIAL gk(g),
+FULLTEXT INDEX fti(t)) ENGINE=INNODB;
+connect  con1,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  con2,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  con3,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  con4,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection default;
+SET @@global.innodb_defragment_n_pages = 20;
+CREATE TEMPORARY TABLE tt (a INT, KEY(a)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO tt SELECT 0 FROM seq_1_to_180;
+INSERT INTO tt SELECT 5 FROM seq_1_to_160;
+INSERT INTO tt SELECT 1 FROM seq_1_to_1000;
+OPTIMIZE TABLE tt;
+Table	Op	Msg_type	Msg_text
+test.tt	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.tt	optimize	status	OK
+select count(*) from t1;
+count(*)
+20000
+select count(*) from t1 force index (second);
+count(*)
+20000
+select count(*) from t1 force index (third);
+count(*)
+20000
+select count(*) from t1;
+count(*)
+15800
+select count(*) from t1 force index (second);
+count(*)
+15800
+select count(*) from t1 force index (third);
+count(*)
+15800
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+count(stat_value) > 0
+0
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+count(stat_value) > 0
+1
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) > 0
+1
+connection con1;
+optimize table t1;;
+connection default;
+INSERT INTO t1 VALUES (400000, REPEAT('A', 256),300000, Point(1,1),'More like a test but different.');;
+connection con2;
+INSERT INTO t1 VALUES (500000, REPEAT('A', 256),400000, Point(1,1),'Totally different text book.');;
+connection con3;
+DELETE FROM t1 where a between 1 and 100;;
+connection con4;
+UPDATE t1 SET c = c + 1 where c between 2000 and 8000;;
+connection con1;
+connection con2;
+connection con3;
+connection con4;
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select count(*) from t1;
+count(*)
+15723
+select count(*) from t1 force index (second);
+count(*)
+15723
+select count(*) from t1 force index (third);
+count(*)
+15723
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+count(stat_value) > 0
+1
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+count(stat_value) > 0
+1
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) > 0
+1
+drop table t1;
+SET GLOBAL innodb_defragment_n_pages = @n_pages;
+SET GLOBAL innodb_defragment_stats_accuracy = @accuracy;
+SET GLOBAL innodb_stats_persistent = @sp;

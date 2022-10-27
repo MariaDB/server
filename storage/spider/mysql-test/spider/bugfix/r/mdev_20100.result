@@ -1,0 +1,119 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+this test is for MDEV-20100
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) ENGINE=Spider PARTITION BY RANGE(a) (
+PARTITION pt1 VALUES LESS THAN (5) COMMENT='srv "s_2_1", table "ta_r2"',
+PARTITION pt2 VALUES LESS THAN (10) COMMENT='srv "s_2_1", table "ta_r3"',
+PARTITION pt3 VALUES LESS THAN MAXVALUE COMMENT='srv "s_2_1", table "ta_r4"'
+  )
+INSERT INTO tbl_a (a, b, c) VALUES
+(1, 'a', '2008-08-01 10:21:39'),
+(2, 'b', '2000-01-01 00:00:00'),
+(3, 'e', '2007-06-04 20:03:11'),
+(4, 'd', '2003-11-30 05:01:03'),
+(5, 'c', '2001-12-31 23:59:59');
+
+test 1
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT a, b, c FROM tbl_a PARTITION (pt2) WHERE b = 'c';
+a	b	c
+5	c	2001-12-31 23:59:59
+SELECT a, b, c FROM tbl_a PARTITION (pt1,pt2);
+a	b	c
+1	a	2008-08-01 10:21:39
+2	b	2000-01-01 00:00:00
+3	e	2007-06-04 20:03:11
+4	d	2003-11-30 05:01:03
+5	c	2001-12-31 23:59:59
+SELECT a, b, c FROM tbl_a PARTITION (pt3) WHERE b = 'c';
+a	b	c
+SELECT a, b, c FROM tbl_a PARTITION (pt1,pt2);
+a	b	c
+1	a	2008-08-01 10:21:39
+2	b	2000-01-01 00:00:00
+3	e	2007-06-04 20:03:11
+4	d	2003-11-30 05:01:03
+5	c	2001-12-31 23:59:59
+SELECT a, b, c FROM tbl_a PARTITION (pt1) WHERE b = 'c';
+a	b	c
+SELECT a, b, c FROM tbl_a PARTITION (pt1,pt3);
+a	b	c
+1	a	2008-08-01 10:21:39
+2	b	2000-01-01 00:00:00
+3	e	2007-06-04 20:03:11
+4	d	2003-11-30 05:01:03
+SELECT a, b, c FROM tbl_a PARTITION (pt1) WHERE b = 'c';
+a	b	c
+SELECT a, b, c FROM tbl_a PARTITION (pt2,pt3);
+a	b	c
+5	c	2001-12-31 23:59:59
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r3` t0 where (t0.`b` = 'c')
+select `a`,`b`,`c` from `auto_test_remote`.`ta_r2`
+select `a`,`b`,`c` from `auto_test_remote`.`ta_r3`
+select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r4` t0 where (t0.`b` = 'c')
+select `a`,`b`,`c` from `auto_test_remote`.`ta_r2`
+select `a`,`b`,`c` from `auto_test_remote`.`ta_r3`
+select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r2` t0 where (t0.`b` = 'c')
+select `a`,`b`,`c` from `auto_test_remote`.`ta_r2`
+select `a`,`b`,`c` from `auto_test_remote`.`ta_r4`
+select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r2` t0 where (t0.`b` = 'c')
+select `a`,`b`,`c` from `auto_test_remote`.`ta_r3`
+select `a`,`b`,`c` from `auto_test_remote`.`ta_r4`
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT a, b, c FROM ta_r2 ORDER BY a ;
+SELECT a, b, c FROM ta_r3 ORDER BY a ;
+SELECT a, b, c FROM ta_r4 ORDER BY a;
+a	b	c
+1	a	2008-08-01 10:21:39
+2	b	2000-01-01 00:00:00
+3	e	2007-06-04 20:03:11
+4	d	2003-11-30 05:01:03
+a	b	c
+5	c	2001-12-31 23:59:59
+a	b	c
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

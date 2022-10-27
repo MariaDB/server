@@ -1,0 +1,25 @@
+-- source include/have_ucs2.inc
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10877 xxx_unicode_nopad_ci collations
+--echo #
+SET NAMES utf8, character_set_connection=ucs2;
+let $coll='ucs2_unicode_nopad_ci';
+let $coll_pad='ucs2_unicode_ci';
+--source include/ctype_pad_all_engines.inc
+
+let $coll='ucs2_unicode_520_nopad_ci';
+let $coll_pad='ucs2_unicode_520_ci';
+--source include/ctype_pad_all_engines.inc
+
+SET NAMES utf8, collation_connection=ucs2_unicode_520_nopad_ci;
+--source include/ctype_like_range_mdev14350.inc
+SET NAMES utf8;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

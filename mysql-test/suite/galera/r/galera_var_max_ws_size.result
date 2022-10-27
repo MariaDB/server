@@ -1,0 +1,20 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 VARCHAR(1024)) Engine=InnoDB;
+SET GLOBAL wsrep_max_ws_size = 1024;
+INSERT INTO t1 VALUES (DEFAULT, REPEAT('X', 1024));
+ERROR HY000: Got error 5 "Input/output error" during COMMIT
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=10000';
+SELECT @@wsrep_max_ws_size = 10000;
+@@wsrep_max_ws_size = 10000
+1
+SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=20000';
+SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=10000';
+SET GLOBAL wsrep_max_ws_size = 20000;
+provider_options_match
+1
+DROP TABLE t1;

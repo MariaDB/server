@@ -1,0 +1,3 @@
+--source include/have_maria.inc
+--error ER_KEY_BASED_ON_GENERATED_VIRTUAL_COLUMN
+create table t1 (a int, b int as (a+1), c int, index(b)) engine=aria;

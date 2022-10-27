@@ -1,0 +1,204 @@
+-- source include/have_innodb.inc
+SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION,SIMULTANEOUS_ASSIGNMENT';
+
+--echo #
+--echo # MDEV-13417 UPDATE produces wrong values if an UPDATEd column is later used as an UPDATE source
+--echo #
+
+CREATE TABLE t1 (c1 INTEGER, c2 INTEGER, c3 INTEGER) ENGINE=InnoDb;
+INSERT INTO t1(c1,c2,c3) VALUES (1,1,1);
+CREATE TABLE  t2 (c1 INTEGER, c2 INTEGER, c3 INTEGER) ENGINE=InnoDb;
+INSERT INTO t2(c1,c2,c3) VALUES (1,1,1);
+
+--echo #
+--echo # Check that a column is only updated once.
+--echo #
+
+--error ER_UPDATED_COLUMN_ONLY_ONCE
+UPDATE t1
+   SET c1 = 1,
+       c1 = 2;
+
+--error ER_UPDATED_COLUMN_ONLY_ONCE
+UPDATE t1, t2
+   SET t1.c1 = t1.c1 + 1,
+       t1.c2 = t1.c1 + 1,
+       t2.c2 = t1.c2 + 1,
+       t2.c2 = t1.c2 + 1;
+
+--echo #
+--echo # Check standard update
+--echo #
+
+UPDATE t1
+   SET c1 = c1+1,
+       c2 = c1+1,
+       c3 = c2+1
+ WHERE c1=10;
+
+START TRANSACTION;
+UPDATE t1
+   SET c1 = c1+1,
+       c2 = c1+1,
+       c3 = c2+1;
+SELECT * FROM t1;
+ROLLBACK;
+
+--echo #
+--echo # Check update through a single view
+--echo #
+
+CREATE VIEW v1 (a, b) AS SELECT c1, c2 FROM t1;
+--error ER_UPDATED_COLUMN_ONLY_ONCE
+UPDATE v1
+   SET a = 10,
+       a = b+1;
+SELECT * FROM t1;
+DROP VIEW v1;
+
+CREATE VIEW v1 (a, b) AS SELECT c2, c2 FROM t1;
+--error ER_UPDATED_COLUMN_ONLY_ONCE
+UPDATE v1
+   SET a = 10,
+       b = 20;
+SELECT * FROM t1;
+DROP VIEW v1;
+
+--echo #
+--echo # Check update through a multi table view
+--echo #
+
+CREATE VIEW v1 (a, b) AS SELECT t1.c1, t2.c1  FROM t1, t2 WHERE t1.c1=t2.c1;
+--error ER_VIEW_MULTIUPDATE
+UPDATE v1
+   SET a = 10,
+       b = 20;
+
+START TRANSACTION;
+UPDATE v1
+   SET a = 10;
+ROLLBACK;
+
+--error ER_UPDATED_COLUMN_ONLY_ONCE
+UPDATE v1
+   SET a = 10,
+       a = a + 1;
+DROP VIEW v1;
+
+--echo #
+--echo # Check multi update
+--echo #
+
+START TRANSACTION;
+UPDATE t1, t2
+   SET t1.c1 = t1.c1 + 1,
+       t1.c2 = t1.c1 + 1,
+       t2.c2 = t1.c2 + 1,
+       t2.c3 = t2.c2 + 1
+WHERE t1.c1=t2.c1;
+SELECT * FROM t1;
+SELECT * FROM t2;
+ROLLBACK;
+
+DELIMITER /;
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+  INSERT INTO t2 VALUES(10+old.c1,10+old.c2,10+old.c3);
+  INSERT INTO t2 VALUES(20+new.c1,10+new.c2,10+new.c3);
+END;
+/
+DELIMITER ;/
+START TRANSACTION;
+UPDATE t1
+   SET c1 = c1+1,
+       c2 = c1+1,
+       c3 = c2+1;
+SELECT * FROM t1;
+SELECT * FROM t2;
+ROLLBACK;
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # Check update fired by INSERT ... ON DUPLICATE KEY UPDATE
+--echo #
+
+CREATE TABLE t1 (
+  id INT(11) NOT NULL AUTO_INCREMENT,
+  name VARCHAR(60) NOT NULL,
+  nb_visits INT NOT NULL,
+  nb_visits_prev INT NOT NULL default 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY name (name)
+) ENGINE=InnoDB AUTO_INCREMENT=1;
+
+INSERT INTO t1(name, nb_visits) VALUES('nico', 1)
+    ON DUPLICATE KEY UPDATE nb_visits = nb_visits + 1;
+SELECT * FROM t1;
+INSERT INTO t1(name, nb_visits) VALUES('nico', 1)
+        ON DUPLICATE KEY UPDATE nb_visits = nb_visits + 1, nb_visits_prev=nb_visits;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Update table with virtual column
+--echo #
+
+CREATE TABLE t1 (c1 INTEGER, c2 INTEGER, c3 INTEGER AS (c1 MOD 10) VIRTUAL, c4 INTEGER AS (c1+c2 MOD 5) PERSISTENT ) ENGINE=InnoDb;
+INSERT INTO t1(c1,c2) VALUES (1,1);
+
+SELECT * FROM t1;
+UPDATE t1 SET c2 = 10, c1 = c2;
+SELECT * FROM t1;
+UPDATE t1 SET c2 = 4, c1 = c2;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Update dynamic column
+--echo #
+SET @@local.character_set_connection='latin1';
+CREATE TABLE assets (
+  item_name VARCHAR(32) PRIMARY KEY,
+  dynamic_col1  BLOB,
+  dynamic_col2  BLOB
+);
+
+INSERT INTO assets VALUES ('Thinkpad Laptop', COLUMN_CREATE('color', 'black', 'price', 500),COLUMN_CREATE('CPU', 'Core I7', 'memory', '8Go'));
+INSERT INTO assets VALUES ('Thinkpad Laptop2', COLUMN_CREATE('color', 'yellow', 'price', 700),COLUMN_CREATE('CPU', 'Core I7', 'memory', '16Go'));
+SELECT item_name, COLUMN_GET(dynamic_col1, 'color' as char) AS color1,
+       COLUMN_GET(dynamic_col2, 'color' as char) AS color2
+  FROM assets;
+UPDATE assets
+   SET dynamic_col1=COLUMN_ADD(dynamic_col1, 'warranty', '3 years'),
+       dynamic_col2=dynamic_col1
+ WHERE item_name LIKE 'Thinkpad Laptop%';
+
+SELECT item_name, COLUMN_GET(dynamic_col1, 'warranty' as char) AS waranty1,
+       COLUMN_GET(dynamic_col2, 'warranty' as char) AS waranty2,
+       COLUMN_GET(dynamic_col2, 'color' as char) AS color2
+  FROM assets;
+
+DROP TABLE assets;
+
+--echo #
+--echo # Update TEXT column
+--echo #
+
+CREATE TABLE ft2(copy TEXT,copy2 TEXT,FULLTEXT(copy)) ENGINE=MyISAM;
+INSERT INTO ft2(copy) VALUES
+ ('MySQL vs MariaDB database'),
+ ('Oracle vs MariaDB database'),
+ ('PostgreSQL vs MariaDB database'),
+ ('MariaDB overview'),
+ ('Foreign keys'),
+ ('Primary keys'),
+ ('Indexes'),
+ ('Transactions'),
+ ('Triggers');
+SELECT * FROM ft2;
+UPDATE ft2 SET copy = UPPER(copy),
+               copy2= copy;
+SELECT * FROM ft2;
+DROP TABLE ft2;

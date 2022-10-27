@@ -1,0 +1,35 @@
+# Regression test for https://mariadb.atlassian.net/browse/MDEV-5996
+# MidSchipDB_unstable
+--let $oqgraph_table_name= 999999999
+
+call mtr.add_suppression("99999999 is open on delete");
+
+--let $oqgraph_database_name= 
+--source regression_mdev5996.inc
+
+--let $oqgraph_database_name= 1
+--source regression_mdev5996.inc
+
+# Various cases - although actual bug was a broken zero termination
+# name of backing store shorter, same and longer than table
+
+--let $oqgraph_database_name= 1112222233_4444444
+--source regression_mdev5996.inc
+
+--let $oqgraph_database_name= 1112222233_44444444
+--source regression_mdev5996.inc
+
+--let $oqgraph_database_name= 1112222233_444444444
+--source regression_mdev5996.inc
+
+--let $oqgraph_table_name= 99999999
+--source regression_mdev5996.inc
+
+--let $oqgraph_table_name= 9999999999
+--source regression_mdev5996.inc
+
+# Fails:
+
+# 1/9999
+# test/99999999
+# 1112222233_444444444/999999999

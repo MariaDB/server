@@ -1,0 +1,103 @@
+source include/not_embedded.inc;
+
+#create a user with no privileges
+create user test_user@localhost;
+create role test_role1;
+create role test_role2;
+
+grant test_role1 to test_user@localhost;
+grant test_role2 to test_user@localhost;
+grant test_role2 to test_role1;
+--sorted_result
+select user, host from mysql.user where user not like 'root';
+--sorted_result
+select * from mysql.roles_mapping;
+
+--sorted_result
+select user, host from mysql.db;
+
+grant select on mysql.* to test_role2;
+flush privileges;
+
+--sorted_result
+select * from information_schema.applicable_roles;
+
+change_user 'test_user';
+
+--sorted_result
+select * from information_schema.applicable_roles;
+
+--sorted_result
+show grants;
+select current_user(), current_role();
+set role test_role1;
+--sorted_result
+select * from information_schema.enabled_roles;
+select current_user(), current_role();
+--sorted_result
+show grants;
+set role none;
+--sorted_result
+select * from information_schema.enabled_roles;
+select current_user(), current_role();
+--sorted_result
+show grants;
+
+--sorted_result
+show grants for test_user@localhost;
+--error ER_DBACCESS_DENIED_ERROR
+show grants for test_role1;
+--error ER_DBACCESS_DENIED_ERROR
+show grants for test_role2;
+--sorted_result
+show grants for CURRENT_USER;
+--sorted_result
+show grants for CURRENT_USER();
+--error ER_NONEXISTING_GRANT
+show grants for CURRENT_ROLE;
+--error ER_NONEXISTING_GRANT
+show grants for CURRENT_ROLE();
+
+set role test_role2;
+--sorted_result
+select * from information_schema.enabled_roles;
+select current_user(), current_role();
+--sorted_result
+show grants;
+--sorted_result
+show grants for test_user@localhost;
+--sorted_result
+show grants for test_role1;
+--sorted_result
+show grants for test_role2;
+--sorted_result
+show grants for CURRENT_USER;
+--sorted_result
+show grants for CURRENT_USER();
+--sorted_result
+show grants for CURRENT_ROLE;
+--sorted_result
+show grants for CURRENT_ROLE();
+
+
+change_user 'root';
+drop user 'test_user'@'localhost';
+revoke select on mysql.* from test_role2;
+drop role test_role1;
+drop role test_role2;
+delete from mysql.roles_mapping where Role='test_role1';
+delete from mysql.roles_mapping where Role='test_role2';
+flush privileges;
+
+--echo #
+--echo # MDEV-24289: show grants missing with grant option
+--echo #
+create role anel;
+GRANT SELECT, UPDATE, DELETE, ALTER ON *.* TO 'anel';
+SHOW GRANTS for 'anel';
+
+create role MariaDB_admin;
+GRANT SELECT, UPDATE, DELETE, ALTER ON *.* TO 'MariaDB_admin' WITH GRANT OPTION;
+SHOW GRANTS for 'MariaDB_admin';
+drop role MariaDB_admin;
+drop role anel;

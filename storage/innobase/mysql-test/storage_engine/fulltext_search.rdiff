@@ -1,0 +1,49 @@
+--- suite/storage_engine/fulltext_search.result	2013-11-27 18:50:16.000000000 +0400
++++ suite/storage_engine/fulltext_search.reject	2014-02-05 15:33:26.000000000 +0400
+@@ -52,15 +52,14 @@
+ INSERT INTO t1 (v0,v1,v2) VALUES ('text4','Contributing more...','...is a good idea'),('text5','test','test');
+ SELECT v0, MATCH(v1) AGAINST('contributing') AS rating FROM t1 WHERE MATCH(v1) AGAINST ('contributing');
+ v0	rating
+-text4	1.3705332279205322
++text4	0.4885590672492981
+ SELECT v0 FROM t1 WHERE MATCH(v1,v2) AGAINST ('-test1 +critical +Cook*' IN BOOLEAN MODE);
+-v0
+-text1
++ERROR HY000: Can't find FULLTEXT index matching the column list
+ SELECT v0 FROM t1 WHERE MATCH(v1,v2) AGAINST ('-patch +critical +Cook*' IN BOOLEAN MODE);
+-v0
++ERROR HY000: Can't find FULLTEXT index matching the column list
+ SELECT v0, MATCH(v1) AGAINST('database' WITH QUERY EXPANSION) AS rating FROM t1 WHERE MATCH(v1) AGAINST ('database' WITH QUERY EXPANSION);
+ v0	rating
+-text1	178.11756896972656
++text1	151.4530487060547
+ DROP TABLE t1;
+ CREATE TABLE t1 (v0 VARCHAR(64) <CUSTOM_COL_OPTIONS>,
+ v1 VARCHAR(16384) <CUSTOM_COL_OPTIONS>,
+@@ -112,14 +111,15 @@
+ 	), ('text2','test1','test2');
+ SELECT v0 FROM t1 WHERE MATCH(v1,v2) AGAINST ('contributing' IN NATURAL LANGUAGE MODE);
+ v0
++text1
+ INSERT INTO t1 (v0,v1,v2) VALUES ('text3','test','test');
+ SELECT v0, MATCH(v1,v2) AGAINST('contributing' IN NATURAL LANGUAGE MODE) AS rating FROM t1 WHERE MATCH(v1,v2) AGAINST ('contributing' IN NATURAL LANGUAGE MODE);
+ v0	rating
+-text1	0.2809644043445587
++text1	0.45528939366340637
+ INSERT INTO t1 (v0,v1,v2) VALUES ('text4','Contributing more...','...is a good idea'),('text5','test','test');
+ SELECT v0, MATCH(v1) AGAINST('contributing') AS rating FROM t1 WHERE MATCH(v1) AGAINST ('contributing');
+ v0	rating
+-text4	1.3705332279205322
++text4	0.4885590672492981
+ SELECT v0 FROM t1 WHERE MATCH(v1,v2) AGAINST ('-test1 +critical +Cook*' IN BOOLEAN MODE);
+ v0
+ text1
+@@ -127,6 +127,6 @@
+ v0
+ SELECT v0, MATCH(v1,v2) AGAINST('database' WITH QUERY EXPANSION) AS rating FROM t1 WHERE MATCH(v1,v2) AGAINST ('database' WITH QUERY EXPANSION);
+ v0	rating
+-text1	190.56150817871094
+-text4	1.1758291721343994
++text1	229.60874938964844
++text4	0.31671249866485596
+ DROP TABLE t1;

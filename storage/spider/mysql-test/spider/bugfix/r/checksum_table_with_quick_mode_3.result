@@ -1,0 +1,100 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection master_1;
+set @old_spider_quick_mode= @@spider_quick_mode;
+set session spider_quick_mode= 3;
+set @old_spider_quick_page_size= @@spider_quick_page_size;
+set session spider_quick_page_size= 3;
+
+this test is for MDEV-16279
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO tbl_a (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO tbl_a (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
+FLUSH TABLES;
+
+select test 1
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CHECKSUM TABLE tbl_a EXTENDED;
+Table	Checksum
+auto_test_local.tbl_a	1061386331
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %';
+argument
+checksum table `auto_test_remote`.`tbl_a` extended
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %'
+SELECT pkey FROM tbl_a ORDER BY pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+connection master_1;
+set session spider_quick_mode= @old_spider_quick_mode;
+set session spider_quick_page_size= @old_spider_quick_page_size;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

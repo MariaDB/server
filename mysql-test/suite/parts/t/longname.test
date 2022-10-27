@@ -1,0 +1,58 @@
+source include/have_innodb.inc;
+source include/have_partition.inc;
+# The absolute path names in the embedded server hit the limit earlier.
+source include/not_embedded.inc;
+set names utf8;
+
+create database mysqltest1;
+select database_name, table_name, length(table_name) from mysql.innodb_table_stats where database_name = 'mysqltest1';
+CREATE TABLE mysqltest1.test_jfg_table_name_with_64_chars_123456789012345678901234567890 (
+  id int(10) unsigned NOT NULL,
+  id2 int(10) unsigned NOT NULL,
+  PRIMARY KEY ( id, id2 )
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+PARTITION BY RANGE ( id )
+  SUBPARTITION BY HASH ( id2 )
+  SUBPARTITIONS 2 (
+  PARTITION test_jfg_partition_name_with_60_chars_1234567890123456789012 VALUES LESS THAN (1000) ENGINE = InnoDB,
+  PARTITION pmax VALUES LESS THAN MAXVALUE ENGINE = InnoDB);
+
+select database_name, table_name, length(table_name) from mysql.innodb_table_stats where database_name = 'mysqltest1';
+
+--error ER_PATH_LENGTH
+CREATE TABLE mysqltest1.éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé (
+  id int(10) unsigned NOT NULL,
+  id2 int(10) unsigned NOT NULL,
+  PRIMARY KEY ( id, id2 )
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+PARTITION BY RANGE ( id )
+  SUBPARTITION BY HASH ( id2 )
+  SUBPARTITIONS 2 (
+  PARTITION çççççççççççççççççççççççççççççççççççççççççççççççççççççççççççç VALUES LESS THAN (1000) ENGINE = InnoDB,
+  PARTITION pmax VALUES LESS THAN MAXVALUE ENGINE = InnoDB);
+
+SET @file_per_table=@@GLOBAL.innodb_file_per_table;
+SET GLOBAL innodb_file_per_table=0;
+
+CREATE TABLE mysqltest1.t1 (a INT) ENGINE=INNODB
+PARTITION BY RANGE (a) SUBPARTITION BY HASH(a)
+(PARTITION `$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$`
+ VALUES LESS THAN (10)
+ (SUBPARTITION
+  `--------------------------abcdef0123456789abcdef0123456789abcdef`,
+  SUBPARTITION
+  `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`)
+);
+
+SET GLOBAL innodb_file_per_table=@file_per_table;
+
+SHOW CREATE TABLE mysqltest1.t1;
+INSERT INTO mysqltest1.t1 VALUES(1);
+
+--error ER_WRONG_TABLE_NAME
+DROP TABLE mysqltest1.`#mysql50#t1#P#@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024#SP#0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`;
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
+WHERE NAME LIKE 'mysqltest1%';
+
+drop database mysqltest1;

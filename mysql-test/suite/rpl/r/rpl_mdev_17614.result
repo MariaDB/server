@@ -1,0 +1,129 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY , b INT,
+UNIQUE(b),  c int) engine=innodb;
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1);
+BEGIN;
+INSERT INTO t1 VALUES (2, 1, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
+connection master1;
+INSERT INTO t1 VALUES(2, 2, 3) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
+connection master;
+COMMIT;
+SELECT * FROM t1;
+a	b	c
+1	1	2
+2	2	3
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1062]
+Last_SQL_Error = 'Error 'Duplicate entry '1' for key 'b'' on query. Default database: 'test'. Query: 'INSERT INTO t1 VALUES (2, 1, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c)''
+#Different value from server
+SELECT * FROM t1;
+a	b	c
+1	1	1
+2	2	3
+stop slave;
+include/wait_for_slave_to_stop.inc
+reset slave;
+connection master;
+reset master;
+drop table t1;
+connection slave;
+start slave;
+include/wait_for_slave_to_start.inc
+connection master;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY auto_increment, b INT,
+UNIQUE(b),  c int) engine=innodb;
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (default, 1, 1);
+BEGIN;
+INSERT INTO t1 VALUES (default, 1, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+connection master1;
+INSERT INTO t1 VALUES(default, 2, 3) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+connection master;
+COMMIT;
+SELECT * FROM t1;
+a	b	c
+1	1	2
+3	2	3
+connection slave;
+#same data as master
+SELECT * FROM t1;
+a	b	c
+1	1	2
+3	2	3
+connection master;
+drop table t1;
+connection slave;
+connection master;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT,
+UNIQUE(b),  c int, d int ) engine=innodb;
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1, 1);
+BEGIN;
+INSERT INTO t1 VALUES (2, NULL, 2, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
+connection master1;
+INSERT INTO t1 VALUES(3, NULL, 2, 3) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe
+connection master;
+COMMIT;
+SELECT * FROM t1;
+a	b	c	d
+1	1	1	1
+2	NULL	2	2
+3	NULL	2	3
+connection slave;
+#same data as master
+SELECT * FROM t1;
+a	b	c	d
+1	1	1	1
+2	NULL	2	2
+3	NULL	2	3
+connection master;
+drop table t1;
+connection slave;
+connection master;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY auto_increment, b INT,
+UNIQUE(b),  c int) engine=innodb;
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1, 1, 1);
+BEGIN;
+INSERT INTO t1 VALUES (2, 1, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+connection master1;
+INSERT INTO t1 VALUES(2, 2, 3) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c);
+connection master;
+COMMIT;
+SELECT * FROM t1;
+a	b	c
+1	1	2
+2	2	3
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1062]
+Last_SQL_Error = 'Error 'Duplicate entry '1' for key 'b'' on query. Default database: 'test'. Query: 'INSERT INTO t1 VALUES (2, 1, 2) ON DUPLICATE KEY UPDATE b=VALUES(b), c=VALUES(c)''
+#Different value from server
+SELECT * FROM t1;
+a	b	c
+1	1	1
+2	2	3
+stop slave;
+include/wait_for_slave_to_stop.inc
+reset slave;
+connection master;
+reset master;
+drop table t1;
+connection slave;
+start slave;
+include/wait_for_slave_to_start.inc
+include/rpl_end.inc

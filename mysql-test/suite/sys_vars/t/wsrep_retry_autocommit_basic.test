@@ -1,0 +1,52 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_retry_autocommit
+--echo #
+
+--echo # save the initial values
+SET @wsrep_retry_autocommit_global_saved = @@global.wsrep_retry_autocommit;
+SET @wsrep_retry_autocommit_session_saved = @@session.wsrep_retry_autocommit;
+
+--echo # default
+SELECT @@global.wsrep_retry_autocommit;
+
+--echo
+--echo # scope
+SET @@session.wsrep_retry_autocommit=1;
+SELECT @@session.wsrep_retry_autocommit;
+SET @@global.wsrep_retry_autocommit=1;
+SELECT @@global.wsrep_retry_autocommit;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_retry_autocommit=10;
+SELECT @@global.wsrep_retry_autocommit;
+SET @@global.wsrep_retry_autocommit=0;
+SELECT @@global.wsrep_retry_autocommit;
+SET @@global.wsrep_retry_autocommit=default;
+SELECT @global.wsrep_retry_autocommit;
+
+SET @@session.wsrep_retry_autocommit=10;
+SELECT @@session.wsrep_retry_autocommit;
+SET @@session.wsrep_retry_autocommit=0;
+SELECT @@session.wsrep_retry_autocommit;
+SET @@session.wsrep_retry_autocommit=default;
+SELECT @session.wsrep_retry_autocommit;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_retry_autocommit=NULL;
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_retry_autocommit='junk';
+# expect warning : Truncated incorrect wsrep_retry_autocommit value: '-1'
+SET @@global.wsrep_retry_autocommit=-1;
+SELECT @global.wsrep_retry_autocommit;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_retry_autocommit = @wsrep_retry_autocommit_global_saved;
+SET @@session.wsrep_retry_autocommit = @wsrep_retry_autocommit_session_saved;
+
+--echo # End of test

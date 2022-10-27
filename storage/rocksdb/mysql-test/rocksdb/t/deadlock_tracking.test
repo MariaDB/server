@@ -1,0 +1,185 @@
+set @prior_lock_wait_timeout = @@rocksdb_lock_wait_timeout;
+set @prior_deadlock_detect = @@rocksdb_deadlock_detect;
+set @prior_max_latest_deadlocks = @@rocksdb_max_latest_deadlocks;
+set global rocksdb_deadlock_detect = on;
+set global rocksdb_lock_wait_timeout = 10000;
+--echo # Clears deadlock buffer of any prior deadlocks.
+set global rocksdb_max_latest_deadlocks = 0;
+set global rocksdb_max_latest_deadlocks = @prior_max_latest_deadlocks;
+let $engine = rocksdb;
+
+--source include/count_sessions.inc
+connect (con1,localhost,root,,);
+let $con1= `SELECT CONNECTION_ID()`;
+
+connect (con2,localhost,root,,);
+let $con2= `SELECT CONNECTION_ID()`;
+
+connect (con3,localhost,root,,);
+let $con3= `SELECT CONNECTION_ID()`;
+
+connection default;
+eval create table t (i int primary key) engine=$engine;
+insert into t values (1), (2), (3);
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /WAITING KEY: [0-9a-f]{16}/KEY/ /TRANSACTION ID: [0-9]*/TXN_ID/ /TIMESTAMP: [0-9]*/TSTAMP/
+show engine rocksdb transaction status;
+
+echo Deadlock #1;
+--source include/simple_deadlock.inc
+connection default;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /WAITING KEY: [0-9a-f]{16}/KEY/ /TRANSACTION ID: [0-9]*/TXN_ID/ /TIMESTAMP: [0-9]*/TSTAMP/
+show engine rocksdb transaction status;
+
+echo Deadlock #2;
+--source include/simple_deadlock.inc
+connection default;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /WAITING KEY: [0-9a-f]{16}/KEY/ /TRANSACTION ID: [0-9]*/TXN_ID/ /TIMESTAMP: [0-9]*/TSTAMP/
+show engine rocksdb transaction status;
+set global rocksdb_max_latest_deadlocks = 10;
+
+echo Deadlock #3;
+--source include/simple_deadlock.inc
+connection default;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /WAITING KEY: [0-9a-f]{16}/KEY/ /TRANSACTION ID: [0-9]*/TXN_ID/ /TIMESTAMP: [0-9]*/TSTAMP/
+show engine rocksdb transaction status;
+set global rocksdb_max_latest_deadlocks = 1;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /WAITING KEY: [0-9a-f]{16}/KEY/ /TRANSACTION ID: [0-9]*/TXN_ID/ /TIMESTAMP: [0-9]*/TSTAMP/
+show engine rocksdb transaction status;
+
+connection con3;
+set rocksdb_deadlock_detect_depth = 2;
+
+echo Deadlock #4;
+connection con1;
+begin;
+select * from t where i=1 for update;
+
+connection con2;
+begin;
+select * from t where i=2 for update;
+
+connection con3;
+begin;
+select * from t where i=3 for update;
+
+connection con1;
+send select * from t where i=2 for update;
+
+connection con2;
+let $wait_condition = select count(*) = 1 from information_schema.rocksdb_trx
+where thread_id = $con1 and waiting_key != "";
+--source include/wait_condition.inc
+
+send select * from t where i=3 for update;
+
+connection con3;
+let $wait_condition = select count(*) = 1 from information_schema.rocksdb_trx
+where thread_id = $con2 and waiting_key != "";
+--source include/wait_condition.inc
+
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_row_lock_deadlocks';
+--error ER_LOCK_DEADLOCK
+select * from t where i=1 for update;
+select case when variable_value-@a = 1 then 'true' else 'false' end as deadlocks from information_schema.global_status where variable_name='rocksdb_row_lock_deadlocks';
+rollback;
+
+connection con2;
+reap;
+rollback;
+
+connection con1;
+reap;
+rollback;
+
+connection default;
+set global rocksdb_max_latest_deadlocks = 5;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /WAITING KEY: [0-9a-f]{16}/KEY/ /TRANSACTION ID: [0-9]*/TXN_ID/ /TIMESTAMP: [0-9]*/TSTAMP/
+show engine rocksdb transaction status;
+
+echo Deadlock #5;
+connection con1;
+begin;
+select * from t where i=1 for update;
+
+connection con2;
+begin;
+select * from t where i=2 for update;
+
+connection con3;
+begin;
+select * from t where i=3 lock in share mode;
+
+connection con1;
+select * from t where i=100 for update;
+select * from t where i=101 for update;
+send select * from t where i=2 for update;
+
+connection con2;
+let $wait_condition = select count(*) = 1 from information_schema.rocksdb_trx
+where thread_id = $con1 and waiting_key != "";
+--source include/wait_condition.inc
+
+select * from t where i=3 lock in share mode;
+select * from t where i=200 for update;
+select * from t where i=201 for update;
+
+--error ER_LOCK_DEADLOCK
+select * from t where i=1 lock in share mode;
+rollback;
+
+connection con1;
+reap;
+rollback;
+
+connection con3;
+rollback;
+
+connection default;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /WAITING KEY: [0-9a-f]{16}/KEY/ /TRANSACTION ID: [0-9]*/TXN_ID/ /TIMESTAMP: [0-9]*/TSTAMP/
+show engine rocksdb transaction status;
+
+echo Deadlock #6;
+connection con1;
+create table t1 (id int primary key, value int) engine=rocksdb;
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+begin;
+update t1 set value=value+100 where id=1;
+update t1 set value=value+100 where id=2;
+
+connection con2;
+begin;
+update t1 set value=value+200 where id=3;
+
+connection con1;
+send update t1 set value=value+100 where id=3;
+
+connection con2;
+let $wait_condition = select count(*) = 1 from information_schema.rocksdb_trx
+where thread_id = $con1 and waiting_key != "";
+--source include/wait_condition.inc
+--error ER_LOCK_DEADLOCK
+update t1 set value=value+200 where id=1;
+
+# con2 tx is automatically rolled back
+connection con1;
+reap;
+select * from t1;
+drop table t1;
+
+connection default;
+
+disconnect con1;
+disconnect con2;
+disconnect con3;
+
+set global rocksdb_lock_wait_timeout = @prior_lock_wait_timeout;
+set global rocksdb_deadlock_detect = @prior_deadlock_detect;
+drop table t;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /WAITING KEY: [0-9a-f]{16}/KEY/ /TRANSACTION ID: [0-9]*/TXN_ID/ /INDEX_ID: [0-9a-f]*/IDX_ID/ /TIMESTAMP: [0-9]*/TSTAMP/
+show engine rocksdb transaction status;
+set global rocksdb_max_latest_deadlocks = 0;
+--echo # Clears deadlock buffer of any existent deadlocks.
+set global rocksdb_max_latest_deadlocks = @prior_max_latest_deadlocks;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /WAITING KEY: [0-9a-f]{16}/KEY/ /TRANSACTION ID: [0-9]*/TXN_ID/ /INDEX_ID: [0-9a-f]*/IDX_ID/ /TIMESTAMP: [0-9]*/TSTAMP/
+show engine rocksdb transaction status;
+--source include/wait_until_count_sessions.inc

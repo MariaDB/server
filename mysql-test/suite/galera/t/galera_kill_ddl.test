@@ -1,0 +1,53 @@
+#
+# This test kill -9-s a slave while small updates have been performed on the master.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+call mtr.add_suppression("WSREP: Last Applied Action message in non-primary configuration from member .*");
+
+# Enable the master to continue running during the split-brain situation that
+# occurs when the slave is killed
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
+SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+--source include/kill_galera.inc
+
+--connection node_1
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+
+--connection node_2
+--source include/start_mysqld.inc
+
+--let $galera_connection_name = node_2a
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+--connection node_2a
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='t1';
+
+--connection node_1
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_orig';
+--enable_query_log
+
+DROP TABLE t1;

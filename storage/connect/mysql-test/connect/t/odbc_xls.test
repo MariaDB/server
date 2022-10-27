@@ -1,0 +1,39 @@
+--disable_query_log
+--error 0,ER_UNKNOWN_ERROR
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Sources;
+if ($mysql_errno)
+{
+  Skip No ODBC support;
+}
+if (!`SELECT count(*) FROM t1 WHERE Name='ConnectEngineXLS'`)
+{
+  DROP TABLE t1;
+  Skip Need ODBC data source ConnectEngineXLS;
+}
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--enable_query_log
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file $MTR_SUITE_DIR/std_data/contacts.xls $MYSQLD_DATADIR/test/contacts.xls
+
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval CREATE TABLE contact (Nom VARCHAR(128), Fonction VARCHAR(128), Company VARCHAR(128), Repertoire VARCHAR(30)) ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineXLS;DBQ=$MYSQLD_DATADIR/test/contacts.xls';
+SELECT Nom, Fonction FROM contact WHERE Repertoire='ascii';
+DROP TABLE contact;
+
+
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Tables TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineXLS;DBQ=$MYSQLD_DATADIR/test/contacts.xls' CHARSET=utf8 DATA_CHARSET=latin1;
+--replace_result $MYSQLD_DATADIR DATADIR
+SELECT * FROM t1 WHERE Table_name='CONTACT';
+DROP TABLE t1;
+
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Columns TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineXLS;DBQ=$MYSQLD_DATADIR/test/contacts.xls' CHARSET=utf8 DATA_CHARSET=latin1;
+--replace_result $MYSQLD_DATADIR DATADIR
+SELECT * FROM t1 WHERE Table_name='CONTACT' AND Column_name IN ('Nom','Fonction');
+DROP TABLE t1;
+
+--remove_file $MYSQLD_DATADIR/test/contacts.xls

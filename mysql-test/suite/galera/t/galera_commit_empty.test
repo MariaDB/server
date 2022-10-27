@@ -1,0 +1,35 @@
+# Test empty transactions.
+#
+# Check that the empty transaction gets terminated by starting and new
+# transaction after it. If the empty transaction is not terminated
+# appropriately, the following START TRANSACTION will fail.
+#
+# Also check that empty transactions don't generate any write sets.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+START TRANSACTION;
+COMMIT;
+
+START TRANSACTION;
+COMMIT;
+
+START TRANSACTION READ ONLY;
+COMMIT;
+
+START TRANSACTION;
+COMMIT;
+
+START TRANSACTION;
+START TRANSACTION;
+COMMIT;
+
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before AS wsrep_last_committed_diff
+--enable_query_log

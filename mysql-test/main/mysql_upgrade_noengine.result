@@ -1,0 +1,320 @@
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
+install soname 'ha_blackhole';
+install soname 'ha_archive';
+create table t1 (a int) engine=blackhole;
+create table t2 (a int) engine=archive;
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
+table_catalog	def
+table_schema	test
+table_name	t1
+table_type	BASE TABLE
+engine	BLACKHOLE
+row_format	Fixed
+table_rows	0
+data_length	0
+table_comment	
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
+table_catalog	def
+table_schema	test
+table_name	t2
+table_type	BASE TABLE
+engine	ARCHIVE
+row_format	Compressed
+table_rows	0
+data_length	521
+table_comment	
+flush tables;
+uninstall plugin blackhole;
+uninstall plugin archive;
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
+table_catalog	def
+table_schema	test
+table_name	t1
+table_type	BASE TABLE
+engine	BLACKHOLE
+row_format	NULL
+table_rows	NULL
+data_length	NULL
+table_comment	Unknown storage engine 'BLACKHOLE'
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'BLACKHOLE'
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
+table_catalog	def
+table_schema	test
+table_name	t2
+table_type	BASE TABLE
+engine	ARCHIVE
+row_format	NULL
+table_rows	NULL
+data_length	NULL
+table_comment	Unknown storage engine 'ARCHIVE'
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'ARCHIVE'
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv_bak                              OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+mysql.user                                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+test.t1
+Error    : Unknown storage engine 'BLACKHOLE'
+error    : Corrupt
+test.t2
+Error    : Unknown storage engine 'ARCHIVE'
+error    : Corrupt
+
+Repairing tables
+test.t1
+Error    : Unknown storage engine 'BLACKHOLE'
+error    : Corrupt
+test.t2
+Error    : Unknown storage engine 'ARCHIVE'
+error    : Corrupt
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
+table_catalog	def
+table_schema	test
+table_name	t1
+table_type	BASE TABLE
+engine	BLACKHOLE
+row_format	NULL
+table_rows	NULL
+data_length	NULL
+table_comment	Unknown storage engine 'BLACKHOLE'
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'BLACKHOLE'
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
+table_catalog	def
+table_schema	test
+table_name	t2
+table_type	BASE TABLE
+engine	ARCHIVE
+row_format	NULL
+table_rows	NULL
+data_length	NULL
+table_comment	Unknown storage engine 'ARCHIVE'
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'ARCHIVE'
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
+alter table mysql.user drop column default_role, drop column max_statement_time;
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv_bak                              OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+mysql.user                                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+test.t1
+Error    : Unknown storage engine 'BLACKHOLE'
+error    : Corrupt
+test.t2
+Error    : Unknown storage engine 'ARCHIVE'
+error    : Corrupt
+
+Repairing tables
+test.t1
+Error    : Unknown storage engine 'BLACKHOLE'
+error    : Corrupt
+test.t2
+Error    : Unknown storage engine 'ARCHIVE'
+error    : Corrupt
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
+table_catalog	def
+table_schema	test
+table_name	t1
+table_type	BASE TABLE
+engine	BLACKHOLE
+row_format	NULL
+table_rows	NULL
+data_length	NULL
+table_comment	Unknown storage engine 'BLACKHOLE'
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'BLACKHOLE'
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
+table_catalog	def
+table_schema	test
+table_name	t2
+table_type	BASE TABLE
+engine	ARCHIVE
+row_format	NULL
+table_rows	NULL
+data_length	NULL
+table_comment	Unknown storage engine 'ARCHIVE'
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'ARCHIVE'
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
+alter table mysql.user drop column default_role, drop column max_statement_time;
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv_bak                              OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+mysql.user                                         OK
+Upgrading from a version before MariaDB-10.1
+Phase 2/7: Installing used storage engines
+Checking for tables with unknown storage engine
+installing plugin for 'archive' storage engine
+installing plugin for 'blackhole' storage engine
+Phase 3/7: Fixing views
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+test.t1                                            OK
+test.t2                                            OK
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
+table_catalog	def
+table_schema	test
+table_name	t1
+table_type	BASE TABLE
+engine	BLACKHOLE
+row_format	Fixed
+table_rows	0
+data_length	0
+table_comment	
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
+table_catalog	def
+table_schema	test
+table_name	t2
+table_type	BASE TABLE
+engine	ARCHIVE
+row_format	Compressed
+table_rows	0
+data_length	521
+table_comment	
+drop table t1, t2;
+uninstall plugin blackhole;
+uninstall plugin archive;
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;

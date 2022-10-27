@@ -1,0 +1,19 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table RPL(a int);
+insert into RPL values(1);
+connection slave;
+select * from rpl;
+a
+1
+insert into RPL values(3);
+insert into rpl values(4);
+select * from rpl;
+a
+1
+3
+4
+connection master;
+drop table RPL;
+include/rpl_end.inc

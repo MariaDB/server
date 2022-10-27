@@ -1,0 +1,52 @@
+#ifndef MY_MD5_INCLUDED
+#define MY_MD5_INCLUDED
+
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2013 Monty Program Ab
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
+
+#include "m_string.h"
+
+#define MD5_HASH_SIZE 16 /* Hash size in bytes */
+
+/*
+  Wrapper function for MD5 implementation.
+*/
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define compute_md5_hash(A,B,C) my_md5(A,B,C)
+
+/*
+  Convert an array of bytes to a hexadecimal representation.
+
+  Used to generate a hexadecimal representation of a message digest.
+*/
+static inline void array_to_hex(char *to, const unsigned char *str, uint len)
+{
+  const unsigned char *str_end= str + len;
+  for (; str != str_end; ++str)
+  {
+    *to++= _dig_vec_lower[((uchar) *str) >> 4];
+    *to++= _dig_vec_lower[((uchar) *str) & 0x0F];
+  }
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* MY_MD5_INCLUDED */

@@ -1,0 +1,208 @@
+--source include/not_ubsan.inc
+#
+# MDEV-11340 Allow multiple alternative authentication methods for the same user
+#
+--source include/have_unix_socket.inc
+if (`SELECT '$USER' = 'mysqltest1'`) {
+  skip USER is mysqltest1;
+}
+if (!$AUTH_ED25519_SO) {
+  skip No auth_ed25519 plugin;
+}
+
+--let $plugindir=`SELECT @@global.plugin_dir`
+install soname 'auth_ed25519';
+
+--let $try_auth=$MYSQL_TEST < $MYSQLTEST_VARDIR/tmp/peercred_test.txt 2>&1
+
+--write_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+--let $replace1=$USER@localhost
+--let $replace2=$USER@%
+--replace_result $replace1 "USER@localhost" $replace2 "USER@%"
+select user(), current_user(), database();
+EOF
+
+--let $creplace=create user $USER
+--let $dreplace=drop user $USER
+
+#
+# socket,password
+#
+--replace_result $creplace "create user USER"
+eval $creplace         identified via unix_socket OR mysql_native_password as password("GOOD");
+create user mysqltest1 identified via unix_socket OR mysql_native_password as password("good");
+show create user mysqltest1;
+--echo # name match = ok
+--exec $try_auth -u $USER
+--echo # name does not match, password good = ok
+--exec $try_auth -u mysqltest1 -pgood
+--echo # name does not match, password bad = failure
+--error 1
+--exec $try_auth -u mysqltest1 -pbad
+--replace_result $dreplace "drop user USER"
+eval $dreplace, mysqltest1;
+
+#
+# password,socket
+#
+--replace_result $creplace "create user USER"
+eval $creplace         identified via mysql_native_password as password("GOOD") OR unix_socket;
+create user mysqltest1 identified via mysql_native_password as password("good") OR unix_socket;
+show create user mysqltest1;
+--echo # name match = ok
+--exec $try_auth -u $USER
+--echo # name does not match, password good = ok
+--exec $try_auth -u mysqltest1 -pgood
+--echo # name does not match, password bad = failure
+--error 1
+--exec $try_auth -u mysqltest1 -pbad
+--replace_result $dreplace "drop user USER"
+eval $dreplace, mysqltest1;
+
+#
+# socket,ed25519
+#
+--replace_result $creplace "create user USER"
+eval $creplace         identified via unix_socket OR ed25519 as password("GOOD");
+create user mysqltest1 identified via unix_socket OR ed25519 as password("good");
+show create user mysqltest1;
+--echo # name match = ok
+--exec $try_auth -u $USER
+--echo # name does not match, password good = ok
+--exec $try_auth -u mysqltest1 -pgood
+--echo # name does not match, password bad = failure
+--error 1
+--exec $try_auth -u mysqltest1 -pbad
+--replace_result $dreplace "drop user USER"
+eval $dreplace, mysqltest1;
+
+#
+# ed25519,socket
+#
+--replace_result $creplace "create user USER"
+eval $creplace         identified via ed25519 as password("GOOD") OR unix_socket;
+create user mysqltest1 identified via ed25519 as password("good") OR unix_socket;
+show create user mysqltest1;
+--echo # name match = ok
+--exec $try_auth -u $USER
+--echo # name does not match, password good = ok
+--exec $try_auth -u mysqltest1 -pgood
+--echo # name does not match, password bad = failure
+--error 1
+--exec $try_auth -u mysqltest1 -pbad
+--replace_result $dreplace "drop user USER"
+eval $dreplace, mysqltest1;
+
+#
+# ed25519,socket,password
+#
+--replace_result $creplace "create user USER"
+eval $creplace         identified via ed25519 as password("GOOD") OR unix_socket OR mysql_native_password as password("works");
+create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
+show create user mysqltest1;
+--echo # name match = ok
+--exec $try_auth -u $USER
+--echo # name does not match, password good = ok
+--exec $try_auth -u mysqltest1 -pgood
+--echo # name does not match, second password works = ok
+--exec $try_auth -u mysqltest1 -pworks
+--echo # name does not match, password bad = failure
+--error 1
+--exec $try_auth -u mysqltest1 -pbad
+--replace_result $dreplace "drop user USER"
+eval $dreplace, mysqltest1;
+
+#
+# password,password
+#
+create user mysqltest1 identified via mysql_native_password as password("good") OR mysql_native_password as password("works");
+show create user mysqltest1;
+--echo # password good = ok
+--exec $try_auth -u mysqltest1 -pgood
+--echo # second password works = ok
+--exec $try_auth -u mysqltest1 -pworks
+--echo # password bad = failure
+--error 1
+--exec $try_auth -u mysqltest1 -pbad
+drop user mysqltest1;
+
+#
+# show grants, flush privileges, set password, alter user
+#
+create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
+show grants for mysqltest1;
+--replace_regex /password_last_changed": [0-9]*/password_last_changed": #/
+select json_detailed(priv) from mysql.global_priv where user='mysqltest1';
+select password,plugin,authentication_string from mysql.user where user='mysqltest1';
+flush privileges;
+show create user mysqltest1;
+set password for mysqltest1 = password('foobar');
+show create user mysqltest1;
+alter user mysqltest1 identified via unix_socket OR mysql_native_password as password("some");
+show create user mysqltest1;
+set password for mysqltest1 = password('foobar');
+show create user mysqltest1;
+alter user mysqltest1 identified via unix_socket;
+--error ER_SET_PASSWORD_AUTH_PLUGIN
+set password for mysqltest1 = password('bla');
+alter user mysqltest1 identified via mysql_native_password as password("some") or unix_socket;
+show create user mysqltest1;
+drop user mysqltest1;
+
+--source include/switch_to_mysql_user.inc
+--replace_regex /\d{6}/XX.YY.ZZ/
+--error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
+create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
+--source include/switch_to_mysql_global_priv.inc
+
+#
+# invalid password,socket
+#
+--replace_result $creplace "create user USER"
+eval $creplace         identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
+create user mysqltest1 identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
+update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
+flush privileges;
+show create user mysqltest1;
+--echo # name match = ok
+--exec $try_auth -u $USER
+--echo # name does not match = failure
+--error 1
+--exec $try_auth -u mysqltest1
+--echo # SET PASSWORD helps
+set password for mysqltest1 = password('bla');
+--exec $try_auth -u mysqltest1 -pbla
+--replace_result $dreplace "drop user USER"
+eval $dreplace, mysqltest1;
+
+#
+# missing client-side plugin
+#
+create user mysqltest1 identified via ed25519 as password("good");
+show create user mysqltest1;
+--echo # no plugin = failure
+--replace_result $plugindir <PLUGINDIR>
+--error 1
+--exec $try_auth -u mysqltest1 -pgood --plugin-dir=$plugindir/no
+alter user mysqltest1 identified via ed25519 as password("good") OR mysql_native_password as password("works");
+show create user mysqltest1;
+--echo # no plugin = failure
+--error 1
+--exec $try_auth -u mysqltest1 -pgood --plugin-dir=$plugindir/no
+--echo # no plugin, second password works = ok
+--exec $try_auth -u mysqltest1 -pworks --plugin-dir=$plugindir/no
+drop user mysqltest1;
+
+uninstall soname 'auth_ed25519';
+--remove_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt
+
+#
+# MDEV-21928 ALTER USER doesn't remove excess authentication plugins from mysql.global_priv
+#
+create user mysqltest1 identified via mysql_native_password as password("good") OR unix_socket;
+show create user mysqltest1;
+alter user mysqltest1 identified via mysql_native_password as password("better");
+show create user mysqltest1;
+flush privileges;
+show create user mysqltest1;
+drop user mysqltest1;

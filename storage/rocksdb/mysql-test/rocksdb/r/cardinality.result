@@ -1,0 +1,104 @@
+# restart
+set use_stat_tables= 'COMPLEMENTARY';
+CREATE TABLE t0 (id int PRIMARY KEY, a int, INDEX ix_a (a))  engine=rocksdb;
+insert into t0 values (0, 0),(1, 1),(2, 2),(3, 3),(4, 4),
+(5, 4),(6, 4),(7, 4),(8, 4),(9, 4);
+SELECT cardinality FROM information_schema.statistics where table_name="t0" and
+column_name="id";
+cardinality
+NULL
+SELECT cardinality FROM information_schema.statistics where table_name="t0" and
+column_name="a";
+cardinality
+NULL
+ANALYZE TABLE t0;
+SELECT table_rows into @N FROM information_schema.tables
+WHERE table_name = "t0";
+SELECT FLOOR(@N/cardinality) FROM
+information_schema.statistics where table_name="t0" and column_name="id";
+FLOOR(@N/cardinality)
+1
+SELECT FLOOR(@N/cardinality) FROM
+information_schema.statistics where table_name="t0" and column_name="a";
+FLOOR(@N/cardinality)
+2
+SET GLOBAL rocksdb_force_flush_memtable_now = 1;
+ANALYZE TABLE t0;
+SELECT table_rows into @N FROM information_schema.tables
+WHERE table_name = "t0";
+SELECT FLOOR(@N/cardinality) FROM
+information_schema.statistics where table_name="t0" and column_name="id";
+FLOOR(@N/cardinality)
+1
+SELECT FLOOR(@N/cardinality) FROM
+information_schema.statistics where table_name="t0" and column_name="a";
+FLOOR(@N/cardinality)
+2
+drop table t0;
+DROP TABLE IF EXISTS t1,t10,t11;
+create table t1(
+id bigint not null primary key, 
+i1 bigint, #unique
+i2 bigint, #repeating
+c1 varchar(20), #unique
+c2 varchar(20), #repeating
+index t1_1(id, i1),
+index t1_2(i1, i2),
+index t1_3(i2, i1),
+index t1_4(c1, c2),
+index t1_5(c2, c1)
+) engine=rocksdb;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+show index in t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	id	A	100000	NULL	NULL		LSMTREE		
+t1	1	t1_1	1	id	A	100000	NULL	NULL		LSMTREE		
+t1	1	t1_1	2	i1	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_2	1	i1	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_2	2	i2	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_3	1	i2	A	11111	NULL	NULL	YES	LSMTREE		
+t1	1	t1_3	2	i1	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_4	1	c1	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_4	2	c2	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_5	1	c2	A	11111	NULL	NULL	YES	LSMTREE		
+t1	1	t1_5	2	c1	A	100000	NULL	NULL	YES	LSMTREE		
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
+table_name	table_rows
+t1	100000
+restarting...
+# restart
+show index in t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	id	A	100000	NULL	NULL		LSMTREE		
+t1	1	t1_1	1	id	A	100000	NULL	NULL		LSMTREE		
+t1	1	t1_1	2	i1	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_2	1	i1	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_2	2	i2	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_3	1	i2	A	11111	NULL	NULL	YES	LSMTREE		
+t1	1	t1_3	2	i1	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_4	1	c1	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_4	2	c2	A	100000	NULL	NULL	YES	LSMTREE		
+t1	1	t1_5	1	c2	A	11111	NULL	NULL	YES	LSMTREE		
+t1	1	t1_5	2	c1	A	100000	NULL	NULL	YES	LSMTREE		
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
+table_name	table_rows
+t1	100000
+CREATE TABLE t2 (a INT, b INT, c INT, d INT, e INT, f INT, g INT,
+PRIMARY KEY (a), KEY (c, b, a, d, e, f, g))
+ENGINE=ROCKSDB;
+SET GLOBAL rocksdb_force_flush_memtable_now = 1;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+cardinality of the columns after 'a' must be equal to the cardinality of column 'a'
+SELECT CARDINALITY INTO @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND COLUMN_NAME='a';
+SELECT COLUMN_NAME, CARDINALITY = @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND SEQ_IN_INDEX > 3;
+COLUMN_NAME	CARDINALITY = @c
+d	1
+e	1
+f	1
+g	1
+drop table t1, t2;

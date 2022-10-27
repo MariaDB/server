@@ -1,0 +1,26 @@
+CREATE TABLE diaries_innodb (
+id INT PRIMARY KEY AUTO_INCREMENT,
+body TEXT,
+flag TINYINT(2),
+INDEX (flag)
+) ENGINE = InnoDB DEFAULT CHARSET UTF8;
+CREATE TABLE diaries_mroonga (
+id INT PRIMARY KEY AUTO_INCREMENT,
+body TEXT,
+flag TINYINT(2),
+INDEX (flag)
+) COMMENT = 'ENGINE "InnoDB"' DEFAULT CHARSET UTF8;
+INSERT INTO diaries_innodb (body) VALUES ("will start groonga!");
+INSERT INTO diaries_innodb (body) VALUES ("starting groonga...");
+INSERT INTO diaries_innodb (body) VALUES ("started groonga.");
+INSERT INTO diaries_mroonga (body) VALUES ("will start groonga!");
+INSERT INTO diaries_mroonga (body) VALUES ("starting groonga...");
+INSERT INTO diaries_mroonga (body) VALUES ("started groonga.");
+EXPLAIN SELECT COUNT(*) FROM diaries_innodb;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	diaries_innodb	index	NULL	flag	2	NULL	#	Using index
+EXPLAIN SELECT COUNT(*) FROM diaries_mroonga;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	diaries_mroonga	index	NULL	flag	2	NULL	#	Using index
+DROP TABLE diaries_innodb;
+DROP TABLE diaries_mroonga;

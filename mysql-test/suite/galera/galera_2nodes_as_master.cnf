@@ -1,0 +1,76 @@
+#
+# This file creates a setup with a 2-node Galera cluster (master) and one
+# standalone MariaDB server, to be used as a slave.
+#
+
+# Use default setting for mysqld processes
+!include include/default_mysqld.cnf
+
+[mysqld]
+log-bin=mysqld-bin
+binlog-format=row
+innodb-autoinc-lock-mode=2
+default-storage-engine=innodb
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
+
+[mysqld.1]
+#galera_port=@OPT.port
+#ist_port=@OPT.port
+#sst_port=@OPT.port
+
+server-id=1
+log_slave_updates
+
+wsrep-on=1
+wsrep-provider=@ENV.WSREP_PROVIDER
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=10M'
+wsrep_cluster_address=gcomm://
+wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
+wsrep_node_address=127.0.0.1
+wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
+# enforce read-committed characteristics across the cluster
+wsrep-causal-reads=ON
+wsrep-sync-wait=15
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
+
+[mysqld.2]
+#galera_port=@OPT.port
+#ist_port=@OPT.port
+#sst_port=@OPT.port
+
+server-id=2
+log_slave_updates
+
+wsrep-on=1
+wsrep_provider=@ENV.WSREP_PROVIDER
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=10M'
+wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
+wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
+wsrep_node_address=127.0.0.1
+wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
+# enforce read-committed characteristics across the cluster
+wsrep-causal-reads=ON
+wsrep-sync-wait=15
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
+
+[mysqld.3]
+server-id=3
+# lock schedule alg appears to be VATS by default, and it is not
+# yet compatible with galera
+innodb_lock_schedule_algorithm=FCFS
+
+[ENV]
+NODE_MYPORT_1= @mysqld.1.port
+NODE_MYSOCK_1= @mysqld.1.socket
+
+NODE_MYPORT_2= @mysqld.2.port
+NODE_MYSOCK_2= @mysqld.2.socket
+
+NODE_MYPORT_3= @mysqld.3.port
+NODE_MYSOCK_3= @mysqld.3.socket

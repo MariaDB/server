@@ -1,0 +1,760 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-15620 Crash when using "SET @@NEW.a=expr" inside a trigger
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @@NEW.a=0;
+ERROR HY000: Unknown structured system variable or ROW routine variable 'NEW'
+DROP TABLE t1;
+#
+# MDEV-15615 Unexpected syntax error instead of "Unknown system variable" inside an SP
+#
+DECLARE
+a INT;
+BEGIN
+SET GLOBAL a=10;
+END;
+$$
+ERROR HY000: Unknown system variable 'a'
+#
+# MDEV-16202 Latest changes made erroneously some keywords reserved in sql_mode=ORACLE
+#
+CREATE PROCEDURE p1(name VARCHAR(64), pattern TEXT) AS
+query TEXT DEFAULT REPLACE(pattern, 'name', name);
+BEGIN
+SELECT query AS '';
+EXECUTE IMMEDIATE query;
+EXCEPTION
+WHEN OTHERS THEN
+BEGIN
+SHOW ERRORS;
+END;
+END;
+$$
+CREATE PROCEDURE p2(name VARCHAR(64)) AS
+BEGIN
+CALL p1(name, 'DECLARE name INT; BEGIN name:=10; SELECT name; END');
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (name INT)', 'name', name);
+CALL p1(name, 'SELECT name FROM t1');
+CALL p1(name, 'SELECT name ''alias'' FROM t1');
+CALL p1(name, 'SELECT name()');
+CALL p1(name, 'SELECT name.name()');
+CALL p1(name, 'SELECT name DATE FROM t1');
+CALL p1(name, 'SELECT name HISTORY FROM t1');
+CALL p1(name, 'SELECT name NEXT FROM t1');
+CALL p1(name, 'SELECT name PERIOD FROM t1');
+CALL p1(name, 'SELECT name PREVIOUS FROM t1');
+CALL p1(name, 'SELECT name SYSTEM FROM t1');
+CALL p1(name, 'SELECT name SYSTEM_TIME FROM t1');
+CALL p1(name, 'SELECT name TIME FROM t1');
+CALL p1(name, 'SELECT name TIMESTAMP FROM t1');
+CALL p1(name, 'SELECT name TRANSACTION FROM t1');
+CALL p1(name, 'SELECT name VALUE FROM t1');
+CALL p1(name, 'SELECT name VERSIONING FROM t1');
+CALL p1(name, 'SELECT name WITHOUT FROM t1');
+DROP TABLE t1;
+END;
+$$
+CALL p2('date');
+DECLARE date INT; BEGIN date:=10; SELECT date; END
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INT; BEGIN date:=10; SELECT date; END' at line 1
+SELECT date FROM t1
+SELECT date 'alias' FROM t1
+Error	1525	Incorrect DATE value: 'alias'
+SELECT date()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT date.date()
+Error	1630	FUNCTION date.date does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT date DATE FROM t1
+SELECT date HISTORY FROM t1
+SELECT date NEXT FROM t1
+SELECT date PERIOD FROM t1
+SELECT date PREVIOUS FROM t1
+SELECT date SYSTEM FROM t1
+SELECT date SYSTEM_TIME FROM t1
+SELECT date TIME FROM t1
+SELECT date TIMESTAMP FROM t1
+SELECT date TRANSACTION FROM t1
+SELECT date VALUE FROM t1
+SELECT date VERSIONING FROM t1
+SELECT date WITHOUT FROM t1
+CALL p2('history');
+DECLARE history INT; BEGIN history:=10; SELECT history; END
+10
+SELECT history FROM t1
+SELECT history 'alias' FROM t1
+SELECT history()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT history.history()
+Error	1630	FUNCTION history.history does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT history DATE FROM t1
+SELECT history HISTORY FROM t1
+SELECT history NEXT FROM t1
+SELECT history PERIOD FROM t1
+SELECT history PREVIOUS FROM t1
+SELECT history SYSTEM FROM t1
+SELECT history SYSTEM_TIME FROM t1
+SELECT history TIME FROM t1
+SELECT history TIMESTAMP FROM t1
+SELECT history TRANSACTION FROM t1
+SELECT history VALUE FROM t1
+SELECT history VERSIONING FROM t1
+SELECT history WITHOUT FROM t1
+CALL p2('next');
+DECLARE next INT; BEGIN next:=10; SELECT next; END
+10
+SELECT next FROM t1
+SELECT next 'alias' FROM t1
+SELECT next()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT next.next()
+Error	1630	FUNCTION next.next does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT next DATE FROM t1
+SELECT next HISTORY FROM t1
+SELECT next NEXT FROM t1
+SELECT next PERIOD FROM t1
+SELECT next PREVIOUS FROM t1
+SELECT next SYSTEM FROM t1
+SELECT next SYSTEM_TIME FROM t1
+SELECT next TIME FROM t1
+SELECT next TIMESTAMP FROM t1
+SELECT next TRANSACTION FROM t1
+SELECT next VALUE FROM t1
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM t1' at line 1
+SELECT next VERSIONING FROM t1
+SELECT next WITHOUT FROM t1
+CALL p2('period');
+DECLARE period INT; BEGIN period:=10; SELECT period; END
+10
+SELECT period FROM t1
+SELECT period 'alias' FROM t1
+SELECT period()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT period.period()
+Error	1630	FUNCTION period.period does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT period DATE FROM t1
+SELECT period HISTORY FROM t1
+SELECT period NEXT FROM t1
+SELECT period PERIOD FROM t1
+SELECT period PREVIOUS FROM t1
+SELECT period SYSTEM FROM t1
+SELECT period SYSTEM_TIME FROM t1
+SELECT period TIME FROM t1
+SELECT period TIMESTAMP FROM t1
+SELECT period TRANSACTION FROM t1
+SELECT period VALUE FROM t1
+SELECT period VERSIONING FROM t1
+SELECT period WITHOUT FROM t1
+CALL p2('previous');
+DECLARE previous INT; BEGIN previous:=10; SELECT previous; END
+10
+SELECT previous FROM t1
+SELECT previous 'alias' FROM t1
+SELECT previous()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT previous.previous()
+Error	1630	FUNCTION previous.previous does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT previous DATE FROM t1
+SELECT previous HISTORY FROM t1
+SELECT previous NEXT FROM t1
+SELECT previous PERIOD FROM t1
+SELECT previous PREVIOUS FROM t1
+SELECT previous SYSTEM FROM t1
+SELECT previous SYSTEM_TIME FROM t1
+SELECT previous TIME FROM t1
+SELECT previous TIMESTAMP FROM t1
+SELECT previous TRANSACTION FROM t1
+SELECT previous VALUE FROM t1
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM t1' at line 1
+SELECT previous VERSIONING FROM t1
+SELECT previous WITHOUT FROM t1
+CALL p2('system');
+DECLARE system INT; BEGIN system:=10; SELECT system; END
+10
+SELECT system FROM t1
+SELECT system 'alias' FROM t1
+SELECT system()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT system.system()
+Error	1630	FUNCTION system.system does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT system DATE FROM t1
+SELECT system HISTORY FROM t1
+SELECT system NEXT FROM t1
+SELECT system PERIOD FROM t1
+SELECT system PREVIOUS FROM t1
+SELECT system SYSTEM FROM t1
+SELECT system SYSTEM_TIME FROM t1
+SELECT system TIME FROM t1
+SELECT system TIMESTAMP FROM t1
+SELECT system TRANSACTION FROM t1
+SELECT system VALUE FROM t1
+SELECT system VERSIONING FROM t1
+SELECT system WITHOUT FROM t1
+CALL p2('system_time');
+DECLARE system_time INT; BEGIN system_time:=10; SELECT system_time; END
+10
+SELECT system_time FROM t1
+SELECT system_time 'alias' FROM t1
+SELECT system_time()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT system_time.system_time()
+Error	1630	FUNCTION system_time.system_time does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT system_time DATE FROM t1
+SELECT system_time HISTORY FROM t1
+SELECT system_time NEXT FROM t1
+SELECT system_time PERIOD FROM t1
+SELECT system_time PREVIOUS FROM t1
+SELECT system_time SYSTEM FROM t1
+SELECT system_time SYSTEM_TIME FROM t1
+SELECT system_time TIME FROM t1
+SELECT system_time TIMESTAMP FROM t1
+SELECT system_time TRANSACTION FROM t1
+SELECT system_time VALUE FROM t1
+SELECT system_time VERSIONING FROM t1
+SELECT system_time WITHOUT FROM t1
+CALL p2('time');
+DECLARE time INT; BEGIN time:=10; SELECT time; END
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INT; BEGIN time:=10; SELECT time; END' at line 1
+SELECT time FROM t1
+SELECT time 'alias' FROM t1
+Error	1525	Incorrect TIME value: 'alias'
+SELECT time()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT time.time()
+Error	1630	FUNCTION time.time does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT time DATE FROM t1
+SELECT time HISTORY FROM t1
+SELECT time NEXT FROM t1
+SELECT time PERIOD FROM t1
+SELECT time PREVIOUS FROM t1
+SELECT time SYSTEM FROM t1
+SELECT time SYSTEM_TIME FROM t1
+SELECT time TIME FROM t1
+SELECT time TIMESTAMP FROM t1
+SELECT time TRANSACTION FROM t1
+SELECT time VALUE FROM t1
+SELECT time VERSIONING FROM t1
+SELECT time WITHOUT FROM t1
+CALL p2('timestamp');
+DECLARE timestamp INT; BEGIN timestamp:=10; SELECT timestamp; END
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INT; BEGIN timestamp:=10; SELECT timestamp; END' at line 1
+SELECT timestamp FROM t1
+SELECT timestamp 'alias' FROM t1
+Error	1525	Incorrect DATETIME value: 'alias'
+SELECT timestamp()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT timestamp.timestamp()
+Error	1630	FUNCTION timestamp.timestamp does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT timestamp DATE FROM t1
+SELECT timestamp HISTORY FROM t1
+SELECT timestamp NEXT FROM t1
+SELECT timestamp PERIOD FROM t1
+SELECT timestamp PREVIOUS FROM t1
+SELECT timestamp SYSTEM FROM t1
+SELECT timestamp SYSTEM_TIME FROM t1
+SELECT timestamp TIME FROM t1
+SELECT timestamp TIMESTAMP FROM t1
+SELECT timestamp TRANSACTION FROM t1
+SELECT timestamp VALUE FROM t1
+SELECT timestamp VERSIONING FROM t1
+SELECT timestamp WITHOUT FROM t1
+CALL p2('transaction');
+DECLARE transaction INT; BEGIN transaction:=10; SELECT transaction; END
+10
+SELECT transaction FROM t1
+SELECT transaction 'alias' FROM t1
+SELECT transaction()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT transaction.transaction()
+Error	1630	FUNCTION transaction.transaction does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT transaction DATE FROM t1
+SELECT transaction HISTORY FROM t1
+SELECT transaction NEXT FROM t1
+SELECT transaction PERIOD FROM t1
+SELECT transaction PREVIOUS FROM t1
+SELECT transaction SYSTEM FROM t1
+SELECT transaction SYSTEM_TIME FROM t1
+SELECT transaction TIME FROM t1
+SELECT transaction TIMESTAMP FROM t1
+SELECT transaction TRANSACTION FROM t1
+SELECT transaction VALUE FROM t1
+SELECT transaction VERSIONING FROM t1
+SELECT transaction WITHOUT FROM t1
+CALL p2('value');
+DECLARE value INT; BEGIN value:=10; SELECT value; END
+10
+SELECT value FROM t1
+SELECT value 'alias' FROM t1
+SELECT value()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT value.value()
+Error	1630	FUNCTION value.value does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT value DATE FROM t1
+SELECT value HISTORY FROM t1
+SELECT value NEXT FROM t1
+SELECT value PERIOD FROM t1
+SELECT value PREVIOUS FROM t1
+SELECT value SYSTEM FROM t1
+SELECT value SYSTEM_TIME FROM t1
+SELECT value TIME FROM t1
+SELECT value TIMESTAMP FROM t1
+SELECT value TRANSACTION FROM t1
+SELECT value VALUE FROM t1
+SELECT value VERSIONING FROM t1
+SELECT value WITHOUT FROM t1
+CALL p2('versioning');
+DECLARE versioning INT; BEGIN versioning:=10; SELECT versioning; END
+10
+SELECT versioning FROM t1
+SELECT versioning 'alias' FROM t1
+SELECT versioning()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT versioning.versioning()
+Error	1630	FUNCTION versioning.versioning does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT versioning DATE FROM t1
+SELECT versioning HISTORY FROM t1
+SELECT versioning NEXT FROM t1
+SELECT versioning PERIOD FROM t1
+SELECT versioning PREVIOUS FROM t1
+SELECT versioning SYSTEM FROM t1
+SELECT versioning SYSTEM_TIME FROM t1
+SELECT versioning TIME FROM t1
+SELECT versioning TIMESTAMP FROM t1
+SELECT versioning TRANSACTION FROM t1
+SELECT versioning VALUE FROM t1
+SELECT versioning VERSIONING FROM t1
+SELECT versioning WITHOUT FROM t1
+CALL p2('without');
+DECLARE without INT; BEGIN without:=10; SELECT without; END
+10
+SELECT without FROM t1
+SELECT without 'alias' FROM t1
+SELECT without()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT without.without()
+Error	1630	FUNCTION without.without does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT without DATE FROM t1
+SELECT without HISTORY FROM t1
+SELECT without NEXT FROM t1
+SELECT without PERIOD FROM t1
+SELECT without PREVIOUS FROM t1
+SELECT without SYSTEM FROM t1
+SELECT without SYSTEM_TIME FROM t1
+SELECT without TIME FROM t1
+SELECT without TIMESTAMP FROM t1
+SELECT without TRANSACTION FROM t1
+SELECT without VALUE FROM t1
+SELECT without VERSIONING FROM t1
+SELECT without WITHOUT FROM t1
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# MDEV-16244 sql_mode=ORACLE: Some keywords do not work in variable declarations
+#
+SET sql_mode=ORACLE;
+DECLARE
+do INT;
+BEGIN
+SELECT do INTO do FROM DUAL;
+END;
+/
+DECLARE
+handler INT;
+BEGIN
+SELECT handler INTO handler FROM DUAL;
+END;
+/
+DECLARE
+repair INT;
+BEGIN
+SELECT repair INTO repair FROM DUAL;
+END;
+/
+DECLARE
+shutdown INT;
+BEGIN
+SELECT shutdown INTO shutdown FROM DUAL;
+END;
+/
+DECLARE
+truncate INT;
+BEGIN
+SELECT truncate INTO truncate FROM DUAL;
+END;
+/
+DECLARE
+close INT;
+BEGIN
+SELECT close INTO close FROM DUAL;
+END;
+/
+DECLARE
+commit INT;
+BEGIN
+SELECT commit INTO commit FROM DUAL;
+END;
+/
+DECLARE
+open INT;
+BEGIN
+SELECT open INTO open FROM DUAL;
+END;
+/
+DECLARE
+rollback INT;
+BEGIN
+SELECT rollback INTO rollback FROM DUAL;
+END;
+/
+DECLARE
+savepoint INT;
+BEGIN
+SELECT savepoint INTO savepoint FROM DUAL;
+END;
+/
+DECLARE
+contains INT;
+BEGIN
+SELECT contains INTO contains FROM DUAL;
+END;
+/
+DECLARE
+language INT;
+BEGIN
+SELECT language INTO language FROM DUAL;
+END;
+/
+DECLARE
+no INT;
+BEGIN
+SELECT no INTO no FROM DUAL;
+END;
+/
+DECLARE
+charset INT;
+BEGIN
+SELECT charset INTO charset FROM DUAL;
+END;
+/
+DECLARE
+follows INT;
+BEGIN
+SELECT follows INTO follows FROM DUAL;
+END;
+/
+DECLARE
+precedes INT;
+BEGIN
+SELECT precedes INTO precedes FROM DUAL;
+END;
+/
+#
+# MDEV-16464 Oracle Comp.: Sql-Error on "SELECT name, comment FROM mysql.proc"
+#
+SET sql_mode=ORACLE;
+SELECT name, comment FROM mysql.proc WHERE db='test';
+name	comment
+CREATE TABLE comment (comment INT);
+SELECT comment FROM comment;
+comment
+SELECT comment comment FROM comment comment;
+comment
+SELECT comment AS comment FROM comment AS comment;
+comment
+DROP TABLE comment;
+DECLARE
+comment INT;
+BEGIN
+SELECT comment INTO comment FROM DUAL;
+END;
+/
+CREATE PROCEDURE comment COMMENT 'test' AS
+BEGIN
+SELECT 1;
+END;
+/
+BEGIN
+comment;
+END;
+/
+1
+1
+CALL comment();
+1
+1
+CALL comment;
+1
+1
+DROP PROCEDURE comment;
+CREATE FUNCTION comment RETURN INT COMMENT 'test' AS
+BEGIN
+RETURN 1;
+END;
+/
+Warnings:
+Note	1585	This function 'comment' has the same name as a native function
+SELECT test.comment() FROM DUAL;
+test.comment()
+1
+Warnings:
+Note	1585	This function 'comment' has the same name as a native function
+DROP FUNCTION comment;
+#
+# MDEV-17660 sql_mode=ORACLE: Some keywords do not work as label names: history, system, versioning, without
+#
+BEGIN
+<<date_format>>
+NULL;
+END;
+/
+BEGIN
+<<decode>>
+NULL;
+END;
+/
+BEGIN
+<<history>>
+NULL;
+END;
+/
+BEGIN
+<<system>>
+NULL;
+END;
+/
+BEGIN
+<<versioning>>
+NULL;
+END;
+/
+BEGIN
+<<without>>
+NULL;
+END;
+/
+#
+# MDEV-17666 sql_mode=ORACLE: Keyword ELSEIF should not be reserved
+#
+DECLARE
+ELSEIF INT;
+BEGIN
+ELSEIF:=1;
+END;
+/
+BEGIN
+<<ELSEIF>>
+NULL;
+END;
+/
+#
+# MDEV-17693 Shift/reduce conflicts for NAMES,ROLE,PASSWORD in the option_value_no_option_type grammar
+#
+CREATE TABLE names (names INT);
+SELECT names FROM names AS names;
+names
+DROP TABLE names;
+CREATE TABLE password (password INT);
+SELECT password FROM password AS password;
+password
+DROP TABLE password;
+CREATE TABLE role (role INT);
+SELECT role FROM role AS role;
+role
+DROP TABLE role;
+DECLARE
+names    VARCHAR(32) DEFAULT '[names]';
+password VARCHAR(32) DEFAULT '[password]';
+role     VARCHAR(32) DEFAULT '[role]';
+BEGIN
+<<names>>
+SELECT names;
+<<password>>
+SELECT password;
+<<role>>
+SELECT role;
+END;
+$$
+names
+[names]
+password
+[password]
+role
+[role]
+DECLARE
+names VARCHAR(32);
+BEGIN
+SET names='[names]';
+END;
+$$
+ERROR 42000: Variable 'names' must be quoted with `...`, or renamed
+DECLARE
+password VARCHAR(32);
+BEGIN
+SET password='[password]';
+END;
+$$
+ERROR 42000: Variable 'password' must be quoted with `...`, or renamed
+DECLARE
+role VARCHAR(32);
+BEGIN
+SET role='[role]';
+END;
+$$
+SELECT @@GLOBAL.names;
+ERROR HY000: Unknown system variable 'names'
+SELECT @@GLOBAL.password;
+ERROR HY000: Unknown system variable 'password'
+SELECT @@GLOBAL.role;
+ERROR HY000: Unknown system variable 'role'
+#
+# MDEV-22822 sql_mode="oracle" cannot declare without variable errors
+#
+# It's OK to have no declarations between DECLARE and BEGIN.
+#
+BEGIN
+DECLARE
+BEGIN
+NULL;
+END;
+EXCEPTION
+WHEN OTHERS THEN
+NULL;
+END;
+//
+DECLARE
+BEGIN
+NULL;
+EXCEPTION
+WHEN OTHERS THEN
+NULL;
+END;
+//
+BEGIN
+<<lab>>
+DECLARE
+BEGIN
+NULL;
+END;
+EXCEPTION
+WHEN OTHERS THEN
+NULL;
+END;
+//
+#
+# End of 10.3 tests
+#
+#
+# MDEV-21998: Server crashes in st_select_lex::add_table_to_list
+# upon mix of KILL and sequences
+#
+KILL ( SELECT 1 ) + LASTVAL(s);
+ERROR 42000: KILL does not support subqueries or stored functions
+KILL LASTVAL(s);
+ERROR 42000: KILL does not support subqueries or stored functions
+#
+# MDEV-23094: Multiple calls to a Stored Procedure from another
+# Stored Procedure crashes server
+#
+create table t1 (id1 int primary key, data1 int);
+create table t2 (id2 int primary key, data2 int);
+create procedure p1(id int,dt int) as
+begin
+if (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt))
+then
+select 1;
+end if;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(id int, dt int) as
+begin
+case (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt))
+when 1 then
+select 1;
+else
+select 0;
+end case;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(id int, dt int) as
+begin
+declare wcont int default 1;
+begin
+while (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt)) and wcont
+loop
+select 1;
+set wcont=0;
+end loop;
+end;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(id int, dt int) as
+begin
+declare count int default 1;
+begin
+repeat
+select 1;
+set count=count+1;
+until (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt)) and
+count < 3
+end repeat;
+end;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(id int, dt int) as
+begin
+for i in 1..(exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt))
+loop
+select 1;
+end loop;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+set sql_mode=ORACLE;
+create or replace procedure p1(id int, dt int) as
+begin
+while (1)
+loop
+exit when (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt));
+end loop;
+end;
+//
+call p1(1,2);
+call p1(1,2);
+drop procedure p1;
+drop table t1,t2;
+# End of 10.4 tests

@@ -1,0 +1,14 @@
+#
+# run acl_roles_recursive and count the number of merges
+#
+source include/have_debug.inc;
+
+show status like 'debug%';
+
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug="+d,role_merge_stats";
+
+source recursive.inc; 
+
+set global debug_dbug=@old_dbug;
+

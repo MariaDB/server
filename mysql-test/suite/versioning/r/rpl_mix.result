@@ -1,0 +1,11 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1,10),(2,20);
+UPDATE t1 SET i = 100;
+SET BINLOG_FORMAT= ROW;
+DELETE HISTORY FROM t1;
+connection slave;
+connection master;
+drop table t1;
+include/rpl_end.inc

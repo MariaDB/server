@@ -1,0 +1,542 @@
+if (!$TEST_VERSIONING_SO)
+{
+  --skip needs test_versioning plugin
+}
+--source include/have_innodb.inc
+--source include/default_charset.inc
+
+--disable_query_log
+--eval install plugin test_versioning soname '$TEST_VERSIONING_SO'
+--enable_query_log
+
+set default_storage_engine= innodb;
+
+create or replace table t1 (
+  x int,
+  sys_trx_start bigint(20) unsigned as row start invisible,
+  sys_trx_end bigint(20) unsigned as row end invisible,
+  period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning;
+
+--echo # No history inside the transaction
+start transaction;
+insert into t1 (x) values (1);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+commit;
+select *, sys_trx_start > 1, sys_trx_end from t1 for system_time all;
+
+--echo # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
+set @@system_versioning_alter_history=keep;
+
+create or replace table t1 (x int);
+insert into t1 values (1);
+alter table t1
+  add column s bigint unsigned as row start,
+  add column e bigint unsigned as row end,
+  add period for system_time(s, e),
+  add system versioning,
+  algorithm=inplace;
+select s from t1 into @trx_start;
+select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
+
+create or replace table t1 (x int);
+select count(*) from mysql.transaction_registry into @tmp;
+alter table t1
+  add column s bigint unsigned as row start,
+  add column e bigint unsigned as row end,
+  add period for system_time(s, e),
+  add system versioning,
+  algorithm=inplace;
+select count(*) = @tmp from mysql.transaction_registry;
+
+create or replace table t1 (x int);
+insert into t1 values (1);
+alter table t1
+  add column s bigint unsigned as row start,
+  add column e bigint unsigned as row end,
+  add period for system_time(s, e),
+  add system versioning,
+  algorithm=copy;
+select s from t1 into @trx_start;
+select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
+
+create or replace table t1 (x int);
+select count(*) from mysql.transaction_registry into @tmp;
+alter table t1
+  add column s bigint unsigned as row start,
+  add column e bigint unsigned as row end,
+  add period for system_time(s, e),
+  add system versioning,
+  algorithm=copy;
+# With MDEV-14511 the transaction will be registered even for empty tables.
+select count(*) = @tmp + 1 from mysql.transaction_registry;
+
+--echo # TRX_ID to TIMESTAMP versioning switch
+create or replace table t1 (
+  x int,
+  sys_start bigint unsigned as row start invisible,
+  sys_end bigint unsigned as row end invisible,
+  period for system_time (sys_start, sys_end)
+) with system versioning;
+insert into t1 values (1);
+alter table t1 drop column sys_start, drop column sys_end;
+select row_end = 18446744073709551615 as transaction_based from t1 for system_time all;
+
+--echo # Simple vs SEES algorithms
+create or replace table t1 (
+  x int,
+  sys_start bigint(20) unsigned as row start invisible,
+  sys_end bigint(20) unsigned as row end invisible,
+  period for system_time (sys_start, sys_end)
+) with system versioning;
+
+set transaction isolation level read committed;
+start transaction;
+insert into t1 values (1);
+--connect (con1,localhost,root,,test)
+set transaction isolation level read committed;
+start transaction;
+insert into t1 values (2);
+--connect (con2,localhost,root,,test)
+set transaction isolation level read committed;
+start transaction;
+insert into t1 values (3);
+commit;
+--disconnect con2
+--connection default
+--sleep 0.01
+set @ts1= sysdate(6);
+--connection con1
+commit;
+--disconnect con1
+--connection default
+--sleep 0.01
+set @ts2= sysdate(6);
+commit;
+--sleep 0.01
+set @ts3= sysdate(6);
+
+select sys_start from t1 where x = 1 into @trx_id1;
+select sys_start from t1 where x = 2 into @trx_id2;
+select sys_start from t1 where x = 3 into @trx_id3;
+
+select @trx_id1 < @trx_id2, @trx_id2 < @trx_id3;
+select @ts1 < @ts2, @ts2 < @ts3;
+
+--echo # MVCC is resolved
+select * from t1 for system_time as of transaction @trx_id1;
+select * from t1 for system_time as of timestamp @ts1;
+select * from t1 for system_time as of transaction @trx_id2;
+select * from t1 for system_time as of timestamp @ts2;
+select * from t1 for system_time as of transaction @trx_id3;
+select * from t1 for system_time as of timestamp @ts3;
+
+--echo #
+--echo # MDEV-15427 IB: TRX_ID based operations inside transaction generate history
+--echo #
+create or replace table t1(
+  x int(10),
+  row_start bigint(20) unsigned as row start,
+  row_end bigint(20) unsigned as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+
+begin;
+insert into t1 (x) values (1);
+delete from t1;
+commit;
+select x from t1 for system_time all;
+
+insert into t1 (x) values (2);
+begin;
+update t1 set x= 3;
+update t1 set x= 4;
+commit;
+select x, row_start <  row_end from t1 for system_time all;
+
+--echo # MDEV-16010 Too many rows with AS OF point_in_the_past_or_NULL
+create or replace table t1 (
+  x int,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning engine innodb;
+insert into t1 (x) values (1);
+delete from t1;
+select * from t1 for system_time as of timestamp'1990-1-1 00:00';
+select * from t1 for system_time as of NULL;
+
+--echo # MDEV-16024 transaction_registry.begin_timestamp is wrong for explicit transactions
+create or replace table t1 (
+    x int(11) default null,
+    row_start bigint(20) unsigned generated always as row start invisible,
+    row_end bigint(20) unsigned generated always as row end invisible,
+    period for system_time (row_start, row_end)
+) engine=innodb with system versioning;
+begin;
+set @ts1= now(6);
+--sleep 0.01
+insert into t1 values (1);
+commit;
+
+select row_start from t1 into @trx_id;
+select trt_begin_ts(@trx_id) <= @ts1 as BEGIN_TS_GOOD;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-16100 FOR SYSTEM_TIME erroneously resolves string user variables as transaction IDs
+--echo #
+
+CREATE TABLE t1 (
+  x INT,
+  sys_trx_start BIGINT UNSIGNED AS ROW START,
+  sys_trx_end   BIGINT UNSIGNED AS ROW END,
+  PERIOD FOR SYSTEM_TIME (sys_trx_start, sys_trx_end)
+) WITH SYSTEM VERSIONING ENGINE=INNODB;
+INSERT INTO t1 (x) VALUES (1);
+SET @ts= DATE_ADD(NOW(), INTERVAL 1 YEAR);
+EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION @ts;
+EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TIMESTAMP @ts;
+EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF @ts;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing AS OF with expressions of various kinds and data types
+--echo #
+
+CREATE TABLE t1
+(
+  x INT,
+  sys_trx_start BIGINT UNSIGNED AS ROW START INVISIBLE,
+  sys_trx_end   BIGINT UNSIGNED AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (sys_trx_start, sys_trx_end)
+) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2
+(
+  x INT,
+  sys_trx_start TIMESTAMP(6) AS ROW START INVISIBLE,
+  sys_trx_end   TIMESTAMP(6) AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (sys_trx_start, sys_trx_end)
+) WITH SYSTEM VERSIONING;
+INSERT INTO t2 VALUES (1);
+
+--echo #
+--echo # ROW is not supported
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (1,1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (1,1);
+
+
+--echo #
+--echo # DOUBLE is not supported, use explicit CAST
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF RAND();
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (RAND());
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF COALESCE(RAND());
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF RAND();
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (RAND());
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF COALESCE(RAND());
+
+
+--echo #
+--echo # DECIMAL is not supported, use explicit CAST
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF 10.1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF COALESCE(10.1);
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF 10.1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF COALESCE(10.1);
+
+
+--echo #
+--echo # YEAR is not supported, use explicit CAST
+--echo #
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE var YEAR;
+  SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE var YEAR;
+  SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # ENUM is not supported, use explicit CAST
+--echo #
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE var ENUM('xxx') DEFAULT 'xxx';
+  SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE var ENUM('xxx') DEFAULT 'xxx';
+  SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # SET is not supported, use explicit CAST
+--echo #
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE var SET('xxx') DEFAULT 'xxx';
+  SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE var SET('xxx') DEFAULT 'xxx';
+  SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # BIT is resolved to TRANSACTION
+--echo #
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE var BIT(10);
+  SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_VERS_ENGINE_UNSUPPORTED
+BEGIN NOT ATOMIC
+  DECLARE var BIT(10);
+  SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # String literals resolve to TIMESTAMP
+--echo #
+
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+
+
+--echo #
+--echo # HEX hybrids resolve to TRANSACTION
+--echo #
+
+--error ER_VERS_NO_TRX_ID
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
+--error ER_VERS_ENGINE_UNSUPPORTED
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
+
+
+--echo #
+--echo # BIT literals resolve to TRANSACTION
+--echo #
+
+--error ER_VERS_NO_TRX_ID
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
+--error ER_VERS_ENGINE_UNSUPPORTED
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
+
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # MDEV-16094 Crash when using AS OF with a stored function
+--echo #
+
+CREATE FUNCTION fts() RETURNS DATETIME RETURN '2001-01-01 10:20:30';
+CREATE FUNCTION ftx() RETURNS BIGINT UNSIGNED RETURN 1;
+
+CREATE TABLE ttx
+(
+  x INT,
+  start_timestamp BIGINT UNSIGNED GENERATED ALWAYS AS ROW START,
+  end_timestamp   BIGINT UNSIGNED GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME(start_timestamp, end_timestamp)
+) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+
+CREATE TABLE tts
+(
+  x INT,
+  start_timestamp TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+  end_timestamp   TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME(start_timestamp, end_timestamp)
+) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+
+SELECT * FROM tts FOR SYSTEM_TIME AS OF fts();
+--error ER_VERS_ENGINE_UNSUPPORTED
+SELECT * FROM tts FOR SYSTEM_TIME AS OF ftx();
+SELECT * FROM ttx FOR SYSTEM_TIME AS OF fts();
+SELECT * FROM ttx FOR SYSTEM_TIME AS OF ftx();
+
+DROP TABLE tts;
+DROP TABLE ttx;
+DROP FUNCTION fts;
+DROP FUNCTION ftx;
+
+--echo #
+--echo # MDEV-16330 Allow instant change of WITH SYSTEM VERSIONING column attribute
+--echo #
+
+SET @@SYSTEM_VERSIONING_ALTER_HISTORY=KEEP;
+CREATE TABLE t (
+  a INT,
+  b INT,
+  row_start BIGINT UNSIGNED AS ROW START INVISIBLE,
+  row_end BIGINT UNSIGNED AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME(row_start, row_end)
+) WITH SYSTEM VERSIONING ENGINE=INNODB;
+
+INSERT INTO t VALUES (1,1);
+
+--echo # without table rebuild
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='a';
+--enable_info
+ALTER TABLE t
+  CHANGE a a INT WITHOUT SYSTEM VERSIONING;
+--disable_info
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='a';
+
+UPDATE t SET a=11;
+SELECT COUNT(*) FROM t FOR SYSTEM_TIME ALL;
+
+--echo # with table rebuild
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='a';
+--enable_info
+ALTER TABLE t
+  CHANGE a a INT WITH SYSTEM VERSIONING,
+  ADD PRIMARY KEY pk(a);
+--disable_info
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='a';
+
+UPDATE t SET a=1;
+SELECT COUNT(*) FROM t FOR SYSTEM_TIME ALL;
+
+SHOW CREATE TABLE t;
+
+-- echo # handles VIRTUAL columns too
+CREATE OR REPLACE TABLE t (
+  a INT AS (b + 1),
+  b INT,
+  row_start BIGINT UNSIGNED AS ROW START INVISIBLE,
+  row_end BIGINT UNSIGNED AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME(row_start, row_end)
+) WITH SYSTEM VERSIONING ENGINE=INNODB;
+
+INSERT INTO t VALUES (DEFAULT, 1);
+
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='b';
+--enable_info
+ALTER TABLE t
+  CHANGE b b INT WITHOUT SYSTEM VERSIONING;
+--disable_info
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='b';
+
+UPDATE t SET b=11;
+SELECT COUNT(*) FROM t FOR SYSTEM_TIME ALL;
+
+DROP TABLE t;
+SET @@SYSTEM_VERSIONING_ALTER_HISTORY=ERROR;
+
+SELECT count(*) from mysql.transaction_registry where begin_timestamp>=commit_timestamp;
+
+--echo # MDEV-18875 Assertion `thd->transaction.stmt.ha_list == __null ||
+--echo # trans == &thd->transaction.stmt' failed or bogus ER_DUP_ENTRY upon
+--echo # ALTER TABLE with versioning
+create or replace table t (x int) engine=innodb;
+set autocommit= 0;
+alter table t
+  algorithm=copy,
+  add column row_start bigint unsigned as row start,
+  add column row_end bigint unsigned as row end,
+  add period for system_time(row_start,row_end),
+  with system versioning;
+set autocommit= 1;
+
+--echo # MDEV-18865 Assertion `t->first->versioned_by_id()'
+--echo # failed in innodb_prepare_commit_versioned
+
+create or replace table t (x int) engine=innodb;
+insert into t values (0);
+alter table t add `row_start` bigint unsigned as row start,
+              add `row_end` bigint unsigned as row end,
+              add period for system_time(`row_start`,`row_end`),
+              modify x int after row_start,
+              with system versioning;
+drop table t;
+
+--echo #
+--echo # MDEV-20842 Crash using versioning plugin functions after plugin was removed from server
+--echo #
+uninstall plugin test_versioning;
+--error ER_SP_DOES_NOT_EXIST
+select trt_begin_ts(0);

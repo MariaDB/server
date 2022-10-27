@@ -1,0 +1,249 @@
+set @save_check_constraint=@@check_constraint_checks;
+create table t1 (a int check(a>10), b int check (b > 20), constraint `min` check (a+b > 100), constraint `max` check (a+b <500)) engine=myisam;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL CHECK (`a` > 10),
+  `b` int(11) DEFAULT NULL CHECK (`b` > 20),
+  CONSTRAINT `min` CHECK (`a` + `b` > 100),
+  CONSTRAINT `max` CHECK (`a` + `b` < 500)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (100,100);
+insert into t1 values (1,1);
+ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+insert into t1 values (20,1);
+ERROR 23000: CONSTRAINT `t1.b` failed for `test`.`t1`
+insert into t1 values (20,30);
+ERROR 23000: CONSTRAINT `min` failed for `test`.`t1`
+insert into t1 values (500,500);
+ERROR 23000: CONSTRAINT `max` failed for `test`.`t1`
+insert into t1 values (101,101),(102,102),(600,600),(103,103);
+ERROR 23000: CONSTRAINT `max` failed for `test`.`t1`
+select * from t1;
+a	b
+100	100
+101	101
+102	102
+truncate table t1;
+insert ignore into t1 values (101,101),(102,102),(600,600),(103,103);
+Warnings:
+Warning	4025	CONSTRAINT `max` failed for `test`.`t1`
+select * from t1;
+a	b
+101	101
+102	102
+103	103
+set check_constraint_checks=0;
+truncate table t1;
+insert into t1 values (101,101),(102,102),(600,600),(103,103);
+select * from t1;
+a	b
+101	101
+102	102
+600	600
+103	103
+set check_constraint_checks=@save_check_constraint;
+alter table t1 add c int default 0 check (c < 10);
+ERROR 23000: CONSTRAINT `max` failed for `test`.`t1`
+set check_constraint_checks=0;
+alter table t1 add c int default 0 check (c < 10);
+alter table t1 add check (a+b+c < 500);
+set check_constraint_checks=@save_check_constraint;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL CHECK (`a` > 10),
+  `b` int(11) DEFAULT NULL CHECK (`b` > 20),
+  `c` int(11) DEFAULT 0 CHECK (`c` < 10),
+  CONSTRAINT `min` CHECK (`a` + `b` > 100),
+  CONSTRAINT `max` CHECK (`a` + `b` < 500),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values(105,105,105);
+ERROR 23000: CONSTRAINT `t1.c` failed for `test`.`t1`
+insert into t1 values(249,249,9);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+insert into t1 values(105,105,9);
+select * from t1;
+a	b	c
+101	101	0
+102	102	0
+600	600	0
+103	103	0
+105	105	9
+create table t2 like t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL CHECK (`a` > 10),
+  `b` int(11) DEFAULT NULL CHECK (`b` > 20),
+  `c` int(11) DEFAULT 0 CHECK (`c` < 10),
+  CONSTRAINT `min` CHECK (`a` + `b` > 100),
+  CONSTRAINT `max` CHECK (`a` + `b` < 500),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t2 drop constraint c;
+ERROR 42000: Can't DROP CONSTRAINT `c`; check that it exists
+alter table t2 drop constraint if exists c;
+Warnings:
+Note	1091	Can't DROP CONSTRAINT `c`; check that it exists
+alter table t2 drop constraint min;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL CHECK (`a` > 10),
+  `b` int(11) DEFAULT NULL CHECK (`b` > 20),
+  `c` int(11) DEFAULT 0 CHECK (`c` < 10),
+  CONSTRAINT `max` CHECK (`a` + `b` < 500),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` + `b` + `c` < 500)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1,t2;
+create or replace table t1 (a int, b int, constraint check (a>b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` > `b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a int, b int,
+constraint CONSTRAINT_1 check (a>1),
+constraint check (b>1));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` > 1),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`b` > 1)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t1 (a int, b int,
+constraint CONSTRAINT_1 check (a>1),
+constraint check (b>1),
+constraint CONSTRAINT_2 check (a>b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` > 1),
+  CONSTRAINT `CONSTRAINT_3` CHECK (`b` > 1),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`a` > `b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1(c1 int, c2 int as (c1 + 1), check (c2 > 2));
+insert into t1(c1) values(1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+insert into t1(c1) values(2);
+drop table t1;
+create or replace table t1( c1 int auto_increment primary key, check( c1 > 0 or c1 is null ) );
+ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the CHECK clause of `c1`
+create table t1 (a int check (@b in (select user from mysql.user)));
+ERROR HY000: Function or expression 'select ...' cannot be used in the CHECK clause of `a`
+create table t1 (a int check (a > @b));
+ERROR HY000: Function or expression '@b' cannot be used in the CHECK clause of `a`
+create table t1 (a int check (a = 1));
+insert t1 values (1);
+insert t1 values (2);
+ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+insert t1 values (NULL);
+select * from t1;
+a
+1
+NULL
+drop table t1;
+create table t1 (id int auto_increment primary key, datecol datetime, check (datecol>'0001-01-01 00:00:00'));
+insert into t1 (datecol) values (now());
+insert into t1 (datecol) values (now());
+drop table t1;
+CREATE TABLE t1 (
+EmployeeID SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+FirstName VARCHAR(30) NOT NULL CHECK (CHAR_LENGTH(FirstName > 2))
+);
+INSERT INTO t1 VALUES (NULL, 'Ken');
+ERROR 22007: Truncated incorrect DOUBLE value: 'Ken'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1292	Truncated incorrect DOUBLE value: 'Ken'
+Error	4025	CONSTRAINT `t1.FirstName` failed for `test`.`t1`
+INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
+ERROR 22007: Truncated incorrect DOUBLE value: 'Ken'
+SHOW WARNINGS;
+Level	Code	Message
+Error	1292	Truncated incorrect DOUBLE value: 'Ken'
+Error	4025	CONSTRAINT `t1.FirstName` failed for `test`.`t1`
+INSERT IGNORE INTO t1 VALUES (NULL, 'Ken');
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
+INSERT IGNORE INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
+Warning	1292	Truncated incorrect DOUBLE value: 'Brian'
+set sql_mode="";
+INSERT INTO t1 VALUES (NULL, 'Ken');
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
+INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'Ken'
+Warning	1292	Truncated incorrect DOUBLE value: 'Brian'
+set sql_mode=default;
+select * from t1;
+EmployeeID	FirstName
+1	Ken
+2	Ken
+3	Brian
+4	Ken
+5	Ken
+6	Brian
+drop table t1;
+#
+# MDEV-16630: Ambiguous error message when check constraint
+#             matches table name
+#
+use test;
+drop table if exists t;
+create table t(a int, b int check(b>0),
+constraint b check(a<b), constraint a check(a>0),
+constraint x check (a>10));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL CHECK (`b` > 0),
+  CONSTRAINT `b` CHECK (`a` < `b`),
+  CONSTRAINT `a` CHECK (`a` > 0),
+  CONSTRAINT `x` CHECK (`a` > 10)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+# Field constraint 'b' will fail
+insert into t values (-1, 0);
+ERROR 23000: CONSTRAINT `t.b` failed for `test`.`t`
+# Table constraint 'b' will fail
+insert into t values (1,1);
+ERROR 23000: CONSTRAINT `b` failed for `test`.`t`
+drop table t;
+create table t1 (a int auto_increment primary key, b int, check (b > 5));
+insert t1 (b) values (1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+insert t1 (b) values (10);
+select * from t1 where a is null;
+a	b
+set sql_auto_is_null=1;
+select * from t1 where a is null;
+a	b
+1	10
+insert t1 (b) values (1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;
+#
+# MDEV-24274 ALTER TABLE with CHECK CONSTRAINTS gives "Out of Memory" error
+#
+create table t1 (id varchar(2), constraint id check (id regexp '[a-z]'));
+alter table t1 force;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` varchar(2) DEFAULT NULL,
+  CONSTRAINT `id` CHECK (`id` regexp '[a-z]')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;

@@ -1,0 +1,56 @@
+--source include/not_embedded.inc
+
+#
+# Test what happens if one removes a decryption key for Aria
+#
+
+call mtr.add_suppression("file_key_management");
+call mtr.add_suppression("System key id 1 is missing");
+call mtr.add_suppression("Unknown key id 1");
+call mtr.add_suppression("Failed to decrypt");
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--write_file $MYSQLTEST_VARDIR/keys1.txt
+1;770A8A65DA156D24EE2A093277530142
+EOF
+
+--exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+CREATE TABLE t1 (i INT, KEY(i)) ENGINE=Aria;
+INSERT INTO t1 VALUES (1);
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--write_file $MYSQLTEST_VARDIR/keys2.txt
+2;770A8A65DA156D24EE2A093277530143
+EOF
+
+--exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys2.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+repair table t1;
+
+INSERT INTO t1 VALUES (2);
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/keys1.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--replace_result \\ /
+--error 192
+select * from t1;
+drop table t1;
+--remove_file $MYSQLTEST_VARDIR/keys1.txt
+--remove_file $MYSQLTEST_VARDIR/keys2.txt

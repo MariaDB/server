@@ -1,0 +1,37 @@
+--source include/have_rocksdb.inc
+
+let $engine=rocksdb;
+--source include/gap_lock_raise_error_all.inc
+
+SET @save_gap_lock_exceptions = @@global.gap_lock_exceptions;
+ 
+SET GLOBAL gap_lock_exceptions="t.*";
+--source include/gap_lock_raise_error_init.inc
+
+set session autocommit=0;
+--error ER_UNKNOWN_ERROR
+select * from gap1 limit 1 for update;
+--error ER_UNKNOWN_ERROR
+select * from gap1 where value != 100 limit 1 for update;
+
+--source include/gap_lock_raise_error_cleanup.inc
+
+SET GLOBAL gap_lock_exceptions="gap.*";
+--source include/gap_lock_raise_error_init.inc
+
+set session autocommit=0;
+select * from gap1 limit 1 for update;
+select * from gap1 where value != 100 limit 1 for update;
+
+--source include/gap_lock_raise_error_cleanup.inc
+
+# This test has been temporarily removed because it fails when the server
+# is compiled using GCC 4.8 as full regular expression handling was added
+# in GCC 4.9.  We need to add the ability to detect if full regex is
+# available before re-enabling this test.
+## Make sure we handle invalid regex expressions and generate a warning
+#--exec echo "" >$MYSQLTEST_VARDIR/log/mysqld.1.err
+#SET GLOBAL gap_lock_exceptions="[a-b,abc\\";
+#--exec grep -A 2 "Invalid pattern" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+
+SET GLOBAL gap_lock_exceptions=@save_gap_lock_exceptions;

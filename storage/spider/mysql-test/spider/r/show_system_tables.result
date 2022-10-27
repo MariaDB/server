@@ -1,0 +1,37 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+Show system tables on the Spider node
+connection master_1;
+SELECT table_name, engine FROM information_schema.tables
+WHERE table_schema = 'mysql' AND table_name like '%spider_%';
+table_name	engine
+spider_link_failed_log	Aria
+spider_link_mon_servers	Aria
+spider_table_crd	Aria
+spider_table_position_for_recovery	Aria
+spider_table_sts	Aria
+spider_tables	Aria
+spider_xa	Aria
+spider_xa_failed_log	Aria
+spider_xa_member	Aria
+
+deinit
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

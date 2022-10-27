@@ -1,0 +1,82 @@
+--source include/have_tokudb.inc
+
+# Check the default value
+SET @orig_global = @@global.tokudb_analyze_in_background;
+SELECT @orig_global;
+
+SET @orig_session = @@session.tokudb_analyze_in_background;
+SELECT @orig_session;
+
+# Test global
+SET GLOBAL tokudb_analyze_in_background = 0;
+SELECT @@global.tokudb_analyze_in_background;
+
+SET GLOBAL tokudb_analyze_in_background = 1;
+SELECT @@global.tokudb_analyze_in_background;
+
+SET GLOBAL tokudb_analyze_in_background = DEFAULT;
+SELECT @@global.tokudb_analyze_in_background;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL tokudb_analyze_in_background = -6;
+SELECT @@global.tokudb_analyze_in_background;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL tokudb_analyze_in_background = 1.6;
+SELECT @@global.tokudb_analyze_in_background;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL tokudb_analyze_in_background = "T";
+SELECT @@global.tokudb_analyze_in_background;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL tokudb_analyze_in_background = "Y";
+SELECT @@global.tokudb_analyze_in_background;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL tokudb_analyze_in_background = 'foobar';
+SELECT @@global.tokudb_analyze_in_background;
+
+# Test session
+SET SESSION tokudb_analyze_in_background = 0;
+SELECT @@session.tokudb_analyze_in_background;
+
+SET SESSION tokudb_analyze_in_background = 1;
+SELECT @@session.tokudb_analyze_in_background;
+
+SET SESSION tokudb_analyze_in_background = DEFAULT;
+SELECT @@session.tokudb_analyze_in_background;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET SESSION tokudb_analyze_in_background = -6;
+SELECT @@session.tokudb_analyze_in_background;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET SESSION tokudb_analyze_in_background = 1.6;
+SELECT @@session.tokudb_analyze_in_background;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET SESSION tokudb_analyze_in_background = "T";
+SELECT @@session.tokudb_analyze_in_background;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET SESSION tokudb_analyze_in_background = "Y";
+SELECT @@session.tokudb_analyze_in_background;
+
+-- error ER_WRONG_VALUE_FOR_VAR
+SET SESSION tokudb_analyze_in_background = 'foobar';
+SELECT @@session.tokudb_analyze_in_background;
+
+# both
+SET GLOBAL tokudb_analyze_in_background = 0;
+SET SESSION tokudb_analyze_in_background = 1;
+SELECT @@global.tokudb_analyze_in_background;
+SELECT @@session.tokudb_analyze_in_background;
+SHOW VARIABLES LIKE 'tokudb_analyze_in_background';
+
+# Clean up
+SET SESSION tokudb_analyze_in_background = @orig_session;
+SELECT @@session.tokudb_analyze_in_background;
+
+SET GLOBAL tokudb_analyze_in_background = @orig_global;
+SELECT @@global.tokudb_analyze_in_background;

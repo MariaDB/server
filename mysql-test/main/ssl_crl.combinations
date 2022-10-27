@@ -1,0 +1,5 @@
+[file]
+ssl-crl=$MYSQL_TEST_DIR/std_data/client-cert.crl
+
+[path]
+ssl-crlpath=$MYSQL_TEST_DIR/std_data/crldir

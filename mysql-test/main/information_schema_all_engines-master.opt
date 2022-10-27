@@ -1,0 +1,18 @@
+--loose-skip-safemalloc --loose-mutex-deadlock-detector=0
+--loose-innodb-changed-pages
+--loose-innodb-cmp
+--loose-innodb-cmp-per-index
+--loose-innodb-cmp-reset
+--loose-innodb-cmpmem
+--loose-innodb-cmpmem-reset
+--loose-innodb-index-stats
+--loose-innodb-lock-waits
+--loose-innodb-sys-columns
+--loose-innodb-sys-fields
+--loose-innodb-sys-foreign
+--loose-innodb-sys-foreign-cols
+--loose-innodb-sys-tables
+--loose-innodb-sys-tablestats
+--loose-innodb-mutexes
+--loose-innodb-tablespaces-encryption
+--loose-innodb-tablespaces-scrubbing

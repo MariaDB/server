@@ -1,0 +1,20 @@
+--- innodb-index-online.result
++++ innodb-index-online,crypt.reject
+@@ -301,7 +301,7 @@
+ @merge_encrypt_1>@merge_encrypt_0, @merge_decrypt_1>@merge_decrypt_0,
+ @rowlog_encrypt_1>@rowlog_encrypt_0;
+ sort_balance	@merge_encrypt_1>@merge_encrypt_0	@merge_decrypt_1>@merge_decrypt_0	@rowlog_encrypt_1>@rowlog_encrypt_0
+-0	0	0	0
++0	0	0	1
+ SET DEBUG_SYNC = 'now SIGNAL dml2_done';
+ connection con1;
+ ERROR HY000: Creating index 'c2e' required more than 'innodb_online_alter_log_max_size' bytes of modification log. Please try again
+@@ -423,7 +423,7 @@
+ @rowlog_encrypt_2-@rowlog_encrypt_1>0 as log_encrypted,
+ @rowlog_decrypt_2-@rowlog_decrypt_1>0 as log_decrypted;
+ sort_encrypted	sort_decrypted	log_encrypted	log_decrypted
+-0	0	0	0
++0	0	1	1
+ connection con1;
+ SELECT COUNT(c22f) FROM t1;
+ COUNT(c22f)

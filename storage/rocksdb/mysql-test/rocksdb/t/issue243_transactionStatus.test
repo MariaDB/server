@@ -1,0 +1,80 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (
+  id INT,
+  val1 INT,
+  val2 INT,
+  PRIMARY KEY (id)
+) ENGINE=rocksdb;
+
+#
+# DB operations without Transaction , every count should be 0
+# so there's no count related output
+#
+INSERT INTO t1 VALUES(1,1,1),(2,1,2);
+SELECT * FROM t1;
+UPDATE t1 SET val1=2 WHERE id=2;
+SELECT * FROM t1;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/ /(query id) [0-9]+/\1 QID/ /(root) [a-z ]+/\1 ACTION/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+
+#
+# DB operations with Tansaction, insert_count, update_count, delete_count
+# and total write_count should be printed
+# Cases: rollback, commit transaction
+#
+SET AUTOCOMMIT=0;
+START TRANSACTION;
+INSERT INTO t1 VALUES(20,1,1),(30,30,30);
+SELECT * FROM t1;
+UPDATE t1 SET val1=20, val2=20 WHERE id=20;
+SELECT * FROM t1;
+DELETE FROM t1 WHERE id=30;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/ /(query id) [0-9]+/\1 QID/ /(root) [a-z ]+/\1 ACTION/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+
+ROLLBACK;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/ /(query id) [0-9]+/\1 QID/ /(root) [a-z ]+/\1 ACTION/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+
+START TRANSACTION;
+INSERT INTO t1 VALUES(40,40,40);
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/ /(query id) [0-9]+/\1 QID/ /(root) [a-z ]+/\1 ACTION/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+COMMIT;
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/ /(query id) [0-9]+/\1 QID/ /(root) [a-z ]+/\1 ACTION/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+
+SET AUTOCOMMIT=1;
+DROP TABLE t1;
+
+#
+# Secondary Key Tests
+#
+--disable_warnings
+DROP TABLE IF EXISTS t2;
+--enable_warnings
+
+CREATE TABLE t2 (
+  id1 INT,
+  id2 INT,
+  value INT,
+  PRIMARY KEY (id1),
+  KEY (id2)
+) ENGINE=rocksdb;
+
+SET AUTOCOMMIT=0;
+START TRANSACTION;
+INSERT INTO t2 VALUES(1,2,0),(10,20,30);
+UPDATE t2 SET value=3 WHERE id2=2;
+DELETE FROM t2 WHERE id1=10;
+
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/ /(query id) [0-9]+/\1 QID/ /(root) [a-z ]+/\1 ACTION/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+ROLLBACK;
+SET AUTOCOMMIT=1;
+DROP TABLE t2;

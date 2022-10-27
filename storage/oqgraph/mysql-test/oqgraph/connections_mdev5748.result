@@ -1,0 +1,35 @@
+connect  con1,localhost,root,,;
+CREATE TABLE oq_backing (
+origid INT UNSIGNED NOT NULL,
+destid INT UNSIGNED NOT NULL,
+weight DOUBLE NOT NULL,
+PRIMARY KEY (origid, destid),
+KEY (destid)
+);
+CREATE TABLE oq_table (
+latch VARCHAR(32) NULL,
+origid BIGINT UNSIGNED NULL,
+destid BIGINT UNSIGNED NULL,
+weight DOUBLE NULL,
+seq BIGINT UNSIGNED NULL,
+linkid BIGINT UNSIGNED NULL,
+KEY (latch, origid, destid) USING HASH,
+KEY (latch, destid, origid) USING HASH
+) ENGINE=OQGRAPH
+data_table='oq_backing' origid='origid' destid='destid' weight='weight';
+flush tables;
+show fields in oq_table;
+Field	Type	Null	Key	Default	Extra
+latch	varchar(32)	YES	MUL	NULL	
+origid	bigint(20) unsigned	YES		NULL	
+destid	bigint(20) unsigned	YES		NULL	
+weight	double	YES		NULL	
+seq	bigint(20) unsigned	YES		NULL	
+linkid	bigint(20) unsigned	YES		NULL	
+disconnect con1;
+connection default;
+show tables;
+Tables_in_test
+oq_backing
+oq_table
+drop table oq_table, oq_backing;

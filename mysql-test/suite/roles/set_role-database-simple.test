@@ -1,0 +1,56 @@
+source include/not_embedded.inc;
+
+#create a user with no privileges
+create user 'test_user'@'localhost';
+create role test_role1;
+
+grant test_role1 to test_user@localhost;
+--sorted_result
+select user, host from mysql.user where user not like 'root';
+--sorted_result
+select * from mysql.roles_mapping;
+
+grant select on mysql.* to test_role1;
+grant insert, delete on mysql.roles_mapping to test_role1;
+
+grant reload on *.* to test_role1;
+
+change_user 'test_user';
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+select current_user(), current_role();
+set role test_role1;
+select current_user(), current_role();
+--sorted_result
+select * from mysql.roles_mapping;
+--error ER_TABLEACCESS_DENIED_ERROR
+insert into mysql.user (user, host) values ('Dummy', 'Dummy');
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2', 'N');
+delete from mysql.roles_mapping where Role='test_role2';
+
+use mysql;
+
+set role none;
+select current_user(), current_role();
+
+--error ER_DBACCESS_DENIED_ERROR
+use mysql;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+--error ER_TABLEACCESS_DENIED_ERROR
+insert into mysql.user (user, host) values ('Dummy', 'Dummy');
+--error ER_TABLEACCESS_DENIED_ERROR
+insert into mysql.roles_mapping values ('localhost', 'test_user', 'test_role2', 'N');
+--error ER_TABLEACCESS_DENIED_ERROR
+delete from mysql.roles_mapping where Role='test_role2';
+
+change_user 'root';
+drop user 'test_user'@'localhost';
+revoke select on mysql.* from test_role1;
+revoke insert, delete on mysql.roles_mapping from test_role1;
+drop role test_role1;
+delete from mysql.roles_mapping where Role='test_role1';
+flush privileges;
+

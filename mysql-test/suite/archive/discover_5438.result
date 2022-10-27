@@ -1,0 +1,14 @@
+create table t1 (a int) engine=archive;
+create view t1 as select "I am a view" as a;
+ERROR 42S01: Table 't1' already exists
+drop table t1;
+create table t1 (a int) engine=archive;
+create user foo@bar;
+grant select on test.t1 to foo@bar;
+drop user foo@bar;
+drop table t1;
+create table t1 (a int) engine=archive;
+create table t2 (a int);
+alter table t2 rename t1;
+ERROR 42S01: Table 't1' already exists
+drop table t2, t1;

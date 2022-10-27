@@ -1,0 +1,73 @@
+call mtr.add_suppression("Allocation failed");
+SET @old_debug= @@session.debug;
+set @old_thread_cache_size=@@global.thread_cache_size;
+set @@global.thread_cache_size=0;
+connect con1,localhost,root,,test,,;
+select 1;
+1
+1
+disconnect con1;
+connection default;
+set global debug_dbug='+d,simulate_failed_connection_1';
+connect(localhost,root,,test,MASTER_PORT,MASTER_SOCKET);
+connect con1,localhost,root,,test,,;
+Got one of the listed errors
+connection default;
+set global debug_dbug=@old_debug;
+set global debug_dbug='+d,simulate_failed_connection_2';
+connect(localhost,root,,test,MASTER_PORT,MASTER_SOCKET);
+connect con1,localhost,root,,test,,;
+Got one of the listed errors
+connection default;
+set global debug_dbug=@old_debug;
+connect con1,localhost,root,,test,,;
+select 1;
+1
+1
+disconnect con1;
+connect con1,localhost,root,,test,$MASTER_EXTRA_PORT,;
+select 1;
+1
+1
+disconnect con1;
+connection default;
+set global debug_dbug='+d,simulate_failed_connection_1';
+connect(localhost,root,,test,MASTER_PORT,MASTER_SOCKET);
+connect con1,localhost,root,,test,$MASTER_EXTRA_PORT,;
+Got one of the listed errors
+connection default;
+set global debug_dbug=@old_debug;
+set global debug_dbug='+d,simulate_failed_connection_2';
+connect(localhost,root,,test,MASTER_PORT,MASTER_SOCKET);
+connect con1,localhost,root,,test,$MASTER_EXTRA_PORT,;
+Got one of the listed errors
+connection default;
+set global debug_dbug=@old_debug;
+connect con1,localhost,root,,test,$MASTER_EXTRA_PORT,;
+select 1;
+1
+1
+disconnect con1;
+connection default;
+set @@global.thread_cache_size=2;
+connect con1,localhost,root,,test,$MASTER_EXTRA_PORT,;
+select 1;
+1
+1
+connect con2,localhost,root,,test,$MASTER_EXTRA_PORT,;
+select 1;
+1
+1
+disconnect con1;
+disconnect con2;
+connection default;
+set global debug_dbug='+d,simulate_failed_connection_2';
+connect(localhost,root,,test,MASTER_PORT,MASTER_SOCKET);
+connect con1,localhost,root,,test,$MASTER_EXTRA_PORT,;
+Got one of the listed errors
+connection default;
+show status like "Threads_connected";
+Variable_name	Value
+Threads_connected	1
+set global debug_dbug=@old_debug;
+set global thread_cache_size=@old_thread_cache_size;

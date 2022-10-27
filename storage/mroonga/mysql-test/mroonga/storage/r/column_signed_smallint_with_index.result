@@ -1,0 +1,24 @@
+DROP TABLE IF EXISTS items;
+CREATE TABLE items (
+name VARCHAR(255),
+price SMALLINT KEY
+) DEFAULT CHARSET=utf8;
+INSERT INTO items VALUES ("note PC", 32767);
+INSERT INTO items VALUES ("discount", -32768);
+INSERT INTO items VALUES ("coke", 100);
+INSERT INTO items VALUES ("tablet PC", 20000);
+SELECT * FROM items;
+name	price
+discount	-32768
+coke	100
+tablet PC	20000
+note PC	32767
+SELECT * FROM items WHERE price <= 127;
+name	price
+discount	-32768
+coke	100
+SELECT * FROM items WHERE price >= 128;
+name	price
+tablet PC	20000
+note PC	32767
+DROP TABLE items;

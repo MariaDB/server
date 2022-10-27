@@ -1,0 +1,5 @@
+[FCFS]
+--innodb-lock-schedule-algorithm=FCFS
+
+[VATS]
+--innodb-lock-schedule-algorithm=VATS

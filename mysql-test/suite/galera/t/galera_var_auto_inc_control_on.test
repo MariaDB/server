@@ -1,0 +1,65 @@
+#
+# Test the operation of wsrep_auto_increment_control = ON
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, node VARCHAR(10)) ENGINE=InnoDB;
+
+--let $auto_increment_offset_node_1 = `SELECT @@global.auto_increment_offset`
+# auto_increment_increment is equal to the number of nodes
+SELECT @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size');
+
+--connection node_2
+--disable_query_log
+--eval SELECT @@global.auto_increment_offset != $auto_increment_offset_node_1 AS auto_increment_offset_differ;
+--enable_query_log
+
+# Expect no conflicts
+--connection node_1
+--send INSERT INTO t1 VALUES (DEFAULT, 'node1');
+
+--connection node_2
+--send INSERT INTO t1 VALUES (DEFAULT, 'node2');
+
+--connection node_1
+--reap
+
+--connection node_2
+--reap
+
+--let $auto_increment_offset_node_2 = `SELECT @@global.auto_increment_offset`
+# auto_increment_increment is equal to the number of nodes
+SELECT @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size');
+
+--connection node_1
+--disable_query_log
+--eval SELECT @@global.auto_increment_offset != $auto_increment_offset_node_2 AS auto_increment_offset_differ;
+--enable_query_log
+
+
+# Expect no conflicts
+--connection node_2
+--send INSERT INTO t1 VALUES (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2');
+
+--connection node_1
+--send INSERT INTO t1 VALUES (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1');
+
+--connection node_2
+--reap
+
+--connection node_1
+--reap
+
+--connection node_2
+SELECT COUNT(*) = 22 FROM t1;
+SELECT COUNT(DISTINCT f1) = 22 FROM t1;
+
+--connection node_1
+SELECT COUNT(*) = 22 FROM t1;
+SELECT COUNT(DISTINCT f1) = 22 FROM t1;
+
+DROP TABLE t1;

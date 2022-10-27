@@ -1,0 +1,401 @@
+call mtr.add_suppression("Table rebuild required");
+#
+# Upgrade from Maria-5.3.13:
+# Checking utf8_croatian_ci in a VARCHAR column
+#
+# Copying maria050313_utf8_croatian_ci.* to MYSQLD_DATADIR
+CHECK TABLE maria050313_utf8_croatian_ci FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.maria050313_utf8_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_utf8_croatian_ci`" or dump/reload to fix it!
+SHOW CREATE TABLE maria050313_utf8_croatian_ci;
+ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.maria050313_utf8_croatian_ci` FORCE" or dump/reload to fix it!
+REPAIR TABLE maria050313_utf8_croatian_ci;
+Table	Op	Msg_type	Msg_text
+test.maria050313_utf8_croatian_ci	repair	status	OK
+CHECK TABLE maria050313_utf8_croatian_ci FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.maria050313_utf8_croatian_ci	check	status	OK
+SHOW CREATE TABLE maria050313_utf8_croatian_ci;
+Table	Create Table
+maria050313_utf8_croatian_ci	CREATE TABLE `maria050313_utf8_croatian_ci` (
+  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT count(*) FROM maria050313_utf8_croatian_ci;
+count(*)
+4
+DROP TABLE maria050313_utf8_croatian_ci;
+# Copying maria050313_utf8_croatian_ci.* to MYSQLD_DATADIR
+ALTER TABLE maria050313_utf8_croatian_ci FORCE;
+SHOW CREATE TABLE maria050313_utf8_croatian_ci;
+Table	Create Table
+maria050313_utf8_croatian_ci	CREATE TABLE `maria050313_utf8_croatian_ci` (
+  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050313_utf8_croatian_ci GROUP BY a;
+GROUP_CONCAT(a ORDER BY BINARY a)
+nJ
+NJ,Nj,nj
+DROP TABLE maria050313_utf8_croatian_ci;
+#
+# Upgrade from Maria-5.3.13:
+# Checking ucs2_croatian_ci in the table default collation
+#
+# Copying maria050313_ucs2_croatian_ci.* to MYSQLD_DATADIR
+CHECK TABLE maria050313_ucs2_croatian_ci_def FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.maria050313_ucs2_croatian_ci_def	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_ucs2_croatian_ci_def`" or dump/reload to fix it!
+SELECT count(*) FROM maria050313_ucs2_croatian_ci_def;
+ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.maria050313_ucs2_croatian_ci_def` FORCE" or dump/reload to fix it!
+REPAIR TABLE maria050313_ucs2_croatian_ci_def;
+Table	Op	Msg_type	Msg_text
+test.maria050313_ucs2_croatian_ci_def	repair	status	OK
+SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
+Table	Create Table
+maria050313_ucs2_croatian_ci_def	CREATE TABLE `maria050313_ucs2_croatian_ci_def` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+DROP TABLE maria050313_ucs2_croatian_ci_def;
+# Copying maria050313_ucs2_croatian_ci.* to MYSQLD_DATADIR
+CHECK TABLE maria050313_ucs2_croatian_ci_def;
+Table	Op	Msg_type	Msg_text
+test.maria050313_ucs2_croatian_ci_def	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_ucs2_croatian_ci_def`" or dump/reload to fix it!
+REPAIR TABLE maria050313_ucs2_croatian_ci_def;
+Table	Op	Msg_type	Msg_text
+test.maria050313_ucs2_croatian_ci_def	repair	status	OK
+CHECK TABLE maria050313_ucs2_croatian_ci_def;
+Table	Op	Msg_type	Msg_text
+test.maria050313_ucs2_croatian_ci_def	check	status	OK
+SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
+Table	Create Table
+maria050313_ucs2_croatian_ci_def	CREATE TABLE `maria050313_ucs2_croatian_ci_def` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+SELECT * FROM maria050313_ucs2_croatian_ci_def ORDER BY a;
+a
+1
+2
+3
+DROP TABLE maria050313_ucs2_croatian_ci_def;
+#
+# Upgrade from Maria-5.5.33
+# Checking utf8_croatian_ci, utf8mb4_croatian_ci, ucs2_croatian_ci,
+# utf16_croatian_ci, utf32_croatian_ci
+#
+# Copying maria050533_xxx_croatian_ci.* to MYSQLD_DATADIR
+CHECK TABLE maria050533_xxx_croatian_ci FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.maria050533_xxx_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria050533_xxx_croatian_ci`" or dump/reload to fix it!
+REPAIR TABLE maria050533_xxx_croatian_ci;
+Table	Op	Msg_type	Msg_text
+test.maria050533_xxx_croatian_ci	repair	status	OK
+SHOW CREATE TABLE maria050533_xxx_croatian_ci;
+Table	Create Table
+maria050533_xxx_croatian_ci	CREATE TABLE `maria050533_xxx_croatian_ci` (
+  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL,
+  `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
+  `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
+  `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
+  `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT count(*) FROM maria050533_xxx_croatian_ci;
+count(*)
+4
+DROP TABLE maria050533_xxx_croatian_ci;
+# Copying maria050533_xxx_croatian_ci.* to MYSQLD_DATADIR
+ALTER TABLE maria050533_xxx_croatian_ci FORCE;
+SHOW CREATE TABLE maria050533_xxx_croatian_ci;
+Table	Create Table
+maria050533_xxx_croatian_ci	CREATE TABLE `maria050533_xxx_croatian_ci` (
+  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL,
+  `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
+  `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
+  `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
+  `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050533_xxx_croatian_ci GROUP BY a;
+GROUP_CONCAT(a ORDER BY BINARY a)
+nJ
+NJ,Nj,nj
+SELECT GROUP_CONCAT(b ORDER BY BINARY b) FROM maria050533_xxx_croatian_ci GROUP BY b;
+GROUP_CONCAT(b ORDER BY BINARY b)
+nJ
+NJ,Nj,nj
+SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM maria050533_xxx_croatian_ci GROUP BY c;
+GROUP_CONCAT(c ORDER BY BINARY c)
+nJ
+NJ,Nj,nj
+SELECT GROUP_CONCAT(d ORDER BY BINARY d) FROM maria050533_xxx_croatian_ci GROUP BY d;
+GROUP_CONCAT(d ORDER BY BINARY d)
+nJ
+NJ,Nj,nj
+SELECT GROUP_CONCAT(e ORDER BY BINARY e) FROM maria050533_xxx_croatian_ci GROUP BY e;
+GROUP_CONCAT(e ORDER BY BINARY e)
+nJ
+NJ,Nj,nj
+DROP TABLE maria050533_xxx_croatian_ci;
+#
+# Upgrade from Maria-10.0.4
+# Checking utf8_croatian_ci, utf8mb4_croatian_ci, ucs2_croatian_ci,
+# utf16_croatian_ci, utf32_croatian_ci
+#
+# Copying maria100004_xxx_croatian_ci.* to MYSQLD_DATADIR
+CHECK TABLE maria100004_xxx_croatian_ci FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.maria100004_xxx_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria100004_xxx_croatian_ci`" or dump/reload to fix it!
+SELECT count(*) FROM maria100004_xxx_croatian_ci;
+ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.maria100004_xxx_croatian_ci` FORCE" or dump/reload to fix it!
+REPAIR TABLE maria100004_xxx_croatian_ci;
+Table	Op	Msg_type	Msg_text
+test.maria100004_xxx_croatian_ci	repair	status	OK
+SHOW CREATE TABLE maria100004_xxx_croatian_ci;
+Table	Create Table
+maria100004_xxx_croatian_ci	CREATE TABLE `maria100004_xxx_croatian_ci` (
+  `a` varchar(10) COLLATE utf8_croatian_ci DEFAULT NULL,
+  `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
+  `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
+  `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
+  `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+DROP TABLE maria100004_xxx_croatian_ci;
+# Copying maria100004_xxx_croatian_ci.* to MYSQLD_DATADIR
+ALTER TABLE maria100004_xxx_croatian_ci FORCE;
+SHOW CREATE TABLE maria100004_xxx_croatian_ci;
+Table	Create Table
+maria100004_xxx_croatian_ci	CREATE TABLE `maria100004_xxx_croatian_ci` (
+  `a` varchar(10) COLLATE utf8_croatian_ci DEFAULT NULL,
+  `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
+  `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
+  `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
+  `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria100004_xxx_croatian_ci GROUP BY a;
+GROUP_CONCAT(a ORDER BY BINARY a)
+nJ
+NJ,Nj,nj
+SELECT GROUP_CONCAT(b ORDER BY BINARY b) FROM maria100004_xxx_croatian_ci GROUP BY b;
+GROUP_CONCAT(b ORDER BY BINARY b)
+nJ
+NJ,Nj,nj
+SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM maria100004_xxx_croatian_ci GROUP BY c;
+GROUP_CONCAT(c ORDER BY BINARY c)
+nJ
+NJ,Nj,nj
+SELECT GROUP_CONCAT(d ORDER BY BINARY d) FROM maria100004_xxx_croatian_ci GROUP BY d;
+GROUP_CONCAT(d ORDER BY BINARY d)
+nJ
+NJ,Nj,nj
+SELECT GROUP_CONCAT(e ORDER BY BINARY e) FROM maria100004_xxx_croatian_ci GROUP BY e;
+GROUP_CONCAT(e ORDER BY BINARY e)
+nJ
+NJ,Nj,nj
+DROP TABLE maria100004_xxx_croatian_ci;
+#
+# Upgrade from MySQL-5.6.14
+# Checking utf8_croatian_ci, utf8mb4_croatian_ci, ucs2_croatian_ci,
+# utf16_croatian_ci, utf32_croatian_ci
+#
+# Copying mysql050614_xxx_croatian_ci.* to MYSQLD_DATADIR
+CHECK TABLE mysql050614_xxx_croatian_ci FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.mysql050614_xxx_croatian_ci	check	status	OK
+SHOW CREATE TABLE mysql050614_xxx_croatian_ci;
+Table	Create Table
+mysql050614_xxx_croatian_ci	CREATE TABLE `mysql050614_xxx_croatian_ci` (
+  `a` varchar(10) COLLATE utf8_croatian_mysql561_ci DEFAULT NULL,
+  `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_mysql561_ci DEFAULT NULL,
+  `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_mysql561_ci DEFAULT NULL,
+  `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_mysql561_ci DEFAULT NULL,
+  `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_mysql561_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_mysql561_ci
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM mysql050614_xxx_croatian_ci GROUP BY a;
+GROUP_CONCAT(a ORDER BY BINARY a)
+NJ,Nj,nJ,nj
+SELECT GROUP_CONCAT(b ORDER BY BINARY b) FROM mysql050614_xxx_croatian_ci GROUP BY b;
+GROUP_CONCAT(b ORDER BY BINARY b)
+NJ,Nj,nJ,nj
+SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM mysql050614_xxx_croatian_ci GROUP BY c;
+GROUP_CONCAT(c ORDER BY BINARY c)
+NJ,Nj,nJ,nj
+SELECT GROUP_CONCAT(d ORDER BY BINARY d) FROM mysql050614_xxx_croatian_ci GROUP BY d;
+GROUP_CONCAT(d ORDER BY BINARY d)
+NJ,Nj,nJ,nj
+SELECT GROUP_CONCAT(e ORDER BY BINARY e) FROM mysql050614_xxx_croatian_ci GROUP BY e;
+GROUP_CONCAT(e ORDER BY BINARY e)
+NJ,Nj,nJ,nj
+DROP TABLE mysql050614_xxx_croatian_ci;
+#
+# Checking mysql_upgrade
+#
+# Running mysql_upgrade
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+test.maria050313_ucs2_croatian_ci_def              Needs upgrade
+test.maria050313_utf8_croatian_ci                  Needs upgrade
+test.maria050533_xxx_croatian_ci                   Needs upgrade
+test.maria100004_xxx_croatian_ci                   Needs upgrade
+test.mysql050614_xxx_croatian_ci                   OK
+
+Repairing tables
+test.maria050313_ucs2_croatian_ci_def              OK
+test.maria050313_utf8_croatian_ci                  OK
+test.maria050533_xxx_croatian_ci                   OK
+test.maria100004_xxx_croatian_ci                   OK
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+# Running mysql_upgrade for the second time
+# This should report OK for all tables
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+test.maria050313_ucs2_croatian_ci_def              OK
+test.maria050313_utf8_croatian_ci                  OK
+test.maria050533_xxx_croatian_ci                   OK
+test.maria100004_xxx_croatian_ci                   OK
+test.mysql050614_xxx_croatian_ci                   OK
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
+Table	Create Table
+maria050313_ucs2_croatian_ci_def	CREATE TABLE `maria050313_ucs2_croatian_ci_def` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+SELECT * FROM maria050313_ucs2_croatian_ci_def ORDER BY a;
+a
+1
+2
+3
+SHOW CREATE TABLE maria050313_utf8_croatian_ci;
+Table	Create Table
+maria050313_utf8_croatian_ci	CREATE TABLE `maria050313_utf8_croatian_ci` (
+  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050313_utf8_croatian_ci GROUP BY a;
+GROUP_CONCAT(a ORDER BY BINARY a)
+nJ
+NJ,Nj,nj
+SHOW CREATE TABLE maria050533_xxx_croatian_ci;
+Table	Create Table
+maria050533_xxx_croatian_ci	CREATE TABLE `maria050533_xxx_croatian_ci` (
+  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL,
+  `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
+  `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
+  `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
+  `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050533_xxx_croatian_ci GROUP BY a;
+GROUP_CONCAT(a ORDER BY BINARY a)
+nJ
+NJ,Nj,nj
+SHOW CREATE TABLE maria100004_xxx_croatian_ci;
+Table	Create Table
+maria100004_xxx_croatian_ci	CREATE TABLE `maria100004_xxx_croatian_ci` (
+  `a` varchar(10) COLLATE utf8_croatian_ci DEFAULT NULL,
+  `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
+  `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
+  `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
+  `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria100004_xxx_croatian_ci GROUP BY a;
+GROUP_CONCAT(a ORDER BY BINARY a)
+nJ
+NJ,Nj,nj
+SHOW CREATE TABLE mysql050614_xxx_croatian_ci;
+Table	Create Table
+mysql050614_xxx_croatian_ci	CREATE TABLE `mysql050614_xxx_croatian_ci` (
+  `a` varchar(10) COLLATE utf8_croatian_mysql561_ci DEFAULT NULL,
+  `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_mysql561_ci DEFAULT NULL,
+  `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_mysql561_ci DEFAULT NULL,
+  `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_mysql561_ci DEFAULT NULL,
+  `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_mysql561_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_mysql561_ci
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM mysql050614_xxx_croatian_ci GROUP BY a;
+GROUP_CONCAT(a ORDER BY BINARY a)
+NJ,Nj,nJ,nj
+DROP TABLE maria050313_ucs2_croatian_ci_def;
+DROP TABLE maria050313_utf8_croatian_ci;
+DROP TABLE maria050533_xxx_croatian_ci;
+DROP TABLE maria100004_xxx_croatian_ci;
+DROP TABLE mysql050614_xxx_croatian_ci;

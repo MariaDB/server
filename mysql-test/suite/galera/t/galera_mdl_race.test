@@ -1,0 +1,72 @@
+#
+# This test tests a potential race condition in MDL locking
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) engine=innodb;
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) engine=innodb;
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (2, 'a');
+
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+
+# block access to t2
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+LOCK TABLE t2 WRITE;
+
+# Block before MLD lock wait
+--connection node_1
+  SET @@debug_dbug = "d,sync.wsrep_before_mdl_wait";
+--send SELECT * FROM t2;
+
+# Wait for SELECT to be blocked
+--connection node_1a
+#--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIS  WHERE STATE = 'System lock';
+#--source include/wait_condition.inc
+#--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'init' AND INFO = 'COMMIT';
+#--source include/wait_condition.inc
+
+# block applier to wait after BF victim is locked
+SET @@debug_dbug = "d,sync.wsrep_after_BF_victim_lock";
+
+# Issue a conflicting update on node #2
+--connection node_2
+UPDATE t1 SET f2 = 'c' WHERE f1 = 1;
+
+# Unblock the SELECT, to enter wsrep_thd_is_BF
+--connection node_1a
+SET @@debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_before_mdl_wait";
+
+# unblock applier to try to BF the SELECT
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_after_BF_victim_lock";
+
+# table lock is not needed anymore
+UNLOCK TABLES;
+
+# SELECT succeeds
+--connection node_1
+
+--error ER_LOCK_DEADLOCK
+--reap
+
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'a';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'a';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--connection node_1a
+SET DEBUG_SYNC = "RESET";
+

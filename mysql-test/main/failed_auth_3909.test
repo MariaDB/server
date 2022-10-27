@@ -1,0 +1,37 @@
+source include/not_embedded.inc;
+
+#
+# MDEV-3909 remote user enumeration
+#
+# verify that for some failed login attemps (with wrong user names)
+# the server requests a plugin
+#
+create user foo identified via mysql_old_password;
+create user bar identified via mysql_old_password;
+create user baz identified via mysql_old_password;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (fail,localhost,u1);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_SERVER_IS_IN_SECURE_AUTH_MODE
+connect (fail,localhost,uu2);
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_SERVER_IS_IN_SECURE_AUTH_MODE
+connect (fail,localhost,uu2,password);
+
+--error ER_ACCESS_DENIED_ERROR
+change_user u1;
+
+--error ER_SERVER_IS_IN_SECURE_AUTH_MODE
+change_user uu2;
+
+--error ER_SERVER_IS_IN_SECURE_AUTH_MODE
+change_user uu2,password;
+
+delete from mysql.user where plugin = 'mysql_old_password';
+flush privileges;
+
+

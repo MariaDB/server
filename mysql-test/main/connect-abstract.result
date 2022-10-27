@@ -1,0 +1,5 @@
+connect con1,localhost,root,,test,,$ABSTRACT_SOCKET;
+select 1;
+1
+1
+disconnect con1;

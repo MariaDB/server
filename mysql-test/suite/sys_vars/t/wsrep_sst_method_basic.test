@@ -1,0 +1,52 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_sst_method
+--echo #
+
+--echo # save the initial value
+SET @wsrep_sst_method_global_saved = @@global.wsrep_sst_method;
+
+--echo # default
+SELECT @@global.wsrep_sst_method;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_sst_method;
+SET @@global.wsrep_sst_method=rsync;
+SELECT @@global.wsrep_sst_method;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_sst_method=rsync;
+SELECT @@global.wsrep_sst_method;
+SET @@global.wsrep_sst_method=mysqldump;
+SELECT @@global.wsrep_sst_method;
+# The xtrabackup and xtrabackup-v2 methods are obsolete,
+# but we can still select them (they will be automatically
+# replaced to mariabackup):
+SET @@global.wsrep_sst_method=xtrabackup;
+SELECT @@global.wsrep_sst_method;
+SET @@global.wsrep_sst_method="xtrabackup-v2";
+SELECT @@global.wsrep_sst_method;
+SET @@global.wsrep_sst_method="mariabackup";
+SELECT @@global.wsrep_sst_method;
+SET @@global.wsrep_sst_method=default;
+SELECT @@global.wsrep_sst_method;
+
+# Its a valid name for an SST method
+SET @@global.wsrep_sst_method='junk';
+SELECT @@global.wsrep_sst_method;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_sst_method=NULL;
+SELECT @@global.wsrep_sst_method;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_sst_method = @wsrep_sst_method_global_saved;
+
+--echo # End of test

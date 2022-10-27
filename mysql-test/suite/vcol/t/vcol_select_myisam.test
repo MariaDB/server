@@ -1,0 +1,132 @@
+###############################################################################
+# t/vcol_select.test                                                          #
+#                                                                             #
+# Purpose:                                                                    #
+#  Testing different SELECTs.                                                 #
+#                                                                             #
+#        MyISAM branch                                                        #
+#                                                                             #
+#-----------------------------------------------------------------------------#
+# Original Author: Andrey Zhakov                                              #
+# Original Date: 2008-09-18                                                   #
+# Change Author:                                                              #
+# Change Date:                                                                #
+# Change:                                                                     #
+###############################################################################
+
+#
+# NOTE: PLEASE DO NOT ADD NOT MYISAM SPECIFIC TESTCASES HERE !
+#       TESTCASES WHICH MUST BE APPLIED TO ALL STORAGE ENGINES MUST BE ADDED IN
+#       THE SOURCED FILES ONLY.
+#
+
+#-----------------------------------------------------------------------------#
+# Cleanup
+--source include/default_optimizer_switch.inc
+--source suite/vcol/inc/vcol_cleanup.inc
+
+#-----------------------------------------------------------------------------#
+# General not engine specific settings and requirements
+--source suite/vcol/inc/vcol_init_vars.pre
+
+#-----------------------------------------------------------------------------#
+# Engine specific settings and requirements
+
+##### Storage engine to be tested
+# Set the session storage engine
+eval SET @@session.storage_engine = 'MyISAM';
+
+##### Workarounds for known open engine specific bugs
+#     none
+
+#-----------------------------------------------------------------------------#
+# Execute the tests to be applied to all storage engines
+--source suite/vcol/inc/vcol_select.inc
+
+#-----------------------------------------------------------------------------#
+# Execute storage engine specific tests
+
+#-----------------------------------------------------------------------------#
+# Cleanup
+--source suite/vcol/inc/vcol_cleanup.inc
+
+--echo #
+--echo # Bug #806057: join with USING over a virtual column 
+--echo #
+
+CREATE TABLE t1 (b int);
+INSERT INTO t1 VALUES (NULL),( 78), (185), (0), (154);
+
+CREATE TABLE t2 (a int, b int AS (a) VIRTUAL);
+INSERT IGNORE INTO t2 VALUES (187,187), (9,9), (187,187);
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 JOIN t2 USING (b);
+SELECT * FROM t1 JOIN t2 USING (b);
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 NATURAL JOIN t2;
+SELECT * FROM t1 NATURAL JOIN t2;
+
+DROP TABLE t1,t2;
+
+#
+# MDEV-11525 Assertion `cp + len <= buff + buff_size' failed in JOIN_CACHE::write_record_data
+#
+
+create table t1 (
+  pk integer auto_increment,
+  bi integer not null,
+  vi integer generated always as (bi) persistent,
+  bc varchar(1) not null,
+  vc varchar(2) generated always as (concat(bc, bc)) persistent,
+  primary key (pk),
+  key (vi, vc));
+insert t1 (bi, bc) values (0, 'x'), (0, 'n'), (1, 'w'), (7, 's'), (0, 'a'), (4, 'd'), (1, 'w'), (1, 'j'), (1, 'm'), (4, 'k'), (7, 't'), (4, 'k'), (2, 'e'), (0, 'i'), (1, 't'), (6, 'z'), (3, 'c'), (6, 'i'), (8, 'v');
+create table t2 (
+  pk integer auto_increment,
+  bi integer not null,
+  vi integer generated always as (bi) persistent,
+  bc varchar(257) not null,
+  vc varchar(2) generated always as (concat(bc, bc)) persistent,
+  primary key (pk),
+  key (vi, vc));
+insert t2 (bi, bc) values (1, 'c'), (8, 'm'), (9, 'd'), (6, 'y'), (1, 't'), (6, 'd'), (2, 's'), (4, 'r'), (8, 'm'), (4, 'b'), (4, 'x'), (7, 'g'), (4, 'p'), (1, 'q'), (9, 'w'), (4, 'd'), (8, 'e'), (4, 'b'), (8, 'y');
+explain # should be using join buffer
+select t2.vi from (t2 as t3 right join (t2 left join t1 on (t1.bi = t2.vi)) on (t1.vc = t2.vc));
+--sorted_result
+select t2.vi from (t2 as t3 right join (t2 left join t1 on (t1.bi = t2.vi)) on (t1.vc = t2.vc));
+drop table t2,t1;
+
+#
+# End of 5.5 tests
+#
+
+#
+# MDEV-11640 gcol.gcol_select_myisam fails in buildbot on Power
+# (same as MDEV-11525 above, but for virtual columns)
+#
+
+create table t1 (
+  pk integer auto_increment,
+  bi integer not null,
+  vi integer generated always as (bi) virtual,
+  bc varchar(1) not null,
+  vc varchar(2) generated always as (concat(bc, bc)),
+  primary key (pk),
+  key (vi, vc));
+insert t1 (bi, bc) values (0, 'x'), (0, 'n'), (1, 'w'), (7, 's'), (0, 'a'), (4, 'd'), (1, 'w'), (1, 'j'), (1, 'm'), (4, 'k'), (7, 't'), (4, 'k'), (2, 'e'), (0, 'i'), (1, 't'), (6, 'z'), (3, 'c'), (6, 'i'), (8, 'v');
+create table t2 (
+  pk integer auto_increment,
+  bi integer not null,
+  vi integer generated always as (bi) virtual,
+  bc varchar(257) not null,
+  vc varchar(2) generated always as (concat(bc, bc)),
+  primary key (pk),
+  key (vi, vc));
+insert t2 (bi, bc) values (1, 'c'), (8, 'm'), (9, 'd'), (6, 'y'), (1, 't'), (6, 'd'), (2, 's'), (4, 'r'), (8, 'm'), (4, 'b'), (4, 'x'), (7, 'g'), (4, 'p'), (1, 'q'), (9, 'w'), (4, 'd'), (8, 'e'), (4, 'b'), (8, 'y');
+explain # should be using join buffer
+select t2.vi from (t2 as t3 right join (t2 left join t1 on (t1.bi = t2.vi)) on (t1.vc = t2.vc));
+--sorted_result
+select t2.vi from (t2 as t3 right join (t2 left join t1 on (t1.bi = t2.vi)) on (t1.vc = t2.vc));
+drop table t2,t1;

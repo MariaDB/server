@@ -1,0 +1,25 @@
+#
+# MDEV-6082 Assertion `0' fails in TC_LOG_DUMMY::log_and_order on DML after installing TokuDB at runtime on server with disabled InnoDB
+#
+--source include/not_embedded.inc
+
+# this test needs exactly one (1) XA-capable engine running initially.
+# it's binlog "engine" in 10.0 but wsrep in here, because it cannot be disabled
+--source include/have_wsrep.inc
+
+if (!$HA_INNODB_SO) {
+  --skip Need InnoDB plugin
+}
+install plugin innodb soname 'ha_innodb';
+select engine,support,transactions,xa from information_schema.engines where engine='innodb';
+create table t1 (a int) engine=innodb;
+start transaction;
+insert t1 values (1);
+insert t1 values (2);
+commit;
+show status like 'Handler_prepare';
+drop table t1;
+uninstall plugin innodb;
+
+--source include/restart_mysqld.inc
+

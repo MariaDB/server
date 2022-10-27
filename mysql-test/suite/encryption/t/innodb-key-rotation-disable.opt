@@ -1,0 +1,5 @@
+--innodb-encrypt-tables
+--innodb-encrypt-log
+--innodb-encryption-rotate-key-age=0
+--innodb-encryption-threads=4
+--innodb-tablespaces-encryption

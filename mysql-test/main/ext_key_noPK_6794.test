@@ -1,0 +1,15 @@
+#
+# MDEV-6794 XtraDB no longer using UNIQUE as clustered index when PK missing
+# 
+
+--source include/have_innodb.inc
+
+create table t1 (c1 int not null, c2 int, unique index(c1), index (c2)) engine=innodb;
+insert into t1 (c1, c2) select 1, round(rand()*100);
+insert into t1 (c1, c2) select (select max(c1) from t1) + c1, c1*93563%100 from t1;
+insert into t1 (c1, c2) select (select max(c1) from t1) + c1, c1*93563%100 from t1;
+insert into t1 (c1, c2) select (select max(c1) from t1) + c1, c1*93563%100 from t1;
+select count(*) from t1;
+--query_vertical explain select * from t1 where c2 = 1 order by c1
+drop table t1;
+

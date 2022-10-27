@@ -1,0 +1,82 @@
+select * from performance_schema.setup_instruments;
+select * from performance_schema.setup_instruments
+where name like 'Wait/Synch/Mutex/sql/%'
+  and name not in ('wait/synch/mutex/sql/DEBUG_SYNC::mutex')
+order by name limit 10;
+NAME	ENABLED	TIMED
+wait/synch/mutex/sql/Ack_receiver::mutex	YES	YES
+wait/synch/mutex/sql/Cversion_lock	YES	YES
+wait/synch/mutex/sql/Delayed_insert::mutex	YES	YES
+wait/synch/mutex/sql/Event_scheduler::LOCK_scheduler_state	YES	YES
+wait/synch/mutex/sql/gtid_waiting::LOCK_gtid_waiting	YES	YES
+wait/synch/mutex/sql/hash_filo::lock	YES	YES
+wait/synch/mutex/sql/HA_DATA_PARTITION::LOCK_auto_inc	YES	YES
+wait/synch/mutex/sql/LOCK_active_mi	YES	YES
+wait/synch/mutex/sql/LOCK_after_binlog_sync	YES	YES
+wait/synch/mutex/sql/LOCK_audit_mask	YES	YES
+select * from performance_schema.setup_instruments
+where name like 'Wait/Synch/Rwlock/sql/%'
+  and name not in (
+'wait/synch/rwlock/sql/CRYPTO_dynlock_value::lock',
+'wait/synch/rwlock/sql/LOCK_named_pipe_full_access_group')
+order by name limit 10;
+NAME	ENABLED	TIMED
+wait/synch/rwlock/sql/LOCK_all_status_vars	YES	YES
+wait/synch/rwlock/sql/LOCK_dboptions	YES	YES
+wait/synch/rwlock/sql/LOCK_grant	YES	YES
+wait/synch/rwlock/sql/LOCK_SEQUENCE	YES	YES
+wait/synch/rwlock/sql/LOCK_ssl_refresh	YES	YES
+wait/synch/rwlock/sql/LOCK_system_variables_hash	YES	YES
+wait/synch/rwlock/sql/LOCK_sys_init_connect	YES	YES
+wait/synch/rwlock/sql/LOCK_sys_init_slave	YES	YES
+wait/synch/rwlock/sql/LOGGER::LOCK_logger	YES	YES
+wait/synch/rwlock/sql/MDL_context::LOCK_waiting_for	YES	YES
+select * from performance_schema.setup_instruments
+where name like 'Wait/Synch/Cond/sql/%'
+  and name not in (
+'wait/synch/cond/sql/COND_handler_count',
+'wait/synch/cond/sql/DEBUG_SYNC::cond')
+order by name limit 10;
+NAME	ENABLED	TIMED
+wait/synch/cond/sql/Ack_receiver::cond	YES	YES
+wait/synch/cond/sql/COND_binlog_send	YES	YES
+wait/synch/cond/sql/COND_flush_thread_cache	YES	YES
+wait/synch/cond/sql/COND_group_commit_orderer	YES	YES
+wait/synch/cond/sql/COND_gtid_ignore_duplicates	YES	YES
+wait/synch/cond/sql/COND_manager	YES	YES
+wait/synch/cond/sql/COND_parallel_entry	YES	YES
+wait/synch/cond/sql/COND_prepare_ordered	YES	YES
+wait/synch/cond/sql/COND_queue_state	YES	YES
+wait/synch/cond/sql/COND_rpl_thread	YES	YES
+select * from performance_schema.setup_instruments
+where name='Wait';
+select * from performance_schema.setup_instruments
+where enabled='YES';
+insert into performance_schema.setup_instruments
+set name='FOO', enabled='YES', timed='YES';
+ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'setup_instruments'
+update performance_schema.setup_instruments
+set name='FOO';
+ERROR HY000: Invalid performance_schema usage
+update performance_schema.setup_instruments
+set enabled='NO';
+update performance_schema.setup_instruments
+set timed='NO';
+select * from performance_schema.setup_instruments;
+update performance_schema.setup_instruments
+set enabled='YES', timed='YES';
+delete from performance_schema.setup_instruments;
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'setup_instruments'
+delete from performance_schema.setup_instruments
+where name like 'Wait/Synch/%';
+ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'setup_instruments'
+LOCK TABLES performance_schema.setup_instruments READ;
+UNLOCK TABLES;
+LOCK TABLES performance_schema.setup_instruments WRITE;
+UNLOCK TABLES;
+
+# Bug#13813193 ASSERTION `TABLE->READ_SET ==
+# &TABLE->DEF_READ_SET' FAILED / MYSQL_UPDATE
+
+UPDATE performance_schema.setup_instruments SET timed='NO'
+ORDER BY RAND();

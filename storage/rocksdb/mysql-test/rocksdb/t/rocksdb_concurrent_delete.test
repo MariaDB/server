@@ -1,0 +1,38 @@
+# rocksdb_concurrent_delete test case covers snapshot conflicts, and
+# verifying locking reads not stopping scanning when hitting row not found.
+# The following code coverages are covered.
+#
+# 1. PK full scan (key=NULL)
+# first row, and other rows
+# ha_rnd_next -> rnd_next -> rnd_next_with_direction
+#
+# 2. PK range scan (key=PRIMARY)
+# first row
+# read_range_first -> index_read_map_impl -> read_row_from_primary_key
+# next row
+# index_next -> index_next_with_direction -> rnd_next_with_direction
+# 
+# 3. SK full scan
+# first row
+# index_first -> index_first_intern -> index_next_with_direction -> secondary_index_read
+# next row
+# index_next -> index_next_with_direction -> secondary_index_read
+#
+# 4. SK range scan
+# first row
+# read_range_first -> index_read_map_impl -> read_row_from_secondary_key
+# next row
+# index_next -> index_next_with_direction -> secondary_index_read
+#
+# In all cases, RR gets snapshot conflict errors if non-first rows get
+# deleted by another transaction after scanning.
+
+--source include/have_rocksdb.inc
+--source include/have_debug_sync.inc
+
+let $isolation_level = REPEATABLE READ;
+--source rocksdb_concurrent_delete_main.inc
+
+let $isolation_level = READ COMMITTED;
+--source rocksdb_concurrent_delete_main.inc
+

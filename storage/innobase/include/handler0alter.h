@@ -1,0 +1,108 @@
+/*****************************************************************************
+
+Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; version 2 of the License.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
+
+*****************************************************************************/
+
+/**************************************************//**
+@file include/handler0alter.h
+Smart ALTER TABLE
+*******************************************************/
+
+#include "rem0types.h"
+
+/*************************************************************//**
+Copies an InnoDB record to table->record[0]. */
+void
+innobase_rec_to_mysql(
+/*==================*/
+	struct TABLE*		table,	/*!< in/out: MySQL table */
+	const rec_t*		rec,	/*!< in: record */
+	const dict_index_t*	index,	/*!< in: index */
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(
+					rec, index, ...) */
+	MY_ATTRIBUTE((nonnull));
+
+/*************************************************************//**
+Copies an InnoDB index entry to table->record[0]. */
+void
+innobase_fields_to_mysql(
+/*=====================*/
+	struct TABLE*		table,	/*!< in/out: MySQL table */
+	const dict_index_t*	index,	/*!< in: InnoDB index */
+	const dfield_t*		fields)	/*!< in: InnoDB index fields */
+	MY_ATTRIBUTE((nonnull));
+
+/*************************************************************//**
+Copies an InnoDB row to table->record[0]. */
+void
+innobase_row_to_mysql(
+/*==================*/
+	struct TABLE*		table,	/*!< in/out: MySQL table */
+	const dict_table_t*	itab,	/*!< in: InnoDB table */
+	const dtuple_t*		row)	/*!< in: InnoDB row */
+	MY_ATTRIBUTE((nonnull));
+
+/** Generate the next autoinc based on a snapshot of the session
+auto_increment_increment and auto_increment_offset variables. */
+struct ib_sequence_t {
+
+	/**
+	@param thd the session
+	@param start_value the lower bound
+	@param max_value the upper bound (inclusive) */
+	ib_sequence_t(THD* thd, ulonglong start_value, ulonglong max_value);
+
+	/** Postfix increment
+	@return the value to insert */
+	ulonglong operator++(int) UNIV_NOTHROW;
+
+	/** Check if the autoinc "sequence" is exhausted.
+	@return true if the sequence is exhausted */
+	bool eof() const UNIV_NOTHROW
+	{
+		return(m_eof);
+	}
+
+	/**
+	@return the next value in the sequence */
+	ulonglong last() const UNIV_NOTHROW
+	{
+		ut_ad(m_next_value > 0);
+
+		return(m_next_value);
+	}
+
+	/** @return maximum column value
+	@retval	0	if not adding AUTO_INCREMENT column */
+	ulonglong max_value() const { return m_max_value; }
+
+private:
+	/** Maximum value if adding an AUTO_INCREMENT column, else 0 */
+	ulonglong	m_max_value;
+
+	/** Value of auto_increment_increment */
+	ulong		m_increment;
+
+	/** Value of auto_increment_offset */
+	ulong		m_offset;
+
+	/** Next value in the sequence */
+	ulonglong	m_next_value;
+
+	/** true if no more values left in the sequence */
+	bool		m_eof;
+};

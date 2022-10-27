@@ -1,0 +1,160 @@
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+#
+# Bug #28499: crash for grouping query when tmp_table_size is too small
+#
+CREATE TABLE t1 (
+  a varchar(32) character set utf8 collate utf8_bin NOT NULL,
+  b varchar(32) character set utf8 collate utf8_bin NOT NULL )
+ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+INSERT INTO t1 VALUES
+  ('AAAAAAAAAA','AAAAAAAAAA'), ('AAAAAAAAAB','AAAAAAAAAB '),
+  ('AAAAAAAAAB','AAAAAAAAAB'), ('AAAAAAAAAC','AAAAAAAAAC'),
+  ('AAAAAAAAAD','AAAAAAAAAD'), ('AAAAAAAAAE','AAAAAAAAAE'),
+  ('AAAAAAAAAF','AAAAAAAAAF'), ('AAAAAAAAAG','AAAAAAAAAG'),
+  ('AAAAAAAAAH','AAAAAAAAAH'), ('AAAAAAAAAI','AAAAAAAAAI'),
+  ('AAAAAAAAAJ','AAAAAAAAAJ'), ('AAAAAAAAAK','AAAAAAAAAK');
+
+set tmp_table_size=1024;
+
+# Set debug flag so an error is returned when
+# tmp table in query is converted from heap to myisam
+SET @saved_dbug = @@SESSION.debug_dbug;
+set session debug_dbug="+d,raise_error";
+
+--error ER_DUP_KEY
+SELECT MAX(a) FROM t1 GROUP BY a,b;
+
+set tmp_table_size=default;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #50946: fast index creation still seems to copy the table
+--echo #
+CREATE TABLE t1 (a INT(100) NOT NULL);
+INSERT INTO t1 VALUES (1), (0), (2);
+SET SESSION debug_dbug='+d,alter_table_only_index_change';
+ALTER TABLE t1 ADD INDEX a(a);
+SET debug_dbug= @saved_dbug;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#42064: low memory crash when importing hex strings, in Item_hex_string::Item_hex_string
+--echo #
+
+CREATE TABLE t1(a BLOB);
+
+SET SESSION debug_dbug="+d,bug42064_simulate_oom";
+# May fail with either ER_OUT_OF_RESOURCES or EE_OUTOFMEMORY
+--error ER_OUT_OF_RESOURCES, 5
+INSERT INTO t1 VALUES("");
+SET debug_dbug= @saved_dbug;
+
+DROP TABLE t1;
+
+-- echo #
+-- echo # Bug#41660: Sort-index_merge for non-first join table may require 
+-- echo # O(#scans) memory
+-- echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+
+CREATE TABLE t2 (a INT, b INT, filler CHAR(100), KEY(a), KEY(b));
+INSERT INTO t2 SELECT 1000, 1000, 'filler' FROM t1 A, t1 B, t1 C;
+INSERT INTO t2 VALUES (1, 1, 'data');
+
+--echo # the example query uses LEFT JOIN only for the sake of being able to
+--echo # demonstrate the issue with a very small dataset. (left outer join 
+--echo # disables the use of join buffering, so we get the second table 
+--echo # re-scanned for every record in the outer table. if we used inner join,
+--echo # we would need to have thousands of records and/or more columns in both
+--echo # tables so that the join buffer is filled and re-scans are triggered).
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='outer_join_with_cache=off';
+
+SET SESSION debug_dbug= '+d,only_one_Unique_may_be_created';
+
+--replace_column 1 x 2 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x
+EXPLAIN
+SELECT * FROM t1 LEFT JOIN t2 ON ( t2.a < 10 OR t2.b < 10 );
+SELECT * FROM t1 LEFT JOIN t2 ON ( t2.a < 10 OR t2.b < 10 );
+
+SET debug_dbug= @saved_dbug;
+
+SET optimizer_switch=@save_optimizer_switch;
+
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # Bug#11747970 34660: CRASH WHEN FEDERATED TABLE LOSES CONNECTION DURING INSERT ... SELECT
+--echo #
+CREATE TABLE t1(f1 INT, KEY(f1));
+CREATE TABLE t2(f1 INT);
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2);
+SET SESSION debug_dbug="+d,bug11747970_raise_error";
+--error ER_QUERY_INTERRUPTED
+INSERT IGNORE INTO t2 SELECT f1 FROM t1 a WHERE NOT EXISTS (SELECT 1 FROM t2 b WHERE a.f1 = b.f1);
+SET debug_dbug= @saved_dbug;
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # End of 5.1 tests
+--echo #
+
+
+--echo #
+--echo # BUG#11747548:DETECT ORPHAN TEMP-POOL FILES, AND HANDLE GRACEFULLY.
+--echo #
+
+--echo #Set up.
+CREATE TABLE pid_table(pid_no INT);
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES (1), (2);
+
+--echo #Create MYD and MYI files for intrinsic temp table.
+--let $pid_file=`SELECT @@pid_file`
+--replace_result $pid_file pid_file
+--eval LOAD DATA LOCAL INFILE '$pid_file' INTO TABLE pid_table
+--let $temp_file= `SELECT CONCAT('#sql_', LCASE(HEX(pid_no)), '_0') FROM pid_table`
+--write_file $MYSQLTEST_VARDIR/tmp/$temp_file.MYD
+EOF
+--write_file $MYSQLTEST_VARDIR/tmp/$temp_file.MYI
+EOF
+--write_file $MYSQLTEST_VARDIR/tmp/$temp_file.MAD
+EOF
+--write_file $MYSQLTEST_VARDIR/tmp/$temp_file.MAI
+EOF
+
+--echo #Reports an error since the temp file already exists.
+--replace_regex /.*Can't create\/write *.*/Can't create or write to file/
+#--error 1
+SELECT a FROM t1 ORDER BY rand(1);
+
+--echo #With patch, the query executes successfully.
+SELECT a FROM t1 ORDER BY rand(1);
+
+--echo #cleanup
+DROP TABLE t1, pid_table;
+
+
+
+--echo #
+--echo # MDEV-12416 OOM in create_virtual_tmp_table() makes the server crash
+--echo #
+
+CREATE FUNCTION f1(a INT) RETURNS INT RETURN a;
+SET SESSION debug_dbug="+d,simulate_create_virtual_tmp_table_out_of_memory";
+# May fail with either ER_OUT_OF_RESOURCES or EE_OUTOFMEMORY
+--error ER_OUT_OF_RESOURCES, 5
+SELECT f1(1);
+DROP FUNCTION f1;
+SET debug_dbug= @saved_dbug;

@@ -1,0 +1,18 @@
+connect  con1,localhost,root,,;
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+#	root	#	test	Sleep	#	#	NULL	0.000
+#	root	#	test	Query	#	#	SHOW PROCESSLIST	0.000
+SET DEBUG_SYNC='before_execute_sql_command SIGNAL ready WAIT_FOR go';
+SHOW PROCESSLIST;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR ready';
+KILL QUERY con_id;
+SET DEBUG_SYNC='now SIGNAL go';
+connection con1;
+ERROR 70100: Query execution was interrupted
+SET DEBUG_SYNC='reset';
+SHOW PROCESSLIST;
+Id	User	Host	db	Command	Time	State	Info	Progress
+#	root	#	test	Sleep	#	#	NULL	0.000
+#	root	#	test	Query	#	#	SHOW PROCESSLIST	0.000

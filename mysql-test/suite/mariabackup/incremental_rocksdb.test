@@ -1,0 +1,38 @@
+--source include/have_rocksdb.inc
+call mtr.add_suppression("InnoDB: New log files created");
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
+
+CREATE TABLE t(i INT PRIMARY KEY) ENGINE ROCKSDB;
+INSERT INTO t VALUES(1);
+
+echo # Create full backup , modify table, then create incremental/differential backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+DROP TABLE t;
+CREATE TABLE t2(i INT PRIMARY KEY) ENGINE ROCKSDB;
+INSERT INTO t2 VALUES(2);
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$incremental_dir --incremental-basedir=$basedir;
+
+--disable_result_log
+echo # Prepare full backup, apply incremental one;
+exec $XTRABACKUP --prepare --target-dir=$basedir;
+
+exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir ;
+
+echo # Restore and check results;
+let $targetdir=$basedir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+SELECT * FROM t2;
+DROP TABLE t2;
+--error ER_BAD_TABLE_ERROR
+DROP TABLE t;
+
+# Cleanup
+rmdir $basedir;
+rmdir $incremental_dir;
+

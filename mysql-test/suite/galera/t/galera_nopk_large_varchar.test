@@ -1,0 +1,50 @@
+#
+# This checks that even tables with a single long VARCHARcolumn and no FK are replicated properly
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# From the Innodb manual: "The maximum row length, except for variable-length columns (VARBINARY, VARCHAR, BLOB and TEXT),
+# is slightly less than half of a database page. That is, the maximum row length is about 8000 bytes"
+
+CREATE TABLE t1 (f1 VARCHAR(8000)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL),(CONCAT(REPEAT('x', 7999), 'a'));
+
+--connection node_2
+SELECT LENGTH(f1) FROM t1;
+
+DELETE FROM t1 WHERE f1 IS NULL;
+UPDATE t1 SET f1 = CONCAT(REPEAT('x', 7999), 'b') WHERE f1 = CONCAT(REPEAT('x', 7999), 'a');
+
+--connection node_1
+SELECT COUNT(*) = 1 FROM t1;
+SELECT LENGTH(f1) = 8000 FROM t1;
+SELECT f1 = CONCAT(REPEAT('x', 7999), 'b') FROM t1;
+
+#
+# Provoke a conflict
+#
+
+--connection node_1
+CREATE TABLE t2 (f1 BLOB) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (CONCAT(REPEAT('x', 7999), 'a'));
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t2 SET f1 = 'abc' WHERE f1 = CONCAT(REPEAT('x', 7999), 'a');
+
+--connection node_2
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t2 SET f1 = 'xyz' WHERE f1 = CONCAT(REPEAT('x', 7999), 'a');
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+DROP TABLE t1;
+DROP TABLE t2;

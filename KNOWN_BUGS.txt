@@ -1,0 +1,15 @@
+This file should contain all known fatal bugs in MariaDB for the last
+source or binary release. Minor bugs, extensions and feature requests,
+and bugs found since this release can be found in the MariaDB bugs
+database at: https://jira.mariadb.org
+
+There should not normally be any bugs which affect normal operations
+in any MariaDB release. Still, there are always exceptions and edge
+cases and that is what this file is for.
+
+If you have find bug please add it to https://jira.mariadb.org so
+that we are can try to fix it for the next release. You can also add
+feature request to the JIRA.
+
+The latest documentation for the MariaDB server can be found at:
+https://mariadb.com/kb

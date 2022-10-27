@@ -1,0 +1,20 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+bindir=@bindir@
+sbindir=@sbindir@
+libdir=@libdir@
+includedir=@includedir@
+datarootdir=@datarootdir@
+datadir=@datadir@
+document_root=@GRN_EXPANDED_DEFAULT_DOCUMENT_ROOT@
+pluginsdir=@expanded_pluginsdir@
+groonga=${bindir}/groonga@EXEEXT@
+groonga_httpd=${sbindir}/groonga-httpd@EXEEXT@
+groonga_suggest_create_dataset=${bindir}/groonga-suggest-create-dataset@EXEEXT@
+groonga_version=@GRN_VERSION@
+
+Name: Groonga
+Description: An Embeddable Fulltext Search Engine
+Version: @VERSION@
+Libs: -L${libdir} -lgroonga
+Cflags: -I${includedir}/groonga

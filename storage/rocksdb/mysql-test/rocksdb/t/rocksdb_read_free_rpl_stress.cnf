@@ -1,0 +1,17 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+sync_binlog=0
+binlog_format=row
+rocksdb_perf_context_level=3
+
+[mysqld.2]
+sync_binlog=0
+binlog_format=row
+slave-exec-mode=strict
+rocksdb_perf_context_level=3
+slave_use_idempotent_for_recovery=YES
+slave_parallel_workers=8
+mts_dependency_replication=STMT
+mts_dependency_order_commits=0
+slave_tx_isolation=READ-COMMITTED

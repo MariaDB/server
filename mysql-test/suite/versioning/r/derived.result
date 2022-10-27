@@ -1,0 +1,295 @@
+create table emp
+(
+emp_id int,
+name varchar(127),
+mgr int
+) with system versioning;
+insert into emp values (1, 'bill', 0),
+(2, 'bill', 1),
+(3, 'kate', 1);
+set @ts=now(6);
+delete from emp;
+insert into emp values (4, 'john', 1);
+with ancestors as (select * from emp) select * from ancestors;
+emp_id	name	mgr
+4	john	1
+set @tmp= "with ancestors as (select * from emp) select * from ancestors";
+prepare stmt from @tmp;
+execute stmt;
+emp_id	name	mgr
+4	john	1
+drop prepare stmt;
+with ancestors as (select * from emp for system_time all) select * from ancestors;
+emp_id	name	mgr
+1	bill	0
+2	bill	1
+3	kate	1
+4	john	1
+set @tmp= "with ancestors as (select * from emp for system_time all) select * from ancestors";
+prepare stmt from @tmp;
+execute stmt;
+emp_id	name	mgr
+1	bill	0
+2	bill	1
+3	kate	1
+4	john	1
+drop prepare stmt;
+with recursive ancestors as (select * from emp) select * from ancestors;
+emp_id	name	mgr
+4	john	1
+set @tmp= "with recursive ancestors as (select * from emp) select * from ancestors";
+prepare stmt from @tmp;
+execute stmt;
+emp_id	name	mgr
+4	john	1
+drop prepare stmt;
+select emp_id from (select emp_id from emp where row_end>'2031-1-1') as tmp;
+emp_id
+4
+set @tmp= "select emp_id from (select emp_id from emp where row_end>'2031-1-1') as tmp";
+prepare stmt from @tmp;
+execute stmt;
+emp_id
+4
+drop prepare stmt;
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr
+from emp as e
+where name = 'john'
+  union
+select ee.emp_id, ee.name, ee.mgr
+from emp as ee, ancestors as a
+where ee.mgr = a.emp_id
+)
+select * from ancestors;
+emp_id	name	mgr
+4	john	1
+set @tmp= "
+with recursive
+ancestors
+as
+(
+  select e.emp_id, e.name, e.mgr
+  from emp as e
+  where name = 'john'
+  union
+  select ee.emp_id, ee.name, ee.mgr
+  from emp as ee, ancestors as a
+  where ee.mgr = a.emp_id
+)
+select * from ancestors";
+prepare stmt from @tmp;
+execute stmt;
+emp_id	name	mgr
+4	john	1
+drop prepare stmt;
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr
+from emp for system_time as of timestamp @ts as e
+where name = 'bill'
+  union
+select ee.emp_id, ee.name, ee.mgr
+from emp for system_time as of timestamp @ts as ee,
+ancestors as a
+where ee.mgr = a.emp_id
+)
+select * from ancestors;
+emp_id	name	mgr
+1	bill	0
+2	bill	1
+3	kate	1
+set @tmp= "
+with recursive
+ancestors
+as
+(
+  select e.emp_id, e.name, e.mgr
+  from emp for system_time as of timestamp @ts as e
+  where name = 'bill'
+  union
+  select ee.emp_id, ee.name, ee.mgr
+  from emp for system_time as of timestamp @ts as ee,
+  ancestors as a
+  where ee.mgr = a.emp_id
+)
+select * from ancestors";
+prepare stmt from @tmp;
+execute stmt;
+emp_id	name	mgr
+1	bill	0
+2	bill	1
+3	kate	1
+drop prepare stmt;
+drop table emp;
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int) with system versioning;
+insert into t1 values (1);
+set @t0= now(6);
+delete from t1;
+insert into t1 values (2);
+insert into t2 values (10);
+select * from (select *, t1.row_end, t1.row_end as endo from t1) as s0;
+x	row_end	endo
+2	#	#
+select * from (select *, t1.row_end, t2.row_start from t1, t2) as s0;
+x	y	row_end	row_start
+2	10	#	#
+# SYSTEM_TIME propagation from inner to outer
+select * from (select * from t1 for system_time as of timestamp @t0, t2) as s0;
+x	y
+1	10
+with s1 as (select * from t1 for system_time as of timestamp @t0, t2) select * from s1;
+x	y
+1	10
+# leading table selection
+select * from (select *, t1.row_end from t2, t1 for system_time as of timestamp @t0) as s2;
+y	x	row_end
+10	1	#
+with s3 as (select *, t1.row_end from t2, t1 for system_time as of timestamp @t0) select * from s3;
+y	x	row_end
+10	1	#
+### VIEW instead of t1
+set @q= concat("create view vt1 as select * from t1 for system_time as of timestamp '", @t0, "'");
+prepare q from @q;
+execute q;
+drop prepare q;
+create view vt2 as select * from t1;
+# SYSTEM_TIME propagation from view
+select * from vt1;
+x
+1
+# SYSTEM_TIME propagation from inner to outer
+select * from (select * from vt1, t2) as s0;
+x	y
+1	10
+### SYSTEM_TIME clash
+select * from (select * from t1 for system_time all) for system_time all as dt0;
+ERROR HY000: Table `dt0` is not system-versioned
+select * from vt1 for system_time all;
+ERROR HY000: Table `vt1` is not system-versioned
+with dt1 as (select * from t1 for system_time all)
+select * from dt1 for system_time all;
+ERROR HY000: Table `dt1` is not system-versioned
+### UNION
+set @t1= now(6);
+delete from t2;
+insert into t2 values (3);
+# SYSTEM_TIME is not propagated
+select x from t1 union
+select y from t2;
+x
+2
+3
+select x from t1 for system_time as of @t0 union
+select y from t2;
+x
+1
+3
+select x from t1 union
+select y from t2 for system_time as of @t1;
+x
+2
+10
+select x from t1 for system_time as of @t0 union
+select y from t2 for system_time as of @t1;
+x
+1
+10
+# LEFT/RIGHT JOIN
+create or replace table t1 (x int, y int) with system versioning;
+create or replace table t2 (x int, y int) with system versioning;
+insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
+insert into t2 values (1, 2), (2, 1), (3, 1);
+## Outer or inner SYSTEM_TIME produces same expression
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+Query A:
+Note	1003	select `test`.`t1`.`x` AS `x`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP current_timestamp(6) join `test`.`t2` FOR SYSTEM_TIME AS OF TIMESTAMP current_timestamp(6) where `test`.`t1`.`x` = `test`.`t2`.`x` and `test`.`t2`.`row_end` > <cache>(current_timestamp(6)) and `test`.`t2`.`row_start` <= <cache>(current_timestamp(6)) and `test`.`t1`.`row_end` > <cache>(current_timestamp(6)) and `test`.`t1`.`row_start` <= <cache>(current_timestamp(6))
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+Query B:
+Note	1003	select `test`.`t1`.`x` AS `x`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP current_timestamp(6) join `test`.`t2` FOR SYSTEM_TIME AS OF TIMESTAMP current_timestamp(6) where `test`.`t1`.`x` = `test`.`t2`.`x` and `test`.`t2`.`row_end` > <cache>(current_timestamp(6)) and `test`.`t2`.`row_start` <= <cache>(current_timestamp(6)) and `test`.`t1`.`row_end` > <cache>(current_timestamp(6)) and `test`.`t1`.`row_start` <= <cache>(current_timestamp(6))
+Fine result: queries A and B are equal.
+## LEFT JOIN: t1, t2 versioned
+select * from (
+select t1.x as LJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 left join t2 on t1.x = t2.x)
+as derived;
+LJ1_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+4	4	NULL	NULL
+5	5	NULL	NULL
+alter table t2 drop system versioning;
+## LEFT JOIN: t1 versioned
+select * from (
+select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 left join t2 on t1.x = t2.x)
+as derived;
+LJ2_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+4	4	NULL	NULL
+5	5	NULL	NULL
+alter table t1 drop system versioning;
+alter table t2 add system versioning;
+## LEFT JOIN: t2 versioned
+select * from (
+select t1.x as LJ3_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 left join t2 on t1.x = t2.x)
+as derived;
+LJ3_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+4	4	NULL	NULL
+5	5	NULL	NULL
+alter table t1 add system versioning;
+## RIGHT JOIN: t1, t2 versioned
+select * from (
+select t1.x as RJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 right join t2 on t1.x = t2.x)
+as derived;
+RJ1_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+NULL	NULL	2	1
+NULL	NULL	3	1
+alter table t2 drop system versioning;
+## RIGHT JOIN: t1 versioned
+select * from (
+select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 right join t2 on t1.x = t2.x)
+as derived;
+RJ2_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+NULL	NULL	2	1
+NULL	NULL	3	1
+alter table t1 drop system versioning;
+alter table t2 add system versioning;
+## RIGHT JOIN: t2 versioned
+select * from (
+select t1.x as RJ3_x1, t1.y as y1, t2.x as x2, t2.y as y2
+from t1 right join t2 on t1.x = t2.x)
+as derived;
+RJ3_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+NULL	NULL	2	1
+NULL	NULL	3	1
+drop table t1, t2;
+drop view vt1, vt2;

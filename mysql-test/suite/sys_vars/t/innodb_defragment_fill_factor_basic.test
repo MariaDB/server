@@ -1,0 +1,27 @@
+--source include/have_innodb.inc
+
+SET @start_innodb_defragment_fill_factor = @@global.innodb_defragment_fill_factor;
+SELECT @start_innodb_defragment_fill_factor;
+
+SELECT COUNT(@@global.innodb_defragment_fill_factor);
+
+SET @@global.innodb_defragment_fill_factor = 0.77777777777777;
+SELECT @@global.innodb_defragment_fill_factor;
+
+SET @@global.innodb_defragment_fill_factor = 1;
+SELECT @@global.innodb_defragment_fill_factor;
+
+SET @@global.innodb_defragment_fill_factor = 0.7;
+SELECT @@global.innodb_defragment_fill_factor;
+
+SET @@global.innodb_defragment_fill_factor = -1;
+SELECT @@global.innodb_defragment_fill_factor;
+
+SET @@global.innodb_defragment_fill_factor = 2;
+SELECT @@global.innodb_defragment_fill_factor;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_defragment_fill_factor = "abc";
+SELECT @@global.innodb_defragment_fill_factor;
+
+SET @@global.innodb_defragment_fill_factor = @start_innodb_defragment_fill_factor;

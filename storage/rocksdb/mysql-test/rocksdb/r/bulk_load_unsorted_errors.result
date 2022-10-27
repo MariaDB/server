@@ -1,0 +1,4 @@
+SET rocksdb_bulk_load=1;
+SET rocksdb_bulk_load_allow_unsorted=1;
+ERROR HY000: Error when executing command SET: Cannot change this setting while bulk load is enabled
+SET rocksdb_bulk_load=0;

@@ -1,0 +1,1267 @@
+create table t1 (a int, b int)
+PARTITION BY LIST (a)
+(
+PARTITION p2 VALUES IN (4,5,6),
+PARTITION p1 VALUES IN (1)
+)
+;
+insert into t1 values (10,10);
+ERROR HY000: Table has no partition for value 10
+drop table t1;
+create table t1 (a int, b int)
+PARTITION BY LIST (a)
+(
+PARTITION p2 VALUES IN (4,5,6),
+PARTITION p1 VALUES IN (1),
+PARTITION p0 DEFAULT
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p2` VALUES IN (4,5,6) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN (1) ENGINE = MyISAM,
+ PARTITION `p0` DEFAULT ENGINE = MyISAM)
+insert into t1 values (10,10);
+insert into t1 values (4,4);
+select * from t1;
+a	b
+4	4
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	0
+p2	1
+drop table t1;
+create table t1 (a int, b int)
+PARTITION BY LIST (a)
+(
+PARTITION p2 VALUES IN (4,5,6),
+PARTITION p1 VALUES IN (1),
+PARTITION p0 DEFAULT,
+PARTITION p3 DEFAULT
+)
+;
+ERROR HY000: Only one DEFAULT partition allowed
+create table t1 (a int, b int)
+PARTITION BY LIST (a)
+(
+PARTITION p0 DEFAULT,
+PARTITION p2 VALUES IN (4,5,6),
+PARTITION p1 VALUES IN (1),
+PARTITION p3 DEFAULT
+)
+;
+ERROR HY000: Only one DEFAULT partition allowed
+create table t1 (a int, b int)
+PARTITION BY LIST (a)
+(
+PARTITION p0 DEFAULT,
+PARTITION p2 VALUES IN (4,5,6),
+PARTITION p1 VALUES IN (1)
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p0` DEFAULT ENGINE = MyISAM,
+ PARTITION `p2` VALUES IN (4,5,6) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN (1) ENGINE = MyISAM)
+insert into t1 values (10,10);
+select * from t1;
+a	b
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	0
+p2	0
+drop table t1;
+create table t1 (a int, b int)
+PARTITION BY LIST (a)
+(
+PARTITION p0 DEFAULT,
+PARTITION p2 VALUES IN (4,5,6),
+PARTITION p1 VALUES IN (1, 0)
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p0` DEFAULT ENGINE = MyISAM,
+ PARTITION `p2` VALUES IN (4,5,6) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN (1,0) ENGINE = MyISAM)
+insert into t1 values (10,10);
+select * from t1;
+a	b
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	0
+p2	0
+drop table t1;
+create table t1 (a int, b int)
+PARTITION BY LIST COLUMNS(a,b)
+(
+PARTITION p2 VALUES IN ((1,4),(2,5),(3,6)),
+PARTITION p1 VALUES IN ((1,1),(0,0)),
+PARTITION p0 DEFAULT
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST  COLUMNS(`a`,`b`)
+(PARTITION `p2` VALUES IN ((1,4),(2,5),(3,6)) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN ((1,1),(0,0)) ENGINE = MyISAM,
+ PARTITION `p0` DEFAULT ENGINE = MyISAM)
+insert into t1 values (10,10);
+select * from t1;
+a	b
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	0
+p2	0
+drop table t1;
+create table t1 (a int, b int)
+PARTITION BY LIST COLUMNS(a,b)
+(
+PARTITION p2 VALUES IN ((1,4),(2,5),(3,6)),
+PARTITION p1 VALUES IN ((1,1),(0,0)),
+PARTITION p0 DEFAULT,
+PARTITION p3 DEFAULT
+)
+;
+ERROR HY000: Only one DEFAULT partition allowed
+create table t1 (a int, b int)
+PARTITION BY LIST COLUMNS(a,b)
+(
+PARTITION p0 DEFAULT,
+PARTITION p2 VALUES IN ((1,4),(2,5),(3,6)),
+PARTITION p1 VALUES IN ((1,1),(0,0)),
+PARTITION p3 DEFAULT
+)
+;
+ERROR HY000: Only one DEFAULT partition allowed
+create table t1 (a int, b int)
+PARTITION BY LIST (a)
+(
+PARTITION p2 VALUES IN (4,5,6),
+PARTITION p1 VALUES IN (1,20),
+PARTITION p0 default
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p2` VALUES IN (4,5,6) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN (1,20) ENGINE = MyISAM,
+ PARTITION `p0` DEFAULT ENGINE = MyISAM)
+insert into t1 values (10,10);
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	0
+p2	0
+select * from t1 where a=10;
+a	b
+10	10
+select * from t1 where a<=10;
+a	b
+10	10
+select * from t1 where a<=20;
+a	b
+10	10
+select * from t1 where a>=10;
+a	b
+10	10
+select * from t1 where a>=5;
+a	b
+10	10
+insert into t1 values (20,20),(5,5);
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+p2	1
+select * from t1 where a=10;
+a	b
+10	10
+select * from t1 where a<=10;
+a	b
+5	5
+10	10
+select * from t1 where a<=20;
+a	b
+5	5
+20	20
+10	10
+select * from t1 where a>=10;
+a	b
+20	20
+10	10
+select * from t1 where a>=5;
+a	b
+5	5
+20	20
+10	10
+explain partitions select * from t1 where a=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+explain partitions select * from t1 where a=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+select * from t1 where a=10 or a=5;
+a	b
+5	5
+10	10
+explain partitions select * from t1 where a=10 or a=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2,p0	ALL	NULL	NULL	NULL	NULL	2	Using where
+drop table t1;
+create table t1 (a int, b int)
+PARTITION BY LIST COLUMNS(a,b)
+(
+PARTITION p2 VALUES IN ((1,4),(2,5),(3,6),(5,5)),
+PARTITION p1 VALUES IN ((1,1),(20,20)),
+PARTITION p0 DEFAULT
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST  COLUMNS(`a`,`b`)
+(PARTITION `p2` VALUES IN ((1,4),(2,5),(3,6),(5,5)) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN ((1,1),(20,20)) ENGINE = MyISAM,
+ PARTITION `p0` DEFAULT ENGINE = MyISAM)
+insert into t1 values (10,10);
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	0
+p2	0
+select * from t1 where a=10 and b=10;
+a	b
+10	10
+explain partitions select * from t1 where a=10 and b=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+select * from t1 where a=10;
+a	b
+10	10
+explain partitions select * from t1 where a=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+select * from t1 where a<=10;
+a	b
+10	10
+select * from t1 where a>=10;
+a	b
+10	10
+insert into t1 values (20,20),(5,5);
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+p2	1
+select * from t1 where a=10 and b=10;
+a	b
+10	10
+explain partitions select * from t1 where a=10 and b=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+select * from t1 where a=10 and b=10 or a=20 and b=20;
+a	b
+20	20
+10	10
+explain partitions select * from t1 where a=10 and b=10 or a=20 and b=20;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,p0	ALL	NULL	NULL	NULL	NULL	2	Using where
+drop table t1;
+create table t1 (a int, b int);
+insert into t1 values (10,10),(2,5),(0,0);
+select * from t1;
+a	b
+10	10
+2	5
+0	0
+alter table t1
+PARTITION BY LIST (a+b)
+(
+PARTITION p2 VALUES IN (1,2,3,7),
+PARTITION p1 VALUES IN (21,0),
+PARTITION p0 DEFAULT
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a` + `b`)
+(PARTITION `p2` VALUES IN (1,2,3,7) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN (21,0) ENGINE = MyISAM,
+ PARTITION `p0` DEFAULT ENGINE = MyISAM)
+select * from t1;
+a	b
+2	5
+0	0
+10	10
+explain partitions select * from t1 where a=2 and b=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+explain partitions select * from t1 where a=10 and b=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+drop table t1;
+create table t1 (a int, b int);
+insert into t1 values (10,10),(2,5),(0,0);
+select * from t1;
+a	b
+10	10
+2	5
+0	0
+alter table t1
+PARTITION BY LIST (a+5)
+(
+PARTITION p2 VALUES IN (1,2,3,7),
+PARTITION p1 VALUES IN (0),
+PARTITION p0 DEFAULT
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a` + 5)
+(PARTITION `p2` VALUES IN (1,2,3,7) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN (0) ENGINE = MyISAM,
+ PARTITION `p0` DEFAULT ENGINE = MyISAM)
+select * from t1;
+a	b
+2	5
+10	10
+0	0
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	2
+p1	0
+p2	1
+explain partitions select * from t1 where a>=2;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2,p1,p0	ALL	NULL	NULL	NULL	NULL	3	Using where
+explain partitions select * from t1 where a>=2 and a<=3;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2,p0	ALL	NULL	NULL	NULL	NULL	3	Using where
+explain partitions select * from t1 where a=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	2	Using where
+drop table t1;
+CREATE TABLE t1 (a DATE, KEY(a))
+PARTITION BY LIST (TO_DAYS(a))
+(PARTITION `pDEF` DEFAULT,
+PARTITION `p2001-01-01` VALUES IN (TO_DAYS('2001-01-01')),
+PARTITION `pNULL` VALUES IN (NULL),
+PARTITION `p0000-01-02` VALUES IN (TO_DAYS('0000-01-02')),
+PARTITION `p1001-01-01` VALUES IN (TO_DAYS('1001-01-01')));
+INSERT INTO t1 VALUES ('0000-00-00'), ('0000-01-02'), ('0001-01-01'),
+('1001-00-00'), ('1001-01-01'), ('1002-00-00'), ('2001-01-01');
+SELECT * FROM t1 WHERE a < '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+SELECT * FROM t1 WHERE a <= '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+SELECT * FROM t1 WHERE a >= '1001-01-01';
+a
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a > '1001-01-01';
+a
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a = '1001-01-01';
+a
+1001-01-01
+SELECT * FROM t1 WHERE a < '1001-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+SELECT * FROM t1 WHERE a <= '1001-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+SELECT * FROM t1 WHERE a >= '1001-00-00';
+a
+1001-00-00
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a > '1001-00-00';
+a
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a = '1001-00-00';
+a
+1001-00-00
+# Disabling warnings for the invalid date
+SELECT * FROM t1 WHERE a < '1999-02-31';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a <= '1999-02-31';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a >= '1999-02-31';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a > '1999-02-31';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a = '1999-02-31';
+a
+SELECT * FROM t1 WHERE a BETWEEN '0000-00-00' AND '1002-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a BETWEEN '0000-00-00' AND '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+SELECT * FROM t1 WHERE a BETWEEN '0001-01-02' AND '1002-00-00';
+a
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a BETWEEN '0001-01-01' AND '1001-01-01';
+a
+0001-01-01
+1001-00-00
+1001-01-01
+# test without index
+ALTER TABLE t1 DROP KEY a;
+SELECT * FROM t1 WHERE a < '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+SELECT * FROM t1 WHERE a <= '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+SELECT * FROM t1 WHERE a >= '1001-01-01';
+a
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a > '1001-01-01';
+a
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a = '1001-01-01';
+a
+1001-01-01
+SELECT * FROM t1 WHERE a < '1001-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+SELECT * FROM t1 WHERE a <= '1001-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+SELECT * FROM t1 WHERE a >= '1001-00-00';
+a
+1001-00-00
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a > '1001-00-00';
+a
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a = '1001-00-00';
+a
+1001-00-00
+# Disabling warnings for the invalid date
+SELECT * FROM t1 WHERE a < '1999-02-31';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a <= '1999-02-31';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a >= '1999-02-31';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a > '1999-02-31';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a = '1999-02-31';
+a
+SELECT * FROM t1 WHERE a BETWEEN '0000-00-00' AND '1002-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a BETWEEN '0000-00-00' AND '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+SELECT * FROM t1 WHERE a BETWEEN '0001-01-02' AND '1002-00-00';
+a
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a BETWEEN '0001-01-01' AND '1001-01-01';
+a
+0001-01-01
+1001-00-00
+1001-01-01
+DROP TABLE t1;
+# TO_SECONDS, test of LIST and index
+CREATE TABLE t1 (a DATE, KEY(a))
+PARTITION BY LIST (TO_SECONDS(a))
+(PARTITION `pDEF` DEFAULT,
+PARTITION `p2001-01-01` VALUES IN (TO_SECONDS('2001-01-01')),
+PARTITION `pNULL` VALUES IN (NULL),
+PARTITION `p0000-01-02` VALUES IN (TO_SECONDS('0000-01-02')),
+PARTITION `p1001-01-01` VALUES IN (TO_SECONDS('1001-01-01')));
+INSERT INTO t1 VALUES ('0000-00-00'), ('0000-01-02'), ('0001-01-01'),
+('1001-00-00'), ('1001-01-01'), ('1002-00-00'), ('2001-01-01');
+SELECT * FROM t1 WHERE a < '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+SELECT * FROM t1 WHERE a <= '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+SELECT * FROM t1 WHERE a >= '1001-01-01';
+a
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a > '1001-01-01';
+a
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a = '1001-01-01';
+a
+1001-01-01
+SELECT * FROM t1 WHERE a < '1001-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+SELECT * FROM t1 WHERE a <= '1001-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+SELECT * FROM t1 WHERE a >= '1001-00-00';
+a
+1001-00-00
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a > '1001-00-00';
+a
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a = '1001-00-00';
+a
+1001-00-00
+# Disabling warnings for the invalid date
+SELECT * FROM t1 WHERE a < '1999-02-31';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a <= '1999-02-31';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a >= '1999-02-31';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a > '1999-02-31';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a = '1999-02-31';
+a
+SELECT * FROM t1 WHERE a BETWEEN '0000-00-00' AND '1002-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a BETWEEN '0000-00-00' AND '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+SELECT * FROM t1 WHERE a BETWEEN '0001-01-02' AND '1002-00-00';
+a
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a BETWEEN '0001-01-01' AND '1001-01-01';
+a
+0001-01-01
+1001-00-00
+1001-01-01
+# test without index
+ALTER TABLE t1 DROP KEY a;
+SELECT * FROM t1 WHERE a < '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+SELECT * FROM t1 WHERE a <= '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+SELECT * FROM t1 WHERE a >= '1001-01-01';
+a
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a > '1001-01-01';
+a
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a = '1001-01-01';
+a
+1001-01-01
+SELECT * FROM t1 WHERE a < '1001-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+SELECT * FROM t1 WHERE a <= '1001-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+SELECT * FROM t1 WHERE a >= '1001-00-00';
+a
+1001-00-00
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a > '1001-00-00';
+a
+1001-01-01
+1002-00-00
+2001-01-01
+SELECT * FROM t1 WHERE a = '1001-00-00';
+a
+1001-00-00
+# Disabling warnings for the invalid date
+SELECT * FROM t1 WHERE a < '1999-02-31';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a <= '1999-02-31';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a >= '1999-02-31';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a > '1999-02-31';
+a
+2001-01-01
+SELECT * FROM t1 WHERE a = '1999-02-31';
+a
+SELECT * FROM t1 WHERE a BETWEEN '0000-00-00' AND '1002-00-00';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a BETWEEN '0000-00-00' AND '1001-01-01';
+a
+0000-00-00
+0000-01-02
+0001-01-01
+1001-00-00
+1001-01-01
+SELECT * FROM t1 WHERE a BETWEEN '0001-01-02' AND '1002-00-00';
+a
+1001-00-00
+1001-01-01
+1002-00-00
+SELECT * FROM t1 WHERE a BETWEEN '0001-01-01' AND '1001-01-01';
+a
+0001-01-01
+1001-00-00
+1001-01-01
+DROP TABLE t1;
+create table t1 (a int, b int);
+insert into t1 values (10,10),(2,5),(0,0);
+select * from t1;
+a	b
+10	10
+2	5
+0	0
+alter table t1
+PARTITION BY LIST (a)
+(
+PARTITION p2 VALUES IN (1,2,3),
+PARTITION p1 VALUES IN (20,0),
+PARTITION p0 DEFAULT
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p2` VALUES IN (1,2,3) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN (20,0) ENGINE = MyISAM,
+ PARTITION `p0` DEFAULT ENGINE = MyISAM)
+select * from t1;
+a	b
+2	5
+0	0
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+p2	1
+explain partitions select * from t1 where a=2 and b=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+explain partitions select * from t1 where a=10 and b=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+alter table t1
+PARTITION BY LIST (a)
+(
+PARTITION p2 VALUES IN (1,2,3),
+PARTITION p1 VALUES IN (20,0),
+PARTITION p0 VALUES IN (10)
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p2` VALUES IN (1,2,3) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN (20,0) ENGINE = MyISAM,
+ PARTITION `p0` VALUES IN (10) ENGINE = MyISAM)
+select * from t1;
+a	b
+2	5
+0	0
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+p2	1
+explain partitions select * from t1 where a=2 and b=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+explain partitions select * from t1 where a=10 and b=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+alter table t1
+PARTITION BY LIST (a)
+(
+PARTITION p2 DEFAULT,
+PARTITION p1 VALUES IN (20,0),
+PARTITION p0 VALUES IN (10)
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p2` DEFAULT ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN (20,0) ENGINE = MyISAM,
+ PARTITION `p0` VALUES IN (10) ENGINE = MyISAM)
+select * from t1;
+a	b
+2	5
+0	0
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+p2	1
+explain partitions select * from t1 where a=2 and b=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+explain partitions select * from t1 where a=10 and b=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+alter table t1 drop partition p2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p1` VALUES IN (20,0) ENGINE = MyISAM,
+ PARTITION `p0` VALUES IN (10) ENGINE = MyISAM)
+select * from t1;
+a	b
+0	0
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+alter table t1 add partition (PARTITION pd DEFAULT);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p1` VALUES IN (20,0) ENGINE = MyISAM,
+ PARTITION `p0` VALUES IN (10) ENGINE = MyISAM,
+ PARTITION `pd` DEFAULT ENGINE = MyISAM)
+alter table t1 add partition (PARTITION pdd DEFAULT);
+ERROR HY000: Only one DEFAULT partition allowed
+alter table t1 drop partition pd;
+alter table t1 add partition (PARTITION pdd DEFAULT,
+PARTITION pd DEFAULT);
+ERROR HY000: Only one DEFAULT partition allowed
+drop table t1;
+create table t1 (a int, b int);
+insert into t1 values (10,10),(2,5),(0,0);
+select * from t1;
+a	b
+10	10
+2	5
+0	0
+alter table t1
+PARTITION BY LIST COLUMNS(a,b)
+(
+PARTITION p2 VALUES IN ((1,4),(2,5),(3,6)),
+PARTITION p1 VALUES IN ((1,1),(0,0)),
+PARTITION p0 DEFAULT
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST  COLUMNS(`a`,`b`)
+(PARTITION `p2` VALUES IN ((1,4),(2,5),(3,6)) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN ((1,1),(0,0)) ENGINE = MyISAM,
+ PARTITION `p0` DEFAULT ENGINE = MyISAM)
+select * from t1;
+a	b
+2	5
+0	0
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+p2	1
+explain partitions select * from t1 where a=2 and b=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+explain partitions select * from t1 where a=10 and b=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+alter table t1
+PARTITION BY LIST COLUMNS(a,b)
+(
+PARTITION p2 VALUES IN ((1,4),(2,5),(3,6)),
+PARTITION p1 VALUES IN ((1,1),(0,0)),
+PARTITION p0 VALUES IN ((10,10))
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST  COLUMNS(`a`,`b`)
+(PARTITION `p2` VALUES IN ((1,4),(2,5),(3,6)) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN ((1,1),(0,0)) ENGINE = MyISAM,
+ PARTITION `p0` VALUES IN ((10,10)) ENGINE = MyISAM)
+select * from t1;
+a	b
+2	5
+0	0
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+p2	1
+explain partitions select * from t1 where a=2 and b=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+explain partitions select * from t1 where a=10 and b=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+alter table t1
+PARTITION BY LIST COLUMNS(a,b)
+(
+PARTITION p2 DEFAULT,
+PARTITION p1 VALUES IN ((1,1),(0,0)),
+PARTITION p0 VALUES IN ((10,10))
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST  COLUMNS(`a`,`b`)
+(PARTITION `p2` DEFAULT ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN ((1,1),(0,0)) ENGINE = MyISAM,
+ PARTITION `p0` VALUES IN ((10,10)) ENGINE = MyISAM)
+select * from t1;
+a	b
+2	5
+0	0
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+p2	1
+explain partitions select * from t1 where a=2 and b=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+explain partitions select * from t1 where a=10 and b=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+alter table t1 drop partition p2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST  COLUMNS(`a`,`b`)
+(PARTITION `p1` VALUES IN ((1,1),(0,0)) ENGINE = MyISAM,
+ PARTITION `p0` VALUES IN ((10,10)) ENGINE = MyISAM)
+select * from t1;
+a	b
+0	0
+10	10
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	1
+p1	1
+alter table t1 add partition (PARTITION pd DEFAULT);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST  COLUMNS(`a`,`b`)
+(PARTITION `p1` VALUES IN ((1,1),(0,0)) ENGINE = MyISAM,
+ PARTITION `p0` VALUES IN ((10,10)) ENGINE = MyISAM,
+ PARTITION `pd` DEFAULT ENGINE = MyISAM)
+alter table t1 add partition (PARTITION pdd DEFAULT);
+ERROR HY000: Only one DEFAULT partition allowed
+alter table t1 drop partition pd;
+alter table t1 add partition (PARTITION pdd DEFAULT,
+PARTITION pd DEFAULT);
+ERROR HY000: Only one DEFAULT partition allowed
+drop table t1;
+create table t1 (a int)
+PARTITION BY LIST (a)
+(
+PARTITION p2 VALUES IN (4,5,6),
+PARTITION p1 VALUES IN (1),
+PARTITION pd DEFAULT
+)
+;
+insert into t1 values (1),(2),(3),(4);
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p1	1
+p2	1
+pd	2
+alter table t1 add partition
+(partition p0 VALUES IN (2,3));
+select partition_name, table_rows from INFORMATION_SCHEMA.PARTITIONS where table_name='t1';
+partition_name	table_rows
+p0	0
+p1	1
+p2	1
+pd	2
+drop table t1;
+create table t1 (a int, b int)
+PARTITION BY LIST COLUMNS(a,b)
+(
+PARTITION p0 DEFAULT,
+PARTITION p2 VALUES IN ((1,4),(2,5),(3,6)),
+PARTITION p1 VALUES IN ((1,1),(0,0))
+)
+;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST  COLUMNS(`a`,`b`)
+(PARTITION `p0` DEFAULT ENGINE = MyISAM,
+ PARTITION `p2` VALUES IN ((1,4),(2,5),(3,6)) ENGINE = MyISAM,
+ PARTITION `p1` VALUES IN ((1,1),(0,0)) ENGINE = MyISAM)
+drop table t1;
+#
+# MDEV-10765: Wrong result - query does not retrieve values from
+# default partition on a table partitioned by list columns
+#
+create table t1 (i int, j int) partition by list columns(i,j) (partition p1 values in ((10,10)), partition p2 default);
+insert into t1 values (10,1);
+select * from t1 where i = 10;
+i	j
+10	1
+explain partitions
+select * from t1 where i = 10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,p2	system	NULL	NULL	NULL	NULL	1	
+select * from t1 where i = 10 and j=1;
+i	j
+10	1
+explain partitions
+select * from t1 where i = 10 and j=1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+insert into t1 values (10,10);
+select * from t1 where i = 10 and j=10;
+i	j
+10	10
+explain partitions
+select * from t1 where i = 10 and j=10;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1	system	NULL	NULL	NULL	NULL	1	
+drop table t1;
+create table t1
+( 
+a int not null,
+b int not null,
+c int
+)
+partition by list columns(a,b) 
+(
+partition p1 values in ((10,10)), 
+partition p2 values in ((10,20)), 
+partition p3 values in ((10,30)),
+partition p4 values in ((10,40)), 
+partition p5 values in ((10,50)) 
+);
+insert into t1 values 
+(10,10,1234), 
+(10,20,1234), 
+(10,30,1234),
+(10,40,1234), 
+(10,50,1234);
+explain partitions 
+select * from t1 
+where a>=10  and (a <=10 and b <=30);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,p2,p3	ALL	NULL	NULL	NULL	NULL	3	Using where
+drop table t1;
+#
+# MDEV-10763: Wrong result - server does not return NULL values
+# from default list partition after ALTER table
+#
+create table t1 (i int) partition by list (i) ( partition p1 default);
+insert into t1 values (null);
+select * from t1 where i is null;
+i
+NULL
+alter table t1 partition by list (i) ( partition p1 values in (1), partition p2 default);
+select * from t1 where i is null;
+i
+NULL
+explain partitions 
+select * from t1 where i is null;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+alter table t1 partition by list (i) (
+partition p0 values in (NULL),
+partition p1 values in (1),
+partition p2 default);
+select * from t1 where i is null;
+i
+NULL
+explain partitions 
+select * from t1 where i is null;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+drop table t1;
+#
+# MDEV-12395: DROP PARTITION does not work as expected when
+# table has DEFAULT LIST partition
+#
+CREATE TABLE t1 (i INT)
+PARTITION BY LIST (i)
+(PARTITION p VALUES IN (1,2,3,4),
+PARTITION pdef DEFAULT);
+INSERT INTO t1 VALUES (1),(10);
+ALTER TABLE t1 DROP PARTITION p;
+SELECT * FROM t1;
+i
+10
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`i`)
+(PARTITION `pdef` DEFAULT ENGINE = MyISAM)
+DROP TABLE t1;
+CREATE TABLE t1 (i INT)
+PARTITION BY LIST (i)
+(PARTITION p VALUES IN (1,2,3,4),
+PARTITION pdef DEFAULT);
+INSERT INTO t1 VALUES (1),(10);
+ALTER TABLE t1 DROP PARTITION pdef;
+SELECT * FROM t1;
+i
+1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`i`)
+(PARTITION `p` VALUES IN (1,2,3,4) ENGINE = MyISAM)
+DROP TABLE t1;

@@ -1,0 +1,69 @@
+#
+# Test Galera as a master to a MySQL slave
+#
+# The galera/galera_2node_master.cnf describes the setup of the nodes
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--disable_query_log
+--eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1;
+--enable_query_log
+START SLAVE;
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+
+--echo # Disable binary logging for current session
+SET SQL_LOG_BIN=OFF;
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1);
+INSERT INTO t1 VALUES(2);
+CREATE TABLE test.t3 AS SELECT * from t1;
+
+SET SQL_LOG_BIN=ON;
+INSERT INTO t1 VALUES(3);
+CREATE TABLE test.t4 AS SELECT * from t1;
+
+--connection node_2
+SELECT * FROM t1;
+SELECT * FROM t2;
+SELECT * FROM t3;
+SELECT * FROM t4;
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1;
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t4;
+--source include/wait_condition.inc
+
+SHOW TABLES;
+
+SELECT * FROM t1;
+SELECT * FROM t4;
+
+--echo # Cleanup
+--connection node_1
+DROP TABLE t1, t4;
+SET SQL_LOG_BIN=OFF;
+DROP TABLE t2, t3;
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't4';
+--source include/wait_condition.inc
+
+STOP SLAVE;
+RESET SLAVE ALL;
+
+CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');
+
+--connection node_1
+set global wsrep_on=OFF;
+RESET MASTER;
+set global wsrep_on=ON;

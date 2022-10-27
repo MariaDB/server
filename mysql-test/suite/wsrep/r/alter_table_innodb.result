@@ -1,0 +1,8 @@
+#
+# MDEV-7374 : Losing connection to MySQL while running ALTER TABLE
+#
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e;
+ALTER TABLE t1 MODIFY i FLOAT;
+DROP TABLE t1;

@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT
+) DEFAULT CHARSET UTF8 COMMENT = 'ENGINE "InnoDB"';
+INSERT INTO diaries (title) VALUES ("survey");
+SELECT * FROM diaries;
+id	title
+1	survey
+ALTER TABLE diaries ADD COLUMN body TEXT;
+UPDATE diaries SET body = "will start groonga!";
+SELECT * FROM diaries;
+id	title	body
+1	survey	will start groonga!
+INSERT INTO diaries (title, body) values ("groonga (1)", "starting groonga...");
+INSERT INTO diaries (title, body) values ("groonga (2)", "started groonga.");
+SELECT * FROM diaries;
+id	title	body
+1	survey	will start groonga!
+2	groonga (1)	starting groonga...
+3	groonga (2)	started groonga.
+DROP TABLE diaries;

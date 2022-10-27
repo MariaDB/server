@@ -1,0 +1,63 @@
+--source include/have_rocksdb.inc
+
+# Attempt to set the value - this should generate a warning as we can't set it to or from 0
+SET @@global.rocksdb_rate_limiter_bytes_per_sec = 10000;
+
+# Now shut down and come back up with the rate limiter enabled and retest setting the variable
+
+# Write file to make mysql-test-run.pl expect the "crash", but don't restart the
+# server until it is told to
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--exec echo "wait" >$_expect_file_name
+
+# Send shutdown to the connected server and give it 10 seconds to die before
+# zapping it
+shutdown_server;
+
+# Attempt to restart the server with the rate limiter on
+--exec echo "restart:--rocksdb_rate_limiter_bytes_per_sec=10000" >$_expect_file_name
+--sleep 5
+
+# Wait for reconnect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+# The valid_values table lists the values that we want to make sure that the system will allow
+# us to set for rocksdb_rate_limiter_bytes_per_sec
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1), (1000), (1000000), (1000000000), (1000000000000);
+
+# The invalid_values table lists the values that we don't want to allow for the variable
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\''), (3.14);
+
+# Test all the valid and invalid values
+--let $sys_var=ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+--let $session=0
+--source include/rocksdb_sys_var.inc
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;
+
+# Zero is an invalid value if the rate limiter is turned on, but it won't be rejected by the
+# SET command but will generate a warning.
+
+# Attempt to set the value to 0 - this should generate a warning as we can't set it to or from 0
+SET @@global.rocksdb_rate_limiter_bytes_per_sec = 0;
+
+# Attempt to set the value to -1 - this should first truncate to 0 and then generate a warning as
+# we can't set it to or from 0
+SET @@global.rocksdb_rate_limiter_bytes_per_sec = -1;
+
+# Restart the server without the rate limiter
+--exec echo "wait" >$_expect_file_name
+shutdown_server;
+--exec echo "restart" >$_expect_file_name
+--sleep 5
+
+# Wait for reconnect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect

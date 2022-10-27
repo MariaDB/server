@@ -1,0 +1,33 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+create table t1 (_id int, a int, unique key (_id) using hash);
+insert into t1 values(null, 100);
+insert into t1 values(null, 100);
+insert into t1 values(null, 100);
+insert into t1 values(null, 100);
+select * from t1;
+select * from t1 where _id = 2;
+select * from t1 where _id = 20;
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

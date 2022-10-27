@@ -1,0 +1,100 @@
+#
+# Test the operation on the different values of the binlog_row_image option
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# binlog_row_image = minimal 
+#
+
+--connection node_1
+SET SESSION binlog_row_image=minimal;
+
+# Create a table with a PK, with a unique key and with no key
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER NOT NULL UNIQUE) ENGINE=InnoDB;
+CREATE TABLE t3 (f1 VARCHAR(1)) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t3 VALUES (1);
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
+SELECT COUNT(*) = 1 FROM t2 WHERE f1 = 1;
+SELECT COUNT(*) = 1 FROM t3 WHERE f1 = 1;
+
+--connection node_1
+UPDATE t1 SET f1 = 2 WHERE f1 = 1;
+UPDATE t2 SET f1 = 2 WHERE f1 = 1;
+UPDATE t3 SET f1 = 2 WHERE f1 = 1;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+SELECT COUNT(*) = 1 FROM t2 WHERE f1 = 2;
+SELECT COUNT(*) = 1 FROM t3 WHERE f1 = 2;
+
+--connection node_1
+DELETE FROM t1;
+DELETE FROM t2;
+DELETE FROM t3;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM t2;
+SELECT COUNT(*) = 0 FROM t3;
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+
+#
+# binlog_row_image = noblob
+#
+
+# A table with only a blob, and a table with a PK and a blob
+
+--connection node_1
+SET SESSION binlog_row_image=noblob;
+
+CREATE TABLE t1 (f1 BLOB, f2 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 BLOB) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES ('abc', 1);
+INSERT INTO t2 VALUES ('abc');
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 'abc';
+SELECT COUNT(*) = 1 FROM t2 WHERE f1 = 'abc';
+
+--connection node_1
+UPDATE t1 SET f1 = 'xyz';
+UPDATE t2 SET f1 = 'xyz';
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 'xyz';
+SELECT COUNT(*) = 1 FROM t2 WHERE f1 = 'xyz';
+
+--connection node_1
+UPDATE t1 SET f2 = 2 WHERE f2 = 1;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 2;
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 'xyz';
+
+--connection node_1
+DELETE FROM t1;
+DELETE FROM t2;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) = 0 FROM t2;
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+
+
+

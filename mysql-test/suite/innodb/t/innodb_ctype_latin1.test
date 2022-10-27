@@ -1,0 +1,25 @@
+--source include/have_innodb.inc
+
+SET STORAGE_ENGINE=InnoDB;
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+
+SET NAMES latin1;
+
+let $coll='latin1_swedish_nopad_ci';
+let $coll_pad='latin1_swedish_ci';
+--source include/ctype_pad.inc
+
+let $coll='latin1_nopad_bin';
+let $coll_pad='latin1_bin';
+--source include/ctype_pad.inc
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

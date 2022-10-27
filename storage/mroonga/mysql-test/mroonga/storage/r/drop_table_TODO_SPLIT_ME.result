@@ -1,0 +1,5 @@
+drop table if exists alphabet, `with-hyphen`;
+create table alphabet (c1 int primary key, c2 int, c3 int);
+drop table alphabet;
+create table `with-hyphen` (c1 int primary key, c2 int, c3 int);
+drop table `with-hyphen`;

@@ -1,0 +1,149 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+# simple test
+create table t1 (c1 int);
+create table t2 (c1 int);
+create table t3 (c1 int);
+drop table t1,t2,t3;
+create table t1 (c1 int, c2 int, c3 int);
+create table t2 (c1 int primary key, c2 int, c3 int);
+drop table t1,t2;
+
+# data type support
+create table t1 (c1 bit);
+desc t1;
+drop table t1;
+create table t1 (c1 tinyint);
+desc t1;
+drop table t1;
+create table t1 (c1 smallint);
+desc t1;
+drop table t1;
+create table t1 (c1 mediumint);
+desc t1;
+drop table t1;
+create table t1 (c1 int);
+desc t1;
+drop table t1;
+create table t1 (c1 bigint);
+desc t1;
+drop table t1;
+create table t1 (c1 double);
+desc t1;
+drop table t1;
+create table t1 (c1 float);
+desc t1;
+drop table t1;
+create table t1 (c1 decimal);
+desc t1;
+drop table t1;
+create table t1 (c1 date);
+desc t1;
+drop table t1;
+create table t1 (c1 time);
+desc t1;
+drop table t1;
+create table t1 (c1 timestamp);
+# For MariaDB 10.2.3
+-- replace_result current_timestamp() CURRENT_TIMESTAMP
+desc t1;
+drop table t1;
+create table t1 (c1 datetime);
+desc t1;
+drop table t1;
+create table t1 (c1 year);
+desc t1;
+drop table t1;
+create table t1 (c1 char(10));
+desc t1;
+drop table t1;
+create table t1 (c1 varchar(10));
+desc t1;
+drop table t1;
+create table t1 (c1 binary(10));
+desc t1;
+drop table t1;
+create table t1 (c1 varbinary(10));
+desc t1;
+drop table t1;
+create table t1 (c1 tinyblob);
+desc t1;
+drop table t1;
+create table t1 (c1 blob);
+desc t1;
+drop table t1;
+create table t1 (c1 mediumblob);
+desc t1;
+drop table t1;
+create table t1 (c1 longblob);
+desc t1;
+drop table t1;
+create table t1 (c1 tinytext);
+desc t1;
+drop table t1;
+create table t1 (c1 text);
+desc t1;
+drop table t1;
+create table t1 (c1 mediumtext);
+desc t1;
+drop table t1;
+create table t1 (c1 longtext);
+desc t1;
+drop table t1;
+create table t1 (c1 enum("yes","no"));
+desc t1;
+drop table t1;
+create table t1 (c1 set("A","B","AB","O"));
+desc t1;
+drop table t1;
+
+# virtual columns
+create table t1 (c1 int, `_id` int) engine = mroonga;
+desc t1;
+drop table t1;
+
+# error
+--error ER_CANT_CREATE_TABLE
+create table t1 (c1 int, `_score` float) engine = mroonga;
+
+# checking for virtual columns
+--error ER_CANT_CREATE_TABLE
+create table t1 (c1 int, `_id` text) engine = mroonga;
+--error ER_CANT_CREATE_TABLE
+create table t1 (c1 int, `_id` int, index(`_id`)) engine = mroonga;
+
+# index for _id
+--error ER_CANT_CREATE_TABLE
+create table t1 (_id int, c1 int, primary key (_id));
+create table t1 (_id int, c1 int, primary key (_id) using hash);
+drop table t1;
+--error ER_CANT_CREATE_TABLE
+create table t1 (_id int, c1 int, unique key (_id));
+create table t1 (_id int, c1 int, unique key (_id) using hash);
+drop table t1;
+--error ER_CANT_CREATE_TABLE
+create table t1 (_id int, c1 int, key (_id));
+create table t1 (_id int, c1 int, key (_id) using hash);
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

@@ -1,0 +1,1825 @@
+#
+# This file contains tests covering the parser
+#
+
+#=============================================================================
+# LEXICAL PARSER (lex)
+#=============================================================================
+
+#
+# Maintainer: these tests are for the lexical parser, so every character,
+# even whitespace or comments, is significant here.
+#
+
+SET @save_sql_mode=@@sql_mode;
+
+#
+# Documenting the current behavior, to detect incompatible changes.
+# In each cases:
+# - no error is the correct result
+# - an error is the expected result with the current implementation,
+#   and is a limitation.
+
+set SQL_MODE='';
+
+create table ADDDATE(a int);
+drop table ADDDATE;
+create table ADDDATE (a int);
+drop table ADDDATE;
+
+--error ER_PARSE_ERROR
+create table BIT_AND(a int);
+create table BIT_AND (a int);
+drop table BIT_AND;
+
+--error ER_PARSE_ERROR
+create table BIT_OR(a int);
+create table BIT_OR (a int);
+drop table BIT_OR;
+
+--error ER_PARSE_ERROR
+create table BIT_XOR(a int);
+create table BIT_XOR (a int);
+drop table BIT_XOR;
+
+--error ER_PARSE_ERROR
+create table CAST(a int);
+create table CAST (a int);
+drop table CAST;
+
+--error ER_PARSE_ERROR
+create table COUNT(a int);
+create table COUNT (a int);
+drop table COUNT;
+
+--error ER_PARSE_ERROR
+create table CURDATE(a int);
+create table CURDATE (a int);
+drop table CURDATE;
+
+--error ER_PARSE_ERROR
+create table CURTIME(a int);
+create table CURTIME (a int);
+drop table CURTIME;
+
+--error ER_PARSE_ERROR
+create table DATE_ADD(a int);
+create table DATE_ADD (a int);
+drop table DATE_ADD;
+
+--error ER_PARSE_ERROR
+create table DATE_SUB(a int);
+create table DATE_SUB (a int);
+drop table DATE_SUB;
+
+--error ER_PARSE_ERROR
+create table EXTRACT(a int);
+create table EXTRACT (a int);
+drop table EXTRACT;
+
+--error ER_PARSE_ERROR
+create table GROUP_CONCAT(a int);
+create table GROUP_CONCAT (a int);
+drop table GROUP_CONCAT;
+
+# Limitation removed in 5.1
+create table GROUP_UNIQUE_USERS(a int);
+drop table GROUP_UNIQUE_USERS;
+create table GROUP_UNIQUE_USERS (a int);
+drop table GROUP_UNIQUE_USERS;
+
+--error ER_PARSE_ERROR
+create table MAX(a int);
+create table MAX (a int);
+drop table MAX;
+
+--error ER_PARSE_ERROR
+create table MID(a int);
+create table MID (a int);
+drop table MID;
+
+--error ER_PARSE_ERROR
+create table MIN(a int);
+create table MIN (a int);
+drop table MIN;
+
+--error ER_PARSE_ERROR
+create table NOW(a int);
+create table NOW (a int);
+drop table NOW;
+
+--error ER_PARSE_ERROR
+create table POSITION(a int);
+create table POSITION (a int);
+drop table POSITION;
+
+create table SESSION_USER(a int);
+drop table SESSION_USER;
+create table SESSION_USER (a int);
+drop table SESSION_USER;
+
+--error ER_PARSE_ERROR
+create table STD(a int);
+create table STD (a int);
+drop table STD;
+
+--error ER_PARSE_ERROR
+create table STDDEV(a int);
+create table STDDEV (a int);
+drop table STDDEV;
+
+--error ER_PARSE_ERROR
+create table STDDEV_POP(a int);
+create table STDDEV_POP (a int);
+drop table STDDEV_POP;
+
+--error ER_PARSE_ERROR
+create table STDDEV_SAMP(a int);
+create table STDDEV_SAMP (a int);
+drop table STDDEV_SAMP;
+
+create table SUBDATE(a int);
+drop table SUBDATE;
+create table SUBDATE (a int);
+drop table SUBDATE;
+
+--error ER_PARSE_ERROR
+create table SUBSTR(a int);
+create table SUBSTR (a int);
+drop table SUBSTR;
+
+--error ER_PARSE_ERROR
+create table SUBSTRING(a int);
+create table SUBSTRING (a int);
+drop table SUBSTRING;
+
+--error ER_PARSE_ERROR
+create table SUM(a int);
+create table SUM (a int);
+drop table SUM;
+
+--error ER_PARSE_ERROR
+create table SYSDATE(a int);
+create table SYSDATE (a int);
+drop table SYSDATE;
+
+create table SYSTEM_USER(a int);
+drop table SYSTEM_USER;
+create table SYSTEM_USER (a int);
+drop table SYSTEM_USER;
+
+--error ER_PARSE_ERROR
+create table TRIM(a int);
+create table TRIM (a int);
+drop table TRIM;
+
+# Limitation removed in 5.1
+create table UNIQUE_USERS(a int);
+drop table UNIQUE_USERS;
+create table UNIQUE_USERS (a int);
+drop table UNIQUE_USERS;
+
+--error ER_PARSE_ERROR
+create table VARIANCE(a int);
+create table VARIANCE (a int);
+drop table VARIANCE;
+
+--error ER_PARSE_ERROR
+create table VAR_POP(a int);
+create table VAR_POP (a int);
+drop table VAR_POP;
+
+--error ER_PARSE_ERROR
+create table VAR_SAMP(a int);
+create table VAR_SAMP (a int);
+drop table VAR_SAMP;
+
+set SQL_MODE='IGNORE_SPACE';
+
+create table ADDDATE(a int);
+drop table ADDDATE;
+create table ADDDATE (a int);
+drop table ADDDATE;
+
+--error ER_PARSE_ERROR
+create table BIT_AND(a int);
+--error ER_PARSE_ERROR
+create table BIT_AND (a int);
+
+--error ER_PARSE_ERROR
+create table BIT_OR(a int);
+--error ER_PARSE_ERROR
+create table BIT_OR (a int);
+
+--error ER_PARSE_ERROR
+create table BIT_XOR(a int);
+--error ER_PARSE_ERROR
+create table BIT_XOR (a int);
+
+--error ER_PARSE_ERROR
+create table CAST(a int);
+--error ER_PARSE_ERROR
+create table CAST (a int);
+
+--error ER_PARSE_ERROR
+create table COUNT(a int);
+--error ER_PARSE_ERROR
+create table COUNT (a int);
+
+--error ER_PARSE_ERROR
+create table CURDATE(a int);
+--error ER_PARSE_ERROR
+create table CURDATE (a int);
+
+--error ER_PARSE_ERROR
+create table CURTIME(a int);
+--error ER_PARSE_ERROR
+create table CURTIME (a int);
+
+--error ER_PARSE_ERROR
+create table DATE_ADD(a int);
+--error ER_PARSE_ERROR
+create table DATE_ADD (a int);
+
+--error ER_PARSE_ERROR
+create table DATE_SUB(a int);
+--error ER_PARSE_ERROR
+create table DATE_SUB (a int);
+
+--error ER_PARSE_ERROR
+create table EXTRACT(a int);
+--error ER_PARSE_ERROR
+create table EXTRACT (a int);
+
+--error ER_PARSE_ERROR
+create table GROUP_CONCAT(a int);
+--error ER_PARSE_ERROR
+create table GROUP_CONCAT (a int);
+
+# Limitation removed in 5.1
+create table GROUP_UNIQUE_USERS(a int);
+drop table GROUP_UNIQUE_USERS;
+create table GROUP_UNIQUE_USERS (a int);
+drop table GROUP_UNIQUE_USERS;
+
+--error ER_PARSE_ERROR
+create table MAX(a int);
+--error ER_PARSE_ERROR
+create table MAX (a int);
+
+--error ER_PARSE_ERROR
+create table MID(a int);
+--error ER_PARSE_ERROR
+create table MID (a int);
+
+--error ER_PARSE_ERROR
+create table MIN(a int);
+--error ER_PARSE_ERROR
+create table MIN (a int);
+
+--error ER_PARSE_ERROR
+create table NOW(a int);
+--error ER_PARSE_ERROR
+create table NOW (a int);
+
+--error ER_PARSE_ERROR
+create table POSITION(a int);
+--error ER_PARSE_ERROR
+create table POSITION (a int);
+
+create table SESSION_USER(a int);
+drop table SESSION_USER;
+create table SESSION_USER (a int);
+drop table SESSION_USER;
+
+--error ER_PARSE_ERROR
+create table STD(a int);
+--error ER_PARSE_ERROR
+create table STD (a int);
+
+--error ER_PARSE_ERROR
+create table STDDEV(a int);
+--error ER_PARSE_ERROR
+create table STDDEV (a int);
+
+--error ER_PARSE_ERROR
+create table STDDEV_POP(a int);
+--error ER_PARSE_ERROR
+create table STDDEV_POP (a int);
+
+--error ER_PARSE_ERROR
+create table STDDEV_SAMP(a int);
+--error ER_PARSE_ERROR
+create table STDDEV_SAMP (a int);
+
+create table SUBDATE(a int);
+drop table SUBDATE;
+create table SUBDATE (a int);
+drop table SUBDATE;
+
+--error ER_PARSE_ERROR
+create table SUBSTR(a int);
+--error ER_PARSE_ERROR
+create table SUBSTR (a int);
+
+--error ER_PARSE_ERROR
+create table SUBSTRING(a int);
+--error ER_PARSE_ERROR
+create table SUBSTRING (a int);
+
+--error ER_PARSE_ERROR
+create table SUM(a int);
+--error ER_PARSE_ERROR
+create table SUM (a int);
+
+--error ER_PARSE_ERROR
+create table SYSDATE(a int);
+--error ER_PARSE_ERROR
+create table SYSDATE (a int);
+
+create table SYSTEM_USER(a int);
+drop table SYSTEM_USER;
+create table SYSTEM_USER (a int);
+drop table SYSTEM_USER;
+
+--error ER_PARSE_ERROR
+create table TRIM(a int);
+--error ER_PARSE_ERROR
+create table TRIM (a int);
+
+# Limitation removed in 5.1
+create table UNIQUE_USERS(a int);
+drop table UNIQUE_USERS;
+create table UNIQUE_USERS (a int);
+drop table UNIQUE_USERS;
+
+--error ER_PARSE_ERROR
+create table VARIANCE(a int);
+--error ER_PARSE_ERROR
+create table VARIANCE (a int);
+
+--error ER_PARSE_ERROR
+create table VAR_POP(a int);
+--error ER_PARSE_ERROR
+create table VAR_POP (a int);
+
+--error ER_PARSE_ERROR
+create table VAR_SAMP(a int);
+--error ER_PARSE_ERROR
+create table VAR_SAMP (a int);
+
+#
+# Bug#25930 (CREATE TABLE x SELECT ... parses columns wrong when ran with
+#            ANSI_QUOTES mode)
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS table_25930_a;
+DROP TABLE IF EXISTS table_25930_b;
+--enable_warnings
+
+SET SQL_MODE = 'ANSI_QUOTES';
+CREATE TABLE table_25930_a ( "blah" INT );
+CREATE TABLE table_25930_b SELECT "blah" - 1 FROM table_25930_a;
+
+# The lexer used to chop the first <">,
+# not marking the start of the token "blah" correctly.
+desc table_25930_b;
+
+DROP TABLE table_25930_a;
+DROP TABLE table_25930_b;
+
+
+SET @@sql_mode=@save_sql_mode;
+
+#
+# Bug#26030 (Parsing fails for stored routine w/multi-statement execution
+# enabled)
+#
+
+--disable_warnings
+DROP PROCEDURE IF EXISTS p26030;
+--enable_warnings
+
+delimiter $$;
+
+select "non terminated"$$
+select "terminated";$$
+select "non terminated, space"      $$
+select "terminated, space";      $$
+select "non terminated, comment" /* comment */$$
+select "terminated, comment"; /* comment */$$
+
+# Multi queries can not be used in --ps-protocol test mode
+--disable_ps_protocol
+
+select "stmt 1";select "stmt 2 non terminated"$$
+select "stmt 1";select "stmt 2 terminated";$$
+select "stmt 1";select "stmt 2 non terminated, space"      $$
+select "stmt 1";select "stmt 2 terminated, space";      $$
+select "stmt 1";select "stmt 2 non terminated, comment" /* comment */$$
+select "stmt 1";select "stmt 2 terminated, comment"; /* comment */$$
+
+select "stmt 1";             select "space, stmt 2"$$
+select "stmt 1";/* comment */select "comment, stmt 2"$$
+
+DROP PROCEDURE IF EXISTS p26030; CREATE PROCEDURE p26030() BEGIN SELECT 1; END; CALL p26030()
+$$
+
+DROP PROCEDURE IF EXISTS p26030; CREATE PROCEDURE p26030() SELECT 1; CALL p26030()
+$$
+
+--enable_ps_protocol
+
+delimiter ;$$
+DROP PROCEDURE p26030;
+
+#=============================================================================
+# SYNTACTIC PARSER (bison)
+#=============================================================================
+
+#
+#
+# Bug#21114 (Foreign key creation fails to table with name format)
+# 
+
+# Test coverage with edge conditions
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select pi(3.14);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select tan();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select tan(1, 2);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select makedate(1);
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select makedate(1, 2, 3);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select maketime();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select maketime(1);
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select maketime(1, 2);
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select maketime(1, 2, 3, 4);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select atan();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select atan2(1, 2, 3);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select concat();
+select concat("foo");
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select concat_ws();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select concat_ws("foo");
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select encrypt();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select encrypt(1, 2, 3);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select des_encrypt("p1", "p2", "not expected");
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select des_decrypt("p1", "p2", "not expected");
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select elt();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select elt(1);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select export_set();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select export_set("p1");
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select export_set("p1", "p2");
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select export_set("p1", "p2", "p3", "p4", "p5", "p6");
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select field();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select field("p1");
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select from_unixtime();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select from_unixtime(1, 2, 3);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select unix_timestamp(1, 2);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select greatest();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select greatest(12);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select last_insert_id(1, 2);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select least();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select least(12);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select locate();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select locate(1);
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select locate(1, 2, 3, 4);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select log();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select log(1, 2, 3);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select make_set();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select make_set(1);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select master_pos_wait();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select master_pos_wait(1);
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select master_pos_wait(1, 2, 3, 4, 5);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select rand(1, 2, 3);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select round(1, 2, 3);
+
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select yearweek();
+-- error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select yearweek(1, 2, 3);
+
+#
+# Bug#24736: UDF functions parsed as Stored Functions
+#
+
+# Verify that the syntax for calling UDF : foo(expr AS param, ...)
+# can not be used when calling native functions
+
+# Native function with 1 argument
+
+select abs(3);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select abs(3 AS three);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select abs(3 three);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select abs(3 AS "three");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select abs(3 "three");
+
+# Native function with 2 arguments
+
+set @bar="bar";
+set @foobar="foobar";
+
+select instr("foobar", "bar");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select instr("foobar" AS p1, "bar");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select instr("foobar" p1, "bar");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select instr("foobar" AS "p1", "bar");
+## String concatenation, valid syntax
+select instr("foobar" "p1", "bar");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select instr(@foobar "p1", "bar");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select instr("foobar", "bar" AS p2);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select instr("foobar", "bar" p2);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select instr("foobar", "bar" AS "p2");
+## String concatenation, valid syntax
+select instr("foobar", "bar" "p2");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select instr("foobar", @bar "p2");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select instr("foobar" AS p1, "bar" AS p2);
+
+# Native function with 3 arguments
+
+select conv(255, 10, 16);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255 AS p1, 10, 16);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255 p1, 10, 16);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255 AS "p1", 10, 16);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255 "p1", 10, 16);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255, 10 AS p2, 16);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255, 10 p2, 16);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255, 10 AS "p2", 16);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255, 10 "p2", 16);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255, 10, 16 AS p3);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255, 10, 16 p3);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255, 10, 16 AS "p3");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255, 10, 16 "p3");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select conv(255 AS p1, 10 AS p2, 16 AS p3);
+
+# Native function with a variable number of arguments
+
+# Bug in libm.so on Solaris:
+#   atan(10) from 32-bit version returns 1.4711276743037347
+#   atan(10) from 64-bit version returns 1.4711276743037345
+--replace_result 1.4711276743037345 1.4711276743037347
+select atan(10);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10 AS p1);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10 p1);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10 AS "p1");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10 "p1");
+
+select atan(10, 20);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10 AS p1, 20);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10 p1, 20);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10 AS "p1", 20);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10 "p1", 20);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10, 20 AS p2);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10, 20 p2);
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10, 20 AS "p2");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10, 20 "p2");
+-- error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+select atan(10 AS p1, 20 AS p2);
+
+#
+# Bug#22312 Syntax error in expression with INTERVAL()
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+SELECT STR_TO_DATE('10:00 PM', '%h:%i %p') + INTERVAL 10 MINUTE;
+SELECT STR_TO_DATE('10:00 PM', '%h:%i %p') + INTERVAL (INTERVAL(1,2,3) + 1) MINUTE;
+SELECT "1997-12-31 23:59:59" + INTERVAL 1 SECOND;
+SELECT 1 + INTERVAL(1,0,1,2) + 1;
+SELECT INTERVAL(1^1,0,1,2) + 1;
+SELECT INTERVAL(1,0+1,2,3) * 5.5;
+SELECT INTERVAL(3,3,1+3,4+4) / 0.5;
+SELECT (INTERVAL(1,0,1,2) + 5) * 7 + INTERVAL(1,0,1,2) / 2;
+SELECT INTERVAL(1,0,1,2) + 1, 5 * INTERVAL(1,0,1,2);
+SELECT INTERVAL(0,(1*5)/2) + INTERVAL(5,4,3);
+
+--disable_warnings
+SELECT 1^1 + INTERVAL 1+1 SECOND & 1 + INTERVAL 1+1 SECOND;
+SELECT 1%2 - INTERVAL 1^1 SECOND | 1%2 - INTERVAL 1^1 SECOND;
+--enable_warnings
+
+CREATE TABLE t1 (a INT, b DATETIME);
+INSERT INTO t1 VALUES (INTERVAL(3,2,1) + 1, "1997-12-31 23:59:59" + INTERVAL 1 SECOND);
+SELECT * FROM t1 WHERE a = INTERVAL(3,2,1) + 1;
+DROP TABLE t1;
+
+#
+# Bug#28317 Left Outer Join with {oj outer-join}
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2,t3;
+--enable_warnings
+CREATE TABLE t1 (a1 INT, a2 INT, a3 INT, a4 DATETIME);
+CREATE TABLE t2 LIKE t1;
+CREATE TABLE t3 LIKE t1;
+SELECT t1.* FROM t1 AS t0, { OJ t2 INNER JOIN t1 ON (t1.a1=t2.a1) } WHERE t0.a3=2;
+SELECT t1.*,t2.* FROM { OJ ((t1 INNER JOIN t2 ON (t1.a1=t2.a2)) LEFT OUTER JOIN t3 ON t3.a3=t2.a1)};
+SELECT t1.*,t2.* FROM { OJ ((t1 LEFT OUTER JOIN t2 ON t1.a3=t2.a2) INNER JOIN t3 ON (t3.a1=t2.a2))};
+SELECT t1.*,t2.* FROM { OJ (t1 LEFT OUTER JOIN t2 ON t1.a1=t2.a2) CROSS JOIN t3 ON (t3.a2=t2.a3)};
+SELECT * FROM {oj t1 LEFT OUTER JOIN t2 ON t1.a1=t2.a3} WHERE t1.a2 > 10;
+SELECT {fn CONCAT(a1,a2)} FROM t1;
+UPDATE t3 SET a4={d '1789-07-14'} WHERE a1=0;
+SELECT a1, a4 FROM t2 WHERE a4 LIKE {fn UCASE('1789-07-14')};
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # End of 5.1 tests
+--echo #
+
+--echo #
+--echo # Bug#17075846 : unquoted file names for variable values are
+--echo #                accepted but parsed incorrectly
+--echo #
+--error ER_WRONG_TYPE_FOR_VAR 
+SET default_storage_engine=a.myisam;
+--error ER_WRONG_TYPE_FOR_VAR 
+SET default_storage_engine = .a.MyISAM;
+--error ER_WRONG_TYPE_FOR_VAR 
+SET default_storage_engine = a.b.MyISAM;
+--error ER_WRONG_TYPE_FOR_VAR 
+SET default_storage_engine = `a`.MyISAM;
+--error ER_WRONG_TYPE_FOR_VAR 
+SET default_storage_engine = `a`.`MyISAM`; 
+--error ER_UNKNOWN_STORAGE_ENGINE 
+set default_storage_engine = "a.MYISAM";
+--error ER_UNKNOWN_STORAGE_ENGINE 
+set default_storage_engine = 'a.MYISAM';
+--error ER_UNKNOWN_STORAGE_ENGINE 
+set default_storage_engine = `a.MYISAM`;
+CREATE TABLE t1 (s VARCHAR(100));
+--ERROR ER_BAD_FIELD_ERROR
+CREATE TRIGGER trigger1 BEFORE INSERT ON t1 FOR EACH ROW
+SET default_storage_engine = NEW.INNODB;
+DROP TABLE t1;
+
+#
+# MDEV-8328 Evaluation of two "!" operators depends on space in beetween
+#
+--error ER_PARSE_ERROR
+select 0==0;
+select 1=!0,  1 = ! 0;
+select !!0,     ! ! 0;
+select 2>!0,  2 > ! 0;
+select 0<=!0, 0 <= !0;
+select 1<<!0, 1 << !0;
+select 0<!0,  0 < ! 0;
+
+--echo #
+--echo # MDEV-11171 Assertion `m_cpp_buf <= ptr && ptr <= m_cpp_buf + m_buf_length' failed in Lex_input_stream::body_utf8_append(const char*, const char*)
+--echo #
+CREATE TABLE t1 (id INT);
+--error ER_PARSE_ERROR
+CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW SET @a = 1\;
+--error ER_PARSE_ERROR
+PREPARE stmt FROM 'CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW SET @a = 1\\';
+DROP TABLE t1;
+
+#
+# start of 10.1 tests
+#
+
+--echo #
+--echo # MDEV-7792 - SQL Parsing Error - UNION AND ORDER BY WITH JOIN
+--echo #
+CREATE TABLE t1(a INT);
+SELECT * FROM t1 JOIN ((SELECT 1 AS b) UNION ALL (SELECT 2 AS b) ORDER BY b DESC) s1 WHERE a=1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Test of collective fix for three parser bugs:
+--echo #
+--echo # Bug #17727401, Bug #17426017, Bug #17473479:
+--echo #   The server accepts wrong syntax and then fails in different ways
+--echo #
+
+CREATE TABLE t1 (i INT);
+
+--echo # bug #17426017
+--error ER_PARSE_ERROR
+SELECT (SELECT EXISTS(SELECT * LIMIT 1 ORDER BY VALUES (c00)));
+
+--echo # bug#17473479
+CREATE TABLE a(a int);
+CREATE TABLE b(a int);
+--error ER_PARSE_ERROR
+DELETE FROM b ORDER BY(SELECT 1 FROM a ORDER BY a ORDER BY a);
+DROP TABLE a, b;
+
+--echo # bug #17727401
+--error ER_PARSE_ERROR
+SELECT '' IN (SELECT '1' c FROM t1 ORDER BY '' ORDER BY '') FROM t1;
+
+--echo # regression & coverage tests
+
+--echo # uniform syntax for FROM DUAL clause:
+
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  FOR UPDATE;
+
+--error ER_ORDER_WITH_PROC
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  PROCEDURE ANALYSE();
+--error ER_ORDER_WITH_PROC
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  PROCEDURE ANALYSE() FOR UPDATE;
+
+SELECT 1 FROM
+  (SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+   FOR UPDATE) a;
+
+--error ER_PARSE_ERROR
+SELECT 1 FROM
+  (SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+   PROCEDURE ANALYSE() FOR UPDATE) a;
+
+SELECT 1 FROM t1
+  WHERE EXISTS(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+               FOR UPDATE);
+
+--error ER_PARSE_ERROR
+SELECT 1 FROM t1
+  WHERE EXISTS(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+               PROCEDURE ANALYSE() FOR UPDATE);
+
+SELECT 1 FROM t1
+UNION
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  FOR UPDATE;
+
+--error ER_CANT_USE_OPTION_HERE
+SELECT 1 FROM t1
+UNION
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  PROCEDURE ANALYSE() FOR UPDATE;
+
+--error ER_PARSE_ERROR
+SELECT 1 FROM DUAL PROCEDURE ANALYSE() 
+UNION
+SELECT 1 FROM t1;
+
+(SELECT 1 FROM t1)
+UNION 
+(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+ FOR UPDATE);
+
+--error ER_PARSE_ERROR
+(SELECT 1 FROM t1)
+UNION 
+(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+ PROCEDURE ANALYSE() FOR UPDATE);
+
+--echo # "FOR UPDATE" tests
+
+SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
+(SELECT 1 FROM t1 FOR UPDATE) UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
+SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 FOR UPDATE;
+
+
+--echo # "INTO" clause tests
+
+SELECT 1 FROM t1 INTO @var17727401;
+SELECT 1 FROM DUAL INTO @var17727401;
+SELECT 1 INTO @var17727401;
+
+SELECT 1 INTO @var17727401 FROM t1;
+SELECT 1 INTO @var17727401 FROM DUAL;
+
+--error ER_PARSE_ERROR
+SELECT 1 INTO @var17727401_1 FROM t1 INTO @var17727401_2;
+
+--error ER_PARSE_ERROR
+SELECT 1 INTO @var17727401_1 FROM DUAL
+  INTO @var17727401_2;
+
+SELECT 1 INTO @var17727401 FROM t1 WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1;
+SELECT 1 FROM t1 WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1 INTO @var17727401;
+
+--error ER_PARSE_ERROR
+SELECT 1 FROM t1 WHERE 1 INTO @var17727401 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1;
+
+--error ER_PARSE_ERROR
+SELECT 1 INTO @var17727401_1
+  FROM t1 WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1
+  INTO @var17727401_2;
+
+--error ER_PARSE_ERROR
+SELECT (SELECT 1 FROM t1 INTO @var17727401);
+--error ER_PARSE_ERROR
+SELECT 1 FROM (SELECT 1 FROM t1 INTO @var17727401) a;
+--error ER_PARSE_ERROR
+SELECT EXISTS(SELECT 1 FROM t1 INTO @var17727401);
+
+--error ER_PARSE_ERROR
+SELECT 1 FROM t1 INTO @var17727401 UNION SELECT 1 FROM t1 INTO t1;
+--error ER_PARSE_ERROR
+(SELECT 1 FROM t1 INTO @var17727401) UNION (SELECT 1 FROM t1 INTO t1);
+
+SELECT 1 FROM t1 UNION SELECT 1 FROM t1 INTO @var17727401;
+
+--error ER_PARSE_ERROR
+SELECT 1 INTO @var17727401 FROM t1 PROCEDURE ANALYSE();
+
+--error ER_PARSE_ERROR
+SELECT 1 FROM t1 PROCEDURE ANALYSE() INTO @var17727401;
+
+--echo # ORDER and LIMIT clause combinations
+
+# Limited support for (SELECT ...) ORDER/LIMIT:
+
+# (SELECT 1 FROM t1 ORDER BY 1) ORDER BY 1;
+# (SELECT 1 FROM t1 LIMIT 1) LIMIT 1;
+
+#--error ER_PARSE_ERROR
+# ((SELECT 1 FROM t1 ORDER BY 1) ORDER BY 1) ORDER BY 1;
+#--error ER_PARSE_ERROR
+# ((SELECT 1 FROM t1 LIMIT 1) LIMIT 1) LIMIT 1;
+
+# (SELECT 1 FROM t1 ORDER BY 1) LIMIT 1;
+# (SELECT 1 FROM t1 LIMIT 1) ORDER BY 1;
+
+--error ER_PARSE_ERROR
+((SELECT 1 FROM t1 ORDER BY 1) LIMIT 1) ORDER BY 1);
+--error ER_PARSE_ERROR
+((SELECT 1 FROM t1 LIMIT 1) ORDER BY 1) LIMIT 1);
+
+# ORDER/LIMIT and UNION:
+
+let $q=SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1;
+eval $q;
+eval SELECT ($q);
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 UNION SELECT 1 FROM t1 LIMIT 1;
+eval $q;
+eval SELECT ($q);
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
+eval $q;
+eval SELECT ($q);
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 UNION SELECT 1 FROM t1 LIMIT 1 ORDER BY 1;
+--error ER_PARSE_ERROR
+eval $q;
+--error ER_PARSE_ERROR
+eval SELECT ($q);
+--error ER_PARSE_ERROR
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1;
+--error ER_PARSE_ERROR
+eval $q;
+--error ER_PARSE_ERROR
+eval SELECT ($q);
+--error ER_PARSE_ERROR
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1;
+--error ER_PARSE_ERROR
+eval $q;
+--error ER_PARSE_ERROR
+eval SELECT ($q);
+--error ER_PARSE_ERROR
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 UNION SELECT 1 FROM t1;
+--error ER_PARSE_ERROR
+eval $q;
+--error ER_PARSE_ERROR
+eval SELECT ($q);
+--error ER_PARSE_ERROR
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 LIMIT 1 ORDER BY 1 UNION SELECT 1 FROM t1;
+--error ER_PARSE_ERROR
+eval $q;
+--error ER_PARSE_ERROR
+eval SELECT ($q);
+--error ER_PARSE_ERROR
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 ORDER BY 1;
+--error ER_PARSE_ERROR
+eval $q;
+--error ER_PARSE_ERROR
+eval SELECT ($q);
+--error ER_PARSE_ERROR
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 LIMIT 1;
+--error ER_PARSE_ERROR
+eval $q;
+--error ER_PARSE_ERROR
+eval SELECT ($q);
+--error ER_PARSE_ERROR
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 ORDER BY 1;
+--error ER_PARSE_ERROR
+eval $q;
+--error ER_PARSE_ERROR
+eval SELECT ($q);
+--error ER_PARSE_ERROR
+eval SELECT 1 FROM ($q) a;
+
+let $q=SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 LIMIT 1;
+--error ER_PARSE_ERROR
+eval $q;
+--error ER_PARSE_ERROR
+eval SELECT ($q);
+--error ER_PARSE_ERROR
+eval SELECT 1 FROM ($q) a;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8380: Subquery parse error
+--echo #
+CREATE TABLE t1 ( a INT);
+INSERT INTO t1 VALUES ( 2 );
+SELECT *
+FROM ( (SELECT a FROM t1 ORDER BY a) UNION (SELECT 1 as b ORDER BY b ) ) AS a1
+WHERE a1.a = 1 OR a1.a = 2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10080 Derived tables allow double LIMIT clause
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+--error ER_PARSE_ERROR
+SELECT * FROM  (SELECT * FROM t1 LIMIT 1 LIMIT 2) t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10109 Disallow syntactically INSERT .. SELECT .. {ORDER BY ..| LIMIT ..} .. UNION ..
+--echo #
+
+--error ER_PARSE_ERROR
+INSERT INTO t1 SELECT 1 ORDER BY 1 UNION SELECT 2;
+--error ER_PARSE_ERROR
+INSERT INTO t1 SELECT 1 LIMIT 1 UNION SELECT 2;
+--error ER_PARSE_ERROR
+CREATE TABLE t1 AS SELECT 1 ORDER BY 1 UNION SELECT 2;
+--error ER_PARSE_ERROR
+CREATE TABLE t1 AS SELECT 1 LIMIT 1 UNION SELECT 2;
+
+
+--echo #
+--echo # MDEV-8909 union parser cleanup
+--echo #
+
+--echo # UNION with a non-parenthesized term
+--echo # The following two queries return a wrong result
+--echo # This will change when MDEV-10120 is fixed
+--echo # For now, we're testing the parser.
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+--error ER_AGGREGATE_ORDER_FOR_UNION
+SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
+--error ER_AGGREGATE_ORDER_FOR_UNION
+SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
+DROP TABLE t1;
+
+--echo # UNION with a parenthesed term
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 2);
+
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a));
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) LIMIT 1;
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) ORDER BY a;
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) ORDER BY a LIMIT 1;
+DROP TABLE t1;
+
+--echo # UNION with a parenthesized term with ROLLUP
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP);
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP) LIMIT 1;
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP) ORDER BY a LIMIT 1;
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP LIMIT 2);
+
+
+--error ER_WRONG_USAGE
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY a);
+--error ER_WRONG_USAGE
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a));
+--error ER_WRONG_USAGE
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a));
+DROP TABLE t1;
+
+--echo # UNION with a non-parethesized term with ROLLUP
+
+--echo # This will change after: MDEV-10120 Wrong result of UNION .. ORDER BY GROUP_CONCAT()
+--echo # Currently we're testing the parser only
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+--error ER_AGGREGATE_ORDER_FOR_UNION
+SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a);
+--error ER_AGGREGATE_ORDER_FOR_UNION
+SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a);
+--error ER_AGGREGATE_ORDER_FOR_UNION
+SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
+DROP TABLE t1;
+
+--echo # Derived table with ROLLUP
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1;
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 LIMIT 1;
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY a;
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY a LIMIT 1;
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY a DESC LIMIT 1;
+
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY GROUP_CONCAT(a);
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY GROUP_CONCAT(a ORDER BY a);
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY GROUP_CONCAT(a) LIMIT 1;
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
+
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a) DESC;
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) DESC;
+
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a) LIMIT 1;
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a) DESC LIMIT 1;
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) DESC LIMIT 1;
+
+--error ER_WRONG_USAGE
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a) t1;
+--error ER_WRONG_USAGE
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) t1;
+--error ER_WRONG_USAGE
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a)) t1;
+--error ER_WRONG_USAGE
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a)) t1;
+
+DROP TABLE t1;
+
+--echo # Subquery, one row, ROLLUP
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NULL);
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NOT NULL);
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NULL) FROM t1;
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NOT NULL) FROM t1;
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP);
+--error ER_SUBQUERY_NO_1_ROW
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP);
+--error ER_SUBQUERY_NO_1_ROW
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP) FROM t1;
+--error ER_SUBQUERY_NO_1_ROW
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP) FROM t1;
+
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a);
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1);
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a));
+--error ER_WRONG_USAGE
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) AS a;
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a) FROM t1;
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) FROM t1;
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a)) FROM t1;
+--error ER_WRONG_USAGE
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) AS a FROM t1;
+
+DROP TABLE t1;
+
+--echo # Subquery, multiple rows, ROLLUP
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP);
+--error ER_SUBQUERY_NO_1_ROW
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP);
+--error ER_SUBQUERY_NO_1_ROW
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP) FROM t1;
+--error ER_SUBQUERY_NO_1_ROW
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP) FROM t1;
+
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a);
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1);
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a));
+--error ER_WRONG_USAGE
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) AS a;
+
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a) FROM t1;
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) FROM t1;
+--error ER_WRONG_USAGE
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a)) FROM t1;
+--error ER_WRONG_USAGE
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) AS a FROM t1;
+
+DROP TABLE t1;
+
+
+--echo
+--echo MDEV-10101 Wrong error message of SELECT 1 UNION (SELECT 1 FROM t1 GROUP BY 1 WITH ROLLUP)
+--echo
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP);
+(SELECT a FROM t1 GROUP BY a WITH ROLLUP) UNION SELECT 1;
+SELECT a FROM t1 GROUP BY a WITH ROLLUP UNION SELECT 1;
+
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP) LIMIT 1;
+(SELECT a FROM t1 GROUP BY a WITH ROLLUP) UNION SELECT 1 LIMIT 1;
+SELECT a FROM t1 GROUP BY a WITH ROLLUP UNION SELECT 1 LIMIT 1;
+
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP) ORDER BY a LIMIT 1;
+(SELECT a FROM t1 GROUP BY a WITH ROLLUP) UNION SELECT 1 ORDER BY a LIMIT 1;
+SELECT a FROM t1 GROUP BY a WITH ROLLUP UNION SELECT 1 ORDER BY a LIMIT 1;
+
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP LIMIT 2);
+(SELECT a FROM t1 GROUP BY a WITH ROLLUP LIMIT 2) UNION SELECT 1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-10779 Failing assertion lex->proc_list.elements == 0 or syntax error on PROCEDURE ANALYSE in UNION
+--echo #
+
+CREATE TABLE t1 (i INT);
+--error ER_PARSE_ERROR
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10));
+
+--error ER_PARSE_ERROR
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10);
+
+--error ER_PARSE_ERROR
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+(SELECT 1);
+
+--error ER_PARSE_ERROR
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+SELECT 1;
+
+--error ER_PARSE_ERROR
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10));
+
+--error ER_PARSE_ERROR
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10);
+
+--error ER_PARSE_ERROR
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+(SELECT 1);
+
+--error ER_PARSE_ERROR
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+SELECT 1;
+
+DROP TABLE t1;
+
+#
+# MDEV-11582 InnoDB: Failing assertion: !((field)->vcol_info && !(field)->stored_in_db())
+#
+--error ER_PARSE_ERROR
+create table t1 (a serial null);
+--error ER_PARSE_ERROR
+create table t1 (a serial auto_increment);
+--error ER_PARSE_ERROR
+create table t1 (a serial serial default value);
+--error ER_PARSE_ERROR
+create table t1 (a serial collate binary);
+--error ER_PARSE_ERROR
+create table t1 (i int, vc serial as (i));
+--error ER_PARSE_ERROR
+create function fs() returns serial return 1;
+
+create table t1 ( id serial );
+show create table t1;
+drop table t1;
+
+#
+# BETWEEN syntax
+#
+create or replace view v1 as select 1 between (2 between 3 and 4) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 between (2 in (3,4)) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 not between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+
+drop view v1;
+
+--echo #
+--echo # MDEV-10343 Providing compatibility for basic SQL data types
+--echo #
+CREATE TABLE clob (clob int);
+DROP TABLE clob;
+
+CREATE TABLE raw (raw int);
+DROP TABLE raw;
+
+CREATE TABLE varchar2 (varchar2 int);
+DROP TABLE varchar2;
+
+
+--echo #
+--echo # MDEV-15620 Crash when using "SET @@NEW.a=expr" inside a trigger
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @@NEW.a=0;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15664 sql_mode=ORACLE: Make TRIM return NULL instead of empty string
+--echo #
+
+CREATE TABLE trim_oracle (trim_oracle int);
+DROP TABLE trim_oracle;
+
+--echo #
+--echo # MDEV-15615 Unexpected syntax error instead of "Unknown system variable" inside an SP
+--echo #
+
+DELIMITER $$;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+BEGIN NOT ATOMIC
+  DECLARE a INT;
+  SET GLOBAL a=10;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # MDEV-16202 Latest changes made erroneously some keywords reserved in sql_mode=ORACLE
+--echo #
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(name VARCHAR(64), pattern TEXT)
+BEGIN
+  DECLARE query TEXT DEFAULT REPLACE(pattern, 'name', name);
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+  BEGIN
+    SHOW ERRORS;
+  END;
+  SELECT query AS '';
+  EXECUTE IMMEDIATE query;
+END;
+$$
+
+CREATE PROCEDURE p2(name VARCHAR(64))
+BEGIN
+  CALL p1(name, 'BEGIN NOT ATOMIC DECLARE name INT; SET name=10; SELECT name; END');
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (name INT)', 'name', name);
+  CALL p1(name, 'SELECT name FROM t1');
+  CALL p1(name, 'SELECT name ''alias'' FROM t1');
+  CALL p1(name, 'SELECT name()');
+  CALL p1(name, 'SELECT name.name()');
+  CALL p1(name, 'SELECT name DATE FROM t1');
+  CALL p1(name, 'SELECT name HISTORY FROM t1');
+  CALL p1(name, 'SELECT name NEXT FROM t1');
+  CALL p1(name, 'SELECT name PERIOD FROM t1');
+  CALL p1(name, 'SELECT name PREVIOUS FROM t1');
+  CALL p1(name, 'SELECT name SYSTEM FROM t1');
+  CALL p1(name, 'SELECT name SYSTEM_TIME FROM t1');
+  CALL p1(name, 'SELECT name TIME FROM t1');
+  CALL p1(name, 'SELECT name TIMESTAMP FROM t1');
+  CALL p1(name, 'SELECT name TRANSACTION FROM t1');
+  CALL p1(name, 'SELECT name VALUE FROM t1');
+  CALL p1(name, 'SELECT name VERSIONING FROM t1');
+  CALL p1(name, 'SELECT name WITHOUT FROM t1');
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+
+--disable_column_names
+CALL p2('date');
+CALL p2('history');
+CALL p2('next');
+CALL p2('period');
+CALL p2('previous');
+CALL p2('system');
+CALL p2('system_time');
+CALL p2('time');
+CALL p2('timestamp');
+CALL p2('transaction');
+CALL p2('value');
+CALL p2('versioning');
+CALL p2('without');
+--enable_column_names
+
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-16697: Fix difference between 32bit/windows and 64bit
+--echo # systems in allowed select nest level
+--echo #
+ SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+1
+)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))));
+
+--echo #
+--echo # MDEV-17693 Shift/reduce conflicts for NAMES,ROLE,PASSWORD in the option_value_no_option_type grammar
+--echo #
+
+CREATE TABLE names (names INT);
+SELECT names FROM names AS names;
+DROP TABLE names;
+
+CREATE TABLE password (password INT);
+SELECT password FROM password AS password;
+DROP TABLE password;
+
+CREATE TABLE role (role INT);
+SELECT role FROM role AS role;
+DROP TABLE role;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE names    VARCHAR(32) DEFAULT '[names]';
+  DECLARE password VARCHAR(32) DEFAULT '[password]';
+  DECLARE role     VARCHAR(32) DEFAULT '[role]';
+names:
+  LOOP
+    SELECT names;
+    LEAVE names;
+  END LOOP;
+password:
+  LOOP
+    SELECT password;
+    LEAVE password;
+  END LOOP;
+role:
+  LOOP
+    SELECT role;
+    LEAVE role;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_BAD_VAR_SHADOW
+BEGIN NOT ATOMIC
+  DECLARE names VARCHAR(32);
+  SET names='[names]';
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_BAD_VAR_SHADOW
+BEGIN NOT ATOMIC
+  DECLARE password VARCHAR(32);
+  SET password='[password]';
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE role VARCHAR(32);
+  SET role='[role]';
+END;
+$$
+DELIMITER ;$$
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.names;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.password;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.role;
+
+--echo #
+--echo # MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
+--echo #
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'if(`systeminfo /FO LIST';
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'if(`systeminfo';
+
+--echo #
+--echo # MDEV-23666 Assertion failed in Lex_input_stream::body_utf8_append
+--echo #
+SET @@sql_mode='ANSI_QUOTES';
+
+# Without a patch execution of the following statements results in assertion
+# in Lex_input_stream::body_utf8_append on parsing the statement
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"';
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"abc';
+
+SET @@sql_mode=@save_sql_mode;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-19540: 10.4 allow lock options with SELECT in brackets
+--echo # which previous version do not
+--echo #
+
+create table t1 (a int);
+(select * from t1) for update;
+--error ER_WRONG_USAGE
+(select * from t1) union (select * from t1) for update;
+(select * from t1 for update);
+select * from t1 for update;
+drop table t1;
+
+--echo #
+--echo # MDEV-20108: [ERROR] mysqld got signal 11 in
+--echo # st_select_lex::add_table_to_list
+--echo #
+CREATE TABLE t1 (c1 INT NULL);
+CREATE TABLE t2 (c1 INT NULL);
+
+SET STATEMENT max_statement_time=900 FOR LOCK TABLES `t1` WRITE;
+select * from t1;
+--error ER_TABLE_NOT_LOCKED
+select * from t2;
+SET STATEMENT max_statement_time=900 FOR unlock tables;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-21616: Server crash when using
+--echo # "SET STATEMENT max_statement_time=0 FOR desc xxx" lead to collapse
+--echo #
+
+create table t1 (a int);
+SET STATEMENT max_statement_time=0 FOR desc t1;
+drop table t1;
+SET STATEMENT max_statement_time=0 FOR do 1;
+
+set @save_sql_mode=@@SQL_MODE;
+set SQL_MODE=ORACLE;
+create table t1 (a int);
+SET STATEMENT max_statement_time=0 FOR desc t1;
+drop table t1;
+SET STATEMENT max_statement_time=0 FOR do 1;
+set SQL_MODE=@save_sql_mode;
+
+
+--echo #
+--echo # MDEV-21684: mysqld crash with signal 11 when renaming
+--echo # table+max_statement_time
+--echo #
+
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR RENAME TABLE bleh TO blah;
+SET STATEMENT max_statement_time=180 FOR load index into cache t1_base;
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR DROP INDEX i1 ON t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
+
+set @save_sql_mode=@@SQL_MODE;
+set SQL_MODE=ORACLE;
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR RENAME TABLE bleh TO blah;
+SET STATEMENT max_statement_time=180 FOR load index into cache t1_base;
+--error ER_NO_SUCH_TABLE
+SET STATEMENT max_statement_time=180 FOR DROP INDEX i1 ON t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
+set SQL_MODE=@save_sql_mode;
+
+
+--echo #
+--echo # MDEV-21997: Server crashes in LEX::create_item_ident_sp
+--echo # upon use of unknown identifier
+--echo #
+
+--error ER_SP_UNDECLARED_VAR
+/*! IF 1 IN ( SELECT 2 ) OR foo = 3 THEN */ SELECT 4;
+
+
+DELIMITER $$;
+
+--error ER_SP_UNDECLARED_VAR
+BEGIN NOT ATOMIC
+  IF (SELECT 2) OR foo = 3 THEN
+    SELECT 4;
+  END IF ;
+END;
+$$
+
+--echo # ... but if declare it then it still work
+BEGIN NOT ATOMIC
+  DECLARE foo int;
+  IF (SELECT 2) OR foo = 3 THEN
+    SELECT 4;
+  END IF ;
+END;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+CASE (SELECT 2) OR foo
+WHEN 1 THEN
+  SET @x=10;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+/*! WHILE (SELECT 2) OR foo */
+  SET @x=10;
+END WHILE;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+REPEAT
+  SET @x=10;
+UNTIL (SELECT 2) OR foo
+END REPEAT;
+$$
+
+--error ER_SP_UNDECLARED_VAR
+FOR i IN 1..(SELECT 2) OR foo
+DO
+  SET @x=10;
+END FOR;
+$$
+
+--echo # ... but automatic FOR variable still work
+FOR i IN 1..2
+DO
+  SELECT i;
+END FOR;
+$$
+
+DELIMITER ;$$
+
+--echo #
+--echo # MDEV-21998: Server crashes in st_select_lex::add_table_to_list
+--echo # upon mix of KILL and sequences
+--echo #
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+KILL ( SELECT 1 ) + LASTVAL(s);
+--error ER_SUBQUERIES_NOT_SUPPORTED
+KILL LASTVAL(s);
+
+--echo #
+--echo # MDEV-23094: Multiple calls to a Stored Procedure from another
+--echo # Stored Procedure crashes server
+--echo #
+
+create table t1 (id1 int primary key, data1 int);
+create table t2 (id2 int primary key, data2 int);
+
+delimiter //;
+create procedure p1(IN id int, IN dt int)
+begin
+  if (exists(select * from t1 where id1 = id and data1 = dt) or
+      not exists (select * from t2 where id2 = id and data2 = dt))
+  then
+      select 1;
+  end if;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(IN id int, IN dt int)
+begin
+case (exists(select * from t1 where id1 = id and data1 = dt) or
+      not exists (select * from t2 where id2 = id and data2 = dt))
+when 1 then
+  select 1;
+else
+  select 0;
+end case;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(IN id int, IN dt int)
+begin
+declare wcont int default 1;
+while (exists(select * from t1 where id1 = id and data1 = dt) or
+      not exists (select * from t2 where id2 = id and data2 = dt)) and wcont
+do
+  select 1;
+  set wcont=0;
+end while;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(IN id int, IN dt int)
+begin
+declare count int default 1;
+repeat
+  select 1;
+  set count=count+1;
+until (exists(select * from t1 where id1 = id and data1 = dt) or
+      not exists (select * from t2 where id2 = id and data2 = dt)) and
+      count < 3
+end repeat;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(IN id int, IN dt int)
+begin
+for i in 1..(exists(select * from t1 where id1 = id and data1 = dt) or
+             not exists (select * from t2 where id2 = id and data2 = dt))
+do
+  select 1;
+end for;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+drop table t1,t2;
+
+--echo # End of 10.4 tests

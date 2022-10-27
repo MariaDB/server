@@ -1,0 +1,883 @@
+#
+# This test is originally sequence.test from ALISQL by Jianwei modified for
+# MariaDB
+#
+# It tests basic sequence functionallity together with replication
+#
+
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb.inc
+
+connection master;
+create database s_db;
+use s_db;
+grant all on s_db.* to normal_1@'%' identified by 'pass';
+grant all on test.* to normal_2@'%' identified by 'pass';
+grant all on s_db.* to normal_3@'%' identified by 'pass';
+grant all on test.* to normal_4@'%' identified by 'pass';
+
+--sync_slave_with_master
+
+connect(m_normal_1, 127.0.0.1, normal_1, pass, s_db, $MASTER_MYPORT);
+connect(m_normal_2, 127.0.0.1, normal_2, pass, test, $MASTER_MYPORT);
+
+connect(s_normal_3, 127.0.0.1, normal_3, pass, s_db, $SLAVE_MYPORT);
+connect(s_normal_4, 127.0.0.1, normal_4, pass, test, $SLAVE_MYPORT);
+
+connection slave;
+set global read_only=on;
+use s_db;
+
+--echo ###########################################
+--echo master and slave sync sequence.
+--echo ###########################################
+connection master;
+
+create sequence s1;
+show create table s1;
+
+--sync_slave_with_master
+
+show create table s1;
+
+connection master;
+
+drop sequence s1;
+
+--echo ###########################################
+--echo not support create table engine=sequence.
+--echo ###########################################
+connection master;
+
+--error ER_UNKNOWN_STORAGE_ENGINE
+create table t(id int)engine=sequence;
+
+create table t(id int)engine=innodb;
+
+--error ER_UNKNOWN_STORAGE_ENGINE
+alter table t engine=sequence;
+
+drop table t;
+--echo ###########################################
+--echo not support alter sequence table.
+--echo ###########################################
+connection master;
+
+create sequence s2;
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+alter table s2 add id int;
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+alter table s2 add index ind_x(start);
+drop sequence s2;
+
+--echo ###########################################
+--echo support create sequence
+--echo ###########################################
+connection master;
+
+create table t_1(id int);
+--error ER_NOT_SEQUENCE
+show create sequence t_1;
+
+drop table t_1;
+
+--error ER_PARSE_ERROR
+CREATE SEQUENCE `s2` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) ENGINE=InnoDB sequence=1;
+
+CREATE TABLE `s2` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) ENGINE=InnoDB sequence=1;
+
+insert into s2 values(1, 1, 10, 1, 2, 1, 1, 0);
+commit;
+--error ER_PARSE_ERROR
+select * for s2;
+select * from s2;
+select NEXT VALUE for s2;
+select NEXT VALUE for s2;
+select NEXT VALUE for s2;
+select NEXT VALUE for s2;
+select NEXT VALUE for s2;
+select NEXT VALUE for s2;
+select NEXT VALUE for s2;
+select * from s2;
+commit;
+
+connection master;
+--sync_slave_with_master
+select * from s2;
+
+connection master;
+drop sequence s2;
+
+CREATE TABLE `s2` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) ENGINE=myisam DEFAULT CHARSET=latin1 sequence=1;
+
+show create sequence s2;
+drop sequence s2;
+
+--echo ###########################################
+--echo select sequence syntax test
+--echo ###########################################
+connection master;
+create sequence s2;
+create table t2 (id int);
+
+select * from s2;
+select * from t2;
+insert into t2 select next value for s2;
+commit;
+
+select NEXT VALUE for s2;
+--error ER_NOT_SEQUENCE
+select NEXT VALUE for t2;
+
+select * from s2, t2;
+
+--error ER_PARSE_ERROR
+select * for s2;
+--error ER_PARSE_ERROR
+select * for s2, t2;
+
+connection master;
+drop sequence s2;
+drop table t2;
+
+--echo ###########################################
+--echo support rename, not support truncate
+--echo ###########################################
+connection master;
+
+create sequence s2;
+
+alter table s2 rename to s2_1;
+rename table s2_1 to s2_2;
+show create sequence s2_2;
+select * from s2_2;
+
+--error ER_ILLEGAL_HA
+truncate table s2_2;
+rename table s2_2 to s2;
+drop sequence s2;
+
+--echo ###########################################
+--echo all invalid sequence value
+--echo ###########################################
+
+connection master;
+create sequence s2 start with 1
+  minvalue 1
+  maxvalue 100000
+  increment by 1
+  cache 10000
+  cycle;
+drop sequence s2;
+create sequence s2 start with 1
+  minvalue 1
+  maxvalue 100000
+  increment by 1
+  cache 10000
+  nocycle;
+drop sequence s2;
+create sequence s2 start with 1
+  minvalue 1
+  maxvalue 100000
+  increment by 1
+  nocache
+  nocycle;
+drop sequence s2;
+
+--error ER_SEQUENCE_INVALID_DATA
+create sequence s2 start with 1
+  minvalue 5
+  maxvalue 100000
+  increment by 1
+  nocache
+  nocycle;
+
+--error ER_SEQUENCE_INVALID_DATA
+create sequence s2 start with 1
+  minvalue 5
+  maxvalue 5
+  increment by 1
+  nocache
+  nocycle;
+
+--error ER_SEQUENCE_INVALID_DATA
+create sequence s2 start with 1
+  minvalue 5
+  maxvalue 4
+  increment by 1
+  nocache
+  nocycle;
+
+--error ER_SEQUENCE_INVALID_DATA
+create sequence s2 start with 1
+  minvalue 5
+  maxvalue 4
+  increment by 0
+  nocache
+  nocycle;
+
+--echo ###########################################
+--echo global read lock prevent query sequence
+--echo ###########################################
+connection master;
+create sequence s_db.s1;
+flush table with read lock;
+--error ER_CANT_UPDATE_WITH_READLOCK
+select NEXT VALUE for s1;
+unlock tables;
+drop sequence s_db.s1;
+
+--echo ###########################################
+--echo query cache test
+--echo ###########################################
+connection master;
+flush status;
+show global variables like 'query_cache_type';
+
+show status like 'Qcache_hits';
+show status like 'Qcache_inserts';
+
+--echo ###########################################
+--echo priv test
+--echo ###########################################
+connection m_normal_1;
+create sequence s_db.s1;
+select NEXT VALUE for s_db.s1;
+create sequence s_db.s2;
+drop sequence s_db.s2;
+
+
+connection m_normal_2;
+--error ER_TABLEACCESS_DENIED_ERROR
+select NEXT VALUE for s_db.s1;
+--error ER_TABLEACCESS_DENIED_ERROR
+create sequence s_db.s2;
+
+connection m_normal_1;
+drop sequence s_db.s1;
+
+--echo ###########################################
+--echo run out sequence value
+--echo ###########################################
+connection m_normal_1;
+create sequence s_t start with 1 cache 2 maxvalue 5;
+create table t(id int);
+insert into t values(1111);
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+--error ER_SEQUENCE_RUN_OUT
+insert into t select next value for s_t;
+--error ER_SEQUENCE_RUN_OUT
+insert into t select next value for s_t;
+commit;
+select * from t;
+
+connection master;
+--sync_slave_with_master
+
+connection s_normal_3;
+select * from t;
+
+connection m_normal_1;
+drop sequence s_t;
+drop table t;
+
+--echo ###########################################
+--echo read_only prevent query sequence
+--echo ###########################################
+connection m_normal_1;
+create sequence s_db.s1;
+show global variables like 'read_only';
+select * from s_db.s1;
+
+connection master;
+--sync_slave_with_master
+connection s_normal_3;
+
+show global variables like 'read_only';
+--error ER_OPTION_PREVENTS_STATEMENT
+select next value for s_db.s1;
+
+connection m_normal_1;
+drop sequence s_db.s1;
+
+--echo ###########################################
+--echo update based table
+--echo ###########################################
+connection m_normal_1;
+create sequence s_t start with 1 minvalue 1 maxvalue 20 increment by 1 cache 5 cycle engine=innodb;
+
+connection master;
+--sync_slave_with_master
+
+connection s_normal_3;
+select * from s_t;
+
+
+connection m_normal_1;
+select next value for s_t;
+
+connection master;
+--sync_slave_with_master
+
+connection s_normal_3;
+select next_not_cached_value from s_t;
+
+--echo ------------------------------------------
+--echo master ALTER SEQUENCE
+--echo ------------------------------------------
+connection m_normal_1;
+select next value for s_t;
+alter sequence s_t restart= 11;
+
+select * from s_t;
+
+connection master;
+--sync_slave_with_master
+
+--echo ------------------------------------------
+--echo show slave nextval;
+--echo ------------------------------------------
+connection s_normal_3;
+select * from s_t;
+
+connection m_normal_1;
+select next value for s_t;
+
+connection master;
+--sync_slave_with_master
+
+connection s_normal_3;
+select * from s_t;
+
+
+--echo ------------------------------------------
+--echo update into invalid sequence
+--echo ------------------------------------------
+connection m_normal_1;
+select next value for s_t;
+select * from s_t;
+--error ER_SEQUENCE_INVALID_DATA
+alter sequence s_t minvalue=11 maxvalue=9;
+select * from s_t;
+--error ER_SEQUENCE_INVALID_DATA
+alter sequence s_t restart= 12 start=10 minvalue=11 maxvalue=20;
+select * from s_t;
+
+--echo ------------------------------------------
+--echo delete sequence row
+--echo ------------------------------------------
+connection m_normal_1;
+--error ER_ILLEGAL_HA
+delete from s_t;
+commit;
+
+select next value for s_t;
+
+connection m_normal_1;
+drop sequence s_t;
+
+--echo ###########################################
+--echo test transaction context (innodb)
+--echo ###########################################
+
+--echo ------------------------------------------
+--echo transaction table and sequence
+--echo normal transaction commit
+--echo ------------------------------------------
+connection m_normal_1;
+create sequence s_1 cache 5 engine=innodb;
+
+create table t_1(id int)engine=innodb;
+begin;
+insert into t_1 values(1111);
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 values(2222);
+commit;
+
+select * from t_1;
+select * from s_1;
+
+connection master;
+--sync_slave_with_master
+
+connection s_normal_3;
+select * from t_1;
+
+--echo ------------------------------------------
+--echo normal transaction rollback
+--echo ------------------------------------------
+connection m_normal_1;
+begin;
+insert into t_1 values(3333);
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+
+select * from t_1;
+rollback;
+
+select * from t_1;
+select * from s_1;
+select next value for s_1;
+
+connection master;
+--sync_slave_with_master
+
+connection s_normal_3;
+select * from t_1;
+
+connection m_normal_1;
+drop sequence s_1;
+drop table t_1;
+
+--echo ###########################################
+--echo test transaction context (myisam)
+--echo ###########################################
+
+--echo ------------------------------------------
+--echo transaction table and sequence
+--echo normal transaction commit
+--echo ------------------------------------------
+connection m_normal_1;
+create sequence s_1 cache 5;
+
+create table t_1(id int)engine=myisam;
+begin;
+insert into t_1 values(1111);
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 values(2222);
+commit;
+
+select * from t_1;
+
+connection master;
+--sync_slave_with_master
+
+connection s_normal_3;
+select * from t_1;
+
+--echo ------------------------------------------
+--echo normal transaction rollback
+--echo ------------------------------------------
+connection m_normal_1;
+begin;
+insert into t_1 values(3333);
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+
+select * from t_1;
+rollback;
+
+select * from t_1;
+select next value for s_1;
+
+connection master;
+--sync_slave_with_master
+
+connection s_normal_3;
+select * from t_1;
+
+connection m_normal_1;
+drop sequence s_1;
+drop table t_1;
+
+--echo ###########################################
+--echo close binlog
+--echo ###########################################
+connection m_normal_1;
+create sequence s1 cache 2;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+
+commit;
+select * from s1;
+
+connection master;
+--sync_slave_with_master
+
+select * from s1;
+
+--echo ------------------------------------------
+--echo close session binlog.
+--echo ------------------------------------------
+connection master;
+set session sql_log_bin=off;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+
+set session sql_log_bin=on;
+select * from s1;
+
+connection master;
+--sync_slave_with_master
+
+select * from s1;
+
+connection master;
+select next value for s1;
+select * from s1;
+--sync_slave_with_master
+
+select * from s1;
+connection master;
+
+drop sequence s1;
+
+--echo ###########################################
+--echo statement binlog
+--echo ###########################################
+--echo ------------------------------------------
+--echo set binlog_format=statement
+--echo ------------------------------------------
+connection master;
+set session binlog_format=statement;
+select @@session.binlog_format;
+create sequence s1 cache 2;
+--error ER_BINLOG_STMT_MODE_AND_ROW_ENGINE
+select next value for s1;
+
+set session binlog_format=row;
+select next value for s1;
+
+connection master;
+--sync_slave_with_master
+
+select * from s1;
+
+connection m_normal_1;
+drop sequence s1;
+
+--echo ------------------------------------------
+--echo set binlog_format=mixed
+--echo ------------------------------------------
+connection master;
+set session binlog_format=mixed;
+select @@session.binlog_format;
+create sequence s1 cache 2;
+select next value for s1;
+
+set session binlog_format=row;
+select next value for s1;
+select * from s1;
+
+connection master;
+--sync_slave_with_master
+
+select * from s1;
+
+connection m_normal_1;
+drop sequence s1;
+connection master;
+--sync_slave_with_master
+
+--echo ###########################################
+--echo test savepoint
+--echo ###########################################
+
+connection master;
+set session binlog_format=row;
+
+create sequence s1 cache 2;
+create table t1(id int)engine=innodb;
+
+begin;
+insert into t1 values(1111);
+savepoint sp1;
+insert into t1 select next value for s1;
+insert into t1 select next value for s1;
+insert into t1 select next value for s1;
+
+insert into t1 values(2222);
+
+select * from t1;
+rollback to sp1;
+select * from t1;
+select next value for s1;
+
+commit;
+
+drop sequence s1;
+drop table t1;
+
+connection master;
+--sync_slave_with_master
+
+--echo ###########################################
+--echo create as
+--echo ###########################################
+connection m_normal_1;
+
+create sequence s1 cache 2;
+create table t as select * from s1;
+select * from t;
+drop table t;
+create table t as select next value for s1;
+select * from t;
+drop table t;
+
+drop sequence s1;
+
+connection master;
+--sync_slave_with_master
+
+--echo ###########################################
+--echo test proc
+--echo ###########################################
+connection m_normal_1;
+create table t(id int)engine=innodb;
+
+delimiter //;
+
+create procedure p1()
+begin
+  create sequence s1 cache 2;
+end//
+
+create procedure p2()
+begin
+  insert into t select next value for s1;
+  commit;
+end//
+
+delimiter  ;//
+
+call p1();
+call p2();
+call p2();
+call p2();
+call p2();
+
+select * from t;
+
+connection master;
+--sync_slave_with_master
+
+select * from t;
+
+connection m_normal_1;
+drop table t;
+drop sequence s1;
+drop procedure p1;
+drop procedure p2;
+
+--echo ###########################################
+--echo test trigger
+--echo ###########################################
+connection m_normal_1;
+create sequence s1 cache 2;
+create table t1(id int)engine=innodb;
+create table t2(id int)engine=innodb;
+
+delimiter //;
+CREATE TRIGGER tri_1
+  before INSERT ON t2 FOR EACH ROW
+BEGIN
+  INSERT INTO t1 select next value for s1;
+END//
+delimiter  ;//
+
+begin;
+insert into t2 values(1111);
+insert into t2 values(1111);
+insert into t2 values(1111);
+insert into t2 values(1111);
+
+select * from t2;
+select * from t1;
+rollback;
+select * from t2;
+select * from t1;
+
+select next value for s1;
+
+
+drop trigger tri_1;
+drop table t1;
+drop table t2;
+drop sequence s1;
+
+--echo ###########################################
+--echo test function
+--echo ###########################################
+connection m_normal_1;
+create sequence s1 cache 2;
+create table t1(id int)engine=innodb;
+
+delimiter //;
+CREATE function f1() returns int
+BEGIN
+  INSERT INTO t1 select next value for s1;
+  return (1);
+END//
+delimiter  ;//
+
+begin;
+select f1();
+select f1();
+select f1();
+select f1();
+
+select * from t1;
+rollback;
+select * from t1;
+
+select next value for s1;
+
+drop function f1;
+drop table t1;
+drop sequence s1;
+
+--echo ###########################################
+--echo test value boundary
+--echo ###########################################
+connection m_normal_1;
+
+--echo ------------------------------------------
+--echo cycle_count increment by cycle_count
+--echo ------------------------------------------
+create sequence s1 start with 5 minvalue 2 maxvalue 7 cache 1 cycle;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+drop sequence s1;
+
+create sequence s1 start with 5 minvalue 2 maxvalue 7 cache 10 nocycle;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+--error ER_SEQUENCE_RUN_OUT
+select next value for s1;
+select * from s1;
+drop sequence s1;
+
+create sequence s1 start with 2 minvalue 1 maxvalue 3 increment by 3 nocache cycle;
+select next value for s1;
+select next_not_cached_value,cycle_count from s1;
+select next value for s1;
+select next_not_cached_value,cycle_count from s1;
+select next value for s1;
+select next_not_cached_value,cycle_count from s1;
+select next value for s1;
+select next_not_cached_value,cycle_count from s1;
+select next value for s1;
+select next_not_cached_value,cycle_count from s1;
+drop sequence s1;
+
+create sequence s1 start with 2 minvalue 1 maxvalue 3 increment by 3 cache 2 nocycle;
+select next value for s1;
+--error ER_SEQUENCE_RUN_OUT
+select next value for s1;
+drop sequence s1;
+
+--echo ------------------------------------------
+--echo beyond ulonglong maxvalue
+--echo ------------------------------------------
+create sequence s1 start with 9223372036854775805 minvalue 9223372036854775804 maxvalue 9223372036854775806  cache 1 cycle;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+drop sequence s1;
+
+create sequence s1 start with 9223372036854775805 minvalue 9223372036854775804 maxvalue 9223372036854775806  cache 10 cycle;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+select next value for s1, cycle_count from s1;
+drop sequence s1;
+
+--echo ###########################################
+--echo test default()
+--echo ###########################################
+connection master;
+
+CREATE SEQUENCE s1 nocache engine=myisam;
+CREATE table t1 (a int default next value for s1, b int);
+insert into t1 (b) values (1),(2);
+select default(a) from t1;
+select * from t1;
+select * from s1;
+--sync_slave_with_master
+connection s_normal_3;
+select * from t1;
+select * from s1;
+connection master;
+drop table t1,s1;
+
+#
+# Cleanup
+#
+
+connection master;
+drop database s_db;
+drop user normal_1@'%';
+drop user normal_2@'%';
+drop user normal_3@'%';
+drop user normal_4@'%';
+
+--source include/rpl_end.inc

@@ -1,0 +1,513 @@
+create table t1 (
+pk int primary key,
+a int,
+b int
+);
+insert into t1 values
+(11 , 0, 10),
+(12 , 0, 10),
+(13 , 1, 10),
+(14 , 1, 10),
+(18 , 2, 10),
+(15 , 2, 20),
+(16 , 2, 20),
+(17 , 2, 20),
+(19 , 4, 20),
+(20 , 4, 20);
+select pk, a, b, ntile(-1) over (order by a)
+from t1;
+ERROR HY000: Argument of NTILE must be greater than 0
+select pk, a, b,
+ntile(0) over (order by a)
+from t1;
+ERROR HY000: Argument of NTILE must be greater than 0
+select pk, a, b,
+ntile(1) over (order by pk)
+from t1;
+pk	a	b	ntile(1) over (order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	1
+14	1	10	1
+15	2	20	1
+16	2	20	1
+17	2	20	1
+18	2	10	1
+19	4	20	1
+20	4	20	1
+select pk, a, b,
+ntile(2) over (order by pk)
+from t1;
+pk	a	b	ntile(2) over (order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	1
+14	1	10	1
+15	2	20	1
+16	2	20	2
+17	2	20	2
+18	2	10	2
+19	4	20	2
+20	4	20	2
+select pk, a, b,
+ntile(3) over (order by pk)
+from t1;
+pk	a	b	ntile(3) over (order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	1
+14	1	10	1
+15	2	20	2
+16	2	20	2
+17	2	20	2
+18	2	10	3
+19	4	20	3
+20	4	20	3
+select pk, a, b,
+ntile(4) over (order by pk)
+from t1;
+pk	a	b	ntile(4) over (order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	1
+14	1	10	2
+15	2	20	2
+16	2	20	2
+17	2	20	3
+18	2	10	3
+19	4	20	4
+20	4	20	4
+select pk, a, b,
+ntile(5) over (order by pk)
+from t1;
+pk	a	b	ntile(5) over (order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	2
+14	1	10	2
+15	2	20	3
+16	2	20	3
+17	2	20	4
+18	2	10	4
+19	4	20	5
+20	4	20	5
+select pk, a, b,
+ntile(6) over (order by pk)
+from t1;
+pk	a	b	ntile(6) over (order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	2
+14	1	10	2
+15	2	20	3
+16	2	20	3
+17	2	20	4
+18	2	10	4
+19	4	20	5
+20	4	20	6
+select pk, a, b,
+ntile(7) over (order by pk)
+from t1;
+pk	a	b	ntile(7) over (order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	2
+14	1	10	2
+15	2	20	3
+16	2	20	3
+17	2	20	4
+18	2	10	5
+19	4	20	6
+20	4	20	7
+select pk, a, b,
+ntile(8) over (order by pk)
+from t1;
+pk	a	b	ntile(8) over (order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	2
+14	1	10	2
+15	2	20	3
+16	2	20	4
+17	2	20	5
+18	2	10	6
+19	4	20	7
+20	4	20	8
+select pk, a, b,
+ntile(9) over (order by pk)
+from t1;
+pk	a	b	ntile(9) over (order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	2
+14	1	10	3
+15	2	20	4
+16	2	20	5
+17	2	20	6
+18	2	10	7
+19	4	20	8
+20	4	20	9
+select pk, a, b,
+ntile(10) over (order by pk)
+from t1;
+pk	a	b	ntile(10) over (order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+15	2	20	5
+16	2	20	6
+17	2	20	7
+18	2	10	8
+19	4	20	9
+20	4	20	10
+select pk, a, b,
+ntile(11) over (order by pk)
+from t1;
+pk	a	b	ntile(11) over (order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+15	2	20	5
+16	2	20	6
+17	2	20	7
+18	2	10	8
+19	4	20	9
+20	4	20	10
+select pk, a, b,
+ntile(20) over (order by pk)
+from t1;
+pk	a	b	ntile(20) over (order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+15	2	20	5
+16	2	20	6
+17	2	20	7
+18	2	10	8
+19	4	20	9
+20	4	20	10
+select pk, a, b,
+ntile(1) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(1) over (partition by b order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	1
+14	1	10	1
+18	2	10	1
+15	2	20	1
+16	2	20	1
+17	2	20	1
+19	4	20	1
+20	4	20	1
+select pk, a, b,
+ntile(2) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(2) over (partition by b order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	1
+14	1	10	2
+18	2	10	2
+15	2	20	1
+16	2	20	1
+17	2	20	1
+19	4	20	2
+20	4	20	2
+select pk, a, b,
+ntile(3) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(3) over (partition by b order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	2
+14	1	10	2
+18	2	10	3
+15	2	20	1
+16	2	20	1
+17	2	20	2
+19	4	20	2
+20	4	20	3
+select pk, a, b,
+ntile(4) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(4) over (partition by b order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	2
+14	1	10	3
+18	2	10	4
+15	2	20	1
+16	2	20	1
+17	2	20	2
+19	4	20	3
+20	4	20	4
+select pk, a, b,
+ntile(5) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(5) over (partition by b order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+18	2	10	5
+15	2	20	1
+16	2	20	2
+17	2	20	3
+19	4	20	4
+20	4	20	5
+select pk, a, b,
+ntile(6) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(6) over (partition by b order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+18	2	10	5
+15	2	20	1
+16	2	20	2
+17	2	20	3
+19	4	20	4
+20	4	20	5
+select pk, a, b,
+ntile(7) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(7) over (partition by b order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+18	2	10	5
+15	2	20	1
+16	2	20	2
+17	2	20	3
+19	4	20	4
+20	4	20	5
+select pk, a, b,
+ntile(8) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(8) over (partition by b order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+18	2	10	5
+15	2	20	1
+16	2	20	2
+17	2	20	3
+19	4	20	4
+20	4	20	5
+select pk, a, b,
+ntile(9) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(9) over (partition by b order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+18	2	10	5
+15	2	20	1
+16	2	20	2
+17	2	20	3
+19	4	20	4
+20	4	20	5
+select pk, a, b,
+ntile(10) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(10) over (partition by b order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+18	2	10	5
+15	2	20	1
+16	2	20	2
+17	2	20	3
+19	4	20	4
+20	4	20	5
+select pk, a, b,
+ntile(11) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(11) over (partition by b order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+18	2	10	5
+15	2	20	1
+16	2	20	2
+17	2	20	3
+19	4	20	4
+20	4	20	5
+select pk, a, b,
+ntile(20) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(20) over (partition by b order by pk)
+11	0	10	1
+12	0	10	2
+13	1	10	3
+14	1	10	4
+18	2	10	5
+15	2	20	1
+16	2	20	2
+17	2	20	3
+19	4	20	4
+20	4	20	5
+select pk, a, b,
+ntile(1 + 3) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile(1 + 3) over (partition by b order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	2
+14	1	10	3
+18	2	10	4
+15	2	20	1
+16	2	20	1
+17	2	20	2
+19	4	20	3
+20	4	20	4
+select pk, a, b,
+ntile((select 4)) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile((select 4)) over (partition by b order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	2
+14	1	10	3
+18	2	10	4
+15	2	20	1
+16	2	20	1
+17	2	20	2
+19	4	20	3
+20	4	20	4
+select t1.a from t1 where pk = 11;
+a
+0
+select pk, a, b,
+ntile((select a from t1 where pk=11)) over (partition by b order by pk)
+from t1;
+ERROR HY000: Argument of NTILE must be greater than 0
+select t1.a from t1 where pk = 13;
+a
+1
+select pk, a, b,
+ntile((select a from t1 where pk=13)) over (partition by b order by pk)
+from t1;
+pk	a	b	ntile((select a from t1 where pk=13)) over (partition by b order by pk)
+11	0	10	1
+12	0	10	1
+13	1	10	1
+14	1	10	1
+18	2	10	1
+15	2	20	1
+16	2	20	1
+17	2	20	1
+19	4	20	1
+20	4	20	1
+explain
+select pk, a, b,
+ntile((select a from t1 where pk=13)) over (partition by b order by pk)
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+2	SUBQUERY	t1	const	PRIMARY	PRIMARY	4	const	1	
+select a from t1;
+a
+0
+0
+1
+1
+2
+2
+2
+2
+4
+4
+select pk, a, b,
+ntile((select a from t1)) over (partition by b order by pk)
+from t1;
+ERROR 21000: Subquery returns more than 1 row
+drop table t1;
+#
+# MDEV-9911 NTILE must return an error when parameter is not stable
+#
+create table t1 (
+pk int primary key,
+c1 nvarchar(10),
+c2 nvarchar(10),
+c3 int
+);
+insert into t1 values
+(1, 'Mark', 'Male', 5),
+(2, 'John', 'Male', 5),
+(3, 'Pam', 'Female', 6),
+(4, 'Sara', 'Female', 6),
+(5, 'Todd', 'Male', 5),
+(6, 'Mary', 'Female', 6),
+(7, 'Ben', 'Male', 5),
+(8, 'Jodi', 'Female', 6),
+(9, 'Tom', 'Male', 5),
+(10, 'Lucky', 'Male', 5),
+(11, 'Mark', 'Male', 5),
+(12, 'John', 'Male', 5),
+(13, 'Pam', 'Female', 6),
+(14, 'Sara', 'Female', 6),
+(15, 'Todd', 'Male', 5),
+(16, 'Mary', 'Female', 6),
+(17, 'Ben', 'Male', 5),
+(18, 'Jodi', 'Female', 6),
+(19, 'Tom', 'Male', 5),
+(20, 'Lucky', 'Male', 5);
+select c1, c2, c3, ntile(6) over (partition by c2 order by pk) from t1;
+c1	c2	c3	ntile(6) over (partition by c2 order by pk)
+Pam	Female	6	1
+Sara	Female	6	1
+Mary	Female	6	2
+Jodi	Female	6	2
+Pam	Female	6	3
+Sara	Female	6	4
+Mary	Female	6	5
+Jodi	Female	6	6
+Mark	Male	5	1
+John	Male	5	1
+Todd	Male	5	2
+Ben	Male	5	2
+Tom	Male	5	3
+Lucky	Male	5	3
+Mark	Male	5	4
+John	Male	5	4
+Todd	Male	5	5
+Ben	Male	5	5
+Tom	Male	5	6
+Lucky	Male	5	6
+select c1, c2, c3, ntile(c3) over (partition by c2 order by pk) from t1;
+c1	c2	c3	ntile(c3) over (partition by c2 order by pk)
+Pam	Female	6	1
+Sara	Female	6	1
+Mary	Female	6	2
+Jodi	Female	6	2
+Pam	Female	6	3
+Sara	Female	6	4
+Mary	Female	6	5
+Jodi	Female	6	6
+Mark	Male	5	1
+John	Male	5	1
+Todd	Male	5	1
+Ben	Male	5	2
+Tom	Male	5	2
+Lucky	Male	5	2
+Mark	Male	5	3
+John	Male	5	3
+Todd	Male	5	4
+Ben	Male	5	4
+Tom	Male	5	5
+Lucky	Male	5	5
+update t1 set c3= 1 where pk = 1;
+select c1, c2, c3, ntile(c3) over (partition by c2 order by pk) from t1;
+ERROR HY000: Argument of NTILE must be greater than 0
+drop table t1;

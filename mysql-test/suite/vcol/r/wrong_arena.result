@@ -1,0 +1,70 @@
+create table t1 (a datetime,
+# get_datetime_value
+b int as (a > 1),                             # Arg_comparator
+c int as (a in (1,2,3)),                      # in_datetime
+d int as ((a,a) in ((1,1),(2,1),(NULL,1))),   # cmp_item_datetime
+# other issues
+e int as ((a,1) in ((1,1),(2,1),(NULL,1)))    # cmp_item_row::alloc_comparators()
+);
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '2'
+Warning	1292	Truncated incorrect datetime value: '3'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` datetime DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` > 1) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (`a` in (1,2,3)) VIRTUAL,
+  `d` int(11) GENERATED ALWAYS AS ((`a`,`a`) in ((1,1),(2,1),(NULL,1))) VIRTUAL,
+  `e` int(11) GENERATED ALWAYS AS ((`a`,1) in ((1,1),(2,1),(NULL,1))) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '2'
+Warning	1292	Truncated incorrect datetime value: '3'
+connect con1, localhost, root;
+insert t1 (a) values ('2010-10-10 10:10:10');
+select * from t1;
+a	b	c	d	e
+2010-10-10 10:10:10	1	0	0	NULL
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '2'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '1'
+Warning	1292	Truncated incorrect datetime value: '2'
+disconnect con1;
+connection default;
+select * from t1;
+a	b	c	d	e
+2010-10-10 10:10:10	1	0	0	NULL
+drop table t1;
+connect con1, localhost, root;
+create table t1 (a datetime,
+b datetime as (least(a,1))                    # Item_func_min_max::get_date
+);
+insert t1 (a) values ('2010-10-10 10:10:10');
+select * from t1;
+a	b
+2010-10-10 10:10:10	0000-00-00 00:00:00
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+disconnect con1;
+connection default;
+select * from t1;
+a	b
+2010-10-10 10:10:10	0000-00-00 00:00:00
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '1'
+drop table t1;
+create table t1 (
+id int  not null ,
+js varchar(1000) not null,
+t time AS (cast(json_value(json_extract(js,concat('$.singleDay."', dayname(curdate()),'"')),'$.start') as time)) virtual);
+insert  into t1(id,js) values (0, '{"default" : {"start": "00:00:00", "end":"23:59:50"}}');
+select * from t1;
+id	js	t
+0	{"default" : {"start": "00:00:00", "end":"23:59:50"}}	NULL
+drop table t1;

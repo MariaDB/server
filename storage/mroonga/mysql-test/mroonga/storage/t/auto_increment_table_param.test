@@ -1,0 +1,49 @@
+# Copyright(C) 2013 Kentoku SHIBA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (c1 int auto_increment, primary key(c1)) auto_increment=34129;
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+show create table t1;
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+insert into t1 values(10);
+select c1 from t1 order by c1 desc;
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+insert into t1 values(6);
+select c1 from t1 order by c1 desc;
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+truncate table t1;
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+delete from t1;
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+rename table t1 to t2;
+insert into t2 values(null);
+select c1 from t2 order by c1 desc;
+show create table t2;
+drop table t2;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

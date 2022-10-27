@@ -1,0 +1,3 @@
+RUBY_SCRIPT_FILES =				\
+	pre.rb					\
+	post.rb

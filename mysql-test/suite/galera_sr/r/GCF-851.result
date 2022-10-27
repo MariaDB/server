@@ -1,0 +1,30 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION WSREP_TRX_FRAGMENT_SIZE=1;
+SET SESSION AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (10);
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) > 0
+1
+connection node_2;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) > 0
+1
+connection node_1;
+START TRANSACTION;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1;
+COUNT(*) > 0
+1
+connection node_1;
+SELECT COUNT(*) > 0 FROM t1;
+COUNT(*) > 0
+1
+DROP TABLE t1;

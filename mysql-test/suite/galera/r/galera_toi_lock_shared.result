@@ -1,0 +1,26 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+ALTER TABLE t1 ADD COLUMN f2 INTEGER, LOCK=SHARED;
+connection node_1;
+INSERT INTO t1 VALUES (2, 2);
+SELECT COUNT(*) AS EXPECT_2 FROM t1;
+EXPECT_2
+2
+SELECT * FROM t1;
+id	f2
+1	NULL
+2	2
+connection node_2;
+INSERT INTO t1 VALUES (3, 3);
+SELECT COUNT(*) AS EXPECT_3 FROM t1;
+EXPECT_3
+3
+SELECT * FROM t1;
+id	f2
+1	NULL
+2	2
+3	3
+DROP TABLE t1;

@@ -1,0 +1,37 @@
+let $PAM_PLUGIN_VERSION= $AUTH_PAM_SO;
+--source pam_init.inc
+
+show variables like 'pam_use_%';
+
+--write_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
+not very secret challenge
+9225
+select user(), current_user(), database();
+EOF
+
+--echo #
+--echo # same test as in pam.test now fails
+--echo #
+--error 1
+--exec $MYSQL_TEST -u test_pam --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good.txt
+--error 1
+--exec $MYSQL_TEST -u test_pam --plugin-dir=$plugindir -p'something' < $MYSQLTEST_VARDIR/tmp/pam_good.txt
+
+--remove_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
+
+--echo #
+--echo # success
+--echo #
+--exec $MYSQL -u test_pam --plugin-dir=$plugindir -p'cleartext good' -e 'select user(), current_user(), database()'
+
+--echo #
+--echo # failure
+--echo #
+--error 1
+--exec $MYSQL -u test_pam --plugin-dir=$plugindir -p'cleartext bad' -e 'select user(), current_user(), database()'
+
+drop user test_pam;
+drop user pam_test;
+let $count_sessions= 1;
+--source include/wait_until_count_sessions.inc
+uninstall plugin pam;

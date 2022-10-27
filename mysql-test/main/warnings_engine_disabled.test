@@ -1,0 +1,25 @@
+#
+# Only run this test with a compiled in but disabled
+# engine
+#
+if (!`SELECT count(*) FROM information_schema.engines WHERE
+      support = 'NO' AND engine = 'innodb'`){
+  skip Needs compiled-in and disabled innodb engine;
+}
+
+
+#
+# Test for handler type, will select MyISAM and print a warning
+# about that - since InnoDB is disabled
+#
+set sql_mode="";
+create table t1 (id int) engine=InnoDB;
+alter table t1 engine=InnoDB;
+drop table t1;
+set sql_mode=default;
+
+#
+# Bug#29263 disabled storage engines omitted in SHOW ENGINES
+#
+SELECT ENGINE, SUPPORT FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='InnoDB';
+SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME='InnoDB';

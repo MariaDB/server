@@ -1,0 +1,300 @@
+--source include/have_debug.inc
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+
+#
+# Create a table with multiple partitions, but in the comment don't specify
+# that per-partition based column families (CF) should be created. Expect that
+# default CF will be used and new one won't be created.
+#
+# In addition, specify TTL on one of the partitions. Insert a few things
+# inside all the partitions, verify after compaction that the rows inside the
+# partition with TTL has disappeared.
+#
+# Add secondary keys to all tables to test compatibility.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    PRIMARY KEY (`c1`),
+    KEY kc2 (`c2`)
+) ENGINE=ROCKSDB
+COMMENT="custom_p0_ttl_duration=1;"
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+set global rocksdb_debug_ttl_rec_ts = -3600;
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (2, 2);
+INSERT INTO t1 values (3, 3);
+INSERT INTO t1 values (4, 4);
+INSERT INTO t1 values (5, 5);
+INSERT INTO t1 values (6, 6);
+INSERT INTO t1 values (7, 7);
+INSERT INTO t1 values (8, 8);
+INSERT INTO t1 values (9, 9);
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (kc2);
+
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+
+# 1,4, and 7 should be gone
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (kc2);
+DROP TABLE t1;
+
+#
+# Create a table with multiple partitions and request for separate CF to be
+# created per every partition. As a result we expect three different CF-s to be
+# created.
+#
+# In addition, specify TTL on some of the partitions. Insert a few things
+# inside all the partitions, verify after compaction that the rows inside the
+# partition with TTL has disappeared.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=my_custom_cf;custom_p2_cfname=baz',
+    KEY kc2 (`c2`)
+) ENGINE=ROCKSDB
+COMMENT="custom_p0_ttl_duration=1;custom_p1_ttl_duration=7;"
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+set global rocksdb_debug_ttl_rec_ts = -1200;
+INSERT INTO t1 values (1,1,'a');
+INSERT INTO t1 values (4,4,'aaaa');
+INSERT INTO t1 values (7,7,'aaaaaaa');
+
+set global rocksdb_debug_ttl_rec_ts = 1200;
+INSERT INTO t1 values (2,2,'aa');
+INSERT INTO t1 values (3,3,'aaa');
+INSERT INTO t1 values (5,5,'aaaaa');
+INSERT INTO t1 values (6,6,'aaaaaa');
+INSERT INTO t1 values (8,8,'aaaaaaaa');
+INSERT INTO t1 values (9,9,'aaaaaaaaa');
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (kc2);
+
+set global rocksdb_force_flush_memtable_now=1;
+set @@global.rocksdb_compact_cf = 'foo';
+set @@global.rocksdb_compact_cf = 'my_custom_cf';
+set @@global.rocksdb_compact_cf = 'default';
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (kc2);
+
+set global rocksdb_debug_ttl_snapshot_ts = 3600;
+set @@global.rocksdb_compact_cf = 'foo';
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (kc2);
+
+# Now 2,5,8 should be removed (this verifies that TTL is only operating on the
+# particular CF.
+set @@global.rocksdb_compact_cf = 'my_custom_cf';
+set @@global.rocksdb_compact_cf = 'default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (kc2);
+
+DROP TABLE t1;
+
+#
+# Create a table with CF-s/TTL per partition and verify that ALTER TABLE + DROP
+# PRIMARY, ADD PRIMARY work for that scenario and data is persisted/filtered as
+# expected.
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz;',
+    KEY kc2 (c2)
+) ENGINE=ROCKSDB
+COMMENT="custom_p0_ttl_duration=9999;custom_p2_ttl_duration=5;"
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 2, 3),
+    PARTITION custom_p1 VALUES IN (4, 5, 6),
+    PARTITION custom_p2 VALUES IN (7, 8, 9)
+);
+
+INSERT INTO t1 VALUES (1, 1, "one", null);
+INSERT INTO t1 VALUES (2, 2, "two", null);
+INSERT INTO t1 VALUES (3, 3, "three", null);
+
+INSERT INTO t1 VALUES (4, 4, "four", null);
+INSERT INTO t1 VALUES (5, 5, "five", null);
+INSERT INTO t1 VALUES (6, 6, "six", null);
+
+INSERT INTO t1 VALUES (7, 7, "seven", null);
+INSERT INTO t1 VALUES (8, 8, "eight", null);
+INSERT INTO t1 VALUES (9, 9, "nine", null);
+
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (kc2);
+
+# TTL should be reset after alter table
+set global rocksdb_debug_ttl_rec_ts = 600;
+ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY(`c2`,`c1`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz;';
+set global rocksdb_debug_ttl_rec_ts = 0;
+SHOW CREATE TABLE t1;
+
+# ...so nothing should be gone here
+set global rocksdb_debug_ttl_snapshot_ts = 100;
+set global rocksdb_force_flush_memtable_now=1;
+set @@global.rocksdb_compact_cf = 'baz';
+# Filter out expired secondary keys too
+set @@global.rocksdb_compact_cf = 'default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (kc2);
+
+set global rocksdb_debug_ttl_snapshot_ts = 1200;
+set @@global.rocksdb_compact_cf = 'foo';
+set @@global.rocksdb_compact_cf = 'baz';
+# Filter out expired secondary keys too
+set @@global.rocksdb_compact_cf = 'default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (kc2);
+
+DROP TABLE t1;
+
+#
+# Create a table with non-partitioned TTL duration, with partitioned TTL
+# columns
+#
+# In this case the same TTL duration will be applied across different TTL
+# columns in different partitions, except for in p2 where we override the ttl
+# duration.
+#
+CREATE TABLE t1 (
+    c1 BIGINT,
+    c2 BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(25) NOT NULL,
+    event DATE,
+    PRIMARY KEY (`c1`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz;',
+    KEY kc2 (`c2`)
+) ENGINE=ROCKSDB
+COMMENT="ttl_duration=1;custom_p1_ttl_duration=100;custom_p1_ttl_col=c2;custom_p2_ttl_duration=5000;"
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 2, 3),
+    PARTITION custom_p1 VALUES IN (4, 5, 6),
+    PARTITION custom_p2 VALUES IN (7, 8, 9)
+);
+
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 VALUES (1, UNIX_TIMESTAMP(), "one", null);
+INSERT INTO t1 VALUES (2, UNIX_TIMESTAMP(), "two", null);
+INSERT INTO t1 VALUES (3, UNIX_TIMESTAMP(), "three", null);
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+INSERT INTO t1 VALUES (4, UNIX_TIMESTAMP(), "four", null);
+INSERT INTO t1 VALUES (5, UNIX_TIMESTAMP(), "five", null);
+INSERT INTO t1 VALUES (6, UNIX_TIMESTAMP(), "six", null);
+
+INSERT INTO t1 VALUES (7, UNIX_TIMESTAMP(), "seven", null);
+INSERT INTO t1 VALUES (8, UNIX_TIMESTAMP(), "eight", null);
+INSERT INTO t1 VALUES (9, UNIX_TIMESTAMP(), "nine", null);
+
+set global rocksdb_force_flush_memtable_now=1;
+set @@global.rocksdb_compact_cf = 'foo';
+set @@global.rocksdb_compact_cf = 'baz';
+set @@global.rocksdb_compact_cf = 'bar';
+# Filter out expired secondary keys too
+set @@global.rocksdb_compact_cf = 'default';
+
+# here we expect only 1,2,3 to be gone, ttl implicit.
+--sorted_result
+SELECT c1 FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT c1 FROM t1 FORCE INDEX (kc2);
+
+# here we expect only 4,5,6 to be gone, ttl based on column c2.
+set global rocksdb_debug_ttl_snapshot_ts = 600;
+set @@global.rocksdb_compact_cf = 'bar';
+# Filter out expired secondary keys too
+set @@global.rocksdb_compact_cf = 'default';
+set global rocksdb_debug_ttl_snapshot_ts = 0;
+--sorted_result
+SELECT c1 FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT c1 FROM t1 FORCE INDEX (kc2);
+
+# at this point only 7,8,9 should be left..
+DROP TABLE t1;
+
+#
+# Add index inplace
+#
+CREATE TABLE t1 (
+    c1 INT,
+    c2 INT,
+    PRIMARY KEY (`c1`) COMMENT 'custom_p0_cfname=foo;'
+) ENGINE=ROCKSDB
+COMMENT="custom_p0_ttl_duration=1;"
+PARTITION BY LIST(c1) (
+    PARTITION custom_p0 VALUES IN (1, 4, 7),
+    PARTITION custom_p1 VALUES IN (2, 5, 8),
+    PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+
+set global rocksdb_debug_ttl_rec_ts = -3600;
+INSERT INTO t1 values (1, 1);
+INSERT INTO t1 values (4, 4);
+INSERT INTO t1 values (7, 7);
+set global rocksdb_debug_ttl_rec_ts = 0;
+INSERT INTO t1 values (2, 2);
+INSERT INTO t1 values (3, 3);
+INSERT INTO t1 values (5, 5);
+INSERT INTO t1 values (6, 6);
+INSERT INTO t1 values (8, 8);
+INSERT INTO t1 values (9, 9);
+
+# Nothing filtered out
+--sorted_result
+SELECT * FROM t1;
+
+CREATE INDEX kc2 on t1 (c2);
+
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='foo';
+set global rocksdb_compact_cf='default';
+
+# 1,4, and 7 should be gone
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+--sorted_result
+SELECT * FROM t1 FORCE INDEX (kc2);
+DROP TABLE t1;

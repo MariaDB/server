@@ -1,0 +1,177 @@
+SET sql_mode=ORACLE;
+SELECT DECODE(10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT DECODE(10,10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT DECODE(10,10,'x10');
+DECODE(10,10,'x10')
+x10
+SELECT DECODE(11,10,'x10');
+DECODE(11,10,'x10')
+NULL
+SELECT DECODE(10,10,'x10','def');
+DECODE(10,10,'x10','def')
+x10
+SELECT DECODE(11,10,'x10','def');
+DECODE(11,10,'x10','def')
+def
+SELECT DECODE(10,10,'x10',11,'x11','def');
+DECODE(10,10,'x10',11,'x11','def')
+x10
+SELECT DECODE(11,10,'x10',11,'x11','def');
+DECODE(11,10,'x10',11,'x11','def')
+x11
+SELECT DECODE(12,10,'x10',11,'x11','def');
+DECODE(12,10,'x10',11,'x11','def')
+def
+EXPLAIN EXTENDED SELECT DECODE(12,10,'x10',11,'x11','def');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select decode_oracle(12,10,'x10',11,'x11','def') AS "DECODE(12,10,'x10',11,'x11','def')"
+CREATE TABLE decode (decode int);
+DROP TABLE decode;
+#
+# MDEV-13863 sql_mode=ORACLE: DECODE does not treat two NULLs as equivalent
+#
+SELECT DECODE(10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT DECODE(10,10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT DECODE_ORACLE(10);
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE_ORACLE'
+SELECT DECODE_ORACLE(10,10);
+ERROR 42000: Incorrect parameter count in the call to native function 'DECODE_ORACLE'
+EXPLAIN EXTENDED SELECT DECODE(12,10,'x10',11,'x11');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select decode_oracle(12,10,'x10',11,'x11') AS "DECODE(12,10,'x10',11,'x11')"
+EXPLAIN EXTENDED SELECT DECODE(12,10,'x10',11,'x11','def');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select decode_oracle(12,10,'x10',11,'x11','def') AS "DECODE(12,10,'x10',11,'x11','def')"
+EXPLAIN EXTENDED SELECT DECODE_ORACLE(12,10,'x10',11,'x11');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select decode_oracle(12,10,'x10',11,'x11') AS "DECODE_ORACLE(12,10,'x10',11,'x11')"
+EXPLAIN EXTENDED SELECT DECODE_ORACLE(12,10,'x10',11,'x11','def');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select decode_oracle(12,10,'x10',11,'x11','def') AS "DECODE_ORACLE(12,10,'x10',11,'x11','def')"
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS
+SELECT
+DECODE(a,1,'x1',NULL,'xNULL') AS d1,
+DECODE(a,1,'x1',NULL,'xNULL','xELSE') AS d2,
+DECODE_ORACLE(a,1,'x1',NULL,'xNULL') AS d3,
+DECODE_ORACLE(a,1,'x1',NULL,'xNULL','xELSE') AS d4
+FROM t1;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select decode_oracle("t1"."a",1,'x1',NULL,'xNULL') AS "d1",decode_oracle("t1"."a",1,'x1',NULL,'xNULL','xELSE') AS "d2",decode_oracle("t1"."a",1,'x1',NULL,'xNULL') AS "d3",decode_oracle("t1"."a",1,'x1',NULL,'xNULL','xELSE') AS "d4" from "t1"	latin1	latin1_swedish_ci
+DROP VIEW v1;
+DROP TABLE t1;
+SELECT DECODE(TIME'10:20:31','10:20:31','then1','10:20:32','then2','def');
+DECODE(TIME'10:20:31','10:20:31','then1','10:20:32','then2','def')
+then1
+SELECT DECODE(TIME'10:20:32','10:20:31','then1','10:20:32','then2','def');
+DECODE(TIME'10:20:32','10:20:31','then1','10:20:32','then2','def')
+then2
+SELECT DECODE(TIME'10:20:33','10:20:31','then1',NULL,'then2NULL','10:20:33','then3','def');
+DECODE(TIME'10:20:33','10:20:31','then1',NULL,'then2NULL','10:20:33','then3','def')
+then3
+SELECT DECODE(NULL,TIME'10:20:31','then1',NULL,'then2NULL','10:20:33','then3','def');
+DECODE(NULL,TIME'10:20:31','then1',NULL,'then2NULL','10:20:33','then3','def')
+then2NULL
+SELECT DECODE(TIMESTAMP'2001-01-01 10:20:31','2001-01-01 10:20:31','then1','2001-01-01 10:20:32','then2','def');
+DECODE(TIMESTAMP'2001-01-01 10:20:31','2001-01-01 10:20:31','then1','2001-01-01 10:20:32','then2','def')
+then1
+SELECT DECODE(TIMESTAMP'2001-01-01 10:20:32','2001-01-01 10:20:31','then1','2001-01-01 10:20:32','then2','def');
+DECODE(TIMESTAMP'2001-01-01 10:20:32','2001-01-01 10:20:31','then1','2001-01-01 10:20:32','then2','def')
+then2
+SELECT DECODE(TIMESTAMP'2001-01-01 10:20:33','2001-01-01 10:20:31','then1',NULL,'then2NULL','2001-01-01 10:20:33','then3','def');
+DECODE(TIMESTAMP'2001-01-01 10:20:33','2001-01-01 10:20:31','then1',NULL,'then2NULL','2001-01-01 10:20:33','then3','def')
+then3
+SELECT DECODE(NULL,TIMESTAMP'2001-01-01 10:20:31','then1',NULL,'then2NULL','2001-01-01 10:20:33','then3','def');
+DECODE(NULL,TIMESTAMP'2001-01-01 10:20:31','then1',NULL,'then2NULL','2001-01-01 10:20:33','then3','def')
+then2NULL
+SELECT DECODE('w1','w1','then1','w2','then2','def');
+DECODE('w1','w1','then1','w2','then2','def')
+then1
+SELECT DECODE('w2','w1','then1','w2','then2','def');
+DECODE('w2','w1','then1','w2','then2','def')
+then2
+SELECT DECODE('w3','w1','then1',NULL,'then2NULL','w3','then3','def');
+DECODE('w3','w1','then1',NULL,'then2NULL','w3','then3','def')
+then3
+SELECT DECODE(NULL,'w1','then1',NULL,'then2NULL','w3','then3','def');
+DECODE(NULL,'w1','then1',NULL,'then2NULL','w3','then3','def')
+then2NULL
+SELECT DECODE(1,1,'then1',2,'then2','def');
+DECODE(1,1,'then1',2,'then2','def')
+then1
+SELECT DECODE(2,1,'then1',2,'then2','def');
+DECODE(2,1,'then1',2,'then2','def')
+then2
+SELECT DECODE(3,1,'then1',NULL,'then2NULL',3,'then3','def');
+DECODE(3,1,'then1',NULL,'then2NULL',3,'then3','def')
+then3
+SELECT DECODE(NULL,1,'then1',NULL,'then2NULL',3,'then3','def');
+DECODE(NULL,1,'then1',NULL,'then2NULL',3,'then3','def')
+then2NULL
+SELECT DECODE(CAST(NULL AS SIGNED),1,'then1',NULL,'then2NULL',3,'then3','def');
+DECODE(CAST(NULL AS SIGNED),1,'then1',NULL,'then2NULL',3,'then3','def')
+then2NULL
+SELECT DECODE(1.0,1.0,'then1',2.0,'then2','def');
+DECODE(1.0,1.0,'then1',2.0,'then2','def')
+then1
+SELECT DECODE(2.0,1.0,'then1',2.0,'then2','def');
+DECODE(2.0,1.0,'then1',2.0,'then2','def')
+then2
+SELECT DECODE(3.0,1.0,'then1',NULL,'then2NULL',3.0,'then3','def');
+DECODE(3.0,1.0,'then1',NULL,'then2NULL',3.0,'then3','def')
+then3
+SELECT DECODE(NULL,1.0,'then1',NULL,'then2NULL',3.0,'then3','def');
+DECODE(NULL,1.0,'then1',NULL,'then2NULL',3.0,'then3','def')
+then2NULL
+SELECT DECODE(CAST(NULL AS DECIMAL),1.0,'then1',NULL,'then2NULL',3.0,'then3','def');
+DECODE(CAST(NULL AS DECIMAL),1.0,'then1',NULL,'then2NULL',3.0,'then3','def')
+then2NULL
+SELECT DECODE(1e0,1e0,'then1',2e0,'then2','def');
+DECODE(1e0,1e0,'then1',2e0,'then2','def')
+then1
+SELECT DECODE(2e0,1e0,'then1',2e0,'then2','def');
+DECODE(2e0,1e0,'then1',2e0,'then2','def')
+then2
+SELECT DECODE(3e0,1e0,'then1',NULL,'then2NULL',3e0,'then3','def');
+DECODE(3e0,1e0,'then1',NULL,'then2NULL',3e0,'then3','def')
+then3
+SELECT DECODE(NULL,1e0,'then1',NULL,'then2NULL',3e0,'then3','def');
+DECODE(NULL,1e0,'then1',NULL,'then2NULL',3e0,'then3','def')
+then2NULL
+SELECT DECODE(CAST(NULL AS DOUBLE),1e0,'then1',NULL,'then2NULL',3e0,'then3','def');
+DECODE(CAST(NULL AS DOUBLE),1e0,'then1',NULL,'then2NULL',3e0,'then3','def')
+then2NULL
+SELECT DECODE(NULL,NULL,1,2) FROM DUAL;
+DECODE(NULL,NULL,1,2)
+1
+SELECT DECODE(NULL,10,10,NULL,1,2) FROM DUAL;
+DECODE(NULL,10,10,NULL,1,2)
+1
+SELECT DECODE_ORACLE(NULL,NULL,1,2) FROM DUAL;
+DECODE_ORACLE(NULL,NULL,1,2)
+1
+SELECT DECODE_ORACLE(NULL,10,10,NULL,1,2) FROM DUAL;
+DECODE_ORACLE(NULL,10,10,NULL,1,2)
+1
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10) DEFAULT NULL);
+INSERT INTO t1 VALUES (NULL),(1);
+SELECT a, DECODE(a,NULL,1,2) FROM t1;
+a	DECODE(a,NULL,1,2)
+NULL	1
+1	2
+DROP TABLE t1;

@@ -1,0 +1,47 @@
+--echo #
+--echo # Tests when the temporary files are encrypted
+--echo #
+
+source include/have_file_key_management_plugin.inc;
+source include/have_sequence.inc;
+source include/have_innodb.inc;
+
+select @@encrypt_tmp_files;
+
+--source main/win.test
+
+--echo #
+--echo # MDEV-23867: select crash in compute_window_func
+--echo #
+
+set @save_sort_buffer_size=@@sort_buffer_size;
+
+set sort_buffer_size= 2000;
+CREATE TABLE t1( a INT, b INT, c INT);
+INSERT INTO t1 select seq, seq, seq from seq_1_to_5000;
+CREATE TABLE t2( a INT, b INT, c INT);
+INSERT INTO t2 SELECT a, b, ROW_NUMBER() OVER (PARTITION BY b) FROM t1;
+SELECT COUNT(*), MAX(c) FROM t2;
+CREATE TABLE t3( a INT, b INT, c INT);
+INSERT INTO t3 SELECT a, b, SUM(a) OVER () FROM t1;
+SELECT COUNT(*), MAX(c) FROM t3;
+set @@sort_buffer_size=@save_sort_buffer_size;
+DROP TABLE t1,t2,t3;
+
+--echo # end of 10.2 test
+
+--echo #
+--echo # MDEV-22556: Incorrect result for window function when using encrypt-tmp-files=ON
+--echo #
+
+set @save_sort_buffer_size=@@sort_buffer_size;
+set sort_buffer_size= 2000;
+create table t1( a DECIMAL(12,0) DEFAULT NULL, b VARCHAR(20) DEFAULT NULL, c DECIMAL(12,0) DEFAULT NULL)engine=INNODB;
+insert into t1 select seq, seq, seq from seq_1_to_5000;
+select count(*) from (select a, b, c, ROW_NUMBER() OVER (PARTITION BY a) FROM t1)q;
+
+set @@sort_buffer_size=@save_sort_buffer_size;
+ 
+drop table t1;
+
+--echo # End of 10.4 tests

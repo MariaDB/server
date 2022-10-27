@@ -1,0 +1,75 @@
+FLUSH TABLES;
+call mtr.add_suppression("Found 1 prepared XA transactions");
+#
+# MDEV-13797 InnoDB may hang if shutdown is initiated soon after startup
+# while rolling back recovered incomplete transactions
+#
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+BEGIN;
+COMMIT;
+connect  con$c,localhost,root,,;
+CREATE TABLE t8 (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
+XA START 'x';
+INSERT INTO t8 (a) SELECT NULL FROM t;
+UPDATE t8 SET a=a+100, b=a;
+DELETE FROM t8;
+XA END 'x';
+XA PREPARE 'x';
+connect  con$c,localhost,root,,;
+CREATE TABLE t7 (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t7 (a) SELECT NULL FROM t;
+UPDATE t7 SET a=a+100, b=a;
+DELETE FROM t7;
+connect  con$c,localhost,root,,;
+CREATE TABLE t6 (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t6 (a) SELECT NULL FROM t;
+UPDATE t6 SET a=a+100, b=a;
+DELETE FROM t6;
+connect  con$c,localhost,root,,;
+CREATE TABLE t5 (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t5 (a) SELECT NULL FROM t;
+UPDATE t5 SET a=a+100, b=a;
+DELETE FROM t5;
+connect  con$c,localhost,root,,;
+CREATE TABLE t4 (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t4 (a) SELECT NULL FROM t;
+UPDATE t4 SET a=a+100, b=a;
+DELETE FROM t4;
+connect  con$c,localhost,root,,;
+CREATE TABLE t3 (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t3 (a) SELECT NULL FROM t;
+UPDATE t3 SET a=a+100, b=a;
+DELETE FROM t3;
+connect  con$c,localhost,root,,;
+CREATE TABLE t2 (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t2 (a) SELECT NULL FROM t;
+UPDATE t2 SET a=a+100, b=a;
+DELETE FROM t2;
+connect  con$c,localhost,root,,;
+CREATE TABLE t1 (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 (a) SELECT NULL FROM t;
+UPDATE t1 SET a=a+100, b=a;
+DELETE FROM t1;
+INSERT INTO t1(a) SELECT NULL FROM t;
+INSERT INTO t1(a) SELECT NULL FROM t1;
+INSERT INTO t1(a) SELECT NULL FROM t1;
+INSERT INTO t1(a) SELECT NULL FROM t1;
+INSERT INTO t1(a) SELECT NULL FROM t1;
+connection default;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+CREATE TABLE u(a SERIAL) ENGINE=INNODB;
+FLUSH TABLES;
+# restart
+# restart
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+# restart
+DROP TABLE t,u;

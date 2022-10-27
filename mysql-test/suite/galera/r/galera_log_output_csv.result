@@ -1,0 +1,24 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SELECT COUNT(*) > 0 FROM mysql.general_log;
+COUNT(*) > 0
+1
+SELECT 1 = 1 FROM t1;
+1 = 1
+1
+SELECT COUNT(*) = 1 FROM mysql.slow_log WHERE sql_text = 'SELECT 1 = 1 FROM t1';
+COUNT(*) = 1
+1
+connection node_2;
+SELECT 2 = 2 FROM t1;
+2 = 2
+1
+SELECT COUNT(*) = 1 FROM mysql.slow_log WHERE sql_text = 'SELECT 2 = 2 FROM t1';
+COUNT(*) = 1
+1
+connection node_1;
+DROP TABLE t1;
+truncate table mysql.slow_log;
+truncate table mysql.general_log;

@@ -1,0 +1,46 @@
+# Copyright (C) 2010 Sun Microsystems, Inc.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
+
+--source include/not_embedded.inc
+
+#
+# Only global
+#
+
+select @@global.max_digest_length;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.max_digest_length;
+
+show global variables like 'max_digest_length';
+
+show session variables like 'max_digest_length';
+
+select * from information_schema.global_variables
+  where variable_name='max_digest_length';
+
+select * from information_schema.session_variables
+  where variable_name='max_digest_length';
+
+#
+# Read-only
+#
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global max_digest_length=1;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set session max_digest_length=1;
+

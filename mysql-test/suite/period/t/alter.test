@@ -1,0 +1,153 @@
+--source include/have_partition.inc
+
+set @s= '1992-01-01';
+set @e= '1999-12-31';
+
+create table t (s date, e date);
+
+--echo # period start/end columns are implicit NOT NULL
+alter table t add period for a(s, e);
+show create table t;
+
+create or replace table t (s date, e date);
+alter table t change s s date, add period for a(s, e);
+show create table t;
+
+alter table t add id int;
+show create table t;
+alter table t drop id;
+show create table t;
+
+--error ER_CONSTRAINT_FAILED
+insert t values(@e, @s);
+
+--error ER_PERIOD_CONSTRAINT_DROP
+alter table t drop constraint a;
+
+--echo # no-op
+alter table t drop period if exists for b;
+--echo # no-op
+alter table t add period if not exists for a(e, s);
+
+alter table t drop period if exists for a;
+--echo # no-op
+alter table t drop period if exists for a;
+
+alter table t add period for a(s, e), add period if not exists for a(e, s);
+show create table t;
+
+alter table t drop period for a;
+--echo # Constraint is dropped
+insert t values(@e, @s);
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t drop period for a;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t add period for a(s, e), drop period for a;
+
+truncate t;
+alter table t add period for a(s, e);
+--error ER_CONSTRAINT_FAILED
+insert t values(@e, @s);
+alter table t add period for a(s, e), drop period for a;
+--error ER_CONSTRAINT_FAILED
+insert t values(@e, @s);
+alter table t add s1 date not null, add period for b(s1, e), drop period for a;
+show create table t;
+insert t(s, s1, e) values(@e, @s, @e);
+--error ER_CONSTRAINT_FAILED
+insert t(s, s1, e) values(@e, @e, @s);
+
+create table t1 like t;
+show create table t1;
+drop table t1;
+
+--error ER_CONSTRAINT_FAILED
+create table t2 (period for b(s,e)) select * from t;
+
+create table t2 (period for b(s1,e)) select * from t;
+drop table t2;
+
+--echo # SQL16 11.27 <add table period definition>, Syntax Rules, 5)g)
+--echo # The declared type of BC1 shall be either DATE or a timestamp type
+--echo # and shall be equivalent to the declared type of BC2.
+create or replace table t (s timestamp not null, e timestamp(6) not null);
+--error ER_PERIOD_TYPES_MISMATCH
+alter table t add period for a(s, e);
+
+--echo # SQL16 11.27 <add table period definition>, Syntax Rules, 5)c)
+--echo # No column of T shall have a column name that is equivalent to ATPN.
+create or replace table t (a int, s date, e date);
+--error ER_DUP_FIELDNAME
+alter table t add period for a(s, e);
+
+--echo # SQL16 11.27 <add table period definition>, Syntax Rules, 5)i)
+--echo # Neither BC1 nor BC2 shall be an identity column, a generated column,
+--echo # a system-time period start column, or a system-time period end column.
+create or replace table t (id int primary key,
+                           s date,
+                           e date generated always as (s+1));
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+alter table t add period for a(s, e);
+
+create or replace table t (id int primary key,
+                           s date,
+                           e date as (s+1) VIRTUAL);
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+alter table t add period for a(s, e);
+
+create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
+                           st timestamp(6) as row start,
+                           en timestamp(6) as row end,
+                           period for system_time (st, en)) with system versioning;
+--error ER_PERIOD_FIELD_WRONG_ATTRIBUTES
+alter table t add period for a(s, en);
+
+--echo # SQL16 11.27 <add table period definition>, Syntax Rules, 5)b)
+--echo # The table descriptor of T shall not include a period descriptor other
+--echo # than a system-time period descriptor.
+alter table t add period for a(s, e);
+--error ER_MORE_THAN_ONE_PERIOD
+alter table t add period for b(s, e);
+
+--echo # SQL16, Part 2, 11.3 <table definition>, Syntax Rules, 2)e)v)2)B)
+--echo # Let S be the schema identified by the explicit or implicit
+--echo # <schema name> of TN. Let IDCN be an implementation-dependent
+--echo # <constraint name> that is not equivalent to the <constraint name> of
+--echo # any table constraint descriptor included in S. The following
+--echo # <table constraint definition> is implicit:
+--echo # CONSTRAINT IDCN CHECK ( CN1 < CN2 )
+--echo #
+--echo # Due to the above standard limitation, the constraint name can't always
+--echo # match the period name. So it matches when possible; and when not, it
+--echo # is unique not taken name prefixed with period name.
+create or replace table t (x int, s date, e date,
+                           period for mytime(s, e));
+show create table t;
+alter table t add constraint mytime check (x > 1);
+show create table t;
+--error ER_CONSTRAINT_FAILED
+insert t values (2, @e, @s);
+alter table t add constraint mytime_1 check (x > 2);
+--error ER_CONSTRAINT_FAILED
+insert t values (3, @e, @s);
+
+drop table t;
+
+--echo #
+--echo # MDEV-20494 ER_NOT_FORM_FILE or assertion upon adding partition to period table
+--echo #
+create table t1 (f date, t date, period for app(f,t)) with system versioning partition by system_time ( partition p1 history, partition pn current );
+lock table t1 write;
+alter table t1 add partition (partition p2 history);
+unlock tables;
+
+create or replace table t1 (x int, s date, e date, period for app(s,e));
+insert into t1 values(1, '2020-03-01', '2020-03-02');
+insert into t1 values(1, '2020-03-01', '2020-03-02');
+--error ER_DUP_ENTRY
+alter table t1 add primary key(x, s, e);
+alter table t1 add system versioning;
+
+# cleanup
+drop table t1;

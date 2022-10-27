@@ -1,0 +1,1 @@
+--log_bin --log_slave_updates --rocksdb_flush_log_at_trx_commit=1

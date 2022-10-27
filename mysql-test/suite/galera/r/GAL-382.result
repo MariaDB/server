@@ -1,0 +1,13 @@
+connection node_2;
+connection node_1;
+connection node_1;
+create table t1 (i int, j int, k int, primary key pk(i)) engine=innodb;
+Warnings:
+Warning	1280	Name 'pk' ignored for PRIMARY key.
+insert into t1 values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+create table t2 (i int, j int, k int, primary key pk(i, j, k), index idx(i, k, j)) engine=innodb;
+Warnings:
+Warning	1280	Name 'pk' ignored for PRIMARY key.
+replace into t2 (i, j, k) select /*!99997 */ i, k, j from t1;
+DROP TABLE t1;
+DROP TABLE t2;

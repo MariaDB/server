@@ -1,0 +1,55 @@
+--source include/have_rocksdb.inc
+
+#
+# SELECT .. FOR UPDATE
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--enable_connect_log
+
+--source include/count_sessions.inc
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'a');
+
+--connect (con1,localhost,root,,)
+BEGIN;
+--sorted_result
+SELECT a,b FROM t1 WHERE b='a' FOR UPDATE;
+
+--connection default
+SET lock_wait_timeout = 1;
+
+# Should still be able to select 
+
+--sorted_result
+SELECT a,b FROM t1 WHERE b='a';
+
+# ... but not with LOCK IN SHARE MODE
+
+--sorted_result
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT a,b FROM t1 WHERE b='a' LOCK IN SHARE MODE;
+
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t1 SET b='c' WHERE b='a';
+
+--connection con1
+COMMIT;
+--sorted_result
+SELECT a,b FROM t1;
+
+--disconnect con1
+--connection default
+# Now it can be updated all right
+UPDATE t1 SET b='c' WHERE b='a';  
+--sorted_result
+SELECT a,b FROM t1;
+
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc
+

@@ -1,0 +1,226 @@
+SET @org_slow_query_log= @@global.slow_query_log;
+SET @org_log_output= @@global.log_output;
+SET @org_log_slow_admin_statements= @@global.log_slow_admin_statements;
+SET @@GLOBAL.slow_query_log=OFF;
+SET @@GLOBAL.log_output='TABLE';
+FLUSH SLOW LOGS;
+SET @@GLOBAL.slow_query_log=ON;
+SET @@GLOBAL.log_slow_admin_statements=ON;
+SET @saved_dbug = @@debug_dbug;
+SET SESSION debug_dbug="+d,simulate_slow_query";
+CREATE PROCEDURE show_slow_log()
+BEGIN
+SELECT CONCAT('[slow] ', sql_text) AS sql_text
+FROM mysql.slow_log
+WHERE sql_text NOT LIKE '%debug_dbug%';
+END
+$$
+#
+# Expect all admin statements in the slow log (ON,DEFAULT)
+#
+SET @@SESSION.log_slow_admin_statements=ON;
+SET log_slow_filter=DEFAULT;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (a INT);
+CREATE INDEX t1a ON t1 (a);
+DROP INDEX t1a ON t1;
+DROP TABLE t1;
+CREATE TABLE t2 (a INT);
+ALTER TABLE t2 RENAME t2;
+RENAME TABLE t2 TO t3;
+DROP TABLE t3;
+CREATE TABLE t4 (a INT);
+PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t4;
+CREATE SEQUENCE s4;
+ALTER SEQUENCE s4 MAXVALUE 100;
+PREPARE stmt FROM 'ALTER SEQUENCE s4 MAXVALUE=101';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP SEQUENCE s4;
+CALL show_slow_log();
+sql_text
+[slow] TRUNCATE TABLE mysql.slow_log
+[slow] CREATE TABLE t1 (a INT)
+[slow] CREATE INDEX t1a ON t1 (a)
+[slow] DROP INDEX t1a ON t1
+[slow] DROP TABLE t1
+[slow] CREATE TABLE t2 (a INT)
+[slow] ALTER TABLE t2 RENAME t2
+[slow] RENAME TABLE t2 TO t3
+[slow] DROP TABLE t3
+[slow] CREATE TABLE t4 (a INT)
+[slow] PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1'
+[slow] ALTER TABLE t4 MODIFY a INT DEFAULT 1
+[slow] DEALLOCATE PREPARE stmt
+[slow] DROP TABLE t4
+[slow] CREATE SEQUENCE s4
+[slow] ALTER SEQUENCE s4 MAXVALUE 100
+[slow] PREPARE stmt FROM 'ALTER SEQUENCE s4 MAXVALUE=101'
+[slow] ALTER SEQUENCE s4 MAXVALUE=101
+[slow] DEALLOCATE PREPARE stmt
+[slow] DROP SEQUENCE s4
+#
+# Expect all admin statements in the slow log (ON,admin)
+#
+SET @@SESSION.log_slow_admin_statements=ON;
+SET log_slow_filter=admin;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (a INT);
+CREATE INDEX t1a ON t1 (a);
+DROP INDEX t1a ON t1;
+DROP TABLE t1;
+CREATE TABLE t2 (a INT);
+ALTER TABLE t2 RENAME t2;
+RENAME TABLE t2 TO t3;
+DROP TABLE t3;
+CREATE TABLE t4 (a INT);
+PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t4;
+CREATE SEQUENCE s4;
+ALTER SEQUENCE s4 MAXVALUE 100;
+PREPARE stmt FROM 'ALTER SEQUENCE s4 MAXVALUE=101';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP SEQUENCE s4;
+CALL show_slow_log();
+sql_text
+[slow] CREATE INDEX t1a ON t1 (a)
+[slow] DROP INDEX t1a ON t1
+[slow] ALTER TABLE t2 RENAME t2
+[slow] RENAME TABLE t2 TO t3
+[slow] ALTER TABLE t4 MODIFY a INT DEFAULT 1
+[slow] ALTER SEQUENCE s4 MAXVALUE 100
+[slow] ALTER SEQUENCE s4 MAXVALUE=101
+#
+# Expect none of admin DDL statements in the slow log (ON,filesort)
+#
+SET @@SESSION.log_slow_admin_statements=ON;
+SET log_slow_filter=filesort;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (a INT);
+CREATE INDEX t1a ON t1 (a);
+DROP INDEX t1a ON t1;
+DROP TABLE t1;
+CREATE TABLE t2 (a INT);
+ALTER TABLE t2 RENAME t2;
+RENAME TABLE t2 TO t3;
+DROP TABLE t3;
+CREATE TABLE t4 (a INT);
+PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t4;
+CREATE SEQUENCE s4;
+ALTER SEQUENCE s4 MAXVALUE 100;
+PREPARE stmt FROM 'ALTER SEQUENCE s4 MAXVALUE=101';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP SEQUENCE s4;
+CALL show_slow_log();
+sql_text
+#
+# Expect none of admin statements in the slow log (OFF,DEFAULT)
+#
+SET @@SESSION.log_slow_admin_statements=OFF;
+SET log_slow_filter=DEFAULT;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (a INT);
+CREATE INDEX t1a ON t1 (a);
+DROP INDEX t1a ON t1;
+DROP TABLE t1;
+CREATE TABLE t2 (a INT);
+ALTER TABLE t2 RENAME t2;
+RENAME TABLE t2 TO t3;
+DROP TABLE t3;
+CREATE TABLE t4 (a INT);
+PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t4;
+CREATE SEQUENCE s4;
+ALTER SEQUENCE s4 MAXVALUE 100;
+PREPARE stmt FROM 'ALTER SEQUENCE s4 MAXVALUE=101';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP SEQUENCE s4;
+CALL show_slow_log();
+sql_text
+[slow] TRUNCATE TABLE mysql.slow_log
+[slow] CREATE TABLE t1 (a INT)
+[slow] DROP TABLE t1
+[slow] CREATE TABLE t2 (a INT)
+[slow] DROP TABLE t3
+[slow] CREATE TABLE t4 (a INT)
+[slow] PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1'
+[slow] DEALLOCATE PREPARE stmt
+[slow] DROP TABLE t4
+[slow] CREATE SEQUENCE s4
+[slow] PREPARE stmt FROM 'ALTER SEQUENCE s4 MAXVALUE=101'
+[slow] DEALLOCATE PREPARE stmt
+[slow] DROP SEQUENCE s4
+#
+# Expect all admin statements in the slow log (GLOBAL OFF,LOCAL ON,DEFAULT)
+# In the original implementation, this combination disabled slow log for admin commands.
+# However, instead of this exception in GLOBAL vs LOCAL variable behaviour,
+# we should make max_system_variables.log_slow_admin_statements=0
+# prevent enabling globally suppressed logging by setting the session variable to ON.
+#
+SET @@GLOBAL.log_slow_admin_statements=OFF;
+SET @@SESSION.log_slow_admin_statements=ON;
+SET log_slow_filter=DEFAULT;
+TRUNCATE TABLE mysql.slow_log;
+CREATE TABLE t1 (a INT);
+CREATE INDEX t1a ON t1 (a);
+DROP INDEX t1a ON t1;
+DROP TABLE t1;
+CREATE TABLE t2 (a INT);
+ALTER TABLE t2 RENAME t2;
+RENAME TABLE t2 TO t3;
+DROP TABLE t3;
+CREATE TABLE t4 (a INT);
+PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t4;
+CREATE SEQUENCE s4;
+ALTER SEQUENCE s4 MAXVALUE 100;
+PREPARE stmt FROM 'ALTER SEQUENCE s4 MAXVALUE=101';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP SEQUENCE s4;
+CALL show_slow_log();
+sql_text
+[slow] TRUNCATE TABLE mysql.slow_log
+[slow] CREATE TABLE t1 (a INT)
+[slow] CREATE INDEX t1a ON t1 (a)
+[slow] DROP INDEX t1a ON t1
+[slow] DROP TABLE t1
+[slow] CREATE TABLE t2 (a INT)
+[slow] ALTER TABLE t2 RENAME t2
+[slow] RENAME TABLE t2 TO t3
+[slow] DROP TABLE t3
+[slow] CREATE TABLE t4 (a INT)
+[slow] PREPARE stmt FROM 'ALTER TABLE t4 MODIFY a INT DEFAULT 1'
+[slow] ALTER TABLE t4 MODIFY a INT DEFAULT 1
+[slow] DEALLOCATE PREPARE stmt
+[slow] DROP TABLE t4
+[slow] CREATE SEQUENCE s4
+[slow] ALTER SEQUENCE s4 MAXVALUE 100
+[slow] PREPARE stmt FROM 'ALTER SEQUENCE s4 MAXVALUE=101'
+[slow] ALTER SEQUENCE s4 MAXVALUE=101
+[slow] DEALLOCATE PREPARE stmt
+[slow] DROP SEQUENCE s4
+#
+# Clean up
+#
+SET SESSION debug_dbug=@saved_dbug;
+TRUNCATE mysql.slow_log;
+SET @@global.slow_query_log= @org_slow_query_log;
+SET @@global.log_output= @org_log_output;
+SET @@global.log_slow_admin_statements= @org_log_slow_admin_statements;
+DROP PROCEDURE show_slow_log;

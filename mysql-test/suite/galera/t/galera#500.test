@@ -1,0 +1,45 @@
+#
+# The purpose of this test is to verify that if an exception is
+# thrown from gcomm background thread, the provider terminates properly
+# and wsrep_ready becomes 0.
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+--source include/galera_have_debug_sync.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+# Force node_2 gcomm background thread to terminate via exception.
+--connection node_2
+--let $wsrep_cluster_address = `SELECT @@wsrep_cluster_address`
+# Setting gmcast.isolate=2 will force gcomm background thread to
+# throw exception.
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options="gmcast.isolate=2";
+
+# Wait until wsrep_ready becomes 0.
+--let $wait_condition = SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME ='wsrep_ready'
+--source include/wait_condition.inc
+
+# Wait until node_1 ends up in non-prim and rebootstrap the cluster.
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME ='wsrep_cluster_size'
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'wsrep_cluster_status';
+SET SESSION wsrep_sync_wait = default;
+SET GLOBAL wsrep_provider_options="pc.bootstrap=1";
+
+# Restart node_2
+--connection node_2
+SET SESSION wsrep_on=0;
+--source include/restart_mysqld.inc
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: exception from gcomm, backend must be restarted: Gcomm backend termination was requested by setting gmcast.isolate=2.");
+
+--source include/auto_increment_offset_restore.inc

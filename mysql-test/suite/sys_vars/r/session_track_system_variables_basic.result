@@ -1,0 +1,160 @@
+#
+# Variable name : session_track_system_variables
+# Scope         : Global & Session
+#
+# Global - default
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+# Session - default
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
+# via INFORMATION_SCHEMA.GLOBAL_VARIABLES
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'session_track%' ORDER BY VARIABLE_NAME;
+VARIABLE_NAME	VARIABLE_VALUE
+SESSION_TRACK_SCHEMA	ON
+SESSION_TRACK_STATE_CHANGE	OFF
+SESSION_TRACK_SYSTEM_VARIABLES	autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+SESSION_TRACK_TRANSACTION_INFO	OFF
+# via INFORMATION_SCHEMA.SESSION_VARIABLES
+SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE 'session_track%' ORDER BY VARIABLE_NAME;
+VARIABLE_NAME	VARIABLE_VALUE
+SESSION_TRACK_SCHEMA	ON
+SESSION_TRACK_STATE_CHANGE	OFF
+SESSION_TRACK_SYSTEM_VARIABLES	autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+SESSION_TRACK_TRANSACTION_INFO	OFF
+SET @global_saved_tmp =  @@global.session_track_system_variables;
+
+# Altering global variable's value
+SET @@global.session_track_system_variables='autocommit';
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+autocommit
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
+# Altering session variable's value
+SET @@session.session_track_system_variables='autocommit';
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+autocommit
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+autocommit
+
+# Variables' values in a new session.
+connect  con1,"127.0.0.1",root,,test,$MASTER_MYPORT,;
+# Global - expect "autocommit"
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+autocommit
+
+# Session - expect "autocommit"
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+autocommit
+
+# Switching to the default connection.
+connection default;
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+autocommit
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+autocommit
+
+# Test if DEFAULT is working as expected.
+SET @@global.session_track_system_variables = DEFAULT;
+SET @@session.session_track_system_variables = DEFAULT;
+
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
+# Variables' values in a new session (con2).
+connect  con2,"127.0.0.1",root,,test,$MASTER_MYPORT,;
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
+# Altering session should not affect global.
+SET @@session.session_track_system_variables = 'sql_mode';
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+sql_mode
+
+# Variables' values in a new session (con3).
+connect  con3,"127.0.0.1",root,,test,$MASTER_MYPORT,;
+# Altering global should not affect session.
+SET @@global.session_track_system_variables = 'sql_mode';
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+sql_mode
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+autocommit,character_set_client,character_set_connection,character_set_results,time_zone
+
+# Switching to the default connection.
+connection default;
+# Testing NULL
+SET @@global.session_track_system_variables = NULL;
+ERROR 42000: Variable 'session_track_system_variables' can't be set to the value of 'NULL'
+SET @@session.session_track_system_variables = NULL;
+ERROR 42000: Variable 'session_track_system_variables' can't be set to the value of 'NULL'
+# testing with duplicate entries.
+SET @@global.session_track_system_variables= "time_zone";
+SET @@session.session_track_system_variables= "time_zone";
+SET @@global.session_track_system_variables= "sql_mode,sql_mode";
+SET @@session.session_track_system_variables= "sql_mode,sql_mode";
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+sql_mode
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+sql_mode
+
+# testing ordering
+SET @@global.session_track_system_variables= "time_zone,sql_mode";
+SET @@session.session_track_system_variables= "time_zone,sql_mode";
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+sql_mode,time_zone
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+sql_mode,time_zone
+
+# special values
+SET @@global.session_track_system_variables= "*";
+SET @@session.session_track_system_variables= "*";
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+*
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+*
+SET @@global.session_track_system_variables= "";
+SET @@session.session_track_system_variables= "";
+SELECT @@global.session_track_system_variables;
+@@global.session_track_system_variables
+
+SELECT @@session.session_track_system_variables;
+@@session.session_track_system_variables
+
+
+# MDEV-22524 SIGABRT in safe_mutex_unlock with session_track_system_variables and max_relay_log_size.
+SET SESSION session_track_system_variables="sql_slave_skip_counter", sql_slave_skip_counter= 0;
+# Restoring the original values.
+SET @@global.session_track_system_variables = @global_saved_tmp;
+# End of tests.

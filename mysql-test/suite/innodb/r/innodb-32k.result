@@ -1,0 +1,742 @@
+call mtr.add_suppression("Innodb: Cannot add field.*row size is");
+# Test 1) Show the page size from Information Schema
+SELECT variable_value FROM information_schema.global_status
+WHERE LOWER(variable_name) = 'innodb_page_size';
+variable_value
+32768
+# Test 4) The maximum row size is dependent upon the page size.
+#         Redundant: 16315, Compact: 16318.
+#         Compressed: 16318, Dynamic: ?.
+#         Each row format has its own amount of overhead that
+#         varies depending on number of fields and other overhead.
+SET SESSION innodb_strict_mode = ON;
+CREATE TABLE t1 (
+c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
+c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
+c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
+c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
+c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
+c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
+c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
+c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(200),
+c41 char(200), c42 char(200), c43 char(200), c44 char(200), c45 char(200),
+c46 char(200), c47 char(200), c48 char(200), c49 char(200), c50 char(200),
+c51 char(200), c52 char(200), c53 char(200), c54 char(200), c55 char(200),
+c56 char(200), c57 char(200), c58 char(200), c59 char(200), c60 char(200),
+c61 char(200), c62 char(200), c63 char(200), c64 char(200), c65 char(200),
+c66 char(200), c67 char(200), c68 char(200), c69 char(200), c70 char(200),
+c71 char(200), c72 char(200), c73 char(200), c74 char(200), c75 char(200),
+c76 char(200), c77 char(200), c78 char(200), c79 char(200), c80 char(200),
+c81 char(63)
+) ROW_FORMAT=compressed;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+CREATE TABLE t1 (a varchar(255) character set utf8,
+b varchar(255) character set utf8,
+c varchar(255) character set utf8,
+d varchar(255) character set utf8,
+e varchar(4) character set utf8,
+PRIMARY KEY (a,b,c,d,e))
+ENGINE=innodb;
+DROP TABLE t1;
+CREATE TABLE t1 (a varchar(255) character set utf8,
+b varchar(255) character set utf8,
+c varchar(255) character set utf8,
+d varchar(255) character set utf8,
+e varchar(5) character set utf8,
+PRIMARY KEY (a,b,c,d,e))
+ENGINE=innodb;
+ERROR 42000: Specified key was too long; max key length is 3072 bytes
+CREATE TABLE t1 (a varchar(255) character set utf8,
+b varchar(255) character set utf8,
+c varchar(255) character set utf8,
+d varchar(255) character set utf8,
+e varchar(255) character set utf8,
+f varchar(4)   character set utf8,
+PRIMARY KEY (a), KEY (b,c,d,e,f))
+ENGINE=innodb;
+DROP TABLE t1;
+CREATE TABLE t1 (a varchar(255) character set utf8,
+b varchar(255) character set utf8,
+c varchar(255) character set utf8,
+d varchar(255) character set utf8,
+e varchar(255) character set utf8,
+f varchar(5)   character set utf8,
+PRIMARY KEY (a), KEY (b,c,d,e,f))
+ENGINE=innodb;
+ERROR 42000: Specified key was too long; max key length is 3072 bytes
+# Test 8) Test creating a table that could lead to undo log overflow.
+CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
+h blob,i blob,j blob,k blob,l blob,m blob,n blob,
+o blob,p blob,q blob,r blob,s blob,t blob,u blob,
+v blob, w blob, x blob, y blob, z blob,
+aa blob,ba blob,ca blob,da blob,ea blob,fa blob,ga blob,
+ha blob,ia blob,ja blob,ka blob,la blob,ma blob,na blob,
+oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
+va blob, wa blob, xa blob, ya blob, za blob)
+ENGINE=InnoDB ROW_FORMAT=dynamic;
+SET @a = repeat('a', 767);
+SET @b = repeat('b', 767);
+SET @c = repeat('c', 767);
+SET @d = repeat('d', 767);
+SET @e = repeat('e', 767);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+UPDATE t1 SET a=@b,b=@b,c=@b,d=@b,e=@b,f=@b,g=@b,h=@b,i=@b,j=@b,
+k=@b,l=@b,m=@b,n=@b,o=@b,p=@b,q=@b,r=@b,s=@b,t=@b,u=@b,
+v=@b,w=@b,x=@b,y=@b,z=@b,
+aa=@b,ba=@b,ca=@b,da=@b,ea=@b,fa=@b,ga=@b,ha=@b,ia=@b,ja=@b,
+ka=@b,la=@b,ma=@b,na=@b,oa=@b,pa=@b,qa=@b,ra=@b,sa=@b,ta=@b,ua=@b,
+va=@b,wa=@b,xa=@b,ya=@b,za=@b;
+CREATE INDEX t1a ON t1 (a(767));
+CREATE INDEX t1b ON t1 (b(767));
+CREATE INDEX t1c ON t1 (c(767));
+CREATE INDEX t1d ON t1 (d(767));
+CREATE INDEX t1e ON t1 (e(767));
+CREATE INDEX t1f1 ON t1 (f(767));
+CREATE INDEX t1f2 ON t1 (g(767));
+CREATE INDEX t1f3 ON t1 (h(767));
+CREATE INDEX t1f4 ON t1 (i(767));
+CREATE INDEX t1f5 ON t1 (j(767));
+UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
+k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c,
+v=@c,w=@c,x=@c,y=@c,z=@c,
+aa=@c,ba=@c,ca=@c,da=@c,ea=@c,fa=@c,ga=@c,ha=@c,ia=@c,ja=@c,
+ka=@c,la=@c,ma=@c,na=@c,oa=@c,pa=@c,qa=@c,ra=@c,sa=@c,ta=@c,ua=@c,
+va=@c,wa=@c,xa=@c,ya=@c,za=@c;
+CREATE INDEX t1f17 ON t1 (v(767));
+BEGIN;
+UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d,f=@d,g=@d,h=@d,i=@d,j=@d,
+k=@d,l=@d,m=@d,n=@d,o=@d,p=@d,q=@d,r=@d,s=@d,t=@d,u=@d,
+v=@d,w=@d,x=@d,y=@d,z=@d,
+aa=@d,ba=@d,ca=@d,da=@d,ea=@d,fa=@d,ga=@d,ha=@d,ia=@d,ja=@d,
+ka=@d,la=@d,ma=@d,na=@d,oa=@d,pa=@d,qa=@d,ra=@d,sa=@d,ta=@d,ua=@d,
+va=@d,wa=@d,xa=@d,ya=@d,za=@d;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d;
+UPDATE t1 SET f=@d,g=@d,h=@d,i=@d,j=@d;
+UPDATE t1 SET k=@d,l=@d,m=@d,n=@d,o=@d;
+UPDATE t1 SET p=@d,q=@d,r=@d,s=@d,t=@d,u=@d;
+UPDATE t1 SET v=@d,w=@d,x=@d,y=@d,z=@d;
+UPDATE t1 SET aa=@d,ba=@d,ca=@d,da=@d;
+UPDATE t1 SET ea=@d,fa=@d,ga=@d,ha=@d,ia=@d,ja=@d;
+UPDATE t1 SET ka=@d,la=@d,ma=@d,na=@d,oa=@d,pa=@d;
+UPDATE t1 SET qa=@d,ra=@d,sa=@d,ta=@d,ua=@d;
+UPDATE t1 SET va=@d,wa=@d,xa=@d,ya=@d,za=@d;
+COMMIT;
+CREATE INDEX t1k ON t1 (k(767));
+CREATE INDEX t1f7 ON t1 (m(767));
+CREATE INDEX t1f8 ON t1 (n(767));
+CREATE INDEX t1f9 ON t1 (o(767));
+CREATE INDEX t1f11 ON t1 (p(767));
+CREATE INDEX t1f12 ON t1 (q(767));
+CREATE INDEX t1f13 ON t1 (r(767));
+CREATE INDEX t1f14 ON t1 (s(767));
+CREATE INDEX t1f15 ON t1 (t(767));
+CREATE INDEX t1f16 ON t1 (u(767));
+CREATE INDEX t1f18 ON t1 (w(767));
+CREATE INDEX t1f19 ON t1 (x(767));
+CREATE INDEX t1f20 ON t1 (y(767));
+CREATE INDEX t1f21 ON t1 (z(767));
+CREATE INDEX ta1a ON t1 (aa(767));
+CREATE INDEX tb1b ON t1 (ba(767));
+CREATE INDEX tc1c ON t1 (ca(767));
+CREATE INDEX td1d ON t1 (da(767));
+CREATE INDEX te1e ON t1 (ea(767));
+CREATE INDEX tf1f1 ON t1 (fa(767));
+CREATE INDEX tg1f2 ON t1 (ga(767));
+CREATE INDEX th1f3 ON t1 (ha(767));
+CREATE INDEX ti1f4 ON t1 (ia(767));
+CREATE INDEX tj1f5 ON t1 (ka(767));
+CREATE INDEX tk1f6 ON t1 (la(767));
+CREATE INDEX tl1f7 ON t1 (ma(767));
+CREATE INDEX tm1f8 ON t1 (na(767));
+CREATE INDEX tn1f9 ON t1 (oa(767));
+CREATE INDEX to1f11 ON t1 (pa(767));
+UPDATE t1 SET t=@e;
+CREATE INDEX t1f6 ON t1 (l(767));
+drop table t1;
+Test an assertion failure on purge.
+CREATE TABLE t1_purge (
+A int,
+B blob, C blob, D blob, E blob,
+F blob, G blob, H blob,
+PRIMARY KEY (B(767), C(767), D(767), E(767), A),
+INDEX (A)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1_purge VALUES (1,
+REPEAT('b', 766), REPEAT('c', 766), REPEAT('d', 766), REPEAT('e', 766),
+REPEAT('f', 766), REPEAT('g', 766), REPEAT('h', 766));
+CREATE TABLE t2_purge (
+A int PRIMARY KEY,
+B blob, C blob, D blob, E blob,
+F blob, G blob, H blob, I blob,
+J blob, K blob, L blob,
+INDEX (B(767))) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t2_purge VALUES (1,
+REPEAT('b', 766), REPEAT('c', 766), REPEAT('d', 766), REPEAT('e', 766),
+REPEAT('f', 766), REPEAT('g', 766), REPEAT('h', 766), REPEAT('i', 766),
+REPEAT('j', 766), REPEAT('k', 766), REPEAT('l', 766));
+CREATE TABLE t3_purge (
+A int,
+B varchar(800), C varchar(800), D varchar(800), E varchar(800),
+F varchar(800), G varchar(800), H varchar(800),
+PRIMARY KEY (B(767), C(767), D(767), E(767), A),
+INDEX (A)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t3_purge SELECT * FROM t1_purge;
+CREATE TABLE t4_purge (
+A int PRIMARY KEY,
+B varchar(800), C varchar(800), D varchar(800), E varchar(800),
+F varchar(800), G varchar(800), H varchar(800), I varchar(800),
+J varchar(800), K varchar(800), L varchar(800),
+INDEX (B(767))) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t4_purge SELECT * FROM t2_purge;
+DELETE FROM t1_purge;
+DELETE FROM t2_purge;
+DELETE FROM t3_purge;
+DELETE FROM t4_purge;
+SET @r=REPEAT('a',500);
+CREATE TABLE tlong(a int,
+v1 varchar(500), v2 varchar(500), v3 varchar(500),
+v4 varchar(500), v5 varchar(500), v6 varchar(500),
+v7 varchar(500), v8 varchar(500), v9 varchar(500),
+v10 varchar(500), v11 varchar(500), v12 varchar(500),
+v13 varchar(500), v14 varchar(500), v15 varchar(500),
+v16 varchar(500), v17 varchar(500), v18 varchar(500)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+CREATE INDEX idx1 ON tlong(a,v1);
+INSERT INTO tlong VALUES(9,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r);
+UPDATE tlong SET a=1000;
+DELETE FROM tlong;
+CREATE TABLE tlong2(a blob,b blob,c blob,d blob,e blob,f blob,g blob,h blob,
+i blob,j blob,k blob,l blob,m blob,n blob,o blob,p blob)
+ENGINE=innodb ROW_FORMAT=dynamic;
+SET @r = REPEAT('a', 767);
+INSERT INTO tlong2 VALUES (@r,@r,@r,@r, @r,@r,@r,@r, @r,@r,@r,@r, @r,@r,@r,@r);
+CREATE INDEX ndx_a ON tlong2 (a(500));
+CREATE INDEX ndx_b ON tlong2 (b(500));
+CREATE INDEX ndx_c ON tlong2 (c(500));
+CREATE INDEX ndx_d ON tlong2 (d(500));
+CREATE INDEX ndx_e ON tlong2 (e(500));
+CREATE INDEX ndx_f ON tlong2 (f(500));
+CREATE INDEX ndx_k ON tlong2 (k(500));
+CREATE INDEX ndx_l ON tlong2 (l(500));
+SET @r = REPEAT('b', 500);
+UPDATE tlong2 set a=@r,b=@r,c=@r,d=@r;
+UPDATE tlong2 set e=@r,f=@r,g=@r,h=@r;
+UPDATE tlong2 set i=@r,j=@r,k=@r,l=@r;
+UPDATE tlong2 set m=@r,n=@r,o=@r,p=@r;
+ALTER TABLE tlong2 DROP INDEX ndx_a;
+ALTER TABLE tlong2 DROP INDEX ndx_b;
+CREATE INDEX ndx_g ON tlong2 (g(500));
+CREATE INDEX ndx_h ON tlong2 (h(500));
+CREATE INDEX ndx_i ON tlong2 (i(500));
+CREATE INDEX ndx_j ON tlong2 (j(500));
+CREATE INDEX ndx_m ON tlong2 (m(500));
+CREATE INDEX ndx_n ON tlong2 (n(500));
+CREATE INDEX ndx_o ON tlong2 (o(500));
+CREATE INDEX ndx_p ON tlong2 (p(500));
+SHOW CREATE TABLE tlong2;
+Table	Create Table
+tlong2	CREATE TABLE `tlong2` (
+  `a` blob DEFAULT NULL,
+  `b` blob DEFAULT NULL,
+  `c` blob DEFAULT NULL,
+  `d` blob DEFAULT NULL,
+  `e` blob DEFAULT NULL,
+  `f` blob DEFAULT NULL,
+  `g` blob DEFAULT NULL,
+  `h` blob DEFAULT NULL,
+  `i` blob DEFAULT NULL,
+  `j` blob DEFAULT NULL,
+  `k` blob DEFAULT NULL,
+  `l` blob DEFAULT NULL,
+  `m` blob DEFAULT NULL,
+  `n` blob DEFAULT NULL,
+  `o` blob DEFAULT NULL,
+  `p` blob DEFAULT NULL,
+  KEY `ndx_c` (`c`(500)),
+  KEY `ndx_d` (`d`(500)),
+  KEY `ndx_e` (`e`(500)),
+  KEY `ndx_f` (`f`(500)),
+  KEY `ndx_k` (`k`(500)),
+  KEY `ndx_l` (`l`(500)),
+  KEY `ndx_g` (`g`(500)),
+  KEY `ndx_h` (`h`(500)),
+  KEY `ndx_i` (`i`(500)),
+  KEY `ndx_j` (`j`(500)),
+  KEY `ndx_m` (`m`(500)),
+  KEY `ndx_n` (`n`(500)),
+  KEY `ndx_o` (`o`(500)),
+  KEY `ndx_p` (`p`(500))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+SET SESSION innodb_strict_mode = ON;
+CREATE TABLE t3(
+a int NOT NULL, b blob NOT NULL, c text,
+PRIMARY KEY (b(10), a), INDEX (c(767)), INDEX(b(767))
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t3 VALUES (5,REPEAT('khdfo5AlOq',1900),REPEAT('g',7751));
+COMMIT;
+UPDATE t3 SET c = REPEAT('b',16928);
+SHOW WARNINGS;
+Level	Code	Message
+UPDATE t3 SET c = REPEAT('b',32800);
+SHOW WARNINGS;
+Level	Code	Message
+DROP TABLE t3;
+DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge;
+DROP TABLE tlong;
+DROP TABLE tlong2;
+CREATE TABLE t2(COL1 TEXT,
+COL2 TEXT,
+COL3 TEXT,
+COL4 TEXT,
+COL5 TEXT,
+COL6 TEXT,
+COL7 TEXT,
+COL8 TEXT,
+COL9 TEXT,
+COL10 TEXT,
+COL11 TEXT,
+COL12 TEXT,
+COL13 TEXT,
+COL14 TEXT,
+COL15 TEXT,
+COL16 TEXT,
+COL17 TEXT,
+COL18 TEXT,
+COL19 TEXT,
+COL20 TEXT,
+COL21 TEXT,
+COL22 TEXT,
+COL23 TEXT,
+COL24 TEXT,
+COL25 TEXT,
+COL26 TEXT,
+COL27 TEXT,
+COL28 TEXT,
+COL29 TEXT,
+COL30 TEXT,
+COL31 TEXT,
+COL32 TEXT,
+COL33 TEXT,
+COL34 TEXT,
+COL35 TEXT,
+COL36 TEXT,
+COL37 TEXT,
+COL38 TEXT,
+COL39 TEXT,
+COL40 TEXT,
+COL41 TEXT,
+COL42 TEXT,
+COL43 TEXT,
+COL44 TEXT,
+COL45 TEXT,
+COL46 TEXT,
+COL47 TEXT,
+COL48 TEXT,
+COL49 TEXT,
+COL50 TEXT,
+COL51 TEXT,
+COL52 TEXT,
+COL53 TEXT,
+COL54 TEXT,
+COL55 TEXT,
+COL56 TEXT,
+COL57 TEXT,
+COL58 TEXT,
+COL59 TEXT,
+COL60 TEXT,
+COL61 TEXT,
+COL62 TEXT,
+COL63 TEXT,
+COL64 TEXT,
+COL65 TEXT,
+COL66 TEXT,
+COL67 TEXT,
+COL68 TEXT,
+COL69 TEXT,
+COL70 TEXT,
+COL71 TEXT,
+COL72 TEXT,
+COL73 TEXT,
+COL74 TEXT,
+COL75 TEXT,
+COL76 TEXT,
+COL77 TEXT,
+COL78 TEXT,
+COL79 TEXT,
+COL80 TEXT,
+COL81 TEXT,
+COL82 TEXT,
+COL83 TEXT,
+COL84 TEXT,
+COL85 TEXT,
+COL86 TEXT,
+COL87 TEXT,
+COL88 TEXT,
+COL89 TEXT,
+COL90 TEXT,
+COL91 TEXT,
+COL92 TEXT,
+COL93 TEXT,
+COL94 TEXT,
+COL95 TEXT,
+COL96 TEXT,
+COL97 TEXT,
+COL98 TEXT,
+COL99 TEXT,
+COL100 TEXT,
+COL101 TEXT,
+COL102 TEXT,
+COL103 TEXT,
+COL104 TEXT,
+COL105 TEXT,
+COL106 TEXT,
+COL107 TEXT,
+COL108 TEXT,
+COL109 TEXT,
+COL110 TEXT,
+COL111 TEXT,
+COL112 TEXT,
+COL113 TEXT,
+COL114 TEXT,
+COL115 TEXT,
+COL116 TEXT,
+COL117 TEXT,
+COL118 TEXT,
+COL119 TEXT,
+COL120 TEXT,
+COL121 TEXT,
+COL122 TEXT,
+COL123 TEXT,
+COL124 TEXT,
+COL125 TEXT,
+COL126 TEXT,
+COL127 TEXT,
+COL128 TEXT,
+COL129 TEXT,
+COL130 TEXT,
+COL131 TEXT,
+COL132 TEXT,
+COL133 TEXT,
+COL134 TEXT,
+COL135 TEXT,
+COL136 TEXT,
+COL137 TEXT,
+COL138 TEXT,
+COL139 TEXT,
+COL140 TEXT,
+COL141 TEXT,
+COL142 TEXT,
+COL143 TEXT,
+COL144 TEXT,
+COL145 TEXT,
+COL146 TEXT,
+COL147 TEXT,
+COL148 TEXT,
+COL149 TEXT,
+COL150 TEXT,
+COL151 TEXT,
+COL152 TEXT,
+COL153 TEXT,
+COL154 TEXT,
+COL155 TEXT,
+COL156 TEXT,
+COL157 TEXT,
+COL158 TEXT,
+COL159 TEXT,
+COL160 TEXT,
+COL161 TEXT,
+COL162 TEXT,
+COL163 TEXT,
+COL164 TEXT,
+COL165 TEXT,
+COL166 TEXT,
+COL167 TEXT,
+COL168 TEXT,
+COL169 TEXT,
+COL170 TEXT,
+COL171 TEXT,
+COL172 TEXT,
+COL173 TEXT,
+COL174 TEXT,
+COL175 TEXT,
+COL176 TEXT,
+COL177 TEXT,
+COL178 TEXT,
+COL179 TEXT,
+COL180 TEXT,
+COL181 TEXT,
+COL182 TEXT,
+COL183 TEXT,
+COL184 TEXT,
+COL185 TEXT,
+COL186 TEXT,
+COL187 TEXT,
+COL188 TEXT,
+COL189 TEXT,
+COL190 TEXT,
+COL191 TEXT,
+COL192 TEXT,
+COL193 TEXT,
+COL194 TEXT,
+COL195 TEXT,
+COL196 TEXT,
+COL197 TEXT)
+row_format=dynamic,ENGINE=INNODB;
+set @a = repeat('0123456789', 800);
+set @b = repeat('9876543210', 800);
+insert into t2 values(
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a);
+update t2 set col190=@b;
+set @a = repeat('0123456789', 1650);
+set @b = repeat('9876543210', 2000);
+insert into t2 values(
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a);
+update t2 set col190=@b;
+# restart
+set @a = repeat('abcdefghijklmnopqrstuvwxyz', 1650);
+set @b = repeat('zyxwvutsrqponmlkjihgfedcba', 2000);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COL1` text DEFAULT NULL,
+  `COL2` text DEFAULT NULL,
+  `COL3` text DEFAULT NULL,
+  `COL4` text DEFAULT NULL,
+  `COL5` text DEFAULT NULL,
+  `COL6` text DEFAULT NULL,
+  `COL7` text DEFAULT NULL,
+  `COL8` text DEFAULT NULL,
+  `COL9` text DEFAULT NULL,
+  `COL10` text DEFAULT NULL,
+  `COL11` text DEFAULT NULL,
+  `COL12` text DEFAULT NULL,
+  `COL13` text DEFAULT NULL,
+  `COL14` text DEFAULT NULL,
+  `COL15` text DEFAULT NULL,
+  `COL16` text DEFAULT NULL,
+  `COL17` text DEFAULT NULL,
+  `COL18` text DEFAULT NULL,
+  `COL19` text DEFAULT NULL,
+  `COL20` text DEFAULT NULL,
+  `COL21` text DEFAULT NULL,
+  `COL22` text DEFAULT NULL,
+  `COL23` text DEFAULT NULL,
+  `COL24` text DEFAULT NULL,
+  `COL25` text DEFAULT NULL,
+  `COL26` text DEFAULT NULL,
+  `COL27` text DEFAULT NULL,
+  `COL28` text DEFAULT NULL,
+  `COL29` text DEFAULT NULL,
+  `COL30` text DEFAULT NULL,
+  `COL31` text DEFAULT NULL,
+  `COL32` text DEFAULT NULL,
+  `COL33` text DEFAULT NULL,
+  `COL34` text DEFAULT NULL,
+  `COL35` text DEFAULT NULL,
+  `COL36` text DEFAULT NULL,
+  `COL37` text DEFAULT NULL,
+  `COL38` text DEFAULT NULL,
+  `COL39` text DEFAULT NULL,
+  `COL40` text DEFAULT NULL,
+  `COL41` text DEFAULT NULL,
+  `COL42` text DEFAULT NULL,
+  `COL43` text DEFAULT NULL,
+  `COL44` text DEFAULT NULL,
+  `COL45` text DEFAULT NULL,
+  `COL46` text DEFAULT NULL,
+  `COL47` text DEFAULT NULL,
+  `COL48` text DEFAULT NULL,
+  `COL49` text DEFAULT NULL,
+  `COL50` text DEFAULT NULL,
+  `COL51` text DEFAULT NULL,
+  `COL52` text DEFAULT NULL,
+  `COL53` text DEFAULT NULL,
+  `COL54` text DEFAULT NULL,
+  `COL55` text DEFAULT NULL,
+  `COL56` text DEFAULT NULL,
+  `COL57` text DEFAULT NULL,
+  `COL58` text DEFAULT NULL,
+  `COL59` text DEFAULT NULL,
+  `COL60` text DEFAULT NULL,
+  `COL61` text DEFAULT NULL,
+  `COL62` text DEFAULT NULL,
+  `COL63` text DEFAULT NULL,
+  `COL64` text DEFAULT NULL,
+  `COL65` text DEFAULT NULL,
+  `COL66` text DEFAULT NULL,
+  `COL67` text DEFAULT NULL,
+  `COL68` text DEFAULT NULL,
+  `COL69` text DEFAULT NULL,
+  `COL70` text DEFAULT NULL,
+  `COL71` text DEFAULT NULL,
+  `COL72` text DEFAULT NULL,
+  `COL73` text DEFAULT NULL,
+  `COL74` text DEFAULT NULL,
+  `COL75` text DEFAULT NULL,
+  `COL76` text DEFAULT NULL,
+  `COL77` text DEFAULT NULL,
+  `COL78` text DEFAULT NULL,
+  `COL79` text DEFAULT NULL,
+  `COL80` text DEFAULT NULL,
+  `COL81` text DEFAULT NULL,
+  `COL82` text DEFAULT NULL,
+  `COL83` text DEFAULT NULL,
+  `COL84` text DEFAULT NULL,
+  `COL85` text DEFAULT NULL,
+  `COL86` text DEFAULT NULL,
+  `COL87` text DEFAULT NULL,
+  `COL88` text DEFAULT NULL,
+  `COL89` text DEFAULT NULL,
+  `COL90` text DEFAULT NULL,
+  `COL91` text DEFAULT NULL,
+  `COL92` text DEFAULT NULL,
+  `COL93` text DEFAULT NULL,
+  `COL94` text DEFAULT NULL,
+  `COL95` text DEFAULT NULL,
+  `COL96` text DEFAULT NULL,
+  `COL97` text DEFAULT NULL,
+  `COL98` text DEFAULT NULL,
+  `COL99` text DEFAULT NULL,
+  `COL100` text DEFAULT NULL,
+  `COL101` text DEFAULT NULL,
+  `COL102` text DEFAULT NULL,
+  `COL103` text DEFAULT NULL,
+  `COL104` text DEFAULT NULL,
+  `COL105` text DEFAULT NULL,
+  `COL106` text DEFAULT NULL,
+  `COL107` text DEFAULT NULL,
+  `COL108` text DEFAULT NULL,
+  `COL109` text DEFAULT NULL,
+  `COL110` text DEFAULT NULL,
+  `COL111` text DEFAULT NULL,
+  `COL112` text DEFAULT NULL,
+  `COL113` text DEFAULT NULL,
+  `COL114` text DEFAULT NULL,
+  `COL115` text DEFAULT NULL,
+  `COL116` text DEFAULT NULL,
+  `COL117` text DEFAULT NULL,
+  `COL118` text DEFAULT NULL,
+  `COL119` text DEFAULT NULL,
+  `COL120` text DEFAULT NULL,
+  `COL121` text DEFAULT NULL,
+  `COL122` text DEFAULT NULL,
+  `COL123` text DEFAULT NULL,
+  `COL124` text DEFAULT NULL,
+  `COL125` text DEFAULT NULL,
+  `COL126` text DEFAULT NULL,
+  `COL127` text DEFAULT NULL,
+  `COL128` text DEFAULT NULL,
+  `COL129` text DEFAULT NULL,
+  `COL130` text DEFAULT NULL,
+  `COL131` text DEFAULT NULL,
+  `COL132` text DEFAULT NULL,
+  `COL133` text DEFAULT NULL,
+  `COL134` text DEFAULT NULL,
+  `COL135` text DEFAULT NULL,
+  `COL136` text DEFAULT NULL,
+  `COL137` text DEFAULT NULL,
+  `COL138` text DEFAULT NULL,
+  `COL139` text DEFAULT NULL,
+  `COL140` text DEFAULT NULL,
+  `COL141` text DEFAULT NULL,
+  `COL142` text DEFAULT NULL,
+  `COL143` text DEFAULT NULL,
+  `COL144` text DEFAULT NULL,
+  `COL145` text DEFAULT NULL,
+  `COL146` text DEFAULT NULL,
+  `COL147` text DEFAULT NULL,
+  `COL148` text DEFAULT NULL,
+  `COL149` text DEFAULT NULL,
+  `COL150` text DEFAULT NULL,
+  `COL151` text DEFAULT NULL,
+  `COL152` text DEFAULT NULL,
+  `COL153` text DEFAULT NULL,
+  `COL154` text DEFAULT NULL,
+  `COL155` text DEFAULT NULL,
+  `COL156` text DEFAULT NULL,
+  `COL157` text DEFAULT NULL,
+  `COL158` text DEFAULT NULL,
+  `COL159` text DEFAULT NULL,
+  `COL160` text DEFAULT NULL,
+  `COL161` text DEFAULT NULL,
+  `COL162` text DEFAULT NULL,
+  `COL163` text DEFAULT NULL,
+  `COL164` text DEFAULT NULL,
+  `COL165` text DEFAULT NULL,
+  `COL166` text DEFAULT NULL,
+  `COL167` text DEFAULT NULL,
+  `COL168` text DEFAULT NULL,
+  `COL169` text DEFAULT NULL,
+  `COL170` text DEFAULT NULL,
+  `COL171` text DEFAULT NULL,
+  `COL172` text DEFAULT NULL,
+  `COL173` text DEFAULT NULL,
+  `COL174` text DEFAULT NULL,
+  `COL175` text DEFAULT NULL,
+  `COL176` text DEFAULT NULL,
+  `COL177` text DEFAULT NULL,
+  `COL178` text DEFAULT NULL,
+  `COL179` text DEFAULT NULL,
+  `COL180` text DEFAULT NULL,
+  `COL181` text DEFAULT NULL,
+  `COL182` text DEFAULT NULL,
+  `COL183` text DEFAULT NULL,
+  `COL184` text DEFAULT NULL,
+  `COL185` text DEFAULT NULL,
+  `COL186` text DEFAULT NULL,
+  `COL187` text DEFAULT NULL,
+  `COL188` text DEFAULT NULL,
+  `COL189` text DEFAULT NULL,
+  `COL190` text DEFAULT NULL,
+  `COL191` text DEFAULT NULL,
+  `COL192` text DEFAULT NULL,
+  `COL193` text DEFAULT NULL,
+  `COL194` text DEFAULT NULL,
+  `COL195` text DEFAULT NULL,
+  `COL196` text DEFAULT NULL,
+  `COL197` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+update t2 set col150=@a;
+update t2 set col145=@b;
+drop table t2;

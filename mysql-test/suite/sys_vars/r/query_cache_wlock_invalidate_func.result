@@ -1,0 +1,172 @@
+** Setup **
+
+connect  con0,localhost,root,,;
+connect  con1, localhost, root,,;
+connection con0;
+SET @start_global_value = @@GLOBAL.query_cache_wlock_invalidate;
+SET @start_session_value = @@SESSION.query_cache_wlock_invalidate;
+SET @old_cache_size = @@GLOBAL.query_cache_size;
+SET @old_cache_type = @@GLOBAL.query_cache_type;
+SET GLOBAL query_cache_type= ON;
+SET LOCAL query_cache_type= ON;
+connection con1;
+SET LOCAL query_cache_type= ON;
+connection con0;
+CREATE TABLE t1(id int, value varchar(10));
+INSERT INTO t1 VALUES(1, 'val1');
+INSERT INTO t1 VALUES(2, 'val2');
+INSERT INTO t1 VALUES(3, 'val3');
+SET GLOBAL query_cache_size = 131072;
+FLUSHING CACHE
+SET GLOBAL query_cache_size = 0;
+SET GLOBAL query_cache_size = 131072;
+SET GLOBAL query_cache_type = ON;
+Testing for value ON
+connection con0;
+SET SESSION query_cache_wlock_invalidate = ON;
+connection con1;
+SET SESSION query_cache_wlock_invalidate = ON;
+'#----------------------------FN_DYNVARS_136_01--------------#'
+Testing for cache invalidation
+SELECT * FROM t1;
+id	value
+1	val1
+2	val2
+3	val3
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	1
+1 Expected
+LOCK TABLE t1 WRITE;
+UNLOCK TABLES;
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	0
+0 Expected
+'#----------------------------FN_DYNVARS_136_02-----------------------#'
+SELECT * FROM t1;
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+connection con1;
+SELECT * FROM t1;
+id	value
+1	val1
+2	val2
+3	val3
+connection con0;
+LOCK TABLE t1 WRITE;
+connection con1;
+** Asynchronous Execution **
+SELECT * FROM t1;
+connection con0;
+wait until table is locked
+UNLOCK TABLES;
+connection con1;
+** Asynchronous Result **
+id	value
+1	val1
+2	val2
+3	val3
+Testing for value OFF
+connection con0;
+SET SESSION query_cache_wlock_invalidate = OFF;
+connection con1;
+SET SESSION query_cache_wlock_invalidate = OFF;
+'#----------------------------FN_DYNVARS_136_03------------------#'
+Testing for cache invalidation
+SELECT * FROM t1;
+id	value
+1	val1
+2	val2
+3	val3
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	1
+1 Expected
+LOCK TABLE t1 WRITE;
+UNLOCK TABLES;
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	0
+0 Expected
+'#----------------------------FN_DYNVARS_136_04---------------------#'
+SELECT * FROM t1;
+id	value
+1	val1
+2	val2
+3	val3
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+Variable_name	Value
+Qcache_queries_in_cache	1
+1 Expected
+connection con1;
+SELECT * FROM t1;
+id	value
+1	val1
+2	val2
+3	val3
+connection con0;
+LOCK TABLE t1 WRITE;
+connection con1;
+** Should not be blocked **
+SELECT * FROM t1;
+id	value
+1	val1
+2	val2
+3	val3
+SELECT * FROM t1;
+id	value
+1	val1
+2	val2
+3	val3
+SELECT * FROM t1;
+id	value
+1	val1
+2	val2
+3	val3
+connection con0;
+UNLOCK TABLES;
+connection con1;
+'#----------------------------FN_DYNVARS_136_05------------------------#'
+SET GLOBAL query_cache_wlock_invalidate = OFF;
+connect  con_int1,localhost,root,,;
+connection con_int1;
+SELECT @@SESSION.query_cache_wlock_invalidate;
+@@SESSION.query_cache_wlock_invalidate
+0
+Expected Value : 0 / OFF;
+SET SESSION query_cache_wlock_invalidate = ON;
+connect  con_int2,localhost,root,,;
+connection con_int2;
+SELECT @@SESSION.query_cache_wlock_invalidate;
+@@SESSION.query_cache_wlock_invalidate
+0
+Expected Value : 0 / OFF;
+SET SESSION query_cache_wlock_invalidate = OFF;
+connection con_int1;
+SELECT @@SESSION.query_cache_wlock_invalidate;
+@@SESSION.query_cache_wlock_invalidate
+1
+Expected Value : 1 / ON;
+connection con_int2;
+SELECT @@SESSION.query_cache_wlock_invalidate;
+@@SESSION.query_cache_wlock_invalidate
+0
+Expected Value : 0 / OFF;
+SELECT @@GLOBAL.query_cache_wlock_invalidate;
+@@GLOBAL.query_cache_wlock_invalidate
+0
+Expected Value : 0 / OFF;
+connection default;
+disconnect con_int1;
+disconnect con_int2;
+
+CLEANUP
+connection con0;
+SET @@GLOBAL.query_cache_wlock_invalidate = @start_global_value;
+SET @@SESSION.query_cache_wlock_invalidate = @start_session_value ;
+SET @@GLOBAL.query_cache_size = @old_cache_size;
+SET @@GLOBAL.query_cache_type = @old_cache_type;
+connection default;
+disconnect con0;
+disconnect con1;
+DROP TABLE t1;

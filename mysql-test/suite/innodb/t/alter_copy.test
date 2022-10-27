@@ -1,0 +1,96 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-11415 AVOID INTERMEDIATE COMMIT WHILE DOING
+--echo #            ALTER TABLE...ALGORITHM=COPY
+--echo #
+
+CREATE TABLE t(a SERIAL, b INT, c INT, d INT) ENGINE=InnoDB;
+CREATE TABLE t1(a INT, b TEXT, c TEXT,
+               FULLTEXT(b), FULLTEXT(c(3)), FULLTEXT(b,c)) ENGINE=InnoDB;
+
+let $c = 999;
+BEGIN;
+--disable_query_log
+while ($c) {
+INSERT INTO t() VALUES();
+dec $c;
+}
+--enable_query_log
+COMMIT;
+
+SELECT COUNT(*) FROM t;
+# try to make the to-be-created secondary index keys randomly distributed
+UPDATE t SET b=a%7, c=a%11, d=a%13;
+
+INSERT INTO t1 VALUES(1, 'This is a first b column', 'This is a first c column');
+INSERT INTO t1 VALUES(2, 'This is a second b column', 'This is a second c column');
+INSERT INTO t1(a) VALUES(3);
+INSERT INTO t1 VALUES(4, 'This is a third b column', 'This is a third c column');
+DELETE FROM t1 WHERE a = 2;
+SELECT * FROM t1 WHERE MATCH(b) AGAINST ('first');
+SELECT * FROM t1 WHERE MATCH(c) AGAINST ('first');
+SELECT * FROM t1 WHERE MATCH(b,c) AGAINST ('column');
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+
+# kill right after the last write_row(), before the first commit of ALTER TABLE
+connect (hang,localhost,root);
+
+SET DEBUG_SYNC='alter_table_copy_trans_commit SIGNAL hung WAIT_FOR ever';
+send
+# create 32 secondary indexes
+ALTER TABLE t ADD INDEX(b,c,d,a),ADD INDEX(b,c,a,d),ADD INDEX(b,a,c,d),ADD INDEX(b,a,d,c),
+              ADD INDEX(b,d,a,c),ADD INDEX(b,d,c,a),ADD INDEX(a,b,c,d),ADD INDEX(a,b,d,c),
+              ADD INDEX(a,c,b,d),ADD INDEX(a,c,d,b),ADD INDEX(a,d,b,c),ADD INDEX(a,d,c,b),
+              ADD INDEX(c,a,b,d),ADD INDEX(c,a,d,b),ADD INDEX(c,b,a,d),ADD INDEX(c,b,d,a),
+              ADD INDEX(c,d,a,b),ADD INDEX(c,d,b,a),ADD INDEX(d,a,b,c),ADD INDEX(d,a,c,b),
+              ADD INDEX(d,b,a,c),ADD INDEX(d,b,c,a),ADD INDEX(d,c,a,b),ADD INDEX(d,c,b,a),
+              ADD INDEX(a,b,c), ADD INDEX(a,c,b), ADD INDEX(a,c,d), ADD INDEX(a,d,c),
+              ADD INDEX(a,b,d), ADD INDEX(a,d,b), ADD INDEX(b,c,d), ADD INDEX(b,d,c),
+ 	      ALGORITHM=COPY;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+let $shutdown_timeout=0;
+--let $restart_parameters= --innodb-force-recovery=3
+--source include/restart_mysqld.inc
+disconnect hang;
+let $shutdown_timeout=;
+let $datadir=`select @@datadir`;
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/ /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
+--list_files $datadir/test
+SHOW CREATE TABLE t;
+SELECT COUNT(*) FROM t;
+CHECK TABLE t;
+SELECT * FROM t1 WHERE MATCH(b) AGAINST ('first');
+SELECT * FROM t1 WHERE MATCH(c) AGAINST ('first');
+SELECT * FROM t1 WHERE MATCH(b,c) AGAINST ('column');
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+
+--let $restart_parameters= --innodb-read-only
+--source include/restart_mysqld.inc
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/ /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
+
+--list_files $datadir/test
+SHOW CREATE TABLE t;
+SELECT COUNT(*) FROM t;
+CHECK TABLE t;
+SELECT * FROM t1 WHERE MATCH(b) AGAINST ('first');
+SELECT * FROM t1 WHERE MATCH(c) AGAINST ('first');
+SELECT * FROM t1 WHERE MATCH(b,c) AGAINST ('column');
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/ /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
+--list_files $datadir/test
+DROP TABLE t1,t;
+
+# Work around missing crash recovery at the SQL layer.
+--remove_files_wildcard $datadir/test #sql-*.frm

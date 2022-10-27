@@ -1,0 +1,28 @@
+#include <windows.h>
+
+#define LANG_CODE_US_ENGLISH 0x0409
+#define CHARSET_UNICODE 0x04b0
+#define US_ENGLISH_UNICODE "040904b0"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     0,@GRN_VERSION_RC@
+PRODUCTVERSION  0,@GRN_VERSION_RC@
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK US_ENGLISH_UNICODE
+    BEGIN
+      VALUE "CompanyName", "Groonga project"
+      VALUE "FileDescription", "Full text search engine library"
+      VALUE "FileVersion", "@GRN_VERSION@"
+      VALUE "InternalName", "libgroonga"
+      VALUE "OriginalFilename", "@GRN_DLL_FILENAME@"
+      VALUE "ProductName", "libgroonga"
+      VALUE "ProductVersion", "@GRN_VERSION@"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", LANG_CODE_US_ENGLISH, CHARSET_UNICODE
+  END
+END

@@ -1,0 +1,10 @@
+SELECT @@global.example_enum_var = 'e2';
+@@global.example_enum_var = 'e2'
+1
+select plugin_name, plugin_status from information_schema.plugins
+where plugin_name in ('SIMPLE_PARSER', 'EXAMPLE',
+'DAEMON_EXAMPLE', 'TWO_QUESTIONS', 'THREE_ATTEMPTS');
+plugin_name	plugin_status
+EXAMPLE	ACTIVE
+daemon_example	ACTIVE
+simple_parser	ACTIVE

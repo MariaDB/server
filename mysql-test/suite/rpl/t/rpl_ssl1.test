@@ -1,0 +1,110 @@
+source include/have_ssl_communication.inc;
+source include/master-slave.inc;
+
+# We don't test all types of ssl auth params here since it's a bit hard 
+# until problems with OpenSSL 0.9.7 are unresolved
+
+# creating replication user for whom ssl auth is required
+# preparing playground
+connection master;
+create user replssl@localhost;
+grant replication slave on *.* to replssl@localhost require ssl;
+create table t1 (t int);
+
+sync_slave_with_master;
+
+#trying to use this user without ssl
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+change master to master_user='replssl',master_password='';
+start slave;
+
+#showing that replication don't work
+connection master;
+insert into t1 values (1);
+#reasonable timeout for changes to propagate to slave
+let $wait_condition= SELECT COUNT(*) = 1 FROM t1;
+source include/wait_condition.inc;
+connection slave;
+select * from t1;
+
+#showing that replication could work with ssl params
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+eval change master to master_ssl=1 , master_ssl_ca ='$MYSQL_TEST_DIR/std_data/cacert.pem', master_ssl_cert='$MYSQL_TEST_DIR/std_data/client-cert.pem', master_ssl_key='$MYSQL_TEST_DIR/std_data/client-key.pem';
+start slave;
+--source include/wait_for_slave_to_start.inc
+
+#avoiding unneeded sleeps
+connection master;
+sync_slave_with_master;
+
+#checking that replication is ok
+select * from t1;
+
+#checking show slave status
+let $status_items= Master_SSL_Allowed, Master_SSL_CA_Path, Master_SSL_CA_File, Master_SSL_Cert, Master_SSL_Key;
+source include/show_slave_status.inc;
+source include/check_slave_is_running.inc;
+
+#checking if replication works without ssl also performing clean up
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+change master to master_user='root',master_password='', master_ssl=0;
+start slave;
+--source include/wait_for_slave_to_start.inc
+connection master;
+drop user replssl@localhost;
+drop table t1;
+
+sync_slave_with_master;
+source include/show_slave_status.inc;
+source include/check_slave_is_running.inc;
+# End of 4.1 tests
+
+# Start replication with ssl_verify_server_cert turned on
+connection slave;
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+eval change master to
+ master_host="localhost",
+ master_ssl=1 ,
+ master_ssl_ca ='$MYSQL_TEST_DIR/std_data/cacert.pem',
+ master_ssl_cert='$MYSQL_TEST_DIR/std_data/client-cert.pem',
+ master_ssl_key='$MYSQL_TEST_DIR/std_data/client-key.pem',
+ master_ssl_verify_server_cert=1;
+start slave;
+--source include/wait_for_slave_to_start.inc
+
+connection master;
+create table t1 (t int);
+insert into t1 values (1);
+
+sync_slave_with_master;
+
+echo on slave;
+#checking that replication is ok
+select * from t1;
+
+#checking show slave status
+source include/show_slave_status.inc;
+--source include/check_slave_is_running.inc
+
+# ==== Clean up ====
+
+connection master;
+drop table t1;
+sync_slave_with_master;
+--source include/stop_slave.inc
+CHANGE MASTER TO
+ master_host="127.0.0.1",
+ master_ssl_ca ='',
+ master_ssl_cert='',
+ master_ssl_key='',
+ master_ssl_verify_server_cert=0,
+ master_ssl=0;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc

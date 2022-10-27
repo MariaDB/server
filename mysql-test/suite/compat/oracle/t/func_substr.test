@@ -1,0 +1,47 @@
+--echo #
+--echo # MDEV-14012 - sql_mode=Oracle: substr(): treat position 0 as position 1
+--echo # MDEV-10574 - sql_mode=Oracle: return null instead of empty string
+--echo #
+
+SET sql_mode=ORACLE;
+SELECT SUBSTR('abc',2,1),SUBSTR('abc',1,1), SUBSTR('abc',0,1) FROM dual;
+SELECT SUBSTR('abc',2),SUBSTR('abc',1), SUBSTR('abc',0) FROM dual;
+SELECT SUBSTR(null,2,1),SUBSTR(null,1), SUBSTR(null,0) FROM dual;
+SELECT SUBSTR('abc',-2),SUBSTR('abc',-1), SUBSTR('abc',-0) FROM dual;
+SELECT SUBSTR('abc',-2,1),SUBSTR('abc',-1,1), SUBSTR('abc',-0,1) FROM dual;
+SELECT SUBSTR('abc',null) FROM dual;
+SELECT SUBSTR('abc',2,null),SUBSTR('abc',1,null), SUBSTR('abc',0,null) FROM dual;
+SELECT SUBSTR('abc',2,0),SUBSTR('abc',1,0), SUBSTR('abc',0,0) FROM dual;
+SELECT SUBSTR('abc',2,-1),SUBSTR('abc',1,-1), SUBSTR('abc',0,-1) FROM dual;
+SELECT SUBSTR(SPACE(0),1) FROM DUAL;
+
+CREATE TABLE t1 (c1 VARCHAR(10),start INTEGER, length INTEGER);
+INSERT INTO t1 VALUES ('abc', 1, 1);
+INSERT INTO t1 VALUES ('abc', 0, 1);
+INSERT INTO t1 VALUES (null, 1, 1);
+INSERT INTO t1 VALUES (null, 0, 1);
+INSERT INTO t1 VALUES ('abc', 1, 0);
+INSERT INTO t1 VALUES ('abc', 0, 0);
+INSERT INTO t1 VALUES (null, 1, 0);
+INSERT INTO t1 VALUES (null, 0, 0);
+INSERT INTO t1 VALUES ('abc', 1, -1);
+INSERT INTO t1 VALUES ('abc', 0, -1);
+INSERT INTO t1 VALUES (null, 1, -1);
+INSERT INTO t1 VALUES (null, 0, -1);
+INSERT INTO t1 VALUES (SPACE(0), 0, 1);
+
+SELECT SUBSTR(c1,start,length) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(10) NOT NULL);
+CREATE TABLE t2 AS SELECT SUBSTR(C1,1,1) AS C1 from t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+EXPLAIN EXTENDED SELECT SUBSTR('abc',2,1) ;
+
+CREATE VIEW v1 AS SELECT SUBSTR('abc',2,1) ;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;

@@ -1,0 +1,121 @@
+#
+# This tests the very basic operations around wsrep-slave-threads
+# More complex scenarios will be tested separately in the context of
+# parallel replication
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/force_restart.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
+CREATE TABLE t2 (f1 INT AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread.");
+# Setting wsrep_slave_threads to zero triggers a warning
+SET GLOBAL wsrep_slave_threads = 0;
+SHOW WARNINGS;
+SELECT @@wsrep_slave_threads = 1;
+
+SET GLOBAL wsrep_slave_threads = 1;
+# There is a separate wsrep_aborter thread at all times
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+
+--connection node_1
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+
+--let $wait_timeout=600
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM t1;
+
+#
+# Increase the number of slave threads. The change takes effect immediately
+#
+SET GLOBAL wsrep_slave_threads = 64;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 64 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--source include/wait_condition.inc
+
+#
+# Reduce the number of slave threads. The change is not immediate -- a thread will only exit after a replication event
+#
+
+SET GLOBAL wsrep_slave_threads = 1;
+
+--connection node_1
+
+--disable_result_log
+--disable_query_log
+# Generate 70 replication events
+--let $count = 70
+while ($count)
+{
+  INSERT INTO t2 VALUES (DEFAULT);
+  --dec $count
+}
+--enable_query_log
+--enable_result_log
+
+--connection node_2
+SELECT COUNT(*) FROM t2;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--source include/wait_condition.inc
+
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # lp:1372840 - Changing wsrep_slave_threads causes future connections to hang
+--echo #
+
+--connection node_1
+CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY) ENGINE=INNODB;
+
+--connection node_2
+SET GLOBAL wsrep_slave_threads = 4;
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--source include/wait_condition.inc
+
+SET GLOBAL wsrep_slave_threads = 1;
+
+--connection node_1
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+DROP TABLE t1;
+
+--connection node_2
+
+# Wait until above DDL is replicated
+#
+# make sure that we are left with exactly one applier thread before we leaving the test
+#
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--echo # End of tests

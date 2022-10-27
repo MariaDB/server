@@ -1,0 +1,370 @@
+create table t1 (
+  pk int primary key,
+  a int,
+  b int,
+  c real
+);
+
+
+insert into t1 values
+(101 , 0, 10, 1.1),
+(102 , 0, 10, 2.1),
+(103 , 1, 10, 3.1),
+(104 , 1, 10, 4.1),
+(108 , 2, 10, 5.1),
+(105 , 2, 20, 6.1),
+(106 , 2, 20, 7.1),
+(107 , 2, 20, 8.15),
+(109 , 4, 20, 9.15),
+(110 , 4, 20, 10.15),
+(111 , 5, NULL, 11.15),
+(112 , 5, 1, 12.25),
+(113 , 5, NULL, 13.35),
+(114 , 5, NULL, 14.50),
+(115 , 5, NULL, 15.65),
+(116 , 6, 1, NULL),
+(117 , 6, 1, 10),
+(118 , 6, 1, 1.1),
+(119 , 6, 1, NULL),
+(120 , 6, 1, NULL),
+(121 , 6, 1, NULL),
+(122 , 6, 1, 2.2),
+(123 , 6, 1, 20.1),
+(124 , 6, 1, -10.4),
+(125 , 6, 1, NULL),
+(126 , 6, 1, NULL),
+(127 , 6, 1, NULL);
+
+
+--sorted_result
+select pk, a, b, min(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as min,
+                 max(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as max
+from t1;
+
+--sorted_result
+select pk, a, c, min(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as min,
+                 max(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as max
+from t1;
+
+create table t2 (
+  pk int primary key,
+  a int,
+  b int,
+  c char(10)
+);
+
+insert into t2 values
+( 1, 0,  1, 'one'),
+( 2, 0,  2, 'two'),
+( 3, 0,  3, 'three'),
+( 4, 1, 20, 'four'),
+( 5, 1, 10, 'five'),
+( 6, 1, 40, 'six'),
+( 7, 1, 30, 'seven'),
+( 8, 4,300, 'eight'),
+( 9, 4,100, 'nine'),
+(10, 4,200, 'ten'),
+(11, 4,200, 'eleven');
+
+--echo # First try some invalid argument queries.
+select pk, a, b, c,
+       min(c) over (order by pk),
+       max(c) over (order by pk),
+       min(c) over (partition by a order by pk),
+       max(c) over (partition by a order by pk)
+from t2;
+
+
+
+--echo # Empty frame
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 2 following and 1 following) as min1,
+       max(b) over (order by pk rows between 2 following and 1 following) as max1,
+       min(b) over (partition by a order by pk rows between 2 following and 1 following) as min2,
+       max(b) over (partition by a order by pk rows between 2 following and 1 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 2 following and 1 following) as min1,
+       max(b) over (order by pk range between 2 following and 1 following) as max1,
+       min(b) over (partition by a order by pk range between 2 following and 1 following) as min2,
+       max(b) over (partition by a order by pk range between 2 following and 1 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 1 preceding and 2 preceding) as min1,
+       max(b) over (order by pk rows between 1 preceding and 2 preceding) as max1,
+       min(b) over (partition by a order by pk rows between 1 preceding and 2 preceding) as min2,
+       max(b) over (partition by a order by pk rows between 1 preceding and 2 preceding) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 1 preceding and 2 preceding) as min1,
+       max(b) over (order by pk range between 1 preceding and 2 preceding) as max1,
+       min(b) over (partition by a order by pk range between 1 preceding and 2 preceding) as min2,
+       max(b) over (partition by a order by pk range between 1 preceding and 2 preceding) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 1 following and 0 following) as min1,
+       max(b) over (order by pk rows between 1 following and 0 following) as max1,
+       min(b) over (partition by a order by pk rows between 1 following and 0 following) as min2,
+       max(b) over (partition by a order by pk rows between 1 following and 0 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 1 following and 0 following) as min1,
+       max(b) over (order by pk range between 1 following and 0 following) as max1,
+       min(b) over (partition by a order by pk range between 1 following and 0 following) as min2,
+       max(b) over (partition by a order by pk range between 1 following and 0 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 1 following and 0 preceding) as min1,
+       max(b) over (order by pk rows between 1 following and 0 preceding) as max1,
+       min(b) over (partition by a order by pk rows between 1 following and 0 preceding) as min2,
+       max(b) over (partition by a order by pk rows between 1 following and 0 preceding) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 1 following and 0 preceding) as min1,
+       max(b) over (order by pk range between 1 following and 0 preceding) as max1,
+       min(b) over (partition by a order by pk range between 1 following and 0 preceding) as min2,
+       max(b) over (partition by a order by pk range between 1 following and 0 preceding) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 0 following and 1 preceding) as min1,
+       max(b) over (order by pk rows between 0 following and 1 preceding) as max1,
+       min(b) over (partition by a order by pk rows between 0 following and 1 preceding) as min2,
+       max(b) over (partition by a order by pk rows between 0 following and 1 preceding) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 0 following and 1 preceding) as min1,
+       max(b) over (order by pk range between 0 following and 1 preceding) as max1,
+       min(b) over (partition by a order by pk range between 0 following and 1 preceding) as min2,
+       max(b) over (partition by a order by pk range between 0 following and 1 preceding) as max2
+from t2;
+
+--echo # 1 row frame.
+select pk, a, b, c,
+       min(b) over (order by pk rows between current row and current row) as min1,
+       max(b) over (order by pk rows between current row and current row) as max1,
+       min(b) over (partition by a order by pk rows between current row and current row) as min2,
+       max(b) over (partition by a order by pk rows between current row and current row) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 0 preceding and current row) as min1,
+       max(b) over (order by pk rows between 0 preceding and current row) as max1,
+       min(b) over (partition by a order by pk rows between 0 preceding and current row) as min2,
+       max(b) over (partition by a order by pk rows between 0 preceding and current row) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 0 preceding and 0 preceding) as min1,
+       max(b) over (order by pk rows between 0 preceding and 0 preceding) as max1,
+       min(b) over (partition by a order by pk rows between 0 preceding and 0 preceding) as min2,
+       max(b) over (partition by a order by pk rows between 0 preceding and 0 preceding) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 1 preceding and 1 preceding) as min1,
+       max(b) over (order by pk rows between 1 preceding and 1 preceding) as max1,
+       min(b) over (partition by a order by pk rows between 1 preceding and 1 preceding) as min2,
+       max(b) over (partition by a order by pk rows between 1 preceding and 1 preceding) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 1 following and 1 following) as min1,
+       max(b) over (order by pk rows between 1 following and 1 following) as max1,
+       min(b) over (partition by a order by pk rows between 1 following and 1 following) as min2,
+       max(b) over (partition by a order by pk rows between 1 following and 1 following) as max2
+from t2;
+
+--echo # Try a larger offset.
+select pk, a, b, c,
+       min(b) over (order by pk rows between 3 following and 3 following) as min1,
+       max(b) over (order by pk rows between 3 following and 3 following) as max1,
+       min(b) over (partition by a order by pk rows between 3 following and 3 following) as min2,
+       max(b) over (partition by a order by pk rows between 3 following and 3 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 3 preceding and 3 preceding) as min1,
+       max(b) over (order by pk rows between 3 preceding and 3 preceding) as max1,
+       min(b) over (partition by a order by pk rows between 3 preceding and 3 preceding) as min2,
+       max(b) over (partition by a order by pk rows between 3 preceding and 3 preceding) as max2
+from t2;
+
+--echo # 2 row frame.
+select pk, a, b, c,
+       min(b) over (order by pk rows between current row and 1 following) as min1,
+       max(b) over (order by pk rows between current row and 1 following) as max1,
+       min(b) over (partition by a order by pk rows between current row and 1 following) as min2,
+       max(b) over (partition by a order by pk rows between current row and 1 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 0 preceding and 1 following) as min1,
+       max(b) over (order by pk rows between 0 preceding and 1 following) as max1,
+       min(b) over (partition by a order by pk rows between 0 preceding and 1 following) as min2,
+       max(b) over (partition by a order by pk rows between 0 preceding and 1 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 1 preceding and current row) as min1,
+       max(b) over (order by pk rows between 1 preceding and current row) as max1,
+       min(b) over (partition by a order by pk rows between 1 preceding and current row) as min2,
+       max(b) over (partition by a order by pk rows between 1 preceding and current row) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 1 preceding and 0 preceding) as min1,
+       max(b) over (order by pk rows between 1 preceding and 0 preceding) as max1,
+       min(b) over (partition by a order by pk rows between 1 preceding and 0 preceding) as min2,
+       max(b) over (partition by a order by pk rows between 1 preceding and 0 preceding) as max2
+from t2;
+
+--echo # Try a larger frame/offset.
+select pk, a, b, c,
+       min(b) over (order by pk rows between current row and 3 following) as min1,
+       max(b) over (order by pk rows between current row and 3 following) as max1,
+       min(b) over (partition by a order by pk rows between current row and 3 following) as min2,
+       max(b) over (partition by a order by pk rows between current row and 3 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 2 preceding and 1 following) as min1,
+       max(b) over (order by pk rows between 2 preceding and 1 following) as max1,
+       min(b) over (partition by a order by pk rows between 2 preceding and 1 following) as min2,
+       max(b) over (partition by a order by pk rows between 2 preceding and 1 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 3 preceding and current row) as min1,
+       max(b) over (order by pk rows between 3 preceding and current row) as max1,
+       min(b) over (partition by a order by pk rows between 3 preceding and current row) as min2,
+       max(b) over (partition by a order by pk rows between 3 preceding and current row) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk rows between 3 preceding and 0 preceding) as min1,
+       max(b) over (order by pk rows between 3 preceding and 0 preceding) as max1,
+       min(b) over (partition by a order by pk rows between 3 preceding and 0 preceding) as min2,
+       max(b) over (partition by a order by pk rows between 3 preceding and 0 preceding) as max2
+from t2;
+
+--echo # Check range frame bounds
+select pk, a, b, c,
+       min(b) over (order by pk range between current row and current row) as min1,
+       max(b) over (order by pk range between current row and current row) as max1,
+       min(b) over (partition by a order by pk range between current row and current row) as min2,
+       max(b) over (partition by a order by pk range between current row and current row) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 0 preceding and current row) as min1,
+       max(b) over (order by pk range between 0 preceding and current row) as max1,
+       min(b) over (partition by a order by pk range between 0 preceding and current row) as min2,
+       max(b) over (partition by a order by pk range between 0 preceding and current row) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 0 preceding and 0 preceding) as min1,
+       max(b) over (order by pk range between 0 preceding and 0 preceding) as max1,
+       min(b) over (partition by a order by pk range between 0 preceding and 0 preceding) as min2,
+       max(b) over (partition by a order by pk range between 0 preceding and 0 preceding) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 1 preceding and 1 preceding) as min1,
+       max(b) over (order by pk range between 1 preceding and 1 preceding) as max1,
+       min(b) over (partition by a order by pk range between 1 preceding and 1 preceding) as min2,
+       max(b) over (partition by a order by pk range between 1 preceding and 1 preceding) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 1 following and 1 following) as min1,
+       max(b) over (order by pk range between 1 following and 1 following) as max1,
+       min(b) over (partition by a order by pk range between 1 following and 1 following) as min2,
+       max(b) over (partition by a order by pk range between 1 following and 1 following) as max2
+from t2;
+
+--echo # Try a larger offset.
+select pk, a, b, c,
+       min(b) over (order by pk range between 3 following and 3 following) as min1,
+       max(b) over (order by pk range between 3 following and 3 following) as max1,
+       min(b) over (partition by a order by pk range between 3 following and 3 following) as min2,
+       max(b) over (partition by a order by pk range between 3 following and 3 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 3 preceding and 3 preceding) as min1,
+       max(b) over (order by pk range between 3 preceding and 3 preceding) as max1,
+       min(b) over (partition by a order by pk range between 3 preceding and 3 preceding) as min2,
+       max(b) over (partition by a order by pk range between 3 preceding and 3 preceding) as max2
+from t2;
+
+--echo # 2 row frame.
+select pk, a, b, c,
+       min(b) over (order by pk range between current row and 1 following) as min1,
+       max(b) over (order by pk range between current row and 1 following) as max1,
+       min(b) over (partition by a order by pk range between current row and 1 following) as min2,
+       max(b) over (partition by a order by pk range between current row and 1 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 0 preceding and 1 following) as min1,
+       max(b) over (order by pk range between 0 preceding and 1 following) as max1,
+       min(b) over (partition by a order by pk range between 0 preceding and 1 following) as min2,
+       max(b) over (partition by a order by pk range between 0 preceding and 1 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 1 preceding and current row) as min1,
+       max(b) over (order by pk range between 1 preceding and current row) as max1,
+       min(b) over (partition by a order by pk range between 1 preceding and current row) as min2,
+       max(b) over (partition by a order by pk range between 1 preceding and current row) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 1 preceding and 0 preceding) as min1,
+       max(b) over (order by pk range between 1 preceding and 0 preceding) as max1,
+       min(b) over (partition by a order by pk range between 1 preceding and 0 preceding) as min2,
+       max(b) over (partition by a order by pk range between 1 preceding and 0 preceding) as max2
+from t2;
+
+--echo # Try a larger frame/offset.
+select pk, a, b, c,
+       min(b) over (order by pk range between current row and 3 following) as min1,
+       max(b) over (order by pk range between current row and 3 following) as max1,
+       min(b) over (partition by a order by pk range between current row and 3 following) as min2,
+       max(b) over (partition by a order by pk range between current row and 3 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 2 preceding and 1 following) as min1,
+       max(b) over (order by pk range between 2 preceding and 1 following) as max1,
+       min(b) over (partition by a order by pk range between 2 preceding and 1 following) as min2,
+       max(b) over (partition by a order by pk range between 2 preceding and 1 following) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 3 preceding and current row) as min1,
+       max(b) over (order by pk range between 3 preceding and current row) as max1,
+       min(b) over (partition by a order by pk range between 3 preceding and current row) as min2,
+       max(b) over (partition by a order by pk range between 3 preceding and current row) as max2
+from t2;
+
+select pk, a, b, c,
+       min(b) over (order by pk range between 3 preceding and 0 preceding) as min1,
+       max(b) over (order by pk range between 3 preceding and 0 preceding) as max1,
+       min(b) over (partition by a order by pk range between 3 preceding and 0 preceding) as min2,
+       max(b) over (partition by a order by pk range between 3 preceding and 0 preceding) as max2
+from t2;
+
+drop table t2;
+drop table t1;

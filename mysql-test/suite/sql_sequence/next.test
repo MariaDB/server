@@ -1,0 +1,299 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+#
+# Test sequence generation
+#
+
+CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 2 cycle;
+show create table t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+
+select NEXT VALUE for t1,seq from seq_1_to_20;
+
+drop sequence t1;
+
+CREATE SEQUENCE t1 minvalue 1 maxvalue 10 increment by -1 cache 2 cycle engine=aria;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+
+select NEXT VALUE for t1,seq from seq_1_to_20;
+
+drop sequence t1;
+
+CREATE SEQUENCE t1 start with 8 minvalue 1 maxvalue 10 increment by 1 cache 2 nocycle;
+select next value for t1;
+select next value for t1;
+select next value for t1;
+select previous value for t1;
+--error ER_SEQUENCE_RUN_OUT
+select next value for t1;
+select previous value for t1;
+--error ER_SEQUENCE_RUN_OUT
+select next value for t1;
+drop sequence t1;
+
+create sequence s1 start with 1 cache 2 maxvalue 5;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+--error ER_SEQUENCE_RUN_OUT
+select next value for s1;
+drop sequence s1;
+
+#
+# Test that flush tables jumps to next next_not_cached_value
+#
+
+CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 100 increment by 1 cache 10;
+select next value for t1;
+select * from t1;
+flush tables;
+select next value for t1;
+select nextval(t1);
+drop sequence t1;
+
+#
+# Test currval/previous
+#
+
+CREATE SEQUENCE t9 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 5 cycle;
+select previous value for t9;
+select next value for t9;
+select previous value for t9, lastval(t9);
+select next value for t9;
+select previous value for t9, lastval(t9);
+select seq, previous value for t9, NEXT VALUE for t9, previous value for t9 from seq_1_to_20;
+select * from t9;
+drop sequence t9;
+
+#
+# CACHE = 0 should be same as CACHE = 1
+#
+CREATE SEQUENCE s1 cache=0;
+select * from s1;
+select next value for s1;
+select next_not_cached_value from s1;
+select next value for s1;
+select next_not_cached_value from s1;
+DROP SEQUENCE s1;
+CREATE SEQUENCE s1 cache=1;
+select next_not_cached_value from s1;
+select next value for s1;
+select next_not_cached_value from s1;
+select next value for s1;
+select next_not_cached_value from s1;
+DROP SEQUENCE s1;
+CREATE SEQUENCE s1 cache=2;
+select next_not_cached_value from s1;
+select next value for s1;
+select next_not_cached_value from s1;
+select next value for s1;
+select next_not_cached_value from s1;
+DROP SEQUENCE s1;
+
+#
+# Negative increment for sequence
+#
+
+CREATE SEQUENCE s1;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+alter sequence s1 increment -2;
+select * from s1;
+select next value for s1;
+select next value for s1;
+alter sequence s1 restart 6;
+select next value for s1;
+select next value for s1;
+select next value for s1;
+--error ER_SEQUENCE_RUN_OUT
+select next value for s1;
+DROP SEQUENCE s1;
+
+#
+# Check what happens when one refers to a sequence that has been closed/deleted
+#
+
+CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 5 cycle;
+select next value for t1;
+select previous value for t1;
+flush tables;
+select previous value for t1;
+drop sequence t1;
+--error ER_NO_SUCH_TABLE
+select previous value for t1;
+CREATE SEQUENCE t1 start with 5 minvalue 1 maxvalue 10 increment by 1 cache 5 cycle;
+select previous value for t1;
+select next value for t1;
+select previous value for t1;
+drop sequence t1;
+
+# This failed in an early build
+
+CREATE or replace SEQUENCE  s1  MINVALUE 1 MAXVALUE 9999999999
+INCREMENT BY 1 START WITH 3984356 CACHE 20 CYCLE engine=innodb;
+show create table s1;
+select * from s1;
+select NEXT VALUE FOR s1;
+select NEXT VALUE FOR s1;
+select NEXT VALUE FOR s1;
+select * from s1;
+FLUSH TABLES;
+select * from s1;
+select NEXT VALUE FOR s1;
+select * from s1;
+drop sequence s1;
+
+#
+# Explain
+#
+
+CREATE SEQUENCE t1 start with 5 minvalue 1 maxvalue 10 increment by 1 cache 5 cycle;
+explain select next value for t1;
+explain select next value for t1, minimum_value from t1;
+drop table t1;
+
+#
+# Using insert with NEXT VALUE
+#
+
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (a int);
+insert into t1 values (next value for s1);
+insert into t1 values (next value for s1);
+select * from t1;
+drop table t1,s1;
+
+#
+# Using update with NEXT VALUE
+#
+
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (a int primary key auto_increment, b int default 0) engine=myisam;
+insert into t1 values (),(),(),(),(),(),();
+update t1 set b= next value for s1 where a <= 3;
+select * from t1;
+drop table t1,s1;
+
+#
+# NO CACHE and InnoDB
+#
+
+CREATE OR REPLACE SEQUENCE s1 MINVALUE 1 MAXVALUE 9999999999 INCREMENT BY 1 START WITH 3984356 nocache CYCLE engine='innodb';
+select * from s1;
+select next value for s1;
+explain extended select next value for s1;
+explain extended select previous value for s1;
+drop sequence s1;
+
+#
+# Some error testing
+#
+
+create table t1 (a int);
+--error ER_NOT_SEQUENCE
+select next value for t1;
+drop table t1;
+
+create sequence t1;
+select next value for t1;
+--error ER_BAD_FIELD_ERROR
+select next value for t1, minimum_value;
+drop sequence t1;
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+CREATE SEQUENCE s1;
+SELECT
+  NEXT VALUE FOR s1,
+  PREVIOUS VALUE FOR s1;
+DROP SEQUENCE s1;
+--enable_ps_protocol
+--disable_metadata
+
+--echo #
+--echo # MDEV-13720 ER_NOT_SEQUENCE for temporary table
+--echo #
+
+create temporary table tmp (i int);
+--error ER_NOT_SEQUENCE
+select next value for tmp;
+drop table tmp;
+
+--echo #
+--echo # Test negative numbers
+--echo #
+
+create sequence s start with 1 minvalue=-1000 maxvalue=1000 increment -1;
+select next value for s;
+select next value for s;
+flush tables;
+select next value for s;
+drop sequence s;
+
+--echo #
+--echo # MDEV-23823 NEXT VALUE crash on locked view
+--echo #
+CREATE VIEW v AS SELECT 1;
+LOCK TABLE v READ;
+--error ER_NOT_SEQUENCE
+SELECT NEXT VALUE FOR v;
+
+--echo #
+--echo # MDEV-24018: SIGSEGV in Item_func_nextval::update_table on SELECT SETVAL
+--echo #
+--error ER_NOT_SEQUENCE
+SELECT SETVAL (v,0);
+
+UNLOCK TABLES;
+DROP VIEW v;

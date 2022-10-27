@@ -1,0 +1,1071 @@
+# Initialize
+--source include/default_optimizer_switch.inc
+
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+
+set @save_derived_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='derived_merge=off,derived_with_keys=off';
+
+select * from (select 2 from DUAL) b;
+-- error 1054
+SELECT 1 as a FROM (SELECT 1 UNION SELECT a) b;
+-- error 1054
+SELECT 1 as a FROM (SELECT a UNION SELECT 1) b;
+CREATE TABLE t1 (a int not null, b char (10) not null);
+insert into t1 values(1,'a'),(2,'b'),(3,'c'),(3,'c');
+CREATE TABLE t2 (a int not null, b char (10) not null);
+insert into t2 values (3,'c'),(4,'d'),(5,'f'),(6,'e');
+select t1.a,t3.y from t1,(select a as y from t2  where b='c') as t3  where t1.a = t3.y;
+select t1.a,t3.a from t1,(select * from t2  where b='c') as t3  where t1.a = t3.a;
+CREATE TABLE t3 (a int not null, b char (10) not null);
+insert into t3 values (3,'f'),(4,'y'),(5,'z'),(6,'c');
+select t1.a,t4.y from t1,(select t2.a as y from t2,(select t3.b from t3 where t3.a>3) as t5  where t2.b=t5.b) as t4  where t1.a = t4.y;
+--error 1054
+SELECT a FROM (SELECT 1 FROM (SELECT 1) a HAVING a=1) b;
+--error 1052
+SELECT a,b as a FROM (SELECT '1' as a,'2' as b) b  HAVING a=1;
+SELECT a,2 as a FROM (SELECT '1' as a) b HAVING a=2;
+SELECT a,2 as a FROM (SELECT '1' as a) b HAVING a=1;
+--error 1054
+SELECT 1 FROM (SELECT 1) a WHERE a=2;
+--error 1054
+SELECT (SELECT 1) as a FROM (SELECT 1 FROM t1  HAVING a=1) as a;
+select * from t1 as x1, (select * from t1) as x2;
+explain select * from t1 as x1, (select * from t1) as x2;
+drop table if exists  t2,t3;
+select * from (select 1) as a;
+select a from (select 1 as a) as b;
+select 1 from (select 1) as a;
+select * from (select * from t1 union select * from t1) a;
+select * from (select * from t1 union all select * from t1) a;
+select * from (select * from t1 union all select * from t1 limit 2) a;
+explain select * from (select * from t1 union select * from t1) a;
+explain select * from (select * from t1 union all select * from t1) a;
+CREATE TABLE t2 (a int not null);
+insert into t2 values(1);
+select * from (select * from t1 where t1.a=(select a from t2 where t2.a=t1.a)) a;
+select * from (select * from t1 where t1.a=(select t2.a from t2 where t2.a=t1.a) union select t1.a, t1.b from t1) a;
+explain select * from (select t1.*, t2.a as t2a from t1,t2 where t1.a=t2.a) t1;
+drop table t1, t2;
+create table t1(a int not null, t char(8), index(a));
+--disable_query_log
+begin;
+let $1 = 10000;
+while ($1)
+ {
+  eval insert into t1 values ($1,'$1'); 
+  dec $1;
+ }
+commit;
+--enable_query_log
+SELECT * FROM (SELECT * FROM t1) as b ORDER BY a  ASC LIMIT 0,20;
+explain select count(*) from t1 as tt1, (select * from t1) as tt2;
+drop table t1;
+SELECT * FROM (SELECT (SELECT * FROM (SELECT 1 as a) as a )) as b;
+select * from (select 1 as a) b  left join (select 2 as a) c using(a);
+--error 1054
+SELECT * FROM (SELECT 1 UNION SELECT a) b;
+--error 1054
+SELECT 1 as a FROM (SELECT a UNION SELECT 1) b;
+--error 1054
+SELECT 1 as a FROM (SELECT 1 UNION SELECT a) b;
+--error 1054
+select 1 from  (select 2) a order by 0;
+
+#
+# Test of explain (bug #251)
+#
+
+create table t1 (id int);
+insert into t1 values (1),(2),(3);
+describe select * from (select * from t1 group by id) bar;
+drop table t1;
+
+#
+# test->used_keys test for derived tables
+#
+create table t1 (mat_id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, matintnum CHAR(6) NOT NULL, test MEDIUMINT UNSIGNED NULL);
+create table t2 (mat_id MEDIUMINT UNSIGNED NOT NULL, pla_id MEDIUMINT UNSIGNED NOT NULL);
+insert into t1 values (NULL, 'a', 1), (NULL, 'b', 2), (NULL, 'c', 3), (NULL, 'd', 4), (NULL, 'e', 5), (NULL, 'f', 6), (NULL, 'g', 7), (NULL, 'h', 8), (NULL, 'i', 9);
+insert into t2 values (1, 100), (1, 101), (1, 102), (2, 100), (2, 103), (2, 104), (3, 101), (3, 102), (3, 105);
+
+SELECT STRAIGHT_JOIN d.pla_id, m2.mat_id FROM t1 m2 INNER JOIN (SELECT mp.pla_id, MIN(m1.matintnum) AS matintnum FROM t2 mp INNER JOIN t1 m1 ON mp.mat_id=m1.mat_id GROUP BY mp.pla_id) d ON d.matintnum=m2.matintnum;
+SELECT STRAIGHT_JOIN d.pla_id, m2.test FROM t1 m2  INNER JOIN (SELECT mp.pla_id, MIN(m1.matintnum) AS matintnum FROM t2 mp INNER JOIN t1 m1 ON mp.mat_id=m1.mat_id GROUP BY mp.pla_id) d ON d.matintnum=m2.matintnum;
+
+explain SELECT STRAIGHT_JOIN d.pla_id, m2.mat_id FROM t1 m2 INNER JOIN (SELECT mp.pla_id, MIN(m1.matintnum) AS matintnum FROM t2 mp INNER JOIN t1 m1 ON mp.mat_id=m1.mat_id GROUP BY mp.pla_id) d ON d.matintnum=m2.matintnum;
+explain SELECT STRAIGHT_JOIN d.pla_id, m2.test FROM t1 m2  INNER JOIN (SELECT mp.pla_id, MIN(m1.matintnum) AS matintnum FROM t2 mp INNER JOIN t1 m1 ON mp.mat_id=m1.mat_id GROUP BY mp.pla_id) d ON d.matintnum=m2.matintnum;
+drop table t1,t2;
+
+#
+# derived table reference
+#
+SELECT a.x FROM (SELECT 1 AS x) AS a HAVING a.x = 1;
+
+#
+# Test for select if database is not selected.
+#
+# Connect without a database as user mysqltest_1
+create user mysqltest_1;
+create table t1 select 1 as a;
+connect (con1,localhost,mysqltest_1,,*NO-ONE*,$MASTER_MYPORT,$MASTER_MYSOCK);
+connection con1;
+--source include/default_optimizer_switch.inc
+set optimizer_switch='derived_merge=off,derived_with_keys=off';
+--error 1046
+select 2 as a from (select * from t1) b;
+use test;
+select 2 as a from (select * from t1) b;
+drop table t1;
+--error 1064
+select mail_id,  if(folder.f_description!='', folder.f_description, folder.f_name) as folder_name,  date, address_id, phrase, address,  subject from folder, (select  mail.mail_id as mail_id,  date_format(mail.h_date, '%b %e, %Y %h:%i') as date,  mail.folder_id,  sender.address_id as address_id,  sender.phrase as phrase, sender.address as address,    mail.h_subject as subject from    mail left join mxa as mxa_sender on mail.mail_id=mxa_sender.mail_id and mxa_sender.type='from' left join address as sender on mxa_sender.address_id=sender.address_id  mxa as mxa_recipient,   address as recipient, where 1     and mail.mail_id=mxa_recipient.mail_id   and mxa_recipient.address_id=recipient.address_id   and mxa_recipient.type='to'  and  match(sender.phrase, sender.address, sender.comment) against ('jeremy' in boolean mode)   and  match(recipient.phrase, recipient.address, recipient.comment) against ('monty' in boolean mode) order by mail.h_date desc limit 0, 25 ) as query where query.folder_id=folder.folder_id;
+
+#
+# UPDATE/DELETE/INSERT of derived tables
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+-- error 1288
+update (select * from t1) as t1 set a = 5;
+-- error 1064
+delete from (select * from t1);
+-- error 1064
+insert into  (select * from t1) values (5);
+drop table t1;
+
+#
+# deived tables with subquery inside all by one table
+#
+create table t1 (E1 INTEGER UNSIGNED NOT NULL, E2 INTEGER UNSIGNED NOT NULL, E3 INTEGER UNSIGNED NOT NULL, PRIMARY KEY(E1)
+);
+insert into t1 VALUES(1,1,1), (2,2,1);
+select count(*) from t1 INNER JOIN (SELECT A.E1, A.E2, A.E3 FROM t1 AS A WHERE A.E3 = (SELECT MAX(B.E3) FROM t1 AS B WHERE A.E2 = B.E2)) AS THEMAX ON t1.E1 = THEMAX.E2 AND t1.E1 = t1.E2;
+explain select count(*) from t1 INNER JOIN (SELECT A.E1, A.E2, A.E3 FROM t1 AS A WHERE A.E3 = (SELECT MAX(B.E3) FROM t1 AS B WHERE A.E2 = B.E2)) AS THEMAX ON t1.E1 = THEMAX.E2 AND t1.E1 = t1.E2;
+drop table t1;
+
+create table t1 (a int);
+insert into t1 values (1),(2);
+select * from ( select * from t1 union select * from t1) a,(select * from t1 union select * from t1) b;
+explain select * from ( select * from t1 union select * from t1) a,(select * from t1 union select * from t1) b;
+drop table t1;
+
+#
+# multi-update & multi-delete with derived tables
+#
+CREATE TABLE `t1` (
+  `N` int(11) unsigned NOT NULL default '0',
+  `M` tinyint(1) default '0'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+INSERT INTO `t1` (N, M) VALUES (1, 0),(1, 0),(1, 0),(2, 0),(2, 0),(3, 0);
+UPDATE `t1` AS P1 INNER JOIN (SELECT N FROM `t1` GROUP BY N HAVING Count(M) > 1) AS P2 ON P1.N = P2.N SET P1.M = 2;
+select * from t1;
+-- error 1288
+UPDATE `t1` AS P1 INNER JOIN (SELECT N FROM `t1` GROUP BY N HAVING Count(M) > 1) AS P2 ON P1.N = P2.N SET P1.M = 2, P2.N = 2;
+-- error 1054
+UPDATE `t1` AS P1 INNER JOIN (SELECT aaaa FROM `t1` GROUP BY N HAVING Count(M) > 1) AS P2 ON P1.N = P2.N SET P1.M = 2;
+delete P1.* from `t1` AS P1 INNER JOIN (SELECT N FROM `t1` GROUP BY N HAVING Count(M) > 1) AS P2 ON P1.N = P2.N;
+select * from t1;
+--replace_result P2 p2
+--error ER_NON_UPDATABLE_TABLE
+delete P1.*,P2.* from `t1` AS P1 INNER JOIN (SELECT N FROM `t1` GROUP BY N HAVING Count(M) > 1) AS P2 ON P1.N = P2.N;
+-- error 1054
+delete P1.* from `t1` AS P1 INNER JOIN (SELECT aaa FROM `t1` GROUP BY N HAVING Count(M) > 1) AS P2 ON P1.N = P2.N;
+drop table t1;
+
+#
+# correct lex->current_select
+#
+CREATE TABLE t1 (
+  OBJECTID int(11) NOT NULL default '0',
+  SORTORDER int(11) NOT NULL auto_increment,
+  KEY t1_SortIndex (SORTORDER),
+  KEY t1_IdIndex (OBJECTID)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+CREATE TABLE t2 (
+  ID int(11) default NULL,
+  PARID int(11) default NULL,
+  UNIQUE KEY t2_ID_IDX (ID),
+  KEY t2_PARID_IDX (PARID)
+) engine=MyISAM DEFAULT CHARSET=latin1;
+INSERT INTO t2 VALUES (1000,0),(1001,0),(1002,0),(1003,0),(1008,1),(1009,1),(1010,1),(1011,1),(1016,2);
+CREATE TABLE t3 (
+  ID int(11) default NULL,
+  DATA decimal(10,2) default NULL,
+  UNIQUE KEY t3_ID_IDX (ID)
+) engine=MyISAM DEFAULT CHARSET=latin1;
+INSERT INTO t3 VALUES (1000,0.00),(1001,0.25),(1002,0.50),(1003,0.75),(1008,1.00),(1009,1.25),(1010,1.50),(1011,1.75);
+select 497, TMP.ID, NULL from (select 497 as ID, MAX(t3.DATA) as DATA      from t1 join t2 on (t1.ObjectID = t2.ID) join t3 on (t1.ObjectID = t3.ID) group by t2.ParID order by DATA DESC) as TMP;
+drop table t1, t2, t3;
+
+#
+# explain derived
+#
+CREATE TABLE t1 (name char(1) default NULL, val int(5) default NULL);
+INSERT INTO t1 VALUES ('a',1),  ('a',2),  ('a',2),  ('a',2),  ('a',3),  ('a',6), ('a',7), ('a',11), ('a',11), ('a',12), ('a',13), ('a',13), ('a',20), ('b',2), ('b',3), ('b',4), ('b',5);
+SELECT s.name, AVG(s.val) AS median FROM (SELECT x.name, x.val FROM t1 x, t1 y WHERE x.name=y.name GROUP BY x.name, x.val HAVING SUM(y.val <= x.val) >= COUNT(*)/2 AND SUM(y.val >= x.val) >= COUNT(*)/2) AS s GROUP BY s.name;
+explain SELECT s.name, AVG(s.val) AS median FROM (SELECT x.name, x.val FROM t1 x, t1 y WHERE x.name=y.name GROUP BY x.name, x.val HAVING SUM(y.val <= x.val) >= COUNT(*)/2 AND SUM(y.val >= x.val) >= COUNT(*)/2) AS s GROUP BY s.name;
+drop table t1;
+
+#
+# "Using index" in explain
+#
+create table t2 (a int, b int, primary key (a));
+insert into t2 values (1,7),(2,7);
+explain select a from t2 where a>1;
+explain select a from (select a from t2 where a>1) tt;
+drop table t2;
+
+#
+# select list counter
+#
+CREATE TABLE `t1` ( `itemid` int(11) NOT NULL default '0', `grpid` varchar(15) NOT NULL default '', `vendor` int(11) NOT NULL default '0', `date_` date NOT NULL default '0000-00-00', `price` decimal(12,2) NOT NULL default '0.00', PRIMARY KEY  (`itemid`,`grpid`,`vendor`,`date_`), KEY `itemid` (`itemid`,`vendor`), KEY `itemid_2` (`itemid`,`date_`));
+insert into t1 values (128, 'rozn', 2, curdate(), 10),
+  (128, 'rozn', 1, curdate(), 10);
+SELECT MIN(price) min, MAX(price) max, AVG(price) avg FROM (SELECT SUBSTRING( MAX(concat(date_,";",price)), 12) price FROM t1 WHERE itemid=128 AND  grpid='rozn' GROUP BY itemid, grpid, vendor) lastprices;
+DROP TABLE t1;
+
+#
+# DISTINCT over grouped select on subquery in the FROM clause
+#
+create table t1 (a integer, b integer);
+insert into t1 values (1,4), (2,2),(2,2), (4,1),(4,1),(4,1),(4,1);
+select distinct sum(b) from t1 group by a;
+select distinct sum(b) from (select a,b from t1) y group by a;
+drop table t1;
+
+
+#
+# Test for bug #7413 "Subquery with non-scalar results participating in
+# select list of derived table crashes server" aka "VIEW with sub query can
+# cause the MySQL server to crash". If we have encountered problem during
+# filling of derived table we should report error and perform cleanup
+# properly.
+#
+CREATE TABLE t1 (a char(10), b char(10));
+INSERT INTO t1 VALUES ('root','localhost'), ('root','%');
+--error 1242
+SELECT * FROM (SELECT (SELECT a.a FROM t1 AS a WHERE a.a = b.a) FROM t1 AS b) AS c;
+DROP TABLE t1;
+#
+# test of union subquery in the FROM clause with complex distinct/all (BUG#6565)
+#
+create table t1(a int);
+create table t2(a int);
+create table t3(a int);
+insert into t1 values(1),(1);
+insert into t2 values(2),(2);
+insert into t3 values(3),(3);
+select * from t1 union distinct select * from t2 union all select * from t3;
+select * from (select * from t1 union distinct select * from t2 union all select * from t3) X;
+drop table t1, t2, t3;
+
+#
+# Bug #11864 non unique names are allowed in subquery
+#
+create table t1 (a int);
+create table t2 (a int);
+--error 1060
+select * from (select * from t1,t2) foo;
+drop table t1,t2;
+
+#
+# Bug#10586 - query works with 4.1.8, but not with 4.1.11
+#
+create table t1 (ID int unsigned not null auto_increment,
+                 DATA varchar(5) not null, primary key (ID));
+create table t2 (ID int unsigned not null auto_increment,
+                 DATA varchar(5) not null, FID int unsigned not null,
+                 primary key (ID));
+select A.* from (t1 inner join (select * from t2) as A on t1.ID = A.FID);
+select t2.* from ((select * from t1) as A inner join t2 on A.ID = t2.FID);
+select t2.* from (select * from t1) as A inner join t2 on A.ID = t2.FID;
+drop table t1, t2;
+
+connection con1;
+disconnect con1;
+--source include/wait_until_disconnected.inc
+connection default;
+drop user mysqltest_1;
+
+--echo # End of 4.1 tests
+
+#
+# Bug #41156: List of derived tables acts like a chain of
+#             mutually-nested subqueries
+#
+
+SELECT 0 FROM
+(SELECT 0) t01, (SELECT 0) t02, (SELECT 0) t03, (SELECT 0) t04, (SELECT 0) t05,
+(SELECT 0) t06, (SELECT 0) t07, (SELECT 0) t08, (SELECT 0) t09, (SELECT 0) t10,
+(SELECT 0) t11, (SELECT 0) t12, (SELECT 0) t13, (SELECT 0) t14, (SELECT 0) t15,
+(SELECT 0) t16, (SELECT 0) t17, (SELECT 0) t18, (SELECT 0) t19, (SELECT 0) t20,
+(SELECT 0) t21, (SELECT 0) t22, (SELECT 0) t23, (SELECT 0) t24, (SELECT 0) t25,
+(SELECT 0) t26, (SELECT 0) t27, (SELECT 0) t28, (SELECT 0) t29, (SELECT 0) t30,
+(SELECT 0) t31, (SELECT 0) t32, (SELECT 0) t33, (SELECT 0) t34, (SELECT 0) t35,
+(SELECT 0) t36, (SELECT 0) t37, (SELECT 0) t38, (SELECT 0) t39, (SELECT 0) t40,
+(SELECT 0) t41, (SELECT 0) t42, (SELECT 0) t43, (SELECT 0) t44, (SELECT 0) t45,
+(SELECT 0) t46, (SELECT 0) t47, (SELECT 0) t48, (SELECT 0) t49, (SELECT 0) t50,
+(SELECT 0) t51, (SELECT 0) t52, (SELECT 0) t53, (SELECT 0) t54, (SELECT 0) t55,
+(SELECT 0) t56, (SELECT 0) t57, (SELECT 0) t58, (SELECT 0) t59, (SELECT 0) t60,
+(SELECT 0) t61; # 61 == MAX_TABLES
+
+--echo #
+--echo #  A nested materialized derived table is used before being populated.
+--echo #  (addon for bug#19077)
+--echo #
+
+CREATE TABLE t1 (i INT, j BIGINT);
+INSERT INTO t1 VALUES (1, 2), (2, 2), (3, 2);
+SELECT * FROM (SELECT MIN(i) FROM t1
+WHERE j = SUBSTRING('12', (SELECT * FROM (SELECT MIN(j) FROM t1) t2))) t3;
+DROP TABLE t1;
+
+--echo # End of 5.0 tests
+
+--echo #
+--echo # MDEV-5005: Subquery in Procedure somehow affecting temporary table
+--echo #
+
+create temporary table if not exists t1 (id int not null);
+
+select A.* from ( select tt.* from t1 tt ) A;
+
+prepare stmt from "select A.* from ( select tt.* from t1 tt ) A ";
+execute stmt;
+deallocate prepare stmt;
+
+drop temporary table t1;
+
+--delimiter |
+CREATE PROCEDURE p ()
+BEGIN
+  select A.* from ( select tt.* from t1 tt ) A ;
+END |
+--delimiter ;
+
+create temporary table if not exists t1 (id int not null);
+
+CALL p();
+CALL p();
+
+drop procedure p;
+
+drop temporary table t1;
+
+
+--echo #
+--echo # MDEV-5143: update of a joined table with a nested subquery with 
+--echo # a syntax error crashes mysqld with signal 11
+--echo #
+
+create table t1 (id int(11) not null auto_increment, val varchar(100) null,primary key (id));
+create table t2 (id int(11) not null auto_increment, val varchar(100) null,primary key (id));
+
+insert into t1 (val) values('a');
+insert into t2 (val) values('1');
+
+--error ER_BAD_FIELD_ERROR
+update 
+    (
+        select 
+            val
+        from
+            (
+                select 
+                    v.val
+                from 
+                    t2 wrong_table_alias
+            ) t4
+    ) t3
+    inner join t1 on 
+        t1.id=t3.val
+set 
+    t1.val=t3.val
+;
+
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-5353: server crash on subselect if WHERE applied to some
+--echo # result field
+--echo #
+
+SELECT * FROM 
+( SELECT 100 a, subsel.b FROM ( SELECT 200 b ) subsel ) tmp
+WHERE tmp.b;
+SELECT * FROM 
+( SELECT 100 a, subsel.b FROM ( SELECT 200 b ) subsel ) tmp
+WHERE tmp.a;
+
+--echo #
+--echo # MDEV-5356: Server crashes in Item_equal::contains on 2nd
+--echo # execution of a PS
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(3,4);
+
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 VALUES (5),(6);
+
+CREATE TABLE t3 (d INT);
+INSERT INTO t3 VALUES (7),(8);
+
+CREATE PROCEDURE pr()
+  UPDATE t3,
+    (SELECT c FROM
+      (SELECT 1 FROM t1 WHERE a=72 AND NOT b) sq, 
+      t2
+    ) sq2
+  SET d=sq2.c;
+
+CALL pr();
+CALL pr();
+CALL pr();
+
+drop procedure pr;
+drop table t1,t2,t3;
+
+--echo # End of 5.3 tests
+
+--echo #
+--echo # Bug#58730 Assertion failed: table->key_read == 0 in close_thread_table,
+--echo #           temptable views
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT, KEY (b));
+INSERT INTO t1 VALUES (1),(1);
+INSERT INTO t2 VALUES (1),(1);
+
+CREATE algorithm=temptable VIEW v1 AS
+  SELECT 1 FROM t1 LEFT JOIN t1 t3 ON 1 > (SELECT 1 FROM t1);
+CREATE algorithm=temptable VIEW v2 AS SELECT 1 FROM t2;
+
+# This caused the assert to be triggered.
+EXPLAIN SELECT 1 FROM t1 JOIN v1 ON 1 > (SELECT 1 FROM v2);
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1 FROM t1 JOIN v1 ON 1 > (SELECT 1 FROM v2);
+
+DROP TABLE t1, t2;
+DROP VIEW v1, v2;
+
+#
+# MDEV-614 lp:1050806 - different result for a query using subquery between 5.5.25 and 5.5.27
+# MySQL Bug#66845 Wrong result (extra row) on a FROM subquery with a variable and ORDER BY
+#
+create table t1 (n bigint(20) unsigned, d1 datetime, d2 datetime, key (d1));
+insert t1 values (2085,'2012-01-01 00:00:00','2013-01-01 00:00:00');
+insert t1 values (2084,'2012-02-01 00:00:00','2013-01-01 00:00:00');
+insert t1 values (2088,'2012-03-01 00:00:00','2013-01-01 00:00:00');
+select * from (
+  select n, d1, d2, @result := 0 as result
+  from t1
+  where d1 < '2012-12-12 12:12:12' and n in (2085, 2084) order by d2 asc
+) as calculated_result;
+drop table t1;
+
+#
+# MDEV-5012 Server crashes in Item_ref::real_item on EXPLAIN with select subqueries or views, constant table, derived_merge+derived_with_keys
+#
+set @save_derived_optimizer_switch_bug=@@optimizer_switch;
+SET optimizer_switch = 'derived_merge=on,derived_with_keys=on,in_to_exists=on';
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (8);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(7);
+EXPLAIN SELECT * FROM (SELECT * FROM t1) AS table1,
+  (SELECT DISTINCT * FROM t2) AS table2 WHERE b = a AND a <> ANY (SELECT 9);
+DROP TABLE t1, t2;
+set optimizer_switch=@save_derived_optimizer_switch_bug;
+
+--echo #
+--echo # MDEV-6163: Error while executing an update query that has the
+--echo # same table in a sub-query
+--echo #
+
+set @save_derived_optimizer_switch_bug=@@optimizer_switch;
+SET optimizer_switch = 'derived_merge=on';
+create table t1 (balance float, accountId varchar(64), primary key (accountId));
+
+insert into t1 (accountId,balance) values 
+('dealer-1',199354.0),('dealer-2',0),('dealer-3',0),('dealer-5',0),('FINANCE',-200000),('OPERATOR',0);
+
+update t1 set balance=(select sum(balance) from (SELECT balance FROM t1 where accountId like 'dealer%') AS copied) where accountId = 'OPERATOR'; 
+set optimizer_switch=@save_derived_optimizer_switch_bug;
+drop table t1;
+
+--echo #
+--echo # MDEV-6219:Server crashes in Bitmap<64u>::merge
+--echo # (this=0x180, map2=...) on 2nd execution of PS with INSERT .. SELECT,
+--echo # derived_merge
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(8)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+create procedure p1()
+  INSERT INTO t1 SELECT * FROM ( 
+    SELECT * FROM t1
+  ) AS sq
+  WHERE sq.a IN ( SELECT 'baz' FROM DUAL );
+
+call p1();
+call p1();
+drop procedure p1;
+
+PREPARE stmt FROM "
+  INSERT INTO t1 SELECT * FROM ( 
+    SELECT * FROM t1
+  ) AS sq
+  WHERE sq.a IN ( SELECT 'baz' FROM DUAL ) 
+";
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+deallocate prepare stmt;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-6892: WHERE does not apply
+--echo #
+create table t1 (id int);
+create table t2 (id int);
+insert into t1 values(1),(2),(3);
+insert into t2 values(4),(5),(6);
+#explain extended
+select x.id, message from (select id from t1) x left join
+(select id, 1 as message from t2) y on x.id=y.id
+where coalesce(message,0) <> 0;
+explain extended
+select x.id, message from (select id from t1) x left join
+(select id, 1 as message from t2) y on x.id=y.id
+where message <> 0;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-7827: Assertion `!table || (!table->read_set ||
+--echo # bitmap_is_set(table->read_set, field_index))' failed
+--echo # in Field_long::val_str on EXPLAIN EXTENDED
+--echo #
+
+CREATE TABLE t1 (f1 INT, f2 INT, KEY(f2)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (6,9);
+
+CREATE TABLE t2 (f3 INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2),(0);
+
+EXPLAIN EXTENDED
+SELECT f1 FROM ( SELECT * FROM t1 ) AS sq
+WHERE f1 IN (
+  SELECT f3 FROM t2 WHERE f2 IN (
+    SELECT f3 FROM t2 HAVING f3 >= 8
+  )
+);
+
+DROP TABLE t2,t1;
+
+--echo #
+--echo # MDEV-9462: Out of memory using explain on 2 empty tables 
+--echo #
+
+CREATE TABLE `t1` (
+ `REC_GROUP` char(2) DEFAULT NULL,
+ `CLIENT_INFO` text CHARACTER SET utf8,
+ `NAME` text,
+ `PHONE_NUMBER` text,
+ `ATTENTION_NAME` text,
+ `PAYMENT_TERM` text CHARACTER SET utf8,
+ `CREDIT_LIMIT` decimal(12,2) DEFAULT NULL,
+ `LAST_PAY_DATE` text CHARACTER SET utf8,
+ `TOTAL` double DEFAULT NULL,
+ `TOTAL_MCL` double DEFAULT NULL,
+ `TOTAL_MFS` double DEFAULT NULL,
+ `TOTAL_MIS` double DEFAULT NULL,
+ `BEFORE_DUE_7_MCL` double DEFAULT NULL,
+ `BEFORE_DUE_7_MFS` double DEFAULT NULL,
+ `BEFORE_DUE_7_MIS` double DEFAULT NULL,
+ `PER1_MCL` double DEFAULT NULL,
+ `PER1_MFS` double DEFAULT NULL,
+ `PER1_MIS` double DEFAULT NULL,
+ `PER2_MCL` double DEFAULT NULL,
+ `PER2_MFS` double DEFAULT NULL,
+ `PER2_MIS` double DEFAULT NULL,
+ `PER3_MCL` double DEFAULT NULL,
+ `PER3_MFS` double DEFAULT NULL,
+ `PER3_MIS` double DEFAULT NULL,
+ `PER4_MCL` double DEFAULT NULL,
+ `PER4_MFS` double DEFAULT NULL,
+ `PER4_MIS` double DEFAULT NULL,
+ `PER5_MCL` double DEFAULT NULL,
+ `PER5_MFS` double DEFAULT NULL,
+ `PER5_MIS` double DEFAULT NULL,
+ `PER6_MCL` double DEFAULT NULL,
+ `PER6_MFS` double DEFAULT NULL,
+ `PER6_MIS` double DEFAULT NULL,
+ `PER7_MCL` double DEFAULT NULL,
+ `PER7_MFS` double DEFAULT NULL,
+ `PER7_MIS` double DEFAULT NULL,
+ `BEFORE_DUE_7` double DEFAULT NULL,
+ `PER1` double DEFAULT NULL,
+ `PER2` double DEFAULT NULL,
+ `PER3` double DEFAULT NULL,
+ `PER4` double DEFAULT NULL,
+ `PER5` double DEFAULT NULL,
+ `PER6` double DEFAULT NULL,
+ `PER7` double DEFAULT NULL,
+ `REF` varchar(30) DEFAULT NULL,
+ `TYPE` varchar(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
+);
+
+
+CREATE TABLE `t2` (
+ `RECEIVABLE_GROUP` char(2) DEFAULT NULL,
+ `CLIENT_NUMBER` varchar(35) DEFAULT NULL,
+ `CLIENT_NAME` varchar(73) DEFAULT NULL,
+ `PHONE_NUMBER` char(12) DEFAULT NULL,
+ `ATTENTION_NAME` char(26) DEFAULT NULL,
+ `PAYMENT_TERM` varchar(26) CHARACTER SET utf8 DEFAULT NULL,
+ `CREDIT_LIMIT` decimal(12,2) DEFAULT NULL,
+ `LAST_PAY_DATE` varchar(42) CHARACTER SET utf8 DEFAULT NULL,
+ `TOTAL` decimal(12,2) DEFAULT NULL,
+ `BEFORE_DUE_7` decimal(12,2) DEFAULT NULL,
+ `PER1` decimal(12,2) DEFAULT NULL,
+ `PER2` decimal(12,2) DEFAULT NULL,
+ `PER3` decimal(12,2) DEFAULT NULL,
+ `PER4` decimal(12,2) DEFAULT NULL,
+ `PER5` decimal(12,2) DEFAULT NULL,
+ `PER6` decimal(12,2) DEFAULT NULL,
+ `PER7` decimal(12,2) DEFAULT NULL,
+ `DIVISION` varchar(3) CHARACTER SET utf8 NOT NULL,
+ `CLIENT_INFO` varchar(294) CHARACTER SET utf8 DEFAULT NULL,
+ `EXCHANGE_RATE` double NOT NULL,
+ `REF` varchar(30) DEFAULT NULL
+);
+
+explain
+SELECT A.RECEIVABLE_GROUP,A.CLIENT_INFO,A.CLIENT_NAME,A.PHONE_NUMBER,A.ATTENTION_NAME,A.PAYMENT_TERM,A.CREDIT_LIMIT,A.LAST_PAY_DATE,A.TOTAL,
+COALESCE(B.TOTAL_MCL,0) AS TOTAL_MCL,
+COALESCE(C.TOTAL_MFS,0) AS TOTAL_MFS,
+COALESCE(D.TOTAL_MIS,0) AS TOTAL_MIS,
+COALESCE(F.BEFORE_DUE_7_MCL,0) AS BEFORE_DUE_7_MCL,
+COALESCE(G.BEFORE_DUE_7_MFS,0) AS BEFORE_DUE_7_MFS,
+COALESCE(H.BEFORE_DUE_7_MIS,0) AS BEFORE_DUE_7_MIS,
+COALESCE(I.PER1_MCL,0) AS PER1_MCL,
+COALESCE(J.PER1_MFS,0) AS PER1_MFS,
+COALESCE(K.PER1_MIS,0) AS PER1_MIS,
+COALESCE(L.PER2_MCL,0) AS PER2_MCL,
+COALESCE(M.PER2_MFS,0) AS PER2_MFS,
+COALESCE(N.PER2_MIS,0) AS PER2_MIS,
+COALESCE(O.PER3_MCL,0) AS PER3_MCL,
+COALESCE(P.PER3_MFS,0) AS PER3_MFS,
+COALESCE(R.PER3_MIS,0) AS PER3_MIS,
+COALESCE(S.PER4_MCL,0) AS PER4_MCL,
+COALESCE(T.PER4_MFS,0) AS PER4_MFS,
+COALESCE(U.PER4_MIS,0) AS PER4_MIS,
+COALESCE(V.PER5_MCL,0) AS PER5_MCL,
+COALESCE(X.PER5_MFS,0) AS PER5_MFS,
+COALESCE(Z.PER5_MIS,0) AS PER5_MIS,
+COALESCE(Q.PER6_MCL,0) AS PER6_MCL,
+COALESCE(Y.PER6_MFS,0) AS PER6_MFS,
+COALESCE(W.PER6_MIS,0) AS PER6_MIS,
+COALESCE(A1.PER7_MCL,0) AS PER7_MCL,
+COALESCE(B1.PER7_MFS,0) AS PER7_MFS,
+COALESCE(C1.PER7_MIS,0) AS PER7_MIS,
+A.BEFORE_DUE_7,A.PER1,A.PER2,A.PER3,A.PER4,A.PER5,A.PER6,A.PER7,
+CONCAT(A.DIVISION,'-',A.CLIENT_NUMBER) AS REF,"2" AS TYPE FROM
+(SELECT RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,
+GROUP_CONCAT(DISTINCT CLIENT_INFO SEPARATOR '<br>') AS CLIENT_INFO,
+GROUP_CONCAT(DISTINCT CLIENT_NAME SEPARATOR '<br>') AS CLIENT_NAME, 
+GROUP_CONCAT( DISTINCT `PHONE_NUMBER` SEPARATOR '<br>' ) AS PHONE_NUMBER , 
+GROUP_CONCAT( DISTINCT `ATTENTION_NAME` SEPARATOR '<br>' )  AS ATTENTION_NAME, 
+GROUP_CONCAT( DISTINCT `PAYMENT_TERM` SEPARATOR '<br>' ) AS PAYMENT_TERM, 
+CREDIT_LIMIT , 
+GROUP_CONCAT( `LAST_PAY_DATE` SEPARATOR '<br>' ) AS LAST_PAY_DATE, 
+SUM( `TOTAL`*EXCHANGE_RATE ) AS TOTAL, 
+SUM( `BEFORE_DUE_7`*EXCHANGE_RATE ) AS BEFORE_DUE_7, 
+SUM( `PER1`*EXCHANGE_RATE ) AS PER1, 
+SUM( `PER2`*EXCHANGE_RATE ) AS PER2, 
+SUM( `PER3`*EXCHANGE_RATE ) AS PER3, 
+SUM( `PER4`*EXCHANGE_RATE ) AS PER4, 
+SUM( `PER5`*EXCHANGE_RATE ) AS PER5, 
+SUM( `PER6`*EXCHANGE_RATE ) AS PER6, 
+SUM( `PER7`*EXCHANGE_RATE ) AS PER7
+FROM `t2`
+WHERE REF IS NULL GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS A 
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( `TOTAL`*EXCHANGE_RATE ) AS TOTAL_MCL
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MCL" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS B ON A.CLIENT_NUMBER=B.CLIENT_NUMBER AND 
+A.DIVISION=B.DIVISION AND A.RECEIVABLE_GROUP=B.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=B.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( `TOTAL`*EXCHANGE_RATE ) AS TOTAL_MFS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MFS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS C ON A.CLIENT_NUMBER=C.CLIENT_NUMBER 
+AND 
+A.DIVISION=C.DIVISION AND A.RECEIVABLE_GROUP=C.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=C.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( `TOTAL`*EXCHANGE_RATE ) AS TOTAL_MIS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS D ON A.CLIENT_NUMBER=D.CLIENT_NUMBER AND 
+A.DIVISION=D.DIVISION AND A.RECEIVABLE_GROUP=D.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=D.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( BEFORE_DUE_7*EXCHANGE_RATE ) AS BEFORE_DUE_7_MCL
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MCL" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS F ON A.CLIENT_NUMBER=F.CLIENT_NUMBER AND 
+A.DIVISION=F.DIVISION AND A.RECEIVABLE_GROUP=F.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=F.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( BEFORE_DUE_7*EXCHANGE_RATE ) AS BEFORE_DUE_7_MFS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MFS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS G ON A.CLIENT_NUMBER=G.CLIENT_NUMBER AND 
+A.DIVISION=G.DIVISION AND A.RECEIVABLE_GROUP=G.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=G.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( BEFORE_DUE_7*EXCHANGE_RATE ) AS BEFORE_DUE_7_MIS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS H ON A.CLIENT_NUMBER=H.CLIENT_NUMBER AND 
+A.DIVISION=H.DIVISION AND A.RECEIVABLE_GROUP=H.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=H.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER1*EXCHANGE_RATE ) AS PER1_MCL
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MCL" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS I ON A.CLIENT_NUMBER=I.CLIENT_NUMBER  AND 
+A.DIVISION=I.DIVISION AND A.RECEIVABLE_GROUP=I.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=I.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER1*EXCHANGE_RATE ) AS PER1_MFS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MFS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS J ON A.CLIENT_NUMBER=J.CLIENT_NUMBER AND 
+A.DIVISION=J.DIVISION AND A.RECEIVABLE_GROUP=J.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=J.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER1*EXCHANGE_RATE ) AS PER1_MIS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS K ON A.CLIENT_NUMBER=K.CLIENT_NUMBER AND 
+A.DIVISION=K.DIVISION AND A.RECEIVABLE_GROUP=K.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=K.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER2*EXCHANGE_RATE ) AS PER2_MCL
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MCL" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS L ON A.CLIENT_NUMBER=L.CLIENT_NUMBER AND 
+A.DIVISION=L.DIVISION AND A.RECEIVABLE_GROUP=L.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=L.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER2*EXCHANGE_RATE ) AS PER2_MFS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MFS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS M ON A.CLIENT_NUMBER=M.CLIENT_NUMBER AND 
+A.DIVISION=M.DIVISION AND A.RECEIVABLE_GROUP=M.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=M.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER2*EXCHANGE_RATE ) AS PER2_MIS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS N ON A.CLIENT_NUMBER=N.CLIENT_NUMBER AND 
+A.DIVISION=N.DIVISION AND A.RECEIVABLE_GROUP=N.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=N.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER3*EXCHANGE_RATE ) AS PER3_MCL
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MCL" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS O ON A.CLIENT_NUMBER=O.CLIENT_NUMBER AND 
+A.DIVISION=O.DIVISION AND A.RECEIVABLE_GROUP=O.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=O.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER3*EXCHANGE_RATE ) AS PER3_MFS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MFS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS P ON A.CLIENT_NUMBER=P.CLIENT_NUMBER AND 
+A.DIVISION=P.DIVISION AND A.RECEIVABLE_GROUP=P.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=P.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER3*EXCHANGE_RATE ) AS PER3_MIS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS R ON A.CLIENT_NUMBER=R.CLIENT_NUMBER AND 
+A.DIVISION=R.DIVISION AND A.RECEIVABLE_GROUP=R.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=R.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER4*EXCHANGE_RATE ) AS PER4_MCL
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MCL" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS S ON A.CLIENT_NUMBER=S.CLIENT_NUMBER AND 
+A.DIVISION=S.DIVISION AND A.RECEIVABLE_GROUP=S.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=S.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER4*EXCHANGE_RATE ) AS PER4_MFS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MFS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS T ON A.CLIENT_NUMBER=T.CLIENT_NUMBER AND 
+A.DIVISION=T.DIVISION AND A.RECEIVABLE_GROUP=T.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=T.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER4*EXCHANGE_RATE ) AS PER4_MIS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS U ON A.CLIENT_NUMBER=U.CLIENT_NUMBER AND 
+A.DIVISION=U.DIVISION AND A.RECEIVABLE_GROUP=U.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=U.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER5*EXCHANGE_RATE ) AS PER5_MCL
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MCL" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS V ON A.CLIENT_NUMBER=V.CLIENT_NUMBER AND 
+A.DIVISION=V.DIVISION AND A.RECEIVABLE_GROUP=V.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=V.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER5*EXCHANGE_RATE ) AS PER5_MFS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MFS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS X ON A.CLIENT_NUMBER=X.CLIENT_NUMBER AND 
+A.DIVISION=X.DIVISION AND A.RECEIVABLE_GROUP=X.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=X.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER5*EXCHANGE_RATE ) AS PER5_MIS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS Z ON A.CLIENT_NUMBER=Z.CLIENT_NUMBER AND 
+A.DIVISION=Z.DIVISION AND A.RECEIVABLE_GROUP=Z.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=Z.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER6*EXCHANGE_RATE ) AS PER6_MCL
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MCL" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS Q ON A.CLIENT_NUMBER=Q.CLIENT_NUMBER AND 
+A.DIVISION=Q.DIVISION AND A.RECEIVABLE_GROUP=Q.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=Q.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER6*EXCHANGE_RATE ) AS PER6_MFS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MFS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS Y ON A.CLIENT_NUMBER=Y.CLIENT_NUMBER AND 
+A.DIVISION=Y.DIVISION AND A.RECEIVABLE_GROUP=Y.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=Y.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER6*EXCHANGE_RATE ) AS PER6_MIS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS W ON A.CLIENT_NUMBER=W.CLIENT_NUMBER AND 
+A.DIVISION=W.DIVISION AND A.RECEIVABLE_GROUP=W.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=W.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER7*EXCHANGE_RATE ) AS PER7_MCL
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MCL" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS A1 ON A.CLIENT_NUMBER=A1.CLIENT_NUMBER AND 
+A.DIVISION=A1.DIVISION AND A.RECEIVABLE_GROUP=A1.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=A1.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER7*EXCHANGE_RATE ) AS PER7_MFS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MFS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS B1 ON A.CLIENT_NUMBER=B1.CLIENT_NUMBER AND 
+A.DIVISION=B1.DIVISION AND A.RECEIVABLE_GROUP=B1.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=B1.CREDIT_LIMIT
+LEFT JOIN
+(SELECT  RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT,SUM( PER7*EXCHANGE_RATE ) AS PER7_MIS
+FROM `t2`
+WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS C1 ON A.CLIENT_NUMBER=C1.CLIENT_NUMBER AND 
+A.DIVISION=C1.DIVISION AND A.RECEIVABLE_GROUP=C1.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=C1.CREDIT_LIMIT
+ORDER BY TOTAL DESC;
+
+DROP TABLES t1,t2;
+
+set optimizer_switch=@save_derived_optimizer_switch;
+
+--echo #
+--echo # MDEV-10663: Use of Inline table columns in HAVING clause
+--echo # throws 1463 Error
+--echo #
+
+set @save_sql_mode = @@sql_mode;
+set sql_mode='ONLY_FULL_GROUP_BY,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
+
+CREATE TABLE `example1463` (
+  `Customer` varchar(255) NOT NULL,
+  `DeliveryStatus` varchar(255) NOT NULL,
+  `OrderSize` int(11) NOT NULL
+);
+INSERT INTO example1463 VALUES ('Charlie', 'Success', 100);
+INSERT INTO example1463 VALUES ('David', 'Success', 110);
+INSERT INTO example1463 VALUES ('Charlie', 'Failed', 200);
+INSERT INTO example1463 VALUES ('David', 'Success', 100);
+INSERT INTO example1463 VALUES ('David', 'Unknown', 100);
+INSERT INTO example1463 VALUES ('Edward', 'Success', 150);
+INSERT INTO example1463 VALUES ('Edward', 'Pending', 150);
+
+SELECT Customer, Success, SUM(OrderSize)
+ FROM (SELECT Customer,
+ CASE WHEN DeliveryStatus='Success' THEN 'Yes' ELSE 'No' END AS Success,
+ OrderSize
+ FROM example1463) as subQ
+ GROUP BY Success, Customer
+ WITH ROLLUP;
+SELECT Customer, Success, SUM(OrderSize)
+ FROM (SELECT Customer,
+ CASE WHEN DeliveryStatus='Success' THEN 'Yes' ELSE 'No' END AS Success,
+ OrderSize
+ FROM example1463) as subQ
+ GROUP BY Success, Customer;
+SELECT Customer, Success, SUM(OrderSize)
+ FROM (SELECT Customer,
+ CASE WHEN DeliveryStatus='Success' THEN 'Yes' ELSE 'No' END AS Success,
+ OrderSize
+ FROM example1463) as subQ
+ GROUP BY Success, Customer
+ HAVING Success IS NOT NULL;
+
+DROP TABLE example1463;
+set sql_mode= @save_sql_mode;
+
+--echo #
+--echo # MDEV-9028: SELECT DISTINCT constant column of  derived  table
+--echo #            used as the second operand of LEFT JOIN
+--echo #
+
+create table t1 (id int, data varchar(255));
+insert into t1 values (1,'yes'),(2,'yes');
+
+select distinct t1.id, tt.id, tt.data
+  from t1
+       left join
+       (select t1.id, 'yes' as data from t1) as tt
+       on t1.id = tt.id;
+
+select distinct t1.id, tt.id, tt.data
+  from t1
+       left join
+       (select t1.id, 'yes' as data from t1 where id > 1) as tt
+       on t1.id = tt.id;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-14241: Server crash in key_copy / get_matching_chain_by_join_key
+--echo # or valgrind warnings
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10)) ENGINE=MyISAM;
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+CREATE TABLE t2 (b integer auto_increment primary key) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (NULL),(NULL);
+
+CREATE TABLE t3 (c VARCHAR(1024) CHARACTER SET utf8, d INT) ENGINE=MyISAM;
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
+INSERT INTO t3 VALUES ('abc',NULL),('def',4);
+
+set @save_join_cache_level= @@join_cache_level;
+SET join_cache_level= 8;
+explain
+SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
+SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
+
+DROP VIEW v1, v3;
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-14786: Server crashes in Item_cond::transform on 2nd
+--echo # execution of SP querying from a view
+--echo #
+create table t1 (i int, row_start timestamp(6) not null default now(),
+                 row_end timestamp(6) not null default '2030-01-01 0:0:0');
+create view v1 as select i from t1 where i < 5 and (row_end =
+TIMESTAMP'2030-01-01 0:0:0' or row_end is null);
+create procedure pr(x int) select i from v1;
+call pr(1);
+call pr(2);
+drop procedure pr;
+drop view v1;
+drop table t1;
+set @@join_cache_level= @save_join_cache_level;
+
+--echo #
+--echo # MDEV-16307: Incorrect results when using BNLH join instead of BNL join with views
+--echo #
+
+CREATE TABLE t1 (c1 text, c2 int);
+INSERT INTO t1 VALUES ('a',1), ('c',3), ('g',7), ('d',4), ('c',3);
+CREATE TABLE t2 (c1 text, c2 int);
+INSERT INTO t2 VALUES ('b',2), ('c',3);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+
+explain SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
+SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
+set @save_join_cache_level= @@join_cache_level;
+set @@join_cache_level=4;
+explain SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
+SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
+drop table t1,t2;
+drop view v1;
+set @@join_cache_level= @save_join_cache_level;
+--echo # end of 5.5
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8747 Wrong result for SELECT..WHERE derived_table_column='a' AND derived_table_column<>_latin1'A' COLLATE latin1_bin
+--echo #
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a' AND a <> _latin1'A' COLLATE latin1_bin;
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='a' AND a <> _latin1'A' COLLATE latin1_bin;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5';
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a=1;
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5' AND a=1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8749 Wrong result for SELECT..WHERE derived_table_enum_column='number' AND derived_table_enum_column OP number2
+--echo #
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5';
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a=1;
+SELECT * FROM (SELECT * FROM t1) AS table1 WHERE a='5' AND a=1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-10554: Assertion `!derived->first_select()->
+--echo # exclude_from_table_unique_test || derived->outer_select()->
+--echo # exclude_from_table_unique_test'
+--echo # failed in TABLE_LIST::set_check_merged()
+--echo #
+
+CREATE TABLE t1 (f INT);
+CREATE ALGORITHM = TEMPTABLE VIEW v1 AS SELECT * FROM ( SELECT * FROM t1 ) AS sq;
+
+PREPARE stmt FROM 'SELECT * FROM v1';
+EXECUTE stmt;
+EXECUTE stmt;
+
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-11363: Assertion `!derived->first_sel ect()->first_inner_unit() ||
+--echo # derived->first_select()->first_inner_unit()->first_select()->
+--echo # exclude_from_table_unique_test' failed in
+--echo # TABLE_LIST::set_check_materialized()
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+CREATE TABLE t2 (f2 INT);
+CREATE TABLE t3 (f3 INT);
+CREATE VIEW v1 AS ( SELECT f1 AS f FROM t1 ) UNION ( SELECT f2 AS f FROM t2 );
+CREATE VIEW v2 AS SELECT f3 AS f FROM t3;
+CREATE VIEW v3 AS SELECT f FROM ( SELECT f3 AS f FROM v1, t3 ) AS sq;
+CREATE VIEW v4 AS SELECT COUNT(*) as f FROM v3;
+REPLACE INTO v2 ( SELECT * FROM v4 ) UNION ( SELECT f FROM v2 );
+
+drop view v1,v2,v3,v4;
+drop table t1,t2,t3;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9959: A serious MariaDB server performance bug
+--echo #
+
+create table t1(a int);
+insert into t1 values (1),(2),(3),(4),(5),(6);
+create table t2(a int, b int,c int);
+insert into t2(a,b,c) values (1,1,2),(2,2,3),(3,1,4),(4,2,2),(5,1,1),(6,2,5);
+create table t3(a int, b int);
+insert into t3(a,b) values (1,1),(2,2),(2,1),(1,2),(5,1),(9,2);
+
+--echo table "<derived2>" should have type=ref and rows=1
+--echo one select in derived table
+
+--echo with distinct
+analyze select * from t1 , ((select distinct t2.a from t2 order by c))q  where t1.a=q.a; 
+analyze select * from t1 , ((select distinct t2.a, t2.b from t2 order by c))q  where t1.a=q.a;
+
+--echo # multiple selects in derived table
+--echo # NO UNION ALL
+analyze select * from t1 , ( (select t2.a from t2 order by c) union  (select t2.a from t2 order by c))q  where t1.a=q.a;
+select * from t1 , ( (select t2.a from t2 order by c) union  (select t2.a from t2 order by c))q  where t1.a=q.a;
+
+--echo # UNION ALL and EXCEPT
+analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
+
+select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
+
+drop table t1,t2,t3;

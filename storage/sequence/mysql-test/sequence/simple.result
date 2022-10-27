@@ -1,0 +1,280 @@
+select * from information_schema.engines where engine='sequence';
+ENGINE	SEQUENCE
+SUPPORT	YES
+COMMENT	Generated tables filled with sequential values
+TRANSACTIONS	YES
+XA	NO
+SAVEPOINTS	YES
+set sql_quote_show_create=0;
+show create table seq_1_to_15_step_2;
+Table	Create Table
+seq_1_to_15_step_2	CREATE TABLE seq_1_to_15_step_2 (
+  seq bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (seq)
+) ENGINE=SEQUENCE DEFAULT CHARSET=latin1
+show create table seq_1_to_15_step;
+ERROR 42S02: Table 'test.seq_1_to_15_step' doesn't exist
+show create table seq_1_to_15_st;
+ERROR 42S02: Table 'test.seq_1_to_15_st' doesn't exist
+show create table seq_1_to_15;
+Table	Create Table
+seq_1_to_15	CREATE TABLE seq_1_to_15 (
+  seq bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (seq)
+) ENGINE=SEQUENCE DEFAULT CHARSET=latin1
+show create table seq_1_to_1;
+Table	Create Table
+seq_1_to_1	CREATE TABLE seq_1_to_1 (
+  seq bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (seq)
+) ENGINE=SEQUENCE DEFAULT CHARSET=latin1
+show create table seq_1_to_;
+ERROR 42S02: Table 'test.seq_1_to_' doesn't exist
+show create table seq_1_t;
+ERROR 42S02: Table 'test.seq_1_t' doesn't exist
+show create table seq_1;
+ERROR 42S02: Table 'test.seq_1' doesn't exist
+show create table seq_;
+ERROR 42S02: Table 'test.seq_' doesn't exist
+show create table se;
+ERROR 42S02: Table 'test.se' doesn't exist
+show create table seq_1_to_15_step_0;
+ERROR HY000: Got error 140 "Wrong create options" from storage engine SEQUENCE
+show create table `seq_-1_to_15`;
+ERROR 42S02: Table 'test.seq_-1_to_15' doesn't exist
+show create table `seq_1_to_+2`;
+ERROR 42S02: Table 'test.seq_1_to_+2' doesn't exist
+select * from seq_1_to_15_step_2;
+seq
+1
+3
+5
+7
+9
+11
+13
+15
+select * from seq_1_to_15;
+seq
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+select * from seq_1_to_1;
+seq
+1
+select * from seq_15_to_1;
+seq
+15
+14
+13
+12
+11
+10
+9
+8
+7
+6
+5
+4
+3
+2
+1
+select * from seq_15_to_1_step_2;
+seq
+15
+13
+11
+9
+7
+5
+3
+1
+select * from seq_1_to_15_step_12345;
+seq
+1
+select * from seq_15_to_1_step_12345;
+seq
+15
+explain select * from seq_15_to_1_step_12345;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_15_to_1_step_12345	ALL	NULL	NULL	NULL	NULL	1	
+show open tables from test;
+Database	Table	In_use	Name_locked
+test	seq_15_to_1	0	0
+test	seq_15_to_1_step_12345	0	0
+test	seq_15_to_1_step_2	0	0
+test	seq_1_to_1	0	0
+test	seq_1_to_15	0	0
+test	seq_1_to_15_step_12345	0	0
+test	seq_1_to_15_step_2	0	0
+show tables;
+Tables_in_test
+explain select * from seq_1_to_15_step_2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_15_step_2	index	NULL	PRIMARY	8	NULL	8	Using index
+explain select * from seq_1_to_15_step_2 where seq > 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_15_step_2	range	PRIMARY	PRIMARY	8	NULL	3	Using where; Using index
+explain select * from seq_1_to_15_step_2 where seq between  4 and  9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_15_step_2	range	PRIMARY	PRIMARY	8	NULL	3	Using where; Using index
+explain select * from seq_1_to_15_step_2 where seq between 20 and 30;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+explain select * from seq_1_to_15_step_2 where seq between  4 and  6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_15_step_2	range	PRIMARY	PRIMARY	8	NULL	1	Using where; Using index
+explain select * from seq_1_to_15_step_2 where seq between  4 and  5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_15_step_2	range	PRIMARY	PRIMARY	8	NULL	1	Using where; Using index
+explain select * from seq_1_to_15_step_2 where seq between  4 and  4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+explain select * from seq_1_to_15_step_2 where seq between  5 and  5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	seq_1_to_15_step_2	const	PRIMARY	PRIMARY	8	const	1	Using index
+create table t1 (a int, aa int, b varchar(100));
+insert t1 select seq, seq*seq, if (seq % 2, 'odd', 'even') from seq_1_to_20;
+select * from t1;
+a	aa	b
+1	1	odd
+2	4	even
+3	9	odd
+4	16	even
+5	25	odd
+6	36	even
+7	49	odd
+8	64	even
+9	81	odd
+10	100	even
+11	121	odd
+12	144	even
+13	169	odd
+14	196	even
+15	225	odd
+16	256	even
+17	289	odd
+18	324	even
+19	361	odd
+20	400	even
+select aa, b from t1, seq_1_to_20_step_3 as seq where a=seq;
+aa	b
+1	odd
+16	even
+49	odd
+100	even
+169	odd
+256	even
+361	odd
+insert t1
+select seq, seq*seq, if (seq % 2, 'odd', 'even') from seq_1_to_30
+where seq > (select max(a) from t1);
+select * from t1;
+a	aa	b
+1	1	odd
+2	4	even
+3	9	odd
+4	16	even
+5	25	odd
+6	36	even
+7	49	odd
+8	64	even
+9	81	odd
+10	100	even
+11	121	odd
+12	144	even
+13	169	odd
+14	196	even
+15	225	odd
+16	256	even
+17	289	odd
+18	324	even
+19	361	odd
+20	400	even
+21	441	odd
+22	484	even
+23	529	odd
+24	576	even
+25	625	odd
+26	676	even
+27	729	odd
+28	784	even
+29	841	odd
+30	900	even
+drop table t1;
+select seq from seq_2_to_50 s1 where 0 not in
+(select s1.seq % s2.seq from seq_2_to_50 s2 where s2.seq <= sqrt(s1.seq));
+seq
+2
+3
+5
+7
+11
+13
+17
+19
+23
+29
+31
+37
+41
+43
+47
+explain select seq from seq_2_to_50 s1 where 0 not in
+(select s1.seq % s2.seq from seq_2_to_50 s2 where s2.seq <= sqrt(s1.seq));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	s1	index	NULL	PRIMARY	8	NULL	49	Using where; Using index
+2	DEPENDENT SUBQUERY	s2	index	PRIMARY	PRIMARY	8	NULL	49	Using where; Using index
+select year(dt) from
+(select '1901-02-28' + interval seq year as dt from seq_0_to_99) as seqdt
+where weekday(dt) = 0;
+year(dt)
+1910
+1916
+1921
+1927
+1938
+1944
+1949
+1955
+1966
+1972
+1977
+1983
+1994
+2000
+create table t1 (a int) engine=innodb;
+reset master;
+start transaction;
+insert t1 select * from seq_1_to_10;
+savepoint s1;
+insert t1 select * from seq_11_to_20;
+rollback to savepoint s1;
+commit;
+select count(*) from t1;
+count(*)
+10
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; insert t1 select * from seq_1_to_10
+master-bin.000001	#	Query	#	#	SAVEPOINT s1
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+drop table t1;
+drop table seq_1_to_1;
+set binlog_format=statement;
+lock table seq_1_to_2 write;
+set binlog_format=row;
+lock table seq_1_to_2 write;

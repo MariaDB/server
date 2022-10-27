@@ -1,0 +1,33 @@
+--source include/master-slave.inc
+
+connection master;
+
+CREATE DATABASE db1;
+CREATE DATABASE IF NOT EXISTS db1;
+CREATE OR REPLACE DATABASE db2;
+CREATE OR REPLACE DATABASE db1;
+sync_slave_with_master;
+
+SHOW DATABASES LIKE 'db%';
+
+connection master;
+--error ER_DB_CREATE_EXISTS
+CREATE DATABASE db1;
+
+--error ER_DB_DROP_EXISTS
+DROP DATABASE db3;
+
+CREATE DATABASE IF NOT EXISTS db3;
+sync_slave_with_master;
+
+SHOW DATABASES LIKE 'db%';
+
+connection master;
+DROP DATABASE db1;
+DROP DATABASE db2;
+DROP DATABASE IF EXISTS db3;
+sync_slave_with_master;
+
+SHOW DATABASES LIKE 'db%';
+
+--source include/rpl_end.inc

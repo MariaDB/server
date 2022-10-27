@@ -1,0 +1,99 @@
+CREATE TABLE bug_53756 (pk INT, c1 INT) ENGINE=InnoDB;
+ALTER TABLE bug_53756 ADD PRIMARY KEY (pk);
+INSERT INTO bug_53756 VALUES(1, 11), (2, 22), (3, 33), (4, 44);
+
+# Select a less restrictive isolation level.
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+COMMIT;
+
+# Start a transaction in the default connection for isolation.
+START TRANSACTION;
+SELECT @@tx_isolation;
+@@tx_isolation
+READ-COMMITTED
+SELECT * FROM bug_53756;
+pk	c1
+1	11
+2	22
+3	33
+4	44
+connect  con1,localhost,root,,;
+START TRANSACTION;
+SELECT @@tx_isolation;
+@@tx_isolation
+READ-COMMITTED
+DELETE FROM bug_53756 WHERE pk=1;
+connect  con2,localhost,root,,;
+START TRANSACTION;
+SELECT @@tx_isolation;
+@@tx_isolation
+READ-COMMITTED
+DELETE FROM bug_53756 WHERE pk=2;
+connect  con3,localhost,root,,;
+START TRANSACTION;
+SELECT @@tx_isolation;
+@@tx_isolation
+READ-COMMITTED
+UPDATE bug_53756 SET c1=77 WHERE pk=3;
+connect  con4,localhost,root,,;
+START TRANSACTION;
+SELECT @@tx_isolation;
+@@tx_isolation
+READ-COMMITTED
+UPDATE bug_53756 SET c1=88 WHERE pk=4;
+connect  con5,localhost,root,,;
+START TRANSACTION;
+SELECT @@tx_isolation;
+@@tx_isolation
+READ-COMMITTED
+INSERT INTO bug_53756 VALUES(5, 55);
+connect  con6,localhost,root,,;
+START TRANSACTION;
+SELECT @@tx_isolation;
+@@tx_isolation
+READ-COMMITTED
+INSERT INTO bug_53756 VALUES(6, 66);
+connection con1;
+COMMIT;
+connection con3;
+COMMIT;
+connection con4;
+ROLLBACK;
+connection con6;
+ROLLBACK;
+
+# The connections 2 and 5 stay open.
+
+# Delete of row 1 was committed.
+# Update of row 3 was committed.
+# Due to isolation level read committed, these should be included.
+# All other changes should not be included.
+connection default;
+SELECT * FROM bug_53756;
+pk	c1
+2	22
+3	77
+4	44
+START TRANSACTION;
+INSERT INTO bug_53756 VALUES (666,666);
+# restart
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+#
+# Select recovered data.
+# Delete of row 1 was committed.
+# Update of row 3 was committed.
+# These should be included.
+# All other changes should not be included.
+# Delete of row 2 and insert of row 5 should be rolled back
+SELECT * FROM bug_53756;
+pk	c1
+2	22
+3	77
+4	44
+DROP TABLE bug_53756;

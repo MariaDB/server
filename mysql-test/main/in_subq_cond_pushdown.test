@@ -1,0 +1,862 @@
+LET $no_pushdown=
+  SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR;
+
+CREATE TABLE t1 (a INT, b INT, c INT, d INT);
+CREATE TABLE t2 (e INT, f INT, g INT);
+CREATE TABLE t3 (x INT, y INT);
+
+INSERT INTO t1 VALUES
+(1,1,18,1), (2,1,25,1), (1,3,40,1), (2,3,40,4),
+(4,2,24,4), (3,2,23,1), (1,2,40,2), (3,4,17,2),
+(5,5,65,1), (2,3,70,3), (1,4,35,3), (2,3,25,3),
+(2,2,40,4), (1,4,55,1), (5,3,72,4), (1,2,70,5);
+
+INSERT INTO t2 VALUES
+(1,2,38), (2,3,15), (1,3,40), (1,4,35),
+(2,2,70), (3,4,23), (5,5,12), (5,4,17),
+(3,3,17), (4,2,24), (2,5,25), (5,1,65);
+
+INSERT INTO t3 VALUES
+(1,25), (1,18), (2,15), (4,24),
+(1,35), (3,23), (3,17), (2,15);
+
+CREATE VIEW v1 AS
+(
+  SELECT t3.x AS v1_x, t3.y AS v1_y FROM t3 WHERE t3.x<=3
+);
+
+CREATE VIEW v2 AS
+(
+  SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+  FROM t2
+  GROUP BY t2.e
+  HAVING max_g>25
+);
+
+--echo # conjunctive subformula : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE t1.c<25 AND
+  (t1.a,t1.c) IN (SELECT t2.e,MAX(t2.g) FROM t2 WHERE t2.e<5 GROUP BY t2.e);
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # extracted AND formula : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE t1.c>55 AND t1.b<4 AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # extracted OR formula : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE (t1.c>60 OR t1.c<25) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # extracted AND-OR formula : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE ((t1.c>60 OR t1.c<25) AND t1.b>2) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.d>3) AND t1.b>1) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # using view IN subquery defINition : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE t1.c>20 AND
+  (t1.a,t1.c) IN
+  (
+    SELECT v1_x,MAX(v1_y)
+    FROM v1
+    WHERE v1_x>1
+    GROUP BY v1_x
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # using equality : pushing into WHERE
+LET $query=
+SELECT * FROM t1,v1
+WHERE t1.c>20 AND t1.c=v1_y AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE t1.a<2 AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # extracted AND formula : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE t1.a>2 AND t1.a<5 AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # extracted OR formula : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a<2 OR t1.a>=4) AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # extracted AND-OR formula : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e,t2.f
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # extracted AND-OR formula : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e,t2.f
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE ((t1.b<3 OR t1.d>2) AND t1.a<2) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # using equalities : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE t1.d=1 AND t1.a=t1.d AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # using equality : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE t1.d>1 AND t1.a=t1.d AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # using view IN subquery definition : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE t1.a<3 AND
+  (t1.a,t1.c) IN
+  (
+    SELECT v1_x,MAX(v1_y)
+    FROM v1
+    WHERE v1_x>1
+    GROUP BY v1_x
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # using equality : pushing into WHERE
+LET $query=
+SELECT * FROM t1,v1
+WHERE t1.a=v1_x AND v1_x<2 AND v1_y>30 AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE
+--echo # extracted OR formula : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE ((t1.b<3 OR t1.b=4) AND t1.a<3) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula using addition : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a+t1.c>41) AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula using substitution : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE (t1.c-t1.a<35) AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula using multiplication : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE (t1.c*t1.a>100) AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula using division : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE (t1.c/t1.a>30) AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula using BETWEEN : pushing into HAVING
+LET $query=
+SELECT * FROM t1
+WHERE (t1.c BETWEEN 50 AND 100) AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula using addition : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a+t1.b > 5) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e,t2.f
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula using substitution : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a-t1.b > 0) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e,t2.f
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula using multiplication : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a*t1.b > 6) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e,t2.f
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula using division : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE (t1.b/t1.a > 2) AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e,t2.f
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula using BETWEEN : pushing into WHERE
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a BETWEEN 1 AND 3) AND
+  (t1.a,t1.c) IN
+  (
+    SELECT t2.e,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into HAVING of the IN subquery
+--echo # conjunctive subformula : pushing into WHERE of the view from the IN subquery
+LET $query=
+SELECT * FROM t1
+WHERE t1.c>3 AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT v2.e,MAX(v2.f),v2.max_g
+    FROM v2
+    WHERE v2.e<5
+    GROUP BY v2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE of the IN subquery
+--echo # conjunctive subformula : pushing into WHERE of the view
+--echo #                          from the IN subquery
+LET $query=
+SELECT * FROM t1
+WHERE t1.a>1 AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT v2.e,MAX(v2.f),v2.max_g
+    FROM v2
+    WHERE v2.e<5
+    GROUP BY v2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE and HAVING
+--echo #                          of the IN subquery
+--echo # conjunctive subformula : pushing into WHERE of the view
+--echo #                          from the IN subquery
+LET $query=
+SELECT * FROM t1
+WHERE t1.a>1 AND t1.c<100 AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT v2.e,MAX(v2.f),v2.max_g
+    FROM v2
+    WHERE v2.e<5
+    GROUP BY v2.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE of the IN subquery
+--echo # extracted AND formula  : pushing into HAVING of the derived table
+--echo #                          from the IN subquery
+LET $query=
+SELECT * FROM t1
+WHERE t1.a>1 AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+    FROM
+    (
+      SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+      FROM t2
+      GROUP BY t2.f
+      HAVING max_g>25
+    ) as d_tab
+    WHERE d_tab.e<5
+    GROUP BY d_tab.e
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into HAVING of the derived table
+--echo # conjunctive subformula : pushing into WHERE of the IN subquery from
+--echo #                          the derived table
+SELECT *
+FROM t3,
+(
+  SELECT t1.a,t1.b,max(t1.c) as max_c
+  FROM t1
+  WHERE t1.a>1 AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.e<5
+    GROUP BY t2.e
+  )
+  GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.b>2;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE of the derived table
+--echo # extracted AND formula  : pushing into WHERE of the IN subquery from
+--echo #                          the derived table
+SELECT *
+FROM t3,
+(
+  SELECT t1.a,t1.b,max(t1.c) as max_c
+  FROM t1
+  WHERE t1.a>1 AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    GROUP BY t2.e
+    HAVING t2.f<5
+  )
+  GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE and HAVING
+--echo #                          of the derived table
+--echo # extracted AND formula  : pushing into WHERE of the IN subquery
+--echo #                          from the derived table
+LET $query=
+SELECT *
+FROM t3,
+(
+  SELECT t1.a,t1.b,max(t1.c) as max_c
+  FROM t1
+  WHERE t1.a>1 AND
+  (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    GROUP BY t2.e
+    HAVING t2.f<5
+  )
+  GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE of the derived table
+--echo # conjunctive subformula : pushing into HAVING of the IN subquery from
+--echo #                          the derived table
+SELECT *
+FROM t3,
+(
+  SELECT t1.a,t1.b,max(t1.c) as max_c
+  FROM t1
+  WHERE (t1.a,t1.b,t1.c) IN
+  (
+    SELECT t2.e,t2.f,MAX(t2.g)
+    FROM t2
+    WHERE t2.f<4
+    GROUP BY t2.f
+  )
+  GROUP BY t1.a
+  HAVING t1.b<5
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE
+--echo # using WINDOW FUNCTIONS : using MAX function
+LET $query=
+SELECT * FROM t1
+WHERE (t1.b>1) AND
+  (t1.b, t1.c) IN
+  (
+    SELECT t2.f, MAX(t2.g) OVER (PARTITION BY t2.f)
+    FROM t2
+    WHERE t2.e<5
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+--echo # conjunctive subformula : pushing into WHERE
+--echo # using WINDOW FUNCTIONS : using SUM function
+LET $query=
+SELECT * FROM t1
+WHERE (t1.b>1) AND
+  (t1.b, t1.c) IN
+  (
+    SELECT t2.f, CAST(SUM(t2.g) OVER (PARTITION BY t2.f) AS INT)
+    FROM t2
+    WHERE t2.e<5
+  )
+;
+
+EVAL $no_pushdown $query;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1,t2,t3;
+DROP VIEW v1,v2;
+
+--echo #
+--echo # MDEV-16721: IN-subquery defined with the AUTO-INCREMENT column
+--echo #             and used with the ZEROFILL column
+--echo #
+
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY);
+CREATE TABLE t2 (b INT ZEROFILL);
+
+INSERT INTO t2 VALUES (2), (3);
+
+SELECT *
+FROM t2
+WHERE t2.b IN (SELECT MIN(t1.a) from t1);
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-16730: server fault caused by pushdown into the derived table
+--echo #             condition that joins IN subquery and parent select
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+
+SELECT *
+FROM (SELECT DISTINCT * FROM t1) AS tbl
+WHERE tbl.a IN
+(
+  SELECT COUNT(t1.a)
+  FROM t1
+  WHERE (t1.a!=1)
+);
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16727: failure assertion caused by the lamely saved list
+--echo #             of multiple equalities
+--echo #
+
+CREATE TABLE t1 (a varchar(1));
+INSERT INTO t1 VALUES ('x'), ('y'), ('z');
+
+CREATE TABLE t2 (b varchar(1));
+INSERT INTO t2 VALUES ('x');
+
+CREATE TABLE t3 (c varchar(1));
+INSERT INTO t3 VALUES ('y');
+
+CREATE TABLE t4 (d varchar(1));
+INSERT INTO t4 VALUES ('x'), ('z');
+
+SELECT * FROM t1
+JOIN t2 ON (t1.a=t2.b)
+LEFT JOIN t3 ON (t1.a=t3.c)
+WHERE (t1.a) IN
+(
+  SELECT t4.d
+  FROM t4
+  ORDER BY t4.d
+);
+
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-17360: IN subquery predicate with outer reference in the left part
+--echo #             that refers to a field of a mergeable derived table
+--echo #
+
+CREATE TABLE t1 (id1 int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES (1814),(0),(NULL),(1);
+
+CREATE TABLE t2 (id2 int) ENGINE=MYISAM;
+
+SELECT 1 AS r FROM t2,t1,(SELECT * FROM t1) dt1
+  WHERE NOT EXISTS (SELECT id2 FROM t2
+                      WHERE dt1.id1 IN (SELECT t2.id2 FROM t2
+                                          HAVING t2.id2 >= 1));
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-17027: IN subquery predicate with outer reference in the left part
+--echo #             conjuncted with equality predicate
+--echo #
+
+CREATE TABLE t1 (pk int, i1 int, v1 varchar(1));
+INSERT INTO t1 VALUES (3,2,'x'), (1,1,'y'), (4,2,'z');
+
+CREATE TABLE t2 (pk int, i1 int, v1 varchar(1));
+INSERT INTO t2 VALUES (5,2,'x'), (7,1,'x');
+
+CREATE TABLE t3 (pk int, i1 int, v1 varchar(1));
+INSERT INTO t3 VALUES (8,2,'x'), (7,1,'z');
+
+SELECT t3.i1 FROM t3
+  WHERE EXISTS ( SELECT t2.v1 FROM t1,t2
+                   WHERE t1.v1 = t2.v1 AND
+                         t3.i1 IN (SELECT t.i1 FROM t1 as t
+                                    GROUP BY i1 HAVING t.i1 < 3));
+
+DROP TABLE t1,t2,t3;

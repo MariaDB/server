@@ -1,0 +1,374 @@
+--source include/have_rocksdb.inc
+--source include/master-slave.inc
+--source include/have_binlog_format_row.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--echo # Establish connection con1 (user=root)
+connect (con1,localhost,root,,);
+--echo # Establish connection con2 (user=root)
+connect (con2,localhost,root,,);
+--echo # Establish connection con3 (user=root)
+connect (con3,localhost,root,,);
+--echo # Establish connection con4 (user=root)
+connect (con4,localhost,root,,);
+
+--echo # reset replication to guarantee that master-bin.000001 is used
+connection slave;
+--source include/stop_slave.inc
+RESET SLAVE;
+RESET MASTER;
+
+connection master;
+RESET MASTER;
+
+connection slave;
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host="127.0.0.1",master_port=$MASTER_MYPORT,master_user="root";
+--source include/start_slave.inc
+
+### Test 1:
+### - While a consistent snapshot transaction is executed,
+###   no external inserts should be visible to the transaction.
+
+--echo # Switch to connection con1
+connection con1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1);
+
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+--error ER_ISOLATION_LEVEL_WITH_CONSISTENT_SNAPSHOT
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+--error ER_ISOLATION_LEVEL_WITH_CONSISTENT_SNAPSHOT
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+ROLLBACK;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+
+
+--disable_query_log
+--disable_result_log
+let $x=1000;
+while ($x) {
+  START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+  dec $x;
+}
+--enable_query_log
+--enable_result_log
+
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+
+--echo # Switch to connection con2
+connection con2;
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(3);
+
+--echo # Switch to connection con1
+connection con1;
+SELECT * FROM t1; # should fetch one row
+COMMIT;
+
+SELECT * FROM t1; # should fetch three rows
+
+DROP TABLE t1;
+
+### Test 2:
+### - confirm result from snapshot select and replication replay matches original
+
+--echo # Switch to connection con1
+connection con1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1);
+
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+
+let $binlog_pos = query_get_value(START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT, Position, 1);
+
+--echo # Switch to connection con2
+connection con2;
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(3);
+
+--echo # Switch to connection con1
+connection con1;
+SELECT * FROM t1;
+
+--let $outfile = $MYSQLTEST_VARDIR/tmp/rpl_rocksdb_snapshot.out.file
+
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+eval SELECT * INTO OUTFILE '$outfile' FROM t1;
+COMMIT;
+
+--echo # Switch to slave
+sync_slave_with_master slave;
+
+CREATE TABLE t1_backup LIKE t1;
+INSERT INTO t1_backup SELECT * FROM t1;
+--source include/stop_slave.inc
+RESET SLAVE;
+RESET MASTER;
+DELETE FROM t1;
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+eval LOAD DATA INFILE '$outfile' INTO TABLE t1;
+SELECT * FROM t1;
+
+--replace_result $MASTER_MYPORT MASTER_PORT $binlog_pos binlog_pos
+eval CHANGE MASTER TO master_host="127.0.0.1",master_port=$MASTER_MYPORT,master_user="root",master_log_file="master-bin.000001",master_log_pos=$binlog_pos;
+--source include/start_slave.inc
+
+connection master;
+sync_slave_with_master slave;
+
+SELECT * FROM t1;
+SELECT * FROM t1_backup;
+DROP TABLE t1_backup;
+
+connection master;
+DROP TABLE t1;
+--remove_file $outfile
+
+### Test 3:
+### - confirm result from snapshot select and replication replay matches original
+### - use non-deterministic concurrency
+
+--echo # Switch to connection con1
+connection con1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1);
+
+--echo # async queries from con2
+connection con2;
+send INSERT INTO t1 VALUES(2);
+
+--echo # async queries from con3
+connection con3;
+send INSERT INTO t1 VALUES(21);
+
+--echo # Switch to connection con1
+connection con1;
+
+let $binlog_pos = query_get_value(START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT, Position, 1);
+
+--echo # Switch to connection con4
+connection con4;
+INSERT INTO t1 VALUES(9);
+
+--echo # Switch to connection con1
+connection con1;
+
+--let $outfile = $MYSQLTEST_VARDIR/tmp/rpl_rocksdb_snapshot.out.file
+
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+eval SELECT * INTO OUTFILE '$outfile' FROM t1;
+COMMIT;
+
+--echo # reap async statements
+connection con2;
+reap;
+
+connection con3;
+reap;
+
+--echo # Switch to slave
+sync_slave_with_master slave;
+
+CREATE TABLE t1_backup LIKE t1;
+INSERT INTO t1_backup SELECT * FROM t1;
+--source include/stop_slave.inc
+RESET SLAVE;
+RESET MASTER;
+DELETE FROM t1;
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+eval LOAD DATA INFILE '$outfile' INTO TABLE t1;
+
+--replace_result $MASTER_MYPORT MASTER_PORT $binlog_pos binlog_pos
+eval CHANGE MASTER TO master_host="127.0.0.1",master_port=$MASTER_MYPORT,master_user="root",master_log_file="master-bin.000001",master_log_pos=$binlog_pos;
+--source include/start_slave.inc
+
+--echo # sync and then query slave
+connection master;
+sync_slave_with_master slave;
+
+let $sum1 = `SELECT SUM(a) from t1`;
+let $sum2 = `SELECT SUM(a) from t1_backup`;
+--disable_query_log
+eval select $sum2 - $sum1 ShouldBeZero;
+--enable_query_log
+
+DROP TABLE t1_backup;
+
+connection master;
+DROP TABLE t1;
+--remove_file $outfile
+
+### Test 4:
+### - confirm result from snapshot select and replication relay using gtid protocol matches original
+
+--echo # Switch to connection con1
+connection con1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1);
+
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+-- replace_regex /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/UUID/
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+
+let $gtid_executed = query_get_value(START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT, Gtid_executed, 1);
+
+--echo # Switch to connection con2
+connection con2;
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(3);
+
+--echo # Switch to connection con1
+connection con1;
+SELECT * FROM t1;
+
+--let $outfile = $MYSQLTEST_VARDIR/tmp/rpl_rocksdb_snapshot.out.file
+
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+eval SELECT * INTO OUTFILE '$outfile' FROM t1;
+COMMIT;
+
+--echo # Switch to slave
+sync_slave_with_master slave;
+
+CREATE TABLE t1_backup LIKE t1;
+INSERT INTO t1_backup SELECT * FROM t1;
+--source include/stop_slave.inc
+RESET SLAVE;
+RESET MASTER;
+--replace_result $gtid_executed gtid_executed_from_snapshot
+eval SET @@global.gtid_purged='$gtid_executed';
+DELETE FROM t1;
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+eval LOAD DATA INFILE '$outfile' INTO TABLE t1;
+SELECT * FROM t1;
+
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host="127.0.0.1",master_port=$MASTER_MYPORT,master_user="root", master_auto_position=1;
+--source include/start_slave.inc
+
+connection master;
+sync_slave_with_master slave;
+
+SELECT * FROM t1;
+SELECT * FROM t1_backup;
+DROP TABLE t1_backup;
+
+connection master;
+DROP TABLE t1;
+--remove_file $outfile
+
+### Test 5:
+### - confirm result from snapshot select and replication replay using gtid_protocol matches original
+### - use non-deterministic concurrency
+
+--echo # Switch to connection con1
+connection con1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1);
+
+--echo # async queries from con2
+connection con2;
+send INSERT INTO t1 VALUES(2);
+
+--echo # async queries from con3
+connection con3;
+send INSERT INTO t1 VALUES(21);
+
+--echo # Switch to connection con1
+connection con1;
+
+let $gtid_executed = query_get_value(START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT, Gtid_executed, 1);
+
+--echo # Switch to connection con4
+connection con4;
+INSERT INTO t1 VALUES(9);
+
+--echo # Switch to connection con1
+connection con1;
+
+--let $outfile = $MYSQLTEST_VARDIR/tmp/rpl_rocksdb_snapshot.out.file
+
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+eval SELECT * INTO OUTFILE '$outfile' FROM t1;
+COMMIT;
+
+--echo # reap async statements
+connection con2;
+reap;
+
+connection con3;
+reap;
+
+--echo # Switch to slave
+sync_slave_with_master slave;
+
+CREATE TABLE t1_backup LIKE t1;
+INSERT INTO t1_backup SELECT * FROM t1;
+--source include/stop_slave.inc
+RESET SLAVE;
+RESET MASTER;
+--replace_result $gtid_executed gtid_executed_from_snapshot
+eval SET @@global.gtid_purged='$gtid_executed';
+DELETE FROM t1;
+
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+eval LOAD DATA INFILE '$outfile' INTO TABLE t1;
+
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host="127.0.0.1",master_port=$MASTER_MYPORT,master_user="root", master_auto_position=1;
+--source include/start_slave.inc
+
+--echo # sync and then query slave
+connection master;
+sync_slave_with_master slave;
+
+let $sum1 = `SELECT SUM(a) from t1`;
+let $sum2 = `SELECT SUM(a) from t1_backup`;
+--disable_query_log
+eval select $sum2 - $sum1 ShouldBeZero;
+--enable_query_log
+
+DROP TABLE t1_backup;
+
+connection master;
+DROP TABLE t1;
+--remove_file $outfile
+
+--echo # Switch to connection default + close connections con1 and con2
+connection con1;
+disconnect con1;
+--source include/wait_until_disconnected.inc
+connection con2;
+disconnect con2;
+--source include/wait_until_disconnected.inc
+connection con3;
+disconnect con3;
+--source include/wait_until_disconnected.inc
+connection con4;
+disconnect con4;
+--source include/wait_until_disconnected.inc
+
+connection default;
+sync_slave_with_master slave;
+--source include/stop_slave.inc
+CHANGE MASTER to master_auto_position=0;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

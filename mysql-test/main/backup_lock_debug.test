@@ -1,0 +1,78 @@
+########################################################################
+# Tests for BACKUP STAGE locking that requires debug.
+########################################################################
+
+--source include/have_debug_sync.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # Make sure pending LOCK TABLES doesn't block BACKUP STAGE
+--echo #
+CREATE TABLE t1(a INT);
+LOCK TABLE t1 READ;
+
+--echo #
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+--send LOCK TABLE t1 WRITE
+
+--echo #
+connect (con2,localhost,root,,);
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE END;
+disconnect con2;
+
+--echo #
+connection default;
+UNLOCK TABLES;
+
+--echo #
+connection con1;
+reap;
+UNLOCK TABLES;
+disconnect con1;
+
+--echo #
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+
+
+--echo #
+--echo # Demonstrates a deadlock if BACKUP namespace is reorder after SCHEMA.
+--echo # Culprit is ALTER TABLE taking SCHEMA lock on target database after
+--echo # BACKUP lock was acquired.
+--echo #
+CREATE DATABASE test2;
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+
+SET DEBUG_SYNC='alter_opened_table SIGNAL ready WAIT_FOR go';
+send ALTER TABLE t1 RENAME TO test2.t1;
+
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC='now WAIT_FOR ready';
+BACKUP STAGE START;
+SET DEBUG_SYNC='mdl_acquire_lock_wait SIGNAL ready1';
+send BACKUP STAGE BLOCK_DDL;
+
+connect (con2,localhost,root,,);
+SET DEBUG_SYNC='now WAIT_FOR ready1';
+SET DEBUG_SYNC='mdl_acquire_lock_wait SIGNAL go';
+send DROP DATABASE test2;
+
+connection default;
+reap;
+
+connection con1;
+reap;
+disconnect con1;
+
+connection con2;
+reap;
+disconnect con2;
+
+connection default;
+SET DEBUG_SYNC='reset';

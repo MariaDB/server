@@ -1,0 +1,15 @@
+set default_storage_engine='tokudb';
+drop table if exists t1;
+set session tokudb_auto_analyze = 1;
+set session tokudb_analyze_in_background = true;
+set session tokudb_analyze_mode = TOKUDB_ANALYZE_STANDARD;
+set session tokudb_analyze_throttle = 0;
+set session tokudb_analyze_time = 0;
+create table t1(a int, b text(1), c text(1), filler text(1), primary key(a, b(1)), unique key (a, c(1)));
+lock tables t1 write, t1 as a read, t1 as b read;
+insert ignore into t1(a) values(1);
+Warnings:
+Warning	1364	Field 'b' doesn't have a default value
+alter table t1 drop key a;
+unlock tables;
+drop table t1;

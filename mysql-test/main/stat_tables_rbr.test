@@ -1,0 +1,29 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+--echo #
+--echo # Bug mdev-463: assertion failure when running ANALYZE with RBR on
+--echo # 
+
+--connect (con1,localhost,root,,)
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+set use_stat_tables= PREFERABLY;
+ANALYZE TABLE t1;
+
+# Cleanup
+DROP TABLE t1;
+SET use_stat_tables = DEFAULT;
+--disconnect con1
+
+--connection default
+
+SET use_stat_tables = PREFERABLY;
+
+CREATE TABLE t1 ( a INT ) ENGINE=MyISAM PARTITION BY HASH(a) PARTITIONS 2;
+ALTER TABLE t1 ANALYZE PARTITION p1;
+source include/show_binlog_events.inc;
+
+SET use_stat_tables = DEFAULT;
+
+DROP TABLE t1;

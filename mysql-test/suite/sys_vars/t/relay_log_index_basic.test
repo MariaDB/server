@@ -1,0 +1,33 @@
+--source include/not_embedded.inc
+--source include/master-slave.inc
+
+#
+# only global
+#
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+select @@global.relay_log_index;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.relay_log_index;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+show global variables like 'relay_log_index';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+show session variables like 'relay_log_index';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+select * from information_schema.global_variables where variable_name='relay_log_index';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+select * from information_schema.session_variables where variable_name='relay_log_index';
+
+#
+# show that it's read-only
+#
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global relay_log_index=1;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set session relay_log_index=1;
+
+--connection slave
+--let $rpl_log_var_name=relay_log_index
+--source suite/sys_vars/inc/bin_relay_log_basename_index.inc
+
+--source include/rpl_end.inc
+

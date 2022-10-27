@@ -1,0 +1,38 @@
+--- select2.result	2018-06-29 17:51:17.142172085 +0200
++++ select2,trx_id.reject	2018-06-29 18:03:49.034273090 +0200
+@@ -26,6 +26,8 @@
+ select sys_start from t1 where x = 3 and y = 33 into @t1;
+ Warnings:
+ Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
++set @x1= @t1;
++select trt_commit_ts(@x1) into @t1;
+ select x, y from t1;
+ x	y
+ 0	100
+@@ -86,7 +88,7 @@
+ 8	108
+ 9	109
+ 3	33
+-select x as ASOF2_x, y from t1 for system_time as of @t0;
++select x as ASOF2_x, y from t1 for system_time as of @x0;
+ ASOF2_x	y
+ 0	100
+ 1	101
+@@ -98,7 +100,7 @@
+ 7	107
+ 8	108
+ 9	109
+-select x as FROMTO2_x, y from t1 for system_time from '1970-01-01 00:00' to @t1;
++select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
+ FROMTO2_x	y
+ 0	100
+ 1	101
+@@ -110,7 +112,7 @@
+ 7	107
+ 8	108
+ 9	109
+-select x as BETWAND2_x, y from t1 for system_time between timestamp '1970-01-01 00:00' and timestamp @t1;
++select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
+ BETWAND2_x	y
+ 0	100
+ 1	101

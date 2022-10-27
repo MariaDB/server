@@ -1,0 +1,38 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, INDEX(b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(6,'x'),(7,'y'),(8,'z');
+UPDATE t1 SET a=100, b='f' WHERE b IN ('b','c');
+UPDATE t1 SET b='m' WHERE b = 'f';
+UPDATE t1 SET b='z' WHERE a < 2;
+UPDATE t1 SET b='';
+SELECT a,b FROM t1;
+a	b
+1	
+100	
+100	
+4	
+5	
+6	
+7	
+8	
+DROP TABLE t1;
+# RocksDB: skip the test for secondary UNIQUE keys.
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(0,'f'),(100,'a');
+UPDATE t1 SET a=a+200;
+UPDATE t1 SET a=0 WHERE a > 250;
+UPDATE t1 SET a=205 WHERE a=200;
+ERROR 23000: Duplicate entry '205' for key 'PRIMARY'
+UPDATE t1 SET a=12345 ORDER BY a DESC, b LIMIT 1;
+SELECT a,b FROM t1;
+a	b
+0	a
+12345	e
+200	f
+201	a
+202	b
+203	c
+204	d
+UPDATE t1 SET a=80 WHERE a IN (202,203);
+ERROR 23000: Duplicate entry '80' for key 'PRIMARY'
+DROP TABLE t1;

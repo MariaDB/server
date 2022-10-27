@@ -1,0 +1,172 @@
+SET @start_global_value = @@global.max_statement_time;
+SELECT @start_global_value;
+@start_global_value
+0
+SET @start_session_value = @@session.max_statement_time;
+SELECT @start_session_value;
+@start_session_value
+0
+'#--------------------FN_DYNVARS_068_01-------------------------#'
+SET @@global.max_statement_time = 100;
+SET @@global.max_statement_time = DEFAULT;
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+0.000000
+SET @@session.max_statement_time = 200;
+SET @@session.max_statement_time = DEFAULT;
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+0.000000
+'#--------------------FN_DYNVARS_068_02-------------------------#'
+SET @@global.max_statement_time = DEFAULT;
+SELECT @@global.max_statement_time = 0;
+@@global.max_statement_time = 0
+1
+SET @@session.max_statement_time = DEFAULT;
+SELECT @@session.max_statement_time = 0;
+@@session.max_statement_time = 0
+1
+'#--------------------FN_DYNVARS_068_03-------------------------#'
+SET @@global.max_statement_time = 0;
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+0.000000
+SET @@global.max_statement_time = 0.123456;
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+0.123456
+SET @@global.max_statement_time = 60020;
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+60020.000000
+SET @@global.max_statement_time = 31536000;
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+31536000.000000
+SET @@global.max_statement_time = 65536;
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+65536.000000
+'#--------------------FN_DYNVARS_068_04-------------------------#'
+SET @@session.max_statement_time = 0;
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+0.000000
+SET @@session.max_statement_time = 1;
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+1.000000
+SET @@session.max_statement_time = 50050;
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+50050.000000
+SET @@session.max_statement_time = 31536000;
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+31536000.000000
+SET @@session.max_statement_time = 65550;
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+65550.000000
+'#------------------FN_DYNVARS_068_05-----------------------#'
+SET @@global.max_statement_time = 100000000000;
+Warnings:
+Warning	1292	Truncated incorrect max_statement_time value: '100000000000'
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+31536000.000000
+SET @@global.max_statement_time = -1;
+Warnings:
+Warning	1292	Truncated incorrect max_statement_time value: '-1'
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+0.000000
+SET @@global.max_statement_time = 65530.34;
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+65530.340000
+SET @@global.max_statement_time = test;
+ERROR 42000: Incorrect argument type to variable 'max_statement_time'
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+65530.340000
+SET @@session.max_statement_time = 100000000000;
+Warnings:
+Warning	1292	Truncated incorrect max_statement_time value: '100000000000'
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+31536000.000000
+SET @@session.max_statement_time = -2;
+Warnings:
+Warning	1292	Truncated incorrect max_statement_time value: '-2'
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+0.000000
+SET @@session.max_statement_time = 65530.34;
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+65530.340000
+SET @@session.max_statement_time = test;
+ERROR 42000: Incorrect argument type to variable 'max_statement_time'
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+65530.340000
+'#------------------FN_DYNVARS_068_06-----------------------#'
+SELECT @@global.max_statement_time = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='max_statement_time';
+@@global.max_statement_time = VARIABLE_VALUE
+1
+'#------------------FN_DYNVARS_068_07-----------------------#'
+SELECT @@session.max_statement_time = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES 
+WHERE VARIABLE_NAME='max_statement_time';
+@@session.max_statement_time = VARIABLE_VALUE
+1
+'#------------------FN_DYNVARS_068_08-----------------------#'
+SET @@global.max_statement_time = TRUE;
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+1.000000
+SET @@global.max_statement_time = FALSE;
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+0.000000
+'#---------------------FN_DYNVARS_001_09----------------------#'
+SET @@global.max_statement_time = 10;
+SELECT @@max_statement_time = @@global.max_statement_time;
+@@max_statement_time = @@global.max_statement_time
+0
+'#---------------------FN_DYNVARS_001_10----------------------#'
+SET @@max_statement_time = 100;
+SELECT @@max_statement_time = @@local.max_statement_time;
+@@max_statement_time = @@local.max_statement_time
+1
+SELECT @@local.max_statement_time = @@session.max_statement_time;
+@@local.max_statement_time = @@session.max_statement_time
+1
+'#---------------------FN_DYNVARS_001_11----------------------#'
+SET max_statement_time = 1;
+SELECT @@max_statement_time;
+@@max_statement_time
+1.000000
+SELECT local.max_statement_time;
+ERROR 42S02: Unknown table 'local' in field list
+SELECT session.max_statement_time;
+ERROR 42S02: Unknown table 'session' in field list
+SELECT max_statement_time = @@session.max_statement_time;
+ERROR 42S22: Unknown column 'max_statement_time' in 'field list'
+#
+# Check that one can use max_statement_time as a field
+#
+drop table if exists t1;
+create table t1 (a int, max_statement_time int);
+drop table t1;
+SET @@global.max_statement_time = @start_global_value;
+SELECT @@global.max_statement_time;
+@@global.max_statement_time
+0.000000
+SET @@session.max_statement_time = @start_session_value;
+SELECT @@session.max_statement_time;
+@@session.max_statement_time
+0.000000

@@ -1,0 +1,121 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(10000,'foobar');
+INSERT INTO t1 (a,b) SELECT a, b FROM t1;
+UPDATE t1 SET a=a+100;
+SELECT a,b FROM t1;
+a	b
+101	a
+101	a
+10100	foobar
+10100	foobar
+102	b
+102	b
+103	c
+103	c
+104	d
+104	d
+105	e
+105	e
+UPDATE t1 SET a=a-100, b=DEFAULT WHERE a>100;
+SELECT a,b FROM t1;
+a	b
+1	NULL
+1	NULL
+10000	NULL
+10000	NULL
+2	NULL
+2	NULL
+3	NULL
+3	NULL
+4	NULL
+4	NULL
+5	NULL
+5	NULL
+UPDATE t1 SET b = 'update' WHERE a <= 4 ORDER BY b DESC, a ASC LIMIT 1;
+SELECT a,b FROM t1;
+a	b
+1	NULL
+1	update
+10000	NULL
+10000	NULL
+2	NULL
+2	NULL
+3	NULL
+3	NULL
+4	NULL
+4	NULL
+5	NULL
+5	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(10000,'foobar');
+INSERT INTO t1 (a,b) SELECT a, b FROM t1;
+BEGIN;
+UPDATE t1 SET a=a+100;
+UPDATE t1 SET a=a-50, b=DEFAULT WHERE a>100;
+COMMIT;
+SELECT * FROM t1 ORDER BY pk;
+a	b	pk
+10050	NULL	12
+10050	NULL	6
+51	NULL	1
+51	NULL	7
+52	NULL	2
+52	NULL	8
+53	NULL	3
+53	NULL	9
+54	NULL	10
+54	NULL	4
+55	NULL	11
+55	NULL	5
+BEGIN;
+UPDATE t1 SET b = 'update' WHERE a <= 4 ORDER BY a DESC, b ASC LIMIT 3;
+UPDATE t1 SET b = '';
+ROLLBACK;
+SELECT * FROM t1 ORDER BY pk;
+a	b	pk
+51	NULL	1
+52	NULL	2
+53	NULL	3
+54	NULL	4
+55	NULL	5
+10050	NULL	6
+51	NULL	7
+52	NULL	8
+53	NULL	9
+54	NULL	10
+55	NULL	11
+10050	NULL	12
+BEGIN;
+UPDATE t1 SET b = 'update2' WHERE a <= 100;
+SAVEPOINT spt1;
+UPDATE t1 SET b = '';
+ROLLBACK TO SAVEPOINT spt1;
+ERROR HY000: MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows.
+UPDATE t1 SET b = 'upd' WHERE a = 10050;
+COMMIT;
+ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+SELECT * FROM t1 ORDER BY pk;
+a	b	pk
+51	NULL	1
+52	NULL	2
+53	NULL	3
+54	NULL	4
+55	NULL	5
+10050	NULL	6
+51	NULL	7
+52	NULL	8
+53	NULL	9
+54	NULL	10
+55	NULL	11
+10050	NULL	12
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b CHAR(8), UNIQUE INDEX(a)) ENGINE=RocksDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo'),(2,'bar');
+UPDATE t1 SET a=a+100;
+SELECT * FROM t1;
+a	b
+101	foo
+102	bar
+DROP TABLE t1;

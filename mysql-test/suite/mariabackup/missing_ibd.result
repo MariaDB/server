@@ -1,0 +1,7 @@
+create table t1(c1 int) engine=InnoDB;
+INSERT INTO t1 VALUES(1);
+# restart
+# xtrabackup backup
+select * from t1;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+drop table t1;

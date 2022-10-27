@@ -1,0 +1,6 @@
+--max-allowed-packet=64K
+--innodb-tablespaces-encryption
+--innodb-encrypt-tables=on
+--innodb-encryption-threads=4
+--innodb-purge-rseg-truncate-frequency=1
+--skip-innodb-fast-shutdown

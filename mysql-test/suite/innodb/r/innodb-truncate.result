@@ -1,0 +1,93 @@
+#
+# TRUNCATE TABLE
+#
+# Truncating is disallowed for parent tables unless such table
+# participates in self-referencing foreign keys only.
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=INNODB;
+CREATE TABLE t2 (fk INT NOT NULL, FOREIGN KEY (fk) REFERENCES t1 (pk)) ENGINE=INNODB;
+TRUNCATE TABLE t1;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`fk`) REFERENCES `test`.`t1` (`pk`))
+# Truncation of child should succeed.
+TRUNCATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY, fk INT,
+FOREIGN KEY (fk) REFERENCES t1 (pk)) ENGINE=INNODB;
+# Truncation of self-referencing table should succeed.
+TRUNCATE TABLE t1;
+DROP TABLE t1;
+#
+# Also, truncating such tables is allowed if foreign key
+# checks are disabled.
+#
+SET @old_foreign_key_checks = @@SESSION.foreign_key_checks;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=INNODB;
+CREATE TABLE t2 (fk INT NOT NULL, FOREIGN KEY (fk) REFERENCES t1 (pk)) ENGINE=INNODB;
+CREATE TABLE t3 (pk INT PRIMARY KEY, fk INT,
+FOREIGN KEY (fk) REFERENCES t1 (pk)) ENGINE=INNODB;
+SET @@SESSION.foreign_key_checks = 0;
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+TRUNCATE TABLE t3;
+SET @@SESSION.foreign_key_checks = 1;
+TRUNCATE TABLE t1;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`fk`) REFERENCES `test`.`t1` (`pk`))
+TRUNCATE TABLE t2;
+TRUNCATE TABLE t3;
+LOCK TABLES t1 WRITE;
+SET @@SESSION.foreign_key_checks = 0;
+TRUNCATE TABLE t1;
+SET @@SESSION.foreign_key_checks = 1;
+TRUNCATE TABLE t1;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`fk`) REFERENCES `test`.`t1` (`pk`))
+UNLOCK TABLES;
+DROP TABLE t3,t2,t1;
+SET @@SESSION.foreign_key_checks = @old_foreign_key_checks;
+#
+# Test that TRUNCATE resets auto-increment.
+#
+CREATE TABLE t1 (a INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
+b INT, c INT, d INT, e INT, f INT, g INT, h INT, i INT, j INT, k INT,
+l INT, m INT, n INT, o INT, p INT, q INT, r INT, s INT, t INT, u INT,
+KEY(b),KEY(c),KEY(d),KEY(e),KEY(f),KEY(g),KEY(h),KEY(i),KEY(j),KEY(k),
+KEY(l),KEY(m),KEY(n),KEY(o),KEY(p),KEY(q),KEY(r),KEY(s),KEY(t),KEY(u),
+KEY(c,b),KEY(d,b),KEY(e,b),KEY(f,b),KEY(g,b),KEY(h,b),KEY(i,b),KEY(j,b),
+KEY(k,b),KEY(l,b),KEY(m,b),KEY(n,b),KEY(o,b),KEY(p,b),KEY(q,b),KEY(r,b),
+KEY(s,b),KEY(t,b),KEY(u,b),
+KEY(d,c),KEY(e,c),KEY(f,c),KEY(g,c),KEY(h,c),KEY(i,c),KEY(j,c),
+KEY(k,c),KEY(l,c),KEY(m,c),KEY(n,c),KEY(o,c),KEY(p,c),KEY(q,c),KEY(r,c),
+KEY(s,c),KEY(t,c),KEY(u,c),
+KEY(e,d),KEY(f,d),KEY(g,d),KEY(h,d),KEY(i,d),KEY(j,d)
+) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES (), ();
+SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES WHERE table_name = 't1';
+AUTO_INCREMENT
+3
+SELECT a FROM t1 ORDER BY a;
+a
+1
+2
+TRUNCATE TABLE t1;
+SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES WHERE table_name = 't1';
+AUTO_INCREMENT
+1
+INSERT INTO t1 () VALUES (), ();
+SELECT a FROM t1 ORDER BY a;
+a
+1
+2
+DROP TABLE t1;
+call mtr.add_suppression('InnoDB: in RENAME TABLE table `test`.`t3`');
+SET FOREIGN_KEY_CHECKS= OFF;
+CREATE TABLE t1 (f2 INT, f4 INT, KEY(f2), FOREIGN KEY (f4) REFERENCES t3 (f4)) ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS= ON;
+CREATE TABLE t2 (f2 INT, FOREIGN KEY(f2) REFERENCES t1 (f2)) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t3` (errno: 150 "Foreign key constraint is incorrectly formed")
+ALTER TABLE t1 RENAME TO t3;
+ERROR HY000: Error on rename of './test/t1' to './test/t3' (errno: 150 "Foreign key constraint is incorrectly formed")
+ALTER TABLE t1 FORCE;
+TRUNCATE TABLE t1;
+ERROR 42000: Cannot truncate a table referenced in a foreign key constraint (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `test`.`t3` (`f2`))
+DROP TABLE t2, t1;

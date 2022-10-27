@@ -1,0 +1,93 @@
+drop table if exists t1;
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+# crash_during_online_index_creation
+flush logs;
+SET SESSION debug_dbug="+d,crash_during_online_index_creation";
+ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
+ERROR HY000: Lost connection to MySQL server during query
+SET SESSION debug_dbug="-d,crash_during_online_index_creation";
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `ka` (`a`),
+  KEY `kab` (`a`,`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+CREATE TABLE t1 (i INT, j INT, k INT, PRIMARY KEY (i), KEY(j)) ENGINE = ROCKSDB PARTITION BY KEY(i) PARTITIONS 4;
+# crash_during_index_creation_partition
+flush logs;
+SET SESSION debug_dbug="+d,crash_during_index_creation_partition";
+ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
+ERROR HY000: Lost connection to MySQL server during query
+SET SESSION debug_dbug="-d,crash_during_index_creation_partition";
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `j` int(11) DEFAULT NULL,
+  `k` int(11) DEFAULT NULL,
+  PRIMARY KEY (`i`),
+  KEY `j` (`j`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`i`)
+PARTITIONS 4
+ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
+SELECT * FROM t1 ORDER BY i LIMIT 10;
+i	j	k
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+8	8	8
+9	9	9
+10	10	10
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+100
+DROP TABLE t1;
+CREATE TABLE t1 (i INT, j INT, k INT, PRIMARY KEY (i), KEY(j)) ENGINE = ROCKSDB PARTITION BY KEY(i) PARTITIONS 4;
+# crash_during_index_creation_partition
+flush logs;
+SET SESSION debug_dbug="+d,myrocks_simulate_index_create_rollback";
+ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
+ERROR HY000: Intentional failure in inplace alter occurred.
+SET SESSION debug_dbug="-d,myrocks_simulate_index_create_rollback";
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `j` int(11) DEFAULT NULL,
+  `k` int(11) DEFAULT NULL,
+  PRIMARY KEY (`i`),
+  KEY `j` (`j`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`i`)
+PARTITIONS 4
+ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `j` int(11) DEFAULT NULL,
+  `k` int(11) DEFAULT NULL,
+  PRIMARY KEY (`i`),
+  KEY `j` (`j`),
+  KEY `kij` (`i`,`j`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`i`)
+PARTITIONS 4
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+100
+DROP TABLE t1;

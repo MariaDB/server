@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS t1;
+create table t1 (id int primary key, value int, value2 varchar(200), index(value)) engine=rocksdb;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_block_cache_add';
+select case when variable_value - @a > 20 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_block_cache_add';
+case when variable_value - @a > 20 then 'true' else 'false' end
+false
+select count(*) from t1;
+count(*)
+50000
+select case when variable_value - @a > 100 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_block_cache_add';
+case when variable_value - @a > 100 then 'true' else 'false' end
+true
+DROP TABLE t1;

@@ -1,0 +1,150 @@
+DROP TABLE IF EXISTS not_backing;
+DROP TABLE IF EXISTS backing;
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE `not_backing` (
+id int(10) unsigned NOT NULL DEFAULT '0',
+info varchar(20) DEFAULT NULL,
+KEY name (info)
+) DEFAULT CHARSET=latin1;
+CREATE TABLE backing (
+id int(10) unsigned NOT NULL DEFAULT '0',
+nullparent int(10) unsigned DEFAULT NULL,
+parent int(10) unsigned DEFAULT 1 NOT NULL,
+weight real(10,4) NOT NULL DEFAULT 0.0,
+info varchar(20) DEFAULT NULL,
+not_id_type varchar(20) DEFAULT NULL,
+not_weight_type varchar(20) DEFAULT NULL,
+PRIMARY KEY (id),
+KEY name (info)
+) DEFAULT CHARSET=latin1;
+SET GLOBAL oqgraph_allow_create_integer_latch=true;
+The next warnings 1287 are expected
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH;
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='bogus';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='Ω Ohms Tennis Ball 〄';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='not_backing', ORIGID='id';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='bogus';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='not_id_type';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='bogus';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store ('oqtable.destid' attribute not set to a valid column of 'backing')' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='not_id_type';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Column 'backing.not_id_type' (destid) is not a not-null integer type or is a different type to origid attribute.' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='bogus',DESTID='id';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store ('oqtable.origid' attribute not set to a valid column of 'backing')' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='not_id_type',DESTID='id';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Column 'backing.not_id_type' (origid) is not a not-null integer type' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store ('oqtable.destid' attribute set to same column as origid attribute)' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='parent',WEIGHT='bogus';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Invalid OQGRAPH backing store ('oqtable.weight' attribute not set to a valid column of 'backing')' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='parent',WEIGHT='not_weight_type';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Column 'backing.not_weight_type' (weight) is not a not-null real type' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='nullparent',DESTID='id',WEIGHT='weight';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Column 'backing.nullparent' (origid) is not a not-null integer type' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='nullparent',WEIGHT='weight';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+ERROR HY000: Got error -1 'Column 'backing.nullparent' (destid) is not a not-null integer type or is a different type to origid attribute.' from OQGRAPH
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='parent',WEIGHT='weight';
+Warnings:
+Warning	1287	'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead
+DESCRIBE oqtable;
+Field	Type	Null	Key	Default	Extra
+latch	smallint(5) unsigned	YES	MUL	NULL	
+origid	bigint(20) unsigned	YES		NULL	
+destid	bigint(20) unsigned	YES		NULL	
+weight	double	YES		NULL	
+seq	bigint(20) unsigned	YES		NULL	
+linkid	bigint(20) unsigned	YES		NULL	
+DROP TABLE IF EXISTS oqtable;
+DROP TABLE IF EXISTS backing;
+DROP TABLE IF EXISTS not_backing;
+SET GLOBAL oqgraph_allow_create_integer_latch=false;

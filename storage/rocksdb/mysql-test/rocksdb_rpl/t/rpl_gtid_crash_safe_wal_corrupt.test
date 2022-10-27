@@ -1,0 +1,12 @@
+-- source suite/rocksdb_rpl/t/rpl_gtid_crash_safe_wal_corrupt.inc
+
+connection slave;
+-- let _SLAVE_PID_FILE= query_get_value(SELECT @@pid_file, @@pid_file, 1)
+
+# Verify the log file contains the Last binlog line, but only if the slave server's pid is found
+--exec perl suite/rocksdb_rpl/t/rpl_check_for_binlog_info.pl $slave_pid_file $MYSQLTEST_VARDIR/log/mysqld.2.err
+
+--disable_query_log
+connection slave;
+call mtr.add_suppression("Recovery from master pos");
+--enable_query_log

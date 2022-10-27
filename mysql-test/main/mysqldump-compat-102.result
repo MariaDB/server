@@ -1,0 +1,110 @@
+#
+# MDEV-17429 mysqldump uses 10.3 options with pre-10.3 servers and breaks
+#
+SELECT @@version;
+@@version
+10.2.1-MariaDB
+SET sql_mode=ORACLE;
+CREATE DATABASE db1_mdev17429;
+USE db1_mdev17429;
+CREATE PROCEDURE p1(a INT)
+AS BEGIN
+NULL;
+END;
+$$
+CREATE OR REPLACE PACKAGE employee_tools AS
+FUNCTION getSalary(eid INT) RETURN DECIMAL(10,2);
+PROCEDURE raiseSalary(eid INT, amount DECIMAL(10,2));
+PROCEDURE raiseSalaryStd(eid INT);
+PROCEDURE hire(ename TEXT, esalary DECIMAL(10,2));
+END;
+$$
+CREATE PACKAGE BODY employee_tools AS
+-- package body variables
+stdRaiseAmount DECIMAL(10,2):=500;
+-- private routines
+PROCEDURE log (eid INT, ecmnt TEXT) AS
+BEGIN
+INSERT INTO employee_log (id, cmnt) VALUES (eid, ecmnt);
+END;
+-- public routines
+PROCEDURE hire(ename TEXT, esalary DECIMAL(10,2)) AS
+eid INT;
+BEGIN
+INSERT INTO employee (name, salary) VALUES (ename, esalary);
+eid:= last_insert_id();
+log(eid, 'hire ' || ename);
+END;
+FUNCTION getSalary(eid INT) RETURN DECIMAL(10,2) AS
+nSalary DECIMAL(10,2);
+BEGIN
+SELECT salary INTO nSalary FROM employee WHERE id=eid;
+log(eid, 'getSalary id=' || eid || ' salary=' || nSalary);
+RETURN nSalary;
+END;
+PROCEDURE raiseSalary(eid INT, amount DECIMAL(10,2)) AS
+BEGIN
+UPDATE employee SET salary=salary+amount WHERE id=eid;
+log(eid, 'raiseSalary id=' || eid || ' amount=' || amount);
+END;
+PROCEDURE raiseSalaryStd(eid INT) AS
+BEGIN
+raiseSalary(eid, stdRaiseAmount);
+log(eid, 'raiseSalaryStd id=' || eid);
+END;
+BEGIN
+-- This code is executed when the current session
+-- accesses any of the package routines for the first time
+log(0, 'Session ' || connection_id() || ' ' || current_user || ' started');
+END;
+$$
+-- MariaDB dump DUMPVERSION  Distrib DISTVERSION, for OS
+--
+-- Host: localhost    Database: db1_mdev17429
+-- ------------------------------------------------------
+-- Server version	10.2.1-MariaDB
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Dumping routines for database 'db1_mdev17429'
+--
+/*!50003 DROP PROCEDURE IF EXISTS `p1` */;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = latin1 */ ;
+/*!50003 SET character_set_results = latin1 */ ;
+/*!50003 SET collation_connection  = latin1_swedish_ci */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT' */ ;
+DELIMITER ;;
+CREATE DEFINER="root"@"localhost" PROCEDURE "p1"(a INT)
+AS BEGIN
+NULL;
+END ;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on TIMESTAMP
+DROP DATABASE db1_mdev17429;
+SET sql_mode=DEFAULT;

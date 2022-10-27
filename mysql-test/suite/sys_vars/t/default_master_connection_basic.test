@@ -1,0 +1,124 @@
+############## mysql-test\t\default_master_connection_basic.test ###############
+# 
+# Implemented in the scope of MDEV-253
+# The variable is SESSION-only
+#
+
+--source include/not_embedded.inc
+
+#############################################################
+#                 Save initial value                        #
+#############################################################
+
+SET @start_session_value = @@session.default_master_connection;
+SELECT @start_session_value;
+
+###################################################################
+#     Display the DEFAULT value of default_master_connection      #
+###################################################################
+
+SET @@session.default_master_connection = 'bar';
+SET @@session.default_master_connection = DEFAULT;
+SELECT @@session.default_master_connection;
+
+###################################################################
+#     Check the DEFAULT value of default_master_connection        #
+###################################################################
+
+SET @@session.default_master_connection = @start_session_value;
+SELECT @@session.default_master_connection = '';
+
+#################################################
+# Check that the GLOBAL scope is not applicable #
+#################################################
+
+--error ER_LOCAL_VARIABLE
+SET @@global.default_master_connection = 'master1';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@global.default_master_connection;
+
+####################################################################################
+# Change the value of default_master_connection to a valid value for SESSION Scope #
+####################################################################################
+
+SET @@session.default_master_connection = 'master1';
+SELECT @@session.default_master_connection;
+SET @@session.default_master_connection = '';
+SELECT @@session.default_master_connection;
+SET @@session.default_master_connection = '1234-5678';
+SELECT @@session.default_master_connection;
+SET @@session.default_master_connection = '@!*/"';
+SELECT @@session.default_master_connection;
+SET @@session.default_master_connection = REPEAT('a',191);
+SELECT @@session.default_master_connection;
+SET @@session.default_master_connection = master2;
+SELECT @@session.default_master_connection;
+
+
+#####################################################################
+# Change the value of default_master_connection to an invalid value #
+#####################################################################
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@session.default_master_connection = 1;
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@session.default_master_connection = 65530.30;
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@session.default_master_connection = FALSE;
+SELECT @@session.default_master_connection;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@session.default_master_connection = REPEAT('a',192);
+SELECT @@session.default_master_connection;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@session.default_master_connection = NULL;
+SELECT @@session.default_master_connection;
+
+###############################################################################
+#   Check if the value in GLOBAL & SESSION Tables matches value in variable   #
+###############################################################################
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@global.default_master_connection = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='default_master_connection';
+
+SELECT @@session.default_master_connection = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES
+WHERE VARIABLE_NAME='default_master_connection';
+
+
+########################################################################################################
+#    Check if accessing variable with SESSION,LOCAL and without SCOPE points to same session variable  #
+########################################################################################################
+
+SET @@default_master_connection = 'foo';
+SELECT @@default_master_connection = @@local.default_master_connection;
+SELECT @@local.default_master_connection = @@session.default_master_connection;
+
+
+###################################################################################  
+#   Check if default_master_connection can be accessed with and without @@ sign   #
+###################################################################################
+
+SET default_master_connection = 'foo';
+SELECT @@default_master_connection;
+--Error ER_UNKNOWN_TABLE
+SELECT local.default_master_connection;
+--Error ER_UNKNOWN_TABLE
+SELECT session.default_master_connection;
+--Error ER_BAD_FIELD_ERROR
+SELECT default_master_connection = @@session.default_master_connection;
+
+
+####################################
+#     Restore initial value        #
+####################################
+
+SET @@session.default_master_connection = @start_session_value;
+SELECT @@session.default_master_connection;
+
+
+#############################################################
+#                 END OF default_master_connection TESTS    #
+#############################################################
+

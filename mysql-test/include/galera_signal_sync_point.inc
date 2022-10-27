@@ -1,0 +1,1 @@
+--eval SET GLOBAL wsrep_provider_options = 'signal=$galera_sync_point'

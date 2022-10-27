@@ -1,0 +1,9 @@
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+lock_mode	lock_duration	lock_type	table_schema	table_name
+FLUSH TABLES WITH READ LOCK;
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+lock_mode	lock_duration	lock_type	table_schema	table_name
+MDL_BACKUP_FTWRL2	NULL	Backup lock		
+UNLOCK TABLES;
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+lock_mode	lock_duration	lock_type	table_schema	table_name

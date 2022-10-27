@@ -1,0 +1,7 @@
+select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";
+variable_name	variable_value
+ROCKSDB_IGNORE_UNKNOWN_OPTIONS	ON
+FOUND 1 /RocksDB: Compatibility check against existing database options failed/ in my_restart.err
+select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";
+variable_name	variable_value
+ROCKSDB_IGNORE_UNKNOWN_OPTIONS	ON

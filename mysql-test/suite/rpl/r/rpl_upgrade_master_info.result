@@ -1,0 +1,107 @@
+include/master-slave.inc
+[connection master]
+*** MDEV-9383: Server fails to read master.info after upgrade 10.0 -> 10.1 ***
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=CURRENT_POS;
+include/rpl_stop_server.inc [server_number=2]
+include/rpl_start_server.inc [server_number=2]
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+include/save_master_gtid.inc
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
+SELECT * FROM t1;
+a
+1
+include/stop_slave.inc
+include/rpl_stop_server.inc [server_number=2]
+include/rpl_start_server.inc [server_number=2]
+connection master;
+INSERT INTO t1 VALUES (2);
+include/save_master_gtid.inc
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+include/stop_slave.inc
+include/rpl_stop_server.inc [server_number=2]
+include/rpl_start_server.inc [server_number=2]
+connection master;
+INSERT INTO t1 VALUES (3);
+include/save_master_gtid.inc
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+include/stop_slave.inc
+include/rpl_stop_server.inc [server_number=2]
+include/rpl_start_server.inc [server_number=2]
+connection master;
+INSERT INTO t1 VALUES (4);
+include/save_master_gtid.inc
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+include/stop_slave.inc
+include/rpl_stop_server.inc [server_number=2]
+include/rpl_start_server.inc [server_number=2]
+connection master;
+INSERT INTO t1 VALUES (5);
+include/save_master_gtid.inc
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+include/stop_slave.inc
+include/rpl_stop_server.inc [server_number=2]
+include/rpl_start_server.inc [server_number=2]
+connection master;
+INSERT INTO t1 VALUES (6);
+include/save_master_gtid.inc
+connection slave;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

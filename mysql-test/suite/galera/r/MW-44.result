@@ -1,0 +1,13 @@
+connection node_2;
+connection node_1;
+connection node_1;
+TRUNCATE TABLE mysql.general_log;
+connection node_2;
+connection node_1;
+SET SESSION wsrep_osu_method=TOI;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_osu_method=RSU;
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+SET SESSION wsrep_osu_method=TOI;
+connection node_2;
+DROP TABLE t1;

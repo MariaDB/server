@@ -1,0 +1,199 @@
+--source include/have_debug.inc
+--source include/have_ucs2.inc
+--source include/have_utf16.inc
+--source include/have_utf32.inc
+--source include/have_utf8mb4.inc
+
+SET NAMES utf8;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP VIEW IF EXISTS v1;
+--enable_warnings
+
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, a VARBINARY(32));
+INSERT INTO t1 (a) VALUES (''),('_'),('%'),('\_'),('\%'),('\\');
+INSERT INTO t1 (a) VALUES ('a'),('c');
+INSERT INTO t1 (a) VALUES ('a_'),('c_');
+INSERT INTO t1 (a) VALUES ('a%'),('c%');
+INSERT INTO t1 (a) VALUES ('aa'),('cc'),('ch');
+INSERT INTO t1 (a) VALUES ('aa_'),('cc_'),('ch_');
+INSERT INTO t1 (a) VALUES ('aa%'),('cc%'),('ch%');
+INSERT INTO t1 (a) VALUES ('aaa'),('ccc'),('cch');
+INSERT INTO t1 (a) VALUES ('aaa_'),('ccc_'),('cch_');
+INSERT INTO t1 (a) VALUES ('aaa%'),('ccc%'),('cch%');
+INSERT INTO t1 (a) VALUES ('aaaaaaaaaaaaaaaaaaaa');
+INSERT INTO t1 (a) VALUES ('caaaaaaaaaaaaaaaaaaa');
+
+CREATE VIEW v1 AS
+  SELECT id, 'a' AS name, a AS val FROM t1
+UNION
+  SELECT id, 'mn', HEX(LIKE_RANGE_MIN(a, 16)) AS min FROM t1
+UNION
+  SELECT id, 'mx', HEX(LIKE_RANGE_MAX(a, 16)) AS max FROM t1
+UNION
+  SELECT id, 'sp', REPEAT('-', 32) AS sep FROM t1
+ORDER BY id, name;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET latin1;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8;
+INSERT INTO t1 (a) VALUES (_ucs2 0x0425),(_ucs2 0x045F);
+INSERT INTO t1 (a) VALUES (_ucs2 0x2525),(_ucs2 0x5F5F);
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_unicode_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_czech_ci;
+SELECT * FROM v1;
+
+# Note, 16 bytes is enough for 16/3= 5 characters
+# For the 'aaaaaaaa' value contraction breaks apart
+# For the 'caaaaaaa' value contraction does not break apart
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_danish_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_thai_520_w2;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_czech_ci;
+SELECT * FROM v1;
+
+# Note, 16 bytes is enough for 16/4= 4 characters
+# For the 'aaaaaaaa' value contraction does not break apart
+# For the 'caaaaaaa' value contraction breaks apart
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_danish_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_thai_520_w2;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET ucs2;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET ucs2 COLLATE ucs2_unicode_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET ucs2 COLLATE ucs2_czech_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET ucs2 COLLATE ucs2_danish_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET ucs2 COLLATE ucs2_thai_520_w2;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf16;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf16 COLLATE utf16_unicode_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf16 COLLATE utf16_czech_ci;
+SELECT * FROM v1;
+
+# Note, 16 bytes is enough for 16/3= 5 characters
+# For the 'aaaaaaaa' value contraction does not break apart
+# For the 'caaaaaaa' value contraction breaks apart
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf16 COLLATE utf16_danish_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf16 COLLATE utf16_thai_520_w2;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf16 COLLATE utf16_unicode_520_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf32;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf32 COLLATE utf32_unicode_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf32 COLLATE utf32_czech_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf32 COLLATE utf32_danish_ci;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf32 COLLATE utf32_thai_520_w2;
+SELECT * FROM v1;
+
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf32 COLLATE utf32_unicode_520_ci;
+SELECT * FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+CREATE TABLE t1 (
+  a VARCHAR(10),
+  mn VARCHAR(10) DEFAULT LIKE_RANGE_MIN(a,10),
+  mx VARCHAR(10) DEFAULT LIKE_RANGE_MAX(a,10)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('a'),('a_'),('a%');
+SELECT a, HEX(mn), HEX(mx) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14350 Index use with collation utf8mb4_unicode_nopad_ci on LIKE pattern with wrong results
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_swedish_nopad_ci);
+INSERT INTO t1 VALUES ('111%');
+SELECT a, HEX(LIKE_RANGE_MIN(a,200)) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_general_nopad_ci);
+INSERT INTO t1 VALUES ('111%');
+SELECT a, HEX(LIKE_RANGE_MIN(a,200)) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci);
+INSERT INTO t1 VALUES ('111%');
+SELECT a, HEX(LIKE_RANGE_MIN(a,200)) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_nopad_ci);
+INSERT INTO t1 VALUES ('111%');
+SELECT a, HEX(LIKE_RANGE_MIN(a,200)) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ucs2 COLLATE ucs2_unicode_nopad_ci);
+INSERT INTO t1 VALUES ('111%');
+SELECT a, HEX(LIKE_RANGE_MIN(a,200)) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf16 COLLATE utf16_unicode_nopad_ci);
+INSERT INTO t1 VALUES ('111%');
+SELECT a, HEX(LIKE_RANGE_MIN(a,200)) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32 COLLATE utf32_unicode_nopad_ci);
+INSERT INTO t1 VALUES ('111%');
+SELECT a, HEX(LIKE_RANGE_MIN(a,200)) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

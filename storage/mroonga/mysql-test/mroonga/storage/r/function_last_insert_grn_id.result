@@ -1,0 +1,28 @@
+drop table if exists t1, t2, t3;
+create table t1 (_id int, c1 int);
+select last_insert_grn_id();
+last_insert_grn_id()
+0
+insert into t1 values(null,100);
+insert into t1 values(null,100);
+select last_insert_grn_id();
+last_insert_grn_id()
+2
+insert into t1 values(null,100);
+insert into t1 values(null,100);
+select last_insert_grn_id();
+last_insert_grn_id()
+4
+insert into t1 values(null,100);
+insert into t1 values(null,100);
+select last_insert_grn_id();
+last_insert_grn_id()
+6
+insert into t1 values(null,100);
+insert into t1 values(null,100);
+select last_insert_grn_id();
+last_insert_grn_id()
+8
+select last_insert_grn_id(1);
+ERROR HY000: Can't initialize function 'last_insert_grn_id'; last_insert_grn_id must not have arguments
+drop table t1;

@@ -1,0 +1,71 @@
+--echo #
+--echo # MDEV-24363 10.4: change definition of mysql.user view
+--echo # to reflect the correct value from mysql.global_priv
+--echo # This change was added because mysql.user view definition
+--echo # was already changed when mariadb.sys was introduced, so
+--echo # it's decently ok if we change it again to fix mdev-24363
+
+--echo #
+--echo # Test that mysql.user password_expired column
+--echo # shows the right value as in mysql.global_priv
+--echo #
+
+create user gigi@localhost;
+show create user gigi@localhost;
+select password_expired from mysql.user where user='gigi' and host='localhost';
+
+alter user gigi@localhost password expire;
+show create user gigi@localhost;
+select password_expired from mysql.user where user='gigi' and host='localhost';
+
+drop user gigi@localhost;
+
+--echo #
+--echo # Test that upgrades from 10.4+ versions before this mdev
+--echo # correctly drop and recreate the mysql.user view
+--echo #
+
+--source include/mysql_upgrade_preparation.inc
+
+use mysql;
+
+# Do all these string operations to replace password_expired definition
+# with "'N' as password_expired" and avoid listing in one more test
+# all the fields of the user view
+set @def = (select view_definition from information_schema.views where table_name='user' and table_schema='mysql');
+set @trimmed_def = (select trim(trailing 'from `mysql`.`global_priv`' from @def));
+set @newdef = (select concat(@trimmed_def, ", 'N' AS password_expired from mysql.global_priv"));
+set @pos = (select instr(@newdef, 'password_expired'));
+let $viewdef = `select insert(@newdef, @pos, 3, 'abc')`;
+
+--eval create or replace view user as $viewdef;
+
+create user gigi@localhost;
+show create user gigi@localhost;
+select password_expired from mysql.user where user='gigi' and host='localhost';
+
+# password should be expired, but mysql.user.password_expired should be 'N'
+alter user gigi@localhost password expire;
+show create user gigi@localhost;
+select password_expired from mysql.user where user='gigi' and host='localhost';
+
+drop user gigi@localhost;
+
+--echo # Run mysql_upgrade
+--exec $MYSQL_UPGRADE  2>&1
+let $MYSQLD_DATADIR= `select @@datadir`;
+--file_exists $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+create user gigi@localhost;
+show create user gigi@localhost;
+select password_expired from mysql.user where user='gigi' and host='localhost';
+
+# mysql.user view should've been recreated by mariadb_upgrade, thus
+# password_expired should show 'Y'
+alter user gigi@localhost password expire;
+show create user gigi@localhost;
+select password_expired from mysql.user where user='gigi' and host='localhost';
+
+drop user gigi@localhost;
+

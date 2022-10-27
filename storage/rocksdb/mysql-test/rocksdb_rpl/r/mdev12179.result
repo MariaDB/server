@@ -1,0 +1,283 @@
+include/master-slave.inc
+[connection master]
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL gtid_cleanup_batch_size = 999999999;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET sql_log_bin=0;
+CREATE TABLE mysql.gtid_slave_pos_innodb LIKE mysql.gtid_slave_pos;
+ALTER TABLE mysql.gtid_slave_pos_innodb ENGINE=InnoDB;
+CREATE TABLE mysql.gtid_slave_pos_rocksdb LIKE mysql.gtid_slave_pos;
+ALTER TABLE mysql.gtid_slave_pos_rocksdb ENGINE=rocksdb;
+CREATE TABLE mysql.gtid_slave_pos_myisam_redundant LIKE mysql.gtid_slave_pos;
+CREATE TABLE mysql.gtid_slave_pos_innodb_redundant LIKE mysql.gtid_slave_pos;
+ALTER TABLE mysql.gtid_slave_pos_innodb_redundant ENGINE=InnoDB;
+call mtr.add_suppression("Ignoring redundant table.*since.*has the same storage engine");
+include/start_slave.inc
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t3 VALUES (1);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+SELECT * FROM t2 ORDER BY a;
+a
+1
+SELECT * FROM t3 ORDER BY a;
+a
+1
+connection server_2;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+SELECT * FROM t2 ORDER BY a;
+a
+1
+SELECT * FROM t3 ORDER BY a;
+a
+1
+SELECT * FROM mysql.gtid_slave_pos ORDER BY sub_id;
+domain_id	sub_id	server_id	seq_no
+0	1	1	1
+0	2	1	2
+0	3	1	3
+0	4	1	4
+SELECT * FROM ( SELECT * FROM mysql.gtid_slave_pos_innodb
+UNION ALL SELECT * FROM mysql.gtid_slave_pos_innodb_redundant) inner_select
+ORDER BY sub_id;
+domain_id	sub_id	server_id	seq_no
+0	5	1	5
+SELECT * FROM mysql.gtid_slave_pos_rocksdb ORDER BY sub_id;
+domain_id	sub_id	server_id	seq_no
+0	6	1	6
+connection server_2;
+FLUSH NO_WRITE_TO_BINLOG STATUS;
+SET sql_log_bin=0;
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	0
+INSERT INTO t1 VALUES (100);
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	0
+INSERT INTO t2 VALUES (101);
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	0
+INSERT INTO t3 VALUES (101);
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	0
+BEGIN;
+INSERT INTO t3 VALUES (102);
+INSERT INTO t2 VALUES (103);
+COMMIT;
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	1
+BEGIN;
+INSERT INTO t2 VALUES (104);
+INSERT INTO t3 VALUES (105);
+COMMIT;
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	2
+UPDATE t2, t3 SET t2.a=106, t3.a=107 WHERE t2.a=104 AND t3.a=105;
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	3
+SET sql_log_bin=1;
+INSERT INTO t1 VALUES (200);
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	3
+INSERT INTO t2 VALUES (201);
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	3
+INSERT INTO t3 VALUES (201);
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	3
+BEGIN;
+INSERT INTO t3 VALUES (202);
+INSERT INTO t2 VALUES (203);
+COMMIT;
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	4
+BEGIN;
+INSERT INTO t2 VALUES (204);
+INSERT INTO t3 VALUES (205);
+COMMIT;
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	5
+UPDATE t2, t3 SET t2.a=206, t3.a=207 WHERE t2.a=204 AND t3.a=205;
+SHOW STATUS LIKE "Transactions_multi_engine";
+Variable_name	Value
+Transactions_multi_engine	6
+DELETE FROM t1 WHERE a >= 100;
+DELETE FROM t2 WHERE a >= 100;
+DELETE FROM t3 WHERE a >= 100;
+connection server_1;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT COUNT(*)>=10 FROM mysql.gtid_slave_pos;
+COUNT(*)>=10
+1
+SELECT COUNT(*)>=10 FROM ( SELECT * FROM mysql.gtid_slave_pos_innodb
+UNION ALL SELECT * FROM mysql.gtid_slave_pos_innodb_redundant) inner_select;
+COUNT(*)>=10
+1
+SELECT COUNT(*)>=10 FROM mysql.gtid_slave_pos_rocksdb;
+COUNT(*)>=10
+1
+SET GLOBAL gtid_cleanup_batch_size = 3;
+connection server_2;
+include/stop_slave.inc
+SET sql_log_bin=0;
+DROP TABLE mysql.gtid_slave_pos_rocksdb;
+DROP TABLE mysql.gtid_slave_pos_myisam_redundant;
+DROP TABLE mysql.gtid_slave_pos_innodb_redundant;
+SET sql_log_bin=1;
+FLUSH NO_WRITE_TO_BINLOG STATUS;
+include/start_slave.inc
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	0
+Transactions_gtid_foreign_engine	0
+Transactions_multi_engine	0
+connection server_1;
+INSERT INTO t1 VALUES (100);
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	0
+Transactions_gtid_foreign_engine	0
+Transactions_multi_engine	0
+connection server_1;
+INSERT INTO t2 VALUES (101);
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	0
+Transactions_gtid_foreign_engine	0
+Transactions_multi_engine	0
+connection server_1;
+INSERT INTO t3 VALUES (101);
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	0
+Transactions_gtid_foreign_engine	1
+Transactions_multi_engine	0
+connection server_1;
+BEGIN;
+INSERT INTO t3 VALUES (102);
+INSERT INTO t2 VALUES (103);
+COMMIT;
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	1
+Transactions_gtid_foreign_engine	1
+Transactions_multi_engine	1
+connection server_1;
+BEGIN;
+INSERT INTO t2 VALUES (104);
+INSERT INTO t3 VALUES (105);
+COMMIT;
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	2
+Transactions_gtid_foreign_engine	1
+Transactions_multi_engine	2
+connection server_1;
+UPDATE t2, t3 SET t2.a=106, t3.a=107 WHERE t2.a=104 AND t3.a=105;
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	3
+Transactions_gtid_foreign_engine	1
+Transactions_multi_engine	3
+connection server_2;
+connection server_2;
+SHOW VARIABLES LIKE 'log_bin';
+Variable_name	Value
+log_bin	OFF
+include/start_slave.inc
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	0
+Transactions_gtid_foreign_engine	0
+Transactions_multi_engine	0
+connection server_1;
+INSERT INTO t1 VALUES (200);
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	0
+Transactions_gtid_foreign_engine	0
+Transactions_multi_engine	0
+connection server_1;
+INSERT INTO t2 VALUES (201);
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	0
+Transactions_gtid_foreign_engine	0
+Transactions_multi_engine	0
+connection server_1;
+INSERT INTO t3 VALUES (201);
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	0
+Transactions_gtid_foreign_engine	1
+Transactions_multi_engine	0
+connection server_1;
+BEGIN;
+INSERT INTO t3 VALUES (202);
+INSERT INTO t2 VALUES (203);
+COMMIT;
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	1
+Transactions_gtid_foreign_engine	1
+Transactions_multi_engine	1
+connection server_1;
+BEGIN;
+INSERT INTO t2 VALUES (204);
+INSERT INTO t3 VALUES (205);
+COMMIT;
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	2
+Transactions_gtid_foreign_engine	1
+Transactions_multi_engine	2
+connection server_1;
+UPDATE t2, t3 SET t2.a=206, t3.a=207 WHERE t2.a=204 AND t3.a=205;
+connection server_2;
+SHOW STATUS LIKE "%transactions%engine";
+Variable_name	Value
+Rpl_transactions_multi_engine	3
+Transactions_gtid_foreign_engine	1
+Transactions_multi_engine	3
+connection server_2;
+SET sql_log_bin=0;
+DROP TABLE mysql.gtid_slave_pos_innodb;
+SET sql_log_bin=1;
+connection server_1;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+include/rpl_end.inc

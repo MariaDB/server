@@ -1,0 +1,73 @@
+include/master-slave.inc
+[connection master]
+create role role1;
+create role role2;
+grant execute on test.* to role2;
+grant role2 to role1;
+set role role1;
+show grants;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT EXECUTE ON `test`.* TO `role2`
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT `role1` TO `root`@`localhost` WITH ADMIN OPTION
+GRANT `role2` TO `role1`
+GRANT `role2` TO `root`@`localhost` WITH ADMIN OPTION
+create definer=current_user procedure pcu() select current_user;
+create definer=root@localhost procedure pu() select "root@localhost";
+create definer=current_role procedure pcr() select current_role;
+create definer=role1 procedure pr() select "role1";
+show create procedure pcu;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+pcu	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `pcu`()
+select current_user	latin1	latin1_swedish_ci	latin1_swedish_ci
+show create procedure pu;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+pu	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `pu`()
+select "root@localhost"	latin1	latin1_swedish_ci	latin1_swedish_ci
+show create procedure pcr;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+pcr	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` PROCEDURE `pcr`()
+select current_role	latin1	latin1_swedish_ci	latin1_swedish_ci
+show create procedure pr;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+pr	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` PROCEDURE `pr`()
+select "role1"	latin1	latin1_swedish_ci	latin1_swedish_ci
+connection slave;
+set role role1;
+show grants;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT EXECUTE ON `test`.* TO `role2`
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT `role1` TO `root`@`localhost` WITH ADMIN OPTION
+GRANT `role2` TO `role1`
+GRANT `role2` TO `root`@`localhost` WITH ADMIN OPTION
+show create procedure pcu;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+pcu	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `pcu`()
+select current_user	latin1	latin1_swedish_ci	latin1_swedish_ci
+show create procedure pu;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+pu	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `pu`()
+select "root@localhost"	latin1	latin1_swedish_ci	latin1_swedish_ci
+show create procedure pcr;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+pcr	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` PROCEDURE `pcr`()
+select current_role	latin1	latin1_swedish_ci	latin1_swedish_ci
+show create procedure pr;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+pr	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`role1` PROCEDURE `pr`()
+select "role1"	latin1	latin1_swedish_ci	latin1_swedish_ci
+connection master;
+drop procedure pcu;
+drop procedure pu;
+drop procedure pcr;
+drop procedure pr;
+drop role role1;
+drop role role2;
+include/rpl_end.inc

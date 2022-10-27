@@ -1,0 +1,11 @@
+CREATE TABLE t(i INT) ENGINE INNODB;
+connect  con1,localhost,root,,;
+BEGIN;
+LOCK TABLES t WRITE;
+connection default;
+# xtrabackup backup
+connection con1;
+COMMIT;
+connection default;
+disconnect con1;
+DROP TABLE t;

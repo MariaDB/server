@@ -1,0 +1,50 @@
+#
+# BUG#45214 
+# This test verifies if the slave I/O tread tries to reconnect to
+# master when it tries to get the values of the UNIX_TIMESTAMP, SERVER_ID,
+# COLLATION_SERVER and TIME_ZONE from master under network disconnection.
+# The COLLATION_SERVER and TIME_ZONE are got only on master server version 4.
+# So they can't be verified by test case here.
+# Finish the following tests by calling its common test script:  
+# include/rpl_get_master_version_and_clock.test. 
+
+source include/have_debug.inc;
+source include/have_debug_sync.inc;
+source include/master-slave.inc;
+
+#
+# The test is not supposed to have any binglog affairs.
+# Hence it's enough it to run only with one binlog format
+#
+source include/have_binlog_format_mixed.inc;
+
+connection slave;
+
+call mtr.add_suppression("Slave I/O: Master command COM_REGISTER_SLAVE failed: .*");
+call mtr.add_suppression("Slave I/O: .* failed with error: Lost connection to MySQL server at 'reading initial communication packet'");
+call mtr.add_suppression("Fatal error: The slave I/O thread stops because master and slave have equal MySQL server ids; .*");
+call mtr.add_suppression("Slave I/O thread .* register on master");
+
+#Test case 1: Try to get the value of the UNIX_TIMESTAMP from master under network disconnection
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+
+# set up two parameters to pass into include/rpl_get_master_version_and_clock
+let $dbug_sync_point= 'debug_lock.before_get_UNIX_TIMESTAMP';
+let $debug_sync_action= 'now SIGNAL signal.get_unix_timestamp';
+source include/rpl_get_master_version_and_clock.test; 
+
+#Test case 2: Try to get the value of the SERVER_ID from master under network disconnection
+connection slave;
+
+let $dbug_sync_point= 'debug_lock.before_get_SERVER_ID';
+let $debug_sync_action= 'now SIGNAL signal.get_server_id';
+source include/rpl_get_master_version_and_clock.test;
+
+
+# cleanup
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+# is not really necessary but avoids mtr post-run env check warnings
+SET DEBUG_SYNC= 'RESET';
+
+# End of tests
+--source include/rpl_end.inc

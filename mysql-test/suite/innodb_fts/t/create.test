@@ -1,0 +1,119 @@
+--source include/have_innodb.inc
+SET NAMES utf8mb4;
+
+--echo #
+--echo # MDEV-11233 CREATE FULLTEXT INDEX with a token
+--echo # longer than 127 bytes crashes server
+--echo #
+
+# This bug is the result of merging the Oracle MySQL follow-up fix
+# BUG#22963169 MYSQL CRASHES ON CREATE FULLTEXT INDEX
+# without merging a fix of Bug#79475 Insert a token of 84 4-bytes
+# chars into fts index causes server crash.
+
+# Oracle did not publish tests for either of the above MySQL bugs.
+# The tests below were developed for MariaDB Server.
+# The maximum length of a fulltext-indexed word is 84 characters.
+
+CREATE TABLE t(t TEXT CHARACTER SET utf8mb3) ENGINE=InnoDB;
+INSERT INTO t SET t=REPEAT(CONCAT(REPEAT(_utf8mb3 0xE0B987, 4), REPEAT(_utf8mb3 0xE0B989, 5)), 5);
+INSERT INTO t SET t=REPEAT(_utf8 0xefbc90,84);
+INSERT INTO t SET t=REPEAT('befor',17); # too long, will not be indexed
+INSERT INTO t SET t='BeforeTheIndexCreation';
+CREATE FULLTEXT INDEX ft ON t(t);
+INSERT INTO t SET t='this was inserted after creating the index';
+INSERT INTO t SET t=REPEAT(_utf8 0xefbc91,84);
+INSERT INTO t SET t=REPEAT('after',17); # too long, will not be indexed
+INSERT INTO t SET t=REPEAT(_utf8mb3 0xe794b2e9aaa8e69687, 15);
+--echo # The data below is not 3-byte UTF-8, but 4-byte chars.
+INSERT IGNORE INTO t SET t=REPEAT(_utf8mb4 0xf09f9695, 84);
+INSERT IGNORE INTO t SET t=REPEAT(_utf8mb4 0xf09f9696, 85);
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST
+(REPEAT(CONCAT(REPEAT(_utf8mb3 0xE0B987, 4), REPEAT(_utf8mb3 0xE0B989, 5)), 5));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST ('BeforeTheIndexCreation');
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT('befor',17));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST ('after');
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT('after',17));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 83));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 84));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 85));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 83));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 84));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 85));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9695, 83));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9695, 84));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9696, 84));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9696, 85));
+SELECT * FROM t;
+
+# The column length should be 252 bytes (84 characters * 3 bytes/character).
+SELECT len,COUNT(*) FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS where name='word' GROUP BY len;
+DROP TABLE t;
+
+CREATE TABLE t(t TEXT CHARACTER SET utf8mb4) ENGINE=InnoDB;
+INSERT INTO t SET t=REPEAT(_utf8mb3 0xe794b2e9aaa8e69687, 15);
+INSERT INTO t SET t=REPEAT(_utf8 0xefbc90,84);
+INSERT INTO t SET t=REPEAT('befor',17); # too long, will not be indexed
+INSERT INTO t SET t='BeforeTheIndexCreation';
+CREATE FULLTEXT INDEX ft ON t(t);
+INSERT INTO t SET t='this was inserted after creating the index';
+INSERT INTO t SET t=REPEAT(_utf8 0xefbc91,84);
+INSERT INTO t SET t=REPEAT('after',17); # too long, will not be indexed
+INSERT INTO t SET t=REPEAT(concat(repeat(_utf8mb3 0xE0B987, 4), repeat(_utf8mb3 0xE0B989, 5)), 5);
+INSERT INTO t SET t=REPEAT(_utf8mb4 0xf09f9695, 84);
+--echo # The token below exceeds the 84-character limit.
+INSERT INTO t SET t=REPEAT(_utf8mb4 0xf09f9696, 85);
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb3 0xe794b2e9aaa8e69687, 15));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST ('BeforeTheIndexCreation');
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT('befor',17));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST ('after');
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT('after',17));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 83));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 84));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 85));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 83));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 84));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 85));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9695, 83));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9695, 84));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9696, 84));
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9696, 85));
+SELECT * FROM t;
+
+# The column length should be 336 bytes (84 characters * 4 bytes/character).
+SELECT len,COUNT(*) FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS where name='word' GROUP BY len;
+DROP TABLE t;
+
+CREATE TABLE t(t TEXT CHARACTER SET latin1, FULLTEXT INDEX(t))
+ENGINE=InnoDB;
+
+# The column length should be 84 bytes (84 characters * 1 byte/character).
+SELECT len,COUNT(*) FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS where name='word' GROUP BY len;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-17923 Assertion memcmp(field, field_ref_zero, 7) failed in
+--echo # trx_undo_page_report_modify upon optimizing table
+--echo # under innodb_optimize_fulltext_only
+--echo #
+
+CREATE TABLE t1 (f1 TEXT, f2 TEXT, FULLTEXT KEY (f2)) ENGINE=InnoDB;
+INSERT INTO t1 (f1) VALUES ('foo'),('bar');
+DELETE FROM t1 LIMIT 1;
+ALTER TABLE t1 ADD FULLTEXT KEY (f1);
+SET @optimize_fulltext.save= @@innodb_optimize_fulltext_only;
+SET GLOBAL innodb_optimize_fulltext_only= 1;
+OPTIMIZE TABLE t1;
+DROP TABLE t1;
+SET GLOBAL innodb_optimize_fulltext_only= @optimize_fulltext.save;
+
+--echo #
+--echo # MDEV-24403 Segfault on CREATE TABLE with explicit FTS_DOC_ID_INDEX by multiple fields
+--echo #
+--error ER_WRONG_NAME_FOR_INDEX
+create table t1 (
+  f1 int, f2 text,
+  FTS_DOC_ID bigint unsigned not null,
+  unique key FTS_DOC_ID_INDEX(FTS_DOC_ID, f1),
+  fulltext (f2))
+engine=innodb;

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja" lang="ja">
+<head>
+<meta http-equiv="Content-Language" content="ja" />
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<title>groonga dictionary search</title>
+<meta http-equiv="content-style-type" content="text/css" />
+<meta http-equiv="content-script-type" content="text/javascript" />
+<link type="text/css" href="css/smoothness/jquery-ui-1.8.12.custom.css" rel="stylesheet" />
+<link  type="text/css" rel="stylesheet" href="css/dictionary.css" />
+</head>
+<body>
+<form action="javascript:(function(){$('.search').blur()})()" name="search" id="search">
+<input type="text" size="60" maxlength="60" name="key" class="search" />
+<input type="submit" value="検索"/>
+</form>
+<script type="text/javascript" src="js/jquery-1.7.2.js"></script>
+<script type="text/javascript" src="js/jquery-ui-1.8.18.custom.js"></script>
+<script type="text/javascript" src="js/dictionary.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){
+  $(".search").autocomplete({source: dictionarySource("http://" + location.host + "/d/suggest")});
+});
+</script>
+<div id="result"></div>
+</body>
+</html>

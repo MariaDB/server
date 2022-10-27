@@ -1,0 +1,58 @@
+--source include/have_stat_tables.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Bug mdev-485: unexpected failure with replication of DROP/ALTER table
+--echo #               when RBR is on
+--echo #
+
+CREATE TABLE t1 ( a int, b int ) ENGINE=MyISAM; 
+INSERT INTO t1 VALUES (2,20), (1,20), (3,30);
+ANALYZE TABLE t1;
+DROP TABLE t1;
+
+--sync_slave_with_master
+--connection master
+
+CREATE TABLE t1 ( a int, b int, INDEX idx1(b) ) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (2,20), (1,20), (3,30);
+ANALYZE TABLE t1;
+DROP INDEX idx1 ON t1;
+
+--sync_slave_with_master
+--connection master
+
+DROP TABLE t1;
+
+CREATE TABLE t1 ( a int, b int, INDEX idx1(b) ) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (2,20), (1,20), (3,30);
+ANALYZE TABLE t1;
+ALTER TABLE t1 DROP COLUMN b;
+
+--sync_slave_with_master
+--connection master
+
+DROP TABLE t1;
+
+CREATE TABLE t1 ( a int, b int, INDEX idx1(b) ) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (2,20), (1,20), (3,30);
+ANALYZE TABLE t1;
+ALTER TABLE t1 RENAME to s;
+
+--sync_slave_with_master
+--connection master
+
+DROP TABLE s;
+
+CREATE TABLE t1 ( a int, b int, INDEX idx1(b) ) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (2,20), (1,20), (3,30);
+ANALYZE TABLE t1;
+ALTER TABLE t1 CHANGE COLUMN b c int ;
+
+--sync_slave_with_master
+--connection master
+
+DROP TABLE t1;
+
+--source include/rpl_end.inc

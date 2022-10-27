@@ -1,0 +1,66 @@
+set @@default_storage_engine="aria";
+CREATE SEQUENCE t1 cache=10;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 10 nocycle ENGINE=Aria
+select NEXT VALUE for t1,seq from seq_1_to_20;
+NEXT VALUE for t1	seq
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+13	13
+14	14
+15	15
+16	16
+17	17
+18	18
+19	19
+20	20
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+21	1	9223372036854775806	1	1	10	0	0
+drop sequence t1;
+create sequence s1;
+check table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	check	note	The storage engine for the table doesn't support check
+select next value for s1;
+next value for s1
+1
+flush tables;
+check table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	check	note	The storage engine for the table doesn't support check
+select next value for s1;
+next value for s1
+1001
+flush tables;
+repair table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	repair	status	OK
+select next value for s1;
+next value for s1
+2001
+drop sequence s1;
+CREATE SEQUENCE t1;
+alter sequence t1 minvalue=100;
+ERROR HY000: Sequence 'test.t1' values are conflicting
+alter sequence t1 minvalue=100 start=100 restart=100;
+rename table t1 to t2;
+select next value for t2;
+next value for t2
+100
+alter table t2 rename to t1;
+select next value for t1;
+next value for t1
+1100
+drop table t1;

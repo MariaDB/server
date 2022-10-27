@@ -1,0 +1,382 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+#
+# Test various combinations of operations on sequence
+#
+
+--echo #
+--echo # Create and check
+--echo #
+
+create sequence s1 engine=innodb;
+check table s1;
+select next value for s1;
+flush tables;
+check table s1;
+select next value for s1;
+flush tables;
+repair table s1;
+select next value for s1;
+drop sequence s1;
+
+create or replace sequence s1 engine=innodb;
+select next value for s1;
+repair table s1;
+check table s1;
+select next value for s1;
+select * from s1;
+drop sequence s1;
+
+--echo #
+--echo # INSERT
+--echo #
+
+create sequence s1;
+create sequence s2;
+--error ER_NO_DEFAULT_FOR_FIELD
+insert into s1 (next_not_cached_value, minimum_value) values (100,1000);
+--error ER_UPDATE_TABLE_USED
+insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
+--error ER_SEQUENCE_INVALID_DATA
+insert into s1 values(1000,9223372036854775806,1,1,1,1000,0,0);
+--error ER_SEQUENCE_INVALID_DATA
+insert into s1 values(0,9223372036854775806,1,1,1,1000,0,0);
+select * from s1;
+insert into s1 values(1000,1,9223372036854775806,1,1,1000,0,0);
+select * from s1;
+select next value for s1;
+select * from s1;
+--error ER_SEQUENCE_INVALID_DATA
+insert into s2 values(0, 1, 10, 1, 2, 1, 1, 0);
+
+select * from s1;
+insert into s1 values (next value for s2, 1,9223372036854775806,1,1,1000,0,0);
+select * from s1;
+select * from s2;
+insert into s1 select * from s2;
+select * from s1;
+drop sequence s1,s2;
+
+--echo #
+--echo # UPDATE and DELETE
+--echo #
+
+create sequence s1;
+--error ER_ILLEGAL_HA
+update s1 set next_not_cached_value=100;
+--error ER_ILLEGAL_HA
+delete from s1 where next_not_cached_value > 0;
+drop sequence s1;
+
+--echo #
+--echo # SHOW TABLES
+--echo #
+
+create sequence s1;
+create table t1 (a int);
+create view v1 as select * from s1;
+show full tables;
+SELECT TABLE_TYPE,ENGINE FROM INFORMATION_SCHEMA.TABLES where table_schema="test" ORDER BY TABLE_NAME;
+drop table t1,s1;
+drop view v1;
+
+--echo #
+--echo # LOCK TABLES (as in mysqldump)
+--echo #
+
+create sequence s1 engine=innodb;
+LOCK TABLES s1 READ;
+SELECT * from s1;
+UNLOCK TABLES;
+LOCK TABLES s1 WRITE;
+insert into s1 values (1,1,9223372036854775806, 1, 1, 1000, 0, 0);
+UNLOCK TABLES;
+drop table s1;
+
+--echo #
+--echo # Many sequence calls with innodb
+--echo #
+
+create sequence s1 cache=1000 engine=innodb;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+commit;
+select * from s1;
+drop sequence s1;
+
+create sequence s1  cache=1000 engine=innodb;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+
+connect (addconroot, localhost, root,,);
+connection addconroot;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+select * from s1;
+commit;
+disconnect addconroot;
+connection default;
+select * from s1;
+commit;
+drop sequence s1;
+
+--echo #
+--echo # Flush tables with read lock
+--echo #
+
+create sequence s1;
+select next value for s1;
+flush tables with read lock;
+--error 1223
+create sequence s2;
+--error 1223
+select next value for s1;
+unlock tables;
+drop sequence s1;
+
+--echo #
+--echo # MDEV-14761
+--echo # Assertion `!mysql_parse_status || thd->is_error() ||
+--echo # thd->get_internal_handler()' failed in parse_sql
+--echo #
+
+CREATE SEQUENCE s1;
+--error ER_DUP_ARGUMENT
+ALTER SEQUENCE s1 MAXVALUE 100 NO MAXVALUE;
+DROP SEQUENCE s1;
+
+--echo #
+--echo # Don't allow SEQUENCE to be used with CHECK or virtual fields
+--echo #
+
+CREATE SEQUENCE s1 nocache engine=myisam;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE table t1 (a int check (next value for s1 > 0));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE table t1 (a int check (previous value for s1 > 0));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE table t1 (a int check (setval(s1,10)));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a int, b int as (next value for s1 > 0));
+drop sequence s1;
+
+
+--echo #
+--echo # MDEV-13024: Server crashes in my_store_ptr upon DELETE from
+--echo # sequence in multi-table format
+--echo #
+CREATE SEQUENCE s;
+CREATE table t1 (a int);
+insert into t1 values (1),(2);
+--error ER_ILLEGAL_HA
+DELETE s FROM s;
+--error ER_ILLEGAL_HA
+delete t1,s from s,t1;
+--error ER_ILLEGAL_HA
+delete s,t1 from t1,s;
+DROP SEQUENCE s;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-20074: Lost connection on update trigger
+--echo #
+
+--echo # INSERT & table
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+
+DELIMITER $$;
+
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+INSERT INTO t2(a_p_name, a_p_first_name) VALUES(old.p_name, old.p_first_name);
+END;
+$$
+DELIMITER ;$$
+
+update t1 set p_first_name='Yunxi' where p_id=1;
+
+drop sequence s1;
+drop table t1,t2;
+
+
+--echo # INSERT & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+
+DELIMITER $$;
+
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+INSERT INTO v2(a_p_name, a_p_first_name) VALUES(old.p_name, old.p_first_name);
+END;
+$$
+DELIMITER ;$$
+
+update t1 set p_first_name='Yunxi' where p_id=1;
+
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+
+
+--echo # INSERT SELECT & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+
+DELIMITER $$;
+
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+INSERT INTO v2(a_p_name, a_p_first_name) SELECT old.p_name, old.p_first_name;
+END;
+$$
+DELIMITER ;$$
+
+update t1 set p_first_name='Yunxi' where p_id=1;
+
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+
+
+--echo # REPLACE & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+
+DELIMITER $$;
+
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+REPLACE INTO v2(a_p_name, a_p_first_name) VALUES(old.p_name, old.p_first_name);
+END;
+$$
+DELIMITER ;$$
+
+update t1 set p_first_name='Yunxi' where p_id=1;
+
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+
+
+--echo # REPLACE SELECT & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+
+DELIMITER $$;
+
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+REPLACE INTO v2(a_p_name, a_p_first_name) SELECT old.p_name, old.p_first_name;
+END;
+$$
+DELIMITER ;$$
+
+update t1 set p_first_name='Yunxi' where p_id=1;
+
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+
+--echo #
+--echo # MDEV-19273:Server crash in MDL_ticket::has_stronger_or_equal_type or
+--echo # Assertion `thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+--echo # table->db.str, table->table_name.str, MDL_SHARED)' failed
+--echo # in mysql_rm_table_no_locks
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TEMPORARY TABLE tmp (b INT);
+LOCK TABLE t1 READ;
+--error ER_NOT_SEQUENCE2
+DROP SEQUENCE tmp;
+--error ER_NOT_SEQUENCE2
+DROP TEMPORARY SEQUENCE tmp;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+DROP SEQUENCE t1;
+--error ER_UNKNOWN_SEQUENCES
+DROP TEMPORARY SEQUENCE t1;
+UNLOCK TABLES;
+--error ER_NOT_SEQUENCE2
+DROP SEQUENCE t1;
+--error ER_UNKNOWN_SEQUENCES
+DROP TEMPORARY SEQUENCE t1;
+
+# Cleanup
+DROP TABLE t1;
+
+
+CREATE TABLE t (a INT);
+CREATE TEMPORARY TABLE s (f INT);
+CREATE SEQUENCE s;
+LOCK TABLE t WRITE;
+--error ER_NOT_SEQUENCE2
+DROP SEQUENCE s;
+--error ER_NOT_SEQUENCE2
+DROP TEMPORARY SEQUENCE s;
+UNLOCK TABLES;
+CREATE TEMPORARY SEQUENCE s;
+LOCK TABLE t WRITE;
+DROP TEMPORARY SEQUENCE s;
+UNLOCK TABLES;
+DROP TEMPORARY TABLE s;
+DROP SEQUENCE s;
+
+create table s(a INT);
+CREATE TEMPORARY TABLE s (f INT);
+LOCK TABLE t WRITE;
+DROP TEMPORARY TABLE s;
+CREATE TEMPORARY TABLE s (f INT);
+DROP TABLE s;
+--error ER_TABLE_NOT_LOCKED
+DROP TABLE s;
+UNLOCK TABLES;
+DROP TABLE s;
+
+CREATE VIEW v1 as SELECT * FROM t;
+CREATE SEQUENCE s;
+
+DROP SEQUENCE IF EXISTS v1;
+DROP VIEW IF EXISTS s;
+
+DROP VIEW v1;
+DROP SEQUENCE s;
+DROP TABLE t;
+--echo # End of 10.3 tests

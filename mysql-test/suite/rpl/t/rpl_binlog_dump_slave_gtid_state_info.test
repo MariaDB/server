@@ -1,0 +1,121 @@
+# ==== Purpose ====
+#
+# Test verifies that Start binlog_dump message will report GTID position
+# requested by slave when log_warnings > 1.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Have LOG_WARNINGS=2
+#    1 - On a fresh slave server which has not replicated any GTIDs execute
+#        "CHANGE MASTER TO MASTER_USE_GTID=current_pos;" command. Start the
+#        slave.
+#    2 - In Master error log verify that pattern "using_gtid(1), gtid('')" is
+#        present.
+#    3 - On slave server do STOP SLAVE and execute "CHANGE MASTER TO
+#        MASTER_USE_GTID=no;" command. Start the slave threads.
+#    4 - In Master error log verify that pattern "using_gtid(0), gtid('')" is
+#        present.
+#    5-  Execute a DDL and DML on master server. This will generated two GTIDs
+#        on the master server ('0-1-2'). Sync the slave server with master.
+#    6 - On slave do STOP SLAVE and execute "CHANGE MASTER TO
+#        MASTER_USE_GTID=slave_pos;" command. Start slave threads.
+#    7 - In Master error verify that pattern "using_gtid(1), gtid('0-1-2')" is
+#        present.
+#    8 - On Master change domain ID to 10 and execute a DML operation. It will
+#        generate a GTID 10-1-1.
+#    9 - On slave do STOP SLAVE and execute "CHANGE MASTER TO
+#        MASTER_USE_GTID=slave_pos;" command. Start slave threads.
+#    10 -In Master error verify that pattern "using_gtid(1),
+#        gtid('0-1-2,10-1-1')" is present.
+#
+# ==== References ====
+#
+# MDEV-20428: "Start binlog_dump" message doesn't indicate GTID position
+#
+
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection master
+SET GLOBAL LOG_WARNINGS=2;
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=current_pos;
+--source include/start_slave.inc
+
+--connection master
+# Check error log for correct messages.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+}
+--echo "Test Case 1: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('')"
+--let SEARCH_FILE=$log_error_
+--let SEARCH_RANGE=-50000
+--let SEARCH_PATTERN=using_gtid\(1\), gtid\(\'\'\).*
+--source include/search_pattern_in_file.inc
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=no;
+--source include/start_slave.inc
+
+--connection master
+--echo "Test Case 2: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(0), gtid('')"
+--let SEARCH_FILE=$log_error_
+--let SEARCH_RANGE=-50000
+--let SEARCH_PATTERN=using_gtid\(0\), gtid\(\'\'\).*
+--source include/search_pattern_in_file.inc
+CREATE TABLE t (f INT) ENGINE=INNODB;
+INSERT INTO t VALUES(10);
+save_master_pos;
+
+--connection slave
+sync_with_master;
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection master
+--echo "Test Case 3: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('0-1-2')"
+--let SEARCH_FILE=$log_error_
+--let SEARCH_RANGE=-50000
+--let SEARCH_PATTERN=using_gtid\(1\), gtid\(\'0-1-2\'\).*
+--source include/search_pattern_in_file.inc
+SET @@SESSION.gtid_domain_id=10;
+INSERT INTO t VALUES(20);
+save_master_pos;
+
+--connection slave
+sync_with_master;
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+
+--connection master
+--echo "Test Case 4: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('0-1-2,10-1-1')"
+--let SEARCH_FILE=$log_error_
+--let SEARCH_RANGE=-50000
+--let SEARCH_PATTERN=using_gtid\(1\), gtid\(\'0-1-2,10-1-1\'\).*
+--source include/search_pattern_in_file.inc
+
+--echo "===== Clean up ====="
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=no;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t;
+SET GLOBAL LOG_WARNINGS=default;
+--source include/rpl_end.inc

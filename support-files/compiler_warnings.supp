@@ -1,0 +1,225 @@
+#
+# This file contains compiler warnings that can
+# be ignored for various reasons.
+#
+
+.*/integer.cpp: .*control reaches end of non-void function.*: 1288-1427
+.*/integer.cpp: .*no return statement in function returning non-void.*: 1288-1427
+.*/DictTabInfo.cpp : .*invalid access to non-static.*
+.*/DictTabInfo.cpp : .*macro was used incorrectly.*
+.*/DbdihMain.cpp : .*unused variable.* : 6666-7013
+.*/DbtupExecQuery.cpp : .*unused variable.* : 1823
+.*/kernel_types.h : .*only defines private constructors and has no friends.* : 51
+.*/Dbtup.hpp:   .*only defines private constructors and has no friends.*
+.*/diskpage.hpp:   .*only defines private constructors and has no friends.*
+.*/tuppage.hpp:   .*only defines private constructors and has no friends.*
+.*/sql_yacc.cc : .*label 'yyerrlab1' defined but not used.*
+.*/kernel_types.h : .*'struct Local_key' only defines private constructors and has no friends.*
+.*/lgman.hpp : .*'struct Lgman::Buffer_idx' only defines private constructors and has no friends.*
+.*/SchemaFile.hpp : .*'struct SchemaFile::TableEntry' only defines private constructors and has no friends.*
+.*/sql_yacc.cc : .*switch statement contains 'default' but no 'case' labels.*
+
+#
+# bdb is not critical to keep up to date
+#
+.*/bdb/.* : .*discards qualifiers from pointer target type.*
+.*/bdb/.* : .*unused parameter.*
+.*/bdb/.* : .*may be used uninitialized.*
+.*/bdb/.* : .*empty body in an if-statement.*
+.*/db_vrfy.c : .*comparison is always false due to limited range of data type.*
+
+#
+# readline is not maintained by us
+#
+.*/cmd-line-utils/readline/.* : .*
+.*/readline\.c : unused parameter
+.*/term\.c : unused parameter
+.*/vi\.c : unused parameter
+.*/common\.c : unused parameter
+.*/term\.c : .*
+
+#
+# Ignore some warnings in libevent, which is not maintained by us.
+#
+.*/extra/libevent/.* : .*unused parameter.*
+.*/extra/libevent/select\.c : .*comparison between signed and unsigned.* : 270-280
+.*/signal\.c : .*unused parameter.*
+
+#
+# Ignore warnings from system libraries
+#
+.*/aclocal/audiofile.m4 : .*
+
+#
+# Ignore strict-aliasing warnings (for now)
+#
+.*: break strict-aliasing rules
+
+#
+# Ignore not important declaration warnings
+#
+.*: only defines private constructors and has no friends
+
+#
+# Ignore all conversion warnings on windows 64
+# (Is safe as we are not yet supporting strings >= 2G)
+#
+.* : conversion from '__int64' to .*int'.*
+.* : conversion from '__int64' to 'uint8'.*
+.* : conversion from '__int64' to 'uint32'.*
+.* : conversion from '__int64' to 'u.*long'.*
+.* : conversion from '__int64' to 'long'.*
+.* : conversion from '__int64' to 'off_t'.*
+.* : conversion from '.*size_t' to .*int'.*
+.* : conversion from '.*size_t' to 'TaoCrypt::word32'.*
+.* : conversion from '.*size_t' to 'u.*long'.*
+.* : conversion from '.*size_t' to 'uint32'.*
+.* : conversion from '.*size_t' to 'off_t'.*
+.* : conversion from '.*size_t' to 'size_s'.*
+.* : conversion from '.*size_t' to 'DWORD'.*
+.* : conversion from '.*size_t' to 'uLongf'.*
+.* : conversion from '.*size_t' to 'UINT'.*
+.* : conversion from '.*size_t' to 'uInt'.*
+.* : conversion from '.*size_t' to 'uint16'.*
+.* : The following environment variables were not found.*
+.* : no public symbols found; archive member will be inaccessible
+.* : DESCRIPTION statement not supported
+
+# Ignore uninitialized local variables on windows
+.* : uninitialized local variable .* used
+
+#
+# Aria warning that is ok in debug builds
+#
+.*/storage/maria/ma_pagecache.c: .*'info_check_pin' defined but not used
+
+#
+# oqgraph errors that are hard to fix
+#
+.*/oqgraph/graphcore\.cc : may be used uninitialized in this function
+
+#
+# OpenSSL
+#
+# The following comes because of different prototype between yassl and openssl.
+# Save as the argument is a function within the library.
+.*/vio/viosslfactories\.c: discards ~const~ qualifier from pointer target type
+
+#
+# Groff warnings on OpenSUSE.
+#
+.*/dbug/.*(groff|<standard input>) : .*
+.*groff.* : vertical spacing must be greater than
+
+#
+# Warnings on OpenSolaris
+#
+.*/my_config\.h : _FILE_OFFSET_BITS
+.*/include/sys/feature_tests.h : this is the location of the previous definition
+.*/auth_pam\.c : initialization from incompatible pointer type : 100-200
+.*/mysys/my_lock\.c : incompatible pointer
+
+#
+# jemalloc
+#
+.*/jemalloc/src/jemalloc\.c: always_inline function might not be inlinable
+.*/jemalloc/src/jemalloc\.c: set but not used
+
+#
+# Connect engine
+#
+.*/storage/connect/ha_connect\.cc: might be clobbered by.*longjmp
+.*/storage/connect/connect\.cc: might be clobbered by.*longjmp
+.*/storage/connect/filamvct\.cpp: ignoring return value of
+.*/storage/connect/filamvct\.cpp: might be clobbered by
+.*/storage/connect/xindex\.cpp: ignoring return value of
+.*/storage/connect/value\.cpp: always false : 1000-1020
+.*/storage/connect/json\.cpp: might be clobbered by
+.*/storage/connect/filemdbf\.cpp: ignoring return value.*fwrite
+.*/storage/connect/value\.cpp: .*comparison is always false due to limited range
+
+#
+# mroonga
+#
+.*/groonga/lib/expr\.c : GCSE disabled
+.*/groonga/lib/expr\.c : NULL pointer checks disabled
+.*/groonga/lib/expr\.c : PRE disabled
+.*/groonga/lib/expr\.c : always false
+.*/groonga/lib/expr\.c : jump bypassing disabled
+.*/groonga/lib/expr\.c : propagation disabled
+.*/groonga/lib/nfkc\.c : GCSE disabled
+.*/groonga/lib/nfkc\.c : NULL pointer checks disabled
+.*/groonga/lib/nfkc\.c : jump bypassing disabled
+.*/groonga/lib/str\.c : comparing floating point
+.*/groonga/lib/db\.c : missing initializer
+.*/groonga/lib/ii\.c : missing initializer
+.*/groonga/lib/normalizer\.c : missing initializer
+.*/groonga/lib/proc\.c : missing initializer
+.*/groonga/lib/tokenizer\.c : missing initializer
+
+#
+# TokuDB
+#
+
+# This one is marked with __attribute__, but we still get a (wrong) warning
+.*/liblzma/lz/lz_encoder\.c : variable.*in_used.*set but not used
+
+#
+# pcre
+#
+.*/pcre/pcre_exec\.c: noclone.*attribute directive ignored
+
+#
+# Unexplanable (?) stuff
+#
+.*/listener\.cc : .*conversion from 'SOCKET' to 'int'.*
+.*/net_serv\.cc : .*conversion from 'SOCKET' to 'int'.*
+
+#
+# Ignorable warnings from header files
+#
+.*/backward_warning\.h : This file includes at least one
+/usr/include/i386-linux-gnu/bits/string3\.h: memset used with constant zero length parameter
+.*/bits/string3.h : might overflow destination buffer
+
+# allow a little moving space for the warning below
+.*/mi_packrec\.c : .*result of 32-bit shift implicitly converted to 64 bits.* : 560-600
+.*/ma_packrec\.c : .*result of 32-bit shift implicitly converted to 64 bits.* : 550-650
+
+#
+# Wrong compiler warnings
+#
+.* : .*no matching operator delete found; memory will not be freed if initialization throws an exception.*
+.*/ctype-simple\.c : .*unary minus operator applied to unsigned type, result still unsigned.*
+.*/sql/sys_vars\.cc : invalid access to non-static data member
+.*/string3\.h : memset used with constant zero length parameter
+.* : missing-declarations.*is valid
+
+#
+# Ignorable errors on mac
+#
+.*/my_aes\.c: deprecated
+.*/my_sha1\.cc: deprecated
+.*/my_md5\.cc: deprecated
+.*/my_rnd\.cc: deprecated
+.*/mdl\.cc: invalid access
+.*/mdl\.cc: offsetoff
+
+# Wrong warning due to GCC bug: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=29478
+.*/regexec\.c : passing argument 3 of.*matcher.* discards qualifiers from pointer target type
+.*/libmysql\.c:  passing argument 2 of .*memcpy.* discards qualifiers from pointer target type : 3000-4000
+.*/storage/.*/dict/dict0dict\.c : passing argument 1 of .*strcpy.* discards qualifiers from pointer target type : 2500-3500
+.*/storage/.*/sync/sync0rw\.c : passing argument 1 of .*memset.* discards qualifiers from pointer target type : 200-300
+.*/storage/.*/btr/btr0sea\.c : passing argument 2 of .*btr_cur_position.* discards qualifiers from pointer
+
+# Fixed wrong warning in GCC due to https://gcc.gnu.org/bugzilla/show_bug.cgi?id=61520
+.*/strings/decimal\.c : array subscript is .* array bounds
+
+#
+# Strange things from autoconf that is probably safe to ignore
+#
+
+.*configure.in : warning: AC_LANG_CONFTEST: no AC_LANG_SOURCE call detected in body
+.*configure.in : config/ac-macros/character_sets.m4.*prefer named diversions warning: File listed twice
+.*/include/mysql/client_plugin\.h : _mysql_client_plugin_declaration_
+.*/plugin/auth_gssapi/client_plugin\.cc: _mysql_client_plugin_declaration_

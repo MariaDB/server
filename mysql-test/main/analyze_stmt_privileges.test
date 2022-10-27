@@ -1,0 +1,49 @@
+# Analyze <statement> privilege checks testcase.
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-7025 and MDEV-7027 ANALYZE SELECT/INSERT/UPDATE/DELETE from a
+--echo # view does not check access permissions on the underlying table
+--echo #
+create database db;
+use db;
+create table t1 (i int, c varchar(8));
+insert into t1 values (1,'foo'),(2,'bar'),(3,'baz'),(4,'qux');
+create view v1 as select * from t1 where i > 1;
+CREATE USER u1@localhost;
+grant ALL on db.v1 to u1@localhost;
+
+--connect (con1,localhost,u1,,)
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from db.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+explain select * from db.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+analyze select * from db.t1;
+
+--sorted_result
+select * from db.v1;
+--error ER_VIEW_NO_EXPLAIN
+explain select * from db.v1;
+--error ER_VIEW_NO_EXPLAIN
+analyze select * from db.v1;
+
+UPDATE db.v1 SET i = 5;
+--error ER_VIEW_NO_EXPLAIN
+explain UPDATE db.v1 SET i = 5;
+--error ER_VIEW_NO_EXPLAIN
+analyze UPDATE db.v1 SET i = 5;
+
+DELETE FROM db.v1 WHERE i = 5;
+--error ER_VIEW_NO_EXPLAIN
+explain DELETE FROM db.v1 WHERE i = 5;
+--error ER_VIEW_NO_EXPLAIN
+analyze DELETE FROM db.v1 WHERE i = 5;
+
+
+--disconnect con1
+--connection default
+
+drop user u1@localhost;
+drop database db;

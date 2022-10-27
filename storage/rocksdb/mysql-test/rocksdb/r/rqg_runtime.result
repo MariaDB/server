@@ -1,0 +1,30 @@
+call mtr.add_suppression("Did not write failed ");
+call mtr.add_suppression("Can't open and lock privilege tables");
+call mtr.add_suppression("Attempt to delete the trigger file");
+SET @ORIG_EVENT_SCHEDULER = @@EVENT_SCHEDULER;
+CREATE TABLE mysql.user_temp LIKE mysql.user;
+INSERT mysql.user_temp SELECT * FROM mysql.user;
+CREATE TABLE mysql.tables_priv_temp LIKE mysql.tables_priv;
+INSERT mysql.tables_priv_temp SELECT * FROM mysql.tables_priv_temp;
+CREATE DATABASE IF NOT EXISTS rqg_runtime;
+Running test with grammar file alter_online.yy
+DROP DATABASE rqg_runtime;
+CREATE DATABASE IF NOT EXISTS rqg_runtime;
+Running test with grammar file concurrency_1.yy
+DROP DATABASE rqg_runtime;
+CREATE DATABASE IF NOT EXISTS rqg_runtime;
+Running test with grammar file connect_kill_sql.yy
+DROP DATABASE rqg_runtime;
+CREATE DATABASE IF NOT EXISTS rqg_runtime;
+Running test with grammar file metadata_stability.yy
+DROP DATABASE rqg_runtime;
+DELETE FROM mysql.tables_priv;
+DELETE FROM mysql.user;
+INSERT mysql.user SELECT * FROM mysql.user_temp;
+INSERT mysql.tables_priv SELECT * FROM mysql.tables_priv_temp;
+DROP TABLE mysql.user_temp;
+DROP TABLE mysql.tables_priv_temp;
+DROP TABLE IF EXISTS test.executors;
+DROP DATABASE IF EXISTS testdb_N;
+DROP DATABASE IF EXISTS testdb_S;
+SET GLOBAL EVENT_SCHEDULER = @ORIG_EVENT_SCHEDULER;

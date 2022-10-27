@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+day DATETIME PRIMARY KEY,
+title TEXT
+) DEFAULT CHARSET UTF8;
+INSERT INTO diaries (day, title)
+VALUES ("2012-01-29 21:51:01", "clear day");
+INSERT INTO diaries (day, title)
+VALUES ("2012-01-30 01:23:45", "rainy day");
+INSERT INTO diaries (day, title)
+VALUES ("2012-01-31 08:32:10", "cloudy day");
+SELECT * FROM diaries;
+day	title
+2012-01-29 21:51:01	clear day
+2012-01-30 01:23:45	rainy day
+2012-01-31 08:32:10	cloudy day
+SELECT * FROM diaries
+WHERE day BETWEEN "2012-01-29 00:00:00" AND "2012-01-31 00:00:00";
+day	title
+2012-01-29 21:51:01	clear day
+2012-01-30 01:23:45	rainy day
+DROP TABLE diaries;

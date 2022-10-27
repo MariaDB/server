@@ -1,0 +1,13 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT) ENGINE=tokudb;
+begin;
+insert into t1 values(1);
+flush tables with read lock;
+commit;
+connection slave;
+connection master;
+unlock tables;
+drop table t1;
+connection slave;
+include/rpl_end.inc

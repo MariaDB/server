@@ -1,0 +1,112 @@
+-- source myconn.inc
+
+connection default;
+
+--echo #
+--echo # Checking thread TBL tables
+--echo #
+CREATE TABLE t1 (a int, b char(10));
+INSERT INTO t1 VALUES (0,'test00'),(1,'test01'),(2,'test02'),(3,'test03');
+SELECT * FROM t1;
+
+connection master;
+
+CREATE TABLE rt2 (a int, b char(10));
+INSERT INTO rt2 VALUES (4,'test04'),(5,'test05'),(6,'test06'),(7,'test07');
+SELECT * FROM rt2;
+
+connection slave;
+
+USE test;
+CREATE TABLE rt3 (a int, b char(10));
+INSERT INTO rt3 VALUES (8,'test08'),(9,'test09'),(10,'test10'),(11,'test11');
+SELECT * FROM rt3;
+
+CREATE TABLE rt4 (a int, b char(10));
+INSERT INTO rt4 VALUES (12,'test12'),(13,'test13'),(14,'test14'),(15,'test15');
+SELECT * FROM rt4;
+
+CREATE TABLE rt5 (a int, b char(10));
+INSERT INTO rt5 VALUES (16,'test16'),(17,'test17'),(18,'test18'),(19,'test19');
+SELECT * FROM rt5;
+
+connection default;
+
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:$MASTER_MYPORT/test/rt2';
+SELECT * FROM t2;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t3 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/rt3';
+SELECT * FROM t3;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t4 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/rt4';
+SELECT * FROM t4;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t5 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/rt5';
+SELECT * FROM t5;
+
+--replace_result $PORT PORT
+eval CREATE TABLE total (a int, b char(10))
+ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2,t3,t4,t5'
+OPTION_LIST='thread=yes,port=$PORT';
+set connect_xtrace=96;
+SELECT * FROM total order by a desc;
+set connect_xtrace=0;
+
+connection master;
+
+DROP TABLE rt2;
+
+connection slave;
+
+DROP TABLE rt3,rt4,rt5;
+
+connection default;
+
+DROP TABLE t1,t2,t3,t4,t5,total;
+
+--echo #
+--echo # Old thread TBL tables test modified
+--echo #
+--replace_result $MASTER_MYPORT MASTER_PORT
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v' OPTION_LIST='port=$MASTER_MYPORT'
+SELECT * FROM t1;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v' OPTION_LIST='port=$SLAVE_MYPORT'
+SELECT * FROM t2;
+
+--replace_result $PORT PORT
+--eval CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=$PORT';
+set connect_xtrace=96;
+SELECT * FROM total order by v desc;
+set connect_xtrace=0;
+DROP TABLE t1,t2,total;
+
+--echo #
+--echo # Old thread TBL tables test not modified (suppressed until MDEV-10179 is fixed)
+--echo #
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v';
+SELECT * FROM t1;
+
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v';
+SELECT * FROM t2;
+
+--replace_result $PORT PORT
+--eval CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=$PORT';
+set connect_xtrace=96;
+SELECT * FROM total order by v desc;
+set connect_xtrace=0;
+
+DROP TABLE total;
+DROP TABLE t1;
+DROP TABLE t2;
+
+-- source myconn_cleanup.inc

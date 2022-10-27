@@ -1,0 +1,16 @@
+#
+# MDEV-8345 STOP SLAVE should not cause an ERROR to be logged to the error log
+#
+source include/have_binlog_format_mixed.inc; # don't repeat the test three times
+source include/master-slave.inc;
+
+connection master;
+sync_slave_with_master;
+source include/stop_slave.inc;
+let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/slave_log.err;
+let SEARCH_PATTERN=Error reading packet from server: Lost connection;
+source include/search_pattern_in_file.inc;
+
+source include/start_slave.inc;
+source include/rpl_end.inc;
+

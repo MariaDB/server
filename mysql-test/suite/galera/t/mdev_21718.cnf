@@ -1,0 +1,4 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+thread-handling=pool-of-threads

@@ -1,0 +1,60 @@
+# MDEV-7586 regression test.
+# Test if created_tmp_tables status variable is correctly incremented.
+--source include/have_perfschema.inc
+--source include/not_embedded.inc
+
+create table t2 (a int);
+insert into t2 values (1),(2),(3);
+create view v2 as select a from t2;
+
+flush status;
+select * from v2;
+--disable_ps_protocol
+show status like '%Created_tmp%';
+--enable_ps_protocol
+
+explain select * from v2;
+
+select * from (select * from t2) T1;
+--disable_ps_protocol
+show status like '%Created_tmp%';
+--enable_ps_protocol
+
+explain select * from (select * from t2) T1;
+
+
+drop view v2;
+drop table t2;
+
+
+--disable_ps_protocol
+
+CREATE TABLE t1(a int);
+INSERT INTO t1 values(1),(2);
+CREATE TABLE t2(a int);
+INSERT INTO t2 values(1),(2);
+
+EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
+truncate table performance_schema.events_statements_history_long;
+flush status;
+CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
+--echo # Performance schema should be the same as "Created_tmp_tables" variable below
+select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
+show status like '%Created_tmp%';
+drop table t3;
+
+EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a);
+truncate table performance_schema.events_statements_history_long;
+flush status;
+CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a);
+--echo # Performance schema should be the same as "Created_tmp_tables" variable below
+select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
+show status like '%Created_tmp%';
+
+drop table t1,t2,t3;
+
+truncate table performance_schema.events_statements_history_long;
+flush status;
+--echo # Performance schema should be the same as "Created_tmp_tables" variable below
+select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
+show status like '%Created_tmp%';

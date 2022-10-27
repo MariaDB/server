@@ -1,0 +1,29 @@
+--source have_libxml2.inc
+
+--echo #
+--echo # Testing changing table type (not in-place)
+--echo #
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=CSV HEADER=1 QUOTED=1;
+INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
+SELECT * FROM t1;
+
+--echo # This would fail if the top node name is not specified.
+--echo # This is because the XML top node name defaults to the table name.
+--echo # Sure enough the temporary table name begins with '#' and is rejected by XML.
+--echo # Therefore the top node name must be specified (along with the row nodes name).
+ALTER TABLE t1 TABLE_TYPE=XML TABNAME=t1 OPTION_LIST='xmlsup=libxml2,rownode=row';
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+
+--echo # Let us see the XML file
+CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.xml';
+SELECT * FROM t2;
+--echo # NOTE: The first (ignored) row is due to the remaining HEADER=1 option.
+
+--echo # Testing field option modification
+ALTER TABLE t1 MODIFY d CHAR(10) NOT NULL XPATH='@', HEADER=0;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;

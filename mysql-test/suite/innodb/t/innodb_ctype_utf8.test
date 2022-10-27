@@ -1,0 +1,25 @@
+--source include/have_innodb.inc
+
+SET STORAGE_ENGINE=InnoDB;
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9711 NO PAD Collatons
+--echo #
+
+SET NAMES utf8;
+
+let $coll='utf8_general_nopad_ci';
+let $coll_pad='utf8_general_ci';
+--source include/ctype_pad.inc
+
+let $coll='utf8_nopad_bin';
+let $coll_pad='utf8_bin';
+--source include/ctype_pad.inc
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

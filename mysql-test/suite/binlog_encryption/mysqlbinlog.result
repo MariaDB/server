@@ -1,0 +1,7 @@
+RESET MASTER;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+REPLACE INTO t1 VALUES (4);
+DROP TABLE t1;
+FLUSH LOGS;
+FOUND 1 /Ignorable event type 164.*/ in binlog_enc.sql

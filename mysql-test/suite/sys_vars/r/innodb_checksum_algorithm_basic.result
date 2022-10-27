@@ -1,0 +1,63 @@
+SET @orig = @@global.innodb_checksum_algorithm;
+SELECT @orig;
+@orig
+crc32
+SET GLOBAL innodb_checksum_algorithm = 'crc32';
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+crc32
+SET GLOBAL innodb_checksum_algorithm = 'strict_crc32';
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+strict_crc32
+SET GLOBAL innodb_checksum_algorithm = 'innodb';
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+innodb
+SET GLOBAL innodb_checksum_algorithm = 'strict_innodb';
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+strict_innodb
+SET GLOBAL innodb_checksum_algorithm = 'none';
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+none
+SET GLOBAL innodb_checksum_algorithm = 'strict_none';
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+strict_none
+SET GLOBAL innodb_checksum_algorithm = 'full_crc32';
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+full_crc32
+SET GLOBAL innodb_checksum_algorithm = 'strict_full_crc32';
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+strict_full_crc32
+SET GLOBAL innodb_checksum_algorithm = '';
+ERROR 42000: Variable 'innodb_checksum_algorithm' can't be set to the value of ''
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+strict_full_crc32
+SET GLOBAL innodb_checksum_algorithm = 'foobar';
+ERROR 42000: Variable 'innodb_checksum_algorithm' can't be set to the value of 'foobar'
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+strict_full_crc32
+SET GLOBAL innodb_checksum_algorithm = 123;
+ERROR 42000: Variable 'innodb_checksum_algorithm' can't be set to the value of '123'
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+strict_full_crc32
+SET GLOBAL innodb_checksum_algorithm = @orig;
+SELECT @@global.innodb_checksum_algorithm;
+@@global.innodb_checksum_algorithm
+crc32

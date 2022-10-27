@@ -1,0 +1,38 @@
+connection node_2;
+connection node_1;
+SET SESSION wsrep_trx_fragment_size = 1;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) Engine=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+connection node_2;
+set session wsrep_sync_wait=15;
+SELECT COUNT(*) from ten;
+COUNT(*)
+10
+SELECT COUNT(*) from t1;
+COUNT(*)
+0
+set session wsrep_sync_wait=0;
+SET GLOBAL wsrep_slave_threads = 4;
+SET SESSION wsrep_trx_fragment_size = 1;
+connection node_1;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2;;
+connection node_1a;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2;;
+connection node_2;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2;;
+connection node_1;
+connection node_1a;
+connection node_2;
+set session wsrep_sync_wait=15;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+300
+SELECT COUNT(DISTINCT f1) FROM t1;
+COUNT(DISTINCT f1)
+300
+connection default;
+DROP TABLE t1;
+DROP TABLE ten;

@@ -1,0 +1,294 @@
+# Multi instance version of MariaDB
+#
+# Use this if you run multiple instances of MariaDB on a single server.
+#
+# This systemd service is not suitable for Galera as specialised SST recovery
+# scripts are needed.
+#
+#
+# It's not recommended to modify this file in-place, because it will be
+# overwritten during package upgrades.  If you want to customize, the
+# best way is to create a file "/etc/systemd/system/mariadb@.service",
+# containing
+#	.include /usr/lib/systemd/system/mariadb@.service
+#	...make your changes here...
+# or create a file "/etc/systemd/system/mariadb@.service.d/foo.conf",
+# which doesn't need to include ".include" call and which will be parsed
+# after the file mariadb@.service itself is parsed.
+#
+# For more info about custom unit files, see systemd.unit(5) or
+# https://mariadb.com/kb/en/mariadb/systemd/
+#
+# Copyright notice:
+#
+# This file is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 2.1 of the License, or
+# (at your option) any later version.
+#
+#
+# MULTI INSTANCES
+#
+# When multiple instances of MariaDB are running on a server they need to
+# ensure that they don't conflict with each other. This includes elements
+# like network ports, sockets and data directories listed under CONFLICTING
+# VARIABLES below. The systemd environment variable MYSQLD_MULTI_INSTANCE
+# controls each instance to ensure it is run independently. It is passed to
+# mysqld and mysql_install
+#
+# By default, a group suffix exists and within the default configuration
+# files, a group [mysqld.{instancename}] is read for each service. Other
+# default groups, like [server.{instancename}] and [mariadb.{instancename}],
+# are also read. For each instance, one of the groups will need to contain
+# the conflicting variables listed below under CONFLICTING VARIABLES.
+#
+# The MYSQLD_MULTI_INSTANCE environment used is:
+#    Environment='MYSQLD_MULTI_INSTANCE=--defaults-group-suffix=.%I --basedir=@prefix@'
+#
+#
+# APPLYING YOUR MULTI INSTANCE MECHANISM
+#
+# To apply one of the non-default multi-instance mechanisms, create a file
+# "/etc/systemd/system/mariadb@.service.d/multi.conf" containing:
+#
+#   [Service]
+#   Environment=MYSQLD_MULTI_INSTANCE="...."
+#
+# Include any other settings you which to override. Directives like Exec* are
+# lists and adding a directive will append to the list. You can clear the list
+# by starting with "Directive=" and no value. Follow this by the list that you
+# do want. See the systemd.unit(5) manual page for more information.
+#
+# Then run "systemctl daemon-reload".
+#
+#
+# EXAMPLE MYSQLD_MULTI_INSTANCE CONFIGURATIONS
+#
+# Configuration File Based Mechanism:
+#
+# This has a configuration file per instance.
+#
+#   [Unit]
+#   ConditionPathExists=@sysconfdir@/my.%I.cnf
+#
+#   [Service]
+#   Environment=MYSQLD_MULTI_INSTANCE=--defaults-file=@sysconfdir@/my.%I.cnf
+#
+# Here you need to create a configuration file @sysconfdir@/my.%I.cnf for each
+# instance, each containing the conflicting variables to separate instances.
+#
+#
+# Multi User Based Mechanism:
+#
+# Here each user (the instance name) has their own mysql instance.
+#
+# Create instances in users home directory with abstract socket:
+#
+#   [Service]
+#   User=%I
+#   ProtectHome=false
+#   ExecStartPre=
+#   ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE \
+#       --auth-root-authentication-method=socket --auth-root-socket-user=%I
+#   Environment=MYSQLD_MULTI_INSTANCE="--defaults-file=/home/%I/my%I.cnf \
+#       --datadir=/home/%I/mysqldatadir --skip-networking --socket=@mysql-%I"
+#
+#
+# Command Line Mechanism:
+#
+# This is a good way run multiple instance where there is little difference
+# in configuration between instances.
+#
+#   [Service]
+#   Environment=MYSQLD_MULTI_INSTANCE="--socket=/var/run/mysqld/%I.sock \
+#                        --datadir=/var/lib/mysqld-multi/%I \
+#                        --skip-networking"
+#
+#
+# CONFLICTING VARIABLES
+#
+# A number of MariaDB system variables may conflict. The main ones that need to
+# be set because their default values will conflict are:
+#   * socket
+#   * port
+#   * datadir
+#
+#
+# PRE-10.4
+#
+# Before 10.4 MYSQLD_MULTI_INSTANCE was effectively --defaults-file=@sysconf2dir@/my%I.cnf
+# As @sysconfdir@/my.cnf included these files it was a bad choice as an
+# existing single instance would include all these files. If you want to
+# continue a file based multi-instance mysqld, recommend the Configuration File
+# Based Mechanism above and moving @sysconf2dir@/my%I.cnf files to @sysconfdir@/my%I.cnf.
+#
+#
+# SELINUX
+#
+# As basic selinux rules are written around a single instance of MariaDB you may need
+# to define labels for the files and network ports of all instances.
+#
+# See: https://mariadb.com/kb/en/library/what-to-do-if-mariadb-doesnt-start/#selinux
+#
+#
+# STARTING
+#
+# Start the instance: systemctl start mariadb@{instancename}.service
+#
+#
+# DOCUMENTATION:
+#
+# Read https://mariadb.com/kb/en/mariadb/systemd/ regarding customisation.
+#
+# Also see systemd man pages: systemd.unit(5), systemd.exec(5) and
+# systemd.service(5)
+
+[Unit]
+Description=MariaDB @VERSION@ database server (multi-instance %I)
+Documentation=man:mysqld(8)
+Documentation=https://mariadb.com/kb/en/library/systemd/
+After=network.target
+
+# Negated condition here is because 10.3 and before had @sysconf2dir@/my%I.cnf
+# as the configuration difference for multiple instances. This condition here
+# to prevent an accidental change during an upgrade in the case the user
+# created these file(s).
+#
+## See Environment=MYSQLD_MULTI_INSTANCE below for current recommended options.
+ConditionPathExists=!@sysconf2dir@/my%I.cnf
+
+
+[Install]
+WantedBy=multi-user.target
+
+
+[Service]
+##############################################################################
+## Core requirements
+##
+
+Type=notify
+
+# Setting this to true can break replication and the Type=notify settings
+# See also bind-address mysqld option.
+PrivateNetwork=false
+
+##############################################################################
+## Package maintainers
+##
+
+# CAP_IPC_LOCK To allow memlock to be used as non-root user
+# CAP_DAC_OVERRIDE To allow auth_pam_tool (which is SUID root) to read /etc/shadow when it's chmod 0
+#   does nothing for non-root, not needed if /etc/shadow is u+r
+# CAP_AUDIT_WRITE auth_pam_tool needs it on Debian for whatever reason
+CapabilityBoundingSet=CAP_IPC_LOCK CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
+
+# PrivateDevices=true implies NoNewPrivileges=true and
+# SUID auth_pam_tool suddenly doesn't do setuid anymore
+PrivateDevices=false
+
+# Prevent writes to /usr, /boot, and /etc
+ProtectSystem=full
+
+# Requires kernel 4.14 or later and SELinux transition rule for mysqld_t
+# (https://github.com/systemd/systemd/issues/3845)
+# NoNewPrivileges=true
+
+# Prevent accessing /home, /root and /run/user
+ProtectHome=true
+
+# Needed to create system tables etc.
+ExecStartPre=@scriptdir@/mysql_install_db $MYSQLD_MULTI_INSTANCE
+
+# Start main service
+# A few variables are here:
+# * MYSQLD_MULTI_INSTANCE - control how multiple instances are distinguisable
+# * MYSQLD_OPTS - user definable extras - not a replacement for my.cnf
+#
+# Note 1: Place $MYSQLD_OPTS at the very end for its options to take precedence.
+ExecStart=@sbindir@/mysqld $MYSQLD_MULTI_INSTANCE $MYSQLD_OPTS
+
+@SYSTEMD_EXECSTARTPOST@
+
+KillSignal=SIGTERM
+
+# Don't want to see an automated SIGKILL ever
+SendSIGKILL=no
+
+# Restart crashed server only, on-failure would also restart, for example, when
+# my.cnf contains unknown option
+Restart=on-abort
+RestartSec=5s
+
+UMask=007
+
+##############################################################################
+## USERs can override
+##
+##
+## by creating a file in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
+## and adding/setting the following below [Service] will override this file's
+## settings.
+
+# Useful options not previously available in [mysqld_safe]
+
+# Kernels like killing mysqld when out of memory because its big.
+# Lets temper that preference a little.
+# OOMScoreAdjust=-600
+
+# Explicitly start with high IO priority
+# BlockIOWeight=1000
+
+# If you don't use the /tmp directory for SELECT ... OUTFILE and
+# LOAD DATA INFILE you can enable PrivateTmp=true for a little more security.
+PrivateTmp=false
+
+# Set an explicit Start and Stop timeout of 900 seconds (15 minutes!)
+# this is the same value as used in SysV init scripts in the past
+# if you need a longer timeout, check the KB:
+# https://mariadb.com/kb/en/library/systemd/#configuring-the-systemd-service-timeout
+TimeoutStartSec=900
+TimeoutStopSec=900
+
+# Controlling how multiple instances are separated. See top of this file.
+# Note: This service isn't User=mysql by default so we need to be explicit.
+# It is as an option here as a user may want to use the MYSQLD_MULTI_INSTANCE
+# to run multiple versions.
+Environment='MYSQLD_MULTI_INSTANCE=--defaults-group-suffix=.%I'
+
+# While you can override these, you shouldn't leave them empty as that
+# will default to root.
+User=mysql
+Group=mysql
+
+##
+## Options previously available to be set via [mysqld_safe]
+## that now needs to be set by systemd config files as mysqld_safe
+## isn't executed.
+##
+
+# Number of files limit. previously [mysqld_safe] open-files-limit
+LimitNOFILE=32768
+
+# Maximium core size. previously [mysqld_safe] core-file-size
+# LimitCore=
+
+# Nice priority. previously [mysqld_safe] nice
+# Nice=-5
+
+# Timezone. previously [mysqld_safe] timezone
+# Environment="TZ=UTC"
+
+# Library substitutions. previously [mysqld_safe] malloc-lib with explicit paths
+# (in LD_LIBRARY_PATH) and library name (in LD_PRELOAD).
+# Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD=
+
+# Flush caches. previously [mysqld_safe] flush-caches=1
+# ExecStartPre=sync
+# ExecStartPre=sysctl -q -w vm.drop_caches=3
+
+# numa-interleave=1 equalivant
+# Change ExecStart=numactl --interleave=all @sbindir@/mysqld......
+
+# crash-script equalivent
+# FailureAction=

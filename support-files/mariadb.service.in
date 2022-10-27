@@ -1,0 +1,171 @@
+# It's not recommended to modify this file in-place, because it will be
+# overwritten during package upgrades.  If you want to customize, the
+# best way is to create a file "/etc/systemd/system/mariadb.service",
+# containing
+#	.include /usr/lib/systemd/system/mariadb.service
+#	...make your changes here...
+# or create a file "/etc/systemd/system/mariadb.service.d/foo.conf",
+# which doesn't need to include ".include" call and which will be parsed
+# after the file mariadb.service itself is parsed.
+#
+# For more info about custom unit files, see systemd.unit(5) or
+# https://mariadb.com/kb/en/mariadb/systemd/
+#
+# Copyright notice:
+#
+# This file is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 2.1 of the License, or
+# (at your option) any later version.
+
+[Unit]
+Description=MariaDB @VERSION@ database server
+Documentation=man:mysqld(8)
+Documentation=https://mariadb.com/kb/en/library/systemd/
+After=network.target
+
+[Install]
+WantedBy=multi-user.target
+Alias=mysql.service
+Alias=mysqld.service
+
+
+[Service]
+
+##############################################################################
+## Core requirements
+##
+
+Type=notify
+
+# Setting this to true can break replication and the Type=notify settings
+# See also bind-address mysqld option.
+PrivateNetwork=false
+
+##############################################################################
+## Package maintainers
+##
+
+User=mysql
+Group=mysql
+
+# CAP_IPC_LOCK To allow memlock to be used as non-root user
+# CAP_DAC_OVERRIDE To allow auth_pam_tool (which is SUID root) to read /etc/shadow when it's chmod 0
+#   does nothing for non-root, not needed if /etc/shadow is u+r
+# CAP_AUDIT_WRITE auth_pam_tool needs it on Debian for whatever reason
+CapabilityBoundingSet=CAP_IPC_LOCK CAP_DAC_OVERRIDE CAP_AUDIT_WRITE
+
+# PrivateDevices=true implies NoNewPrivileges=true and
+# SUID auth_pam_tool suddenly doesn't do setuid anymore
+PrivateDevices=false
+
+# Prevent writes to /usr, /boot, and /etc
+ProtectSystem=full
+
+# Doesn't yet work properly with SELinux enabled
+# NoNewPrivileges=true
+
+# Prevent accessing /home, /root and /run/user
+ProtectHome=true
+
+# Execute pre and post scripts as root, otherwise it does it as User=
+PermissionsStartOnly=true
+
+@SYSTEMD_EXECSTARTPRE@
+
+# Perform automatic wsrep recovery. When server is started without wsrep,
+# galera_recovery simply returns an empty string. In any case, however,
+# the script is not expected to return with a non-zero status.
+# It is always safe to unset _WSREP_START_POSITION environment variable.
+# Do not panic if galera_recovery script is not available. (MDEV-10538)
+ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
+ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
+ VAR=`cd @bindir@/..; @bindir@/galera_recovery`; [ $? -eq 0 ] \
+ && systemctl set-environment _WSREP_START_POSITION=$VAR || exit 1"
+
+# Needed to create system tables etc.
+# ExecStartPre=@scriptdir@/mysql_install_db -u mysql
+
+# Start main service
+# MYSQLD_OPTS here is for users to set in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
+# Use the [Service] section and Environment="MYSQLD_OPTS=...".
+# This isn't a replacement for my.cnf.
+# _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
+ExecStart=@sbindir@/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
+
+# Unset _WSREP_START_POSITION environment variable.
+ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
+
+@SYSTEMD_EXECSTARTPOST@
+
+KillSignal=SIGTERM
+
+# Don't want to see an automated SIGKILL ever
+SendSIGKILL=no
+
+# Restart crashed server only, on-failure would also restart, for example, when
+# my.cnf contains unknown option
+Restart=on-abort
+RestartSec=5s
+
+UMask=007
+
+##############################################################################
+## USERs can override
+##
+##
+## by creating a file in /etc/systemd/system/mariadb.service.d/MY_SPECIAL.conf
+## and adding/setting the following under [Service] will override this file's
+## settings.
+
+# Useful options not previously available in [mysqld_safe]
+
+# Kernels like killing mysqld when out of memory because its big.
+# Lets temper that preference a little.
+# OOMScoreAdjust=-600
+
+# Explicitly start with high IO priority
+# BlockIOWeight=1000
+
+# If you don't use the /tmp directory for SELECT ... OUTFILE and
+# LOAD DATA INFILE you can enable PrivateTmp=true for a little more security.
+PrivateTmp=false
+
+# Set an explicit Start and Stop timeout of 900 seconds (15 minutes!)
+# this is the same value as used in SysV init scripts in the past
+# Galera might need a longer timeout, check the KB if you want to change this:
+# https://mariadb.com/kb/en/library/systemd/#configuring-the-systemd-service-timeout
+TimeoutStartSec=900
+TimeoutStopSec=900
+
+##
+## Options previously available to be set via [mysqld_safe]
+## that now needs to be set by systemd config files as mysqld_safe
+## isn't executed.
+##
+
+# Number of files limit. previously [mysqld_safe] open-files-limit
+LimitNOFILE=32768
+
+# Maximium core size. previously [mysqld_safe] core-file-size
+# LimitCore=
+
+# Nice priority. previously [mysqld_safe] nice
+# Nice=-5
+
+# Timezone. previously [mysqld_safe] timezone
+# Environment="TZ=UTC"
+
+# Library substitutions. previously [mysqld_safe] malloc-lib with explicit paths
+# (in LD_LIBRARY_PATH) and library name (in LD_PRELOAD).
+# Environment="LD_LIBRARY_PATH=/path1 /path2" "LD_PRELOAD=
+
+# Flush caches. previously [mysqld_safe] flush-caches=1
+# ExecStartPre=sync
+# ExecStartPre=sysctl -q -w vm.drop_caches=3
+
+# numa-interleave=1 equalivant
+# Change ExecStart=numactl --interleave=all @sbindir@/mysqld......
+
+# crash-script equalivent
+# FailureAction=

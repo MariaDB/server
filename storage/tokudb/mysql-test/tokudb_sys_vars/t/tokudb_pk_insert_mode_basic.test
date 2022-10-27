@@ -1,0 +1,51 @@
+--source include/have_tokudb.inc
+--enable_warnings
+
+# Check the default value
+SET @orig_global = @@global.tokudb_pk_insert_mode;
+SELECT @orig_global;
+
+SET @orig_session = @@session.tokudb_pk_insert_mode;
+SELECT @orig_session;
+
+# Test global
+SET GLOBAL tokudb_pk_insert_mode = 10;
+SELECT @@global.tokudb_pk_insert_mode;
+
+SET GLOBAL tokudb_pk_insert_mode = 0;
+SELECT @@global.tokudb_pk_insert_mode;
+
+SET GLOBAL tokudb_pk_insert_mode = DEFAULT;
+SELECT @@global.tokudb_pk_insert_mode;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL tokudb_pk_insert_mode = 'foobar';
+SELECT @@global.tokudb_pk_insert_mode;
+
+# Test session
+SET SESSION tokudb_pk_insert_mode = 10;
+SELECT @@session.tokudb_pk_insert_mode;
+
+SET SESSION tokudb_pk_insert_mode = 0;
+SELECT @@session.tokudb_pk_insert_mode;
+
+SET SESSION tokudb_pk_insert_mode = DEFAULT;
+SELECT @@session.tokudb_pk_insert_mode;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET SESSION tokudb_pk_insert_mode = 'foobar';
+SELECT @@session.tokudb_pk_insert_mode;
+
+# both
+SET GLOBAL tokudb_pk_insert_mode = 12;
+SET SESSION tokudb_pk_insert_mode = 13;
+SELECT @@global.tokudb_pk_insert_mode;
+SELECT @@session.tokudb_pk_insert_mode;
+SHOW VARIABLES LIKE 'tokudb_pk_insert_mode';
+
+# Clean up
+SET SESSION tokudb_pk_insert_mode = @orig_session;
+SELECT @@session.tokudb_pk_insert_mode;
+
+SET GLOBAL tokudb_pk_insert_mode = @orig_global;
+SELECT @@global.tokudb_pk_insert_mode;

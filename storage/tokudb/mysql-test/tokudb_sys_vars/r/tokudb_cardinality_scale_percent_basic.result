@@ -1,0 +1,36 @@
+SET @orig_global = @@global.tokudb_cardinality_scale_percent;
+SELECT @orig_global;
+@orig_global
+50
+SET GLOBAL tokudb_cardinality_scale_percent = 10;
+SELECT @@global.tokudb_cardinality_scale_percent;
+@@global.tokudb_cardinality_scale_percent
+10
+SET GLOBAL tokudb_cardinality_scale_percent = 0;
+SELECT @@global.tokudb_cardinality_scale_percent;
+@@global.tokudb_cardinality_scale_percent
+0
+SET GLOBAL tokudb_cardinality_scale_percent = DEFAULT;
+SELECT @@global.tokudb_cardinality_scale_percent;
+@@global.tokudb_cardinality_scale_percent
+50
+SET GLOBAL tokudb_cardinality_scale_percent = 'foobar';
+ERROR 42000: Incorrect argument type to variable 'tokudb_cardinality_scale_percent'
+SELECT @@global.tokudb_cardinality_scale_percent;
+@@global.tokudb_cardinality_scale_percent
+50
+SET GLOBAL tokudb_cardinality_scale_percent = 12;
+SET SESSION tokudb_cardinality_scale_percent = 13;
+ERROR HY000: Variable 'tokudb_cardinality_scale_percent' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@global.tokudb_cardinality_scale_percent;
+@@global.tokudb_cardinality_scale_percent
+12
+SELECT @@session.tokudb_cardinality_scale_percent;
+ERROR HY000: Variable 'tokudb_cardinality_scale_percent' is a GLOBAL variable
+SHOW VARIABLES LIKE 'tokudb_cardinality_scale_percent';
+Variable_name	Value
+tokudb_cardinality_scale_percent	12
+SET GLOBAL tokudb_cardinality_scale_percent = @orig_global;
+SELECT @@global.tokudb_cardinality_scale_percent;
+@@global.tokudb_cardinality_scale_percent
+50

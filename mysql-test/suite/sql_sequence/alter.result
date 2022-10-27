@@ -1,0 +1,251 @@
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+#
+# Test alter sequence
+#
+CREATE SEQUENCE t1 nocache engine=myisam;
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	0	0	0
+select next value for t1;
+next value for t1
+1
+alter sequence t1 start=50;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 50 minvalue 1 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=MyISAM
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+2	1	9223372036854775806	50	1	0	0	0
+select next value for t1;
+next value for t1
+2
+alter sequence t1 minvalue=-100;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 50 minvalue -100 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=MyISAM
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+3	-100	9223372036854775806	50	1	0	0	0
+alter sequence t1 minvalue=100 start=100;
+ERROR HY000: Sequence 'test.t1' values are conflicting
+alter sequence t1 minvalue=100 start=100 restart=100;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 100 minvalue 100 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=MyISAM
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+100	100	9223372036854775806	100	1	0	0	0
+alter sequence t1 maxvalue=500;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 100 minvalue 100 maxvalue 500 increment by 1 nocache nocycle ENGINE=MyISAM
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+100	100	500	100	1	0	0	0
+drop sequence t1;
+CREATE SEQUENCE t1 engine=myisam;
+alter sequence t1 nocache;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=MyISAM
+alter sequence t1 cache=100;
+flush tables;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 100 nocycle ENGINE=MyISAM
+alter sequence t1 nocache;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=MyISAM
+flush tables;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 nocache nocycle ENGINE=MyISAM
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	0	0	0
+select next value for t1;
+next value for t1
+1
+select next value for t1;
+next value for t1
+2
+select next value for t1;
+next value for t1
+3
+select next_not_cached_value, cycle_count from t1;
+next_not_cached_value	cycle_count
+4	0
+drop sequence t1;
+CREATE SEQUENCE t1 maxvalue=100 engine=myisam;
+alter sequence t1 no maxvalue;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+alter sequence t1 cycle;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 cycle ENGINE=MyISAM
+alter sequence t1 nocycle;
+alter sequence t1 start=15 restart minvalue=10 maxvalue=20 cycle;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 15 minvalue 10 maxvalue 20 increment by 1 cache 1000 cycle ENGINE=MyISAM
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+15	10	20	15	1	1000	1	0
+select NEXT VALUE for t1 from seq_1_to_10;
+NEXT VALUE for t1
+15
+16
+17
+18
+19
+20
+10
+11
+12
+13
+alter sequence t1 restart with 17 minvalue=10 maxvalue=20 cycle;
+select NEXT VALUE for t1 from seq_1_to_10;
+NEXT VALUE for t1
+17
+18
+19
+20
+10
+11
+12
+13
+14
+15
+drop sequence t1;
+CREATE SEQUENCE t1 maxvalue=100;
+alter sequence t1 increment=-2 start with 50 minvalue=-100;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 50 minvalue -100 maxvalue 100 increment by -2 cache 1000 nocycle ENGINE=MyISAM
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	-100	100	50	-2	1000	0	0
+select NEXT VALUE for t1 from seq_1_to_10;
+NEXT VALUE for t1
+1
+-1
+-3
+-5
+-7
+-9
+-11
+-13
+-15
+-17
+drop sequence t1;
+#
+# InnoDB (some things work different with InnoDB)
+
+CREATE SEQUENCE t1 cache 10 engine=innodb;
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	10	0	0
+select next value for t1;
+next value for t1
+1
+alter sequence t1 start=100;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 100 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 10 nocycle ENGINE=InnoDB
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+11	1	9223372036854775806	100	1	10	0	0
+select next value for t1;
+next value for t1
+11
+drop sequence t1;
+#
+# ALTER TABLE
+#
+CREATE SEQUENCE t1 engine=innodb;
+select next value for t1;
+next value for t1
+1
+alter table t1 rename t2;
+select next value for t2;
+next value for t2
+1001
+rename table t2 to t1;
+select next value for t1;
+next value for t1
+2001
+alter table t1 comment="foo";
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB COMMENT='foo'
+alter table t1 engine=myisam;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM COMMENT='foo'
+alter table t1 engine=innodb;
+show create sequence t1;
+Table	Create Table
+t1	CREATE SEQUENCE `t1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB COMMENT='foo'
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+3001	1	9223372036854775806	1	1	1000	0	0
+drop sequence t1;
+CREATE SEQUENCE t1 engine=myisam;
+alter sequence t1 minvalue=100;
+ERROR HY000: Sequence 'test.t1' values are conflicting
+drop sequence t1;
+CREATE SEQUENCE t1 engine=myisam;
+alter sequence t1 minvalue=25 maxvalue=20;
+ERROR HY000: Sequence 'test.t1' values are conflicting
+drop sequence t1;
+create table t1 (a int);
+alter sequence t1 minvalue=100;
+ERROR 42S02: 'test.t1' is not a SEQUENCE
+drop table t1;
+alter sequence if exists t1 minvalue=100;
+Warnings:
+Note	4091	Unknown SEQUENCE: 'test.t1'
+alter sequence t1 minvalue=100;
+ERROR 42S02: Table 'test.t1' doesn't exist
+create sequence t1;
+alter sequence t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+drop sequence t1;
+CREATE SEQUENCE t1 maxvalue=100;
+alter sequence t1 increment=-2 start with 50;
+select next value for t1;
+next value for t1
+1
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+0	1	100	50	-2	1000	0	0
+alter sequence t1 restart;
+select next value for t1;
+next value for t1
+50
+alter sequence t1 restart with 90;
+select next value for t1;
+next value for t1
+90
+drop sequence t1;
+CREATE SEQUENCE t1 engine=innodb;
+ALTER IGNORE TABLE t1 ADD CHECK (start_value < minimum_value);
+ERROR HY000: Sequence 'test.t1' table structure is invalid (Sequence tables cannot have any constraints)
+DROP SEQUENCE t1;
+CREATE SEQUENCE s;
+ALTER TABLE s ORDER BY cache_size;
+ERROR HY000: Sequence 'test.s' table structure is invalid (ORDER BY)
+SELECT NEXTVAL(s);
+NEXTVAL(s)
+1
+DROP SEQUENCE s;

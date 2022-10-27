@@ -1,0 +1,3 @@
+--source include/have_rocksdb.inc
+--source ../include/rpl_no_unique_check_on_lag.inc
+

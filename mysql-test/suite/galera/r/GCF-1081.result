@@ -1,0 +1,47 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (3, 0);
+CREATE PROCEDURE proc_update ()
+BEGIN
+UPDATE t1 SET f2 = 1 where f1 > 0;
+END|
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_master_enter_sync';
+connection node_1;
+CALL proc_update ();;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+connection node_1a;
+SET GLOBAL DEBUG = 'd,sync.wsrep_before_BF_victim_unlock';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+connection node_2;
+INSERT INTO t1 VALUES (2, 2);;
+connection node_1a;
+SET SESSION DEBUG_SYNC = 'now WAIT_FOR sync.wsrep_before_BF_victim_unlock_reached';
+SET GLOBAL DEBUG = '';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_master_enter_sync';
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	1
+2	2
+3	1
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	1
+2	2
+3	1
+wsrep_local_replays
+1
+DROP PROCEDURE proc_update;
+DROP TABLE t1;

@@ -1,0 +1,2570 @@
+SET sql_mode=ORACLE;
+# Testing routines with no parameters
+CREATE FUNCTION f1 RETURN INT
+AS
+BEGIN
+RETURN 10;
+END;
+/
+SHOW CREATE FUNCTION f1;
+Function	f1
+sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
+Create Function	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN int(11)
+AS
+BEGIN
+RETURN 10;
+END
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+SELECT f1();
+f1()
+10
+DROP FUNCTION f1;
+CREATE PROCEDURE p1
+AS
+BEGIN
+SET @a=10;
+END;
+/
+SHOW CREATE PROCEDURE p1;
+Procedure	p1
+sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
+Create Procedure	CREATE DEFINER="root"@"localhost" PROCEDURE "p1"()
+AS
+BEGIN
+SET @a=10;
+END
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+Database Collation	latin1_swedish_ci
+SET @a=0;
+CALL p1();
+SELECT @a;
+@a
+10
+DROP PROCEDURE p1;
+# Testing ":=" to set the default value of a variable
+CREATE FUNCTION f1 () RETURN NUMBER(10) AS
+a NUMBER(10) := 10;
+BEGIN
+DECLARE
+b NUMBER(10) DEFAULT 3;
+BEGIN
+RETURN a+b;
+END;
+END;
+/
+SELECT f1();
+f1()
+13
+DROP FUNCTION f1;
+# Testing labels
+CREATE FUNCTION f1 (a INT) RETURN CLOB AS
+BEGIN
+<<label1>>
+BEGIN
+IF a = 1 THEN
+LEAVE label1;
+END IF;
+RETURN 'IS NOT 1';
+END label1;
+RETURN 'IS 1';
+END;
+/
+SELECT f1(1);
+f1(1)
+IS 1
+SELECT f1(2);
+f1(2)
+IS NOT 1
+DROP FUNCTION f1;
+CREATE FUNCTION f1 (a INT) RETURN INT IS
+BEGIN
+<<label1>>
+LOOP
+IF a = 2 THEN
+LEAVE label1;
+END IF;
+SET a= a-1;
+END LOOP;
+RETURN a;
+END;
+/
+SELECT f1(4);
+f1(4)
+2
+DROP FUNCTION f1;
+CREATE FUNCTION f1 (a INT) RETURN INT AS
+BEGIN
+<<label1>>
+WHILE a>0 LOOP
+IF a = 2 THEN
+LEAVE label1;
+END IF;
+SET a= a-1;
+END LOOP label1;
+RETURN a;
+END;
+/
+SELECT f1(4);
+f1(4)
+2
+DROP FUNCTION f1;
+CREATE FUNCTION f1 (a INT) RETURN INT AS
+BEGIN
+<<label1>>
+REPEAT
+IF a = 2 THEN
+LEAVE label1;
+END IF;
+SET a= a-1;
+UNTIL a=0 END REPEAT;
+RETURN a;
+END;
+/
+SELECT f1(4);
+f1(4)
+2
+DROP FUNCTION f1;
+# Testing IN/OUT/INOUT
+CREATE PROCEDURE p1 (p1 IN VARCHAR2(10), p2 OUT VARCHAR2(10)) AS
+BEGIN
+SET p1='p1new';
+SET p2='p2new';
+END;
+/
+SET @p1='p1', @p2='p2';
+CALL p1(@p1, @p2);
+SELECT @p1, @p2;
+@p1	@p2
+p1	p2new
+DROP PROCEDURE p1;
+# Testing Oracle-style assigment
+CREATE PROCEDURE p1 (p1 OUT VARCHAR2(10)) AS
+BEGIN
+p1:= 'p1new';
+END;
+/
+SET @p1='p1';
+CALL p1(@p1);
+SELECT @p1;
+@p1
+p1new
+DROP PROCEDURE p1;
+# Testing that NULL is a valid statement
+CREATE PROCEDURE p1(a INT) AS
+BEGIN
+NULL;
+END;
+/
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(a INT) AS
+a INT:=10;
+BEGIN
+IF a=10 THEN NULL; ELSE NULL; END IF;
+END;
+/
+DROP PROCEDURE p1;
+# Keywords that are OK for table names, but not for SP variables
+CREATE TABLE function (function int);
+INSERT INTO function SET function=10;
+SELECT function.function FROM function;
+function
+10
+DROP TABLE function;
+# Testing that (some) keyword_sp are allowed in Oracle-style assignments
+CREATE PROCEDURE p1 (action OUT INT) AS BEGIN action:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (clob OUT INT) AS BEGIN clob:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (enum OUT INT) AS BEGIN enum:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (via OUT INT) AS BEGIN via:=10; END;/
+DROP PROCEDURE p1/
+# Testing keyword_directly_assignable
+CREATE PROCEDURE p1 (ascii OUT INT) AS BEGIN ascii:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (backup OUT INT) AS BEGIN backup:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (binlog OUT INT) AS BEGIN binlog:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (byte OUT INT) AS BEGIN byte:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (cache OUT INT) AS BEGIN cache:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (checksum OUT INT) AS BEGIN checksum:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (checkpoint OUT INT) AS BEGIN checkpoint:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (column_add OUT INT) AS BEGIN column_add:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (column_check OUT INT) AS BEGIN column_check:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (column_create OUT INT) AS BEGIN column_create:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (column_delete OUT INT) AS BEGIN column_delete:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (column_get OUT INT) AS BEGIN column_get:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (deallocate OUT INT) AS BEGIN deallocate:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (examined OUT INT) AS BEGIN examined:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (execute OUT INT) AS BEGIN execute:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (flush OUT INT) AS BEGIN flush:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (format OUT INT) AS BEGIN format:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (get OUT INT) AS BEGIN get:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (help OUT INT) AS BEGIN help:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (host OUT INT) AS BEGIN host:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (install OUT INT) AS BEGIN install:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (option OUT INT) AS BEGIN option:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (options OUT INT) AS BEGIN options:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (owner OUT INT) AS BEGIN owner:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (parser OUT INT) AS BEGIN parser:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (port OUT INT) AS BEGIN port:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (prepare OUT INT) AS BEGIN prepare:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (remove OUT INT) AS BEGIN remove:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (reset OUT INT) AS BEGIN reset:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (restore OUT INT) AS BEGIN restore:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (security OUT INT) AS BEGIN security:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (server OUT INT) AS BEGIN server:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (signed OUT INT) AS BEGIN signed:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (socket OUT INT) AS BEGIN socket:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (slave OUT INT) AS BEGIN slave:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (slaves OUT INT) AS BEGIN slaves:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (soname OUT INT) AS BEGIN soname:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (start OUT INT) AS BEGIN start:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (stop OUT INT) AS BEGIN stop:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (stored OUT INT) AS BEGIN stored:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (unicode OUT INT) AS BEGIN unicode:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (uninstall OUT INT) AS BEGIN uninstall:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (upgrade OUT INT) AS BEGIN upgrade:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (wrapper OUT INT) AS BEGIN wrapper:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (xa OUT INT) AS BEGIN xa:=10; END;/
+DROP PROCEDURE p1/
+# Testing that keyword_directly_not_assignable does not work in :=
+CREATE PROCEDURE p1 (commit OUT INT) AS BEGIN commit:=10; END;/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':=10; END' at line 1
+CREATE PROCEDURE p1 (rollback OUT INT) AS BEGIN rollback:=10; END;/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':=10; END' at line 1
+CREATE PROCEDURE p1 (shutdown OUT INT) AS BEGIN shutdown:=10; END;/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':=10; END' at line 1
+CREATE PROCEDURE p1 (exception OUT INT) AS BEGIN exception:=10; END;/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':=10; END' at line 1
+# Testing that keyword_directly_not_assignable works in SET statements.
+CREATE PROCEDURE p1 (contains OUT INT) AS BEGIN SET contains=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (language OUT INT) AS BEGIN SET language=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (no OUT INT) AS BEGIN SET no=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (charset OUT INT) AS BEGIN SET charset=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (do OUT INT) AS BEGIN SET do=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (repair OUT INT) AS BEGIN SET repair=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (handler OUT INT) AS BEGIN SET handler=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (open OUT INT) AS BEGIN SET open=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (close OUT INT) AS BEGIN SET close=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (savepoint OUT INT) AS BEGIN SET savepoint=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (truncate OUT INT) AS BEGIN SET truncate=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (begin OUT INT) AS BEGIN SET begin=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (end OUT INT) AS BEGIN SET end=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (exception OUT INT) AS BEGIN SET exception=10; END;/
+DROP PROCEDURE p1/
+# Testing that keyword_directly_not_assignable works in table/column names
+CREATE TABLE contains (contains INT);
+DROP TABLE contains;
+CREATE TABLE language (language INT);
+DROP TABLE language;
+CREATE TABLE no (no INT);
+DROP TABLE no;
+CREATE TABLE charset (charset INT);
+DROP TABLE charset;
+CREATE TABLE do (do INT);
+DROP TABLE do;
+CREATE TABLE repair (repair INT);
+DROP TABLE repair;
+CREATE TABLE handler (handler INT);
+DROP TABLE handler;
+CREATE TABLE open (open INT);
+DROP TABLE open;
+CREATE TABLE close (close INT);
+DROP TABLE close;
+CREATE TABLE savepoint (savepoint INT);
+DROP TABLE savepoint;
+CREATE TABLE truncate (truncate INT);
+DROP TABLE truncate;
+CREATE TABLE begin (begin INT);
+DROP TABLE begin;
+CREATE TABLE end (end INT);
+DROP TABLE end;
+CREATE TABLE exception (exception INT);
+DROP TABLE exception;
+# Testing ELSIF
+CREATE FUNCTION f1(a INT) RETURN CLOB
+AS
+BEGIN
+IF a=1 THEN RETURN 'a is 1';
+ELSIF a=2 THEN RETURN 'a is 2';
+ELSE RETURN 'a is unknown';
+END IF;
+END;
+/
+SELECT f1(2) FROM DUAL;
+f1(2)
+a is 2
+DROP FUNCTION f1;
+# Testing top-level declarations
+CREATE PROCEDURE p1 (p1 OUT VARCHAR2(10))
+AS
+p2 VARCHAR(10);
+BEGIN
+p2:='p1new';
+p1:=p2;
+END;
+/
+SET @p1='p1';
+CALL p1(@p1);
+SELECT @p1;
+@p1
+p1new
+DROP PROCEDURE p1;
+CREATE FUNCTION f1 (p1 VARCHAR2(10)) RETURN VARCHAR(20)
+AS
+p2 VARCHAR(10);
+BEGIN
+p2:='new';
+RETURN CONCAT(p1, p2);
+END;
+/
+SET @p1='p1';
+SELECT f1(@p1);
+f1(@p1)
+p1new
+DROP FUNCTION f1;
+# Testing non-top declarations
+CREATE PROCEDURE p1 (p1 OUT VARCHAR2(10))
+AS
+BEGIN
+DECLARE
+p2 VARCHAR(10);
+BEGIN
+p2:='p1new';
+p1:=p2;
+END;
+DECLARE
+t1 VARCHAR(10);
+t2 VARCHAR(10);
+BEGIN
+END;
+END;
+/
+SET @p1='p1';
+CALL p1(@p1);
+SELECT @p1;
+@p1
+p1new
+DROP PROCEDURE p1;
+CREATE FUNCTION f1 (p1 VARCHAR2(10)) RETURN VARCHAR(20)
+AS
+BEGIN
+DECLARE
+p2 VARCHAR(10);
+BEGIN
+p2:='new';
+RETURN CONCAT(p1, p2);
+END;
+DECLARE
+t1 VARCHAR(10);
+t2 VARCHAR(10);
+BEGIN
+END;
+END;
+/
+SET @p1='p1';
+SELECT f1(@p1);
+f1(@p1)
+p1new
+DROP FUNCTION f1;
+# Testing exceptions
+CREATE TABLE t1 (c1 INT);
+CREATE PROCEDURE sp1 (p1 IN VARCHAR2(20), p2 OUT VARCHAR2(30))
+IS
+v1 INT;
+BEGIN
+SELECT c1 INTO v1 FROM t1;
+p2 := p1;
+EXCEPTION
+WHEN NOT FOUND THEN
+BEGIN
+p2 := 'def';
+END;
+END;
+/
+CALL sp1('abc', @a);
+SELECT @a;
+@a
+def
+DROP PROCEDURE sp1;
+DROP TABLE t1;
+CREATE PROCEDURE sp1 (v IN OUT INT, error IN INT)
+IS
+BEGIN
+SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=error, MESSAGE_TEXT='User defined error!';
+v:= 223;
+EXCEPTION
+WHEN 30001 THEN
+BEGIN
+v:= 113;
+END;
+END;
+/
+SET @v=10;
+CALL sp1(@v, 30001);
+CALL sp1(@v, 30002);
+ERROR 45000: User defined error!
+SELECT @v;
+@v
+113
+DROP PROCEDURE sp1;
+CREATE PROCEDURE sp1 (v IN OUT INT, error IN INT)
+IS
+BEGIN
+BEGIN
+BEGIN
+SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=error, MESSAGE_TEXT='User defined error!';
+v:= 223;
+EXCEPTION
+WHEN 30001 THEN
+BEGIN
+v:= 113;
+END;
+END;
+END;
+END;
+/
+SET @v=10;
+CALL sp1(@v, 30001);
+SELECT @v;
+@v
+113
+SET @v=10;
+CALL sp1(@v, 30002);
+ERROR 45000: User defined error!
+SELECT @v;
+@v
+10
+DROP PROCEDURE sp1;
+#
+# Testing EXIT statement
+#
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+EXIT;
+END;
+/
+ERROR 42000: EXIT with no matching label: 
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+<<lable1>>
+BEGIN
+<<label2>>
+LOOP
+EXIT label1;
+END LOOP;
+END;
+END;
+/
+ERROR 42000: EXIT with no matching label: label1
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+LOOP
+LOOP
+i:= i + 1;
+IF i >= 5 THEN
+EXIT;
+END IF;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+105
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+<<label1>>
+LOOP
+<<label2>>
+LOOP
+i:= i + 1;
+IF i >= 5 THEN
+EXIT label2;
+END IF;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+105
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+<<label1>>
+LOOP
+<<label2>>
+LOOP
+i:= i + 1;
+IF i >= 5 THEN
+EXIT label1;
+END IF;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+LOOP
+i:= i + 1;
+EXIT WHEN i >=5;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+<<label1>>
+LOOP
+<<label2>>
+LOOP
+i:= i + 1;
+EXIT label2 WHEN i >= 5;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+105
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+<<label1>>
+LOOP
+<<label2>>
+LOOP
+i:= i + 1;
+EXIT label1 WHEN i >= 5;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+RETURN i;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
+# Testing CURSOR declaration
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE FUNCTION f1 RETURN INT
+AS
+v_a INT:=10;
+CURSOR c IS SELECT a FROM t1;
+BEGIN
+OPEN c;
+FETCH c INTO v_a;
+CLOSE c;
+RETURN v_a;
+EXCEPTION
+WHEN OTHERS THEN RETURN -1;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+1
+DROP FUNCTION f1;
+DROP TABLE t1;
+# Testing RETURN in procedures
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+RETURN 10;
+END;
+/
+ERROR 42000: RETURN is only allowed in a FUNCTION
+CREATE FUNCTION f1 (a INT) RETURN INT
+AS
+BEGIN
+RETURN;
+END;
+/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ';
+END' at line 4
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+IF a < 10 THEN
+BEGIN
+a:= a - 1;
+RETURN;
+END;
+END IF;
+a:= a + 1;
+EXCEPTION
+WHEN OTHERS THEN RETURN;
+END;
+/
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+11
+SET @v=9;
+CALL p1(@v);
+SELECT @v;
+@v
+8
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+DROP TABLE t1_non_existent;
+EXCEPTION
+WHEN OTHERS THEN
+BEGIN
+a:= 100;
+RETURN;
+END;
+END;
+/
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+100
+DROP PROCEDURE p1;
+# Testing WHILE loop
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+i INT:= 1;
+j INT:= 3;
+BEGIN
+WHILE i<=j
+LOOP
+a:= a + i;
+i:= i + 1;
+END LOOP;
+END;
+/
+SET @v=0;
+CALL p1(@v);
+SELECT @v;
+@v
+6
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+i INT:= 1;
+j INT:= 3;
+BEGIN
+<<label>>
+WHILE i<=j
+LOOP
+a:= a + i;
+i:= i + 1;
+END LOOP label;
+END;
+/
+SET @v=0;
+CALL p1(@v);
+SELECT @v;
+@v
+6
+DROP PROCEDURE p1;
+# Testing the FOR loop statement
+CREATE TABLE t1 (a INT);
+FOR i IN 1..3
+LOOP
+INSERT INTO t1 VALUES (i);
+END LOOP;
+/
+SELECT * FROM t1;
+a
+1
+2
+3
+DROP TABLE t1;
+CREATE FUNCTION f1 (lower_bound INT, upper_bound INT, lim INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+FOR i IN lower_bound . . upper_bound
+LOOP
+NULL
+END LOOP;
+RETURN total;
+END;
+/
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '. upper_bound
+LOOP
+NULL
+END LOOP;
+RETURN total;
+END' at line 5
+CREATE FUNCTION f1 (lower_bound INT, upper_bound INT, lim INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+FOR i IN lower_bound .. upper_bound
+LOOP
+total:= total + i;
+IF i = lim THEN
+EXIT;
+END IF;
+-- Bounds are calculated only once.
+-- The below assignments have no effect on the loop condition
+lower_bound:= 900;
+upper_bound:= 1000;
+END LOOP;
+RETURN total;
+END;
+/
+SELECT f1(1, 3, 100) FROM DUAL;
+f1(1, 3, 100)
+6
+SELECT f1(1, 3, 2) FROM DUAL;
+f1(1, 3, 2)
+3
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+AS
+total INT := 0;
+BEGIN
+FOR i IN 1 .. 5
+LOOP
+total:= total + 1000;
+FOR j IN 1 .. 5
+LOOP
+total:= total + 1;
+IF j = 3 THEN
+EXIT; -- End the internal loop
+END IF;
+END LOOP;
+END LOOP;
+RETURN total;
+END;
+/
+SELECT f1() FROM DUAL;
+f1()
+5015
+DROP FUNCTION f1;
+CREATE FUNCTION f1 (a INT, b INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+FOR i IN REVERSE 1..a
+LOOP
+total:= total + i;
+IF i = b THEN
+EXIT;
+END IF;
+END LOOP;
+RETURN total;
+END
+/
+SELECT f1(3, 100) FROM DUAL;
+f1(3, 100)
+6
+SELECT f1(3, 2) FROM DUAL;
+f1(3, 2)
+5
+DROP FUNCTION f1;
+# Testing labeled FOR LOOP statement
+CREATE FUNCTION f1 (a INT, limita INT, b INT, limitb INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+<<la>>
+FOR ia IN 1 .. a
+LOOP
+total:= total + 1000;
+<<lb>>
+FOR ib IN 1 .. b
+LOOP
+total:= total + 1;
+EXIT lb WHEN ib = limitb;
+EXIT la WHEN ia = limita;
+END LOOP lb;
+END LOOP la;
+RETURN total;
+END;
+/
+SELECT f1(1, 1, 1, 1) FROM DUAL;
+f1(1, 1, 1, 1)
+1001
+SELECT f1(1, 2, 1, 2) FROM DUAL;
+f1(1, 2, 1, 2)
+1001
+SELECT f1(2, 1, 2, 1) FROM DUAL;
+f1(2, 1, 2, 1)
+2002
+SELECT f1(2, 1, 2, 2) FROM DUAL;
+f1(2, 1, 2, 2)
+1001
+SELECT f1(2, 2, 2, 2) FROM DUAL;
+f1(2, 2, 2, 2)
+2003
+SELECT f1(2, 3, 2, 3) FROM DUAL;
+f1(2, 3, 2, 3)
+2004
+DROP FUNCTION f1;
+# Testing labeled ITERATE in a labeled FOR LOOP statement
+CREATE FUNCTION f1 (a INT, b INT, blim INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+<<la>>
+FOR ia IN 1 .. a
+LOOP
+total:= total + 1000;
+DECLARE
+ib INT:= 1;
+BEGIN
+WHILE ib <= b
+LOOP
+IF ib > blim THEN
+ITERATE la;
+END IF;
+ib:= ib + 1;
+total:= total + 1;
+END LOOP;
+END;
+END LOOP la;
+RETURN total;
+END;
+/
+SELECT f1(3,3,0), f1(3,3,1), f1(3,3,2), f1(3,3,3), f1(3,3,4) FROM DUAL;
+f1(3,3,0)	f1(3,3,1)	f1(3,3,2)	f1(3,3,3)	f1(3,3,4)
+3000	3003	3006	3009	3009
+DROP FUNCTION f1;
+# Testing CONTINUE statement
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+BEGIN
+FOR i IN 1 .. a
+LOOP
+IF i=5 THEN
+CONTINUE;
+END IF;
+total:= total + 1;
+END LOOP;
+RETURN total;
+END;
+/
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+f1(3)	f1(4)	f1(5)	f1(6)
+3	4	4	5
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+BEGIN
+<<lj>>
+FOR j IN 1 .. 2
+LOOP
+FOR i IN 1 .. a
+LOOP
+IF i=5 THEN
+CONTINUE lj;
+END IF;
+total:= total + 1;
+END LOOP;
+END LOOP;
+RETURN total;
+END;
+/
+SELECT f1(3), f1(4), f1(5) FROM DUAL;
+f1(3)	f1(4)	f1(5)
+6	8	8
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+BEGIN
+<<lj>>
+FOR j IN 1 .. 2
+LOOP
+FOR i IN 1 .. a
+LOOP
+CONTINUE lj WHEN i=5;
+total:= total + 1;
+END LOOP;
+END LOOP;
+RETURN total;
+END;
+/
+SELECT f1(3), f1(4), f1(5) FROM DUAL;
+f1(3)	f1(4)	f1(5)
+6	8	8
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+i INT:= 1;
+BEGIN
+WHILE i <= a
+LOOP
+i:= i + 1;
+IF i=6 THEN
+CONTINUE;
+END IF;
+total:= total + 1;
+END LOOP;
+RETURN total;
+END;
+/
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+f1(3)	f1(4)	f1(5)	f1(6)
+3	4	4	5
+DROP FUNCTION f1;
+#
+# Testing behaviour of unknown identifiers in EXIT and CONTINUE statements
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+LOOP
+EXIT WHEN unknown_ident IS NULL;
+END LOOP;
+END$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1
+AS
+BEGIN
+<<label>>
+LOOP
+EXIT label WHEN unknown_ident IS NULL;
+END LOOP;
+END$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1
+AS
+BEGIN
+LOOP
+CONTINUE WHEN unknown_ident IS NULL;
+END LOOP;
+END$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1
+AS
+BEGIN
+<<label>>
+LOOP
+CONTINUE label WHEN unknown_ident IS NULL;
+END LOOP;
+END$$
+ERROR 42000: Undeclared variable: unknown_ident
+#
+# MDEV-10583 sql_mode=ORACLE: SQL%ROWCOUNT
+#
+EXPLAIN EXTENDED SELECT sql%rowcount;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select SQL%ROWCOUNT AS "sql%rowcount"
+CREATE TABLE t1 AS SELECT SQL%ROWCOUNT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "SQL%ROWCOUNT" bigint(21) NOT NULL
+)
+DROP TABLE t1;
+#
+# UPDATE
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1
+AS
+BEGIN
+UPDATE t1 SET a=30;
+SELECT SQL%ROWCOUNT;
+END;
+$$
+CALL p1();
+SQL%ROWCOUNT
+0
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+CREATE PROCEDURE p1
+AS
+BEGIN
+UPDATE t1 SET a=30;
+SELECT SQL%ROWCOUNT;
+END;
+$$
+CALL p1();
+SQL%ROWCOUNT
+2
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# DELETE
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1
+AS
+BEGIN
+DELETE FROM t1;
+SELECT SQL%ROWCOUNT;
+END;
+$$
+CALL p1();
+SQL%ROWCOUNT
+0
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+CREATE PROCEDURE p1
+AS
+BEGIN
+DELETE FROM t1;
+SELECT SQL%ROWCOUNT;
+END;
+$$
+CALL p1();
+SQL%ROWCOUNT
+2
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# SELECT ... INTO var FROM ... - one row found
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+CREATE PROCEDURE p1
+AS
+va INT;
+BEGIN
+SELECT a INTO va FROM t1 LIMIT 1;
+SELECT SQL%ROWCOUNT;
+END;
+$$
+CALL p1();
+SQL%ROWCOUNT
+1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# SELECT ... INTO var FROM ... - no rows found
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1
+AS
+va INT;
+BEGIN
+SELECT a INTO va FROM t1;
+SELECT SQL%ROWCOUNT;
+END;
+$$
+CALL p1();
+SQL%ROWCOUNT
+0
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1
+AS
+va INT;
+BEGIN
+SELECT a INTO va FROM t1;
+SELECT SQL%ROWCOUNT;
+EXCEPTION
+WHEN NO_DATA_FOUND THEN SELECT SQL%ROWCOUNT||' (EXCEPTION)';
+END;
+$$
+CALL p1();
+SQL%ROWCOUNT||' (EXCEPTION)'
+0 (EXCEPTION)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# SELECT ... INTO var FROM ... - multiple rows found
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+CREATE PROCEDURE p1
+AS
+va INT:=1;
+BEGIN
+SELECT a INTO va FROM t1;
+SELECT SQL%ROWCOUNT;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN SELECT SQL%ROWCOUNT||' (EXCEPTION) va='||va;
+END;
+$$
+CALL p1();
+SQL%ROWCOUNT||' (EXCEPTION) va='||va
+1 (EXCEPTION) va=10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# INSERT INTO t2 SELECT ...
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+CREATE PROCEDURE p1
+AS
+BEGIN
+INSERT INTO t2 SELECT * FROM t1;
+SELECT SQL%ROWCOUNT;
+END;
+$$
+CALL p1();
+SQL%ROWCOUNT
+2
+DROP PROCEDURE p1;
+DROP TABLE t1, t2;
+#
+# End of MDEV-10583 sql_mode=ORACLE: SQL%ROWCOUNT
+#
+#
+# MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
+#
+#
+# Missing table
+#
+CREATE PROCEDURE p1
+AS
+a t1.a%TYPE;
+BEGIN
+NULL;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+DROP PROCEDURE p1;
+#
+# Missing column
+#
+CREATE TABLE t1 (b INT);
+CREATE PROCEDURE p1
+AS
+a t1.a%TYPE;
+BEGIN
+NULL;
+END;
+$$
+CALL p1();
+ERROR 42S22: Unknown column 'a' in 't1'
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# One %TYPE variable
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1
+AS
+a t1.a%TYPE;
+BEGIN
+a:= 123;
+SELECT a;
+END;
+$$
+CALL p1();
+a
+123
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Two %TYPE variables, with a truncation warning on assignment
+#
+CREATE TABLE t1 (a TINYINT, b INT);
+CREATE PROCEDURE p1
+AS
+a t1.a%TYPE;
+b t1.b%TYPE;
+BEGIN
+a:= 200;
+b:= 200;
+SELECT a, b;
+END;
+$$
+CALL p1();
+a	b
+127	200
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# %TYPE variables for fields with various attributes
+#
+CREATE TABLE t1 (
+id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+a TINYINT NOT NULL,
+b INT NOT NULL,
+ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+UNIQUE(a)
+);
+CREATE PROCEDURE p1
+AS
+id t1.id%TYPE;
+a t1.a%TYPE;
+b t1.b%TYPE;
+ts t1.ts%TYPE;
+BEGIN
+SELECT id, a, b, ts;
+CREATE TABLE t2 AS SELECT id, a, b, ts;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+id	a	b	ts
+NULL	NULL	NULL	NULL
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "id" int(11) DEFAULT NULL,
+  "a" tinyint(4) DEFAULT NULL,
+  "b" int(11) DEFAULT NULL,
+  "ts" timestamp NULL DEFAULT NULL
+)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# %TYPE + virtual columns
+#
+CREATE TABLE t1 (
+a INT NOT NULL,
+b VARCHAR(32),
+c INT AS (a + 10) VIRTUAL,
+d VARCHAR(5) AS (left(b,5)) PERSISTENT
+);
+CREATE PROCEDURE p1
+AS
+c t1.c%TYPE;
+d t1.d%TYPE;
+BEGIN
+SELECT c, d;
+CREATE TABLE t2 AS SELECT c, d;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+c	d
+NULL	NULL
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "c" int(11) DEFAULT NULL,
+  "d" varchar(5) DEFAULT NULL
+)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# %TYPE + the ZEROFILL attribute
+#
+CREATE TABLE t1 (
+dz DECIMAL(10,3) ZEROFILL
+);
+CREATE PROCEDURE p1
+AS
+dzr t1.dz%TYPE := 10;
+dzt DECIMAL(10,3) ZEROFILL := 10;
+BEGIN
+SELECT dzr, dzt;
+CREATE TABLE t2 AS SELECT dzr,dzt;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+dzr	dzt
+0000010.000	0000010.000
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "dzr" decimal(10,3) unsigned DEFAULT NULL,
+  "dzt" decimal(10,3) unsigned DEFAULT NULL
+)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Temporary tables shadow real tables for %TYPE purposes
+#
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('t1');
+CREATE TEMPORARY TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+a
+10
+CREATE PROCEDURE p1
+AS
+a t1.a%TYPE:=11;
+BEGIN
+CREATE TABLE t2 AS SELECT a;
+END;
+$$
+#
+# Should use INT(11) as %TYPE, as in the temporary table
+#
+CALL p1();
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" int(11) DEFAULT NULL
+)
+SELECT * FROM t2;
+a
+11
+DROP TABLE t2;
+SELECT * FROM t1;
+a
+10
+DROP TEMPORARY TABLE t1;
+SELECT * FROM t1;
+a
+t1
+#
+# Should use VARCHAR(10) as %TYPE, as in the real table
+#
+CALL p1();
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" varchar(10) DEFAULT NULL
+)
+SELECT * FROM t2;
+a
+11
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# t1.a%TYPE searches for "t1" in the current database
+#
+CREATE TABLE t1 (a VARCHAR(10));
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a INT);
+CREATE PROCEDURE p1
+AS
+a t1.a%TYPE:=11;
+BEGIN
+CREATE TABLE test.t2 AS SELECT a;
+END;
+$$
+#
+# This interprets t1.a%TYPE as VARCHAR(10), as in test.t1.a
+#
+USE test;
+CALL test.p1();
+SHOW CREATE TABLE test.t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" varchar(10) DEFAULT NULL
+)
+DROP TABLE test.t2;
+#
+# This interprets t1.a%TYPE as INT, as in test1.t1.a
+#
+USE test1;
+CALL test.p1();
+SHOW CREATE TABLE test.t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" int(11) DEFAULT NULL
+)
+DROP TABLE test.t2;
+#
+# Error if there is no an active database
+#
+DROP DATABASE test1;
+CALL test.p1();
+ERROR 3D000: No database selected
+USE test;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# A reference to a table in a non-existing database
+#
+CREATE PROCEDURE p1
+AS
+a test1.t1.a%TYPE;
+BEGIN
+CREATE TABLE t1 AS SELECT a;
+END;
+$$
+CALL p1;
+ERROR 42S02: Table 'test1.t1' doesn't exist
+DROP PROCEDURE p1;
+#
+# A reference to a table in a different database
+#
+CREATE TABLE t1(a INT);
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a VARCHAR(10));
+CREATE PROCEDURE p1
+AS
+a t1.a%TYPE;
+b test1.t1.a%TYPE;
+BEGIN
+CREATE TABLE t2 AS SELECT a,b;
+END;
+$$
+CALL p1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" int(11) DEFAULT NULL,
+  "b" varchar(10) DEFAULT NULL
+)
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP DATABASE test1;
+DROP TABLE t1;
+#
+# Using a table before it appears in a %TYPE declaration + multiple %TYPE declarations
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 (a,b) VALUES (10,'b10');
+CREATE PROCEDURE p1
+AS
+BEGIN
+INSERT INTO t1 (a,b) VALUES (11, 'b11');
+SELECT * FROM t1;
+DECLARE
+va t1.a%TYPE:= 30;
+vb t1.b%TYPE:= 'b30';
+BEGIN
+INSERT INTO t1 (a,b) VALUES (12,'b12');
+SELECT * FROM t1;
+INSERT INTO t1 (a,b) VALUES (va, vb);
+SELECT * FROM t1;
+END;
+DECLARE
+va t1.a%TYPE:= 40;
+vb t1.b%TYPE:= 'b40';
+BEGIN
+INSERT INTO t1 (a,b) VALUES (va,vb);
+SELECT * FROM t1;
+END;
+END;
+$$
+CALL p1;
+a	b
+10	b10
+11	b11
+a	b
+10	b10
+11	b11
+12	b12
+a	b
+10	b10
+11	b11
+12	b12
+30	b30
+a	b
+10	b10
+11	b11
+12	b12
+30	b30
+40	b40
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# %TYPE variables + TABLE vs VIEW
+#
+CREATE TABLE t1 (
+bit6 BIT(6),
+bit7 BIT(7),
+bit8 BIT(8),
+i1 TINYINT,
+i2 SMALLINT,
+i3 MEDIUMINT,
+i4 INT,
+i8 BIGINT,
+ff FLOAT,
+fd DOUBLE,
+cc CHAR(10),
+cv VARCHAR(10),
+cvu VARCHAR(10) CHARACTER SET utf8,
+t1 TINYTEXT,
+t2 TEXT,
+t3 MEDIUMTEXT,
+t4 LONGTEXT,
+enum1 ENUM('a','b','c'),
+set1  SET('a','b','c'),
+blob1 TINYBLOB,
+blob2 BLOB,
+blob3 MEDIUMBLOB,
+blob4 LONGBLOB,
+yy  YEAR,
+dd  DATE,
+tm0 TIME,
+tm3 TIME(3),
+tm6 TIME(6),
+dt0 DATETIME,
+dt3 DATETIME(3),
+dt6 DATETIME(6),
+ts0 TIMESTAMP,
+ts3 TIMESTAMP(3),
+ts6 TIMESTAMP(6),
+dc100 DECIMAL(10,0),
+dc103 DECIMAL(10,3),
+dc209 DECIMAL(20,9)
+);
+CREATE PROCEDURE p1(command enum('create','select'))
+AS
+bit6  t1.bit6%TYPE := 0x30;
+bit7  t1.bit7%TYPE := 0x41;
+bit8  t1.bit8%TYPE := 0x7E;
+i1  t1.i1%TYPE := 11;
+i2  t1.i2%TYPE := 12;
+i3  t1.i3%TYPE := 13;
+i4  t1.i4%TYPE := 14;
+i8  t1.i8%TYPE := 18;
+ff  t1.ff%TYPE := 21;
+fd  t1.fd%TYPE := 22;
+cc  t1.cc%TYPE := 'char';
+cv  t1.cv%TYPE := 'varchar';
+cvu t1.cvu%TYPE := 'varcharu8';
+t1  t1.t1%TYPE := 'text1';
+t2  t1.t2%TYPE := 'text2';
+t3  t1.t3%TYPE := 'text3';
+t4  t1.t4%TYPE := 'text4';
+enum1 t1.enum1%TYPE := 'b';
+set1  t1.set1%TYPE  := 'a,c';
+blob1 t1.blob1%TYPE := 'blob1';
+blob2 t1.blob2%TYPE := 'blob2';
+blob3 t1.blob3%TYPE := 'blob3';
+blob4 t1.blob4%TYPE := 'blob4';
+yy  t1.yy%TYPE := 2001;
+dd  t1.dd%TYPE := '2001-01-01';
+tm0 t1.tm0%TYPE := '00:00:01';
+tm3 t1.tm3%TYPE := '00:00:03.333';
+tm6 t1.tm6%TYPE := '00:00:06.666666';
+dt0 t1.dt0%TYPE := '2001-01-01 00:00:01';
+dt3 t1.dt3%TYPE := '2001-01-03 00:00:01.333';
+dt6 t1.dt6%TYPE := '2001-01-06 00:00:01.666666';
+ts0 t1.ts0%TYPE := '2002-01-01 00:00:01';
+ts3 t1.ts3%TYPE := '2002-01-03 00:00:01.333';
+ts6 t1.ts6%TYPE := '2002-01-06 00:00:01.666666';
+dc100 t1.dc100%TYPE := 10;
+dc103 t1.dc103%TYPE := 10.123;
+dc209 t1.dc209%TYPE := 10.123456789;
+BEGIN
+CASE
+WHEN command='create' THEN
+CREATE TABLE t2 AS SELECT
+bit6, bit7, bit8,
+i1,i2,i3,i4,i8,
+ff,fd, dc100, dc103, dc209,
+cc,cv,cvu,
+t1,t2,t3,t4,
+enum1, set1,
+blob1, blob2, blob3, blob4,
+dd, yy,
+tm0, tm3, tm6,
+dt0, dt3, dt6,
+ts0, ts3, ts6;
+WHEN command='select' THEN
+SELECT
+bit6, bit7, bit8,
+i1,i2,i3,i4,i8,
+ff,fd, dc100, dc103, dc209,
+cc,cv,cvu,
+t1,t2,t3,t4,
+enum1, set1,
+blob1, blob2, blob3, blob4,
+dd, yy,
+tm0, tm3, tm6,
+dt0, dt3, dt6,
+ts0, ts3, ts6;
+END CASE;
+END;
+$$
+#
+# TABLE
+#
+CALL p1('create');
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "bit6" bit(6) DEFAULT NULL,
+  "bit7" bit(7) DEFAULT NULL,
+  "bit8" bit(8) DEFAULT NULL,
+  "i1" tinyint(4) DEFAULT NULL,
+  "i2" smallint(6) DEFAULT NULL,
+  "i3" mediumint(9) DEFAULT NULL,
+  "i4" int(11) DEFAULT NULL,
+  "i8" bigint(20) DEFAULT NULL,
+  "ff" float DEFAULT NULL,
+  "fd" double DEFAULT NULL,
+  "dc100" decimal(10,0) DEFAULT NULL,
+  "dc103" decimal(10,3) DEFAULT NULL,
+  "dc209" decimal(20,9) DEFAULT NULL,
+  "cc" char(10) DEFAULT NULL,
+  "cv" varchar(10) DEFAULT NULL,
+  "cvu" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
+  "t1" tinytext DEFAULT NULL,
+  "t2" text DEFAULT NULL,
+  "t3" mediumtext DEFAULT NULL,
+  "t4" longtext DEFAULT NULL,
+  "enum1" char(1) DEFAULT NULL,
+  "set1" char(5) DEFAULT NULL,
+  "blob1" tinyblob DEFAULT NULL,
+  "blob2" longblob DEFAULT NULL,
+  "blob3" mediumblob DEFAULT NULL,
+  "blob4" longblob DEFAULT NULL,
+  "dd" datetime DEFAULT NULL,
+  "yy" year(4) DEFAULT NULL,
+  "tm0" time DEFAULT NULL,
+  "tm3" time(3) DEFAULT NULL,
+  "tm6" time(6) DEFAULT NULL,
+  "dt0" datetime DEFAULT NULL,
+  "dt3" datetime(3) DEFAULT NULL,
+  "dt6" datetime(6) DEFAULT NULL,
+  "ts0" timestamp NULL DEFAULT NULL,
+  "ts3" timestamp(3) NULL DEFAULT NULL,
+  "ts6" timestamp(6) NULL DEFAULT NULL
+)
+SELECT * FROM t2;
+bit6	0
+bit7	A
+bit8	~
+i1	11
+i2	12
+i3	13
+i4	14
+i8	18
+ff	21
+fd	22
+dc100	10
+dc103	10.123
+dc209	10.123456789
+cc	char
+cv	varchar
+cvu	varcharu8
+t1	text1
+t2	text2
+t3	text3
+t4	text4
+enum1	b
+set1	a,c
+blob1	blob1
+blob2	blob2
+blob3	blob3
+blob4	blob4
+dd	2001-01-01 00:00:00
+yy	2001
+tm0	00:00:01
+tm3	00:00:03.333
+tm6	00:00:06.666666
+dt0	2001-01-01 00:00:01
+dt3	2001-01-03 00:00:01.333
+dt6	2001-01-06 00:00:01.666666
+ts0	2002-01-01 00:00:01
+ts3	2002-01-03 00:00:01.333
+ts6	2002-01-06 00:00:01.666666
+DROP TABLE t2;
+CALL p1('select');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				bit6	bit6	16	6	1	Y	32	0	63
+def				bit7	bit7	16	7	1	Y	32	0	63
+def				bit8	bit8	16	8	1	Y	32	0	63
+def				i1	i1	1	4	2	Y	32768	0	63
+def				i2	i2	2	6	2	Y	32768	0	63
+def				i3	i3	9	9	2	Y	32768	0	63
+def				i4	i4	3	11	2	Y	32768	0	63
+def				i8	i8	8	20	2	Y	32768	0	63
+def				ff	ff	4	12	2	Y	32768	31	63
+def				fd	fd	5	22	2	Y	32768	31	63
+def				dc100	dc100	246	11	2	Y	32768	0	63
+def				dc103	dc103	246	12	6	Y	32768	3	63
+def				dc209	dc209	246	22	12	Y	32768	9	63
+def				cc	cc	254	10	4	Y	0	0	8
+def				cv	cv	253	10	7	Y	0	0	8
+def				cvu	cvu	253	10	9	Y	0	0	8
+def				t1	t1	252	255	5	Y	16	0	8
+def				t2	t2	252	65535	5	Y	16	0	8
+def				t3	t3	252	16777215	5	Y	16	0	8
+def				t4	t4	252	4294967295	5	Y	16	0	8
+def				enum1	enum1	254	1	1	Y	256	0	8
+def				set1	set1	254	5	3	Y	2048	0	8
+def				blob1	blob1	252	255	5	Y	144	0	63
+def				blob2	blob2	252	4294967295	5	Y	144	0	63
+def				blob3	blob3	252	16777215	5	Y	144	0	63
+def				blob4	blob4	252	4294967295	5	Y	144	0	63
+def				dd	dd	12	19	19	Y	128	0	63
+def				yy	yy	13	4	4	Y	32864	0	63
+def				tm0	tm0	11	10	8	Y	128	0	63
+def				tm3	tm3	11	14	12	Y	128	3	63
+def				tm6	tm6	11	17	15	Y	128	6	63
+def				dt0	dt0	12	19	19	Y	128	0	63
+def				dt3	dt3	12	23	23	Y	128	3	63
+def				dt6	dt6	12	26	26	Y	128	6	63
+def				ts0	ts0	7	19	19	Y	9376	0	63
+def				ts3	ts3	7	23	23	Y	160	3	63
+def				ts6	ts6	7	26	26	Y	160	6	63
+bit6	0
+bit7	A
+bit8	~
+i1	11
+i2	12
+i3	13
+i4	14
+i8	18
+ff	21
+fd	22
+dc100	10
+dc103	10.123
+dc209	10.123456789
+cc	char
+cv	varchar
+cvu	varcharu8
+t1	text1
+t2	text2
+t3	text3
+t4	text4
+enum1	b
+set1	a,c
+blob1	blob1
+blob2	blob2
+blob3	blob3
+blob4	blob4
+dd	2001-01-01 00:00:00
+yy	2001
+tm0	00:00:01
+tm3	00:00:03.333
+tm6	00:00:06.666666
+dt0	2001-01-01 00:00:01
+dt3	2001-01-03 00:00:01.333
+dt6	2001-01-06 00:00:01.666666
+ts0	2002-01-01 00:00:01
+ts3	2002-01-03 00:00:01.333
+ts6	2002-01-06 00:00:01.666666
+#
+# VIEW
+#
+ALTER TABLE t1 RENAME t0;
+CREATE VIEW t1 AS SELECT * FROM t0;
+CALL p1('create');
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "bit6" bit(6) DEFAULT NULL,
+  "bit7" bit(7) DEFAULT NULL,
+  "bit8" bit(8) DEFAULT NULL,
+  "i1" tinyint(4) DEFAULT NULL,
+  "i2" smallint(6) DEFAULT NULL,
+  "i3" mediumint(9) DEFAULT NULL,
+  "i4" int(11) DEFAULT NULL,
+  "i8" bigint(20) DEFAULT NULL,
+  "ff" float DEFAULT NULL,
+  "fd" double DEFAULT NULL,
+  "dc100" decimal(10,0) DEFAULT NULL,
+  "dc103" decimal(10,3) DEFAULT NULL,
+  "dc209" decimal(20,9) DEFAULT NULL,
+  "cc" char(10) DEFAULT NULL,
+  "cv" varchar(10) DEFAULT NULL,
+  "cvu" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
+  "t1" tinytext DEFAULT NULL,
+  "t2" text DEFAULT NULL,
+  "t3" mediumtext DEFAULT NULL,
+  "t4" longtext DEFAULT NULL,
+  "enum1" char(1) DEFAULT NULL,
+  "set1" char(5) DEFAULT NULL,
+  "blob1" tinyblob DEFAULT NULL,
+  "blob2" longblob DEFAULT NULL,
+  "blob3" mediumblob DEFAULT NULL,
+  "blob4" longblob DEFAULT NULL,
+  "dd" datetime DEFAULT NULL,
+  "yy" year(4) DEFAULT NULL,
+  "tm0" time DEFAULT NULL,
+  "tm3" time(3) DEFAULT NULL,
+  "tm6" time(6) DEFAULT NULL,
+  "dt0" datetime DEFAULT NULL,
+  "dt3" datetime(3) DEFAULT NULL,
+  "dt6" datetime(6) DEFAULT NULL,
+  "ts0" timestamp NULL DEFAULT NULL,
+  "ts3" timestamp(3) NULL DEFAULT NULL,
+  "ts6" timestamp(6) NULL DEFAULT NULL
+)
+SELECT * FROM t2;
+bit6	0
+bit7	A
+bit8	~
+i1	11
+i2	12
+i3	13
+i4	14
+i8	18
+ff	21
+fd	22
+dc100	10
+dc103	10.123
+dc209	10.123456789
+cc	char
+cv	varchar
+cvu	varcharu8
+t1	text1
+t2	text2
+t3	text3
+t4	text4
+enum1	b
+set1	a,c
+blob1	blob1
+blob2	blob2
+blob3	blob3
+blob4	blob4
+dd	2001-01-01 00:00:00
+yy	2001
+tm0	00:00:01
+tm3	00:00:03.333
+tm6	00:00:06.666666
+dt0	2001-01-01 00:00:01
+dt3	2001-01-03 00:00:01.333
+dt6	2001-01-06 00:00:01.666666
+ts0	2002-01-01 00:00:01
+ts3	2002-01-03 00:00:01.333
+ts6	2002-01-06 00:00:01.666666
+DROP TABLE t2;
+CALL p1('select');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				bit6	bit6	16	6	1	Y	32	0	63
+def				bit7	bit7	16	7	1	Y	32	0	63
+def				bit8	bit8	16	8	1	Y	32	0	63
+def				i1	i1	1	4	2	Y	32768	0	63
+def				i2	i2	2	6	2	Y	32768	0	63
+def				i3	i3	9	9	2	Y	32768	0	63
+def				i4	i4	3	11	2	Y	32768	0	63
+def				i8	i8	8	20	2	Y	32768	0	63
+def				ff	ff	4	12	2	Y	32768	31	63
+def				fd	fd	5	22	2	Y	32768	31	63
+def				dc100	dc100	246	11	2	Y	32768	0	63
+def				dc103	dc103	246	12	6	Y	32768	3	63
+def				dc209	dc209	246	22	12	Y	32768	9	63
+def				cc	cc	254	10	4	Y	0	0	8
+def				cv	cv	253	10	7	Y	0	0	8
+def				cvu	cvu	253	10	9	Y	0	0	8
+def				t1	t1	252	255	5	Y	16	0	8
+def				t2	t2	252	65535	5	Y	16	0	8
+def				t3	t3	252	16777215	5	Y	16	0	8
+def				t4	t4	252	4294967295	5	Y	16	0	8
+def				enum1	enum1	254	1	1	Y	256	0	8
+def				set1	set1	254	5	3	Y	2048	0	8
+def				blob1	blob1	252	255	5	Y	144	0	63
+def				blob2	blob2	252	4294967295	5	Y	144	0	63
+def				blob3	blob3	252	16777215	5	Y	144	0	63
+def				blob4	blob4	252	4294967295	5	Y	144	0	63
+def				dd	dd	12	19	19	Y	128	0	63
+def				yy	yy	13	4	4	Y	32864	0	63
+def				tm0	tm0	11	10	8	Y	128	0	63
+def				tm3	tm3	11	14	12	Y	128	3	63
+def				tm6	tm6	11	17	15	Y	128	6	63
+def				dt0	dt0	12	19	19	Y	128	0	63
+def				dt3	dt3	12	23	23	Y	128	3	63
+def				dt6	dt6	12	26	26	Y	128	6	63
+def				ts0	ts0	7	19	19	Y	160	0	63
+def				ts3	ts3	7	23	23	Y	160	3	63
+def				ts6	ts6	7	26	26	Y	160	6	63
+bit6	0
+bit7	A
+bit8	~
+i1	11
+i2	12
+i3	13
+i4	14
+i8	18
+ff	21
+fd	22
+dc100	10
+dc103	10.123
+dc209	10.123456789
+cc	char
+cv	varchar
+cvu	varcharu8
+t1	text1
+t2	text2
+t3	text3
+t4	text4
+enum1	b
+set1	a,c
+blob1	blob1
+blob2	blob2
+blob3	blob3
+blob4	blob4
+dd	2001-01-01 00:00:00
+yy	2001
+tm0	00:00:01
+tm3	00:00:03.333
+tm6	00:00:06.666666
+dt0	2001-01-01 00:00:01
+dt3	2001-01-03 00:00:01.333
+dt6	2001-01-06 00:00:01.666666
+ts0	2002-01-01 00:00:01
+ts3	2002-01-03 00:00:01.333
+ts6	2002-01-06 00:00:01.666666
+DROP VIEW t1;
+DROP TABLE t0;
+DROP PROCEDURE p1;
+#
+# VIEW with subqueries
+#
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (10,1),(20,2),(30,3),(40,4);
+SELECT AVG(a) FROM t1;
+AVG(a)
+25.0000
+CREATE VIEW v1 AS SELECT a,1 as b FROM t1 WHERE a>(SELECT AVG(a) FROM t1) AND b>(SELECT 1);
+SELECT * FROM v1;
+a	b
+30	1
+40	1
+CREATE PROCEDURE p1
+AS
+a v1.a%TYPE := 10;
+b v1.b%TYPE := 1;
+BEGIN
+SELECT a,b;
+END;
+$$
+CALL p1;
+a	b
+10	1
+DROP PROCEDURE p1;
+CREATE FUNCTION f1 RETURN INT
+AS
+a v1.a%TYPE := 10;
+b v1.b%TYPE := 1;
+BEGIN
+RETURN a+b;
+END;
+$$
+SELECT f1();
+f1()
+11
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# %TYPE variables + INFORMATION_SCHEMA
+#
+CREATE PROCEDURE p1
+AS
+tables_table_name INFORMATION_SCHEMA.TABLES.TABLE_NAME%TYPE;
+tables_table_rows INFORMATION_SCHEMA.TABLES.TABLE_ROWS%TYPE;
+processlist_info INFORMATION_SCHEMA.PROCESSLIST.INFO%TYPE;
+processlist_info_binary INFORMATION_SCHEMA.PROCESSLIST.INFO_BINARY%TYPE;
+BEGIN
+CREATE TABLE t1 AS SELECT
+tables_table_name,
+tables_table_rows,
+processlist_info,
+processlist_info_binary;
+END;
+$$
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "tables_table_name" varchar(64) CHARACTER SET utf8 DEFAULT NULL,
+  "tables_table_rows" bigint(21) unsigned DEFAULT NULL,
+  "processlist_info" longtext CHARACTER SET utf8 DEFAULT NULL,
+  "processlist_info_binary" blob(65535) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# %TYPE + Table structure change
+# Data type for both a0 and a1 is chosen in the very beginning
+#
+CREATE PROCEDURE p1
+AS
+a0 t1.a%TYPE;
+BEGIN
+ALTER TABLE t1 MODIFY a VARCHAR(10); -- This does not affect a1
+DECLARE
+a1 t1.a%TYPE;
+BEGIN
+CREATE TABLE t2 AS SELECT a0, a1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+END
+$$
+CREATE TABLE t1 (a INT);
+CALL p1;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a0" int(11) DEFAULT NULL,
+  "a1" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# %TYPE in parameters
+#
+CREATE TABLE t1 (a VARCHAR(10));
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (b SMALLINT);
+CREATE PROCEDURE p1(a t1.a%TYPE, b test1.t1.b%TYPE)
+AS
+BEGIN
+CREATE TABLE t2 AS SELECT a, b;
+END;
+$$
+CALL p1('test', 123);
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" varchar(10) DEFAULT NULL,
+  "b" smallint(6) DEFAULT NULL
+)
+SELECT * FROM t2;
+a	b
+test	123
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE test1.t1;
+DROP DATABASE test1;
+DROP TABLE t1;
+#
+# %TYPE in a stored function variables and arguments
+#
+CREATE TABLE t1 (a INT);
+SET sql_mode=ORACLE;
+CREATE FUNCTION f1 (prm t1.a%TYPE) RETURN INT
+AS
+a t1.a%TYPE:= prm;
+BEGIN
+RETURN a;
+END;
+$$
+SELECT f1(20);
+f1(20)
+20
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# %TYPE in function RETURN clause is not supported yet
+#
+CREATE FUNCTION f1 RETURN t1.a%TYPE
+AS
+BEGIN
+RETURN 0;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 't1.a%TYPE
+AS
+BEGIN
+RETURN 0;
+END' at line 1
+#
+# End of MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
+#
+#
+# MDEV-12089 sql_mode=ORACLE: Understand optional routine name after the END keyword
+#
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END f1;
+$$
+DROP FUNCTION f1;
+CREATE FUNCTION test.f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END test.f1;
+$$
+DROP FUNCTION f1;
+CREATE FUNCTION test.f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END test2.f1;
+$$
+ERROR HY000: END identifier 'test2.f1' does not match 'test.f1'
+CREATE FUNCTION test.f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END test.f2;
+$$
+ERROR HY000: END identifier 'test.f2' does not match 'test.f1'
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END test.f2;
+$$
+ERROR HY000: END identifier 'test.f2' does not match 'test.f1'
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END test2.f1;
+$$
+ERROR HY000: END identifier 'test2.f1' does not match 'test.f1'
+CREATE PROCEDURE p1 AS
+BEGIN
+NULL;
+END p1;
+$$
+DROP PROCEDURE p1;
+CREATE PROCEDURE test.p1 AS
+BEGIN
+NULL;
+END test.p1;
+$$
+DROP PROCEDURE p1;
+CREATE PROCEDURE test.p1 AS
+BEGIN
+NULL;
+END test2.p1;
+$$
+ERROR HY000: END identifier 'test2.p1' does not match 'test.p1'
+CREATE PROCEDURE test.p1 AS
+BEGIN
+NULL;
+END test.p2;
+$$
+ERROR HY000: END identifier 'test.p2' does not match 'test.p1'
+CREATE PROCEDURE p1 AS
+BEGIN
+NULL;
+END test.p2;
+$$
+ERROR HY000: END identifier 'test.p2' does not match 'test.p1'
+CREATE PROCEDURE p1 AS
+BEGIN
+NULL;
+END test2.p1;
+$$
+ERROR HY000: END identifier 'test2.p1' does not match 'test.p1'
+#
+# MDEV-12107 sql_mode=ORACLE: Inside routines the CALL keywoard is optional
+#
+CREATE OR REPLACE PROCEDURE p1(a INT) AS
+BEGIN
+SELECT 'This is p1' AS "comment";
+END;
+/
+CREATE OR REPLACE PROCEDURE p2 AS
+BEGIN
+SELECT 'This is p2' AS "comment";
+END;
+/
+BEGIN
+p1(10);
+p2;
+test.p1(10);
+test.p2;
+END;
+/
+comment
+This is p1
+comment
+This is p2
+comment
+This is p1
+comment
+This is p2
+CREATE PROCEDURE p3 AS
+BEGIN
+p1(10);
+p2;
+test.p1(10);
+test.p2;
+END
+/
+CALL p3;
+comment
+This is p1
+comment
+This is p2
+comment
+This is p1
+comment
+This is p2
+DROP PROCEDURE p3;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+SELECT SQL%ROWCOUNT;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					SQL%ROWCOUNT	8	21	1	N	32897	0	63
+SQL%ROWCOUNT
+0
+#
+# MDEV-13686 EXCEPTION reserved keyword in SQL_MODE=oracle but not in Oracle itself
+#
+CREATE TABLE t1 (c1 int);
+CREATE VIEW v1 AS SELECT c1 exception FROM t1;
+SELECT exception FROM v1;
+exception
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-14139 Anchored data types for variables
+#
+BEGIN NOT ATOMIC
+DECLARE a a%TYPE;
+END;
+$$
+ERROR 42000: Undeclared variable: a
+DECLARE
+int11 INT;
+dec103 DECIMAL(10,3);
+flt0 FLOAT;
+dbl0 DOUBLE;
+enum0 ENUM('a','b');
+bit3 BIT(3);
+varchar10 VARCHAR(10);
+text1 TEXT;
+tinytext1 TINYTEXT;
+mediumtext1 MEDIUMTEXT;
+longtext1 LONGTEXT;
+time3 TIME(3);
+datetime4 DATETIME(4);
+timestamp5 TIMESTAMP(5);
+date0 DATE;
+a_int11 int11%TYPE;
+a_dec103 dec103%TYPE;
+a_flt0 flt0%TYPE;
+a_dbl0 dbl0%TYPE;
+a_bit3 bit3%TYPE;
+a_enum0 enum0%TYPE;
+a_varchar10 varchar10%TYPE;
+a_text1 text1%TYPE;
+a_tinytext1 tinytext1%TYPE;
+a_mediumtext1 mediumtext1%TYPE;
+a_longtext1 longtext1%TYPE;
+a_time3 time3%TYPE;
+a_datetime4 datetime4%TYPE;
+a_timestamp5 timestamp5%TYPE;
+a_date0 date0%TYPE;
+aa_int11 a_int11%TYPE;
+aa_dec103 a_dec103%TYPE;
+aa_flt0 a_flt0%TYPE;
+aa_dbl0 a_dbl0%TYPE;
+aa_bit3 a_bit3%TYPE;
+aa_enum0 a_enum0%TYPE;
+aa_varchar10 a_varchar10%TYPE;
+aa_text1 a_text1%TYPE;
+aa_tinytext1 a_tinytext1%TYPE;
+aa_mediumtext1 a_mediumtext1%TYPE;
+aa_longtext1 a_longtext1%TYPE;
+aa_time3 a_time3%TYPE;
+aa_datetime4 a_datetime4%TYPE;
+aa_timestamp5 a_timestamp5%TYPE;
+aa_date0 a_date0%TYPE;
+BEGIN
+CREATE TABLE t1 AS
+SELECT a_int11,a_dec103,a_flt0,a_dbl0,a_bit3,
+a_enum0,a_varchar10,
+a_text1,a_tinytext1,a_mediumtext1,a_longtext1,
+a_time3,a_datetime4,a_timestamp5,a_date0;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+CREATE TABLE t1 AS
+SELECT aa_int11,aa_dec103,aa_flt0,aa_dbl0,aa_bit3,
+aa_enum0,aa_varchar10,
+aa_text1,aa_tinytext1,aa_mediumtext1,aa_longtext1,
+aa_time3,aa_datetime4,aa_timestamp5,aa_date0;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a_int11" int(11) DEFAULT NULL,
+  "a_dec103" decimal(10,3) DEFAULT NULL,
+  "a_flt0" float DEFAULT NULL,
+  "a_dbl0" double DEFAULT NULL,
+  "a_bit3" bit(3) DEFAULT NULL,
+  "a_enum0" char(1) DEFAULT NULL,
+  "a_varchar10" varchar(10) DEFAULT NULL,
+  "a_text1" text DEFAULT NULL,
+  "a_tinytext1" tinytext DEFAULT NULL,
+  "a_mediumtext1" mediumtext DEFAULT NULL,
+  "a_longtext1" longtext DEFAULT NULL,
+  "a_time3" time(3) DEFAULT NULL,
+  "a_datetime4" datetime(4) DEFAULT NULL,
+  "a_timestamp5" timestamp(5) NULL DEFAULT NULL,
+  "a_date0" datetime DEFAULT NULL
+)
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "aa_int11" int(11) DEFAULT NULL,
+  "aa_dec103" decimal(10,3) DEFAULT NULL,
+  "aa_flt0" float DEFAULT NULL,
+  "aa_dbl0" double DEFAULT NULL,
+  "aa_bit3" bit(3) DEFAULT NULL,
+  "aa_enum0" char(1) DEFAULT NULL,
+  "aa_varchar10" varchar(10) DEFAULT NULL,
+  "aa_text1" text DEFAULT NULL,
+  "aa_tinytext1" tinytext DEFAULT NULL,
+  "aa_mediumtext1" mediumtext DEFAULT NULL,
+  "aa_longtext1" longtext DEFAULT NULL,
+  "aa_time3" time(3) DEFAULT NULL,
+  "aa_datetime4" datetime(4) DEFAULT NULL,
+  "aa_timestamp5" timestamp(5) NULL DEFAULT NULL,
+  "aa_date0" datetime DEFAULT NULL
+)
+#
+#  MDEV-11160 "Incorrect column name" when "CREATE TABLE t1 AS SELECT spvar"
+#
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (10);
+CREATE VIEW v1 AS SELECT x+1 AS a,x+1 AS b FROM t1;
+CREATE PROCEDURE p1
+AS
+a INT := 1;
+b INT := 2;
+BEGIN
+CREATE TABLE t2 AS SELECT a,b FROM v1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" int(11) DEFAULT NULL,
+  "b" int(11) DEFAULT NULL
+)
+a	b
+1	2
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-14228 MariaDB crashes with function
+#
+CREATE TABLE t1 (c VARCHAR(16), KEY(c));
+INSERT INTO t1 VALUES ('foo');
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+v VARCHAR2(16);
+BEGIN
+FOR v IN (SELECT DISTINCT c FROM t1)
+LOOP
+IF (v = 'bar') THEN
+SELECT 1 INTO @a;
+END IF;
+END LOOP;
+RETURN 'qux';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+v t1%ROWTYPE;
+BEGIN
+IF v = 'bar' THEN
+NULL;
+END IF;
+RETURN 'qux';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+v ROW(a INT);
+BEGIN
+IF v = 'bar' THEN
+NULL;
+END IF;
+RETURN 'qux';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+DROP TABLE t1;
+DECLARE
+v ROW(a INT);
+BEGIN
+SELECT v IN ('a','b');
+END $$
+ERROR HY000: Illegal parameter data types row and varchar for operation 'in'
+DECLARE
+v ROW(a INT);
+BEGIN
+SELECT 'a' IN (v,'b');
+END $$
+ERROR HY000: Illegal parameter data types varchar and row for operation 'in'
+DECLARE
+v ROW(a INT);
+BEGIN
+SELECT 'a' IN ('b',v);
+END $$
+ERROR HY000: Illegal parameter data types varchar and row for operation 'in'
+#
+# MDEV-17253 Oracle compatibility: The REVERSE key word for FOR loop behaves incorrectly
+#
+DECLARE
+totalprice DECIMAL(12,2):=NULL;
+loop_start INTEGER := 1;
+BEGIN
+FOR idx IN REVERSE loop_start..10 LOOP
+SELECT idx;
+END LOOP;
+END;
+$$
+idx
+10
+idx
+9
+idx
+8
+idx
+7
+idx
+6
+idx
+5
+idx
+4
+idx
+3
+idx
+2
+idx
+1
+CREATE PROCEDURE p1 AS
+loop_start INTEGER := 1;
+BEGIN
+FOR idx IN REVERSE 3..loop_start LOOP
+SELECT idx;
+END LOOP;
+END;
+$$
+CALL p1();
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+loop_start INTEGER := 1;
+BEGIN
+FOR idx IN REVERSE loop_start..3 LOOP
+SELECT idx;
+END LOOP;
+END;
+$$
+CALL p1();
+idx
+3
+idx
+2
+idx
+1
+DROP PROCEDURE p1;
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-19637 Crash on an SP variable assignment to a wrong subselect
+#
+DECLARE
+a INT;
+BEGIN
+SET a=(SELECT 1 FROM DUAL UNION SELECT HIGH_PRIORITY 2 FROM DUAL);
+END;
+$$
+ERROR 42000: Incorrect usage/placement of 'HIGH_PRIORITY'
+#
+# End of 10.4 tests
+#

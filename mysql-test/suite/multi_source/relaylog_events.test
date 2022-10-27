@@ -1,0 +1,53 @@
+#
+# Check that SHOW RELAYLOG EVENTS can be used
+# for a named master connection
+#
+
+--source include/not_embedded.inc
+--let $rpl_server_count= 0
+
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'master1' to 
+master_port=$SERVER_MYPORT_1, 
+master_host='127.0.0.1', 
+master_user='root';
+
+start slave 'master1';
+set default_master_connection = 'master1';
+--source include/wait_for_slave_to_start.inc
+
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+create table t1 (i int) engine=MyISAM;
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,'master1'
+
+--let $datadir = `SELECT @@datadir`
+--list_files $datadir mysqld-relay-bin-master1.*
+
+let binlog_start=4;
+let binlog_file= mysqld-relay-bin-master1.000002;
+source include/show_relaylog_events.inc;
+let binlog_file=;
+source include/show_relaylog_events.inc;
+
+--connection master1
+drop table t1;
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,'master1'
+
+--source include/reset_master_slave.inc
+--disconnect slave
+
+--connection master1
+--source include/reset_master_slave.inc
+--disconnect master1
+

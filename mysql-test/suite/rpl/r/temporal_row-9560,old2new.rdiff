@@ -1,0 +1,11 @@
+--- suite/rpl/r/temporal_row-9560.result
++++ suite/rpl/r/temporal_row-9560.reject
+@@ -7,7 +7,7 @@
+ insert into t1 values ('2016-02-15 12:50:06.123');
+ select @@mysql56_temporal_format;
+ @@mysql56_temporal_format
+-0
++1
+ select * from t1;
+ ts
+ 2016-02-15 12:50:06.123

@@ -1,0 +1,70 @@
+##
+## This test tests that transactions on the master will fail if the slave
+## is made completely unresponsive by suspending the process. Resuming the
+## process should allow replication to continue to run.
+##
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+--let NODE_2_PIDFILE = `SELECT @@pid_file`
+--disconnect node_2
+
+--connection node_1
+--echo Suspending node_2 ...
+--perl
+	my $pid_filename = $ENV{'NODE_2_PIDFILE'};
+	my $mysqld_pid = `cat $pid_filename`;
+        chomp($mysqld_pid);
+	system("kill -SIGSTOP $mysqld_pid");
+	exit(0);
+EOF
+
+SET SESSION wsrep_sync_wait = 0;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+SET SESSION wsrep_sync_wait = 15;
+
+--error ER_UNKNOWN_COM_ERROR,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK,ER_ERROR_DURING_COMMIT
+INSERT INTO t1 VALUES (1);
+
+--echo Resuming node_2 ...
+--perl
+	my $pid_filename = $ENV{'NODE_2_PIDFILE'};
+	my $mysqld_pid = `cat $pid_filename`;
+        chomp($mysqld_pid);
+	system("kill -SIGCONT $mysqld_pid");
+	exit(0);
+EOF
+
+SET SESSION wsrep_sync_wait = 0;
+--source include/wait_until_ready.inc
+INSERT INTO t1 VALUES (1);
+
+--let $galera_connection_name = node_2a
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+--connection node_2a
+
+SET SESSION wsrep_sync_wait = 0;
+--source include/wait_until_ready.inc
+SELECT COUNT(*) = 1 FROM t1;
+
+SET SESSION wsrep_sync_wait = 15;
+DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--let $node_2=node_2a
+--source include/auto_increment_offset_restore.inc
+

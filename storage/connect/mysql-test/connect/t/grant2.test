@@ -1,0 +1,869 @@
+-- source include/not_embedded.inc
+
+# Tests that involve SQL SECURITY DEFINER (e.g. in VIEWs)
+# TODO: add test with stored routines eventually.
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # MDEV-7574 Security definer views don't work with CONNECT ODBC tables
+--echo #
+
+CREATE USER user@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user@localhost;
+REVOKE FILE ON *.* FROM user@localhost;
+
+--echo # Testing SQLCOM_SELECT
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+CREATE DEFINER=user@localhost SQL SECURITY DEFINER VIEW v1_baddefiner AS SELECT * FROM t1;
+SELECT * FROM t1;
+SELECT * FROM v1_invoker;
+SELECT * FROM v1_definer;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT * FROM v1_baddefiner;
+
+--connect(user,localhost,user,,)
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT * FROM t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT * FROM v1_invoker;
+SELECT * FROM v1_definer;
+--connection default
+DROP VIEW v1_invoker, v1_definer, v1_baddefiner;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_UPDATE
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+UPDATE t1 SET a=11;
+UPDATE v1_invoker SET a=12;
+UPDATE v1_definer SET a=13;
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t1 SET a=21;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_invoker SET a=22;
+UPDATE v1_definer SET a=23;
+--connection default
+DROP VIEW v1_invoker, v1_definer;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_INSERT
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (11);
+INSERT INTO v1_invoker VALUES (12);
+INSERT INTO v1_definer VALUES (13);
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO t1 VALUES (21);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO v1_invoker VALUES (22);
+INSERT INTO v1_definer VALUES (23);
+--connection default
+DROP VIEW v1_invoker, v1_definer;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_REPLACE
+# REPLACE is not supported by ConnectSE, so we're testing the difference
+# between ER_SPECIFIC_ACCESS_DENIED_ERROR vs ER_NOT_ALLOWED_COMMAND
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO t1 VALUES (11);
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_invoker VALUES (12);
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_definer VALUES (13);
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+REPLACE INTO t1 VALUES (21);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+REPLACE INTO v1_invoker VALUES (22);
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_definer VALUES (23);
+--connection default
+DROP VIEW v1_invoker, v1_definer;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_DELETE
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10),(11),(12),(13),(21),(22),(23);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+DELETE FROM t1 WHERE a=11;
+DELETE FROM v1_invoker WHERE a=12;
+DELETE FROM v1_definer WHERE a=13;
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE FROM t1 WHERE a=21;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE FROM v1_invoker WHERE a=22;
+DELETE FROM v1_definer WHERE a=23;
+--connection default
+DROP VIEW v1_invoker, v1_definer;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_LOAD
+--connection default
+CREATE TABLE t1 (a VARCHAR(128)) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval LOAD DATA LOCAL INFILE '$MTR_SUITE_DIR/std_data/boys.txt' INTO TABLE t1
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval LOAD DATA LOCAL INFILE '$MTR_SUITE_DIR/std_data/boys.txt' INTO TABLE v1_invoker
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval LOAD DATA LOCAL INFILE '$MTR_SUITE_DIR/std_data/boys.txt' INTO TABLE v1_definer
+--connection user
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+--eval LOAD DATA LOCAL INFILE '$MTR_SUITE_DIR/std_data/boys.txt' INTO TABLE t1
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+--eval LOAD DATA LOCAL INFILE '$MTR_SUITE_DIR/std_data/boys.txt' INTO TABLE v1_invoker
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval LOAD DATA LOCAL INFILE '$MTR_SUITE_DIR/std_data/boys.txt' INTO TABLE v1_definer
+--connection default
+DROP VIEW v1_invoker, v1_definer;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_TRUNCATE
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (11);
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+TRUNCATE TABLE t1;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+# TODO: Perhaps FILE_ACL is not needed for DROP TABLE. Discuss with Olivier.
+--echo # Testing SQLCOM_DROP_TABLE
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DROP TABLE t1;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_DROP_VIEW
+--echo # DROP VIEW does not need FILE_ACL.
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10),(11),(12),(13),(21),(22),(23);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+DROP VIEW v1_invoker, v1_definer;
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+--connection user
+DROP VIEW v1_invoker;
+DROP VIEW v1_definer;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_CREATE_TABLE
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+--connection default
+
+--echo # Testing SQLCOM_LOCK_TABLES
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+LOCK TABLE t1 READ;
+UNLOCK TABLES;
+LOCK TABLE t1 WRITE;
+UNLOCK TABLES;
+LOCK TABLE v1_invoker READ;
+UNLOCK TABLES;
+LOCK TABLE v1_invoker WRITE;
+UNLOCK TABLES;
+LOCK TABLE v1_definer READ;
+UNLOCK TABLES;
+LOCK TABLE v1_definer WRITE;
+UNLOCK TABLES;
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+LOCK TABLE t1 READ;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+LOCK TABLE t1 WRITE;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+LOCK TABLE v1_invoker READ;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+LOCK TABLE v1_invoker WRITE;
+LOCK TABLE v1_definer READ;
+UNLOCK TABLES;
+LOCK TABLE v1_definer WRITE;
+UNLOCK TABLES;
+--connection default
+DROP VIEW v1_invoker, v1_definer;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_UPDATE_MULTI
+--connection default
+# t1 and t2 require FILE_ACL, t3 does not
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+CREATE TABLE t2 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t2.fix';
+CREATE TABLE t3 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t2 VALUES (20);
+INSERT INTO t3 VALUES (30);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+CREATE SQL SECURITY INVOKER VIEW v2_invoker AS SELECT * FROM t2;
+CREATE SQL SECURITY DEFINER VIEW v2_definer AS SELECT * FROM t2;
+UPDATE t1         a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t1         a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t1         a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t1         a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t1         a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t1         a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t1         a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t2         a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t2         a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t2         a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t2         a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t2         a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t2         a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t2         a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t3         a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t3         a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t3         a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t3         a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t3         a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t3         a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE t3         a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_invoker a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_invoker a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_invoker a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_invoker a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_invoker a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_invoker a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_invoker a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_definer a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_definer a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_definer a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_definer a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_definer a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_definer a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_definer a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_invoker a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_invoker a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_invoker a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_invoker a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_invoker a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_invoker a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_invoker a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_definer a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_definer a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_definer a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_definer a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_definer a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_definer a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_definer a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+
+--connection user
+
+# All queries with t1 should fail
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t1         a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t1         a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t1         a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t1         a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t1         a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t1         a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t1         a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+
+# All queries with t2 should fail
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t2         a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t2         a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t2         a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t2         a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t2         a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t2         a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t2         a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+
+# t3 does not need FILE_ALC
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t3         a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t3         a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+# This is OK:
+UPDATE t3         a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t3         a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+# This is OK:
+UPDATE t3         a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t3         a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+# This is OK:
+UPDATE t3         a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+
+# All queries with v1_invoker should fail
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_invoker a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_invoker a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_invoker a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_invoker a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_invoker a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_invoker a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_invoker a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+
+# v1_definer does not need FILE_ACL from the invoker
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_definer a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_definer a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_definer a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_definer a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_definer a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1_definer a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v1_definer a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+
+# All queries with v2_invoker should fail
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_invoker a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_invoker a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_invoker a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_invoker a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_invoker a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_invoker a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_invoker a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+
+# v2_definer does not need FILE_ACL from the invoker
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_definer a1,t1         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_definer a1,t2         a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_definer a1,t3         a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_definer a1,v1_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_definer a1,v1_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v2_definer a1,v2_invoker a2 SET a1.a=50 WHERE a1.a=a2.a;
+UPDATE v2_definer a1,v2_definer a2 SET a1.a=50 WHERE a1.a=a2.a;
+
+--connection default
+DROP VIEW v1_invoker, v1_definer, v2_invoker, v2_definer;
+DROP TABLE t1, t2, t3;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+--remove_file $MYSQLD_DATADIR/test/t2.fix
+
+--echo # Testing SQLCOM_DELETE_MULTI
+--connection default
+# t1 and t2 require FILE_ACL, t3 does not
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+CREATE TABLE t2 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t2.fix';
+CREATE TABLE t3 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t2 VALUES (20);
+INSERT INTO t3 VALUES (30);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+CREATE SQL SECURITY INVOKER VIEW v2_invoker AS SELECT * FROM t2;
+CREATE SQL SECURITY DEFINER VIEW v2_definer AS SELECT * FROM t2;
+DELETE a1 FROM t1         a1,t1         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t1         a1,t2         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t1         a1,t3         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t1         a1,v1_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t1         a1,v1_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t1         a1,v2_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t1         a1,v2_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t2         a1,t1         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t2         a1,t2         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t2         a1,t3         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t2         a1,v1_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t2         a1,v1_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t2         a1,v2_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t2         a1,v2_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t3         a1,t1         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t3         a1,t2         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t3         a1,t3         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t3         a1,v1_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t3         a1,v1_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t3         a1,v2_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM t3         a1,v2_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_invoker a1,t1         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_invoker a1,t2         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_invoker a1,t3         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_invoker a1,v1_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_invoker a1,v1_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_invoker a1,v2_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_invoker a1,v2_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_definer a1,t1         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_definer a1,t2         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_definer a1,t3         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_definer a1,v1_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_definer a1,v1_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_definer a1,v2_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_definer a1,v2_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_invoker a1,t1         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_invoker a1,t2         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_invoker a1,t3         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_invoker a1,v1_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_invoker a1,v1_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_invoker a1,v2_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_invoker a1,v2_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_definer a1,t1         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_definer a1,t2         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_definer a1,t3         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_definer a1,v1_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_definer a1,v1_definer a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_definer a1,v2_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_definer a1,v2_definer a2 WHERE a1.a=a2.a;
+
+--connection user
+
+# All queries with t1 should fail
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t1         a1,t1         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t1         a1,t2         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t1         a1,t3         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t1         a1,v1_invoker a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t1         a1,v1_definer a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t1         a1,v2_invoker a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t1         a1,v2_definer a2 WHERE a1.a=a2.a;
+
+# All queries with t2 should fail
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t2         a1,t1         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t2         a1,t2         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t2         a1,t3         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t2         a1,v1_invoker a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t2         a1,v1_definer a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t2         a1,v2_invoker a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t2         a1,v2_definer a2 WHERE a1.a=a2.a;
+
+# t3 does not need FILE_ALC
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t3         a1,t1         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t3         a1,t2         a2 WHERE a1.a=a2.a;
+# This is OK:
+DELETE a1 FROM t3         a1,t3         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t3         a1,v1_invoker a2 WHERE a1.a=a2.a;
+# This is OK:
+DELETE a1 FROM t3         a1,v1_definer a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM t3         a1,v2_invoker a2 WHERE a1.a=a2.a;
+# This is OK:
+DELETE a1 FROM t3         a1,v2_definer a2 WHERE a1.a=a2.a;
+
+# All queries with v1_invoker should fail
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_invoker a1,t1         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_invoker a1,t2         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_invoker a1,t3         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_invoker a1,v1_invoker a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_invoker a1,v1_definer a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_invoker a1,v2_invoker a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_invoker a1,v2_definer a2 WHERE a1.a=a2.a;
+
+# v1_definer does not need FILE_ACL from the invoker
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_definer a1,t1         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_definer a1,t2         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_definer a1,t3         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_definer a1,v1_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_definer a1,v1_definer a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v1_definer a1,v2_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v1_definer a1,v2_definer a2 WHERE a1.a=a2.a;
+
+# All queries with v2_invoker should fail
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_invoker a1,t1         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_invoker a1,t2         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_invoker a1,t3         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_invoker a1,v1_invoker a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_invoker a1,v1_definer a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_invoker a1,v2_invoker a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_invoker a1,v2_definer a2 WHERE a1.a=a2.a;
+
+# v2_definer does not need FILE_ACL from the invoker
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_definer a1,t1         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_definer a1,t2         a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_definer a1,t3         a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_definer a1,v1_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_definer a1,v1_definer a2 WHERE a1.a=a2.a;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE a1 FROM v2_definer a1,v2_invoker a2 WHERE a1.a=a2.a;
+DELETE a1 FROM v2_definer a1,v2_definer a2 WHERE a1.a=a2.a;
+
+--connection default
+DROP VIEW v1_invoker, v1_definer, v2_invoker, v2_definer;
+DROP TABLE t1, t2, t3;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+--remove_file $MYSQLD_DATADIR/test/t2.fix
+
+--echo # Testing SQLCOM_CREATE_VIEW
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM v1_invoker;
+DROP VIEW v2;
+CREATE VIEW v2 AS SELECT * FROM v1_definer;
+DROP VIEW v2;
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE VIEW v2 AS SELECT * FROM t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE VIEW v2 AS SELECT * FROM v1_invoker;
+CREATE VIEW v2 AS SELECT * FROM v1_definer;
+DROP VIEW v2;
+--connection default
+DROP VIEW v1_invoker, v1_definer;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_INSERT_SELECT
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+INSERT INTO t1         SELECT * FROM t1         WHERE a=20;
+INSERT INTO t1         SELECT * FROM v1_invoker WHERE a=20;
+INSERT INTO t1         SELECT * FROM v1_definer WHERE a=20;
+INSERT INTO v1_invoker SELECT * FROM t1         WHERE a=20;
+INSERT INTO v1_invoker SELECT * FROM v1_invoker WHERE a=20;
+INSERT INTO v1_invoker SELECT * FROM v1_definer WHERE a=20;
+INSERT INTO v1_definer SELECT * FROM t1         WHERE a=20;
+INSERT INTO v1_definer SELECT * FROM v1_invoker WHERE a=20;
+INSERT INTO v1_definer SELECT * FROM v1_definer WHERE a=20;
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO t1         SELECT * FROM t1         WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO t1         SELECT * FROM v1_invoker WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO t1         SELECT * FROM v1_definer WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO v1_invoker SELECT * FROM t1         WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO v1_invoker SELECT * FROM v1_invoker WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO v1_invoker SELECT * FROM v1_definer WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO v1_definer SELECT * FROM t1         WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO v1_definer SELECT * FROM v1_invoker WHERE a=20;
+# This is OK:
+INSERT INTO v1_definer SELECT * FROM v1_definer WHERE a=20;
+--connection default
+DROP VIEW v1_invoker, v1_definer;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_REPLACE_SELECT
+# REPLACE is not supported by CONNECT
+# so we're testing ER_NOT_ALLOWED_COMMAND vs ER_SPECIFIC_ACCESS_DENIED_ERROR here
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+CREATE SQL SECURITY INVOKER VIEW v1_invoker AS SELECT * FROM t1;
+CREATE SQL SECURITY DEFINER VIEW v1_definer AS SELECT * FROM t1;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO t1         SELECT * FROM t1         WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO t1         SELECT * FROM v1_invoker WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO t1         SELECT * FROM v1_definer WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_invoker SELECT * FROM t1         WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_invoker SELECT * FROM v1_invoker WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_invoker SELECT * FROM v1_definer WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_definer SELECT * FROM t1         WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_definer SELECT * FROM v1_invoker WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_definer SELECT * FROM v1_definer WHERE a=20;
+
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+REPLACE INTO t1         SELECT * FROM t1         WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+REPLACE INTO t1         SELECT * FROM v1_invoker WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+REPLACE INTO t1         SELECT * FROM v1_definer WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+REPLACE INTO v1_invoker SELECT * FROM t1         WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+REPLACE INTO v1_invoker SELECT * FROM v1_invoker WHERE a=20;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+REPLACE INTO v1_invoker SELECT * FROM v1_definer WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_definer SELECT * FROM t1         WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_definer SELECT * FROM v1_invoker WHERE a=20;
+--error ER_NOT_ALLOWED_COMMAND
+REPLACE INTO v1_definer SELECT * FROM v1_definer WHERE a=20;
+--connection default
+DROP VIEW v1_invoker, v1_definer;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_RENAME_TABLE
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+RENAME TABLE t1 TO t2;
+SHOW CREATE TABLE t2;
+RENAME TABLE t2 TO t1;
+--connection user
+# TODO: Perhaps FILE_ACL is needed for RENAME. Discuss with Oliver.
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+RENAME TABLE t1 TO t2;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_ALTER_TABLE (for ALTER..RENAME)
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+ALTER TABLE t1 RENAME TO t2;
+SHOW CREATE TABLE t2;
+ALTER TABLE t2 RENAME TO t1;
+--connection user
+# TODO: Perhaps FILE_ACL is not needed for ALTER..RENAME. Discuss with Olivier.
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+ALTER TABLE t1 RENAME TO t2;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_ALTER_TABLE (changing ENGINE to non-CONNECT)
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+ALTER TABLE t1 ENGINE=MyISAM;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+ALTER TABLE t1 ENGINE=MyISAM;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_ALTER_TABLE (changing ENGINE to CONNECT)
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+# This should succeed, as 't1.fix' does not exists.
+ALTER TABLE t1 ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (10);
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+ALTER TABLE t1 ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+--connection default
+DROP TABLE t1;
+
+--echo # Testing SQLCOM_OPTIMIZE
+--connection default
+CREATE TABLE t1 (a INT NOT NULL, KEY(a)) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+OPTIMIZE TABLE t1;
+--connection user
+# This command succeeds, but reports "Access denied" in the "Msg_text" column.
+OPTIMIZE TABLE t1;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_ALTER_TABLE (adding columns)
+--connection default
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10);
+ALTER TABLE t1 ADD b INT;
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+ALTER TABLE t1 ADD c INT;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_ALTER_TABLE (removing columns)
+--connection default
+CREATE TABLE t1 (a INT,b INT,c INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10,10,10);
+ALTER TABLE t1 DROP b;
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+ALTER TABLE t1 DROP c;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+
+--echo # Testing SQLCOM_ALTER_TABLE (adding keys)
+--connection default
+CREATE TABLE t1 (a INT NOT NULL,b INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10,10);
+ALTER TABLE t1 ADD KEY(a);
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+ALTER TABLE t1 ADD KEY(b);
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+--remove_file $MYSQLD_DATADIR/test/t1.fnx
+
+--echo # Testing SQLCOM_ALTER_TABLE (removing keys)
+--connection default
+CREATE TABLE t1 (a INT NOT NULL,b INT NOT NULL, KEY a(a), KEY b(b)) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10,10);
+ALTER TABLE t1 DROP KEY a;
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+ALTER TABLE t1 DROP KEY b;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+--remove_file $MYSQLD_DATADIR/test/t1.fnx
+
+--echo # Testing SQLCOM_CREATE_INDEX and SQLCOM_DROP_INDEX
+--connection default
+CREATE TABLE t1 (a INT NOT NULL,b INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+INSERT INTO t1 VALUES (10,10);
+CREATE INDEX a ON t1 (a);
+DROP INDEX a ON t1;
+CREATE INDEX a ON t1 (a);
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE INDEX b ON t1 (b);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DROP INDEX a ON t1;
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.fix
+--remove_file $MYSQLD_DATADIR/test/t1.fnx
+
+--echo # Testing stored procedures
+CREATE PROCEDURE p_definer() SQL SECURITY DEFINER
+  CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+CREATE PROCEDURE p_invoker() SQL SECURITY INVOKER
+  CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+CREATE DEFINER=user@localhost PROCEDURE p_baddefiner() SQL SECURITY DEFINER
+  CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='t1.fix';
+
+CALL p_definer();
+DROP TABLE t1;
+CALL p_invoker();
+DROP TABLE t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CALL p_baddefiner();
+
+--connection user
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CALL p_invoker();
+CALL p_definer();
+
+--connection default
+DROP TABLE t1;
+DROP PROCEDURE p_definer;
+DROP PROCEDURE p_invoker;
+DROP PROCEDURE p_baddefiner;
+
+DROP USER user@localhost;

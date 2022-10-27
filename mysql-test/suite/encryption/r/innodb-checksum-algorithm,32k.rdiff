@@ -1,0 +1,38 @@
+--- suite/encryption/r/innodb-checksum-algorithm.result
++++ suite/encryption/r/innodb-checksum-algorithm.result
+@@ -13,9 +13,9 @@
+ SET GLOBAL innodb_default_encryption_key_id=4;
+ SET GLOBAL innodb_checksum_algorithm=crc32;
+ create table tce_crc32(a serial, b blob, index(b(10))) engine=innodb
+-ROW_FORMAT=COMPRESSED encrypted=yes;
++ROW_FORMAT=DYNAMIC encrypted=yes;
+ create table tc_crc32(a serial, b blob, index(b(10))) engine=innodb
+-ROW_FORMAT=COMPRESSED encrypted=no;
++ROW_FORMAT=DYNAMIC encrypted=no;
+ Warnings:
+ Warning	140	InnoDB: ENCRYPTED=NO implies ENCRYPTION_KEY_ID=1
+ create table te_crc32(a serial, b blob, index(b(10))) engine=innodb
+@@ -153,9 +153,9 @@
+ t_crc32, tpe_crc32, tp_crc32;
+ SET GLOBAL innodb_checksum_algorithm=innodb;
+ create table tce_innodb(a serial, b blob, index(b(10))) engine=innodb
+-ROW_FORMAT=COMPRESSED encrypted=yes;
++ROW_FORMAT=DYNAMIC encrypted=yes;
+ create table tc_innodb(a serial, b blob, index(b(10))) engine=innodb
+-ROW_FORMAT=COMPRESSED encrypted=no;
++ROW_FORMAT=DYNAMIC encrypted=no;
+ Warnings:
+ Warning	140	InnoDB: ENCRYPTED=NO implies ENCRYPTION_KEY_ID=1
+ create table te_innodb(a serial, b blob, index(b(10))) engine=innodb
+@@ -293,9 +293,9 @@
+ t_innodb, tpe_innodb, tp_innodb;
+ SET GLOBAL innodb_checksum_algorithm=none;
+ create table tce_none(a serial, b blob, index(b(10))) engine=innodb
+-ROW_FORMAT=COMPRESSED encrypted=yes;
++ROW_FORMAT=DYNAMIC encrypted=yes;
+ create table tc_none(a serial, b blob, index(b(10))) engine=innodb
+-ROW_FORMAT=COMPRESSED encrypted=no;
++ROW_FORMAT=DYNAMIC encrypted=no;
+ Warnings:
+ Warning	140	InnoDB: ENCRYPTED=NO implies ENCRYPTION_KEY_ID=1
+ create table te_none(a serial, b blob, index(b(10))) engine=innodb

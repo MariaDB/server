@@ -1,0 +1,72 @@
+# Skiping this test from Valgrind execution as per Bug-14627884
+--source include/not_valgrind.inc
+# Adding big test option for this test.
+--source include/big_test.inc
+
+# t/index_merge_innodb.test
+#
+# Index merge tests (the test is called 'index_merge_rocksdb2' because
+# 'index_merge_rocksdb' has already existed before copying 'index_merge_innodb')
+#
+# Last update:
+# 2006-08-07 ML test refactored (MySQL 5.1)
+#               Main code of several index_merge tests
+#                            -> include/index_merge*.inc
+#               wrapper t/index_merge_innodb.test sources now several 
+#               include/index_merge*.inc files
+#
+
+--source include/have_rocksdb.inc
+let $engine_type= RocksDB;
+# skipping because too unstable in MyRocks
+let $skip_ror_EXPLAIN_for_MyRocks = 1;
+let $random_rows_in_EXPLAIN = 1;
+let $sorted_result = 1;
+# According to Oracle: "InnoDB's estimate for the index cardinality
+# depends on a pseudo random number generator (it picks up random
+# pages to sample). After an optimization that was made in r2625 two
+# EXPLAINs started returning a different number of rows (3 instead of
+# 4)", so:
+let $index_merge_random_rows_in_EXPLAIN = 1;
+# RocksDB does not support Merge tables (affects include/index_merge1.inc)
+let $merge_table_support= 0;
+
+set global rocksdb_force_flush_memtable_now=1;
+--source include/index_merge1.inc
+set global rocksdb_force_flush_memtable_now=1;
+--source include/index_merge_ror.inc
+set global rocksdb_force_flush_memtable_now=1;
+--source include/index_merge2.inc
+
+set global rocksdb_force_flush_memtable_now=1;
+--source include/index_merge_2sweeps.inc
+set global rocksdb_force_flush_memtable_now=1;
+--source include/index_merge_ror_cpk.inc
+
+set global rocksdb_force_flush_memtable_now=1;
+--echo #
+--echo # Bug#11747423 32254: INDEX MERGE USED UNNECESSARILY
+--echo #
+CREATE TABLE t1 (
+  id INT NOT NULL PRIMARY KEY,
+  id2 INT NOT NULL,
+  id3 INT NOT NULL,
+  KEY (id2),
+  KEY (id3),
+  KEY covering_index (id2,id3)
+) ENGINE=RocksDB;
+
+INSERT INTO t1 VALUES (0, 0, 0), (1, 1, 1), (2, 2, 2), (3, 3, 3), (4, 4, 4), (5, 5, 5), (6, 6, 6), (7, 7, 7);
+INSERT INTO t1 SELECT id + 8, id2 + 8, id3 +8 FROM t1;
+INSERT INTO t1 SELECT id + 16, 7, 0 FROM t1;
+
+-- disable_query_log
+-- disable_result_log
+set global rocksdb_force_flush_memtable_now=1;
+analyze table t1;
+-- enable_result_log
+-- enable_query_log
+
+EXPLAIN SELECT SQL_NO_CACHE count(*) FROM t1 WHERE id2=7 AND id3=0;
+
+DROP TABLE t1;

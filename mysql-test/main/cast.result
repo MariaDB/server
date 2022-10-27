@@ -1,0 +1,1380 @@
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
+select CAST(1-2 AS UNSIGNED);
+CAST(1-2 AS UNSIGNED)
+18446744073709551615
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+select CAST(CAST(1-2 AS UNSIGNED) AS SIGNED INTEGER);
+CAST(CAST(1-2 AS UNSIGNED) AS SIGNED INTEGER)
+-1
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+select CAST('10 ' as unsigned integer);
+CAST('10 ' as unsigned integer)
+10
+Warnings:
+Note	1292	Truncated incorrect INTEGER value: '10 '
+select cast(-5 as unsigned) | 1, cast(-5 as unsigned) & -1;
+cast(-5 as unsigned) | 1	cast(-5 as unsigned) & -1
+18446744073709551611	18446744073709551611
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+select cast(-5 as unsigned) -1, cast(-5 as unsigned) + 1;
+cast(-5 as unsigned) -1	cast(-5 as unsigned) + 1
+18446744073709551610	18446744073709551612
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+select ~5, cast(~5 as signed);
+~5	cast(~5 as signed)
+18446744073709551610	-6
+explain extended select ~5, cast(~5 as signed);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select ~5 AS `~5`,cast(~5 as signed) AS `cast(~5 as signed)`
+select cast(18446744073709551615 as signed);
+cast(18446744073709551615 as signed)
+-1
+select cast(5 as unsigned) -6.0;
+cast(5 as unsigned) -6.0
+-1.0
+select cast(NULL as signed), cast(1/0 as signed);
+cast(NULL as signed)	cast(1/0 as signed)
+NULL	NULL
+Warnings:
+Warning	1365	Division by 0
+select cast(1 as double(5,2));
+cast(1 as double(5,2))
+1.00
+select cast("5.2222" as double(5,2));
+cast("5.2222" as double(5,2))
+5.22
+select cast(12.444 as double(5,2));
+cast(12.444 as double(5,2))
+12.44
+select cast(cast(12.444 as decimal(10,3)) as double(5,2));
+cast(cast(12.444 as decimal(10,3)) as double(5,2))
+12.44
+select cast(null as double(5,2));
+cast(null as double(5,2))
+NULL
+select cast(12.444 as double);
+cast(12.444 as double)
+12.444
+select cast(cast("20:01:01" as time) as datetime);
+cast(cast("20:01:01" as time) as datetime)
+2001-02-03 20:01:01
+select cast(cast("8:46:06.23434" AS time) as decimal(32,10));
+cast(cast("8:46:06.23434" AS time) as decimal(32,10))
+84606.0000000000
+select cast(cast("2011-04-05 8:46:06.23434" AS datetime) as decimal(32,6));
+cast(cast("2011-04-05 8:46:06.23434" AS datetime) as decimal(32,6))
+20110405084606.000000
+#
+# Check handling of cast with microseconds
+#
+select cast(cast(20010203101112.121314 as double) as datetime);
+cast(cast(20010203101112.121314 as double) as datetime)
+2001-02-03 10:11:12
+select cast(cast(010203101112.12 as double) as datetime);
+cast(cast(010203101112.12 as double) as datetime)
+2001-02-03 10:11:12
+select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime);
+cast(cast(20010203101112.121314 as decimal(32,6)) as datetime)
+2001-02-03 10:11:12
+select cast(20010203101112.121314 as datetime);
+cast(20010203101112.121314 as datetime)
+2001-02-03 10:11:12
+select cast(110203101112.121314 as datetime);
+cast(110203101112.121314 as datetime)
+2011-02-03 10:11:12
+select cast(cast(010203101112.12 as double) as datetime);
+cast(cast(010203101112.12 as double) as datetime)
+2001-02-03 10:11:12
+select cast("2011-02-03 10:11:12.123456" as datetime);
+cast("2011-02-03 10:11:12.123456" as datetime)
+2011-02-03 10:11:12
+select cast("2011-02-03 10:11:12.123456" as datetime(0));
+cast("2011-02-03 10:11:12.123456" as datetime(0))
+2011-02-03 10:11:12
+select cast("2011-02-03 10:11:12.123456" as datetime(5));
+cast("2011-02-03 10:11:12.123456" as datetime(5))
+2011-02-03 10:11:12.12345
+select cast("2011-02-03 10:11:12.123456" as datetime(6));
+cast("2011-02-03 10:11:12.123456" as datetime(6))
+2011-02-03 10:11:12.123456
+select cast("2011-02-03 10:11:12" as datetime(6));
+cast("2011-02-03 10:11:12" as datetime(6))
+2011-02-03 10:11:12.000000
+select cast(cast(20010203101112.5 as double) as datetime(1));
+cast(cast(20010203101112.5 as double) as datetime(1))
+2001-02-03 10:11:12.5
+select cast(cast(010203101112.12 as double) as datetime(2));
+cast(cast(010203101112.12 as double) as datetime(2))
+2001-02-03 10:11:12.12
+select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime(6));
+cast(cast(20010203101112.121314 as decimal(32,6)) as datetime(6))
+2001-02-03 10:11:12.121314
+select cast(20010203101112.121314 as datetime(6));
+cast(20010203101112.121314 as datetime(6))
+2001-02-03 10:11:12.121314
+select cast(110203101112.121314 as datetime(6));
+cast(110203101112.121314 as datetime(6))
+2011-02-03 10:11:12.121314
+select cast(cast(010203101112.12 as double) as datetime(6));
+cast(cast(010203101112.12 as double) as datetime(6))
+2001-02-03 10:11:12.120000
+select cast("2011-02-03 10:11:12.123456" as time);
+cast("2011-02-03 10:11:12.123456" as time)
+10:11:12
+select cast("2011-02-03 10:11:12.123456" as time(6));
+cast("2011-02-03 10:11:12.123456" as time(6))
+10:11:12.123456
+select cast("10:11:12.123456" as time);
+cast("10:11:12.123456" as time)
+10:11:12
+select cast("10:11:12.123456" as time(0));
+cast("10:11:12.123456" as time(0))
+10:11:12
+select cast("10:11:12.123456" as time(5));
+cast("10:11:12.123456" as time(5))
+10:11:12.12345
+select cast("10:11:12.123456" as time(6));
+cast("10:11:12.123456" as time(6))
+10:11:12.123456
+select cast("10:11:12" as time(6));
+cast("10:11:12" as time(6))
+10:11:12.000000
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time);
+cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time)
+08:46:06
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time(6));
+cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time(6))
+08:46:06.000000
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time);
+cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time)
+08:46:06
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time(6));
+cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time(6))
+08:46:06.123456
+select cast(NULL as unsigned), cast(1/0 as unsigned);
+cast(NULL as unsigned)	cast(1/0 as unsigned)
+NULL	NULL
+Warnings:
+Warning	1365	Division by 0
+select cast("A" as binary) = "a", cast(BINARY "a" as CHAR) = "A";
+cast("A" as binary) = "a"	cast(BINARY "a" as CHAR) = "A"
+0	1
+select cast("2001-1-1" as DATE), cast("2001-1-1" as DATETIME);
+cast("2001-1-1" as DATE)	cast("2001-1-1" as DATETIME)
+2001-01-01	2001-01-01 00:00:00
+select cast("1:2:3" as TIME);
+cast("1:2:3" as TIME)
+01:02:03
+select CONVERT("2004-01-22 21:45:33",DATE);
+CONVERT("2004-01-22 21:45:33",DATE)
+2004-01-22
+select 10+'10';
+10+'10'
+20
+select 10.0+'10';
+10.0+'10'
+20
+select 10E+0+'10';
+10E+0+'10'
+20
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33" USING latin1);
+CONVERT(TIMESTAMP "2004-01-22 21:45:33" USING latin1)
+2004-01-22 21:45:33
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33",CHAR);
+CONVERT(TIMESTAMP "2004-01-22 21:45:33",CHAR)
+2004-01-22 21:45:33
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33",CHAR(4));
+CONVERT(TIMESTAMP "2004-01-22 21:45:33",CHAR(4))
+2004
+Warnings:
+Warning	1292	Truncated incorrect CHAR(4) value: '2004-01-22 21:45:33'
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33",BINARY(4));
+CONVERT(TIMESTAMP "2004-01-22 21:45:33",BINARY(4))
+2004
+Warnings:
+Warning	1292	Truncated incorrect BINARY(4) value: '2004-01-22 21:45:33'
+select CAST(TIMESTAMP "2004-01-22 21:45:33" AS BINARY(4));
+CAST(TIMESTAMP "2004-01-22 21:45:33" AS BINARY(4))
+2004
+Warnings:
+Warning	1292	Truncated incorrect BINARY(4) value: '2004-01-22 21:45:33'
+select CAST(0xb3 as signed);
+CAST(0xb3 as signed)
+179
+select CAST(0x8fffffffffffffff as signed);
+CAST(0x8fffffffffffffff as signed)
+-8070450532247928833
+select CAST(0xffffffffffffffff as unsigned);
+CAST(0xffffffffffffffff as unsigned)
+18446744073709551615
+select CAST(0xfffffffffffffffe as signed);
+CAST(0xfffffffffffffffe as signed)
+-2
+select cast('-10a' as signed integer);
+cast('-10a' as signed integer)
+-10
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '-10a'
+select cast('a10' as unsigned integer);
+cast('a10' as unsigned integer)
+0
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'a10'
+select 10+'a';
+10+'a'
+10
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+select 10.0+cast('a' as decimal);
+10.0+cast('a' as decimal)
+10.0
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+select 10E+0+'a';
+10E+0+'a'
+10
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+select cast("a" as double(5,2));
+cast("a" as double(5,2))
+0.00
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+select cast(1000 as decimal(5,2));
+cast(1000 as decimal(5,2))
+999.99
+Warnings:
+Warning	1264	Out of range value for column 'cast(1000 as decimal(5,2))' at row 1
+select cast(-1000 as decimal(5,2));
+cast(-1000 as decimal(5,2))
+-999.99
+Warnings:
+Warning	1264	Out of range value for column 'cast(-1000 as decimal(5,2))' at row 1
+select cast(1000 as double(5,2));
+cast(1000 as double(5,2))
+999.99
+Warnings:
+Note	1264	Out of range value for column 'cast(1000 as double(5,2))' at row 1
+select cast(-1000 as double(5,2));
+cast(-1000 as double(5,2))
+-999.99
+Warnings:
+Note	1264	Out of range value for column 'cast(-1000 as double(5,2))' at row 1
+select cast(010203101112.121314 as datetime);
+cast(010203101112.121314 as datetime)
+2001-02-03 10:11:12
+select cast(120010203101112.121314 as datetime);
+cast(120010203101112.121314 as datetime)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '120010203101112.121314'
+select cast(cast(1.1 as decimal) as datetime);
+cast(cast(1.1 as decimal) as datetime)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+select cast(cast(-1.1 as decimal) as datetime);
+cast(cast(-1.1 as decimal) as datetime)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '-1'
+select cast('0' as date);
+cast('0' as date)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0'
+select cast('' as date);
+cast('' as date)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: ''
+select cast('0' as datetime);
+cast('0' as datetime)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0'
+select cast('' as datetime);
+cast('' as datetime)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: ''
+select cast('0' as time);
+cast('0' as time)
+00:00:00
+select cast('' as time);
+cast('' as time)
+NULL
+Warnings:
+Warning	1292	Incorrect time value: ''
+select cast(NULL as DATE);
+cast(NULL as DATE)
+NULL
+select cast(NULL as DATETIME);
+cast(NULL as DATETIME)
+NULL
+select cast(NULL as TIME);
+cast(NULL as TIME)
+NULL
+select cast(NULL as BINARY);
+cast(NULL as BINARY)
+NULL
+select cast(cast(120010203101112.121314 as double) as datetime);
+cast(cast(120010203101112.121314 as double) as datetime)
+NULL
+select cast(cast(1.1 as double) as datetime);
+cast(cast(1.1 as double) as datetime)
+NULL
+select cast(cast(-1.1 as double) as datetime);
+cast(cast(-1.1 as double) as datetime)
+NULL
+explain extended select cast(10 as double(5,2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select cast(10 as double(5,2)) AS `cast(10 as double(5,2))`
+explain extended select cast(10 as double);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select cast(10 as double) AS `cast(10 as double)`
+explain extended select cast(10 as decimal(5,2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select cast(10 as decimal(5,2)) AS `cast(10 as decimal(5,2))`
+select cast('18446744073709551616' as unsigned);
+cast('18446744073709551616' as unsigned)
+18446744073709551615
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '18446744073709551616'
+select cast('18446744073709551616' as signed);
+cast('18446744073709551616' as signed)
+-1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '18446744073709551616'
+select cast('9223372036854775809' as signed);
+cast('9223372036854775809' as signed)
+-9223372036854775807
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
+select cast('-1' as unsigned);
+cast('-1' as unsigned)
+18446744073709551615
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+select cast('abc' as signed);
+cast('abc' as signed)
+0
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'abc'
+select cast('1a' as signed);
+cast('1a' as signed)
+1
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '1a'
+select cast('' as signed);
+cast('' as signed)
+0
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: ''
+select cast(1 as double(5,6));
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '')
+select cast(1 as decimal(5,6));
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '')
+select cast(1 as double(66,6));
+ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
+select cast(1 as decimal(66,6));
+ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
+select cast(1 as decimal(64,63));
+ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38
+select cast(1 as double(64,63));
+ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38
+set names binary;
+select cast(_latin1'test' as char character set latin2);
+cast(_latin1'test' as char character set latin2)
+test
+select cast(_koi8r'ÔÅÓÔ' as char character set cp1251);
+cast(_koi8r'ÔÅÓÔ' as char character set cp1251)
+òåñò
+create table t1 select cast(_koi8r'ÔÅÓÔ' as char character set cp1251) as t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` varchar(4) CHARACTER SET cp1251 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+select
+cast(_latin1'ab'  AS char)    as c1,
+cast(_latin1'a '  AS char)    as c2,
+cast(_latin1'abc' AS char(2)) as c3,
+cast(_latin1'a  ' AS char(2)) as c4,
+hex(cast(_latin1'a'   AS char(2))) as c5;
+c1	c2	c3	c4	c5
+ab	a 	ab	a 	6100
+Warnings:
+Warning	1292	Truncated incorrect BINARY(2) value: 'abc'
+Warning	1292	Truncated incorrect BINARY(2) value: 'a  '
+select cast(1000 as CHAR(3));
+cast(1000 as CHAR(3))
+100
+Warnings:
+Warning	1292	Truncated incorrect BINARY(3) value: '1000'
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+create table t1 select
+cast(_latin1'ab'  AS char)    as c1,
+cast(_latin1'a '  AS char)    as c2,
+cast(_latin1'abc' AS char(2)) as c3,
+cast(_latin1'a  ' AS char(2)) as c4,
+cast(_latin1'a'   AS char(2)) as c5;
+Warnings:
+Warning	1292	Truncated incorrect BINARY(2) value: 'abc'
+Warning	1292	Truncated incorrect BINARY(2) value: 'a  '
+select c1,c2,c3,c4,hex(c5) from t1;
+c1	c2	c3	c4	hex(c5)
+ab	a 	ab	a 	6100
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varbinary(2) NOT NULL,
+  `c2` varbinary(2) NOT NULL,
+  `c3` varbinary(2) NOT NULL,
+  `c4` varbinary(2) NOT NULL,
+  `c5` varbinary(2) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+select
+cast(_koi8r'ÆÇ'  AS nchar)    as c1,
+cast(_koi8r'Æ '  AS nchar)    as c2,
+cast(_koi8r'ÆÇÈ' AS nchar(2)) as c3,
+cast(_koi8r'Æ  ' AS nchar(2)) as c4,
+cast(_koi8r'Æ'   AS nchar(2)) as c5;
+c1	c2	c3	c4	c5
+Ñ„Ð³	Ñ„ 	Ñ„Ð³	Ñ„ 	Ñ„
+Warnings:
+Warning	1292	Truncated incorrect CHAR(2) value: 'Ñ„Ð³Ñ…'
+Warning	1292	Truncated incorrect CHAR(2) value: 'Ñ„  '
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+create table t1 select
+cast(_koi8r'ÆÇ'  AS nchar)    as c1,
+cast(_koi8r'Æ '  AS nchar)    as c2,
+cast(_koi8r'ÆÇÈ' AS nchar(2)) as c3,
+cast(_koi8r'Æ  ' AS nchar(2)) as c4,
+cast(_koi8r'Æ'   AS nchar(2)) as c5;
+Warnings:
+Warning	1292	Truncated incorrect CHAR(2) value: 'Ñ„Ð³Ñ…'
+Warning	1292	Truncated incorrect CHAR(2) value: 'Ñ„  '
+select * from t1;
+c1	c2	c3	c4	c5
+Ñ„Ð³	Ñ„ 	Ñ„Ð³	Ñ„ 	Ñ„
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(2) CHARACTER SET utf8 NOT NULL,
+  `c2` varchar(2) CHARACTER SET utf8 NOT NULL,
+  `c3` varchar(2) CHARACTER SET utf8 NOT NULL,
+  `c4` varchar(2) CHARACTER SET utf8 NOT NULL,
+  `c5` varchar(2) CHARACTER SET utf8 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a binary(4), b char(4) character set koi8r);
+insert into t1 values (_binary'ÔÅÓÔ',_binary'ÔÅÓÔ');
+select a,b,cast(a as char character set cp1251),cast(b as binary) from t1;
+a	b	cast(a as char character set cp1251)	cast(b as binary)
+ÔÅÓÔ	ÔÅÓÔ	ÔÅÓÔ	ÔÅÓÔ
+set names koi8r;
+select a,b,cast(a as char character set cp1251),cast(b as binary) from t1;
+a	b	cast(a as char character set cp1251)	cast(b as binary)
+ÔÅÓÔ	ÔÅÓÔ	æåõæ	ÔÅÓÔ
+set names cp1251;
+select a,b,cast(a as char character set cp1251),cast(b as binary) from t1;
+a	b	cast(a as char character set cp1251)	cast(b as binary)
+ÔÅÓÔ	òåñò	ÔÅÓÔ	ÔÅÓÔ
+drop table t1;
+set names binary;
+select cast("2001-1-1" as date) = "2001-01-01";
+cast("2001-1-1" as date) = "2001-01-01"
+1
+select cast("2001-1-1" as datetime) = "2001-01-01 00:00:00";
+cast("2001-1-1" as datetime) = "2001-01-01 00:00:00"
+1
+select cast("1:2:3" as TIME) = "1:02:03";
+cast("1:2:3" as TIME) = "1:02:03"
+1
+CREATE TABLE t1 (a enum ('aac','aab','aaa') not null);
+INSERT INTO t1 VALUES ('aaa'),('aab'),('aac');
+SELECT a, CAST(a AS CHAR) FROM t1 ORDER BY CAST(a AS UNSIGNED) ;
+a	CAST(a AS CHAR)
+aac	aac
+aab	aab
+aaa	aaa
+SELECT a, CAST(a AS CHAR(3)) FROM t1 ORDER BY CAST(a AS CHAR(2)), a;
+a	CAST(a AS CHAR(3))
+aac	aac
+aab	aab
+aaa	aaa
+Warnings:
+Warning	1292	Truncated incorrect BINARY(2) value: 'aaa'
+Warning	1292	Truncated incorrect BINARY(2) value: 'aab'
+Warning	1292	Truncated incorrect BINARY(2) value: 'aac'
+SELECT a, CAST(a AS UNSIGNED) FROM t1 ORDER BY CAST(a AS CHAR) ;
+a	CAST(a AS UNSIGNED)
+aaa	3
+aab	2
+aac	1
+SELECT a, CAST(a AS CHAR(2)) FROM t1 ORDER BY CAST(a AS CHAR(3)), a;
+a	CAST(a AS CHAR(2))
+aaa	aa
+aab	aa
+aac	aa
+Warnings:
+Warning	1292	Truncated incorrect BINARY(2) value: 'aaa'
+Warning	1292	Truncated incorrect BINARY(2) value: 'aab'
+Warning	1292	Truncated incorrect BINARY(2) value: 'aac'
+DROP TABLE t1;
+select date_add(cast('2004-12-30 12:00:00' as date), interval 0 hour);
+date_add(cast('2004-12-30 12:00:00' as date), interval 0 hour)
+2004-12-30 00:00:00
+select timediff(cast('2004-12-30 12:00:00' as time), '12:00:00');
+timediff(cast('2004-12-30 12:00:00' as time), '12:00:00')
+00:00:00
+select timediff(cast('1 12:00:00' as time), '12:00:00');
+timediff(cast('1 12:00:00' as time), '12:00:00')
+24:00:00
+select cast(18446744073709551615 as unsigned);
+cast(18446744073709551615 as unsigned)
+18446744073709551615
+select cast(18446744073709551615 as signed);
+cast(18446744073709551615 as signed)
+-1
+select cast('18446744073709551615' as unsigned);
+cast('18446744073709551615' as unsigned)
+18446744073709551615
+select cast('18446744073709551615' as signed);
+cast('18446744073709551615' as signed)
+-1
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
+select cast('9223372036854775807' as signed);
+cast('9223372036854775807' as signed)
+9223372036854775807
+select cast(concat('184467440','73709551615') as unsigned);
+cast(concat('184467440','73709551615') as unsigned)
+18446744073709551615
+select cast(concat('184467440','73709551615') as signed);
+cast(concat('184467440','73709551615') as signed)
+-1
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
+select cast(repeat('1',20) as unsigned);
+cast(repeat('1',20) as unsigned)
+11111111111111111111
+select cast(repeat('1',20) as signed);
+cast(repeat('1',20) as signed)
+-7335632962598440505
+Warnings:
+Note	1105	Cast to signed converted positive out-of-range integer to it's negative complement
+select cast(1.0e+300 as signed int);
+cast(1.0e+300 as signed int)
+9223372036854775807
+Warnings:
+Note	1916	Got overflow when converting '1e300' to SIGNED BIGINT. Value truncated
+create table t1  select cast(1 as unsigned), cast(1 as signed), cast(1 as double(5,2)), cast(1 as decimal(5,3)), cast("A" as binary), cast("A" as char(100)), cast("2001-1-1" as DATE), cast("2001-1-1" as DATETIME), cast("1:2:3" as TIME);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `cast(1 as unsigned)` int(1) unsigned NOT NULL,
+  `cast(1 as signed)` int(2) NOT NULL,
+  `cast(1 as double(5,2))` double(5,2) DEFAULT NULL,
+  `cast(1 as decimal(5,3))` decimal(5,3) NOT NULL,
+  `cast("A" as binary)` varbinary(1) DEFAULT NULL,
+  `cast("A" as char(100))` varbinary(100) DEFAULT NULL,
+  `cast("2001-1-1" as DATE)` date DEFAULT NULL,
+  `cast("2001-1-1" as DATETIME)` datetime DEFAULT NULL,
+  `cast("1:2:3" as TIME)` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+CREATE TABLE t1 (f1 double);
+INSERT INTO t1 SET f1 = -1.0e+30 ;
+INSERT INTO t1 SET f1 = +1.0e+30 ;
+SELECT f1 AS double_val, CAST(f1 AS SIGNED INT) AS cast_val FROM t1;
+double_val	cast_val
+-1e30	-9223372036854775808
+1e30	9223372036854775807
+Warnings:
+Note	1916	Got overflow when converting '-1e30' to SIGNED BIGINT. Value truncated
+Note	1916	Got overflow when converting '1e30' to SIGNED BIGINT. Value truncated
+DROP TABLE t1;
+select isnull(date(NULL)), isnull(cast(NULL as DATE));
+isnull(date(NULL))	isnull(cast(NULL as DATE))
+1	1
+SELECT CAST(cast('01-01-01' as date) AS UNSIGNED);
+CAST(cast('01-01-01' as date) AS UNSIGNED)
+20010101
+SELECT CAST(cast('01-01-01' as date) AS SIGNED);
+CAST(cast('01-01-01' as date) AS SIGNED)
+20010101
+End of 4.1 tests
+select cast('1.2' as decimal(3,2));
+cast('1.2' as decimal(3,2))
+1.20
+select 1e18 * cast('1.2' as decimal(3,2));
+1e18 * cast('1.2' as decimal(3,2))
+1.2e18
+select cast(cast('1.2' as decimal(3,2)) as signed);
+cast(cast('1.2' as decimal(3,2)) as signed)
+1
+set @v1=1e18;
+select cast(@v1 as decimal(22, 2));
+cast(@v1 as decimal(22, 2))
+1000000000000000000.00
+select cast(-1e18 as decimal(22,2));
+cast(-1e18 as decimal(22,2))
+-1000000000000000000.00
+create table t1(s1 time);
+insert into t1 values ('11:11:11');
+select cast(s1 as decimal(7,2)) from t1;
+cast(s1 as decimal(7,2))
+99999.99
+Warnings:
+Warning	1264	Out of range value for column 'cast(s1 as decimal(7,2))' at row 1
+drop table t1;
+CREATE TABLE t1 (v varchar(10), tt tinytext, t text,
+mt mediumtext, lt longtext);
+INSERT INTO t1 VALUES ('1.01', '2.02', '3.03', '4.04', '5.05');
+SELECT CAST(v AS DECIMAL), CAST(tt AS DECIMAL), CAST(t AS DECIMAL),
+CAST(mt AS DECIMAL), CAST(lt AS DECIMAL) from t1;
+CAST(v AS DECIMAL)	CAST(tt AS DECIMAL)	CAST(t AS DECIMAL)	CAST(mt AS DECIMAL)	CAST(lt AS DECIMAL)
+1	2	3	4	5
+DROP TABLE t1;
+select cast(NULL as decimal(6)) as t1;
+t1
+NULL
+set names latin1;
+select hex(cast('a' as char(2) binary));
+hex(cast('a' as char(2) binary))
+61
+select hex(cast('a' as binary(2)));
+hex(cast('a' as binary(2)))
+6100
+select hex(cast('a' as char(2) binary));
+hex(cast('a' as char(2) binary))
+61
+CREATE TABLE t1 (d1 datetime);
+INSERT INTO t1(d1) VALUES ('2007-07-19 08:30:00'), (NULL),
+('2007-07-19 08:34:00'), (NULL), ('2007-07-19 08:36:00');
+SELECT cast(date(d1) as signed) FROM t1;
+cast(date(d1) as signed)
+20070719
+NULL
+20070719
+NULL
+20070719
+drop table t1;
+CREATE TABLE t1 (f1 DATE);
+INSERT INTO t1 VALUES ('2007-07-19'), (NULL);
+SELECT HOUR(f1),
+MINUTE(f1),
+SECOND(f1) FROM t1;
+HOUR(f1)	MINUTE(f1)	SECOND(f1)
+0	0	0
+NULL	NULL	NULL
+SELECT HOUR(CAST('2007-07-19' AS DATE)),
+MINUTE(CAST('2007-07-19' AS DATE)),
+SECOND(CAST('2007-07-19' AS DATE));
+HOUR(CAST('2007-07-19' AS DATE))	MINUTE(CAST('2007-07-19' AS DATE))	SECOND(CAST('2007-07-19' AS DATE))
+0	0	0
+SELECT HOUR(CAST(NULL AS DATE)),
+MINUTE(CAST(NULL AS DATE)),
+SECOND(CAST(NULL AS DATE));
+HOUR(CAST(NULL AS DATE))	MINUTE(CAST(NULL AS DATE))	SECOND(CAST(NULL AS DATE))
+NULL	NULL	NULL
+SELECT HOUR(NULL),
+MINUTE(NULL),
+SECOND(NULL);
+HOUR(NULL)	MINUTE(NULL)	SECOND(NULL)
+NULL	NULL	NULL
+DROP TABLE t1;
+End of 5.0 tests
+#
+#  Bug #44766: valgrind error when using convert() in a subquery
+#
+CREATE TABLE t1(a tinyint);
+INSERT INTO t1 VALUES (127);
+SELECT 1 FROM
+(
+SELECT CONVERT(t2.a USING UTF8) FROM t1, t1 t2 LIMIT 1
+) AS s LIMIT 1;
+1
+1
+DROP TABLE t1;
+#
+# Bug #11765023: 57934: DOS POSSIBLE SINCE BINARY CASTING 
+#   DOESN'T ADHERE TO MAX_ALLOWED_PACKET
+set @save_max_allowed_packet=@@global.max_allowed_packet;
+SET @@GLOBAL.max_allowed_packet=2048;
+Warnings:
+Warning	1708	The value of 'max_allowed_packet' should be no less than the value of 'net_buffer_length'
+connect  newconn, localhost, root,,;
+SELECT CONVERT('a', BINARY(2049));
+CONVERT('a', BINARY(2049))
+a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+Warnings:
+Warning	1301	Result of cast_as_binary() was larger than max_allowed_packet (2048) - truncated
+SELECT CONVERT('a', CHAR(2049));
+CONVERT('a', CHAR(2049))
+a
+Warnings:
+Warning	1301	Result of cast_as_char() was larger than max_allowed_packet (2048) - truncated
+SELECT length(CONVERT(repeat('a',2048), CHAR(2049)));
+length(CONVERT(repeat('a',2048), CHAR(2049)))
+2048
+Warnings:
+Warning	1301	Result of cast_as_char() was larger than max_allowed_packet (2048) - truncated
+connection default;
+disconnect newconn;
+SET @@GLOBAL.max_allowed_packet=@save_max_allowed_packet;
+#
+# Bug#13519724 63793: CRASH IN DTCOLLATION::SET(DTCOLLATION &SET)
+#
+CREATE TABLE t1 (a VARCHAR(50));
+SELECT a FROM t1 
+WHERE CAST(a as BINARY)=x'62736D697468' 
+AND CAST(a AS BINARY)=x'65736D697468';
+a
+DROP TABLE t1;
+#
+# Bug#13581962 HIGH MEMORY USAGE ATTEMPT, THEN CRASH WITH 
+# LONGTEXT, UNION, USER VARIABLE
+# Bug#14096619 UNABLE TO RESTORE DATABASE DUMP
+#
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t1 AS SELECT CONCAT(CAST(REPEAT('9', 1000) AS SIGNED)),
+CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED));
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999...'
+Warning	1292	Truncated incorrect INTEGER value: '99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999...'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONCAT(CAST(REPEAT('9', 1000) AS SIGNED))` varchar(21) NOT NULL,
+  `CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED))` varchar(20) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+# End of test for Bug#13581962, Bug#14096619
+End of 5.1 tests
+select cast("2101-00-01 02:03:04" as datetime);
+cast("2101-00-01 02:03:04" as datetime)
+2101-00-01 02:03:04
+select cast(cast("2101-00-01 02:03:04" as datetime) as time);
+cast(cast("2101-00-01 02:03:04" as datetime) as time)
+02:03:04
+SELECT CAST(CAST('20:05:05' AS TIME) as date);
+CAST(CAST('20:05:05' AS TIME) as date)
+2001-02-03
+set sql_mode= TRADITIONAL;
+select cast("2101-00-01 02:03:04" as datetime);
+cast("2101-00-01 02:03:04" as datetime)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '2101-00-01 02:03:04'
+select cast(cast("2101-00-01 02:03:04" as datetime) as time);
+cast(cast("2101-00-01 02:03:04" as datetime) as time)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '2101-00-01 02:03:04'
+SELECT CAST(CAST('20:05:05' AS TIME) as date);
+CAST(CAST('20:05:05' AS TIME) as date)
+2001-02-03
+set sql_mode=DEFAULT;
+create table t1 (f1 time, f2 date, f3 datetime);
+insert into t1 values ('11:22:33','2011-12-13','2011-12-13 11:22:33');
+select cast(f1 as unsigned), cast(f2 as unsigned), cast(f3 as unsigned) from t1;
+cast(f1 as unsigned)	cast(f2 as unsigned)	cast(f3 as unsigned)
+112233	20111213	20111213112233
+drop table t1;
+SELECT CAST(TIME('10:20:30') AS DATE) + INTERVAL 1 DAY;
+CAST(TIME('10:20:30') AS DATE) + INTERVAL 1 DAY
+2001-02-04
+SET SQL_MODE=ALLOW_INVALID_DATES;
+SELECT DATE("foo");
+DATE("foo")
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: 'foo'
+create table t1 (a int, b char(5) as (cast("a" as char(10) binary) + a) );
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` char(5) GENERATED ALWAYS AS (cast('a' as char(10) charset latin1) + `a`) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+select collation(cast("a" as char(10) binary));
+collation(cast("a" as char(10) binary))
+latin1_bin
+select collation(cast("a" as char(10) charset utf8 binary));
+collation(cast("a" as char(10) charset utf8 binary))
+utf8_bin
+select collation(cast("a" as char(10) ascii binary));
+collation(cast("a" as char(10) ascii binary))
+latin1_bin
+select collation(cast("a" as char(10) binary charset utf8));
+collation(cast("a" as char(10) binary charset utf8))
+utf8_bin
+select collation(cast("a" as char(10) binary ascii));
+collation(cast("a" as char(10) binary ascii))
+latin1_bin
+#
+# MDEV-11030 Assertion `precision > 0' failed in decimal_bin_size
+#
+SELECT * FROM (SELECT IFNULL(CONVERT(NULL, UNSIGNED), NULL)) sq;
+IFNULL(CONVERT(NULL, UNSIGNED), NULL)
+NULL
+CREATE TABLE t1 AS SELECT IFNULL(CONVERT(NULL, UNSIGNED), NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `IFNULL(CONVERT(NULL, UNSIGNED), NULL)` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT COALESCE(CONVERT(NULL, UNSIGNED), NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `COALESCE(CONVERT(NULL, UNSIGNED), NULL)` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT CASE WHEN TRUE THEN CONVERT(NULL, UNSIGNED) ELSE NULL END;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CASE WHEN TRUE THEN CONVERT(NULL, UNSIGNED) ELSE NULL END` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT IFNULL(CONVERT(NULL,SIGNED),CONVERT(NULL,UNSIGNED)) AS a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+-1,
+CONVERT(NULL,SIGNED),
+CONCAT(CONVERT(NULL,SIGNED)),
+1,
+CONVERT(NULL,UNSIGNED),
+CONCAT(CONVERT(NULL,UNSIGNED));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `-1` int(2) NOT NULL,
+  `CONVERT(NULL,SIGNED)` int(2) DEFAULT NULL,
+  `CONCAT(CONVERT(NULL,SIGNED))` varchar(2) DEFAULT NULL,
+  `1` int(1) NOT NULL,
+  `CONVERT(NULL,UNSIGNED)` int(1) unsigned DEFAULT NULL,
+  `CONCAT(CONVERT(NULL,UNSIGNED))` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+CONVERT('',SIGNED),
+CONCAT(CONVERT('',SIGNED)),
+CONVERT('',UNSIGNED),
+CONCAT(CONVERT('',UNSIGNED));
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect INTEGER value: ''
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CONVERT('',SIGNED)` int(2) NOT NULL,
+  `CONCAT(CONVERT('',SIGNED))` varchar(2) NOT NULL,
+  `CONVERT('',UNSIGNED)` int(1) unsigned NOT NULL,
+  `CONCAT(CONVERT('',UNSIGNED))` varchar(1) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# MDEV-12849 Out-of-range errors when casting hex-hybrid to SIGNED and UNSIGNED
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE PROCEDURE p1(hh TEXT)
+BEGIN
+EXECUTE IMMEDIATE
+CONCAT('CREATE OR REPLACE TABLE t1 AS SELECT CAST(0x', hh, ' AS UNSIGNED) AS c');
+DESCRIBE t1;
+SELECT c, LENGTH(c) FROM t1;
+DROP TABLE t1;
+EXECUTE IMMEDIATE
+CONCAT('CREATE OR REPLACE TABLE t1 AS SELECT CAST(0x', hh, ' AS SIGNED) AS c');
+DESCRIBE t1;
+SELECT c, LENGTH(c) FROM t1;
+DROP TABLE t1;
+SELECT '' AS `------`;
+END
+$$
+CALL p1('FF');
+Field	Type	Null	Key	Default	Extra
+c	int(3) unsigned	NO		NULL	
+c	LENGTH(c)
+255	3
+Field	Type	Null	Key	Default	Extra
+c	int(3)	NO		NULL	
+c	LENGTH(c)
+255	3
+------
+
+CALL p1('FFFF');
+Field	Type	Null	Key	Default	Extra
+c	int(5) unsigned	NO		NULL	
+c	LENGTH(c)
+65535	5
+Field	Type	Null	Key	Default	Extra
+c	int(5)	NO		NULL	
+c	LENGTH(c)
+65535	5
+------
+
+CALL p1('FFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	int(8) unsigned	NO		NULL	
+c	LENGTH(c)
+16777215	8
+Field	Type	Null	Key	Default	Extra
+c	int(8)	NO		NULL	
+c	LENGTH(c)
+16777215	8
+------
+
+CALL p1('FFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	int(10) unsigned	NO		NULL	
+c	LENGTH(c)
+4294967295	10
+Field	Type	Null	Key	Default	Extra
+c	bigint(10)	NO		NULL	
+c	LENGTH(c)
+4294967295	10
+------
+
+CALL p1('FFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(13) unsigned	NO		NULL	
+c	LENGTH(c)
+1099511627775	13
+Field	Type	Null	Key	Default	Extra
+c	bigint(13)	NO		NULL	
+c	LENGTH(c)
+1099511627775	13
+------
+
+CALL p1('FFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(15) unsigned	NO		NULL	
+c	LENGTH(c)
+281474976710655	15
+Field	Type	Null	Key	Default	Extra
+c	bigint(15)	NO		NULL	
+c	LENGTH(c)
+281474976710655	15
+------
+
+CALL p1('FFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(17) unsigned	NO		NULL	
+c	LENGTH(c)
+72057594037927935	17
+Field	Type	Null	Key	Default	Extra
+c	bigint(17)	NO		NULL	
+c	LENGTH(c)
+72057594037927935	17
+------
+
+CALL p1('FFFFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+18446744073709551615	20
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-1	2
+------
+
+CALL p1('FFFFFFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+18446744073709551615	20
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-1	2
+------
+
+CALL p1('FFFFFFFFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+18446744073709551615	20
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-1	2
+------
+
+CALL p1('8000000000000000');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223372036854775808	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223372036854775808	20
+------
+
+CALL p1('80000000000000FF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223372036854776063	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223372036854775553	20
+------
+
+CALL p1('800000000000FFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223372036854841343	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223372036854710273	20
+------
+
+CALL p1('8000000000FFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223372036871553023	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223372036837998593	20
+------
+
+CALL p1('80000000FFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223372041149743103	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223372032559808513	20
+------
+
+CALL p1('800000FFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223373136366403583	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223370937343148033	20
+------
+
+CALL p1('8000FFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9223653511831486463	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9223090561878065153	20
+------
+
+CALL p1('80FFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+9295429630892703743	19
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-9151314442816847873	20
+------
+
+CALL p1('8FFFFFFFFFFFFFFF');
+Field	Type	Null	Key	Default	Extra
+c	bigint(20) unsigned	NO		NULL	
+c	LENGTH(c)
+10376293541461622783	20
+Field	Type	Null	Key	Default	Extra
+c	bigint(20)	NO		NULL	
+c	LENGTH(c)
+-8070450532247928833	20
+------
+
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-12852 Out-of-range errors when CAST(1-2 AS UNSIGNED
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT
+CAST(-1 AS UNSIGNED),
+CAST(1-2 AS UNSIGNED);
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CAST(-1 AS UNSIGNED)` bigint(20) unsigned NOT NULL,
+  `CAST(1-2 AS UNSIGNED)` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+CAST(-1 AS UNSIGNED)	CAST(1-2 AS UNSIGNED)
+18446744073709551615	18446744073709551615
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-12853 Out-of-range errors when CAST('-1' AS UNSIGNED
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT CAST('-1' AS UNSIGNED);
+Warnings:
+Note	1105	Cast to unsigned converted negative integer to it's positive complement
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CAST('-1' AS UNSIGNED)` bigint(20) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+CAST('-1' AS UNSIGNED)
+18446744073709551615
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-14376 Explicit CAST(CHAR(N)) erroneously escalates warnings to errors in STRICT_ALL_TABLES
+#
+SET sql_mode=STRICT_ALL_TABLES;
+SELECT CAST('xxx' AS CHAR(1));
+CAST('xxx' AS CHAR(1))
+x
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+CREATE OR REPLACE TABLE t1 (a VARCHAR(1));
+INSERT INTO t1 VALUES (CAST('xxx' AS CHAR(1)));
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(3));
+INSERT INTO t1 VALUES ('xxx');
+UPDATE t1 SET a=CAST(a AS CHAR(1));
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET latin1;
+SET a=CAST('xxx' AS CHAR(1));
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET latin1;
+SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET latin1;
+SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET utf8);
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET utf8;
+SET a=CAST('xxx' AS CHAR(1));
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET utf8;
+SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET utf8;
+SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET utf8);
+END;
+$$
+Warnings:
+Warning	1292	Truncated incorrect CHAR(1) value: 'xxx'
+# Conversion problems still escalate warnings to errors (without right truncation)
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET utf8;
+SET a=CAST(_utf8 0xD18F AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+ERROR HY000: Cannot convert 'utf8' character 0xD18F to 'latin1'
+# Conversion problems still escalate warnings to errors (with right truncation)
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(30) CHARACTER SET utf8;
+SET a=CAST(_utf8 0xD18FD18F AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+ERROR HY000: Cannot convert 'utf8' character 0xD18F to 'latin1'
+# CAST(number AS CHAR) escalates warnings to errors on truncation
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES (CAST(123 AS CHAR(1)));
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('1');
+UPDATE t1 SET a=CAST(123 AS CHAR(1));
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(10);
+SET a=CAST(123 AS CHAR(1));
+END;
+$$
+ERROR 22007: Truncated incorrect CHAR(1) value: '123'
+# CAST(temporal AS CHAR) escalates warnings to errors on truncation
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES (CAST(TIME'10:20:30' AS CHAR(1)));
+ERROR 22007: Truncated incorrect CHAR(1) value: '10:20:30'
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('1');
+UPDATE t1 SET a=CAST(TIME'10:20:30' AS CHAR(1));
+ERROR 22007: Truncated incorrect CHAR(1) value: '10:20:30'
+DROP TABLE t1;
+BEGIN NOT ATOMIC
+DECLARE a VARCHAR(10);
+SET a=CAST(TIME'10:20:30' AS CHAR(1));
+END;
+$$
+ERROR 22007: Truncated incorrect CHAR(1) value: '10:20:30'
+SET sql_mode=DEFAULT;
+#
+# MDEV-10307 CAST(11068046444225730969 AS SIGNED) does not return a warning
+#
+SELECT CAST(11068046444225730969 AS SIGNED);
+CAST(11068046444225730969 AS SIGNED)
+-7378697629483820647
+#
+# MDEV-8919 Wrong result for CAST(9999999999999999999.0)
+#
+SET sql_mode='';
+SELECT CAST(9999999999999999999e0 AS UNSIGNED);
+CAST(9999999999999999999e0 AS UNSIGNED)
+10000000000000000000
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (9999999999999999999e0);
+SELECT * FROM t1;
+a
+10000000000000000000
+DROP TABLE t1;
+SELECT CAST(9999999999999999999.0 AS UNSIGNED);
+CAST(9999999999999999999.0 AS UNSIGNED)
+9999999999999999999
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (9999999999999999999.0);
+SELECT * FROM t1;
+a
+9999999999999999999
+DROP TABLE t1;
+SELECT CAST(-1.0 AS UNSIGNED);
+CAST(-1.0 AS UNSIGNED)
+0
+Warnings:
+Warning	1916	Got overflow when converting '-1.0' to UNSIGNED INT. Value truncated
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-1.0);
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+SELECT * FROM t1;
+a
+0
+DROP TABLE t1;
+SELECT CAST(-1e0 AS UNSIGNED);
+CAST(-1e0 AS UNSIGNED)
+0
+Warnings:
+Note	1916	Got overflow when converting '-1' to UNSIGNED BIGINT. Value truncated
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-1e0);
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+SELECT * FROM t1;
+a
+0
+DROP TABLE t1;
+SELECT CAST(-1e308 AS UNSIGNED);
+CAST(-1e308 AS UNSIGNED)
+0
+Warnings:
+Note	1916	Got overflow when converting '-1e308' to UNSIGNED BIGINT. Value truncated
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-1e308);
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+SELECT * FROM t1;
+a
+0
+DROP TABLE t1;
+SELECT CAST(TIME'-00:00:01.123' AS UNSIGNED);
+CAST(TIME'-00:00:01.123' AS UNSIGNED)
+0
+Warnings:
+Note	1916	Got overflow when converting '-00:00:01.123000' to UNSIGNED BIGINT. Value truncated
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (TIME'-00:00:01.123');
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+SELECT * FROM t1;
+a
+0
+DROP TABLE t1;
+CREATE TABLE t1 (a DOUBLE UNSIGNED);
+INSERT INTO t1 VALUES (1.9e19);
+SELECT CAST(a AS SIGNED), CAST(MIN(a) AS SIGNED) FROM t1;
+CAST(a AS SIGNED)	CAST(MIN(a) AS SIGNED)
+9223372036854775807	9223372036854775807
+Warnings:
+Note	1916	Got overflow when converting '1.9e19' to SIGNED BIGINT. Value truncated
+Note	1916	Got overflow when converting '1.9e19' to SIGNED BIGINT. Value truncated
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(30,1) UNSIGNED);
+INSERT INTO t1 VALUES (1e19);
+SELECT a, CAST(a AS SIGNED) FROM t1;
+a	CAST(a AS SIGNED)
+10000000000000000000.0	9223372036854775807
+Warnings:
+Warning	1916	Got overflow when converting '10000000000000000000.0' to INT. Value truncated
+DROP TABLE t1;
+SET sql_mode=DEFAULT;

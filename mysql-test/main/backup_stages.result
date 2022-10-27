@@ -1,0 +1,335 @@
+#-----------------------------------------------------------------------
+# Multi-threaded tests
+#-----------------------------------------------------------------------
+# Show that only one connection can hold the backup lock.
+connection default;
+BACKUP STAGE START;
+connect con1,localhost,root,,;
+SET STATEMENT lock_wait_timeout=0 FOR BACKUP STAGE START;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+BACKUP STAGE START;
+connection default;
+# Show that the connection con1 has to wait for the backup lock and the
+# corresponding representation within the processlist.
+SET @con1_id = <con1_id>;
+SELECT ID, USER, COMMAND, STATE, INFO, STAGE, MAX_STAGE, INFO_BINARY
+FROM information_schema.processlist WHERE id = @con1_id;
+ID	USER	COMMAND	STATE	INFO	STAGE	MAX_STAGE	INFO_BINARY
+<con1_id>	root	Query	Waiting for backup lock	BACKUP STAGE START	0	0	BACKUP STAGE START
+BACKUP STAGE END;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_START	Backup lock		
+connection con1;
+# The connection default has removed the backup lock.
+# And so the current connection con1 can reap for its BACKUP STAGE START
+connect con2,localhost,root,,;
+# The connection con2 cannot continue the work of con1 by setting the
+# next BACKUP STAGE FLUSH.
+BACKUP STAGE FLUSH;
+ERROR HY000: You must start backup with "BACKUP STAGE START"
+BACKUP STAGE START;
+connection default;
+SET @con2_id = <con2_id>;
+# Connection con2 waits for the backup lock held by con1.
+SELECT ID, USER, COMMAND, STATE, INFO, STAGE, MAX_STAGE, INFO_BINARY
+FROM information_schema.processlist WHERE id = @con2_id;
+ID	USER	COMMAND	STATE	INFO	STAGE	MAX_STAGE	INFO_BINARY
+<con2_id>	root	Query	Waiting for backup lock	BACKUP STAGE START	0	0	BACKUP STAGE START
+disconnect con1;
+connection con2;
+# Connection con1 frees the backup lock held by disconnecting.
+# So connection con2 gets the backup lock.
+connect con3,localhost,root,,;
+BACKUP STAGE START;
+connection default;
+SET @con3_id = <con3_id>;
+# Connection con3 waits for the backup lock held by con2.
+SELECT ID, USER, COMMAND, STATE, INFO, STAGE, MAX_STAGE, INFO_BINARY
+FROM information_schema.processlist WHERE id = @con3_id;
+ID	USER	COMMAND	STATE	INFO	STAGE	MAX_STAGE	INFO_BINARY
+<con3_id>	root	Query	Waiting for backup lock	BACKUP STAGE START	0	0	BACKUP STAGE START
+KILL CONNECTION @con2_id;
+connection con3;
+# Connection con2 frees the backup lock held by getting killed.
+# So connection con3 gets the backup lock.
+BACKUP STAGE END;
+disconnect con3;
+connection default;
+CREATE TABLE t_permanent_innodb (col1 INT) ENGINE = InnoDB;
+INSERT INTO t_permanent_innodb SET col1 = 1;
+CREATE TABLE t_permanent_myisam (col1 INT) ENGINE = MyISAM;
+INSERT INTO t_permanent_myisam SET col1 = 1;
+connect backup,localhost,root,,;
+connect con11,localhost,root,,;
+SET AUTOCOMMIT = 0;
+set session lock_wait_timeout=1;
+connect con12,localhost,root,,;
+SET AUTOCOMMIT = 1;
+# Between (connection default) BACKUP STAGE START and FLUSH
+# no restrictions for concurrent sessions regarding DDL or DML
+# affecting transactional/non transactional permanent tables.
+connection backup;
+BACKUP STAGE START;
+connection con11;
+UPDATE t_permanent_innodb SET col1 = 2;
+UPDATE t_permanent_myisam SET col1 = 2;
+SELECT COUNT(*) FROM t_permanent_innodb;
+COUNT(*)
+1
+HANDLER t_permanent_innodb OPEN;
+HANDLER t_permanent_innodb READ FIRST;
+col1
+2
+HANDLER t_permanent_innodb CLOSE;
+SELECT COUNT(*) FROM t_permanent_myisam;
+COUNT(*)
+1
+HANDLER t_permanent_myisam OPEN;
+HANDLER t_permanent_myisam READ FIRST;
+col1
+2
+HANDLER t_permanent_myisam CLOSE;
+CREATE TABLE t_con1_innodb (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t_con1_myisam (col1 INT) ENGINE = InnoDB;
+ALTER TABLE t_permanent_innodb ADD COLUMN col2 INT;
+ALTER TABLE t_permanent_myisam ADD COLUMN col2 INT;
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_innodb;
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_myisam;
+connection con12;
+UPDATE t_permanent_innodb SET col1 = 3;
+UPDATE t_permanent_myisam SET col1 = 3;
+# Between (connection default) BACKUP STAGE FLUSH and BLOCK_DDL
+# concurrent sessions
+# - can change transactional permanent tables with DDL and DML
+# - can run DROP/CREATE transactional/non transactional TABLE
+# - cannot modify non transactional permanent tables with DDL or DML
+connection backup;
+BACKUP STAGE FLUSH;
+connection con11;
+UPDATE t_permanent_innodb SET col1 = 4;
+SET STATEMENT lock_wait_timeout=0 FOR UPDATE t_permanent_myisam SET col1 = 4;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT COUNT(*) FROM t_permanent_innodb;
+COUNT(*)
+1
+HANDLER t_permanent_innodb OPEN;
+HANDLER t_permanent_innodb READ FIRST;
+col1	col2
+4	NULL
+HANDLER t_permanent_innodb CLOSE;
+SELECT COUNT(*) FROM t_permanent_myisam;
+COUNT(*)
+1
+HANDLER t_permanent_myisam OPEN;
+HANDLER t_permanent_myisam READ FIRST;
+col1	col2
+3	NULL
+HANDLER t_permanent_myisam CLOSE;
+DROP TABLE t_con1_innodb;
+DROP TABLE t_con1_myisam;
+CREATE TABLE t_con1_innodb (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t_con1_myisam (col1 INT) ENGINE = InnoDB;
+ALTER TABLE t_permanent_innodb ADD COLUMN col3 INT;
+SET STATEMENT lock_wait_timeout=0 FOR ALTER TABLE t_permanent_myisam ADD COLUMN col3 INT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_innodb;
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_myisam;
+connection con12;
+UPDATE t_permanent_innodb SET col1 = 5;
+# Between (connection default) BACKUP STAGE BLOCK_DDL and BLOCK_COMMIT
+# concurrent sessions
+# - can change transactional permanent tables with DML
+# - cannot run DDL
+# - cannot change non transactional permanent tables with DML
+connection backup;
+BACKUP STAGE BLOCK_DDL;
+connection con11;
+UPDATE t_permanent_innodb SET col1 = 6;
+UPDATE t_permanent_myisam SET col1 = 6;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT COUNT(*) FROM t_permanent_innodb;
+COUNT(*)
+1
+HANDLER t_permanent_innodb OPEN;
+HANDLER t_permanent_innodb READ FIRST;
+col1	col2	col3
+6	NULL	NULL
+HANDLER t_permanent_innodb CLOSE;
+SELECT COUNT(*) FROM t_permanent_myisam;
+COUNT(*)
+1
+HANDLER t_permanent_myisam OPEN;
+HANDLER t_permanent_myisam READ FIRST;
+col1	col2
+3	NULL
+HANDLER t_permanent_myisam CLOSE;
+DROP TABLE t_con1_innodb;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+CREATE TABLE throw_away (col1 INT) ENGINE = InnoDB;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+ALTER TABLE t_permanent_innodb ADD COLUMN col4 INT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_innodb;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+CREATE OR REPLACE VIEW v_some_view AS SELECT * FROM t_permanent_myisam;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con12;
+UPDATE t_permanent_innodb SET col1 = 7;
+# Between (connection default) BACKUP STAGE BLOCK_COMMIT and END
+# concurrent sessions
+# - can change transactional permanent tables with DML
+# - cannot run DDL
+# - cannot change non transactional permanent tables with DML
+connection backup;
+BACKUP STAGE BLOCK_COMMIT;
+connection con11;
+UPDATE t_permanent_innodb SET col1 = 8;
+UPDATE t_permanent_myisam SET col1 = 8;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT COUNT(*) FROM t_permanent_innodb;
+COUNT(*)
+1
+HANDLER t_permanent_innodb OPEN;
+HANDLER t_permanent_innodb READ FIRST;
+col1	col2	col3
+8	NULL	NULL
+HANDLER t_permanent_innodb CLOSE;
+SELECT COUNT(*) FROM t_permanent_myisam;
+COUNT(*)
+1
+HANDLER t_permanent_myisam OPEN;
+HANDLER t_permanent_myisam READ FIRST;
+col1	col2
+3	NULL
+HANDLER t_permanent_myisam CLOSE;
+DROP TABLE t_con1_innodb;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DROP TABLE t_con1_myisam;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con12;
+SET STATEMENT lock_wait_timeout=1 FOR UPDATE t_permanent_innodb SET col1 = 9;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection backup;
+BACKUP STAGE END;
+connection con11;
+COMMIT;
+SELECT * FROM t_permanent_innodb ORDER BY col1;
+col1	col2	col3
+7	NULL	NULL
+SELECT * FROM t_permanent_myisam ORDER BY col1;
+col1	col2
+3	NULL
+SET AUTOCOMMIT = 0;
+SET GLOBAL tx_read_only = 1;
+connection con12;
+BACKUP STAGE START;
+BACKUP STAGE END;
+SET GLOBAL tx_read_only = 0;
+DROP VIEW v_some_view;
+DROP TABLE t_con1_innodb;
+DROP TABLE t_con1_myisam;
+# Connection backup holds the backup log and is on some stage.
+# Connection con11 tries to LOCK TABLEs or to set read_only.
+connection backup;
+BACKUP STAGE START;
+connection con11;
+# Between BACKUP STAGE START and FLUSH:
+# No restrictions for other connection around LOCK TABLES or read-only.
+LOCK TABLES t_permanent_innodb READ;
+LOCK TABLES t_permanent_myisam READ;
+LOCK TABLES t_permanent_innodb WRITE;
+LOCK TABLES t_permanent_myisam WRITE;
+UNLOCK TABLES;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+connection backup;
+BACKUP STAGE FLUSH;
+connection con11;
+# Between BACKUP STAGE FLUSH and BLOCK_COMMIT:
+# Connection con11 not holding the backup lock cannot
+# LOCK WRITE non transactional table.
+LOCK TABLES t_permanent_innodb READ;
+LOCK TABLES t_permanent_myisam READ;
+LOCK TABLES t_permanent_innodb WRITE;
+LOCK TABLES t_permanent_myisam WRITE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+UNLOCK TABLES;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+connection backup;
+BACKUP STAGE BLOCK_DDL;
+connection con11;
+# Between BACKUP STAGE FLUSH and BLOCK_COMMIT:
+# Connection con11 not holding the backup lock cannot
+# LOCK WRITE transactional or non transactional table.
+LOCK TABLES t_permanent_innodb READ;
+LOCK TABLES t_permanent_myisam READ;
+LOCK TABLES t_permanent_innodb WRITE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+LOCK TABLES t_permanent_myisam WRITE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+UNLOCK TABLES;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+connection backup;
+BACKUP STAGE BLOCK_COMMIT;
+connection con11;
+# Between BACKUP BLOCK_COMMIT FLUSH and END:
+# Connection con11 not holding the backup lock cannot
+# LOCK WRITE transactional or non transactional table.
+LOCK TABLES t_permanent_innodb READ;
+LOCK TABLES t_permanent_myisam READ;
+LOCK TABLES t_permanent_innodb WRITE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+LOCK TABLES t_permanent_myisam WRITE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+UNLOCK TABLES;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+connection backup;
+BACKUP STAGE END;
+DROP TABLE t_permanent_innodb;
+DROP TABLE t_permanent_myisam;
+#
+# Log tables
+#
+connection backup;
+SET @old_general_log = @@general_log;
+SET @old_slow_query_log = @@slow_query_log;
+SET @old_log_output = @@log_output;
+SET GLOBAL log_output = 'TABLE';
+SET GLOBAL general_log = ON;
+SET GLOBAL slow_query_log = ON;
+connection con11;
+SET @old_long_query_time = @@SESSION.long_query_time;
+SET SESSION long_query_time = 0;
+connection backup;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+connection con11;
+SELECT 1;
+1
+1
+connection backup;
+SELECT 1;
+1
+1
+connection con11;
+SET SESSION long_query_time = @old_long_query_time;
+connection backup;
+BACKUP STAGE END;
+SET GLOBAL log_output = @old_log_output;
+SET GLOBAL slow_query_log = @old_slow_query_log;
+SET GLOBAL general_log = @old_general_log;
+#-----------------------------------------------------------------------
+# Cleanup
+#-----------------------------------------------------------------------
+SET GLOBAL lock_wait_timeout = <old_lock_wait_timeout>;
+disconnect con2;
+disconnect con11;
+disconnect con12;
+disconnect backup;
+connection default;

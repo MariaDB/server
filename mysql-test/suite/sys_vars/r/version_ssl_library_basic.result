@@ -1,0 +1,2 @@
+set @@global.version_malloc_library=1;
+ERROR HY000: Variable 'version_malloc_library' is a read only variable

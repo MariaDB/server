@@ -1,0 +1,1966 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+--source include/have_write_committed.inc
+
+#
+# RocksDB Storage Engine tests
+#
+select ENGINE,COMMENT,TRANSACTIONS,XA,SAVEPOINTS from information_schema.engines where engine = 'rocksdb';
+
+--disable_warnings
+drop table if exists t0,t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+drop table if exists t11,t12,t13,t14,t15,t16,t17,t18,t19,t20;
+drop table if exists t21,t22,t23,t24,t25,t26,t27,t28,t29;
+drop table if exists t30,t31,t32,t33,t34,t35,t36,t37,t38,t39;
+drop table if exists t40,t41,t42,t43,t44,t45,t46,t47,t48,t49;
+--enable_warnings
+
+# Disable background compaction to prevent stats from affect explain output
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+
+--echo #
+--echo # Issue #1: Don't update indexes if index values have not changed
+--echo #
+# [Jay Edgar] I moved this test first because it uses the
+# rocksdb_number_keys_written value, but this value is affected out of band
+# by drop tables.  There is a background thread that periodically processes
+# through the list of dropped keys and if any are gone from the database it
+# deletes information related to the key - and this delete causes this count
+# to be incorrect.  I moved this test first and made the whole test require
+# a fresh server to hopefully avoid tihs.
+create table t1 (
+  pk int primary key,
+  a int,
+  b int,
+  key(a)
+) engine=rocksdb;
+
+insert into t1 values
+(1,1,1), (2,2,2), (3,3,3), (4,4,4);
+
+set @var1=(select variable_value 
+           from information_schema.global_status 
+           where variable_name='rocksdb_number_keys_written');
+
+--echo # Do an update that doesn't change the key 'a'.
+update t1 set b=3334341 where a=2;
+
+set @var2=(select variable_value 
+           from information_schema.global_status 
+           where variable_name='rocksdb_number_keys_written');
+--echo # The following should produce 1
+select @var2 - @var1;
+
+--echo # Do an update that sets the key to the same value
+update t1 set a=pk where a=3;
+set @var3=(select variable_value 
+           from information_schema.global_status 
+           where variable_name='rocksdb_number_keys_written');
+--echo # We have 'updated' column to the same value, so the following must return 0:
+select @var3 - @var2;
+drop table t1;
+
+create table t0 (a int primary key) engine=rocksdb;
+show create table t0;
+drop table t0;
+
+create table t1 (a int primary key, b int) engine=rocksdb;
+insert into t1 values (1,1);
+insert into t1 values (2,2);
+
+select * from t1;
+
+--echo # Check that we can create another table and insert there
+create table t2 (a varchar(10) primary key, b varchar(10)) engine=rocksdb;
+insert into t2 value ('abc','def');
+insert into t2 value ('hijkl','mnopq');
+select * from t2;
+
+--echo # Select again from t1 to see that records from different tables dont mix
+select * from t1;
+
+explain select * from t2 where a='no-such-key';
+--replace_column 9 #
+explain select * from t2 where a='abc';
+select * from t2 where a='abc';
+
+--echo # Try a composite PK
+create table t3 (
+  pk1 int, 
+  pk2 varchar(10),
+  col1 varchar(10),
+  primary key(pk1, pk2)
+) engine=rocksdb;
+
+insert into t3 values (2,'two', 'row#2');
+insert into t3 values (3,'three', 'row#3');
+insert into t3 values (1,'one', 'row#1');
+
+select * from t3;
+select * from t3 where pk1=3 and pk2='three';
+
+drop table t1, t2, t3;
+
+--echo # 
+--echo # Test blob values
+--echo #
+
+create table t4 (a int primary key, b blob) engine=rocksdb;
+insert into t4 values (1, repeat('quux-quux', 60));
+insert into t4 values (10, repeat('foo-bar', 43));
+insert into t4 values (5, repeat('foo-bar', 200));
+
+insert into t4 values (2, NULL);
+
+
+select 
+ a,
+ (case a 
+   when 1  then b=repeat('quux-quux', 60)
+   when 10 then b=repeat('foo-bar', 43)
+   when 5  then b=repeat('foo-bar', 200)
+   when 2  then b is null
+   else 'IMPOSSIBLE!' end) as CMP
+from t4;
+
+drop table t4;
+
+--echo #
+--echo # Test blobs of various sizes
+--echo # 
+
+--echo # TINYBLOB
+create table t5 (a int primary key, b tinyblob) engine=rocksdb;
+insert into t5 values (1, repeat('quux-quux', 6));
+insert into t5 values (10, repeat('foo-bar', 4));
+insert into t5 values (5, repeat('foo-bar', 2));
+select 
+ a,
+ (case a 
+   when 1  then b=repeat('quux-quux', 6)
+   when 10 then b=repeat('foo-bar', 4)
+   when 5  then b=repeat('foo-bar', 2)
+   else 'IMPOSSIBLE!' end) as CMP
+from t5;
+drop table t5;
+
+--echo # MEDIUMBLOB
+create table t6 (a int primary key, b mediumblob) engine=rocksdb;
+insert into t6 values (1, repeat('AB', 65000));
+insert into t6 values (10, repeat('bbb', 40000));
+insert into t6 values (5, repeat('foo-bar', 2));
+select 
+ a,
+ (case a 
+   when 1  then b=repeat('AB', 65000)
+   when 10 then b=repeat('bbb', 40000)
+   when 5  then b=repeat('foo-bar', 2)
+   else 'IMPOSSIBLE!' end) as CMP
+from t6;
+drop table t6;
+
+--echo # LONGBLOB
+create table t7 (a int primary key, b longblob) engine=rocksdb;
+insert into t7 values (1, repeat('AB', 65000));
+insert into t7 values (10, repeat('bbb', 40000));
+insert into t7 values (5, repeat('foo-bar', 2));
+select 
+ a,
+ (case a 
+   when 1  then b=repeat('AB', 65000)
+   when 10 then b=repeat('bbb', 40000)
+   when 5  then b=repeat('foo-bar', 2)
+   else 'IMPOSSIBLE!' end) as CMP
+from t7;
+drop table t7;
+
+
+--echo #
+--echo # Check if DELETEs work
+--echo # 
+create table t8 (a varchar(10) primary key, col1 varchar(12)) engine=rocksdb;
+
+insert into t8 values 
+ ('one', 'eins'),
+ ('two', 'zwei'),
+ ('three', 'drei'),
+ ('four', 'vier'),
+ ('five', 'funf');
+
+--echo # Delete by PK
+--replace_column 9 #
+explain delete from t8 where a='three';
+delete from t8 where a='three';
+
+select * from t8;
+
+--echo # Delete while doing a full table scan
+delete from t8 where col1='eins' or col1='vier';
+select * from t8;
+
+--echo # delete w/o WHERE:
+delete from t8;
+select * from t8;
+
+--echo #
+--echo # Test UPDATEs
+--echo #
+insert into t8 values 
+ ('one', 'eins'),
+ ('two', 'zwei'),
+ ('three', 'drei'),
+ ('four', 'vier'),
+ ('five', 'funf');
+
+update t8 set col1='dva' where a='two';
+
+update t8 set a='fourAAA' where col1='vier';
+
+select * from t8;
+delete from t8;
+
+--echo #
+--echo # Basic transactions tests
+--echo #
+begin; 
+insert into t8 values ('trx1-val1', 'data');
+insert into t8 values ('trx1-val2', 'data');
+rollback;
+select * from t8;
+
+begin; 
+insert into t8 values ('trx1-val1', 'data');
+insert into t8 values ('trx1-val2', 'data');
+commit;
+select * from t8;
+
+drop table t8;
+
+--echo #
+--echo # Check if DROP TABLE works
+--echo #
+create table t8 (a varchar(10) primary key, col1 varchar(12)) engine=rocksdb;
+select * from t8;
+insert into t8 values ('foo','foo');
+drop table t8;
+create table t8 (a varchar(10) primary key, col1 varchar(12)) engine=rocksdb;
+select * from t8;
+drop table t8;
+
+--echo #
+--echo # MDEV-3961: Assertion ... on creating a TEMPORARY RocksDB table
+--echo #
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY TABLE t10 (pk INT PRIMARY KEY) ENGINE=RocksDB;
+
+--echo #
+--echo # MDEV-3963: JOIN or WHERE conditions involving keys on RocksDB tables don't work
+--echo #
+CREATE TABLE t10 (i INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t10 VALUES (1),(3);
+CREATE TABLE t11 (j INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t11 VALUES (1),(4);
+
+select * from t10;
+select * from t11;
+--replace_column 9 #
+EXPLAIN
+SELECT * FROM t10, t11 WHERE i=j;
+SELECT * FROM t10, t11 WHERE i=j;
+
+DROP TABLE t10,t11;
+
+--echo #
+--echo # MDEV-3962: SELECT with ORDER BY causes "ERROR 1030 (HY000): Got error 122
+--echo #
+CREATE TABLE t12 (pk INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t12 VALUES (2),(1);
+SELECT * FROM t12 ORDER BY pk;
+DROP TABLE t12;
+
+--echo #
+--echo # MDEV-3964: Assertion `!pk_descr' fails in ha_rocksdb::open on adding partitions ...
+--echo #
+create table t14 (pk int primary key) engine=RocksDB partition by hash(pk) partitions 2;
+#--error ER_GET_ERRNO
+#alter table t14 add partition partitions 2;
+# ^^ works, but causes weird warnings in error log.
+drop table t14;
+
+--echo #
+--echo # MDEV-3960: Server crashes on running DISCARD TABLESPACE on a RocksDB table
+--echo #
+create table t9 (i int primary key) engine=rocksdb;
+--error ER_ILLEGAL_HA
+alter table t9 discard tablespace;
+drop table t9;
+
+--echo #
+--echo # MDEV-3959: Assertion `slice->size() == table->s->reclength' fails ...
+--echo #   on accessing a table after ALTER
+--echo #
+CREATE TABLE t15 (a INT, rocksdb_pk INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t15 VALUES (1,1),(5,2);
+#--error ER_ILLEGAL_HA
+ALTER TABLE t15 DROP COLUMN a;
+DROP TABLE t15;
+
+--echo #
+--echo # MDEV-3968: UPDATE produces a wrong result while modifying a PK on a RocksDB table
+--echo #
+create table t16 (pk int primary key, a char(8)) engine=RocksDB;
+insert into t16 values (1,'a'),(2,'b'),(3,'c'),(4,'d');
+
+# 
+# Not anymore: The following query will still eat a record because of CANT-SEE-OWN-CHANGES
+# property. 
+#
+--error ER_DUP_ENTRY
+update t16 set pk=100, a = 'updated' where a in ('b','c');
+select * from t16;
+drop table t16;
+
+--echo #
+--echo # MDEV-3970: A set of assorted crashes on inserting a row into a RocksDB table 
+--echo #
+--disable_warnings
+drop table if exists t_very_long_table_name;
+--enable_warnings
+
+CREATE TABLE `t_very_long_table_name` (
+   `c` char(1) NOT NULL,
+   `c0` char(0) NOT NULL,
+   `c1` char(1) NOT NULL,
+   `c20` char(20) NOT NULL,
+   `c255` char(255) NOT NULL,
+   PRIMARY KEY (`c255`)
+ ) ENGINE=RocksDB DEFAULT CHARSET=latin1;
+INSERT INTO t_very_long_table_name VALUES ('a', '', 'c', REPEAT('a',20), REPEAT('x',255));
+drop table t_very_long_table_name;
+
+
+--echo #
+--echo # Test table locking and read-before-write checks.
+--echo #
+create table t17 (pk varchar(12) primary key, col1 varchar(12)) engine=rocksdb;
+insert into t17 values ('row1', 'val1');
+
+--error ER_DUP_ENTRY
+insert into t17 values ('row1', 'val1-try2');
+--error ER_DUP_ENTRY
+insert into t17 values ('ROW1', 'val1-try2');
+
+insert into t17 values ('row2', 'val2');
+insert into t17 values ('row3', 'val3');
+
+--echo # This is ok
+update t17 set pk='row4' where pk='row1';
+
+--echo # This will try to overwrite another row:
+--error ER_DUP_ENTRY
+update t17 set pk='row3' where pk='row2';
+
+select * from t17;
+
+--echo #
+--echo # Locking tests
+--echo #
+
+connect (con1,localhost,root,,);
+
+--echo # First, make sure there's no locking when transactions update different rows
+connection con1;
+set autocommit=0;
+update t17 set col1='UPD1' where pk='row2';
+
+connection default;
+update t17 set col1='UPD2' where pk='row3';
+
+connection con1;
+commit;
+
+connection default;
+select * from t17;
+
+--echo # Check the variable
+show variables like 'rocksdb_lock_wait_timeout';
+set rocksdb_lock_wait_timeout=2; # seconds
+show variables like 'rocksdb_lock_wait_timeout';
+
+--echo # Try updating the same row from two transactions
+connection con1;
+begin;
+update t17 set col1='UPD2-AA' where pk='row2';
+
+connection default;
+--error ER_LOCK_WAIT_TIMEOUT
+update t17 set col1='UPD2-BB' where pk='row2';
+
+set rocksdb_lock_wait_timeout=1000; # seconds
+--send 
+  update t17 set col1='UPD2-CC' where pk='row2';
+
+connection con1;
+rollback;
+
+connection default;
+reap;
+select * from t17 where pk='row2';
+
+drop table t17;
+
+disconnect con1;
+--echo #
+--echo #  MDEV-4035: RocksDB: SELECT produces different results inside a transaction (read is not repeatable)
+--echo #
+--enable_connect_log
+
+create table t18 (pk int primary key, i int) engine=RocksDB;
+begin;
+select * from t18;
+select * from t18 where pk = 1;
+
+--connect (con1,localhost,root,,)
+insert into t18 values (1,100);
+
+--connection default
+select * from t18;
+select * from t18 where pk = 1;
+commit;
+
+drop table t18;
+
+--echo #
+--echo # MDEV-4036: RocksDB: INSERT .. ON DUPLICATE KEY UPDATE does not work, produces ER_DUP_KEY
+--echo #
+create table t19 (pk int primary key, i int) engine=RocksDB;
+insert into t19 values (1,1);
+insert into t19 values (1,100) on duplicate key update i = 102;
+select * from t19;
+drop table t19;
+
+--echo # MDEV-4037: RocksDB: REPLACE doesn't work, produces ER_DUP_KEY
+create table t20 (pk int primary key, i int) engine=RocksDB;
+insert into t20 values (1,1);
+replace into t20 values (1,100);
+select * from t20;
+drop table t20;
+
+--echo #
+--echo # MDEV-4041: Server crashes in Primary_key_comparator::get_hashnr on INSERT 
+--echo #
+create table t21 (v varbinary(16) primary key, i int) engine=RocksDB;
+insert into t21 values ('a',1);
+select * from t21;
+drop table t21;
+
+--echo #
+--echo # MDEV-4047: RocksDB: Assertion `0' fails in Protocol::end_statement() on multi-table INSERT IGNORE
+--echo #
+
+CREATE TABLE t22 (a int primary key) ENGINE=RocksDB;
+INSERT INTO t22 VALUES (1),(2);
+CREATE TABLE t23 (b int primary key) ENGINE=RocksDB;
+INSERT INTO t23 SELECT * FROM t22;
+DELETE IGNORE t22.*, t23.* FROM t22, t23 WHERE b < a;
+DROP TABLE t22,t23;
+
+--echo #
+--echo # MDEV-4046: RocksDB: Multi-table DELETE locks itself and ends with ER_LOCK_WAIT_TIMEOUT
+--echo #
+CREATE TABLE t24 (pk int primary key) ENGINE=RocksDB;
+INSERT INTO t24 VALUES (1),(2);
+
+CREATE TABLE t25 LIKE t24;
+INSERT INTO t25 SELECT * FROM t24;
+
+DELETE t25.* FROM t24, t25;
+DROP TABLE t24,t25;
+
+--echo #
+--echo # MDEV-4044: RocksDB: UPDATE or DELETE with ORDER BY locks itself
+--echo #
+create table t26 (pk int primary key, c char(1)) engine=RocksDB;
+insert into t26 values (1,'a'),(2,'b');
+update t26 set c = 'x' order by pk limit 1;
+delete from t26 order by pk limit 1;
+select * from t26;
+drop table t26;
+
+
+--echo #
+--echo # Test whether SELECT ... FOR UPDATE puts locks
+--echo #
+create table t27(pk varchar(10) primary key, col1 varchar(20)) engine=RocksDB;
+insert into t27 values 
+  ('row1', 'row1data'),
+  ('row2', 'row2data'),
+  ('row3', 'row3data');
+
+connection con1;
+begin;
+select * from t27 where pk='row3' for update;
+
+connection default;
+set rocksdb_lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+update t27 set col1='row2-modified' where pk='row3';
+
+connection con1;
+rollback;
+connection default;
+disconnect con1;
+
+drop table t27;
+
+--echo #
+--echo # MDEV-4060: RocksDB: Assertion `! trx->batch' fails in 
+--echo #
+create table t28 (pk int primary key, a int) engine=RocksDB;
+insert into t28 values (1,10),(2,20);
+begin;
+update t28 set a = 100 where pk = 3;
+rollback;
+select * from t28;
+drop table t28;
+
+
+--echo # 
+--echo # Secondary indexes
+--echo #
+create table t30 (
+  pk varchar(16) not null primary key, 
+  key1 varchar(16) not null, 
+  col1 varchar(16) not null,
+  key(key1)
+) engine=rocksdb;
+
+insert into t30 values ('row1', 'row1-key', 'row1-data');
+insert into t30 values ('row2', 'row2-key', 'row2-data');
+insert into t30 values ('row3', 'row3-key', 'row3-data');
+
+--replace_column 9 #
+explain
+select * from t30 where key1='row2-key';
+select * from t30 where key1='row2-key';
+
+--replace_column 9 #
+explain 
+select * from t30 where key1='row1';
+--echo # This will produce nothing:
+select * from t30 where key1='row1';
+
+--replace_column 9 #
+explain
+select key1 from t30;
+select key1 from t30;
+
+--echo # Create a duplicate record
+insert into t30 values ('row2a', 'row2-key', 'row2a-data');
+
+--echo # Can we see it?
+select * from t30 where key1='row2-key';
+
+delete from t30 where pk='row2';
+select * from t30 where key1='row2-key';
+
+--echo #
+--echo # Range scans on secondary index
+--echo #
+delete from t30;
+insert into t30 values 
+  ('row1', 'row1-key', 'row1-data'),
+  ('row2', 'row2-key', 'row2-data'),
+  ('row3', 'row3-key', 'row3-data'),
+  ('row4', 'row4-key', 'row4-data'),
+  ('row5', 'row5-key', 'row5-data');
+
+--replace_column 9 #
+explain 
+select * from t30 where key1 <='row3-key'; 
+select * from t30 where key1 <='row3-key'; 
+
+--replace_column 9 #
+explain 
+select * from t30 where key1 between 'row2-key' and 'row4-key';
+select * from t30 where key1 between 'row2-key' and 'row4-key';
+
+--replace_column 9 #
+explain 
+select * from t30 where key1 in ('row2-key','row4-key');
+select * from t30 where key1 in ('row2-key','row4-key');
+
+--replace_column 9 #
+explain 
+select key1 from t30 where key1 in ('row2-key','row4-key');
+select key1 from t30 where key1 in ('row2-key','row4-key');
+
+--replace_column 9 #
+explain 
+select * from t30 where key1 > 'row1-key' and key1 < 'row4-key';
+select * from t30 where key1 > 'row1-key' and key1 < 'row4-key';
+
+--replace_column 9 #
+explain 
+select * from t30 order by key1 limit 3;
+select * from t30 order by key1 limit 3;
+
+--replace_column 9 #
+explain 
+select * from t30 order by key1 desc limit 3;
+select * from t30 order by key1 desc limit 3;
+
+--echo #
+--echo # Range scans on primary key
+--echo #
+--replace_column 9 #
+explain 
+select * from t30 where pk <='row3'; 
+select * from t30 where pk <='row3'; 
+
+--replace_column 9 #
+explain 
+select * from t30 where pk between 'row2' and 'row4';
+select * from t30 where pk between 'row2' and 'row4';
+
+--replace_column 9 #
+explain 
+select * from t30 where pk in ('row2','row4');
+select * from t30 where pk in ('row2','row4');
+
+--replace_column 9 #
+explain 
+select * from t30 order by pk limit 3;
+select * from t30 order by pk limit 3;
+
+drop table t30;
+
+
+--echo #
+--echo # MDEV-3841: RocksDB: Reading by PK prefix does not work
+--echo #
+create table t31 (i int, j int, k int, primary key(i,j,k)) engine=RocksDB;
+insert into t31 values (1,10,100),(2,20,200);
+select * from t31 where i = 1;
+select * from t31 where j = 10;
+select * from t31 where k = 100;
+select * from t31 where i = 1 and j = 10;
+select * from t31 where i = 1 and k = 100;
+select * from t31 where j = 10 and k = 100;
+select * from t31 where i = 1 and j = 10 and k = 100;
+drop table t31;
+
+--echo #
+--echo # MDEV-4055: RocksDB: UPDATE/DELETE by a multi-part PK does not work
+--echo #
+create table t32 (i int, j int, k int, primary key(i,j,k), a varchar(8)) engine=RocksDB;
+insert into t32 values 
+  (1,10,100,''),
+  (2,20,200,'');
+select * from t32 where i = 1 and j = 10 and k = 100;
+update t32 set a = 'updated' where i = 1 and j = 10 and k = 100;
+select * from t32;
+drop table t32;
+
+--echo #
+--echo # MDEV-3841: RocksDB: Assertion `0' fails in ha_rocksdb::index_read_map on range select with ORDER BY .. DESC
+--echo #
+CREATE TABLE t33 (pk INT PRIMARY KEY, a CHAR(1)) ENGINE=RocksDB;
+INSERT INTO t33 VALUES (1,'a'),(2,'b');
+SELECT * FROM t33 WHERE pk <= 10 ORDER BY pk DESC;
+DROP TABLE t33;
+
+--echo #
+--echo # MDEV-4081: RocksDB throws error 122 on an attempt to create a table with unique index
+--echo #
+#--error ER_GET_ERRMSG
+--echo #  Unique indexes can be created, but uniqueness won't be enforced
+create table t33 (pk int primary key, u int, unique index(u)) engine=RocksDB;
+drop table t33;
+
+--echo #
+--echo # MDEV-4077: RocksDB: Wrong result (duplicate row) on select with range 
+--echo #
+CREATE TABLE t34 (pk INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t34 VALUES (10),(11);
+SELECT pk FROM t34 WHERE pk > 5 AND pk < 15;
+SELECT pk FROM t34 WHERE pk BETWEEN 5 AND 15;
+SELECT pk FROM t34 WHERE pk > 5;
+SELECT pk FROM t34 WHERE pk < 15;
+drop table t34;
+
+--echo #
+--echo # MDEV-4086: RocksDB does not allow a query with multi-part pk and index and ORDER BY .. DEC
+--echo #
+create table t35 (a int, b int, c int, d int, e int, primary key (a,b,c), key (a,c,d,e)) engine=RocksDB;
+insert into t35 values (1,1,1,1,1),(2,2,2,2,2);
+select * from t35 where a = 1 and c = 1 and d = 1 order by e desc;
+drop table t35;
+
+--echo #
+--echo # MDEV-4084: RocksDB: Wrong result on IN subquery with index
+--echo #
+CREATE TABLE t36 (pk INT PRIMARY KEY, a INT, KEY(a)) ENGINE=RocksDB;
+INSERT INTO t36 VALUES (1,10),(2,20);
+SELECT 3 IN ( SELECT a FROM t36 );
+drop table t36;
+
+--echo #
+--echo # MDEV-4084: RocksDB: Wrong result on IN subquery with index
+--echo #
+CREATE TABLE t37 (pk INT PRIMARY KEY, a INT, b CHAR(1), KEY(a), KEY(a,b)) 
+  ENGINE=RocksDB;
+INSERT INTO t37 VALUES (1,10,'x'), (2,20,'y');
+SELECT MAX(a) FROM t37 WHERE a < 100;
+DROP TABLE t37;
+
+--echo #
+--echo # MDEV-4090: RocksDB: Wrong result (duplicate rows) on range access with secondary key and ORDER BY DESC
+--echo #
+CREATE TABLE t38 (pk INT PRIMARY KEY, i INT, KEY(i)) ENGINE=RocksDB;
+INSERT INTO t38 VALUES (1,10), (2,20);
+SELECT i FROM t38 WHERE i NOT IN (8) ORDER BY i DESC;
+drop table t38;
+
+--echo #
+--echo # MDEV-4092: RocksDB: Assertion `in_table(pa, a_len)' fails in Rdb_key_def::cmp_full_keys 
+--echo #            with a multi-part key and ORDER BY .. DESC
+--echo #
+CREATE TABLE t40 (pk1 INT PRIMARY KEY, a INT, b VARCHAR(1), KEY(b,a)) ENGINE=RocksDB;
+INSERT INTO t40 VALUES (1, 7,'x'),(2,8,'y');
+
+CREATE TABLE t41 (pk2 INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t41 VALUES (1),(2);
+
+SELECT * FROM t40, t41 WHERE pk1 = pk2 AND b = 'o' ORDER BY a DESC;
+DROP TABLE t40,t41;
+
+--echo #
+--echo # MDEV-4093: RocksDB: IN subquery by secondary key with NULL among values returns true instead of NULL
+--echo #
+CREATE TABLE t42 (pk INT PRIMARY KEY, a INT, KEY(a)) ENGINE=RocksDB;
+INSERT INTO t42 VALUES (1, NULL),(2, 8);
+SELECT ( 3 ) NOT IN ( SELECT a FROM t42 );
+DROP TABLE t42;
+
+--echo #
+--echo # MDEV-4094: RocksDB: Wrong result on SELECT and ER_KEY_NOT_FOUND on 
+--echo #            DELETE with search by NULL-able secondary key ...
+--echo #
+CREATE TABLE t43 (pk INT PRIMARY KEY, a INT, b CHAR(1), KEY(a)) ENGINE=RocksDB;
+INSERT INTO t43 VALUES (1,8,'g'),(2,9,'x');
+UPDATE t43 SET pk = 10 WHERE a = 8;
+REPLACE INTO t43 ( a ) VALUES ( 8 );
+REPLACE INTO t43 ( b ) VALUES ( 'y' );
+SELECT * FROM t43 WHERE a = 8;
+DELETE FROM t43 WHERE a = 8;
+DROP TABLE t43;
+
+--echo #
+--echo # Basic AUTO_INCREMENT tests
+--echo #
+create table t44(pk int primary key auto_increment, col1 varchar(12)) engine=rocksdb;
+insert into t44 (col1) values ('row1');
+insert into t44 (col1) values ('row2');
+insert into t44 (col1) values ('row3');
+select * from t44;
+drop table t44;
+
+--echo #
+--echo # ALTER TABLE tests
+--echo #
+create table t45 (pk int primary key, col1 varchar(12)) engine=rocksdb;
+insert into t45 values (1, 'row1');
+insert into t45 values (2, 'row2');
+alter table t45 rename t46;
+select * from t46;
+drop table t46;
+--error ER_BAD_TABLE_ERROR
+drop table t45;
+
+
+--echo #
+--echo # Check Bulk loading
+--echo # Bulk loading used to overwrite existing data
+--echo # Now it fails if there is data overlap with what
+--echo # already exists
+--echo #
+# We exclude rocksdb_max_open_files here because it value is dependent on
+# the value of the servers open_file_limit and is expected to be different
+# across distros and installs
+
+--replace_regex /[a-f0-9]{40}/#/
+show variables 
+where 
+  variable_name like 'rocksdb%' and 
+  variable_name not like 'rocksdb_max_open_files' and
+  variable_name not like 'rocksdb_supported_compression_types';
+
+create table t47 (pk int primary key, col1 varchar(12)) engine=rocksdb;
+insert into t47 values (1, 'row1');
+insert into t47 values (2, 'row2');
+set rocksdb_bulk_load=1;
+insert into t47 values (3, 'row3'),(4, 'row4');
+set rocksdb_bulk_load=0;
+# Check concurrent bulk loading
+--connect (con1,localhost,root,,)
+set rocksdb_bulk_load=1;
+insert into t47 values (10, 'row10'),(11, 'row11');
+--connection default
+set rocksdb_bulk_load=1;
+insert into t47 values (100, 'row100'),(101, 'row101');
+--disconnect con1
+--connection default
+set rocksdb_bulk_load=0;
+--disable_query_log
+let $wait_condition = select count(*) = 8 as c from t47;
+--source include/wait_condition.inc
+--enable_query_log
+select * from t47;
+drop table t47;
+
+--echo #
+--echo # Fix TRUNCATE over empty table (transaction is committed when it wasn't
+--echo # started)
+--echo #
+create table t48(pk int primary key auto_increment, col1 varchar(12)) engine=rocksdb;
+set autocommit=0;
+#--error ER_ILLEGAL_HA
+truncate table t48;
+set autocommit=1;
+drop table t48;
+
+--echo #
+--echo # MDEV-4059: RocksDB: query waiting for a lock cannot be killed until query timeout exceeded
+--echo #
+--enable_connect_log
+
+create table t49 (pk int primary key, a int) engine=RocksDB;
+insert into t49 values (1,10),(2,20);
+begin;
+update t49 set a = 100 where pk = 1;
+
+--connect (con1,localhost,root,,)
+--let $con1_id = `SELECT CONNECTION_ID()`
+set rocksdb_lock_wait_timeout=60;
+set @var1= to_seconds(now());
+send update t49 set a = 1000 where pk = 1;
+
+--connect (con2,localhost,root,,)
+--echo kill query \$con1_id;
+--disable_query_log
+# If we immeditely kill the query - internally the condition broadcast can
+# occur before the lock is waiting on the condition, thus the broadcast call
+# is lost.  Sleep 1 second to avoid this condition.
+--sleep 1
+eval kill query $con1_id;
+--enable_query_log
+--connection con1
+--error ER_QUERY_INTERRUPTED
+--reap
+set @var2= to_seconds(now());
+
+# We expect the time to kill query in con1 should be below
+# rocksdb_lock_wait_timeout (60).
+select if ((@var2 - @var1) < 60, "passed", (@var2 - @var1)) as 'result';
+
+--connection default
+--disconnect con1
+
+commit;
+drop table t49;
+
+--echo #
+--echo # Index-only tests for INT-based columns
+--echo #
+create table t1 (pk int primary key, key1 int, col1 int, key(key1)) engine=rocksdb;
+insert into t1 values (1,1,1);
+insert into t1 values (2,2,2);
+insert into t1 values (-5,-5,-5);
+--echo # INT column uses index-only:
+--replace_column 9 #
+explain
+select key1 from t1 where key1=2;
+select key1 from t1 where key1=2;
+select key1 from t1 where key1=-5;
+drop table t1;
+
+
+create table t2 (pk int primary key, key1 int unsigned, col1 int, key(key1)) engine=rocksdb;
+insert into t2 values (1,1,1), (2,2,2);
+--echo # INT UNSIGNED column uses index-only:
+--replace_column 9 #
+explain
+select key1 from t2 where key1=2;
+select key1 from t2 where key1=2;
+drop table t2;
+
+
+create table t3 (pk bigint primary key, key1 bigint, col1 int, key(key1)) engine=rocksdb;
+insert into t3 values (1,1,1), (2,2,2);
+--echo # BIGINT uses index-only:
+--replace_column 9 #
+explain 
+select key1 from t3 where key1=2;
+select key1 from t3 where key1=2;
+drop table t3;
+
+--echo #
+--echo # Index-only reads for string columns
+--echo #
+create table t1 (
+  pk int primary key, 
+  key1 char(10) character set binary,
+  col1 int,
+  key (key1)
+) engine=rocksdb;
+insert into t1 values(1, 'one',11), (2,'two',22);
+--replace_column 9 #
+explain 
+select key1 from t1 where key1='one';
+--echo # The following will produce no rows. This looks like a bug,
+--echo #  but it is actually correct behavior. Binary strings are end-padded
+--echo #  with \0 character (and not space).  Comparison does not ignore
+--echo #   the tail of \0.
+select key1 from t1 where key1='one';
+--replace_column 9 #
+explain
+select hex(key1) from t1 where key1='one\0\0\0\0\0\0\0';
+select hex(key1) from t1 where key1='one\0\0\0\0\0\0\0';
+drop table t1;
+
+
+create table t2 (
+  pk int primary key, 
+  key1 char(10) collate latin1_bin,
+  col1 int,
+  key (key1)
+) engine=rocksdb;
+insert into t2 values(1, 'one',11), (2,'two',22);
+--replace_column 9 #
+explain 
+select key1 from t2 where key1='one';
+select key1 from t2 where key1='one';
+drop table t2;
+
+
+create table t3 (
+  pk int primary key, 
+  key1 char(10) collate utf8_bin,
+  col1 int,
+  key (key1)
+) engine=rocksdb;
+insert into t3 values(1, 'one',11), (2,'two',22);
+--replace_column 9 #
+explain 
+select key1 from t3 where key1='one';
+select key1 from t3 where key1='one';
+drop table t3;
+
+
+--echo # a VARCHAR column
+create table t4 (
+  pk int primary key, 
+  key1 varchar(10) collate latin1_bin, 
+  key(key1)
+) engine=rocksdb; 
+insert into t4 values(1, 'one'), (2,'two'),(3,'threee'),(55,'fifty-five');
+
+--replace_column 9 #
+explain 
+select key1 from t4 where key1='two';
+select key1 from t4 where key1='two';
+
+select key1 from t4 where key1='fifty-five';
+
+--replace_column 9 #
+explain 
+select key1 from t4 where key1 between 's' and 'u';
+select key1 from t4 where key1 between 's' and 'u';
+
+drop table t4;
+
+--echo # 
+--echo # MDEV-4305: RocksDB: Assertion `((keypart_map + 1) & keypart_map) == 0' fails in calculate_key_len
+--echo # 
+CREATE TABLE t1 (pk1 INT, pk2 CHAR(32), i INT, PRIMARY KEY(pk1,pk2), KEY(i)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,'test1',6),(2,'test2',8);
+SELECT * FROM t1 WHERE i != 3 OR  pk1 > 9;
+DROP TABLE t1;
+
+--echo # 
+--echo # MDEV-4298: RocksDB: Assertion `thd->is_error() || kill_errno' fails in ha_rows filesort
+--echo # 
+call mtr.add_suppression("Sort aborted");
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, KEY(i)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,1),(2,2);
+BEGIN;
+UPDATE t1 SET i = 100;
+
+--connect (con1,localhost,root,,test)
+--error ER_LOCK_WAIT_TIMEOUT
+DELETE IGNORE FROM t1 ORDER BY i;
+--disconnect con1
+
+--connection default
+COMMIT;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-4324: RocksDB: Valgrind "Use of uninitialised value" warnings on inserting value into varchar field
+--echo #  (testcase only)
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, c VARCHAR(4)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,'foo'), (2,'bar');
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-4304: RocksDB: Index-only scan by a field with utf8_bin collation returns garbage symbols
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, c1 CHAR(1), c2 CHAR(1), KEY(c1)) ENGINE=RocksDB CHARSET utf8 COLLATE utf8_bin;
+INSERT INTO t1 VALUES (1,'h','h');
+SELECT * FROM t1;
+SELECT c1 FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-4300: RocksDB: Server crashes in inline_mysql_mutex_lock on SELECT .. FOR UPDATE
+--echo #
+CREATE TABLE t2 (pk INT PRIMARY KEY, i INT, KEY (i)) ENGINE=RocksDB;
+INSERT INTO t2 VALUES (1,4),(2,5);
+SELECT 1 FROM t2 WHERE i < 0 FOR UPDATE;
+DROP TABLE t2;
+
+--echo #
+--echo # MDEV-4301: RocksDB: Assertion `pack_info != __null' fails in Rdb_key_def::unpack_record
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, c CHAR(1), KEY(c,i)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,4,'d'),(2,8,'e');
+SELECT MAX( pk ) FROM t1 WHERE i = 105 AND c = 'h';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-4337: RocksDB: Inconsistent results comparing a char field with an int field
+--echo #
+create table t1 (c char(1), i int, primary key(c), key(i)) engine=RocksDB;
+insert into t1 values ('2',2),('6',6);
+select * from t1 where c = i;
+select * from t1 ignore index (i) where c = i;
+drop table t1;
+
+
+--echo #
+--echo # Test statement rollback inside a transaction
+--echo #
+create table t1 (pk varchar(12) primary key) engine=rocksdb;
+insert into t1 values ('old-val1'),('old-val2');
+
+create table t2 (pk varchar(12) primary key) engine=rocksdb;
+insert into t2 values ('new-val2'),('old-val1');
+
+begin;
+insert into t1 values ('new-val1');
+--error ER_DUP_ENTRY
+insert into t1 select * from t2;
+commit;
+
+select * from t1;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-4383: RocksDB: Wrong result of DELETE .. ORDER BY .. LIMIT: 
+--echo #   rows that should be deleted remain in the table
+--echo #
+CREATE TABLE t2 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=RocksDB;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=RocksDB;
+
+INSERT INTO t1 (pk) VALUES (NULL),(NULL);
+BEGIN;
+INSERT INTO t2 (pk) VALUES (NULL),(NULL);
+INSERT INTO t1 (pk) VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+
+--enable_info
+SELECT * FROM t1 ORDER BY pk LIMIT 9; 
+DELETE FROM t1 ORDER BY pk LIMIT 9;
+SELECT * FROM t1 ORDER BY pk LIMIT 9;
+--disable_info
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-4374: RocksDB: Valgrind warnings 'Use of uninitialised value' on 
+--echo #   inserting into a varchar column
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, a VARCHAR(32)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-4061: RocksDB: Changes from an interrupted query are still applied
+--echo #
+
+--enable_connect_log
+
+create table t1 (pk int primary key, a int) engine=RocksDB;
+insert into t1 values (1,10),(2,20);
+
+--let $con_id = `select connection_id()`
+
+set autocommit = 1;
+--send
+update t1 set a = sleep(100) where pk = 1;
+
+--connect (con1,localhost,root,,)
+
+let $wait_condition= select State='User sleep' from information_schema.processlist where id=$con_id/* or srv_id=$con_id*/;
+--source include/wait_condition.inc
+
+--echo kill query \$con_id;
+--disable_query_log
+eval kill query $con_id;
+--enable_query_log
+
+--connection default
+--error ER_QUERY_INTERRUPTED
+--reap
+
+select * from t1;
+--disconnect con1
+--disable_connect_log
+drop table t1;
+
+
+--echo #
+--echo # MDEV-4099: RocksDB: Wrong results with index and range access after INSERT IGNORE or REPLACE
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, a SMALLINT, b INT, KEY (a)) ENGINE=RocksDB;
+INSERT IGNORE INTO t1 VALUES (1, 157, 0), (2, 1898, -504403), (1, -14659,  0);
+SELECT * FROM t1;
+SELECT pk FROM t1;
+SELECT * FROM t1 WHERE a != 97;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Test @@rocksdb_max_row_locks
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, a int) ENGINE=RocksDB;
+set @a=-1;
+insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables limit 100;
+set @tmp1= @@rocksdb_max_row_locks;
+set rocksdb_max_row_locks= 20;
+--error ER_GET_ERRMSG 
+update t1 set a=a+10;
+DROP TABLE t1;
+
+
+--echo # 
+--echo # Test AUTO_INCREMENT behavior problem,
+--echo #  "explicit insert into an auto-inc column is not noticed by RocksDB"
+--echo # 
+create table t1 (i int primary key auto_increment) engine=RocksDB;
+
+insert into t1 values (null);
+insert into t1 values (null);
+select * from t1;
+drop table t1;
+
+create table t2 (i int primary key auto_increment) engine=RocksDB;
+
+insert into t2 values (1);
+select * from t2;
+
+--echo # this fails (ie. used to fail), RocksDB engine did not notice use of '1' above
+insert into t2 values (null);
+select * from t2;
+
+--echo # but then this succeeds, so previous statement must have incremented next number counter
+insert into t2 values (null);
+select * from t2;
+drop table t2;
+
+--echo # 
+--echo # Fix Issue#2: AUTO_INCREMENT value doesn't survive server shutdown
+--echo # 
+create table t1 (i int primary key auto_increment) engine=RocksDB;
+
+insert into t1 values (null);
+insert into t1 values (null);
+
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;
+
+--source include/restart_mysqld.inc
+
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+
+insert into t1 values (null);
+select * from t1;
+
+drop table t1;
+
+--echo # 
+--echo # Fix Issue #3: SHOW TABLE STATUS shows Auto_increment=0
+--echo # 
+create table t1 (i int primary key auto_increment) engine=RocksDB;
+
+insert into t1 values (null),(null);
+--replace_column 7 # 12 # 13 #
+show table status like 't1';
+drop table t1;
+
+--echo #
+--echo # Fix Issue #4: Crash when using pseudo-unique keys
+--echo #
+CREATE TABLE t1 (
+  i INT,
+  t TINYINT,
+  s SMALLINT,
+  m MEDIUMINT,
+  b BIGINT,
+  pk MEDIUMINT AUTO_INCREMENT PRIMARY KEY,
+  UNIQUE KEY b_t (b,t)
+) ENGINE=rocksdb;
+
+INSERT INTO t1 (i,t,s,m,b) VALUES (1,2,3,4,5),(1000,100,10000,1000000,1000000000000000000),(5,100,10000,1000000,100000000000000000),(2,3,4,5,6),(3,4,5,6,7),(101,102,103,104,105),(10001,103,10002,10003,10004),(10,11,12,13,14),(11,12,13,14,15),(12,13,14,15,16);
+
+SELECT b+t FROM t1 WHERE (b,t) IN ( SELECT b, t FROM t1 WHERE i>1 ) ORDER BY b+t;
+DROP TABLE t1;
+
+--echo #
+--echo # Fix issue #5: Transaction rollback doesn't undo all changes.
+--echo #
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (id int auto_increment primary key, value int) engine=rocksdb;
+
+set autocommit=0;
+begin;
+set @a:=0;
+insert into t1 select @a:=@a+1, @a from t0 A, t0 B, t0 C, t0 D where D.a<4;
+insert into t1 select @a:=@a+1, @a from t0 A, t0 B, t0 C, t0 D where D.a<4;
+insert into t1 select @a:=@a+1, @a from t0 A, t0 B, t0 C, t0 D where D.a<4;
+rollback;
+select count(*) from t1;
+
+set autocommit=1;
+drop table t0, t1;
+
+--echo #
+--echo # Check status variables
+--echo # NOTE: We exclude rocksdb_num_get_for_update_calls because it's a debug only status var
+--echo #
+--replace_column 2 #
+show status where variable_name like 'rocksdb%' and variable_name not like '%num_get_for_update%';
+
+select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
+--echo # RocksDB-SE's status variables are global internally 
+--echo #  but they are shown as both session and global, like InnoDB's status vars.
+select VARIABLE_NAME from INFORMATION_SCHEMA.session_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
+
+
+--echo #
+--echo # Fix issue #9: HA_ERR_INTERNAL_ERROR when running linkbench
+--echo #
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  pk int primary key, 
+  col1 varchar(255),
+  key(col1)
+) engine=rocksdb;
+insert into t1 select a, repeat('123456789ABCDEF-', 15) from t0;
+select * from t1 where pk=3;
+drop table t0, t1;
+
+--echo #
+--echo # Fix issue #10: Segfault in Rdb_key_def::get_primary_key_tuple
+--echo #
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+CREATE TABLE t1 (
+  id1 bigint(20) unsigned NOT NULL DEFAULT '0',
+  id2 bigint(20) unsigned NOT NULL DEFAULT '0',
+  link_type bigint(20) unsigned NOT NULL DEFAULT '0',
+  visibility tinyint(3) NOT NULL DEFAULT '0',
+  data varchar(255) NOT NULL DEFAULT '',
+  time bigint(20) unsigned NOT NULL DEFAULT '0',
+  version int(11) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (link_type,id1,id2)
+) engine=rocksdb;
+
+insert into t1 select a,a,a,1,a,a,a from t0;
+
+alter table t1 add index id1_type (id1,link_type,visibility,time,version,data);
+select * from t1 where id1 = 3;
+
+drop table t0,t1;
+
+--echo #
+--echo # Test column families
+--echo # 
+
+create table t1 (
+  pk int primary key,
+  col1 int, 
+  col2 int,
+  key(col1) comment 'cf3',
+  key(col2) comment 'cf4'
+) engine=rocksdb;
+
+insert into t1 values (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
+
+--replace_column 9 #
+explain
+select * from t1 where col1=2;
+select * from t1 where col1=2;
+ 
+--replace_column 9 #
+explain
+select * from t1 where col2=3;
+select * from t1 where col2=3;
+
+select * from t1 where pk=4;
+
+drop table t1;
+
+--echo #
+--echo # Try primary key in a non-default CF:
+--echo #
+create table t1 (
+  pk int,
+  col1 int, 
+  col2 int,
+  key(col1) comment 'cf3',
+  key(col2) comment 'cf4',
+  primary key (pk) comment 'cf5'
+) engine=rocksdb;
+insert into t1 values (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
+
+--replace_column 9 #
+explain
+select * from t1 where col1=2;
+select * from t1 where col1=2;
+
+select * from t1 where pk=4;
+ 
+drop table t1;
+
+--echo #
+--echo # Issue #15: SIGSEGV from reading in blob data
+--echo #
+CREATE TABLE t1 (
+  id int not null,
+  blob_col text,
+  PRIMARY KEY (id)
+) ENGINE=ROCKSDB CHARSET=latin1;
+
+INSERT INTO t1 SET id=123, blob_col=repeat('z',64000) ON DUPLICATE KEY UPDATE blob_col=VALUES(blob_col); 
+INSERT INTO t1 SET id=123, blob_col=''                ON DUPLICATE KEY UPDATE blob_col=VALUES(blob_col);
+DROP TABLE t1;
+
+
+--echo #
+--echo # Issue #17: Automatic per-index column families
+--echo # (Now deprecated)
+--echo #
+--error ER_PER_INDEX_CF_DEPRECATED
+create table t1 (
+  id int not null,
+  key1 int,
+  PRIMARY KEY (id),
+  index (key1) comment '$per_index_cf'
+) engine=rocksdb;
+
+
+--echo #
+--echo # Issue #22: SELECT ... FOR UPDATE takes a long time
+--echo #
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  id1 int,
+  id2 int,
+  value1 int,
+  value2 int,
+  primary key(id1, id2) COMMENT 'new_column_family',
+  key(id2)
+) engine=rocksdb default charset=latin1 collate=latin1_bin;
+
+insert into t1 select A.a, B.a, 31, 1234 from t0 A, t0 B;
+
+--replace_column 9 #
+explain 
+select * from t1 where id1=30 and value1=30 for update;
+
+set @var1=(select variable_value 
+           from information_schema.global_status 
+           where variable_name='rocksdb_number_keys_read');
+
+select * from t1 where id1=3 and value1=3 for update;
+
+set @var2=(select variable_value 
+           from information_schema.global_status 
+           where variable_name='rocksdb_number_keys_read');
+--echo # The following must return true (before the fix, the difference was 70):
+select if((@var2 - @var1) < 30, 1, @var2-@var1);
+
+drop table t0,t1;
+
+--echo #
+--echo # Issue #33: SELECT ... FROM rocksdb_table ORDER BY primary_key uses sorting
+--echo #
+create table t1 (id int primary key, value int) engine=rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+--echo # The following must not use 'Using filesort':
+--replace_column 9 #
+explain select * from t1 ORDER BY id;
+drop table t1;
+
+--echo #
+--echo # Issue #26: Index-only scans for DATETIME and TIMESTAMP
+--echo #
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+--echo # Try a DATETIME column:
+create table t1 (
+  pk int auto_increment primary key,
+  kp1 datetime,
+  kp2 int,
+  col1 int,
+  key(kp1, kp2)
+) engine=rocksdb;
+insert into t1 (kp1,kp2) 
+select date_add('2015-01-01 12:34:56', interval a day), a from t0; 
+
+select * from t1;
+
+--echo # This must show 'Using index'
+--replace_column 9 #
+explain 
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+
+--echo # Now, the same with NOT NULL column
+create table t2 (
+  pk int auto_increment primary key,
+  kp1 datetime not null,
+  kp2 int,
+  col1 int,
+  key(kp1, kp2)
+) engine=rocksdb;
+insert into t2 select * from t1;
+--echo # This must show 'Using index'
+--replace_column 9 #
+explain 
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+drop table t1,t2;
+
+--echo # Try a DATE column:
+create table t1 (
+  pk int auto_increment primary key,
+  kp1 date,
+  kp2 int,
+  col1 int,
+  key(kp1, kp2)
+) engine=rocksdb;
+insert into t1 (kp1,kp2) 
+select date_add('2015-01-01', interval a day), a from t0; 
+
+select * from t1;
+
+--echo # This must show 'Using index'
+--replace_column 9 #
+explain 
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01' and '2015-01-05';
+
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01' and '2015-01-05';
+
+--echo # Now, the same with NOT NULL column
+create table t2 (
+  pk int auto_increment primary key,
+  kp1 date not null,
+  kp2 int,
+  col1 int,
+  key(kp1, kp2)
+) engine=rocksdb;
+insert into t2 select * from t1;
+--echo # This must show 'Using index'
+--replace_column 9 #
+explain 
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+drop table t1,t2;
+
+--echo #
+--echo # Try a TIMESTAMP column:
+--echo #
+create table t1 (
+  pk int auto_increment primary key,
+  kp1 timestamp,
+  kp2 int,
+  col1 int,
+  key(kp1, kp2)
+) engine=rocksdb;
+insert into t1 (kp1,kp2) 
+select date_add('2015-01-01 12:34:56', interval a day), a from t0; 
+
+select * from t1;
+
+--echo # This must show 'Using index'
+--replace_column 9 #
+explain 
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+
+--echo # Now, the same with NOT NULL column
+create table t2 (
+  pk int auto_increment primary key,
+  kp1 timestamp not null,
+  kp2 int,
+  col1 int,
+  key(kp1, kp2)
+) engine=rocksdb;
+insert into t2 select * from t1;
+--echo # This must show 'Using index'
+--replace_column 9 #
+explain 
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+drop table t1,t2;
+
+--echo #
+--echo # Try a TIME column:
+--echo #
+create table t1 (
+  pk int auto_increment primary key,
+  kp1 time,
+  kp2 int,
+  col1 int,
+  key(kp1, kp2)
+) engine=rocksdb;
+--disable_warnings
+insert into t1 (kp1,kp2) 
+select date_add('2015-01-01 09:00:00', interval a minute), a from t0; 
+--enable_warnings
+
+select * from t1;
+
+--echo # This must show 'Using index'
+--replace_column 9 #
+explain 
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '09:01:00' and '09:05:00';
+
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '09:01:00' and '09:05:00';
+
+--echo # Now, the same with NOT NULL column
+create table t2 (
+  pk int auto_increment primary key,
+  kp1 time not null,
+  kp2 int,
+  col1 int,
+  key(kp1, kp2)
+) engine=rocksdb;
+insert into t2 select * from t1;
+--echo # This must show 'Using index'
+--replace_column 9 #
+explain 
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '09:01:00' and '09:05:00';
+
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '09:01:00' and '09:05:00';
+drop table t1,t2;
+
+--echo #
+--echo # Try a YEAR column:
+--echo #
+create table t1 (
+  pk int auto_increment primary key,
+  kp1 year,
+  kp2 int,
+  col1 int,
+  key(kp1, kp2)
+) engine=rocksdb;
+--disable_warnings
+insert into t1 (kp1,kp2) select 2015+a, a from t0; 
+--enable_warnings
+
+select * from t1;
+
+--echo # This must show 'Using index'
+--replace_column 9 #
+explain 
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2016' and '2020';
+
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2016' and '2020';
+
+--echo # Now, the same with NOT NULL column
+create table t2 (
+  pk int auto_increment primary key,
+  kp1 year not null,
+  kp2 int,
+  col1 int,
+  key(kp1, kp2)
+) engine=rocksdb;
+insert into t2 select * from t1;
+--echo # This must show 'Using index'
+--replace_column 9 #
+explain 
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2016' and '2020';
+
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2016' and '2020';
+
+drop table t1,t2;
+
+--echo #
+--echo # Issue #57: Release row locks on statement errors
+--echo #
+create table t1 (id int primary key) engine=rocksdb;
+insert into t1 values (1), (2), (3);
+begin;
+insert into t1 values (4), (5), (6);
+--error ER_DUP_ENTRY
+insert into t1 values (7), (8), (2), (9);
+select * from t1;
+
+-- connect(con1,localhost,root,,)
+--connection con1
+begin;
+--error ER_LOCK_WAIT_TIMEOUT
+select * from t1 where id=4 for update;
+
+select * from t1 where id=7 for update;
+
+select * from t1 where id=9 for update;
+
+--connection default
+-- disconnect con1
+drop table t1;
+
+--echo #Index on blob column
+SET @old_mode = @@sql_mode;
+SET sql_mode = 'strict_all_tables';
+create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(c, b(255))) engine=rocksdb;
+drop table t1;
+set global rocksdb_large_prefix=1;
+create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(1255))) engine=rocksdb;
+set global rocksdb_large_prefix=0;
+insert into t1 values (1, '1abcde', '1abcde'), (2, '2abcde', '2abcde'), (3, '3abcde', '3abcde');
+select * from t1;
+--replace_column 9 #
+explain select * from t1 where b like '1%';
+--replace_column 9 #
+explain select b, a from t1 where b like '1%';
+update t1 set b= '12345' where b = '2abcde';
+select * from t1;
+drop table t1;
+# In MariaDB, the error becomes a warning:
+# --error ER_TOO_LONG_KEY
+create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(2255))) engine=rocksdb;
+drop table t1;
+SET sql_mode = @old_mode;
+
+drop table t0;
+
+--echo #
+--echo # Fix assertion failure (attempt to overrun the key buffer) for prefix indexes
+--echo #
+
+create table t1 (
+  pk int primary key,
+  col1 varchar(100),
+  key (col1(10))
+) engine=rocksdb;
+
+insert into t1 values (1, repeat('0123456789', 9));
+
+drop table t1;
+
+--echo #
+--echo # Issue #76: Assertion `buf == table->record[0]' fails in virtual int ha_rocksdb::delete_row(const uchar*)
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT) ENGINE=RocksDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT) ENGINE=RocksDB;
+
+CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW DELETE FROM t2 WHERE pk = old.pk; 
+
+INSERT INTO t1 VALUES (1,1);
+REPLACE INTO t1 VALUES (1,2); 
+
+SELECT * FROM t1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Issue #99: UPDATE for table with VARCHAR pk gives "Can't find record" error
+--echo #
+create table t1(a int primary key);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (
+  a varchar(32) primary key,
+  col1 int
+) engine=rocksdb;
+
+insert into t2
+select concat('v-', 100 + A.a*100 + B.a), 12345 from t1 A, t1 B;
+update t2 set a=concat('x-', a) where a between 'v-1002' and 'v-1004';
+
+drop table t1,t2;
+
+--echo #
+--echo # Issue #131: Assertion `v->cfd_->internal_comparator().Compare(start, end) <= 0' failed
+--echo #
+CREATE TABLE t2(c1 INTEGER UNSIGNED NOT NULL, c2 INTEGER NULL, c3 TINYINT, c4 SMALLINT , c5 MEDIUMINT, c6 INT, c7 BIGINT, PRIMARY KEY(c1,c6)) ENGINE=RocksDB;
+INSERT INTO t2 VALUES (1,1,1,1,1,1,1);
+SELECT * FROM t2 WHERE c1 > 4294967295 ORDER BY c1,c6;
+EXPLAIN SELECT * FROM t2 WHERE c1 > 4294967295 ORDER BY c1,c6;
+drop table t2;
+
+--echo #
+--echo # Issue #135: register transaction was not being called for statement
+--echo #
+--disable_warnings
+DROP DATABASE IF EXISTS test_db;
+--enable_warnings
+CREATE DATABASE test_db;
+CREATE TABLE test_db.t1(c1 INT PRIMARY KEY);
+LOCK TABLES test_db.t1 READ;
+SET AUTOCOMMIT=0;
+SELECT c1 FROM test_db.t1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY;
+DROP DATABASE test_db;
+
+--echo #
+--echo # Issue #143: Split rocksdb_bulk_load option into two
+--echo #
+CREATE TABLE t1 (id int primary key, value int) engine=RocksDB;
+SET unique_checks=0;
+INSERT INTO t1 VALUES(1, 1);
+INSERT INTO t1 VALUES(1, 2);
+INSERT INTO t1 VALUES(1, 3);
+SELECT * FROM t1;
+--error ER_ON_DUPLICATE_DISABLED
+REPLACE INTO t1 VALUES(4, 4);
+--error ER_ON_DUPLICATE_DISABLED
+INSERT INTO t1 VALUES(5, 5) ON DUPLICATE KEY UPDATE value=value+1;
+TRUNCATE TABLE t1;
+SET @save_rocksdb_bulk_load_size= @@rocksdb_bulk_load_size;
+SET unique_checks=1;
+SET rocksdb_commit_in_the_middle=1;
+SET rocksdb_bulk_load_size=10;
+BEGIN;
+INSERT INTO t1 (id) VALUES(1),(2),(3),(4),(5),(6),(7),(8),(9),(10),
+  (11),(12),(13),(14),(15),(16),(17),(18),(19);
+ROLLBACK;
+SELECT * FROM t1;
+INSERT INTO t1 (id) VALUES (11),(12),(13),(14),(15);
+BEGIN;
+UPDATE t1 SET value=100;
+ROLLBACK;
+SELECT * FROM t1;
+BEGIN;
+DELETE FROM t1;
+ROLLBACK;
+SELECT * FROM t1;
+SET rocksdb_commit_in_the_middle=0;
+SET rocksdb_bulk_load_size= @save_rocksdb_bulk_load_size;
+DROP TABLE t1;
+
+--echo #
+--echo # Issue #185 Assertion `BaseValid()' failed in void rocksdb::BaseDeltaIterator::Advance()
+--echo #
+CREATE TABLE t2(id INT NOT NULL PRIMARY KEY, data INT) Engine=MEMORY;
+INSERT INTO t2 VALUES (100,NULL),(150,"long varchar"),(200,"varchar"),(250,"long long long varchar");
+create TABLE t1 (a int not null, b int not null, primary key(a,b));
+INSERT INTO t1  VALUES (1,1);
+SELECT a FROM t1, t2 WHERE a=b AND (b NOT IN (SELECT a FROM t1 WHERE a > 4));
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Issue #189 ha_rocksdb::load_auto_incr_value() creates implicit snapshot and doesn't release
+--echo #
+--connect (con1,localhost,root,,)
+create table r1 (id int auto_increment primary key, value int);
+insert into r1 (id) values (null), (null), (null), (null), (null);
+connection con1;
+create table r2 like r1;
+show create table r2;
+connection default;
+begin;
+insert into r1 values (10, 1);
+commit;
+connection con1;
+begin;
+select * from r1;
+commit;
+connection default;
+drop table r1, r2;
+
+# hidden primary key
+create table r1 (id int auto_increment, value int, index i(id));
+insert into r1 (id) values (null), (null), (null), (null), (null);
+connection con1;
+create table r2 like r1;
+show create table r2;
+connection default;
+begin;
+insert into r1 values (10, 1);
+commit;
+connection con1;
+begin;
+select * from r1;
+commit;
+connection default;
+drop table r1, r2;
+
+disconnect con1;
+
+--echo #
+--echo # Issue#211 Crash on LOCK TABLES + START TRANSACTION WITH CONSISTENT SNAPSHOT
+--echo #
+CREATE TABLE t1(c1 INT);
+lock TABLE t1 read local;
+SELECT 1 FROM t1 GROUP BY TRIM(LEADING RAND()FROM'');
+set AUTOCOMMIT=0;
+start transaction with consistent snapshot;
+SELECT * FROM t1;
+COMMIT;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo #
+--echo # Issue#213 Crash on LOCK TABLES + partitions
+--echo #
+CREATE TABLE t1(a INT,b INT,KEY (b)) engine=rocksdb PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1(a)VALUES (20010101101010.999949);
+lock tables t1 write,t1 as t0 write,t1 as t2 write;
+SELECT a FROM t1 ORDER BY a;
+truncate t1;
+INSERT INTO t1 VALUES(X'042000200020',X'042000200020'),(X'200400200020',X'200400200020');
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo #
+--echo # Issue#250: MyRocks/Innodb different output from query with order by on table with index and decimal type
+--echo #  (the test was changed to use VARCHAR, because DECIMAL now supports index-only, and this issue 
+--echo #   needs a datype that doesn't support index-inly)
+--echo #
+
+CREATE TABLE t1(
+  c1 varchar(10) character set utf8 collate utf8_general_ci NOT NULL, 
+  c2 varchar(10) character set utf8 collate utf8_general_ci, 
+  c3 INT, 
+  INDEX idx(c1,c2)
+);
+INSERT INTO t1 VALUES ('c1-val1','c2-val1',5);
+INSERT INTO t1 VALUES ('c1-val2','c2-val3',6);
+INSERT INTO t1 VALUES ('c1-val3','c2-val3',7);
+SELECT * FROM t1 force index(idx) WHERE c1 <> 'c1-val2' ORDER BY c1 DESC;
+--replace_column 9 #
+explain SELECT * FROM t1  force index(idx) WHERE c1 <> '1' ORDER BY c1 DESC;
+drop table t1;
+
+--echo #
+--echo # Issue#267: MyRocks issue with no matching min/max row and count(*)
+--echo #
+CREATE TABLE t1(c1 INT UNSIGNED, c2 INT SIGNED, INDEX idx2(c2));
+INSERT INTO t1 VALUES(1,null);
+INSERT INTO t1 VALUES(2,null);
+SELECT count(*) as total_rows, min(c2) as min_value FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Issue#263: MyRocks auto_increment skips values if you insert a negative value
+--echo #
+# We have slightly different behavior regarding auto-increment values than
+# InnoDB, so the results of the SHOW TABLE STATUS command will be slightly
+# different.  InnoDB will reserve 3 values but only use 2 of them (because
+# the user hard-coded a -1 as the second value).  MyRocks will only reserve
+# the values as needed, so only 2 values will be used.  This means that the
+# SHOW TABLE STATUS in InnoDB will indicate that the next auto-increment
+# value is 4 while MyRocks will show it as 3.
+CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
+INSERT INTO t1 VALUES(0),(-1),(0);
+--replace_column 12 # 13 #
+SHOW TABLE STATUS LIKE 't1';
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
+INSERT INTO t1 VALUES(0),(10),(0);
+--replace_column 12 # 13 #
+SHOW TABLE STATUS LIKE 't1';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Issue #411: Setting rocksdb_commit_in_the_middle commits transaction
+--echo # without releasing iterator
+--echo #
+
+CREATE TABLE t1 (id1 bigint(20),
+                 id2 bigint(20),
+                 id3 bigint(20),
+                 PRIMARY KEY (id1, id2, id3))
+                 DEFAULT CHARSET=latin1;
+
+CREATE TABLE t2 (id1 bigint(20),
+                 id2 bigint(20),
+                 PRIMARY KEY (id1, id2))
+                 DEFAULT CHARSET=latin1;
+
+
+set rocksdb_commit_in_the_middle=1;
+SET @save_rocksdb_bulk_load_size= @@rocksdb_bulk_load_size;
+set rocksdb_bulk_load_size = 100;
+
+--disable_query_log
+let $j = 10000;
+while ($j)
+{
+  --eval insert into t1 (id1, id2, id3) values (0, $j, 0);
+  --eval insert into t2 (id1, id2) values (0, $j);
+  dec $j;
+}
+--enable_query_log
+
+DELETE t2, t1 FROM t2 LEFT JOIN t1 ON t2.id2 = t1.id2 AND t2.id1 = t1.id1 WHERE t2.id1 = 0;
+
+SET rocksdb_bulk_load_size= @save_rocksdb_bulk_load_size;
+SET rocksdb_commit_in_the_middle=0;
+DROP TABLE t1, t2;
+
+
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

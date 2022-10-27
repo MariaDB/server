@@ -1,0 +1,268 @@
+--source include/have_innodb.inc
+--source include/have_csv.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+SET column_compression_zlib_wrap=true;
+let $typec= BLOB COMPRESSED;
+let $typeu= BLOB;
+--source column_compression.inc
+
+let $typec= TEXT COMPRESSED;
+let $typeu= TEXT;
+--source column_compression.inc
+
+let $typec= VARBINARY(10000) COMPRESSED;
+let $typeu= VARBINARY(10000);
+--source column_compression.inc
+
+let $typec= VARCHAR(10000) COMPRESSED;
+let $typeu= VARCHAR(10000);
+--source column_compression.inc
+
+let $typec= TEXT COMPRESSED CHARSET ucs2;
+let $typeu= TEXT;
+--source column_compression.inc
+
+SET column_compression_zlib_wrap=DEFAULT;
+let $typec= BLOB COMPRESSED;
+let $typeu= BLOB;
+--source column_compression.inc
+
+--error ER_PARSE_ERROR
+CREATE TABLE t1(a CHAR(100) COMPRESSED);
+--error ER_WRONG_FIELD_SPEC
+CREATE TABLE t1(a CHAR(100) NOT NULL COMPRESSED);
+--error ER_PARSE_ERROR
+CREATE TABLE t1(a INT COMPRESSED);
+--error ER_UNKNOWN_COMPRESSION_METHOD
+CREATE TABLE t1(a BLOB COMPRESSED=unknown);
+--error ER_PARSE_ERROR
+CREATE TABLE t1(a BLOB COMPRESSED COMPRESSED);
+CREATE TABLE t1(a INT);
+--error ER_PARSE_ERROR
+ALTER TABLE t1 MODIFY a INT COMPRESSED;
+--error ER_WRONG_FIELD_SPEC
+ALTER TABLE t1 MODIFY a INT NOT NULL COMPRESSED;
+DROP TABLE t1;
+
+--echo # Test CSV
+CREATE TABLE t1(a BLOB COMPRESSED NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES(REPEAT('a', 110));
+SELECT LENGTH(a) FROM t1;
+ALTER TABLE t1 ENGINE=MyISAM;
+SELECT LENGTH(a) FROM t1;
+ALTER TABLE t1 ENGINE=CSV;
+SELECT LENGTH(a) FROM t1;
+SHOW CREATE TABLE t1;
+--cat_file $MYSQLD_DATADIR/test/t1.CSV
+DROP TABLE t1;
+
+--echo # Test fields that don't fit data
+CREATE TABLE t1(a VARCHAR(9) COMPRESSED);
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES(REPEAT('a', 10));
+INSERT INTO t1 VALUES(REPEAT(' ', 10));
+SELECT a, LENGTH(a) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(a TINYTEXT COMPRESSED);
+SET column_compression_threshold=300;
+INSERT INTO t1 VALUES(REPEAT('a', 254));
+INSERT INTO t1 VALUES(REPEAT(' ', 254));
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES(REPEAT('a', 255));
+INSERT INTO t1 VALUES(REPEAT(' ', 255));
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES(REPEAT('a', 256));
+INSERT INTO t1 VALUES(REPEAT(' ', 256));
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES(REPEAT('a', 257));
+INSERT INTO t1 VALUES(REPEAT(' ', 257));
+SET column_compression_threshold=DEFAULT;
+SELECT LEFT(a, 10), LENGTH(a) FROM t1 ORDER BY 1;
+DROP TABLE t1;
+
+--echo # Corner case: VARCHAR(255) COMPRESSED must have 2 bytes pack length
+CREATE TABLE t1(a VARCHAR(255) COMPRESSED);
+SHOW CREATE TABLE t1;
+SET column_compression_threshold=300;
+INSERT INTO t1 VALUES(REPEAT('a', 255));
+SET column_compression_threshold=DEFAULT;
+SELECT a, LENGTH(a) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(a VARCHAR(65531) COMPRESSED);
+SET column_compression_threshold=65537;
+INSERT INTO t1 VALUES(REPEAT('a', 65530));
+INSERT INTO t1 VALUES(REPEAT(' ', 65530));
+INSERT INTO t1 VALUES(REPEAT('a', 65531));
+INSERT INTO t1 VALUES(REPEAT(' ', 65531));
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES(REPEAT('a', 65532));
+INSERT INTO t1 VALUES(REPEAT(' ', 65532));
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES(REPEAT('a', 65533));
+INSERT INTO t1 VALUES(REPEAT(' ', 65533));
+SET column_compression_threshold=DEFAULT;
+SELECT LEFT(a, 10), LENGTH(a) FROM t1 ORDER BY 1, 2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-14929 - AddressSanitizer: memcpy-param-overlap in
+--echo #              Field_longstr::compress
+--echo #
+CREATE TABLE t1(b BLOB COMPRESSED);
+INSERT INTO t1 VALUES('foo'),('bar');
+SET SESSION optimizer_switch = 'derived_merge=off';
+SELECT * FROM ( SELECT * FROM t1 ) AS sq ORDER BY b;
+SET SESSION optimizer_switch=DEFAULT;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15762 - VARCHAR(0) COMPRESSED crashes the server
+--echo #
+CREATE TABLE t1(a VARCHAR(0) COMPRESSED);
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES('a');
+INSERT INTO t1 VALUES(' ');
+SELECT LENGTH(a) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15763 - VARCHAR(1) COMPRESSED crashes the server
+--echo #
+CREATE TABLE t1(a VARCHAR(1) COMPRESSED);
+SET column_compression_threshold=0;
+INSERT INTO t1 VALUES('a');
+SET column_compression_threshold=DEFAULT;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15938 - TINYTEXT CHARACTER SET utf8 COMPRESSED truncates data
+--echo #
+CREATE TABLE t1(a TINYTEXT COMPRESSED, b TINYTEXT) CHARACTER SET utf8;
+INSERT INTO t1 VALUES (REPEAT(_latin1'a', 254), REPEAT(_latin1'a', 254));
+SELECT CHAR_LENGTH(a), CHAR_LENGTH(b), LEFT(a, 10), LEFT(b, 10) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-16134 Wrong I_S.COLUMNS.CHARACTER_XXX_LENGTH value for compressed columns
+--echo #
+
+CREATE TABLE t1
+(
+  a VARCHAR(10) COMPRESSED CHARACTER SET latin1,
+  b VARCHAR(10) COMPRESSED CHARACTER SET utf8
+);
+SELECT COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH, CHARACTER_OCTET_LENGTH
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1' AND COLUMN_NAME IN ('a','b')
+ORDER BY COLUMN_NAME;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15592 - Column COMPRESSED should select a 'high order' datatype
+--echo #
+CREATE TABLE t1(a TINYTEXT COMPRESSED);
+INSERT INTO t1 VALUES(REPEAT('a', 255));
+SELECT LEFT(a, 10), LENGTH(a) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-16729 VARCHAR COMPRESSED is created with a wrong length for multi-byte character sets
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(1000) COMPRESSED CHARACTER SET utf8);
+SHOW CREATE TABLE t1;
+SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-17363 - Compressed columns cannot be restored from dump
+--echo #
+--error ER_WRONG_FIELD_SPEC
+CREATE TABLE t1(a INT NOT NULL COMPRESSED);
+SHOW WARNINGS;
+
+CREATE TABLE t1(
+  a JSON COMPRESSED,
+  b VARCHAR(1000) COMPRESSED BINARY,
+  c NVARCHAR(1000) COMPRESSED BINARY,
+  d TINYTEXT COMPRESSED BINARY
+);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # VARCHAR and TEXT variants
+--echo #
+
+--let type=VARCHAR(10)
+--source include/column_compression_syntax_varchar.inc
+
+--let type=TINYTEXT
+--source include/column_compression_syntax_varchar.inc
+
+--let type=TEXT
+--source include/column_compression_syntax_varchar.inc
+
+--let type=MEDIUMTEXT
+--source include/column_compression_syntax_varchar.inc
+
+--let type=LONGTEXT
+--source include/column_compression_syntax_varchar.inc
+
+
+--echo #
+--echo # VARBINARY and BLOB variables
+--echo #
+
+--let type=VARCHAR(10)
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=TINYBLOB
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=BLOB
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=MEDIUMBLOB
+--source include/column_compression_syntax_varbinary.inc
+
+--let type=LONGBLOB
+--source include/column_compression_syntax_varbinary.inc
+
+
+--echo #
+--echo # NVARCHAR
+--echo #
+
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED BINARY COMPRESSED);
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a NVARCHAR(10) COMPRESSED DEFAULT '' COMPRESSED);
+
+
+--echo #
+--echo # MDEV-21348 - Memory leak in Storage-Engine Independent Column
+--echo #              Compression
+--echo #
+CREATE TABLE t1(a BLOB COMPRESSED);
+SET column_compression_threshold=0;
+INSERT INTO t1 VALUES('aa');
+SET column_compression_threshold=DEFAULT;
+DROP TABLE t1;

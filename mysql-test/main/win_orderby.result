@@ -1,0 +1,26 @@
+drop table if exists t0,t1;
+create table t0(a int primary key);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(
+pk int,
+a int,
+key(pk)
+);
+insert into t1
+select 
+A.a + B.a* 10 + C.a * 100,
+1
+from t0 A, t0 B, t0 C;
+select 
+pk,
+count(a) over (order by pk rows between 2 preceding and 2 following)
+from t1
+where pk between 1 and 30
+order by pk desc
+limit 4;
+pk	count(a) over (order by pk rows between 2 preceding and 2 following)
+30	3
+29	4
+28	5
+27	5
+drop table t0,t1;

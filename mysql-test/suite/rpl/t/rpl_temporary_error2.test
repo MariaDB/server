@@ -1,0 +1,79 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+
+--echo *** Provoke a deadlock on the slave, check that transaction retry succeeds. ***
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t1(a) VALUES (1), (2), (3), (4), (5);
+
+--sync_slave_with_master
+SELECT * FROM t1 ORDER BY a;
+# Use MyISAM for t2 on the slave, so we have a way to see how far the
+# slave replication thread has proceeded in the transaction.
+SET sql_log_bin=0;
+ALTER TABLE t2 ENGINE=MyISAM;
+SET sql_log_bin=1;
+let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
+
+# Setup a separate connection that can deadlock with the replication thread.
+# Docs say that InnoDB will try to roll back the smaller transaction. So
+# let us make this transaction a big one, so the one in the replication
+# thread will be selected for rollback and retry.
+--connect (con_temp1,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
+--connection con_temp1
+BEGIN;
+UPDATE t1 SET b=2 WHERE a=4;
+--disable_query_log
+--let $count=200
+while ($count)
+{
+  eval INSERT INTO t1(a) VALUES ($count + 10);
+  dec $count;
+}
+--enable_query_log
+# Note that InnoDB also (undocumented?) tries to avoid rolling back a
+# "transaction" that modified non-transactional tables. So be sure to also
+# touch the MyISAM table in this transaction.
+INSERT INTO t2 VALUES (2);
+DELETE FROM t2 WHERE a=2;
+
+# Create the transaction that should participate in the deadlock on the slave.
+--connection master
+BEGIN;
+UPDATE t1 SET b=1 WHERE a=2;
+INSERT INTO t2 VALUES (1);
+UPDATE t1 SET b=1 WHERE a=4;
+COMMIT;
+--save_master_pos
+
+--connection slave
+# Wait until replication thread has gone to wait on the a=4 row lock.
+--let $wait_condition= SELECT COUNT(*) = 1 FROM t2 WHERE a=1
+--source include/wait_condition.inc
+
+# Now provoke the deadlock by waiting on the a=2 row lock while the
+# other thread is waiting for our a=4 row lock.
+--connection con_temp1
+UPDATE t1 SET b=2 WHERE a=2;
+SELECT * FROM t1 WHERE a<10 ORDER BY a;
+ROLLBACK;
+
+--connection slave
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+--echo * There will be two rows in t2 due to the retry.
+SELECT * FROM t2 ORDER BY a;
+let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
+--disable_query_log
+eval SELECT $new_retry - $old_retry AS retries;
+--enable_query_log
+--let $status_items= Last_SQL_Errno, Last_SQL_Error
+--source include/show_slave_status.inc
+
+--connection master
+DROP TABLE t1;
+DROP TABLE t2;
+--source include/rpl_end.inc

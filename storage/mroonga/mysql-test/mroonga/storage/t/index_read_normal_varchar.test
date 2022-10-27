@@ -1,0 +1,41 @@
+# Copyright(C) 2012 Kentoku SHIBA
+# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS ids;
+--enable_warnings
+
+CREATE TABLE ids (
+  id VARCHAR(10),
+  KEY (id)
+);
+
+INSERT INTO ids VALUES ("1");
+INSERT INTO ids SELECT id + "1"  FROM ids;
+INSERT INTO ids SELECT id + "2"  FROM ids;
+INSERT INTO ids SELECT id + "4"  FROM ids;
+INSERT INTO ids SELECT id + "8"  FROM ids;
+INSERT INTO ids SELECT id + "16" FROM ids;
+
+SELECT * FROM ids;
+SELECT * FROM ids WHERE id BETWEEN "10" AND "16";
+
+DROP TABLE ids;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

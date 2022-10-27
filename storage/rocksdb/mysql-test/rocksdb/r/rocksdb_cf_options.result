@@ -1,0 +1,64 @@
+create table t1 (a int,
+primary key (a) comment 'cf1') engine=rocksdb;
+create table t2 (a int,
+primary key (a) comment 'cf2') engine=rocksdb;
+create table t3 (a int,
+primary key (a) comment 'z') engine=rocksdb;
+insert into t1 values (1);
+insert into t2 values (2);
+insert into t3 values (2);
+# restart
+
+Default options for all column families:
+
+select cf_name, option_type, value
+from information_schema.rocksdb_cf_options
+where option_type in ('WRITE_BUFFER_SIZE',
+'TARGET_FILE_SIZE_BASE',
+'MAX_BYTES_FOR_LEVEL_MULTIPLIER')
+order by cf_name, option_type;
+cf_name	option_type	value
+cf1	MAX_BYTES_FOR_LEVEL_MULTIPLIER	10.000000
+cf1	TARGET_FILE_SIZE_BASE	1048576
+cf1	WRITE_BUFFER_SIZE	12582912
+cf2	MAX_BYTES_FOR_LEVEL_MULTIPLIER	10.000000
+cf2	TARGET_FILE_SIZE_BASE	1048576
+cf2	WRITE_BUFFER_SIZE	12582912
+default	MAX_BYTES_FOR_LEVEL_MULTIPLIER	10.000000
+default	TARGET_FILE_SIZE_BASE	1048576
+default	WRITE_BUFFER_SIZE	12582912
+z	MAX_BYTES_FOR_LEVEL_MULTIPLIER	10.000000
+z	TARGET_FILE_SIZE_BASE	1048576
+z	WRITE_BUFFER_SIZE	12582912
+__system__	MAX_BYTES_FOR_LEVEL_MULTIPLIER	10.000000
+__system__	TARGET_FILE_SIZE_BASE	1048576
+__system__	WRITE_BUFFER_SIZE	12582912
+# restart: --rocksdb_override_cf_options=cf1={write_buffer_size=8m;target_file_size_base=2m};cf2={write_buffer_size=16m;max_bytes_for_level_multiplier=8};z={target_file_size_base=4m};
+
+Individualized options for column families:
+
+select cf_name, option_type, value
+from information_schema.rocksdb_cf_options
+where option_type in ('WRITE_BUFFER_SIZE',
+'TARGET_FILE_SIZE_BASE',
+'MAX_BYTES_FOR_LEVEL_MULTIPLIER')
+order by cf_name, option_type;
+cf_name	option_type	value
+cf1	MAX_BYTES_FOR_LEVEL_MULTIPLIER	10.000000
+cf1	TARGET_FILE_SIZE_BASE	2097152
+cf1	WRITE_BUFFER_SIZE	8388608
+cf2	MAX_BYTES_FOR_LEVEL_MULTIPLIER	8.000000
+cf2	TARGET_FILE_SIZE_BASE	1048576
+cf2	WRITE_BUFFER_SIZE	16777216
+default	MAX_BYTES_FOR_LEVEL_MULTIPLIER	10.000000
+default	TARGET_FILE_SIZE_BASE	1048576
+default	WRITE_BUFFER_SIZE	12582912
+z	MAX_BYTES_FOR_LEVEL_MULTIPLIER	10.000000
+z	TARGET_FILE_SIZE_BASE	4194304
+z	WRITE_BUFFER_SIZE	12582912
+__system__	MAX_BYTES_FOR_LEVEL_MULTIPLIER	10.000000
+__system__	TARGET_FILE_SIZE_BASE	1048576
+__system__	WRITE_BUFFER_SIZE	12582912
+# restart: --rocksdb_override_cf_options=cf1={write_buffer_size=8m;target_file_size_base=2m};cf2={write_buffer_size=16m;max_bytes_for_level_multiplier=8};z={target_file_size_base=4m};
+
+drop table t1,t2,t3;

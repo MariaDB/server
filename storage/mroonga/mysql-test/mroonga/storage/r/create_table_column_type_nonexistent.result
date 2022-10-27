@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS bugs;
+CREATE TABLE bugs (
+id INT UNSIGNED PRIMARY KEY,
+tag VARCHAR(64) COMMENT 'type "Nonexistent"'
+) DEFAULT CHARSET=utf8mb4;
+ERROR HY000: unknown custom Groonga type name for <tag> column: <Nonexistent>

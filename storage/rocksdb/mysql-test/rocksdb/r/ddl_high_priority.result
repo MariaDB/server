@@ -1,0 +1,1058 @@
+##
+## Using the system variable high_priority_ddl"
+##
+create user test_user1@localhost;
+grant all on test to test_user1@localhost;
+create user test_user2@localhost;
+grant all on test to test_user2@localhost;
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = alter table t1 modify i bigint;
+## high_priority_cmd = alter high_priority table t1 modify i bigint;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+alter table t1 modify i bigint;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+alter table t1 modify i bigint;;
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = alter table t1 rename t1_new;
+## high_priority_cmd = alter high_priority table t1 rename t1_new;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+begin; insert into t1 values (4); select i from t1;;
+i
+1
+2
+3
+4
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+alter table t1 rename t1_new;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+alter table t1 rename t1_new;;
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+select * from t1_new;
+i
+1
+2
+3
+drop table t1_new;
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = drop table t1;
+## high_priority_cmd = drop high_priority table t1;
+## should_kill       = 0
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 write;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+drop table t1;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+drop table t1;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = drop table t1;
+## high_priority_cmd = drop high_priority table t1;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read; begin; insert into t1 values (4);;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+drop table t1;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+drop table t1;;
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = con2
+## cmd               = alter table t1 modify i bigint;
+## high_priority_cmd = alter high_priority table t1 modify i bigint;
+## should_kill       = 0
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: con2
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and con2 exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: con2
+alter table t1 modify i bigint;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+alter table t1 modify i bigint;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = create index idx1 on t1 (i);
+## high_priority_cmd = create high_priority index idx1 on t1 (i);
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+create index idx1 on t1 (i);;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+create index idx1 on t1 (i);;
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = drop index idx1 on t1;
+## high_priority_cmd = drop high_priority index idx1 on t1;
+## should_kill       = 1
+## recreate_table    = 0
+## throw_error       = 1
+
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES	MUL	NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+drop index idx1 on t1;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+drop index idx1 on t1;;
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = truncate t1;
+## high_priority_cmd = truncate high_priority t1;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+truncate t1;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+truncate t1;;
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = create trigger ins_sum before insert on t1 for each row set @sum = @sum + new.i;
+## high_priority_cmd = create high_priority trigger ins_sum before insert on t1 for each row set @sum = @sum + new.i;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+create trigger ins_sum before insert on t1 for each row set @sum = @sum + new.i;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+create trigger ins_sum before insert on t1 for each row set @sum = @sum + new.i;;
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = drop trigger ins_sum;
+## high_priority_cmd = drop high_priority trigger ins_sum;
+## should_kill       = 1
+## recreate_table    = 0
+## throw_error       = 1
+
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+drop trigger ins_sum;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+drop trigger ins_sum;;
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = optimize table t1;
+## high_priority_cmd = optimize high_priority table t1;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 0
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+optimize table t1;;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	Error	Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+test.t1	optimize	status	Operation failed
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+optimize table t1;;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 1;
+## con_block         = con1
+## con_kill          = default
+## cmd               = lock tables t1 write;
+## high_priority_cmd = optimize high_priority table t1;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+lock tables t1 write;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+set high_priority_ddl = 1;
+select @@high_priority_ddl;
+@@high_priority_ddl
+1
+rename table t1 to t2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+lock tables t1 write;;
+set high_priority_ddl = 0;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+unlock tables;
+drop user test_user1@localhost;
+drop user test_user2@localhost;
+drop table if exists t1;
+##
+## Using HIGH_PRIORITY syntax
+##
+create user test_user1@localhost;
+grant all on test to test_user1@localhost;
+create user test_user2@localhost;
+grant all on test to test_user2@localhost;
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = default
+## cmd               = alter table t1 modify i bigint;
+## high_priority_cmd = alter high_priority table t1 modify i bigint;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+alter table t1 modify i bigint;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+alter high_priority table t1 modify i bigint;;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = default
+## cmd               = alter table t1 rename t1_new;
+## high_priority_cmd = alter high_priority table t1 rename t1_new;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+begin; insert into t1 values (4); select i from t1;;
+i
+1
+2
+3
+4
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+alter table t1 rename t1_new;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+alter high_priority table t1 rename t1_new;;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+select * from t1_new;
+i
+1
+2
+3
+drop table t1_new;
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = default
+## cmd               = drop table t1;
+## high_priority_cmd = drop high_priority table t1;
+## should_kill       = 0
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 write;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+drop table t1;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+drop high_priority table t1;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = default
+## cmd               = drop table t1;
+## high_priority_cmd = drop high_priority table t1;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read; begin; insert into t1 values (4);;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+drop table t1;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+drop high_priority table t1;;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = con2
+## cmd               = alter table t1 modify i bigint;
+## high_priority_cmd = alter high_priority table t1 modify i bigint;
+## should_kill       = 0
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: con2
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and con2 exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: con2
+alter table t1 modify i bigint;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+alter high_priority table t1 modify i bigint;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user2	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = default
+## cmd               = create index idx1 on t1 (i);
+## high_priority_cmd = create high_priority index idx1 on t1 (i);
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+create index idx1 on t1 (i);;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+create high_priority index idx1 on t1 (i);;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = default
+## cmd               = drop index idx1 on t1;
+## high_priority_cmd = drop high_priority index idx1 on t1;
+## should_kill       = 1
+## recreate_table    = 0
+## throw_error       = 1
+
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES	MUL	NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+drop index idx1 on t1;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+drop high_priority index idx1 on t1;;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = default
+## cmd               = truncate t1;
+## high_priority_cmd = truncate high_priority t1;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+truncate t1;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+truncate high_priority t1;;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = default
+## cmd               = create trigger ins_sum before insert on t1 for each row set @sum = @sum + new.i;
+## high_priority_cmd = create high_priority trigger ins_sum before insert on t1 for each row set @sum = @sum + new.i;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 1
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+create trigger ins_sum before insert on t1 for each row set @sum = @sum + new.i;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+create high_priority trigger ins_sum before insert on t1 for each row set @sum = @sum + new.i;;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = default
+## cmd               = drop trigger ins_sum;
+## high_priority_cmd = drop high_priority trigger ins_sum;
+## should_kill       = 1
+## recreate_table    = 0
+## throw_error       = 1
+
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+drop trigger ins_sum;;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+drop high_priority trigger ins_sum;;
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+
+## Test parameters:
+## use_sys_var       = 0;
+## con_block         = con1
+## con_kill          = default
+## cmd               = optimize table t1;
+## high_priority_cmd = optimize high_priority table t1;
+## should_kill       = 1
+## recreate_table    = 1
+## throw_error       = 0
+
+drop table if exists t1;
+create table t1 (i int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+insert into t1 values (1), (2), (3);
+connection: con1
+lock tables t1 read;;
+connection: default
+set lock_wait_timeout = 0.02;
+set high_priority_lock_wait_timeout = 0.02;
+describe t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+connection: default (for show processlist)
+# both con1 and default exist
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+<Id>	test_user1	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+connection: default
+optimize table t1;;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	Error	Lock wait timeout exceeded; try restarting transaction: Timeout on table metadata: test.t1
+test.t1	optimize	status	Operation failed
+optimize high_priority table t1;;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+connection: default (for show processlist)
+show processlist;
+Id	User	Host	db	Command	Time	State	Info	Rows examined	Rows sent	Tid	Srv_Id
+<Id>	root	<Host>	test	<Command>	<Time>	<State>	<Info>	<RExam>	<RSent>	<TID>	<SrvID>
+drop user test_user1@localhost;
+drop user test_user2@localhost;
+drop table if exists t1;

@@ -1,0 +1,6 @@
+CREATE TEMPORARY  TABLE  t1 (a int not null)
+ENGINE=CONNECT table_type=MYSQL  CONNECTION='mysql://root@127.0.0.1/test/t2';
+ERROR HY000: Table storage engine 'CONNECT' does not support the create option 'TEMPORARY'
+CREATE TEMPORARY  TABLE  t1
+ENGINE=CONNECT table_type=MYSQL  CONNECTION='mysql://root@127.0.0.1/test/t2';
+ERROR HY000: Table storage engine 'CONNECT' does not support the create option 'TEMPORARY'

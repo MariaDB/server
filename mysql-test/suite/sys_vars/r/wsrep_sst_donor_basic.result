@@ -1,0 +1,50 @@
+#
+# wsrep_sst_donor
+#
+# save the initial value
+SET @wsrep_sst_donor_global_saved = @@global.wsrep_sst_donor;
+# default
+SELECT @@global.wsrep_sst_donor;
+@@global.wsrep_sst_donor
+
+
+# scope
+SELECT @@session.wsrep_sst_donor;
+ERROR HY000: Variable 'wsrep_sst_donor' is a GLOBAL variable
+SET @@global.wsrep_sst_donor=rsync;
+SELECT @@global.wsrep_sst_donor;
+@@global.wsrep_sst_donor
+rsync
+
+# valid values
+SET @@global.wsrep_sst_donor=node1;
+SELECT @@global.wsrep_sst_donor;
+@@global.wsrep_sst_donor
+node1
+SET @@global.wsrep_sst_donor='node1,node2';
+SELECT @@global.wsrep_sst_donor;
+@@global.wsrep_sst_donor
+node1,node2
+SET @@global.wsrep_sst_donor='hyphenated-donor-name';
+SELECT @@global.wsrep_sst_donor;
+@@global.wsrep_sst_donor
+hyphenated-donor-name
+SET @@global.wsrep_sst_donor=default;
+SELECT @@global.wsrep_sst_donor;
+@@global.wsrep_sst_donor
+
+SET @@global.wsrep_sst_donor=NULL;
+SELECT @@global.wsrep_sst_donor;
+@@global.wsrep_sst_donor
+NULL
+
+# invalid values
+SET @@global.wsrep_sst_donor=1;
+ERROR 42000: Incorrect argument type to variable 'wsrep_sst_donor'
+SELECT @@global.wsrep_sst_donor;
+@@global.wsrep_sst_donor
+NULL
+
+# restore the initial value
+SET @@global.wsrep_sst_donor = @wsrep_sst_donor_global_saved;
+# End of test

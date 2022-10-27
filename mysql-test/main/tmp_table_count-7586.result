@@ -1,0 +1,83 @@
+create table t2 (a int);
+insert into t2 values (1),(2),(3);
+create view v2 as select a from t2;
+flush status;
+select * from v2;
+a
+1
+2
+3
+show status like '%Created_tmp%';
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	0
+explain select * from v2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
+select * from (select * from t2) T1;
+a
+1
+2
+3
+show status like '%Created_tmp%';
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	0
+explain select * from (select * from t2) T1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
+drop view v2;
+drop table t2;
+CREATE TABLE t1(a int);
+INSERT INTO t1 values(1),(2);
+CREATE TABLE t2(a int);
+INSERT INTO t2 values(1),(2);
+EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using temporary
+truncate table performance_schema.events_statements_history_long;
+flush status;
+CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
+# Performance schema should be the same as "Created_tmp_tables" variable below
+select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
+sum(created_tmp_tables)
+2
+show status like '%Created_tmp%';
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	2
+drop table t3;
+EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+truncate table performance_schema.events_statements_history_long;
+flush status;
+CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a);
+# Performance schema should be the same as "Created_tmp_tables" variable below
+select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
+sum(created_tmp_tables)
+1
+show status like '%Created_tmp%';
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	1
+drop table t1,t2,t3;
+truncate table performance_schema.events_statements_history_long;
+flush status;
+# Performance schema should be the same as "Created_tmp_tables" variable below
+select sum(created_tmp_tables) from performance_schema.events_statements_history_long;
+sum(created_tmp_tables)
+0
+show status like '%Created_tmp%';
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	0

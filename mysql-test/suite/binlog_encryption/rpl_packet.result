@@ -1,0 +1,83 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Slave I/O: Got a packet bigger than 'slave_max_allowed_packet' bytes, .*error.* 1153");
+call mtr.add_suppression("Log entry on master is longer than slave_max_allowed_packet");
+drop database if exists DB_NAME_OF_MAX_LENGTH_AKA_NAME_LEN_64_BYTES_____________________;
+create database DB_NAME_OF_MAX_LENGTH_AKA_NAME_LEN_64_BYTES_____________________;
+connection master;
+SET @@global.max_allowed_packet=1024;
+SET @@global.net_buffer_length=1024;
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+disconnect master;
+connect  master,localhost,root,,DB_NAME_OF_MAX_LENGTH_AKA_NAME_LEN_64_BYTES_____________________;
+connection master;
+select @@net_buffer_length, @@max_allowed_packet;
+@@net_buffer_length	@@max_allowed_packet
+1024	1024
+create table `t1` (`f1` LONGTEXT) ENGINE=MyISAM;
+INSERT INTO `t1`(`f1`) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1023');
+connection slave;
+select count(*) from `DB_NAME_OF_MAX_LENGTH_AKA_NAME_LEN_64_BYTES_____________________`.`t1` /* must be 1 */;
+count(*)
+1
+SHOW STATUS LIKE 'Slave_running';
+Variable_name	Value
+Slave_running	ON
+select * from information_schema.session_status where variable_name= 'SLAVE_RUNNING';
+VARIABLE_NAME	VARIABLE_VALUE
+SLAVE_RUNNING	ON
+connection master;
+drop database DB_NAME_OF_MAX_LENGTH_AKA_NAME_LEN_64_BYTES_____________________;
+connection slave;
+connection master;
+SET @@global.max_allowed_packet=4096;
+SET @@global.net_buffer_length=4096;
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+disconnect master;
+connect  master, localhost, root;
+connection master;
+CREATE TABLE `t1` (`f1` LONGTEXT) ENGINE=MyISAM;
+connection slave;
+connection master;
+INSERT INTO `t1`(`f1`) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2048');
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1153]
+Last_IO_Error = 'Got a packet bigger than 'slave_max_allowed_packet' bytes'
+include/stop_slave_sql.inc
+include/rpl_reset.inc
+connection master;
+DROP TABLE t1;
+connection slave;
+connection master;
+CREATE TABLE t1 (f1 int PRIMARY KEY, f2 LONGTEXT, f3 LONGTEXT) ENGINE=MyISAM;
+connection slave;
+connection master;
+INSERT INTO t1(f1, f2, f3) VALUES(1, REPEAT('a', @@global.max_allowed_packet), REPEAT('b', @@global.max_allowed_packet));
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1153]
+Last_IO_Error = 'Got a packet bigger than 'slave_max_allowed_packet' bytes'
+STOP SLAVE;
+RESET SLAVE;
+connection master;
+RESET MASTER;
+SET @max_allowed_packet_0= @@session.max_allowed_packet;
+SHOW BINLOG EVENTS;
+SET @max_allowed_packet_1= @@session.max_allowed_packet;
+SHOW BINLOG EVENTS;
+SET @max_allowed_packet_2= @@session.max_allowed_packet;
+==== clean up ====
+connection master;
+DROP TABLE t1;
+SET @@global.max_allowed_packet= 1024;
+Warnings:
+Warning	1708	The value of 'max_allowed_packet' should be no less than the value of 'net_buffer_length'
+SET @@global.net_buffer_length= 1024;
+SET @@global.slave_max_allowed_packet= 1073741824;
+connection slave;
+DROP TABLE t1;
+RESET SLAVE;
+include/rpl_end.inc

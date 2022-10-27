@@ -1,0 +1,77 @@
+--source include/innodb_page_size.inc
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
+--echo #
+--echo # MDEV-12288 Reset DB_TRX_ID when the history is removed,
+--echo # to speed up MVCC
+--echo #
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT NOT NULL)
+ROW_FORMAT=REDUNDANT ENGINE=InnoDB;
+
+--connect (prevent_purge,localhost,root)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+INSERT INTO t1 VALUES(1,2),(3,4);
+ALTER TABLE t1 ADD COLUMN c INT;
+UPDATE t1 SET b=-3 WHERE a=3;
+
+--connect (con1,localhost,root)
+BEGIN;
+# For purgeable records, we must record DB_TRX_ID=0 in the undo log!
+UPDATE t1 SET b=4 WHERE a=3;
+--disconnect prevent_purge
+
+--connection default
+# Initiate a full purge, which should reset the DB_TRX_ID except for a=3.
+--source include/wait_all_purged.inc
+# Initiate a ROLLBACK of the update, which should reset the DB_TRX_ID for a=3.
+--disconnect con1
+
+FLUSH TABLE t1 FOR EXPORT;
+# The following is based on innodb.table_flags:
+--perl
+use strict;
+my $ps= $ENV{INNODB_PAGE_SIZE};
+my $file= "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
+open(FILE, "<", $file) || die "Unable to open $file\n";
+my $page;
+print "Clustered index root page contents:\n";
+sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+print "N_RECS=", unpack("n", substr($page,38+16,2));
+print "; LEVEL=", unpack("n", substr($page,38+26,2)), "\n";
+my @fields=qw(a DB_TRX_ID DB_ROLL_PTR b c);
+for (my $offset= 0x65; $offset;
+     $offset= unpack("n", substr($page,$offset-2,2)))
+{
+    print "header=0x", unpack("H*",substr($page,$offset-6,6)), " (";
+    my $n_fields= unpack("n", substr($page,$offset-4,2)) >> 1 & 0x3ff;
+    my $start= 0;
+    my $name;
+    for (my $i= 0; $i < $n_fields; $i++) {
+	my $end= unpack("C", substr($page, $offset-7-$i, 1));
+	print ",\n " if $i;
+	print "$fields[$i]=";
+	if ($end & 0x80) {
+	    print "NULL(", ($end & 0x7f) - $start, " bytes)"
+	} else {
+	    print "0x", unpack("H*", substr($page,$offset+$start,$end-$start))
+	}
+	$start= $end & 0x7f;
+    }
+    print ")\n";
+}
+close(FILE) || die "Unable to close $file\n";
+EOF
+UNLOCK TABLES;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

@@ -1,0 +1,32 @@
+#
+# Test mysqldump SST with client SSL key. See galera_sst_mysqldump_with_key.cnf for the configuration on the client side.
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_ssl_communication.inc
+
+--source suite/galera/include/galera_sst_set_mysqldump.inc
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE USER sslsst;
+GRANT ALL PRIVILEGES ON *.* TO sslsst;
+GRANT USAGE ON *.* TO sslsst REQUIRE SSL;
+
+SET GLOBAL wsrep_sst_auth = 'sslsst:';
+
+# We set the required mysqldump SST options here so that they are used every time the server is restarted during the test
+--let $start_mysqld_params = --wsrep_sst_auth=sst:'sslsst:' --wsrep_sst_method=mysqldump --wsrep-sst-receive-address=127.0.0.1:$NODE_MYPORT_2
+
+--source suite/galera/include/galera_st_shutdown_slave.inc
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+--source include/auto_increment_offset_restore.inc
+--source suite/galera/include/galera_sst_restore.inc
+
+DROP USER sslsst;

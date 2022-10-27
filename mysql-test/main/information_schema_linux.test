@@ -1,0 +1,10 @@
+--source include/linux.inc
+
+--echo #
+--echo # MDEV-6756: map a linux pid (child pid) to a connection id shown in
+--echo # the output of SHOW PROCESSLIST
+--echo #
+--connect (con1,localhost,root)
+SELECT max(tid) != min(tid) FROM information_schema.processlist;
+--connection default
+--disconnect con1

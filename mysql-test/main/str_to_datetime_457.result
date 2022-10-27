@@ -1,0 +1,48 @@
+select cast('01:02:03   ' as time), cast('01:02:03    ' as time);
+cast('01:02:03   ' as time)	cast('01:02:03    ' as time)
+01:02:03	01:02:03
+select cast('2002-011-012' as date), cast('2002.11.12' as date), cast('2002.011.012' as date);
+cast('2002-011-012' as date)	cast('2002.11.12' as date)	cast('2002.011.012' as date)
+2002-11-12	2002-11-12	2002-11-12
+select cast('2012103123595912' as datetime(6)), cast('20121031235959123' as datetime(6));
+cast('2012103123595912' as datetime(6))	cast('20121031235959123' as datetime(6))
+2012-10-31 23:59:59.000000	2012-10-31 23:59:59.000000
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '2012103123595912'
+Warning	1292	Truncated incorrect datetime value: '20121031235959123'
+select cast(0 as date), cast('0000-00-00' as date), cast('0' as date);
+cast(0 as date)	cast('0000-00-00' as date)	cast('0' as date)
+0000-00-00	0000-00-00	NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0'
+select extract(hour from '100000:02:03'), extract(hour from '100000:02:03 ');
+extract(hour from '100000:02:03')	extract(hour from '100000:02:03 ')
+16	16
+#
+# backward compatibility craziness
+#
+select cast('12:00:00.12.34.56' as time);
+cast('12:00:00.12.34.56' as time)
+12:00:00
+Warnings:
+Warning	1292	Truncated incorrect time value: '12:00:00.12.34.56'
+select cast('12:00:00 12.34.56' as time);
+cast('12:00:00 12.34.56' as time)
+12:34:56
+select cast('12:00:00-12.34.56' as time);
+cast('12:00:00-12.34.56' as time)
+12:00:00
+Warnings:
+Warning	1292	Truncated incorrect time value: '12:00:00-12.34.56'
+select cast('12:00:00.12.34.56' as datetime);
+cast('12:00:00.12.34.56' as datetime)
+2012-00-00 12:34:56
+select cast('12:00:00-12.34.56' as datetime);
+cast('12:00:00-12.34.56' as datetime)
+2012-00-00 12:34:56
+select cast('12:00:00 12.34.56' as datetime);
+cast('12:00:00 12.34.56' as datetime)
+2012-00-00 12:34:56
+select cast('12:00:00.123456' as time);
+cast('12:00:00.123456' as time)
+12:00:00

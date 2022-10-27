@@ -1,0 +1,55 @@
+drop table if exists t0, t1;
+SET @old_debug= @@session.debug;
+set debug_sync='RESET';
+connect  con2, localhost, root,,;
+connection con2;
+connection default;
+create table t0 (a int) engine=myisam;
+insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
+create table t1 (a int, b int, filler char(100), key(a), key(b));
+insert into t1 
+select A.a+10*B.a + 10*C.a, A.a+10*B.a + 10*C.a, 'filler' 
+from t0 A, t0 B, t0 C;
+#
+# Test SHOW EXPLAIN for single-table DELETE
+#
+connection con2;
+SET debug_dbug='+d,show_explain_probe_delete_exec_start';
+delete from t1 where a<10 and b+1>1000;
+connection default;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	1	Using where
+Warnings:
+Note	1003	delete from t1 where a<10 and b+1>1000
+connection con2;
+#
+# Test SHOW EXPLAIN for multi-table DELETE
+#
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_do_select';
+delete t1 from t1, t0 where t0.a=t1.a and t1.b +1 > 1000;
+connection default;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t0.a	4	Using where
+Warnings:
+Note	1003	delete t1 from t1, t0 where t0.a=t1.a and t1.b +1 > 1000
+connection con2;
+#
+# Test SHOW EXPLAIN for single-table UPDATE
+#
+connection con2;
+SET debug_dbug='+d,show_explain_probe_update_exec_start';
+update t1 set filler='filler-data-2' where a<10 and b+1>1000;
+connection default;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	1	Using where
+Warnings:
+Note	1003	update t1 set filler='filler-data-2' where a<10 and b+1>1000
+connection con2;
+drop table t0,t1;
+SET debug_dbug=@old_debug;
+set debug_sync='RESET';

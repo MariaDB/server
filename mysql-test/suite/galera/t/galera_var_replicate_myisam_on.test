@@ -1,0 +1,229 @@
+#
+# Simple test for wsrep-replicate-myisam = ON 
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+--let $wsrep_replicate_myisam_orig = `SELECT @@wsrep_replicate_myisam`
+
+--connection node_1
+SET GLOBAL wsrep_replicate_myisam = TRUE;
+--connection node_2
+SET GLOBAL wsrep_replicate_myisam = TRUE;
+
+#
+# Simple INSERT
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=MyISAM;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2), (3);
+INSERT INTO t1 SELECT 4 FROM DUAL UNION ALL SELECT 5 FROM DUAL;
+
+--connection node_2
+SELECT COUNT(*) = 5 FROM t1;
+
+DROP TABLE t1;
+
+#
+# REPLACE
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(100)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, 'abc'),(2,'abc'), (3, 'xxx');
+REPLACE INTO t1 VALUES (1, 'klm'), (2,'xyz');
+REPLACE INTO t1 SELECT 3, 'yyy' FROM DUAL;
+
+--connection node_2
+SELECT COUNT(*) = 3 FROM t1;
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1 AND f2 = 'klm';
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2 AND f2 = 'xyz';
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 3 AND f2 = 'yyy';
+
+#
+# UPDATE
+#
+
+--connection node_1
+UPDATE t1 SET f2 = 'zzz' WHERE f2 = 'yyy';
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'zzz';
+
+#
+# DELETE
+#
+
+--connection node_1
+DELETE FROM t1 WHERE f2 = 'zzz';
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'zzz';
+
+#
+# TRUNCATE
+#
+
+--connection node_1
+TRUNCATE TABLE t1;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM t1;
+DROP TABLE t1;
+
+#
+# Transaction
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=MyISAM;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+COMMIT;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+SELECT COUNT(*) = 1 FROM t2;
+
+#
+# Transaction rollback
+#
+
+--connection node_1
+START TRANSACTION;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t2 VALUES (2);
+ROLLBACK;
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t1;
+SELECT COUNT(*) = 1 FROM t2;
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+#
+# Transaction conflict
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (f2 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+
+--connection node_2
+# The MyISAM update is replicated immediately, so a duplicate key error happens even before the COMMIT
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (1);
+
+--connection node_1
+COMMIT;
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--echo #
+--echo # MDEV-11152: wsrep_replicate_myisam: SELECT gets replicated using TO
+--echo #
+--connection node_1
+CREATE TABLE t1 (i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+# This command should not get replicated.
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Test prepared staments
+#
+--connection node_1
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+
+PREPARE upd from 'update t1 set b = 100 where id = 5';
+PREPARE ins from 'insert into t1 values (11,11)';
+PREPARE del from 'delete from t1 where id = 4';
+PREPARE rep from 'replace into t1 values (12,12),(6,600)';
+
+EXECUTE upd;
+EXECUTE ins;
+EXECUTE del;
+EXECUTE rep;
+
+SELECT * FROM t1 ORDER BY id;
+
+--connection node_2
+SELECT * FROM t1 ORDER BY id;
+
+DROP TABLE t1;
+
+#
+# Test procedure
+#
+--connection node_1
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+
+DELIMITER |;
+CREATE PROCEDURE proc()
+BEGIN
+  UPDATE t1 set b = 100 WHERE id = 5;
+  INSERT INTO t1 VALUES (11,11);
+  DELETE FROM t1 WHERE id = 4;
+  REPLACE INTO t1 VALUES (12,12),(6,600);
+  COMMIT;
+END|
+DELIMITER ;|
+
+CALL proc();
+SELECT * FROM t1 ORDER BY id;
+
+--connection node_2
+SELECT * FROM t1 ORDER BY id;
+
+DROP PROCEDURE proc;
+DROP TABLE t1;
+
+#
+# Test trigger
+#
+--connection node_1
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, b INT) ENGINE=MyISAM;
+CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NULL, NEW.b);
+CREATE TRIGGER tr2 BEFORE UPDATE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NULL, OLD.b),(NULL, NEW.b);
+CREATE TRIGGER tr3 BEFORE DELETE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NULL, OLD.b);
+
+INSERT INTO t1 VALUES (11,11);
+UPDATE t1 SET b = 200 WHERE id = 2;
+DELETE FROM t1 where id = 5;
+SELECT * FROM t1 ORDER BY id;
+SELECT * FROM t2 ORDER BY id;
+
+--connection node_2
+SELECT * FROM t1 ORDER BY id;
+SELECT * FROM t2 ORDER BY id;
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TRIGGER tr3;
+DROP TABLE t1,t2;
+
+--connection node_1
+--disable_query_log
+--eval SET GLOBAL wsrep_replicate_myisam = $wsrep_replicate_myisam_orig
+--enable_query_log
+
+--connection node_2
+--disable_query_log
+--eval SET GLOBAL wsrep_replicate_myisam = $wsrep_replicate_myisam_orig
+--enable_query_log

@@ -1,0 +1,19 @@
+--source include/have_debug.inc
+
+if (`SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'aws_key_management' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip needs aws_key_management plugin
+}
+
+CREATE TABLE t(c VARCHAR(10)) ENGINE INNODB encrypted=yes;
+INSERT INTO t VALUES('foobar1');
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+SELECT * from t;
+DROP TABLE t;
+rmdir $targetdir;

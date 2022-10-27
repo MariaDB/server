@@ -1,0 +1,27 @@
+#
+# GCF-580 wsrep_last_committed_counter increases twice for every SR fragment
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+SET SESSION wsrep_trx_fragment_size = 1;
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+
+--let $fragments_count = `SELECT COUNT(*) FROM mysql.wsrep_streaming_log`
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+--disable_query_log
+--eval SELECT ($wsrep_last_committed_after - $wsrep_last_committed_before) = $fragments_count AS last_committed_matches_fragment_count
+--enable_query_log
+
+COMMIT;
+
+DROP TABLE t1;

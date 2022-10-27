@@ -1,0 +1,191 @@
+-- source include/have_compress.inc
+#
+# Test for compress and uncompress functions:
+#
+# Note that this test gives error in the gzip library when running under
+# valgrind, but these warnings can be ignored
+
+set @save_max_allowed_packet=@@max_allowed_packet;
+set global max_allowed_packet=1048576;
+connect (conn1,localhost,root,,);
+connection conn1;
+
+select @test_compress_string:='string for test compress function aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ';
+select length(@test_compress_string);
+
+select uncompress(compress(@test_compress_string));
+explain extended select uncompress(compress(@test_compress_string));
+select uncompressed_length(compress(@test_compress_string))=length(@test_compress_string);
+explain extended select uncompressed_length(compress(@test_compress_string))=length(@test_compress_string);
+select uncompressed_length(compress(@test_compress_string));
+select length(compress(@test_compress_string))<length(@test_compress_string);
+
+create table t1 (a text, b char(255), c char(4)) engine=myisam;
+insert into t1 (a,b,c) values (compress(@test_compress_string),compress(@test_compress_string),'d ');
+select uncompress(a) from t1;
+select uncompress(b) from t1;
+select concat('|',c,'|') from t1;
+drop table t1;
+
+select compress("");
+select uncompress("");
+select uncompress(compress(""));
+select uncompressed_length("");
+
+#
+# errors
+#
+
+create table t1 (a text);
+insert t1 values (compress(null)), ('A\0\0\0BBBBBBBB'), (compress(space(50000))), (space(50000));
+select length(a) from t1;
+select length(uncompress(a)) from t1;
+drop table t1;
+
+
+#
+# Bug #5497: a problem with large strings
+# note that when LOW_MEMORY is set the "test" below is meaningless
+#
+
+set @@global.max_allowed_packet=1048576*100;
+--replace_result "''" XXX "'1'" XXX
+
+# reconnect to make the new max packet size take effect
+--connect (newconn, localhost, root,,)
+eval select compress(repeat('aaaaaaaaaa', IF('$LOW_MEMORY', 10, 10000000))) is null;
+disconnect newconn;
+--source include/wait_until_disconnected.inc
+connection default;
+set @@global.max_allowed_packet=@save_max_allowed_packet;
+
+#
+# Bug #18643: problem with null values
+#
+
+create table t1(a blob);
+insert into t1 values(NULL), (compress('a'));
+select uncompress(a), uncompressed_length(a) from t1;
+drop table t1;
+
+#
+# Bug #23254: problem with compress(NULL)
+#
+
+create table t1(a blob);
+insert into t1 values ('0'), (NULL), ('0');
+--disable_result_log
+select compress(a), compress(a) from t1;
+--enable_result_log
+select compress(a) is null from t1;
+drop table t1;
+
+--echo End of 4.1 tests
+
+#
+# Bug #18539: uncompress(d) is null: impossible?
+#
+create table t1 (a varchar(32) not null);
+insert into t1 values ('foo');
+explain select * from t1 where uncompress(a) is null;
+select * from t1 where uncompress(a) is null;
+explain select *, uncompress(a) from t1;
+select *, uncompress(a) from t1;
+select *, uncompress(a), uncompress(a) is null from t1;
+drop table t1;
+
+#
+# Bug #44796: valgrind: too many my_longlong10_to_str_8bit warnings after 
+#             uncompressed_length
+#
+
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES (1), (1111), (11111);
+
+# Disable warnings to avoid dependency on max_allowed_packet value
+--disable_warnings
+SELECT UNCOMPRESS(c1), UNCOMPRESSED_LENGTH(c1) FROM t1;
+--enable_warnings
+
+# We do not need the results, just make sure there are no valgrind errors
+--disable_result_log
+EXPLAIN EXTENDED SELECT * FROM (SELECT UNCOMPRESSED_LENGTH(c1) FROM t1) AS s;
+--enable_result_log
+
+DROP TABLE t1;
+
+--echo End of 5.0 tests
+--disable_result_log
+--disable_query_log
+set @@global.max_allowed_packet=@save_max_allowed_packet;
+--enable_result_log
+--enable_query_log
+
+
+--echo #
+--echo # Start of 5.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-5783 Assertion `0' failed in make_sortkey(SORTPARAM*, uchar*, uchar*) on ORDER BY HEX(UNCOMPRESSED_LENGTH(pk))
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+SELECT UNCOMPRESSED_LENGTH(pk) FROM t1;
+# ORDER is not strict, so disable results
+--disable_result_log
+SELECT * FROM t1 ORDER BY HEX(UNCOMPRESSED_LENGTH(pk));
+--enable_result_log
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.3 tests
+--echo #
+
+#
+# MDEV-4513 Valgrind warnings (Conditional jump or move depends on uninitialised value) in inflate on UNCOMPRESS
+#
+SELECT UNCOMPRESS(CAST(0 AS BINARY(5)));
+
+disconnect conn1;
+connection default;
+set global max_allowed_packet=@save_max_allowed_packet;
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-10864 Wrong result for WHERE .. (f2=COMPRESS('test') OR f2=COMPRESS('TEST'))
+--echo #
+
+CREATE TABLE t1 (f1 VARCHAR(4), f2 VARCHAR(64), UNIQUE KEY k1 (f1,f2));
+INSERT INTO t1 VALUES ('test',compress('test')), ('TEST', compress('TEST'));
+SELECT f1,HEX(f2) FROM t1 ignore index(k1) WHERE f1='test' AND (f2= compress("test") OR f2= compress("TEST"));
+SELECT f1,HEX(f2) FROM t1                  WHERE f1='test' AND (f2= compress("test") OR f2= compress("TEST"));
+SELECT f1,HEX(f2) FROM t1                  WHERE f1='test' AND (f2= compress("TEST") OR f2= compress("test"));
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+CREATE TABLE t1 (a TEXT, b BLOB DEFAULT COMPRESS(a), bl INT DEFAULT UNCOMPRESSED_LENGTH(b), a1 TEXT DEFAULT UNCOMPRESS(b));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES (REPEAT('a',100));
+SELECT bl, a1 FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

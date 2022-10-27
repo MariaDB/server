@@ -1,0 +1,20 @@
+create table t1 ( c1 varchar(10), c2 varchar(10), c3 int );
+insert into t1 values ("a" , "b", 1),   ("a" , "b", 2);
+create table t2 like t1 ;
+alter table t2 add column c4 bigint unsigned as (CONV(LEFT(MD5(concat(c1,c2,c3)), 16), 16, 10)) persistent unique key;
+select * into outfile 't1.csv' from t1;
+load data infile 't1.csv' ignore into table t2 ;
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+Warning	1261	Row 2 doesn't contain data for all columns
+select * from t2;
+c1	c2	c3	c4
+a	b	1	7545402351885872315
+a	b	2	6048842355806993119
+insert into t2 (c1,c2,c3) values ("a" , "b", 4);
+select * from t2;
+c1	c2	c3	c4
+a	b	1	7545402351885872315
+a	b	2	6048842355806993119
+a	b	4	15541743660496249717
+drop table t1, t2;

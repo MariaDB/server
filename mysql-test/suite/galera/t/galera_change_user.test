@@ -1,0 +1,29 @@
+#
+# Check that change user works with Galera
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE USER user1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+# Change user in idle connection
+--connect node_1a, 127.0.0.1, root, , test, $MYPORT_NODE_1
+change_user 'user1';
+reset_connection;
+--disconnect node_1a
+
+# Change user with transaction open
+--connect node_1a, 127.0.0.1, root, , test, $MYPORT_NODE_1
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+change_user 'user1';
+reset_connection;
+--disconnect node_1a
+
+--connection node_1
+DROP TABLE t1;
+DROP USER user1;
+

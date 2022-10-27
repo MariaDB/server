@@ -1,0 +1,393 @@
+SET sql_mode=ORACLE;
+EXPLAIN EXTENDED SELECT 'a'||'b'||'c';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(concat_operator_oracle('a','b'),'c') AS "'a'||'b'||'c'"
+EXPLAIN EXTENDED SELECT CONCAT('a'||'b'||'c');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(concat_operator_oracle(concat_operator_oracle('a','b'),'c')) AS "CONCAT('a'||'b'||'c')"
+SELECT ''   || '';
+''   || ''
+
+SELECT ''   || 'b';
+''   || 'b'
+b
+SELECT ''   || NULL;
+''   || NULL
+
+SELECT 'a'  || '';
+'a'  || ''
+a
+SELECT 'a'  || 'b';
+'a'  || 'b'
+ab
+SELECT 'a'  || NULL;
+'a'  || NULL
+a
+SELECT NULL || '';
+NULL || ''
+
+SELECT NULL || 'b';
+NULL || 'b'
+b
+SELECT NULL || NULL;
+NULL || NULL
+NULL
+SELECT ''   || ''    || '';
+''   || ''    || ''
+
+SELECT ''   || ''    || 'c';
+''   || ''    || 'c'
+c
+SELECT ''   || ''    || NULL;
+''   || ''    || NULL
+
+SELECT ''   || 'b'   || '';
+''   || 'b'   || ''
+b
+SELECT ''   || 'b'   || 'c';
+''   || 'b'   || 'c'
+bc
+SELECT ''   || 'b'   || NULL;
+''   || 'b'   || NULL
+b
+SELECT ''   || NULL  || '';
+''   || NULL  || ''
+
+SELECT ''   || NULL  || 'c';
+''   || NULL  || 'c'
+c
+SELECT ''   || NULL  || NULL;
+''   || NULL  || NULL
+
+SELECT 'a'  || ''    || '';
+'a'  || ''    || ''
+a
+SELECT 'a'  || ''    || 'c';
+'a'  || ''    || 'c'
+ac
+SELECT 'a'  || ''    || NULL;
+'a'  || ''    || NULL
+a
+SELECT 'a'  || 'b'   || '';
+'a'  || 'b'   || ''
+ab
+SELECT 'a'  || 'b'   || 'c';
+'a'  || 'b'   || 'c'
+abc
+SELECT 'a'  || 'b'   || NULL;
+'a'  || 'b'   || NULL
+ab
+SELECT 'a'  || NULL  || '';
+'a'  || NULL  || ''
+a
+SELECT 'a'  || NULL  || 'c';
+'a'  || NULL  || 'c'
+ac
+SELECT 'a'  || NULL  || NULL;
+'a'  || NULL  || NULL
+a
+SELECT NULL || ''    || '';
+NULL || ''    || ''
+
+SELECT NULL || ''    || 'c';
+NULL || ''    || 'c'
+c
+SELECT NULL || ''    || NULL;
+NULL || ''    || NULL
+
+SELECT NULL || 'b'   || '';
+NULL || 'b'   || ''
+b
+SELECT NULL || 'b'   || 'c';
+NULL || 'b'   || 'c'
+bc
+SELECT NULL || 'b'   || NULL;
+NULL || 'b'   || NULL
+b
+SELECT NULL || NULL  || '';
+NULL || NULL  || ''
+
+SELECT NULL || NULL  || 'c';
+NULL || NULL  || 'c'
+c
+SELECT NULL || NULL  || NULL;
+NULL || NULL  || NULL
+NULL
+CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(10), c VARCHAR(10));
+INSERT INTO t1 VALUES ('',   '',   '');
+INSERT INTO t1 VALUES ('',   '',   'c');
+INSERT INTO t1 VALUES ('',   '',   NULL);
+INSERT INTO t1 VALUES ('',   'b',  '');
+INSERT INTO t1 VALUES ('',   'b',  'c');
+INSERT INTO t1 VALUES ('',   'b',  NULL);
+INSERT INTO t1 VALUES ('',   NULL, '');
+INSERT INTO t1 VALUES ('',   NULL, 'c');
+INSERT INTO t1 VALUES ('',   NULL, NULL);
+INSERT INTO t1 VALUES ('a',  '',   '');
+INSERT INTO t1 VALUES ('a',  '',   'c');
+INSERT INTO t1 VALUES ('a',  '',   NULL);
+INSERT INTO t1 VALUES ('a',  'b',  '');
+INSERT INTO t1 VALUES ('a',  'b',  'c');
+INSERT INTO t1 VALUES ('a',  'b',  NULL);
+INSERT INTO t1 VALUES ('a',  NULL, '');
+INSERT INTO t1 VALUES ('a',  NULL, 'c');
+INSERT INTO t1 VALUES ('a',  NULL, NULL);
+INSERT INTO t1 VALUES (NULL, '',   '');
+INSERT INTO t1 VALUES (NULL, '',   'c');
+INSERT INTO t1 VALUES (NULL, '',   NULL);
+INSERT INTO t1 VALUES (NULL, 'b',  '');
+INSERT INTO t1 VALUES (NULL, 'b',  'c');
+INSERT INTO t1 VALUES (NULL, 'b',  NULL);
+INSERT INTO t1 VALUES (NULL, NULL, '');
+INSERT INTO t1 VALUES (NULL, NULL, 'c');
+INSERT INTO t1 VALUES (NULL, NULL, NULL);
+SELECT LENGTH(a||b||c), a||b||c FROM t1 ORDER BY a,b,c;
+LENGTH(a||b||c)	a||b||c
+NULL	NULL
+0	
+1	c
+0	
+0	
+1	c
+1	b
+1	b
+2	bc
+0	
+0	
+1	c
+0	
+0	
+1	c
+1	b
+1	b
+2	bc
+1	a
+1	a
+2	ac
+1	a
+1	a
+2	ac
+2	ab
+2	ab
+3	abc
+SELECT LENGTH(CONCAT(a||b||c)), CONCAT(a||b||c) FROM t1 ORDER BY a,b,c;
+LENGTH(CONCAT(a||b||c))	CONCAT(a||b||c)
+NULL	NULL
+0	
+1	c
+0	
+0	
+1	c
+1	b
+1	b
+2	bc
+0	
+0	
+1	c
+0	
+0	
+1	c
+1	b
+1	b
+2	bc
+1	a
+1	a
+2	ac
+1	a
+1	a
+2	ac
+2	ab
+2	ab
+3	abc
+DROP TABLE t1;
+#
+# MDEV-12478 CONCAT function inside view casts values incorrectly with Oracle sql_mode
+#
+SET sql_mode=ORACLE;
+CREATE VIEW v1 AS SELECT 'foo'||NULL||'bar' AS test;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select concat_operator_oracle(concat_operator_oracle('foo',NULL),'bar') AS "test"	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+foobar
+SET sql_mode=DEFAULT;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select concat_operator_oracle(concat_operator_oracle('foo',NULL),'bar') AS `test`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+foobar
+DROP VIEW v1;
+SET sql_mode=DEFAULT;
+CREATE VIEW v1 AS SELECT CONCAT('foo',NULL,'bar') AS test;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select concat('foo',NULL,'bar') AS `test`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+NULL
+SET sql_mode=ORACLE;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select concat('foo',NULL,'bar') AS "test"	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+NULL
+DROP VIEW v1;
+SET sql_mode=DEFAULT;
+CREATE VIEW v1 AS SELECT '0'||'1' AS test;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select '0' or '1' AS `test`	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+1
+SET sql_mode=ORACLE;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select '0' or '1' AS "test"	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+test
+1
+DROP VIEW v1;
+#
+# MDEV-16186 Concatenation operator || returns wrong results in sql_mode=ORACLE
+#
+SELECT -1<<1||1 AS a FROM DUAL;
+a
+18446744073709549568
+SELECT -1||0<<1 AS a FROM DUAL;
+a
+18446744073709551596
+EXPLAIN EXTENDED SELECT -1<<1||1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select -1 << concat_operator_oracle(1,1) AS "a"
+EXPLAIN EXTENDED SELECT -1||0<<1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(-1,0) << 1 AS "a"
+SELECT -1+1||1 AS a FROM DUAL;
+a
+01
+SELECT -1||0+1 AS a FROM DUAL;
+a
+-9
+EXPLAIN EXTENDED SELECT -1+1||1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(-1 + 1,1) AS "a"
+EXPLAIN EXTENDED SELECT -1||0+1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(-1,0) + 1 AS "a"
+SELECT 1*1||-1 AS a FROM DUAL;
+a
+1-1
+SELECT 1||1*-1 AS a FROM DUAL;
+a
+1-1
+EXPLAIN EXTENDED SELECT 1*1||-1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(1 * 1,-1) AS "a"
+EXPLAIN EXTENDED SELECT 1||1*-1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(1,1 * -1) AS "a"
+SELECT -1^1||1 AS a FROM DUAL;
+a
+184467440737095516141
+SELECT -1||0^1 AS a FROM DUAL;
+a
+-11
+EXPLAIN EXTENDED SELECT -1^1||1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(-1 ^ 1,1) AS "a"
+EXPLAIN EXTENDED SELECT -1||0^1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(-1,0 ^ 1) AS "a"
+#
+# MDEV-17359 Concatenation operator || in like expression failed in sql_mode=ORACLE
+#
+SELECT 'abc' LIKE 'a'||'%';
+'abc' LIKE 'a'||'%'
+1
+EXPLAIN EXTENDED SELECT 'abc' LIKE 'a'||'%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 'abc' like concat_operator_oracle('a','%') AS "'abc' LIKE 'a'||'%'"
+SELECT 'x' FROM DUAL WHERE 11 LIKE 1||1;
+x
+x
+SELECT 'x' FROM DUAL WHERE 1||1 LIKE 11;
+x
+x
+SELECT 'x' FROM DUAL WHERE 1||1 LIKE 1||1;
+x
+x
+CREATE TABLE t1 (c1 VARCHAR(10),c2 VARCHAR(10), ord INTEGER);
+INSERT INTO t1 VALUES ('a', 'ab' ,1);
+INSERT INTO t1 VALUES ('ab', 'ab', 2);
+INSERT INTO t1 VALUES ('abc', 'ab', 3);
+SELECT c1 FROM t1 WHERE c1 LIKE '%'||'b' ORDER BY ord;
+c1
+ab
+EXPLAIN EXTENDED SELECT c1 FROM t1 WHERE c1 LIKE '%'||'b' ORDER BY ord;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using filesort
+Warnings:
+Note	1003	select "test"."t1"."c1" AS "c1" from "test"."t1" where "test"."t1"."c1" like <cache>(concat_operator_oracle('%','b')) order by "test"."t1"."ord"
+SELECT c1 FROM t1 WHERE c1 LIKE c2||'%'||'c' ORDER BY ord;
+c1
+abc
+EXPLAIN EXTENDED SELECT c1 FROM t1 WHERE c1 LIKE c2||'%'||'c' ORDER BY ord;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using filesort
+Warnings:
+Note	1003	select "test"."t1"."c1" AS "c1" from "test"."t1" where "test"."t1"."c1" like concat_operator_oracle(concat_operator_oracle("test"."t1"."c2",'%'),'c') order by "test"."t1"."ord"
+SELECT 'x' FROM t1 WHERE c1||c2 LIKE 'aa%';
+x
+x
+EXPLAIN EXTENDED SELECT 'x' FROM t1 WHERE c1||c2 LIKE 'aa%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select 'x' AS "x" from "test"."t1" where concat_operator_oracle("test"."t1"."c1","test"."t1"."c2") like 'aa%'
+SELECT 'x' FROM t1 WHERE c1||c2 LIKE c2||c1;
+x
+x
+EXPLAIN EXTENDED SELECT 'x' FROM t1 WHERE c1||c2 LIKE c2||c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select 'x' AS "x" from "test"."t1" where concat_operator_oracle("test"."t1"."c1","test"."t1"."c2") like concat_operator_oracle("test"."t1"."c2","test"."t1"."c1")
+CREATE VIEW v1 AS SELECT c1, c2, c1 LIKE c2||'_' FROM t1 ORDER BY ord;
+SELECT * FROM v1;
+c1	c2	c1 LIKE c2||'_'
+a	ab	0
+ab	ab	0
+abc	ab	1
+EXPLAIN EXTENDED SELECT * FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
+Warnings:
+Note	1003	select "test"."t1"."c1" AS "c1","test"."t1"."c2" AS "c2","test"."t1"."c1" like concat_operator_oracle("test"."t1"."c2",'_') AS "c1 LIKE c2||'_'" from "test"."t1" order by "test"."t1"."ord"
+DROP VIEW v1;
+DROP TABLE t1;

@@ -1,0 +1,629 @@
+FLUSH STATUS;
+create table t1(abc int primary key, xyz int invisible);
+SHOW STATUS LIKE 'Feature_invisible_columns';
+Variable_name	Value
+Feature_invisible_columns	1
+desc t1;
+Field	Type	Null	Key	Default	Extra
+abc	int(11)	NO	PRI	NULL	
+xyz	int(11)	YES		NULL	INVISIBLE
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `abc` int(11) NOT NULL,
+  `xyz` int(11) INVISIBLE DEFAULT NULL,
+  PRIMARY KEY (`abc`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select TABLE_CATALOG,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,EXTRA from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA='test' and TABLE_NAME='t1';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	EXTRA
+def	test	t1	abc	
+def	test	t1	xyz	INVISIBLE
+drop table t1;
+create table t1(a1 int invisible);
+ERROR 42000: A table must have at least 1 column
+create table t1(a1 blob,invisible(a1));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(a1))' at line 1
+create table t1(a1 int primary key invisible ,a2 int unique invisible , a3 blob,a4 int not null invisible unique);
+ERROR HY000: Invisible column `a1` must have a default value
+create table t1(abc int not null invisible);
+ERROR 42000: A table must have at least 1 column
+MDEV-14849 CREATE + ALTER with user-invisible columns produce invalid table definition
+create or replace table t1 (pk int auto_increment primary key invisible, i int);
+alter table t1 modify pk int invisible;
+ERROR HY000: Invisible column `pk` must have a default value
+drop table t1;
+create table t1(a int invisible, b int);
+insert into t1 values(1);
+insert into t1(a) values(2);
+insert into t1(b) values(3);
+insert into t1(a,b) values(5,5);
+select * from t1;
+b
+1
+NULL
+3
+5
+select a,b from t1;
+a	b
+NULL	1
+2	NULL
+NULL	3
+5	5
+delete from t1;
+insert into t1 values(1),(2),(3),(4);
+select * from t1;
+b
+1
+2
+3
+4
+select a from t1;
+a
+NULL
+NULL
+NULL
+NULL
+drop table t1;
+#more complex case of invisible
+create table t1(a int , b int invisible , c int invisible auto_increment unique, d blob , e int unique, f int);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	INVISIBLE
+c	int(11)	NO	PRI	NULL	auto_increment, INVISIBLE
+d	blob	YES		NULL	
+e	int(11)	YES	UNI	NULL	
+f	int(11)	YES		NULL	
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select * from t1;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+select a,b,c,d,e,f from t1;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+drop table t1;
+#more complex case of invisible with sql_mode=NO_AUTO_VALUE_ON_ZERO
+set sql_mode='NO_AUTO_VALUE_ON_ZERO';
+create table t1(a int , b int invisible , c int invisible auto_increment unique, d blob , e int unique, f int);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	INVISIBLE
+c	int(11)	NO	PRI	NULL	auto_increment, INVISIBLE
+d	blob	YES		NULL	
+e	int(11)	YES	UNI	NULL	
+f	int(11)	YES		NULL	
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select * from t1;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+select a,b,c,d,e,f from t1;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+drop table t1;
+set sql_mode='';
+create table sdsdsd(a int , b int, invisible(a,b));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(a,b))' at line 1
+create table t1(a int,abc int as (a mod 3) virtual invisible);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+abc	int(11)	YES		NULL	VIRTUAL GENERATED, INVISIBLE
+insert into t1 values(1,default);
+ERROR 21S01: Column count doesn't match value count at row 1
+insert into t1 values(1),(22),(233);
+select * from t1;
+a
+1
+22
+233
+select a,abc from t1;
+a	abc
+1	1
+22	1
+233	2
+drop table t1;
+create table t1(abc int primary key invisible auto_increment, a int);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+abc	int(11)	NO	PRI	NULL	auto_increment, INVISIBLE
+a	int(11)	YES		NULL	
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `abc` int(11) NOT NULL INVISIBLE AUTO_INCREMENT,
+  `a` int(11) DEFAULT NULL,
+  PRIMARY KEY (`abc`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+select * from t1;
+a
+1
+2
+3
+select abc,a from t1;
+abc	a
+1	1
+2	2
+3	3
+delete  from t1;
+insert into t1 values(1),(2),(3),(4),(6);
+select abc,a from t1;
+abc	a
+4	1
+5	2
+6	3
+7	4
+8	6
+drop table t1;
+create table t1(abc int);
+alter table t1 change abc ss int invisible;
+ERROR 42000: A table must have at least 1 column
+alter table t1 add column xyz int;
+alter table t1 modify column abc  int ;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+abc	int(11)	YES		NULL	
+xyz	int(11)	YES		NULL	
+insert into t1 values(22);
+ERROR 21S01: Column count doesn't match value count at row 1
+alter table t1 modify column abc  int invisible;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+abc	int(11)	YES		NULL	INVISIBLE
+xyz	int(11)	YES		NULL	
+insert into t1 values(12);
+drop table t1;
+#some test on copy table structure with table data;
+#table with invisible fields and unique keys;
+create table t1(a int , b int invisible , c int invisible auto_increment unique, d blob , e int unique, f int);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	INVISIBLE
+c	int(11)	NO	PRI	NULL	auto_increment, INVISIBLE
+d	blob	YES		NULL	
+e	int(11)	YES	UNI	NULL	
+f	int(11)	YES		NULL	
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select * from t1;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+select a,b,c,d,e,f from t1;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+#this won't copy invisible fields and keys;
+create table t2 as select * from t1;
+desc t2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+d	blob	YES		NULL	
+e	int(11)	YES		NULL	
+f	int(11)	YES		NULL	
+select * from t2;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+select a,b,c,d,e,f from t2;
+ERROR 42S22: Unknown column 'b' in 'field list'
+drop table t2;
+#now this will copy invisible fields
+create table t2 as select a,b,c,d,e,f from t1;
+desc t2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	
+c	int(11)	NO		0	
+d	blob	YES		NULL	
+e	int(11)	YES		NULL	
+f	int(11)	YES		NULL	
+select * from t2;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+select a,b,c,d,e,f from t2;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+drop table t2,t1;
+#some test related to copy of data from one table to another;
+create table t1(a int , b int invisible , c int invisible auto_increment unique, d blob , e int unique, f int);
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+select a,b,c,d,e,f from t1;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+create table t2(a int , b int invisible , c int invisible , d blob , e int unique, f int);
+insert into t2 select * from t1;
+select a,b,c,d,e,f from t2;
+a	b	c	d	e	f
+1	NULL	NULL	d blob	1	1
+1	NULL	NULL	d blob	11	1
+1	NULL	NULL	d blob	2	1
+1	NULL	NULL	d blob	3	1
+1	NULL	NULL	d blob	41	1
+truncate t2;
+insert into t2 (a,b,c,d,e,f) select a,b,c,d,e,f from t1;
+select a,b,c,d,e,f from t2;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+truncate t2;
+drop table t1,t2;
+#some test related to creating view on table with invisible column;
+create table t1(a int , b int invisible , c int invisible auto_increment unique, d blob , e int unique, f int);
+insert into t1 values(1,'d blob',1,1),(1,'d blob',11,1),(1,'d blob',2,1),(1,'d blob',3,1),(1,'d blob',41,1);
+create view v as select * from t1;
+desc v;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+d	blob	YES		NULL	
+e	int(11)	YES		NULL	
+f	int(11)	YES		NULL	
+select * from v;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+#v does not have invisible column;
+select a,b,c,d,e,f from v;
+ERROR 42S22: Unknown column 'b' in 'field list'
+insert into v values(1,21,32,4);
+select * from v;
+a	d	e	f
+1	d blob	1	1
+1	d blob	11	1
+1	d blob	2	1
+1	d blob	3	1
+1	d blob	41	1
+1	21	32	4
+insert into v(a,b,c,d,e,f) values(1,12,3,4,5,6);
+ERROR 42S22: Unknown column 'b' in 'field list'
+drop view v;
+create view v as select a,b,c,d,e,f from t1;
+desc v;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	
+c	int(11)	NO		0	
+d	blob	YES		NULL	
+e	int(11)	YES		NULL	
+f	int(11)	YES		NULL	
+select * from v;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+1	NULL	6	21	32	4
+#v does  have invisible column but they aren't invisible anymore.
+select a,b,c,d,e,f from v;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+1	NULL	6	21	32	4
+insert into v values(1,26,33,4,45,66);
+select a,b,c,d,e,f from v;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+1	NULL	6	21	32	4
+1	26	33	4	45	66
+insert into v(a,b,c,d,e,f) values(1,32,31,41,5,6);
+select a,b,c,d,e,f from v;
+a	b	c	d	e	f
+1	NULL	1	d blob	1	1
+1	NULL	2	d blob	11	1
+1	NULL	3	d blob	2	1
+1	NULL	4	d blob	3	1
+1	NULL	5	d blob	41	1
+1	NULL	6	21	32	4
+1	26	33	4	45	66
+1	32	31	41	5	6
+drop view v;
+drop table t1;
+#now invisible column in where and some join query
+create table t1 (a int unique , b int invisible unique, c int unique  invisible);
+insert into t1(a,b,c) values(1,1,1);
+insert into t1(a,b,c) values(2,2,2);
+insert into t1(a,b,c) values(3,3,3);
+insert into t1(a,b,c) values(4,4,4);
+insert into t1(a,b,c) values(21,21,26);
+insert into t1(a,b,c) values(31,31,35);
+insert into t1(a,b,c) values(41,41,45);
+insert into t1(a,b,c) values(22,22,24);
+insert into t1(a,b,c) values(32,32,33);
+insert into t1(a,b,c) values(42,42,43);
+explain select * from t1 where b=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	b	b	5	const	1	
+select * from t1 where b=3;
+a
+3
+explain select * from t1 where c=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	c	c	5	const	1	
+select * from t1 where c=3;
+a
+3
+create table t2 as select a,b,c from t1;
+desc t2;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES		NULL	
+c	int(11)	YES		NULL	
+explain select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	eq_ref	b,c	b	5	test.t2.c	1	Using where
+select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
+a	a	b	c
+1	1	1	1
+2	2	2	2
+3	3	3	3
+4	4	4	4
+drop table t1,t2;
+#Unhide  invisible columns
+create table t1 (a int primary key, b int invisible, c int invisible unique);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) INVISIBLE DEFAULT NULL,
+  `c` int(11) INVISIBLE DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  UNIQUE KEY `c` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	NO	PRI	NULL	
+b	int(11)	YES		NULL	INVISIBLE
+c	int(11)	YES	UNI	NULL	INVISIBLE
+alter table t1 modify column b int;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	NO	PRI	NULL	
+b	int(11)	YES		NULL	
+c	int(11)	YES	UNI	NULL	INVISIBLE
+alter table t1 change column c d int;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	NO	PRI	NULL	
+b	int(11)	YES		NULL	
+d	int(11)	YES	UNI	NULL	
+drop table t1;
+SHOW STATUS LIKE 'Feature_invisible_columns';
+Variable_name	Value
+Feature_invisible_columns	52
+#invisible is non reserved
+create table t1(a int unique , invisible int invisible, c int );
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES	UNI	NULL	
+invisible	int(11)	YES		NULL	INVISIBLE
+c	int(11)	YES		NULL	
+alter table t1 change column invisible hid int invisible;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES	UNI	NULL	
+hid	int(11)	YES		NULL	INVISIBLE
+c	int(11)	YES		NULL	
+drop table t1;
+CREATE TABLE t1 (b int);
+INSERT t1 values(1);
+INSERT t1 values(2);
+INSERT t1 values(3);
+INSERT t1 values(4);
+INSERT t1 values(5);
+CREATE TABLE t2 (a int invisible) SELECT * FROM t1;
+select * from t2 order by b;
+b
+1
+2
+3
+4
+5
+select a,b from t2 order by b;
+a	b
+NULL	1
+NULL	2
+NULL	3
+NULL	4
+NULL	5
+CREATE TABLE t3 (b int, a int invisible) SELECT * FROM t1;
+select * from t3 order by b;
+b
+1
+2
+3
+4
+5
+select a,b from t3 order by b;
+a	b
+NULL	1
+NULL	2
+NULL	3
+NULL	4
+NULL	5
+CREATE TABLE t4 (b int invisible) SELECT * FROM t1;
+ERROR 42000: A table must have at least 1 column
+CREATE TABLE t5 (a int invisible) SELECT b as a FROM t1;
+ERROR 42000: A table must have at least 1 column
+drop table t1,t2,t3;
+create table t1 (a int , b int invisible default 3, c int , d int invisible default 6);
+CREATE PROCEDURE
+insert_t1(a int, b int)
+MODIFIES SQL DATA
+insert into t1 values(a,b);
+//
+call insert_t1(1,1);
+call insert_t1(2,2);
+select * from t1 order by a;
+a	c
+1	1
+2	2
+select a,b,c,d from t1 order by a;
+a	b	c	d
+1	3	1	6
+2	3	2	6
+DROP PROCEDURE insert_t1;
+delete from t1;
+prepare insert_1 from "insert into t1 values(@a,@c)";
+prepare insert_2 from "insert into t1(a,b,c) values(@a,@b,@c)";
+set @a=1, @c=1;
+execute insert_1;
+set @a=2,@b=2, @c=2;
+execute insert_2;
+select a,b,c,d from t1 order by a;
+a	b	c	d
+1	3	1	6
+2	2	2	6
+drop table t1;
+create table t1(a int default 5 invisible, b int);
+create table t2(a int default (b+11) invisible, b int);
+insert into t1 values(1);
+select a,b from t1;
+a	b
+5	1
+insert into t2 values(1);
+select a,b from t2;
+a	b
+NULL	1
+drop table t1,t2;
+create table t1 (a int invisible, b int, c int);
+create table t2 (a int, b int, d int);
+insert t1 (a,b,c) values (0,2,3), (10, 20, 30);
+insert t2 (a,b,d) values (1,2,4), (10, 30, 40);
+select * from t1 join t2 using (a);
+b	c	b	d
+20	30	30	40
+select * from t1 natural join t2;
+b	c	a	d
+2	3	1	4
+drop table t1, t2;
+CREATE TABLE t1 (c CHAR(3), t TIMESTAMP invisible);
+INSERT INTO t1 (c,t) VALUES ('foo','2000-01-01 00:00:00');
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @a= 1;
+INSERT INTO t1 SELECT * FROM t1;
+DROP TABLE t1;
+create or replace table t1 (a int, b int invisible);
+insert into t1 values (1),(2);
+select * from t1 into outfile 'f';
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+load data infile 'f' into table t1;
+select a,b from t1;
+a	b
+1	NULL
+2	NULL
+1	NULL
+2	NULL
+load data infile 'f' into table t1 (a,@v) SET b=@v;
+select a,b from t1;
+a	b
+1	NULL
+2	NULL
+1	NULL
+2	NULL
+1	NULL
+2	NULL
+load data infile 'f' into table t1 (a,@v) SET b=a;
+select a,b from t1;
+a	b
+1	NULL
+2	NULL
+1	NULL
+2	NULL
+1	NULL
+2	NULL
+1	1
+2	2
+truncate table t1;
+insert into t1(a,b) values (1,1),(2,2);
+select a,b from t1 into outfile 'a';
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+load data infile 'a' into table t1(a,b);
+select a,b from t1;
+a	b
+1	1
+2	2
+1	1
+2	2
+load data infile 'a' into table t1 (a,@v) SET b=@v;
+select a,b from t1;
+a	b
+1	1
+2	2
+1	1
+2	2
+1	1
+2	2
+load data infile 'a' into table t1 (a,@v) SET b=@v+2;
+select a,b from t1;
+a	b
+1	1
+2	2
+1	1
+2	2
+1	1
+2	2
+1	3
+2	4
+drop table t1;
+#
+# MDEV-23467 SIGSEGV in fill_record/fill_record_n_invoke_before_triggers on INSERT DELAYED
+#
+create table t1 (a int, b int invisible);
+insert delayed into t1 values (1);
+drop table t1;

@@ -1,0 +1,3 @@
+--source include/have_binlog_format_statement.inc
+--source rpl_row_not_found.inc
+

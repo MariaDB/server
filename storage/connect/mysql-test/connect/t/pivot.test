@@ -1,0 +1,163 @@
+-- source include/not_embedded.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+let $PORT= `select @@port`;
+--copy_file $MTR_SUITE_DIR/std_data/expenses.txt $MYSQLD_DATADIR/test/expenses.txt
+
+--echo #
+--echo # Testing the PIVOT table type
+--echo #
+CREATE TABLE expenses (
+Who  CHAR(10) NOT NULL,
+Week INT(2) NOT NULL,
+What CHAR(12) NOT NULL,
+Amount DOUBLE(8,2))
+ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='expenses.txt' ENDING=2;
+SELECT * FROM expenses;
+
+--echo #
+--echo # Pivoting from What
+--echo #
+CREATE TABLE pivex (
+Who  CHAR(10) NOT NULL,
+Week INT(2) NOT NULL,
+Beer DOUBLE(8,2) FLAG=1,
+Car  DOUBLE(8,2) FLAG=1,
+Food DOUBLE(8,2) FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=expenses;
+--replace_result $PORT PORT
+--eval ALTER TABLE pivex OPTION_LIST='port=$PORT'
+SELECT * FROM pivex;
+
+--echo #
+--echo # Restricting the columns in a Pivot Table
+--echo #
+ALTER TABLE pivex DROP COLUMN week;
+SELECT * FROM pivex;
+
+--echo #
+--echo # Using a source definition
+--echo #
+DROP TABLE pivex;
+CREATE TABLE pivex (
+Who  CHAR(10) NOT NULL,
+Week INT(2) NOT NULL,
+Beer DOUBLE(8,2) FLAG=1,
+Car  DOUBLE(8,2) FLAG=1,
+Food DOUBLE(8,2) FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT
+SRCDEF='select who, week, what, sum(amount) as amount from expenses where week in (4,5) group by who, week, what';
+--replace_result $PORT PORT
+--eval ALTER TABLE pivex OPTION_LIST='PivotCol=what,FncCol=amount,port=$PORT'
+SELECT * FROM pivex;
+
+--echo #
+--echo # Pivoting from Week
+--echo #
+DROP TABLE pivex;
+CREATE TABLE pivex (
+Who  CHAR(10) NOT NULL,
+What CHAR(12) NOT NULL,
+`3` DOUBLE(8,2) FLAG=1,
+`4` DOUBLE(8,2) FLAG=1,
+`5` DOUBLE(8,2) FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=expenses;
+--replace_result $PORT PORT
+--eval ALTER TABLE pivex OPTION_LIST='PivotCol=Week,port=$PORT'
+SELECT * FROM pivex;
+
+--echo #
+--echo # Using scalar functions and expresssions
+--echo #
+DROP TABLE pivex;
+CREATE TABLE pivex (
+Who  CHAR(10) NOT NULL,
+What CHAR(12) NOT NULL,
+First  DOUBLE(8,2) FLAG=1,
+Middle DOUBLE(8,2) FLAG=1,
+Last   DOUBLE(8,2) FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT
+SRCDEF='select who, what, case when week=3 then ''First'' when week=5 then ''Last'' else ''Middle'' end as wk, sum(amount) * 6.56 as amnt from expenses group by who, what, wk';
+--replace_result $PORT PORT
+--eval ALTER TABLE pivex OPTION_LIST='PivotCol=wk,FncCol=amnt,port=$PORT'
+SELECT * FROM pivex;
+DROP TABLE pivex;
+DROP TABLE expenses;
+
+--echo #
+--echo # Make the PETS table
+--echo #
+CREATE TABLE pets (
+Name VARCHAR(12) NOT NULL,
+Race CHAR(6) NOT NULL,
+Number INT NOT NULL) ENGINE=MYISAM;
+INSERT INTO pets VALUES('John','dog',2);
+INSERT INTO pets VALUES('Bill','cat',1);
+INSERT INTO pets VALUES('Mary','dog',1);
+INSERT INTO pets VALUES('Mary','cat',1);
+INSERT INTO pets VALUES('Lisbeth','rabbit',2);
+INSERT INTO pets VALUES('Kevin','cat',2);
+INSERT INTO pets VALUES('Kevin','bird',6);
+INSERT INTO pets VALUES('Donald','dog',1);
+INSERT INTO pets VALUES('Donald','fish',3);
+SELECT * FROM pets;
+
+--echo #
+--echo # Pivot the PETS table
+--echo #
+CREATE TABLE pivet (
+name VARCHAR(12) NOT NULL,
+dog    INT NOT NULL DEFAULT 0 FLAG=1,
+cat    INT NOT NULL DEFAULT 0 FLAG=1,
+rabbit INT NOT NULL DEFAULT 0 FLAG=1,
+bird   INT NOT NULL DEFAULT 0 FLAG=1,
+fish   INT NOT NULL DEFAULT 0 FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+SELECT * FROM pivet;
+DROP TABLE pivet;
+
+--echo #
+--echo # Testing the "data" column list
+--echo #
+CREATE TABLE pivet (
+name VARCHAR(12) NOT NULL,
+dog  INT NOT NULL DEFAULT 0 FLAG=1,
+cat  INT NOT NULL DEFAULT 0 FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+--error ER_GET_ERRMSG
+SELECT * FROM pivet;
+ALTER TABLE pivet OPTION_LIST='PivotCol=race,groupby=1,accept=1';
+SELECT * FROM pivet;
+DROP TABLE pivet;
+
+--echo #
+--echo # Adding a "dump" column
+--echo #
+CREATE TABLE pivet (
+name VARCHAR(12) NOT NULL,
+dog   INT NOT NULL DEFAULT 0 FLAG=1,
+cat   INT NOT NULL DEFAULT 0 FLAG=1,
+other INT NOT NULL DEFAULT 0 FLAG=2)
+ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+SELECT * FROM pivet;
+
+DROP TABLE pivet;
+DROP TABLE pets;
+
+--echo #
+--echo # MDEV-5734
+--echo #
+CREATE TABLE fruit (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(32) NOT NULL,
+  `cnt` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=latin1;
+INSERT INTO fruit VALUES (1,'apple',1),(2,'banana',1),(3,'apple',2),(4,'cherry',4),(5,'durazno',2);
+SELECT * FROM fruit;
+CREATE TABLE fruit_pivot ENGINE=CONNECT TABLE_TYPE=pivot TABNAME=fruit;
+SELECT * FROM fruit_pivot;
+
+DROP TABLE fruit_pivot;
+DROP TABLE fruit;
+--remove_file $MYSQLD_DATADIR/test/expenses.txt

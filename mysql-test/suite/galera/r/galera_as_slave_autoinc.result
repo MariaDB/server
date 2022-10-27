@@ -1,0 +1,90 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_2;
+START SLAVE;
+connection node_3;
+SET SESSION binlog_format='STATEMENT';
+CREATE TABLE t1 (
+i int(11) NOT NULL AUTO_INCREMENT,
+c char(32) DEFAULT 'dummy_text',
+PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+insert into t1(i) values(null);
+select * from t1;
+i	c
+1	dummy_text
+insert into t1(i) values(null), (null), (null);
+select * from t1;
+i	c
+1	dummy_text
+2	dummy_text
+3	dummy_text
+4	dummy_text
+SET SESSION auto_increment_increment=7;
+insert into t1(i) values(null), (null), (null);
+SET SESSION auto_increment_offset=5;
+insert into t1(i) values(null), (null), (null);
+select * from t1;
+i	c
+1	dummy_text
+2	dummy_text
+3	dummy_text
+4	dummy_text
+8	dummy_text
+15	dummy_text
+22	dummy_text
+33	dummy_text
+40	dummy_text
+47	dummy_text
+show variables like 'binlog_format';
+Variable_name	Value
+binlog_format	STATEMENT
+show variables like 'auto_increment_increment';
+Variable_name	Value
+auto_increment_increment	7
+connection node_2;
+select * from t1;
+i	c
+1	dummy_text
+2	dummy_text
+3	dummy_text
+4	dummy_text
+8	dummy_text
+15	dummy_text
+22	dummy_text
+33	dummy_text
+40	dummy_text
+47	dummy_text
+show variables like 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+show variables like 'auto_increment_increment';
+Variable_name	Value
+auto_increment_increment	2
+connection node_1;
+select * from t1;
+i	c
+1	dummy_text
+2	dummy_text
+3	dummy_text
+4	dummy_text
+8	dummy_text
+15	dummy_text
+22	dummy_text
+33	dummy_text
+40	dummy_text
+47	dummy_text
+show variables like 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+show variables like 'auto_increment_increment';
+Variable_name	Value
+auto_increment_increment	2
+connection node_3;
+DROP TABLE t1;
+connection node_2;
+STOP SLAVE;
+RESET SLAVE ALL;
+connection node_3;
+RESET MASTER;

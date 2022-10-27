@@ -1,0 +1,54 @@
+# Copyright(C) 2016  Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/load_mroonga_functions.inc
+
+SET NAMES UTF8;
+
+--disable_warnings
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS queries;
+--enable_warnings
+
+CREATE TABLE users (
+  id INT
+);
+
+CREATE TABLE queries (
+  user_id INT,
+  query TEXT
+);
+
+INSERT INTO users VALUES (1);
+INSERT INTO users VALUES (2);
+INSERT INTO users VALUES (3);
+
+INSERT INTO queries VALUES (1, '(a)');
+INSERT INTO queries VALUES (2, '(b)');
+INSERT INTO queries VALUES (3, '(c)');
+
+SELECT users.id, mroonga_escape(queries.query) AS escaped_query
+  FROM queries
+  LEFT JOIN users ON users.id = queries.user_id
+ ORDER BY users.id;
+
+DROP TABLE queries;
+DROP TABLE users;
+
+--source ../../include/mroonga/unload_mroonga_functions.inc
+--source ../../include/mroonga/have_mroonga_deinit.inc

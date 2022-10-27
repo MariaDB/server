@@ -1,0 +1,3 @@
+--disable-skip-name-resolve
+--bind-address=::
+--max-user-connections=1024

@@ -1,0 +1,140 @@
+skip Background Job Manager not supported in MariaDB;
+# This is a comprehensive test for the background job manager and
+# the information_schema.tokudb_background_job_status table
+#
+# This test validates that analyze table in various modes operate as expected
+# for both foreground and background jobs.
+#
+# This test is NOT intended to test the actual results of an analysis.
+#
+# This test makes use of a global, debug only tokudb variable
+# tokudb_debug_pause_background_job_manager in order to control the bjm and
+# prevent it from acting on any queued jobs.
+# This variable was necessary since the debug_sync facility requires any thread
+# that is syncing to have a valid THD associated with it, which a background
+# thread would not have. This variable is compiled out of release builds.
+
+-- source include/have_tokudb.inc
+-- source include/have_debug.inc
+
+-- enable_query_log
+
+set @orig_auto_analyze = @@session.tokudb_auto_analyze;
+set @orig_in_background = @@session.tokudb_analyze_in_background;
+set @orig_mode = @@session.tokudb_analyze_mode;
+set @orig_throttle = @@session.tokudb_analyze_throttle;
+set @orig_time = @@session.tokudb_analyze_time;
+set @orig_scale_percent = @@global.tokudb_cardinality_scale_percent;
+set @orig_default_storage_engine = @@session.default_storage_engine;
+set @orig_pause_background_job_manager = @@global.tokudb_debug_pause_background_job_manager;
+
+# first, lets set up to auto analyze in the background with about any activity
+set session default_storage_engine='tokudb';
+set session tokudb_auto_analyze=1;
+set session tokudb_analyze_in_background=1;
+set session tokudb_analyze_mode=tokudb_analyze_standard;
+set session tokudb_analyze_throttle=0;
+set session tokudb_analyze_time=0;
+set global tokudb_cardinality_scale_percent=DEFAULT;
+
+# in debug build, we can prevent the background job manager from running,
+# let's do it so we can see that there was an analyze scheduled on the first
+# insert
+set global tokudb_debug_pause_background_job_manager=TRUE;
+
+# let's see what the i_s table is laid out like
+show create table information_schema.tokudb_background_job_status;
+
+create table t1 (a int not null auto_increment, b int, c int, primary key(a), key kb(b), key kc(c), key kabc(a,b,c), key kab(a,b), key kbc(b,c));
+
+insert into t1(b,c) values(0,0), (1,1), (2,2), (3,3);
+
+# insert above should have triggered an analyze, but since the bjm is paused,
+# we will see it sitting in the queue
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+
+# some more tables
+create table t2 like t1;
+create table t3 like t1;
+create table t4 like t1;
+
+# manually analyze, the t1 should be rejected because there is already a job
+# pending. t2, t3 and t4 should get queued.
+analyze table t1;
+analyze table t2;
+analyze table t3;
+analyze table t4;
+
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+
+# let the bjm go to clear the jobs
+set global tokudb_debug_pause_background_job_manager=FALSE;
+
+# wait for the bjm queue to empty
+-- disable_query_log
+let $wait_condition=select count(*)=0 from information_schema.tokudb_background_job_status;
+-- source include/wait_condition.inc
+-- enable_query_log
+
+# pause the bjm again
+set global tokudb_debug_pause_background_job_manager=TRUE;
+
+# add some new jobs
+analyze table t1;
+analyze table t2;
+analyze table t3;
+analyze table t4;
+
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+
+# alter a table, should kill the job for t1
+alter table t1 add column d int;
+
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+
+# try an explicit cancel on t2
+set session tokudb_analyze_mode=tokudb_analyze_cancel;
+analyze table t2;
+
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+
+# try a recount on t1, should reschedule a new job
+set session tokudb_analyze_mode=tokudb_analyze_recount_rows;
+analyze table t1;
+
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+
+# do a foreground analysis that clashes with a background job, it should
+# kill the background job for t3 and perform the analysis immediately
+set session tokudb_analyze_mode=tokudb_analyze_standard;
+set session tokudb_analyze_in_background=0;
+analyze table t3;
+
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+
+# drop the tables, should kill the remaining jobs for t1, and t4
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+
+# let the bjm go
+set global tokudb_debug_pause_background_job_manager=FALSE;
+
+#cleanup
+-- disable_query_log
+let $wait_condition=select count(*)=0 from information_schema.tokudb_background_job_status;
+-- source include/wait_condition.inc
+
+set session tokudb_auto_analyze = @orig_auto_analyze;
+set session tokudb_analyze_in_background = @orig_in_background;
+set session tokudb_analyze_mode = @orig_mode;
+set session tokudb_analyze_throttle = @orig_throttle;
+set session tokudb_analyze_time = @orig_time;
+set global tokudb_cardinality_scale_percent = @orig_scale_percent;
+set session default_storage_engine = @orig_default_storage_engine;
+set global tokudb_debug_pause_background_job_manager = @orig_pause_background_job_manager;
+
+-- enable_query_log

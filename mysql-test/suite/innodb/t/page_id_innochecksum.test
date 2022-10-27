@@ -1,0 +1,65 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/innodb_checksum_algorithm.inc
+--echo # Set the environmental variables
+let MYSQLD_BASEDIR= `SELECT @@basedir`;
+let MYSQLD_DATADIR= `SELECT @@datadir`;
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+
+create table t1(f1 int not null)engine=innodb;
+insert into t1 values(1), (2), (3);
+let $resultlog=$MYSQLTEST_VARDIR/tmp/result.log;
+
+let $restart_noprint=2;
+--source include/shutdown_mysqld.inc
+--echo # Change the page offset
+perl;
+use strict;
+use warnings;
+use Fcntl qw(:DEFAULT :seek);
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+
+sysopen IBD_FILE, "$ENV{MYSQLD_DATADIR}/test/t1.ibd", O_RDWR
+|| die "Cannot open t1.ibd\n";
+sysread(IBD_FILE, $_, 58) || die "Cannot read t1.ibd\n";
+my ($space,$flags) = unpack("x[34]Nx[16]N", $_);
+my $full_crc32 = $flags & 0x10;
+sysseek(IBD_FILE, $page_size * 3, SEEK_SET) || die "Cannot seek t1.ibd\n";
+
+my $page= pack("NNx[18]NNN", 0, 4, 1, 0, $space).(chr(0) x ($page_size - 38));
+
+# Calculate innodb_checksum_algorithm=crc32 or full_crc32.
+my $polynomial = 0x82f63b78; # CRC-32C
+if ($full_crc32)
+{
+    my $ck = mycrc32(substr($page, 0, $page_size-4), 0, $polynomial);
+    substr($page, $page_size-4, 4) = pack("N", $ck);
+}
+else
+{
+    # The following bytes are excluded:
+    # 0..3 (the checksum is stored there)
+    # 26..37 (encryption key version, post-encryption checksum, tablespace id)
+    # $page_size-8..$page_size-1 (checksum, LSB of FIL_PAGE_LSN)
+    my $ck= pack("N",mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+		 mycrc32(substr($page, 38, $page_size-38-8), 0, $polynomial));
+    substr($page,0,4)=$ck;
+    substr($page,$page_size-8,4)=$ck;
+}
+
+die unless syswrite(IBD_FILE, $page, $page_size) == $page_size;
+close IBD_FILE;
+EOF
+
+--error 1
+exec $INNOCHECKSUM -C crc32 -l $resultlog $MYSQLD_DATADIR/test/t1.ibd;
+
+let SEARCH_FILE = $MYSQLTEST_VARDIR/tmp/result.log;
+let SEARCH_PATTERN=page id mismatch;
+--source include/search_pattern_in_file.inc
+
+--remove_file $resultlog
+--source include/start_mysqld.inc
+drop table t1;

@@ -1,0 +1,73 @@
+--source include/have_innodb.inc
+--source innodb_default_row_format.inc
+# The embedded server tests do not support restarting.
+--source include/not_embedded.inc
+
+# Flush any open myisam tables from previous tests
+FLUSH TABLES;
+
+--echo #
+--echo # MDEV-11369: Instant ADD COLUMN for InnoDB
+--echo # MDEV-15562: Instant DROP COLUMN or changing the order of columns
+--echo #
+
+connect to_be_killed, localhost, root;
+
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
+CREATE TABLE empty (id INT PRIMARY KEY, c2 INT UNIQUE) ENGINE=InnoDB;
+CREATE TABLE once LIKE empty;
+CREATE TABLE twice LIKE empty;
+CREATE TABLE thrice LIKE empty;
+INSERT INTO once SET id=1,c2=1;
+INSERT INTO twice SET id=1,c2=1;
+INSERT INTO thrice SET id=1,c2=1;
+ALTER TABLE empty ADD COLUMN (d1 INT DEFAULT 15);
+ALTER TABLE once ADD COLUMN (d1 INT DEFAULT 20);
+ALTER TABLE twice ADD COLUMN (d1 INT DEFAULT 20);
+ALTER TABLE thrice ADD COLUMN (d1 INT DEFAULT 20);
+ALTER TABLE twice ADD COLUMN
+(d2 INT NOT NULL DEFAULT 10,
+ d3 VARCHAR(15) NOT NULL DEFAULT 'var och en char');
+ALTER TABLE thrice ADD COLUMN
+(d2 INT NOT NULL DEFAULT 10,
+ d3 TEXT NOT NULL DEFAULT 'con');
+ALTER TABLE thrice DROP c2, DROP d3, CHANGE d2 d3 INT NOT NULL FIRST;
+
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+
+BEGIN;
+
+INSERT INTO empty set id=0,c2=42;
+UPDATE once set c2=c2+1;
+UPDATE twice set c2=c2+1;
+UPDATE thrice set d3=d3+1;
+INSERT INTO twice SET id=2,c2=0,d3='';
+INSERT INTO thrice SET id=2,d3=0;
+DELETE FROM empty;
+DELETE FROM once;
+DELETE FROM twice;
+DELETE FROM thrice;
+
+connection default;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+CREATE TABLE foo(a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--source include/kill_mysqld.inc
+disconnect to_be_killed;
+--source include/start_mysqld.inc
+
+SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+DROP TABLE foo;
+--source include/wait_all_purged.inc
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@saved_frequency;
+
+SELECT * FROM empty;
+SELECT * FROM once;
+SELECT * FROM twice;
+SELECT * FROM thrice;
+DROP TABLE empty, once, twice, thrice;

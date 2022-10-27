@@ -1,0 +1,504 @@
+drop table if exists gap1,gap2,gap3;
+CREATE DATABASE mysqlslap;
+CREATE TABLE gap1 (id1 INT, id2 INT, id3 INT, c1 INT, value INT,
+PRIMARY KEY (id1, id2, id3),
+INDEX i (c1)) ENGINE=rocksdb;
+CREATE TABLE gap2 like gap1;
+CREATE TABLE gap3 (id INT, value INT,
+PRIMARY KEY (id),
+UNIQUE KEY ui(value)) ENGINE=rocksdb;
+insert into gap3 values (1,1), (2,2),(3,3),(4,4),(5,5);
+create table gap4 (
+pk int primary key,
+a int,
+b int,
+key(a)
+) ENGINE=rocksdb;
+insert into gap4 values (1,1,1), (2,2,2), (3,3,3), (4,4,4);
+create table gap5 like gap4;
+insert into gap5 values (1,1,1), (2,2,2), (3,3,3), (4,4,4);
+set session gap_lock_raise_error=1;
+set session gap_lock_write_log=1;
+set @save_gap_lock_write_log = @@gap_lock_write_log;
+set @save_gap_lock_raise_error = @@gap_lock_raise_error;
+set gap_lock_write_log = 1;
+set gap_lock_raise_error = 0;
+begin;
+update gap4 set a= (select 1+max(a) from gap5 where gap5.pk between 1 and 3 and gap5.b=gap4.b);
+1
+update gap4 set a= (select 2+max(a) from gap5 where gap5.pk between 1 and 3 and gap5.b=gap4.b);
+update gap4 set a= (select 3+max(a) from gap5 where gap5.pk between 1 and 3 and gap5.b=gap4.b);
+1
+1
+0
+flush logs;
+0
+rollback;
+set gap_lock_write_log = @save_gap_lock_write_log;
+set gap_lock_raise_error = @save_gap_lock_raise_error;
+set global gap_lock_write_log = 1;
+set global gap_lock_write_log = 0;
+1000
+set session autocommit=0;
+select * from gap1 limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 limit 1 for update
+select * from gap1 where value != 100 limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where value != 100 limit 1 for update
+select * from gap1 where id1=1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 for update
+select * from gap1 where id1=1 and id2= 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 and id2= 1 for update
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 and id2= 1 and id3 != 1 for update
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 for update
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 for update
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 for update
+select * from gap1 order by id1 asc limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 order by id1 asc limit 1 for update
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 for update
+select * from gap1 order by id1 desc limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 order by id1 desc limit 1 for update
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 for update
+select * from gap1 force index(i) where c1=1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 force index(i) where c1=1 for update
+select * from gap3 force index(ui) where value=1 for update;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 for update;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 for update;
+id	value
+1	1
+set session autocommit=1;
+select * from gap1 limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where id1=1 for update;
+id1	id2	id3	c1	value
+1	0	2	2	2
+1	0	3	3	3
+select * from gap1 where id1=1 and id2= 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 order by id1 asc limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 desc limit 1 for update;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 for update;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 force index(i) where c1=1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap3 force index(ui) where value=1 for update;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 for update;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 for update;
+id	value
+1	1
+set session autocommit=0;
+select * from gap1 limit 1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 limit 1 lock in share mode
+select * from gap1 where value != 100 limit 1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where value != 100 limit 1 lock in share mode
+select * from gap1 where id1=1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 lock in share mode
+select * from gap1 where id1=1 and id2= 1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 and id2= 1 lock in share mode
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 and id2= 1 and id3 != 1 lock in share mode
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 lock in share mode
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 lock in share mode
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 lock in share mode
+select * from gap1 order by id1 asc limit 1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 order by id1 asc limit 1 lock in share mode
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 lock in share mode
+select * from gap1 order by id1 desc limit 1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 order by id1 desc limit 1 lock in share mode
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 lock in share mode
+select * from gap1 force index(i) where c1=1 lock in share mode;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 force index(i) where c1=1 lock in share mode
+select * from gap3 force index(ui) where value=1 lock in share mode;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 lock in share mode;
+id	value
+1	1
+set session autocommit=1;
+select * from gap1 limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where id1=1 lock in share mode;
+id1	id2	id3	c1	value
+1	0	2	2	2
+1	0	3	3	3
+select * from gap1 where id1=1 and id2= 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 order by id1 asc limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 desc limit 1 lock in share mode;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 lock in share mode;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 force index(i) where c1=1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap3 force index(ui) where value=1 lock in share mode;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 lock in share mode;
+id	value
+1	1
+set session autocommit=0;
+select * from gap1 limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where id1=1 ;
+id1	id2	id3	c1	value
+1	0	2	2	2
+1	0	3	3	3
+select * from gap1 where id1=1 and id2= 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 ;
+id1	id2	id3	c1	value
+select * from gap1 order by id1 asc limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 desc limit 1 ;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 ;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 force index(i) where c1=1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap3 force index(ui) where value=1 ;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 ;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 ;
+id	value
+1	1
+set session autocommit=1;
+select * from gap1 limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where id1=1 ;
+id1	id2	id3	c1	value
+1	0	2	2	2
+1	0	3	3	3
+select * from gap1 where id1=1 and id2= 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 ;
+id1	id2	id3	c1	value
+select * from gap1 order by id1 asc limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 desc limit 1 ;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 ;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 force index(i) where c1=1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap3 force index(ui) where value=1 ;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 ;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 ;
+id	value
+1	1
+set session autocommit=0;
+insert into gap1 (id1, id2, id3) values (-1,-1,-1);
+insert into gap1 (id1, id2, id3) values (-1,-1,-1)
+on duplicate key update value=100;
+update gap1 set value=100 where id1=1;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: update gap1 set value=100 where id1=1
+update gap1 set value=100 where id1=1 and id2=1 and id3=1;
+delete from gap1 where id1=2;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: delete from gap1 where id1=2
+delete from gap1 where id1=-1 and id2=-1 and id3=-1;
+commit;
+set session autocommit=1;
+insert into gap1 (id1, id2, id3) values (-1,-1,-1);
+insert into gap1 (id1, id2, id3) values (-1,-1,-1)
+on duplicate key update value=100;
+update gap1 set value=100 where id1=1;
+update gap1 set value=100 where id1=1 and id2=1 and id3=1;
+delete from gap1 where id1=2;
+delete from gap1 where id1=-1 and id2=-1 and id3=-1;
+commit;
+set session autocommit=1;
+insert into gap2 select * from gap1;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: insert into gap2 select * from gap1
+insert into gap2 select * from gap1 where id1=1;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: insert into gap2 select * from gap1 where id1=1
+insert into gap2 select * from gap1 where id1=1 and id2=1 and id3=1;
+create table t4 select * from gap1 where id1=1 and id2=1 and id3=1;
+drop table t4;
+create table t4 select * from gap1;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: create table t4 select * from gap1
+create table t4 select * from gap1 where id1=1;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: create table t4 select * from gap1 where id1=1
+update gap1 join gap2 on gap1.id1 and gap1.id2=gap2.id2 set gap1.value=100 where gap2.id1=3
+and gap2.id2=3 and gap2.id3=3;
+update gap1 join gap2 on gap1.id1 and gap1.id2=gap2.id2 set gap1.value=100 where gap2.id1=3;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: update gap1 join gap2 on gap1.id1 and gap1.id2=gap2.id2 set gap1.value=100 where gap2.id1=3
+update gap1 join gap2 on gap1.id1 and gap1.id2=gap2.id2 join gap3 on gap1.id1=gap3.id
+set gap1.value=100 where gap2.id1=3;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: update gap1 join gap2 on gap1.id1 and gap1.id2=gap2.id2 join gap3 on gap1.id1=gap3.id
+set gap1.value=100 where gap2.id1=3
+update gap1 set gap1.value= (select count(*) from gap2);
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: update gap1 set gap1.value= (select count(*) from gap2)
+delete gap1 from gap1 join gap2 on gap1.id1 and gap1.id2=gap2.id2 where gap2.id1=3
+and gap2.id2=3 and gap2.id3=3;
+delete gap1 from gap1 join gap2 on gap1.id1 and gap1.id2=gap2.id2 where gap2.id1=3;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: delete gap1 from gap1 join gap2 on gap1.id1 and gap1.id2=gap2.id2 where gap2.id1=3
+select * from gap1, gap2 limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1, gap2 limit 1 for update
+select * from gap1 a, gap1 b limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 a, gap1 b limit 1 for update
+create table u1(
+c1 int,
+c2 int,
+c3 int,
+c4 int,
+primary key (c1, c2, c3),
+unique key (c3, c1)
+);
+set session gap_lock_raise_error=1;
+begin;
+insert into u1 values (1,1,1,1);
+commit;
+begin;
+insert into u1 values (1,2,1,1) on duplicate key update c4=10;
+commit;
+begin;
+select * from u1 where c3=1 and c1 = 1 for update;
+c1	c2	c3	c4
+1	1	1	10
+select * from u1 where c3=1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from u1 where c3=1 for update
+commit;
+drop table u1;
+set global gap_lock_write_log= 0;
+set global gap_lock_raise_error= 0;
+drop table if exists gap1, gap2, gap3, gap4, gap5;
+DROP DATABASE mysqlslap;
+0
+SET GLOBAL gap_lock_log_file='<GAP_LOCK_ORIG>';
+SET GLOBAL gap_lock_log_file='<GAP_LOCK>';
+flush general logs;
+SET @save_gap_lock_exceptions = @@global.gap_lock_exceptions;
+SET GLOBAL gap_lock_exceptions="t.*";
+drop table if exists gap1,gap2,gap3;
+CREATE DATABASE mysqlslap;
+CREATE TABLE gap1 (id1 INT, id2 INT, id3 INT, c1 INT, value INT,
+PRIMARY KEY (id1, id2, id3),
+INDEX i (c1)) ENGINE=rocksdb;
+CREATE TABLE gap2 like gap1;
+CREATE TABLE gap3 (id INT, value INT,
+PRIMARY KEY (id),
+UNIQUE KEY ui(value)) ENGINE=rocksdb;
+insert into gap3 values (1,1), (2,2),(3,3),(4,4),(5,5);
+create table gap4 (
+pk int primary key,
+a int,
+b int,
+key(a)
+) ENGINE=rocksdb;
+insert into gap4 values (1,1,1), (2,2,2), (3,3,3), (4,4,4);
+create table gap5 like gap4;
+insert into gap5 values (1,1,1), (2,2,2), (3,3,3), (4,4,4);
+set session gap_lock_raise_error=1;
+set session gap_lock_write_log=1;
+set session autocommit=0;
+select * from gap1 limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 limit 1 for update
+select * from gap1 where value != 100 limit 1 for update;
+ERROR HY000: Using Gap Lock without full unique key in multi-table or multi-statement transactions is not allowed. You need either 1: Execute 'SET SESSION gap_lock_raise_error=0' if you are sure that your application does not rely on Gap Lock. 2: Rewrite queries to use all unique key columns in WHERE equal conditions. 3: Rewrite to single-table, single-statement transaction.  Query: select * from gap1 where value != 100 limit 1 for update
+set global gap_lock_write_log= 0;
+set global gap_lock_raise_error= 0;
+drop table if exists gap1, gap2, gap3, gap4, gap5;
+DROP DATABASE mysqlslap;
+0
+SET GLOBAL gap_lock_log_file='<GAP_LOCK_ORIG>';
+SET GLOBAL gap_lock_log_file='<GAP_LOCK>';
+flush general logs;
+SET GLOBAL gap_lock_exceptions="gap.*";
+drop table if exists gap1,gap2,gap3;
+CREATE DATABASE mysqlslap;
+CREATE TABLE gap1 (id1 INT, id2 INT, id3 INT, c1 INT, value INT,
+PRIMARY KEY (id1, id2, id3),
+INDEX i (c1)) ENGINE=rocksdb;
+CREATE TABLE gap2 like gap1;
+CREATE TABLE gap3 (id INT, value INT,
+PRIMARY KEY (id),
+UNIQUE KEY ui(value)) ENGINE=rocksdb;
+insert into gap3 values (1,1), (2,2),(3,3),(4,4),(5,5);
+create table gap4 (
+pk int primary key,
+a int,
+b int,
+key(a)
+) ENGINE=rocksdb;
+insert into gap4 values (1,1,1), (2,2,2), (3,3,3), (4,4,4);
+create table gap5 like gap4;
+insert into gap5 values (1,1,1), (2,2,2), (3,3,3), (4,4,4);
+set session gap_lock_raise_error=1;
+set session gap_lock_write_log=1;
+set session autocommit=0;
+select * from gap1 limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+set global gap_lock_write_log= 0;
+set global gap_lock_raise_error= 0;
+drop table if exists gap1, gap2, gap3, gap4, gap5;
+DROP DATABASE mysqlslap;
+0
+SET GLOBAL gap_lock_log_file='<GAP_LOCK_ORIG>';
+SET GLOBAL gap_lock_log_file='<GAP_LOCK>';
+flush general logs;
+SET GLOBAL gap_lock_exceptions=@save_gap_lock_exceptions;

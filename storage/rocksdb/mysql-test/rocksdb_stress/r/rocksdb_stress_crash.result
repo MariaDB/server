@@ -1,0 +1,23 @@
+include/master-slave.inc
+[connection master]
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1(id INT PRIMARY KEY,
+thread_id INT NOT NULL,
+request_id BIGINT UNSIGNED NOT NULL,
+update_count INT UNSIGNED NOT NULL DEFAULT 0,
+zero_sum INT DEFAULT 0,
+msg VARCHAR(1024),
+msg_length int,
+msg_checksum varchar(128),
+auto_inc BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+KEY(auto_inc),
+KEY msg_i(msg(255), zero_sum))
+ENGINE=RocksDB DEFAULT CHARSET=latin1 COLLATE=latin1_bin;
+stop slave;
+start slave;
+DROP TABLE t1;
+stop slave;
+start slave;
+include/stop_slave.inc
+include/start_slave.inc
+include/stop_slave.inc

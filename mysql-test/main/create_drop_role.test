@@ -1,0 +1,67 @@
+--source include/not_embedded.inc
+
+CREATE ROLE IF NOT EXISTS role1 WITH ADMIN user1;
+SELECT * FROM mysql.roles_mapping;
+DROP ROLE role1;
+
+CREATE OR REPLACE ROLE role1 WITH ADMIN user2;
+SELECT * FROM mysql.roles_mapping WHERE Role='role1';
+CREATE OR REPLACE ROLE role1 WITH ADMIN user3;
+SELECT * FROM mysql.roles_mapping WHERE Role='role1';
+CREATE ROLE IF NOT EXISTS role1 WITH ADMIN user4;
+SELECT * FROM mysql.roles_mapping WHERE Role='role1';
+DROP ROLE IF EXISTS role1;
+SELECT * FROM mysql.roles_mapping WHERE Role='role1';
+DROP ROLE IF EXISTS role1;
+
+
+CREATE ROLE role_1;
+
+CREATE ROLE IF NOT EXISTS role_1;
+CREATE OR REPLACE ROLE role_1;
+
+--error ER_WRONG_USAGE
+CREATE OR REPLACE ROLE IF NOT EXISTS role_1;
+
+--error ER_CANNOT_USER
+CREATE ROLE role_1;
+
+CREATE USER u1@localhost;
+REVOKE SHOW DATABASES ON *.* FROM 'u1'@'localhost';
+GRANT SHOW DATABASES ON *.* TO role_1;
+GRANT role_1 TO u1@localhost;
+
+connect (user_a, localhost, u1,,);
+connection user_a;
+
+SELECT CURRENT_USER;
+
+SHOW DATABASES;
+SELECT CURRENT_ROLE;
+SET ROLE role_1;
+SELECT CURRENT_ROLE;
+SHOW DATABASES;
+SET ROLE NONE;
+
+connect (user_b, localhost, root,,);
+connection user_b;
+
+--echo # Clearing up
+DROP ROLE role_1;
+DROP ROLE IF EXISTS role_1;
+
+--error ER_CANNOT_USER
+DROP ROLE role_1;
+
+DROP USER u1@localhost;
+
+# MDEV-17942
+CREATE ROLE r;
+GRANT SHOW DATABASES ON *.* TO r;
+CREATE USER foo;
+CREATE USER bar;
+GRANT r TO foo;
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE OR REPLACE USER foo IDENTIFIED WITH non_existing_plugin;
+DROP ROLE r;
+DROP USER bar;

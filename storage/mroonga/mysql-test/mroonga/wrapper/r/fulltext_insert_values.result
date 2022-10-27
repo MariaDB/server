@@ -1,0 +1,17 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key, c2 text, fulltext index ft (c2)) COMMENT = 'engine "innodb"';
+insert into t1 values (1, "hoge hoge");
+insert into t1 values (2, "fuga fuga");
+insert into t1 values (3, "moge moge");
+select * from t1;
+c1	c2
+1	hoge hoge
+2	fuga fuga
+3	moge moge
+flush tables;
+select * from t1;
+c1	c2
+1	hoge hoge
+2	fuga fuga
+3	moge moge
+drop table t1;

@@ -1,0 +1,62 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t (a SERIAL) ENGINE=InnoDB;
+
+connect (dml,localhost,root);
+# At the end of this statement, close_thread_tables()
+# should add the open table handle to the table definition cache (tdc).
+select * from t;
+
+connection default;
+# This should purge the handle from the tdc;
+# otherwise ha_innobase::truncate() would hang,
+# waiting for the reference count to drop to 0.
+TRUNCATE TABLE t;
+disconnect dml;
+
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-17831 TRUNCATE TABLE removes ROW_FORMAT=COMPRESSED
+--echo #
+CREATE TABLE t1 (a SERIAL) ENGINE=InnoDB KEY_BLOCK_SIZE=4;
+TRUNCATE TABLE t1;
+--replace_column 3 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 #
+SHOW TABLE STATUS;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17859 Operating system errors in file operations
+--echo # after failed CREATE
+--echo #
+let $MYSQLD_DATADIR= `select @@datadir`;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+call mtr.add_suppression("InnoDB: (Operating system )?[Ee]rror number");
+call mtr.add_suppression("InnoDB: Cannot create file '.*t1\\.ibd");
+FLUSH TABLES;
+--move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/hidden.frm
+--error ER_TABLESPACE_EXISTS
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+--move_file $MYSQLD_DATADIR/test/hidden.frm $MYSQLD_DATADIR/test/t1.frm
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17885 TRUNCATE on temporary table causes ER_GET_ERRNO
+--echo #
+CREATE TEMPORARY TABLE t1 (a INT) ENCRYPTED=NO ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+TRUNCATE t1;
+SELECT * FROM t1;
+DROP TEMPORARY TABLE t1;
+
+--echo #
+--echo # MDEV-23705 Assertion 'table->data_dir_path || !space'
+--echo #
+CREATE TABLE t(c INT) ENGINE=InnoDB;
+ALTER TABLE t DISCARD TABLESPACE;
+RENAME TABLE t TO u;
+TRUNCATE u;
+TRUNCATE u;
+DROP TABLE u;

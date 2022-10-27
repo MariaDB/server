@@ -1,0 +1,44 @@
+# bool global
+--source include/have_innodb.inc
+
+SET @start_global_value = @@global.innodb_encrypt_tables;
+
+#
+# exists as global only
+#
+select @@global.innodb_encrypt_tables;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.innodb_encrypt_tables;
+show global variables like 'innodb_encrypt_tables';
+show session variables like 'innodb_encrypt_tables';
+select * from information_schema.global_variables
+where variable_name='innodb_encrypt_tables';
+select * from information_schema.session_variables
+where variable_name='innodb_encrypt_tables';
+
+#
+# show that it's writable
+#
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_encrypt_tables=ON;
+show warnings;
+select @@global.innodb_encrypt_tables;
+set global innodb_encrypt_tables=OFF;
+select @@global.innodb_encrypt_tables;
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_encrypt_tables=1;
+select @@global.innodb_encrypt_tables;
+--error ER_GLOBAL_VARIABLE
+set session innodb_encrypt_tables=1;
+
+#
+# incorrect types
+#
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_encrypt_tables=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_encrypt_tables=1e1;
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_encrypt_tables="foo";
+
+SET @@global.innodb_encrypt_tables = @start_global_value;

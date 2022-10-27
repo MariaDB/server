@@ -1,0 +1,34 @@
+--source include/not_embedded.inc
+
+create user foo;
+show create user foo;
+
+create user foo@test;
+show create user foo@test;
+
+create user foo2@test identified by 'password';
+show create user foo2@test;
+
+alter user foo2@test identified with 'mysql_old_password' as '0123456789ABCDEF';
+show create user foo2@test;
+
+create user foo3@test require SSL;
+show create user foo3@test;
+
+create user foo4@test require cipher 'text' issuer 'foo_issuer' subject 'foo_subject';
+show create user foo4@test;
+
+create user foo5@test require SSL
+                      with MAX_QUERIES_PER_HOUR 10
+                           MAX_UPDATES_PER_HOUR 20
+                           MAX_CONNECTIONS_PER_HOUR 30
+                           MAX_USER_CONNECTIONS 40
+                           MAX_STATEMENT_TIME 0.5;
+show create user foo5@test;
+
+drop user foo5@test;
+drop user foo4@test;
+drop user foo3@test;
+drop user foo2@test;
+drop user foo@test;
+drop user foo;

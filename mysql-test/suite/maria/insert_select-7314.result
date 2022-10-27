@@ -1,0 +1,19 @@
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+#
+# MDEV-7314
+# Concurrent "INSERT INTO table SELECT MAX(id)+1 FROM table" are
+# hitting deadlocks on Aria tables using ROW_FORMAT=PAGE
+#
+create table t1 (pk int primary key) engine=Aria;
+insert into t1 values (1);
+insert into t1 select sleep(2)+1 from t1;
+connect  con1,localhost,root,,;
+insert into t1 select 2 from t1;
+connection default;
+select * from t1;
+pk
+1
+2
+drop table t1;

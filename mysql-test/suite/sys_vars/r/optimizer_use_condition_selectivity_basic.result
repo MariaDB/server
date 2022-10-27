@@ -1,0 +1,104 @@
+SET @start_global_value = @@global.optimizer_use_condition_selectivity;
+SET @start_session_value = @@session.optimizer_use_condition_selectivity;
+'#--------------------FN_DYNVARS_115_03-------------------------#'
+SET @@global.optimizer_use_condition_selectivity = 0;
+Warnings:
+Warning	1292	Truncated incorrect optimizer_use_condition_selec... value: '0'
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+1
+SET @@global.optimizer_use_condition_selectivity = 1;
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+1
+SET @@global.optimizer_use_condition_selectivity = 2;
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+2
+SET @@global.optimizer_use_condition_selectivity = 3;
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+3
+SET @@global.optimizer_use_condition_selectivity = 4;
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+4
+SET @@global.optimizer_use_condition_selectivity = 5;
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+5
+SET @@global.optimizer_use_condition_selectivity = 6;
+Warnings:
+Warning	1292	Truncated incorrect optimizer_use_condition_selec... value: '6'
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+5
+'#--------------------FN_DYNVARS_115_04-------------------------#'
+SET @@session.optimizer_use_condition_selectivity = 0;
+Warnings:
+Warning	1292	Truncated incorrect optimizer_use_condition_selec... value: '0'
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+1
+SET @@session.optimizer_use_condition_selectivity = 1;
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+1
+SET @@session.optimizer_use_condition_selectivity = 2;
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+2
+SET @@session.optimizer_use_condition_selectivity = 3;
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+3
+SET @@session.optimizer_use_condition_selectivity = 4;
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+4
+SET @@session.optimizer_use_condition_selectivity = 5;
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+5
+SET @@session.optimizer_use_condition_selectivity = 6;
+Warnings:
+Warning	1292	Truncated incorrect optimizer_use_condition_selec... value: '6'
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+5
+'#------------------FN_DYNVARS_115_05-----------------------#'
+SET @@global.optimizer_use_condition_selectivity = ON;
+ERROR 42000: Incorrect argument type to variable 'optimizer_use_condition_selectivity'
+SET @@global.optimizer_use_condition_selectivity = OFF;
+ERROR 42000: Incorrect argument type to variable 'optimizer_use_condition_selectivity'
+SET @@session.optimizer_use_condition_selectivity = 65530.34;
+ERROR 42000: Incorrect argument type to variable 'optimizer_use_condition_selectivity'
+SET @@session.optimizer_use_condition_selectivity = test;
+ERROR 42000: Incorrect argument type to variable 'optimizer_use_condition_selectivity'
+'#------------------FN_DYNVARS_115_06-----------------------#'
+SELECT @@global.optimizer_use_condition_selectivity = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='optimizer_use_condition_selectivity';
+@@global.optimizer_use_condition_selectivity = VARIABLE_VALUE
+1
+'#------------------FN_DYNVARS_115_07-----------------------#'
+SELECT @@session.optimizer_use_condition_selectivity = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES 
+WHERE VARIABLE_NAME='optimizer_use_condition_selectivity';
+@@session.optimizer_use_condition_selectivity = VARIABLE_VALUE
+1
+'#---------------------FN_DYNVARS_115_08----------------------#'
+SET @@optimizer_use_condition_selectivity = 1;
+SET @@global.optimizer_use_condition_selectivity = 3;
+SELECT @@optimizer_use_condition_selectivity = @@global.optimizer_use_condition_selectivity;
+@@optimizer_use_condition_selectivity = @@global.optimizer_use_condition_selectivity
+0
+'#---------------------FN_DYNVARS_115_09----------------------#'
+SET @@optimizer_use_condition_selectivity = 2;
+SELECT @@optimizer_use_condition_selectivity = @@local.optimizer_use_condition_selectivity;
+@@optimizer_use_condition_selectivity = @@local.optimizer_use_condition_selectivity
+1
+SELECT @@local.optimizer_use_condition_selectivity = @@session.optimizer_use_condition_selectivity;
+@@local.optimizer_use_condition_selectivity = @@session.optimizer_use_condition_selectivity
+1
+SET @@global.optimizer_use_condition_selectivity = @start_global_value;

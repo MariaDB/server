@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS memos;
+SET GLOBAL mroonga_default_tokenizer = TokenDelimit;
+SET mroonga_action_on_fulltext_query_error = ERROR_AND_LOG;
+SET NAMES UTF8;
+CREATE TABLE memos (
+id INT PRIMARY KEY,
+content TEXT,
+FULLTEXT INDEX (content)
+) DEFAULT CHARSET=UTF8;
+INSERT INTO memos VALUES(1, "(groonga) Installed!");
+INSERT INTO memos VALUES(2, "(mroonga) Installed!");
+INSERT INTO memos VALUES(3, "(groonga) Upgraded!");
+SELECT * FROM memos
+WHERE MATCH(content) AGAINST("(groonga" IN BOOLEAN MODE);
+ERROR 42000: failed to parse fulltext search keyword: <(groonga>: <Syntax error: <(groonga||>>
+DROP TABLE memos;
+SET GLOBAL mroonga_default_tokenizer = TokenBigram;

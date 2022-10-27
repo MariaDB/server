@@ -1,0 +1,2 @@
+stop_word_la_SOURCES =				\
+	stop_word.c

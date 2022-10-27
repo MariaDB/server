@@ -1,0 +1,203 @@
+-- source include/have_innodb.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
+
+FLUSH TABLES;
+
+let $MYSQLD_TMPDIR = `SELECT @@tmpdir`;
+let $MYSQLD_DATADIR = `SELECT @@datadir`;
+
+--echo # Treating compact format as dynamic format after import stmt
+
+CREATE TABLE t1
+(a int AUTO_INCREMENT PRIMARY KEY,
+ b blob,
+ c blob,
+ KEY (b(200))) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+
+INSERT INTO t1 (b, c) values (repeat("ab", 200), repeat("bc", 200));
+INSERT INTO t1 (b, c) values (repeat("bc", 200), repeat("cd", 200));
+INSERT INTO t1 (b, c) values (repeat("cd", 200), repeat("ef", 200));
+INSERT INTO t1 (b, c) values (repeat("de", 200), repeat("fg", 200));
+INSERT INTO t1 (b, c) values (repeat("ef", 200), repeat("gh", 200));
+INSERT INTO t1 (b, c) values (repeat("fg", 200), repeat("hi", 200));
+INSERT INTO t1 (b, c) values (repeat("gh", 200), repeat("ij", 200));
+INSERT INTO t1 (b, c) values (repeat("hi", 200), repeat("jk", 200));
+INSERT INTO t1 (b, c) values (repeat("ij", 200), repeat("kl", 200));
+INSERT INTO t1 (b, c) values (repeat("jk", 200), repeat("lm", 200));
+INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
+INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
+SELECT COUNT(*) FROM t1;
+
+FLUSH TABLE t1 FOR EXPORT;
+--echo # List before copying files
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+
+--list_files $MYSQLD_DATADIR/test
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--list_files $MYSQLD_DATADIR/test
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--remove_file $MYSQLD_DATADIR/test/t1.cfg
+--disable_warnings
+ALTER TABLE t1 IMPORT TABLESPACE;
+--enable_warnings
+SHOW CREATE TABLE t1;
+UPDATE t1 set b = repeat("de", 100) where b = repeat("cd", 200);
+--replace_column 9 #
+explain SELECT a FROM t1 where b = repeat("de", 100);
+SELECT a FROM t1 where b = repeat("de", 100);
+SELECT COUNT(*) FROM t1;
+DELETE FROM t1;
+--source include/wait_all_purged.inc
+CHECK TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1
+(c1 int AUTO_INCREMENT PRIMARY KEY,
+ c2 POINT NOT NULL,
+ c3 LINESTRING NOT NULL,
+ SPATIAL INDEX idx1(c2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+
+INSERT INTO t1(c2,c3) VALUES(
+	ST_GeomFromText('POINT(10 10)'),
+	ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'));
+
+INSERT INTO t1(c2,c3) VALUES(
+	ST_GeomFromText('POINT(20 20)'),
+	ST_GeomFromText('LINESTRING(5 15,20 10,30 20)'));
+
+INSERT INTO t1(c2,c3) VALUES(
+	ST_GeomFromText('POINT(30 30)'),
+	ST_GeomFromText('LINESTRING(10 5,20 24,30 32)'));
+
+INSERT INTO t1(c2,c3) VALUES(
+	ST_GeomFromText('POINT(40 40)'),
+	ST_GeomFromText('LINESTRING(15 5,25 20,35 30)'));
+
+INSERT INTO t1(c2,c3) VALUES(
+	ST_GeomFromText('POINT(50 10)'),
+	ST_GeomFromText('LINESTRING(15 15,24 10,31 20)'));
+
+INSERT INTO t1(c2,c3) VALUES(
+	ST_GeomFromText('POINT(60 50)'),
+	ST_GeomFromText('LINESTRING(10 15,20 44,35 32)'));
+
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+
+FLUSH TABLE t1 FOR EXPORT;
+--echo # List before copying files
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+
+--list_files $MYSQLD_DATADIR/test
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISCARD TABLESPACE;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--remove_file $MYSQLD_DATADIR/test/t1.cfg
+--disable_warnings
+ALTER TABLE t1 IMPORT TABLESPACE;
+--enable_warnings
+SHOW CREATE TABLE t1;
+UPDATE t1 SET C2 = ST_GeomFromText('POINT(0 0)');
+SELECT COUNT(*) FROM t1;
+DELETE FROM t1;
+CHECK TABLE t1;
+--source include/wait_all_purged.inc
+DROP TABLE t1;
+
+SET @save_algo = @@GLOBAL.innodb_compression_algorithm;
+--error 0,ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_compression_algorithm=2;
+CREATE TABLE t1(a SERIAL) PAGE_COMPRESSED=1 ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+
+FLUSH TABLE t1 FOR EXPORT;
+--echo # List before copying files
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+
+--list_files $MYSQLD_DATADIR/test
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+SET GLOBAL innodb_compression_algorithm=0;
+ALTER TABLE t1 FORCE;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--list_files $MYSQLD_DATADIR/test
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+INSERT INTO t1 VALUES(2);
+SELECT * FROM t1;
+
+
+--error 0,ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_compression_algorithm=3;
+FLUSH TABLE t1 FOR EXPORT;
+--echo # List before copying files
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+
+--list_files $MYSQLD_DATADIR/test
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+
+UNLOCK TABLES;
+SET GLOBAL innodb_compression_algorithm=0;
+ALTER TABLE t1 FORCE;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--list_files $MYSQLD_DATADIR/test
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+INSERT INTO t1 VALUES(3);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET GLOBAL innodb_compression_algorithm=@save_algo;

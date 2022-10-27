@@ -1,0 +1,25 @@
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1(id int not null primary key, b int) engine=InnoDB;
+INSERT INTO t1 VALUES (0,0),(1,1),(2,2),(3,3);
+
+BEGIN;
+--send UPDATE t1 set b = 100 where id between 1 and 2;
+
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1b
+SET @save_dbug = @@SESSION.debug_dbug;
+SET @@SESSION.innodb_lock_wait_timeout=2;
+SET @@SESSION.debug_dbug = '+d,wsrep_instrument_BF_lock_wait';
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t1 set b = 200 WHERE id = 1;
+SET @@SESSION.debug_dbug = @save_dbug;
+
+--connection node_1
+--reap
+COMMIT;
+SELECT * FROM t1;
+--disconnect node_1b
+DROP TABLE t1;

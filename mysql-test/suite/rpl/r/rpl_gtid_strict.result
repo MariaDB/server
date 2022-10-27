@@ -1,0 +1,198 @@
+include/rpl_init.inc [topology=1->2]
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET sql_log_bin= 0;
+call mtr.add_suppression("Error writing file .*errno: 1950");
+SET sql_log_bin= 1;
+SET @old_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+connection server_2;
+include/stop_slave.inc
+SET @old_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode=1;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+SET server_id= 3;
+SET gtid_seq_no= 3;
+ERROR HY000: An attempt was made to binlog GTID 0-3-3 which would create an out-of-order sequence number with existing GTID 0-1-3, and gtid strict mode is enabled
+SET @old_dbug = @@session.debug_dbug;
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
+SET gtid_seq_no= 3;
+SET SESSION debug_dbug=@old_dbug;
+INSERT INTO t1 VALUES (2);
+ERROR HY000: An attempt was made to binlog GTID 0-3-3 which would create an out-of-order sequence number with existing GTID 0-1-3, and gtid strict mode is enabled
+SET gtid_seq_no= 2;
+ERROR HY000: An attempt was made to binlog GTID 0-3-2 which would create an out-of-order sequence number with existing GTID 0-1-3, and gtid strict mode is enabled
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
+SET gtid_seq_no= 2;
+SET SESSION debug_dbug=@old_dbug;
+INSERT INTO t1 VALUES (3);
+ERROR HY000: An attempt was made to binlog GTID 0-3-2 which would create an out-of-order sequence number with existing GTID 0-1-3, and gtid strict mode is enabled
+SET server_id= 1;
+SET gtid_seq_no= 4;
+INSERT INTO t1 VALUES (4);
+SELECT * FROM t1 ORDER BY 1;
+a
+1
+4
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (4)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+*** Test non-transactional GTID error (cannot be rolled back). ***
+SET server_id= 3;
+SET gtid_seq_no= 1;
+ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-1-4, and gtid strict mode is enabled
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
+SET gtid_seq_no= 1;
+SET SESSION debug_dbug=@old_dbug;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
+ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-1-4, and gtid strict mode is enabled
+SET sql_log_bin= 0;
+DROP TABLE t2;
+SET sql_log_bin= 1;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
+SET gtid_seq_no= 1;
+ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-3-5, and gtid strict mode is enabled
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
+SET gtid_seq_no= 1;
+SET SESSION debug_dbug=@old_dbug;
+INSERT INTO t2 VALUES (1);
+ERROR HY000: An attempt was made to binlog GTID 0-3-1 which would create an out-of-order sequence number with existing GTID 0-3-5, and gtid strict mode is enabled
+SET server_id= 1;
+SET gtid_seq_no= 6;
+INSERT INTO t2 VALUES (2);
+SELECT * FROM t2 ORDER BY a;
+a
+1
+2
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (4)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES (2)
+master-bin.000001	#	Query	#	#	COMMIT
+*** Test that slave stops if it tries to apply a GTID that would create out-of-order binlog GTID sequence numbers. ***
+connection server_2;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+4
+SELECT * FROM t2 ORDER BY a;
+a
+2
+SET sql_log_bin= 0;
+call mtr.add_suppression("An attempt was made to binlog GTID .* which would create an out-of-order sequence number with existing GTID .*, and gtid strict mode is enabled");
+call mtr.add_suppression("The binlog on the master is missing the GTID [-0-9]+ requested by the slave");
+SET sql_log_bin= 1;
+INSERT INTO t1 VALUES (5);
+connection server_1;
+INSERT INTO t1 VALUES (6);
+connection server_2;
+include/wait_for_slave_sql_error.inc [errno=1950]
+STOP SLAVE IO_THREAD;
+SET GLOBAL gtid_strict_mode=0;
+include/start_slave.inc
+SET GLOBAL gtid_strict_mode=1;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+4
+5
+6
+INSERT INTO t1 VALUES (7);
+connection server_1;
+CREATE TABLE t3 (a INT PRIMARY KEY);
+connection server_2;
+include/wait_for_slave_sql_error.inc [errno=1950]
+SHOW CREATE TABLE t3;
+ERROR 42S02: Table 'test.t3' doesn't exist
+STOP SLAVE IO_THREAD;
+SET GLOBAL gtid_strict_mode=0;
+include/start_slave.inc
+SET GLOBAL gtid_strict_mode=1;
+SHOW CREATE TABLE t3;
+Table	t3
+Create Table	CREATE TABLE `t3` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (8);
+connection server_1;
+INSERT INTO t2 VALUES (3);
+connection server_2;
+include/wait_for_slave_sql_error.inc [errno=1950]
+SELECT * FROM t2 ORDER BY a;
+a
+2
+STOP SLAVE IO_THREAD;
+SET GLOBAL gtid_strict_mode=0;
+include/start_slave.inc
+SET GLOBAL gtid_strict_mode=1;
+SELECT * FROM t2 ORDER BY a;
+a
+2
+3
+*** Check slave requests starting from a hole on the master. ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (10);
+SET gtid_seq_no= 100;
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+connection server_2;
+SET GLOBAL gtid_slave_pos= "0-1-50";
+START SLAVE;
+include/wait_for_slave_io_error.inc [errno=1236]
+STOP SLAVE SQL_THREAD;
+SET GLOBAL gtid_strict_mode= 0;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+4
+5
+6
+7
+8
+11
+12
+SET GLOBAL gtid_strict_mode= 1;
+connection server_1;
+DROP TABLE t1, t2, t3;
+SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
+connection server_2;
+SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
+include/rpl_end.inc

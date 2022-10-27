@@ -1,0 +1,23 @@
+drop table if exists t1;
+SET @ORIG_PCT = @@ROCKSDB_TABLE_STATS_SAMPLING_PCT;
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT = 100;
+create table t1 (pk int primary key) engine=rocksdb;
+set global rocksdb_force_flush_memtable_now = true;
+select table_rows from information_schema.tables
+where table_schema = database() and table_name = 't1';
+table_rows
+10000
+drop table t1;
+drop table if exists t2;
+SET @@global.ROCKSDB_TABLE_STATS_SAMPLING_PCT = 10;
+create table t2 (pk int primary key) engine=rocksdb;
+set global rocksdb_force_flush_memtable_now = true;
+select table_rows from information_schema.tables
+where table_schema = database() and table_name = 't2';
+table_rows
+10000
+select table_name from information_schema.tables where table_schema = database() and table_name = 't2';
+table_name
+t2
+drop table t2;
+SET GLOBAL ROCKSDB_TABLE_STATS_SAMPLING_PCT = @ORIG_PCT;

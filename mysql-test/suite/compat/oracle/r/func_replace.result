@@ -1,0 +1,32 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-13003 - Oracle compatibility : Replace function
+#
+SELECT REPLACE(null,'a','b') ;
+REPLACE(null,'a','b')
+NULL
+SELECT REPLACE('ab',null,'b') ;
+REPLACE('ab',null,'b')
+ab
+SELECT REPLACE('ab','a',null) ;
+REPLACE('ab','a',null)
+b
+SELECT REPLACE('ab',null,null) ;
+REPLACE('ab',null,null)
+ab
+SELECT REPLACE('aaa','a',null) ;
+REPLACE('aaa','a',null)
+NULL
+EXPLAIN EXTENDED SELECT REPLACE('ab','a',null) ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select replace_oracle('ab','a',NULL) AS "REPLACE('ab','a',null)"
+CREATE VIEW v1 AS SELECT REPLACE('ab','a',null) ;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select replace_oracle('ab','a',NULL) AS "REPLACE('ab','a',null)"	latin1	latin1_swedish_ci
+SELECT * FROM v1;
+REPLACE('ab','a',null)
+b
+DROP VIEW v1;

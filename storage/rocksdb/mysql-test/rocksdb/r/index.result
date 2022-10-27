@@ -1,0 +1,89 @@
+CREATE TABLE t1 (a INT,
+b CHAR(8),
+pk INT PRIMARY KEY,
+KEY  (a)
+) ENGINE=rocksdb;
+SHOW KEYS IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	pk	A	#	NULL	NULL		LSMTREE		
+t1	1	a	1	a	A	#	NULL	NULL	YES	LSMTREE		
+DROP TABLE t1;
+CREATE TABLE t1 (a INT,
+b CHAR(8),
+pk INT PRIMARY KEY,
+KEY a_b  (a,b) COMMENT 'a_b index'
+) ENGINE=rocksdb;
+SHOW KEYS IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	pk	A	#	NULL	NULL		LSMTREE		
+t1	1	a_b	1	a	A	#	NULL	NULL	YES	LSMTREE		a_b index
+t1	1	a_b	2	b	A	#	NULL	NULL	YES	LSMTREE		a_b index
+DROP TABLE t1;
+CREATE TABLE t1 (a INT,
+b CHAR(8),
+pk INT PRIMARY KEY,
+KEY  (a),
+KEY  (b)
+) ENGINE=rocksdb;
+SHOW KEYS IN t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	pk	A	#	NULL	NULL		LSMTREE		
+t1	1	a	1	a	A	#	NULL	NULL	YES	LSMTREE		
+t1	1	b	1	b	A	#	NULL	NULL	YES	LSMTREE		
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (100,'z');
+ALTER TABLE t1 ADD KEY (a)  COMMENT 'simple index on a';
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	pk	A	#	NULL	NULL		LSMTREE		
+t1	1	a	1	a	A	#	NULL	NULL	YES	LSMTREE		simple index on a
+ALTER TABLE t1 DROP KEY a;
+DROP TABLE t1;
+set global rocksdb_large_prefix=0;
+CREATE TABLE t1 (
+a BLOB(1024),
+KEY (a(767))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a BLOB(1024),
+KEY (a(768))
+) ENGINE=rocksdb;
+Warnings:
+Note	1071	Specified key was too long; max key length is 767 bytes
+DROP TABLE t1;
+set global rocksdb_large_prefix=1;
+CREATE TABLE t1 (
+a BLOB(4096),
+KEY (a(3072))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a BLOB(4096),
+KEY (a(3073))
+) ENGINE=rocksdb;
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
+DROP TABLE t1;
+set global rocksdb_large_prefix=DEFAULT;
+#
+# Issue #376: MyRocks: ORDER BY optimizer is unable to use the index extension
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+pk int not null,
+a  int not null,
+b  int not null,
+primary key(pk),
+key(a) 
+) engine=rocksdb;
+insert into t2 select A.a, FLOOR(A.a/10), A.a from t1 A;
+# This must have type=range, index=a, and must not have 'Using filesort':
+explain select * from t2 force index (a) where a=0 and pk>=3 order by pk;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	8	NULL	#	Using index condition
+drop table t0,t1,t2;

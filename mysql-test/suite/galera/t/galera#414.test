@@ -1,0 +1,43 @@
+#
+# codership/galera#414 Shutdown crashes node if the node started with `gcs.max_packet_size=2`
+#
+
+--source include/big_test.inc
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+# We perform the shutdown/restart sequence in here. If there was a crash during shutdown, MTR will detect it
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_on = OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+--source include/start_mysqld.inc
+
+--connection node_1
+SET SESSION wsrep_on = ON;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+
+--connection node_1
+CALL mtr.add_suppression("Failed to set packet size");
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+CALL mtr.add_suppression("Failed to set packet size");
+
+--source include/auto_increment_offset_restore.inc

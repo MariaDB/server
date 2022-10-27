@@ -1,0 +1,8 @@
+#
+# MDEV-4273 MYSQL_VERSION_MAJOR.MYSQL_VERSION_MINOR not replaced
+#
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+create table innodb_table_monitor (a int) engine=InnoDB;
+drop table innodb_table_monitor;

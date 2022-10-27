@@ -1,0 +1,27 @@
+create user test_user@localhost;
+create role test_role1;
+grant test_role1 to test_user@localhost;
+create role test_role2;
+grant test_role2 to test_role1;
+use mysql;
+select * from roles_mapping;
+Host	User	Role	Admin_option
+	test_role1	test_role2	N
+localhost	root	test_role1	Y
+localhost	root	test_role2	Y
+localhost	test_user	test_role1	N
+rename user 'test_user'@'localhost' to 'test_user_rm'@'newhost';
+select user, host from user where user like 'test%';
+User	Host
+test_role1	
+test_role2	
+test_user_rm	newhost
+select * from roles_mapping;
+Host	User	Role	Admin_option
+	test_role1	test_role2	N
+localhost	root	test_role1	Y
+localhost	root	test_role2	Y
+newhost	test_user_rm	test_role1	N
+delete from mysql.roles_mapping;
+delete from mysql.user where user like 'test%';
+flush privileges;

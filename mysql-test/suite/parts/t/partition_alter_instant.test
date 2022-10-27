@@ -1,0 +1,43 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+
+# MDEV-21832 FORCE all partition to rebuild if any one of the
+# partition does rebuild
+CREATE TABLE t1 (
+    id INT NOT NULL,
+    name VARCHAR(30))ENGINE=InnoDB ROW_FORMAT=COMPACT CHARACTER SET=latin1
+    PARTITION BY RANGE (id) (
+        PARTITION p0 VALUES LESS THAN (50),
+        PARTITION p1 VALUES LESS THAN (MAXVALUE)
+);
+
+INSERT INTO t1(id, name) VALUES(16, 'Me'), (337, 'ROFL');
+
+--echo # Add and drop 31 Instant columns
+--disable_query_log
+let $i = 1;
+while ($i < 32) {
+--eval ALTER TABLE t1 ADD COLUMN col$i VARCHAR(255) NOT NULL DEFAULT repeat('a', 255);
+inc $i;
+}
+
+let $i = 31;
+while ($i > 0) {
+--eval ALTER TABLE t1 DROP COLUMN col$i
+dec $i;
+}
+--enable_query_log
+
+CREATE TABLE t2 LIKE t1;
+SHOW CREATE TABLE t2;
+ALTER TABLE t2 REMOVE PARTITIONING;
+ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
+SHOW CREATE TABLE t2;
+SET ALTER_ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 ADD COLUMN col1 VARCHAR(255) NOT NULL DEFAULT repeat('a', 255);
+SET ALTER_ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD COLUMN col1 VARCHAR(255) NOT NULL DEFAULT repeat('a', 255);
+DROP TABLE t1, t2;
+SET ALTER_ALGORITHM=DEFAULT;

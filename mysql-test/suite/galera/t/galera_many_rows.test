@@ -1,0 +1,59 @@
+--source include/big_test.inc
+--source include/galera_cluster.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+SET SESSION innodb_lock_wait_timeout=600;
+SET SESSION lock_wait_timeout=600;
+
+CREATE TABLE ten (f1 INTEGER) engine=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoDB;
+INSERT INTO t1 (f2) SELECT a1.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--let $wsrep_provider_options_node2 = `SELECT @@wsrep_provider_options`
+SET SESSION wsrep_sync_wait = 15;
+
+SET GLOBAL wsrep_provider_options = 'repl.causal_read_timeout=PT1H';
+
+SELECT COUNT(*) FROM t1;
+INSERT INTO t1 (f2) SELECT a1.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+
+--connection node_1
+SELECT COUNT(*) FROM t1;
+UPDATE t1 SET f2 = 1;
+
+--connection node_2
+SELECT COUNT(*) FROM t1 WHERE f2 = 1;
+
+--connection node_1
+START TRANSACTION;
+SELECT COUNT(*) FROM t1;
+UPDATE t1 SET f2 = 3;
+
+--connection node_2
+START TRANSACTION;
+UPDATE t1 SET f2 = 4;
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_node2';
+--enable_query_log
+
+--source include/auto_increment_offset_restore.inc
+
+DROP TABLE t1;
+DROP TABLE ten;

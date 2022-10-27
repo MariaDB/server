@@ -1,0 +1,34 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+--disable_warnings
+drop table if exists t;
+--enable_warnings
+
+create table t (
+  a int,
+  b int,
+  c varchar(12249) collate latin1_bin,
+  d datetime,
+  e int,
+  f int,
+  g blob,
+  h int,
+  i int,
+  key (b,e),
+  key (h,b)
+) engine=rocksdb
+partition by linear hash (i) partitions 8 ;
+
+insert into t values (1,1,'a',now(),1,1,'a',1,1);
+insert into t values (1,1,'a',now(),1,1,'a',1,1);
+insert into t values (1,1,'a',now(),1,1,'a',1,1);
+insert into t values (1,1,'a',now(),1,1,'a',1,1);
+insert into t values (1,1,'a',now(),1,1,'a',1,1);
+insert into t values (1,1,'a',now(),1,1,'a',1,1);
+insert into t values (1,1,'a',now(),1,1,'a',1,1);
+insert into t values (1,1,'a',now(),1,1,'a',1,1);
+select i from t group by h;
+select i from t group by h;
+
+drop table t;
+

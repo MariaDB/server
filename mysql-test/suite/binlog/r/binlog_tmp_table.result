@@ -1,0 +1,67 @@
+RESET MASTER;
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  master1,127.0.0.1,root,,test,$MASTER_MYPORT,;
+create table foo (a int);
+flush logs;
+connection master;
+create temporary table tmp1_foo like foo;
+connection master1;
+create temporary table tmp2_foo (a int);
+connection master;
+insert into tmp1_foo values (1), (2), (3), (4);
+connection master1;
+replace into tmp2_foo values (1), (2), (3), (4);
+connection master;
+update tmp1_foo set a=2*a-1;
+connection master1;
+update tmp2_foo set a=2*a;
+connection master;
+delete from tmp1_foo where a < 5;
+connection master1;
+delete from tmp2_foo where a < 5;
+connection master;
+insert into foo select * from tmp1_foo;
+connection master1;
+insert into foo select * from tmp2_foo;
+connection master;
+truncate table tmp1_foo;
+connection master1;
+truncate table tmp2_foo;
+flush logs;
+connection default;
+select * from foo;
+a
+5
+7
+6
+8
+drop table foo;
+create table foo (a int);
+select * from foo;
+a
+5
+7
+6
+8
+drop table foo;
+RESET MASTER;
+connect  con1,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connect  con2,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection con1;
+create database b51226;
+use b51226;
+create temporary table t1(i int);
+connection con2;
+use b51226;
+create temporary table t1(i int);
+connection con1;
+create temporary table t1(i int);
+ERROR 42S01: Table 't1' already exists
+disconnect con1;
+connection default;
+connection con2;
+insert into t1 values(1);
+disconnect con2;
+connection default;
+DROP DATABASE b51226;
+FLUSH LOGS;

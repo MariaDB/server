@@ -1,0 +1,149 @@
+--source include/have_rocksdb.inc
+
+#
+# This test checks some very basic capabilities
+# for tables without primary keys. A hidden pk will be generated under the hood
+# in myrocks.  Everything should work here as normal.
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+## test CREATE with SK
+CREATE TABLE t1 (a INT, b CHAR(8), KEY(a)) ENGINE=rocksdb;
+--source no_primary_key_basic_ops.inc
+DROP TABLE t1;
+
+## test adding/dropping sk w/no pk
+CREATE TABLE t1 (a INT, b CHAR(8)) ENGINE=rocksdb;
+ALTER TABLE t1 ADD INDEX (b);
+--source no_primary_key_basic_ops.inc
+
+ALTER TABLE t1 DROP INDEX b;
+--source no_primary_key_basic_ops.inc
+DROP TABLE t1;
+
+# test dropping pk w/ sk
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+ALTER TABLE t1 DROP COLUMN pk;
+--source no_primary_key_basic_ops.inc
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-4313: RocksDB: Server crashes in Rdb_key_def::setup on dropping the primary key column
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT NOT NULL, KEY(i)) ENGINE=RocksDB;
+ALTER TABLE t1 DROP COLUMN `pk`;
+DROP TABLE t1;
+
+# create table with multiple sk, make sure it still works
+# test CREATE with SK
+CREATE TABLE t1 (a INT, b CHAR(8), KEY(a), KEY(b)) ENGINE=rocksdb;
+--source no_primary_key_basic_ops.inc
+DROP TABLE t1;
+
+# test CREATE table with multi-part sk
+CREATE TABLE t1 (a INT, b CHAR(8), KEY(a, b)) ENGINE=rocksdb;
+--source no_primary_key_basic_ops.inc
+DROP TABLE t1;
+
+# test CREATE table with more than one sk
+CREATE TABLE t1 (a INT, b CHAR(8), KEY(a), KEY(b)) ENGINE=rocksdb;
+--source no_primary_key_basic_ops.inc
+DROP TABLE t1;
+
+# test check table with sk
+CREATE TABLE t1 (a INT, b CHAR(8), KEY(a)) ENGINE=rocksdb;
+INSERT INTO t1 (a) VALUES (1),(2),(5);
+CHECK TABLE t1;
+INSERT INTO t1 (a) VALUES (6),(8),(12);
+CHECK TABLE t1 FOR UPGRADE;
+INSERT INTO t1 (a) VALUES (13),(15),(16);
+CHECK TABLE t1 QUICK;
+INSERT INTO t1 (a) VALUES (17),(120),(132);
+CHECK TABLE t1 FAST;
+INSERT INTO t1 (a) VALUES (801),(900),(7714);
+CHECK TABLE t1 MEDIUM;
+INSERT INTO t1 (a) VALUES (8760),(10023),(12000);
+CHECK TABLE t1 EXTENDED;
+INSERT INTO t1 (a) VALUES (13345),(24456),(78302),(143028);
+CHECK TABLE t1 CHANGED;
+DROP TABLE t1;
+
+## tables with multi-part secondary indexes + columns that dont belong to any
+## secondary indexes
+CREATE TABLE t1 (a INT, b INT, c INT, d INT, KEY kab(a, b), KEY kbc(b, c), KEY kabc(a,b,c)) ENGINE=rocksdb;
+SHOW CREATE TABLE t1;
+SHOW COLUMNS IN t1;
+
+INSERT INTO t1 (a,b,c,d) VALUES (1,2,3,4);
+INSERT INTO t1 (a,b,c,d) VALUES (5,6,7,8);
+INSERT INTO t1 (a,b,c,d) VALUES (10,11,12,13);
+INSERT INTO t1 (a,b,c,d) VALUES (14,15,16,17);
+
+--sorted_result
+SELECT * FROM t1;
+--sorted_result
+SELECT * FROM t1 WHERE a = 1 OR a = 10;
+--sorted_result
+SELECT * FROM t1 WHERE c = 3 OR d = 17;
+--sorted_result
+SELECT * FROM t1 WHERE a > 5 OR d > 5;
+
+# force some of these selects to use different indexes and/or have the columns
+# being selected also not contain column d
+--sorted_result
+SELECT a, b, c FROM t1 FORCE INDEX (kabc) WHERE a=1 OR b=11;
+--sorted_result
+SELECT d FROM t1 FORCE INDEX (kbc) WHERE b > 6 AND c > 12;
+
+UPDATE t1 SET a=a+100;
+UPDATE t1 SET a=a-100, b=99 WHERE a>100;
+--sorted_result
+SELECT * FROM t1;
+
+DELETE FROM t1 WHERE a>5;
+DELETE FROM t1 WHERE b=99 AND d>4;
+--sorted_result
+SELECT * FROM t1;
+
+TRUNCATE TABLE t1;
+DROP TABLE t1;
+
+## secondary indexes live in reverse column families
+CREATE TABLE t1 (a INT, b CHAR(8), KEY ka(a) comment 'rev:cf1', KEY kb(b)
+comment 'rev:cf1', KEY kab(a,b) comment 'rev:cf2') ENGINE=rocksdb;
+--source no_primary_key_basic_ops.inc
+DROP TABLE t1;
+
+## https://github.com/facebook/mysql-5.6/issues/209
+## Accidental single delete caused data inconsistency
+CREATE TABLE t1 (col1 int, col2 int, KEY kcol1(col1)) ENGINE=ROCKSDB;
+INSERT INTO t1 (col1, col2) values (2,2);
+ALTER TABLE t1 ADD COLUMN extra INT;
+UPDATE t1 SET col2 = 1;
+select * from t1;
+DELETE FROM t1 WHERE col1 = 2;
+
+# flush memtable to cause compaction to occur.
+# During compaction, if a SingleDelete occurs then the delete marker and the
+# key it is deleting are both removed.  This will cause data inconsistency if
+# SingleDelete is called on PK, since we do multiple Put() operations to update
+# primary keys.
+set global rocksdb_force_flush_memtable_now = true;
+
+select * from t1;
+DROP TABLE t1;
+
+## https://github.com/facebook/mysql-5.6/issues/736
+create table t1 (i int auto_increment, key(i)) engine=rocksdb;
+insert into t1 values();
+insert into t1 values();
+insert into t1 values();
+
+show create table t1;
+--source include/restart_mysqld.inc
+show create table t1;
+
+drop table t1;

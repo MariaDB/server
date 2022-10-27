@@ -1,0 +1,105 @@
+#
+# test of ISNULL()
+#
+--source include/default_optimizer_switch.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (id int auto_increment primary key not null, mydate date not null);
+insert into t1 values (0,"2002-05-01"),(0,"2002-05-01"),(0,"2002-05-01");
+flush tables;
+select * from t1 where isnull(to_days(mydate));
+drop table t1;
+
+# End of 4.1 tests
+
+--echo #
+--echo # Bug#53933 crash when using uncacheable subquery in the having clause of outer query
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+INSERT INTO t1 VALUES (0),(0);
+
+SELECT ISNULL((SELECT GET_LOCK('Bug#53933', 0) FROM t1 GROUP BY f1)) AS f2
+FROM t1 GROUP BY f1 HAVING f2 = f2;
+SELECT RELEASE_LOCK('Bug#53933');
+
+DROP TABLE t1;
+
+--echo End of 5.0 tests
+
+#
+# Bug #41371    Select returns 1 row with condition "col is not null and col is null"
+#
+
+CREATE TABLE t1 (id INTEGER UNSIGNED NOT NULL AUTO_INCREMENT, PRIMARY KEY(id));
+INSERT INTO t1( id ) VALUES ( NULL );
+SELECT t1.id  FROM t1  WHERE (id  is not null and id is null );
+DROP TABLE t1;
+
+--echo # End of 5.1 tests
+
+--echo #
+--echo # MDEV-14911: IS NULL for field from mergeable view
+--echo #
+
+CREATE TABLE t1 (d1 datetime NOT NULL);
+INSERT INTO t1 VALUES
+  ('0000-00-00 00:00:00'), ('0000-00-00 00:00:00'), ('1979-09-03 20:49:36');
+
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE d1 IS NULL;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE d1 IS NULL;
+SELECT count(*) FROM t1 WHERE d1 IS NULL;
+
+CREATE VIEW v1 AS (SELECT * FROM t1);
+SELECT * FROM v1;
+SELECT * FROM v1 WHERE d1 IS NULL;
+EXPLAIN EXTENDED SELECT * FROM v1 WHERE d1 IS NULL;
+SELECT count(*) FROM v1 WHERE d1 IS NULL;
+
+SET @save_optimizer_switch=@@optimizer_switch;
+
+SET SESSION optimizer_switch='derived_merge=off';
+SELECT count(*) FROM ( SELECT * FROM t1 ) AS a1 WHERE d1 IS NULL;
+SET SESSION optimizer_switch='derived_merge=on';
+SELECT count(*) FROM ( SELECT * FROM t1 ) AS a1 WHERE d1 IS NULL;
+
+SET optimizer_switch=@save_optimizer_switch;
+
+CREATE TABLE t2 (d1 datetime NOT NULL);
+INSERT INTO t2 VALUES
+  ('1980-09-03 20:49:36'),  ('0000-00-00 00:00:00'), ('1979-09-03 20:49:36');
+
+SELECT * FROM t2 LEFT JOIN t1 ON t2.d1=t1.d1 WHERE t1.d1 IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t2 LEFT JOIN t1 ON t2.d1=t1.d1 WHERE t1.d1 IS NULL;
+
+SELECT * FROM t2 LEFT JOIN v1 ON t2.d1=v1.d1 WHERE v1.d1 IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t2 LEFT JOIN v1 ON t2.d1=v1.d1 WHERE v1.d1 IS NULL;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # MDEV-15475: Assertion `!table || (!table->read_set ||
+--echo # bitmap_is_set(table->read_set, field_index))'
+--echo # failed on EXPLAIN EXTENDED with constant table and view
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1);
+EXPLAIN EXTENDED SELECT ISNULL(pk) FROM v1;
+EXPLAIN EXTENDED SELECT IFNULL(pk,0) FROM v1;
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #

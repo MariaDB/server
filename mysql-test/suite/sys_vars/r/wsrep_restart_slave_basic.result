@@ -1,0 +1,31 @@
+#
+# wsrep_restart_slave
+#
+# save the initial value
+SET @wsrep_restart_slave_global_saved = @@global.wsrep_restart_slave;
+# default
+SELECT @@global.wsrep_restart_slave;
+@@global.wsrep_restart_slave
+0
+SELECT @@session.wsrep_restart_slave;
+ERROR HY000: Variable 'wsrep_restart_slave' is a GLOBAL variable
+
+# scope and valid values
+SET @@global.wsrep_restart_slave=OFF;
+SELECT @@global.wsrep_restart_slave;
+@@global.wsrep_restart_slave
+0
+SET @@global.wsrep_restart_slave=ON;
+SELECT @@global.wsrep_restart_slave;
+@@global.wsrep_restart_slave
+1
+
+# invalid values
+SET @@global.wsrep_restart_slave=NULL;
+ERROR 42000: Variable 'wsrep_restart_slave' can't be set to the value of 'NULL'
+SET @@global.wsrep_restart_slave='junk';
+ERROR 42000: Variable 'wsrep_restart_slave' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_restart_slave = @wsrep_restart_slave_global_saved;
+# End of test

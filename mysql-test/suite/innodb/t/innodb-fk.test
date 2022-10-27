@@ -1,0 +1,228 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # Bug #18806829 OPENING INNODB TABLES WITH MANY FOREIGN KEY
+--echo # REFERENCES IS SLOW/CRASHES SEMAPHORE
+--echo #
+
+create table t1 (f1 int primary key) engine=innodb;
+insert into t1 values (5);
+insert into t1 values (2882);
+insert into t1 values (10);
+
+let $fk_tables = 120;
+
+--disable_query_log
+let $i = $fk_tables;
+while ($i)
+{
+  eval create table fk_$i (f1 int primary key,
+          constraint pc$i foreign key (f1) references t1(f1)
+          on delete cascade on update cascade) engine=innodb;
+  eval insert into fk_$i values (5);
+  eval insert into fk_$i values (2882);
+  eval insert into fk_$i values (10);
+  dec $i;
+}
+--enable_query_log
+
+--source include/restart_mysqld.inc
+
+update t1 set f1 = 28 where f1 = 2882;
+
+select * from fk_120;
+select * from fk_1;
+select * from fk_50;
+
+--disable_query_log
+let $i = $fk_tables;
+while ($i)
+{
+  eval drop table fk_$i;
+  dec $i;
+}
+--enable_query_log
+
+drop table t1;
+
+--echo #
+--echo # Check if restrict is working fine.
+--echo #
+
+create table t1 (f1 int primary key) engine=innodb;
+
+let $fk_tables = 30;
+
+--disable_query_log
+let $i = $fk_tables;
+while ($i)
+{
+  eval create table fk_$i (f1 int primary key,
+          constraint pc$i foreign key (f1) references t1(f1)
+          on delete restrict on update restrict) engine=innodb;
+  eval insert into t1 values ($i);
+  eval insert into fk_$i values ($i);
+  dec $i;
+}
+--enable_query_log
+
+--source include/restart_mysqld.inc
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where f1 = 29;
+select * from fk_29;
+
+--disable_query_log
+let $i = $fk_tables;
+while ($i)
+{
+  eval drop table fk_$i;
+  dec $i;
+}
+--enable_query_log
+
+drop table t1;
+
+#
+# MDEV-7672: Crash creating an InnoDB table with foreign keys
+#
+
+CREATE TABLE t1 (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  f1 int(11) DEFAULT NULL,
+  PRIMARY KEY (id),
+  CONSTRAINT fk1 FOREIGN KEY (f1) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+--error 1005
+CREATE TABLE t2 (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  f2 int(11) NOT NULL,
+  f3 int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT fk2 FOREIGN KEY (f2) REFERENCES t1 (`id`) ON DELETE CASCADE,
+  CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+show warnings;
+
+CREATE TABLE t2 (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  f2 int(11) NOT NULL,
+  f3 int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT fk2 FOREIGN KEY (f2) REFERENCES t1 (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+--error 1005
+ALTER TABLE t2 ADD CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE;
+
+show warnings;
+
+drop table t2;
+drop table t1;
+
+#
+# MDEV-9142 :Adding Constraint with no database reference
+# results in ERROR 1046 (3D000) at line 13: No database selected
+#
+CREATE DATABASE kg_test1;
+CREATE DATABASE kg_test2;
+
+CREATE TABLE `kg_test1`.`group` (
+  Id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE `kg_test1`.`person` (
+`Id` INT(11) NOT NULL AUTO_INCREMENT,
+`Name` VARCHAR(50) NOT NULL,
+PRIMARY KEY (`Id`),
+CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES `group` (`Id`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+
+show create table `kg_test1`.`person`;
+
+--error 1005
+CREATE TABLE `kg_test2`.`person2` (
+`Id` INT(11) NOT NULL AUTO_INCREMENT,
+`Name` VARCHAR(50) NOT NULL,
+PRIMARY KEY (`Id`),
+CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES `group` (`Id`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+
+CREATE TABLE `kg_test2`.`person2` (
+`Id` INT(11) NOT NULL AUTO_INCREMENT,
+`Name` VARCHAR(50) NOT NULL,
+PRIMARY KEY (`Id`),
+CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES  `kg_test1`.`group` (`Id`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+
+show create table `kg_test2`.`person2`;
+
+SHOW WARNINGS;
+DROP DATABASE kg_test2;
+DROP DATABASE kg_test1;
+
+#
+# MDEV-7627: Some symbols in table name can cause to Error Code: 1050 when created FK
+#
+
+CREATE TABLE `#departaments` (
+  `id_depart` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id_depart`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+
+CREATE TABLE `#departaments_tree` (
+  `id_depart` INT(10) UNSIGNED NOT NULL,
+  `id_depart_in` INT(10) UNSIGNED NOT NULL,
+  PRIMARY KEY (`id_depart`,`id_depart_in`),
+  CONSTRAINT `#departaments_tree_ibfk_1` FOREIGN KEY (`id_depart`) REFERENCES `#departaments` (`id_depart`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+
+ALTER TABLE `#departaments_tree`
+  ADD FOREIGN KEY (`id_depart_in`) REFERENCES `#departaments`(`id_depart`);
+
+SHOW CREATE TABLE `#departaments_tree`;
+
+DROP TABLE `#departaments_tree`;
+DROP TABLE `#departaments`;
+
+CREATE TABLE `boroda` (
+  `id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `a` INT(11) UNSIGNED DEFAULT NULL,
+  `b` INT(11) UNSIGNED DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `a` (`a`),
+  CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+
+ALTER TABLE `boroda`
+  ADD FOREIGN KEY (`b`) REFERENCES `boroda`(`id`);
+
+ALTER TABLE `boroda` DROP FOREIGN KEY `boroda_ibfk_2`;
+
+RENAME TABLE `boroda` TO `#boroda`;
+
+ALTER TABLE `#boroda`
+ADD FOREIGN KEY (`b`) REFERENCES `#boroda`(`id`);
+
+SHOW CREATE TABLE `#boroda`;
+DROP TABLE `#boroda`;
+
+CREATE TABLE `boroda` (
+  `id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `a` INT(11) UNSIGNED DEFAULT NULL,
+  `b` INT(11) UNSIGNED DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `a` (`a`),
+  CONSTRAINT `boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `boroda` (`id`)
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+
+RENAME TABLE `boroda` TO `bor#oda`;
+
+ALTER TABLE `bor#oda`
+ADD FOREIGN KEY (`b`) REFERENCES `bor#oda`(`id`);
+
+SHOW CREATE TABLE `bor#oda`;
+DROP TABLE `bor#oda`;

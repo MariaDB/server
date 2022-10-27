@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS releases;
+CREATE TABLE releases (
+version DECIMAL(6, 3) PRIMARY KEY,
+message TEXT
+) DEFAULT CHARSET UTF8;
+INSERT INTO releases (version, message) VALUES (10.000, "10th release!");
+INSERT INTO releases (version, message) VALUES (10.001, "minor fix.");
+INSERT INTO releases (version, message) VALUES (999.999, "the last release!");
+SELECT * FROM releases;
+version	message
+10.000	10th release!
+10.001	minor fix.
+999.999	the last release!
+SELECT * FROM releases WHERE version BETWEEN "9.000" AND "10.001";
+version	message
+10.000	10th release!
+10.001	minor fix.
+DROP TABLE releases;

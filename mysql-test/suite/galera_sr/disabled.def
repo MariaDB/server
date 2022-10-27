@@ -1,0 +1,14 @@
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : MDEV-<xxxx> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+
+GCF-1060 : MDEV-20848 galera_sr.GCF_1060
+galera-features#56 : MDEV-24896

@@ -1,0 +1,14 @@
+--source include/not_embedded.inc
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@global.skip_parallel_replication;
+
+--error ER_LOCAL_VARIABLE
+SET GLOBAL skip_parallel_replication= 0;
+SELECT @@session.skip_parallel_replication;
+SET SESSION skip_parallel_replication= 1;
+SELECT @@session.skip_parallel_replication;
+SET SESSION skip_parallel_replication= 0;
+SELECT @@session.skip_parallel_replication;
+
+# More testing of the actual functionality in rpl.rpl_parallel_* tests.

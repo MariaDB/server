@@ -1,0 +1,255 @@
+#
+# This test tests the operation of transaction replay. If a potentially
+# conflicting remote transaction arrives at just the right time during
+# the commit of a local transaction, the local transaction will be aborted
+# and replayed.
+#
+# Because the write set with higher sequence number cannot BF abort
+# the victim with lower sequence number, the conflicting remote transaction
+# must be executed first and must be allowed to proceed up to the apply
+# monitor before sending the COMMIT for the transaction to be replayed.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+######################################################################
+#
+# Scenario #1, the victim will have higher seqno and will be replayed
+#
+######################################################################
+
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (2, 'a');
+
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
+
+# Block the applier on node #1 and issue a conflicting update on node #2
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait=0;
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# Block the commit, send the COMMIT and wait until it gets blocked
+
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+--send COMMIT
+
+--connection node_1a
+
+--let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# Let the conflicting UPDATE proceed and wait until it hits abort_trx_end.
+# The victim transaction still sits in commit_monitor_master_sync_point.
+
+--let $galera_sync_point = abort_trx_end
+--source include/galera_set_sync_point.inc
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+--let $galera_sync_point = abort_trx_end commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+
+# Let the transactions proceed
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = abort_trx_end
+--source include/galera_signal_sync_point.inc
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_signal_sync_point.inc
+
+# Commit succeeds
+--connection node_1
+--reap
+
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+# wsrep_local_replays has increased by 1
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 1 AS wsrep_local_replays;
+--enable_query_log
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+DROP TABLE t1;
+
+#########################################################################
+#
+# Scenario #2, the victim will have lower seqno and will not be replayed
+#
+#########################################################################
+
+--connection node_1
+
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (2, 'a');
+
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
+
+# Block the commit, send the COMMIT and wait until it gets blocked
+
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+--send COMMIT
+
+--connection node_1a
+
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+
+# Set sync point at the end of BF abort, issue a conflicting update
+# and wait for the conflicting update to hit the sync point.
+--let $galera_sync_point = abort_trx_end
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+
+--connection node_1a
+--let $galera_sync_point = abort_trx_end commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# Let the transactions proceed
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = abort_trx_end
+--source include/galera_signal_sync_point.inc
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_signal_sync_point.inc
+
+# Commit succeeds
+--connection node_1
+--reap
+
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+# wsrep_local_replays should have not increased
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 0 AS wsrep_local_replays;
+--enable_query_log
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+
+DROP TABLE t1;
+
+
+########################################
+#
+# test replaying of prepared statements
+#
+########################################
+
+--connection node_1
+
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
+CREATE TABLE t1 (i int primary key, j int) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1, 0), (3, 0);
+SELECT * FROM t1;
+SET AUTOCOMMIT=ON;
+PREPARE stmt1 FROM "UPDATE t1 SET j = 1 where i > 0";
+
+
+# Block the applier on node #1 and issue a conflicting update on node #2
+--connection node_1a
+SET SESSION wsrep_sync_wait=0;
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+INSERT INTO t1 VALUES(2,2);
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# Block the commit, send the EXECUTE stmt1 and wait until it gets blocked
+
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait=0;
+--send EXECUTE stmt1
+
+--connection node_1a
+
+--let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# Let the conflicting INSERT proceed and wait until it hits abort_trx_end.
+# The victim transaction still sits in commit_monitor_master_sync_point.
+
+--let $galera_sync_point = abort_trx_end
+--source include/galera_set_sync_point.inc
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+--let $galera_sync_point = abort_trx_end commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+
+# Let the transactions proceed
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = abort_trx_end
+--source include/galera_signal_sync_point.inc
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_signal_sync_point.inc
+
+# Commit succeeds
+--connection node_1
+--reap
+SET SESSION wsrep_sync_wait=7;
+SELECT * FROM t1;
+
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+# wsrep_local_replays has increased by 1
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 1 AS wsrep_local_replays;
+--enable_query_log
+
+DEALLOCATE PREPARE stmt1;
+DROP TABLE t1;

@@ -1,0 +1,66 @@
+include/master-slave.inc
+[connection master]
+DROP DATABASE IF EXISTS mysqltest_prometheus;
+DROP DATABASE IF EXISTS mysqltest_sisyfos;
+DROP DATABASE IF EXISTS mysqltest_bob;
+connection slave;
+DROP DATABASE IF EXISTS mysqltest_bob;
+connection master;
+CREATE DATABASE mysqltest_prometheus;
+CREATE DATABASE mysqltest_sisyfos;
+CREATE DATABASE mysqltest_bob;
+USE mysqltest_sisyfos;
+CREATE TABLE t1 (b int);
+INSERT INTO t1 VALUES(1);
+USE mysqltest_bob;
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES(2);
+ALTER DATABASE mysqltest_sisyfos CHARACTER SET latin1;
+USE mysqltest_sisyfos;
+ALTER DATABASE mysqltest_bob CHARACTER SET latin1;
+SHOW DATABASES LIKE 'mysql%';
+Database (mysql%)
+mysql
+mysqltest_bob
+mysqltest_prometheus
+mysqltest_sisyfos
+connection slave;
+SHOW DATABASES LIKE 'mysql%';
+Database (mysql%)
+mysql
+mysqltest_prometheus
+mysqltest_sisyfos
+connection master;
+DROP DATABASE IF EXISTS mysqltest_sisyfos;
+USE mysqltest_prometheus;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE DATABASE mysqltest_sisyfos;
+USE mysqltest_sisyfos;
+CREATE TABLE t2 (a INT);
+SHOW DATABASES LIKE 'mysql%';
+Database (mysql%)
+mysql
+mysqltest_bob
+mysqltest_prometheus
+mysqltest_sisyfos
+connection slave;
+SHOW DATABASES LIKE 'mysql%';
+Database (mysql%)
+mysql
+mysqltest_prometheus
+mysqltest_sisyfos
+USE mysqltest_prometheus;
+SHOW TABLES;
+Tables_in_mysqltest_prometheus
+t1
+USE mysqltest_sisyfos;
+SHOW TABLES;
+Tables_in_mysqltest_sisyfos
+t2
+connection master;
+DROP DATABASE IF EXISTS mysqltest_prometheus;
+DROP DATABASE IF EXISTS mysqltest_sisyfos;
+DROP DATABASE IF EXISTS mysqltest_bob;
+connection slave;
+include/rpl_end.inc

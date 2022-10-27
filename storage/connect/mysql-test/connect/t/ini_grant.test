@@ -1,0 +1,81 @@
+-- source include/not_embedded.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Checking FILE privileges
+--echo #
+set sql_mode="";
+GRANT ALL PRIVILEGES ON *.* TO user@localhost;
+REVOKE FILE ON *.* FROM user@localhost;
+set sql_mode=default;
+--connect(user,localhost,user,,)
+--connection user
+SELECT user();
+CREATE TABLE t1 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=INI;
+INSERT INTO t1 VALUES ('sec1','val1');
+SELECT * FROM t1;
+UPDATE t1 SET val='val11';
+SELECT * FROM t1;
+DELETE FROM t1;
+SELECT * FROM t1;
+INSERT INTO t1 VALUES('sec2','val2');
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+# Making sure DROP erased the data file
+--error 1
+--remove_file $MYSQLD_DATADIR/test/t1.ini
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE TABLE t1 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='t1.EXT';
+--connection default
+SELECT user();
+CREATE TABLE t1 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='t1.EXT';
+INSERT INTO t1 VALUES ('sec1','val1');
+--connection user
+SELECT user();
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO t1 VALUES ('sec2','val2');
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT * FROM t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t1 SET val='val11';
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE FROM t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+TRUNCATE TABLE t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+ALTER TABLE t1 READONLY=1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DROP TABLE t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE VIEW v1 AS SELECT * FROM t1;
+--echo # Testing a VIEW created with FILE privileges but accessed with no FILE
+--connection default
+SELECT user();
+CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT * FROM t1;
+--connection user
+SELECT user();
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT * FROM v1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO v1 VALUES ('sec3','val3');
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1 SET val='val11';
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE FROM v1;
+--disconnect user
+--connection default
+DROP VIEW v1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.EXT
+DROP USER user@localhost;
+
+--echo #
+--echo # Checking FILE privileges: done
+--echo #
+
+

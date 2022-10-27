@@ -1,0 +1,16 @@
+--- instant_alter_limit.result	2020-05-26 18:01:27.377946439 +0530
++++ instant_alter_limit,32k.reject	2020-05-26 19:59:19.743877366 +0530
+@@ -43,5 +43,12 @@
+ FROM information_schema.global_status
+ WHERE variable_name = 'innodb_instant_alter_column';
+ instants
+-502
++506
+ DROP TABLE t;
++#
++# MDEV-21787 Alter table failure tries to access uninitialized column
++#
++CREATE TABLE t1(f1 INT PRIMARY KEY, f2 TEXT GENERATED ALWAYS AS (SUBSTR(f4, 1, 400)), f3 VARCHAR(500), f4 TEXT)ENGINE=InnoDB ROW_FORMAT=Compact;
++ALTER TABLE t1 ADD UNIQUE KEY (f2(9));
++ALTER TABLE t1 ADD COLUMN f5 TEXT, ALGORITHM=INPLACE;
++DROP TABLE t1;

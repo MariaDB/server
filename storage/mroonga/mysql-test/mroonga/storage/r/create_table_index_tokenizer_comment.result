@@ -1,0 +1,23 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id int PRIMARY KEY AUTO_INCREMENT,
+body text,
+FULLTEXT INDEX body_index (body)
+COMMENT 'tokenizer "TokenBigramSplitSymbolAlphaDigit"'
+) DEFAULT CHARSET utf8;
+INSERT INTO diaries (body) VALUES ("will start Groonga!");
+INSERT INTO diaries (body) VALUES ("starting Groonga...");
+INSERT INTO diaries (body) VALUES ("started Groonga.");
+SELECT * FROM diaries;
+id	body
+1	will start Groonga!
+2	starting Groonga...
+3	started Groonga.
+SELECT * FROM diaries
+WHERE MATCH(body) AGAINST("+start" IN BOOLEAN MODE)
+ORDER BY id;
+id	body
+1	will start Groonga!
+2	starting Groonga...
+3	started Groonga.
+DROP TABLE diaries;

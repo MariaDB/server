@@ -1,0 +1,286 @@
+include/master-slave.inc
+[connection master]
+# Test of row replication with triggers on the slave side
+connection master;
+CREATE TABLE t1 (C1 CHAR(1) primary key, C2 CHAR(1));
+SELECT * FROM t1;
+C1	C2
+connection slave;
+connection slave;
+SET @old_slave_exec_mode= @@global.slave_exec_mode;
+SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
+SET @@global.slave_exec_mode= IDEMPOTENT;
+SET @@global.slave_run_triggers_for_rbr= YES;
+SELECT * FROM t1;
+C1	C2
+create table t2 (id char(2) primary key, cnt int, o char(1), n char(1));
+insert into t2 values
+('u0', 0, ' ', ' '),('u1', 0, ' ', ' '),
+('d0', 0, ' ', ' '),('d1', 0, ' ', ' '),
+('i0', 0, ' ', ' '),('i1', 0, ' ', ' ');
+create trigger t1_cnt_b before update on t1 for each row
+update t2 set cnt=cnt+1, o=old.C1, n=new.C1 where id = 'u0';
+create trigger t1_cnt_db before delete on t1 for each row
+update t2 set cnt=cnt+1, o=old.C1, n=' ' where id = 'd0';
+create trigger t1_cnt_ib before insert on t1 for each row
+update t2 set cnt=cnt+1, n=new.C1, o=' ' where id = 'i0';
+create trigger t1_cnt_a after update on t1 for each row
+update t2 set cnt=cnt+1, o=old.C1, n=new.C1 where id = 'u1';
+create trigger t1_cnt_da after delete on t1 for each row
+update t2 set cnt=cnt+1, o=old.C1, n=' ' where id = 'd1';
+create trigger t1_cnt_ia after insert on t1 for each row
+update t2 set cnt=cnt+1, n=new.C1, o=' ' where id = 'i1';
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	0		
+d1	0		
+i0	0		
+i1	0		
+u0	0		
+u1	0		
+connection master;
+# INSERT triggers test
+insert into t1 values ('a','b');
+connection slave;
+connection slave;
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	0		
+d1	0		
+i0	1		a
+i1	1		a
+u0	0		
+u1	0		
+connection master;
+# UPDATE triggers test
+update t1 set C1= 'd';
+connection slave;
+connection slave;
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	0		
+d1	0		
+i0	1		a
+i1	1		a
+u0	1	a	d
+u1	1	a	d
+connection master;
+# DELETE triggers test
+delete from t1 where C1='d';
+connection slave;
+connection slave;
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	1	d	
+d1	1	d	
+i0	1		a
+i1	1		a
+u0	1	a	d
+u1	1	a	d
+# INSERT triggers which cause also UPDATE test (insert duplicate row)
+insert into t1 values ('0','1');
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	1	d	
+d1	1	d	
+i0	2		0
+i1	2		0
+u0	1	a	d
+u1	1	a	d
+connection master;
+insert into t1 values ('0','1');
+connection slave;
+connection slave;
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	1	d	
+d1	1	d	
+i0	3		0
+i1	3		0
+u0	2	0	0
+u1	2	0	0
+# INSERT triggers which cause also DELETE test
+# (insert duplicate row in table referenced by foreign key)
+insert into t1 values ('1','1');
+connection master;
+drop table if exists t1;
+connection slave;
+connection slave;
+SET @@global.slave_exec_mode= @old_slave_exec_mode;
+SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;
+drop table t2;
+connection master;
+CREATE TABLE t1 (i INT);
+CREATE TABLE t2 (i INT);
+connection slave;
+SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
+SET GLOBAL slave_run_triggers_for_rbr=YES;
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW
+INSERT INTO t2 VALUES (new.i);
+connection master;
+BEGIN;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+COMMIT;
+connection slave;
+select * from t2;
+i
+1
+2
+SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;
+connection master;
+drop tables t2,t1;
+connection slave;
+# Triggers on slave do not work if master has some
+connection master;
+CREATE TABLE t1 (C1 CHAR(1) primary key, C2 CHAR(1));
+SELECT * FROM t1;
+C1	C2
+create trigger t1_dummy before delete on t1 for each row
+set @dummy= 1;
+connection slave;
+connection slave;
+SET @old_slave_exec_mode= @@global.slave_exec_mode;
+SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
+SET @@global.slave_exec_mode= IDEMPOTENT;
+SET @@global.slave_run_triggers_for_rbr= YES;
+SELECT * FROM t1;
+C1	C2
+create table t2 (id char(2) primary key, cnt int, o char(1), n char(1));
+insert into t2 values
+('u0', 0, ' ', ' '),('u1', 0, ' ', ' '),
+('d0', 0, ' ', ' '),('d1', 0, ' ', ' '),
+('i0', 0, ' ', ' '),('i1', 0, ' ', ' ');
+create trigger t1_cnt_b before update on t1 for each row
+update t2 set cnt=cnt+1, o=old.C1, n=new.C1 where id = 'u0';
+create trigger t1_cnt_ib before insert on t1 for each row
+update t2 set cnt=cnt+1, n=new.C1, o=' ' where id = 'i0';
+create trigger t1_cnt_a after update on t1 for each row
+update t2 set cnt=cnt+1, o=old.C1, n=new.C1 where id = 'u1';
+create trigger t1_cnt_da after delete on t1 for each row
+update t2 set cnt=cnt+1, o=old.C1, n=' ' where id = 'd1';
+create trigger t1_cnt_ia after insert on t1 for each row
+update t2 set cnt=cnt+1, n=new.C1, o=' ' where id = 'i1';
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	0		
+d1	0		
+i0	0		
+i1	0		
+u0	0		
+u1	0		
+connection master;
+# INSERT triggers test
+insert into t1 values ('a','b');
+connection slave;
+connection slave;
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	0		
+d1	0		
+i0	0		
+i1	0		
+u0	0		
+u1	0		
+connection master;
+# UPDATE triggers test
+update t1 set C1= 'd';
+connection slave;
+connection slave;
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	0		
+d1	0		
+i0	0		
+i1	0		
+u0	0		
+u1	0		
+connection master;
+# DELETE triggers test
+delete from t1 where C1='d';
+connection slave;
+connection slave;
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	0		
+d1	0		
+i0	0		
+i1	0		
+u0	0		
+u1	0		
+# INSERT triggers which cause also UPDATE test (insert duplicate row)
+insert into t1 values ('0','1');
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	0		
+d1	0		
+i0	1		0
+i1	1		0
+u0	0		
+u1	0		
+connection master;
+insert into t1 values ('0','1');
+connection slave;
+connection slave;
+SELECT * FROM t2 order by id;
+id	cnt	o	n
+d0	0		
+d1	0		
+i0	1		0
+i1	1		0
+u0	0		
+u1	0		
+# INSERT triggers which cause also DELETE test
+# (insert duplicate row in table referenced by foreign key)
+insert into t1 values ('1','1');
+connection master;
+drop table if exists t1;
+connection slave;
+connection slave;
+SET @@global.slave_exec_mode= @old_slave_exec_mode;
+SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;
+drop table t2;
+#
+# MDEV-5513: Trigger is applied to the rows after first one
+#
+connection master;
+create table t1 (a int, b int);
+create table tlog (a int auto_increment primary key);
+set sql_log_bin=0;
+create trigger tr1 after insert on t1 for each row insert into tlog values (null);
+set sql_log_bin=1;
+connection slave;
+connection slave;
+set @slave_run_triggers_for_rbr.saved = @@slave_run_triggers_for_rbr;
+set global slave_run_triggers_for_rbr=1;
+create trigger tr2 before insert on t1 for each row set new.b = new.a;
+connection master;
+insert into t1 values (1,10),(2,20),(3,30);
+connection slave;
+select * from t1;
+a	b
+1	10
+2	20
+3	30
+#
+# Verify slave skips running triggers if master ran and logged the row events for triggers
+#
+create table t4(a int, b int);
+delete from tlog;
+create trigger tr4 before insert on t4 for each row insert into tlog values (null);
+insert into t4 values (1, 10),(2, 20);
+select * from tlog;
+a
+4
+5
+select * from t4;
+a	b
+1	10
+2	20
+select * from tlog;
+a
+4
+5
+set global slave_run_triggers_for_rbr = @slave_run_triggers_for_rbr.saved;
+drop table t1, tlog, t4;
+include/rpl_end.inc

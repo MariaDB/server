@@ -1,0 +1,108 @@
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+/* GTID */ INSERT INTO t1 VALUES (1,0);
+/* GTID */ BEGIN;
+/* GTID */ INSERT INTO t1 VALUES (2,0);
+/* GTID */ ALTER TABLE t1 ADD c INT;
+/* GTID */ INSERT INTO t1 VALUES (3,0,0);
+/* GTID */ COMMIT;
+/* GTID */ BEGIN;
+/* GTID */ UPDATE t1 SET b=1, c=1 WHERE a=2;
+/* GTID */ CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+/* GTID */ INSERT INTO t2 VALUES (4,10), (5,20);
+/* GTID */ INSERT INTO t1 SELECT a, 2, b FROM t2;
+/* GTID */ DROP TEMPORARY TABLE t2;
+/* GTID */ INSERT INTO t1 VALUES (6, 3, 0);
+/* GTID */ COMMIT;
+/* GTID */ CREATE TEMPORARY TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB;
+/* GTID */ BEGIN;
+/* GTID */ DELETE FROM t1 WHERE a=5;
+/* GTID */ INSERT INTO t3 VALUES (7);
+/* GTID */ INSERT INTO t1 SELECT a, 4, 0 FROM t3;
+/* GTID */ UPDATE t1 SET c=1 WHERE a=7;
+/* GTID */ DROP TEMPORARY TABLE t3;
+/* GTID */ COMMIT;
+/* GTID */ CREATE TEMPORARY TABLE t4 (a INT PRIMARY KEY) ENGINE=InnoDB;
+/* GTID */ BEGIN;
+/* GTID */ INSERT INTO t1 VALUES (8, 5, 0);
+/* GTID */ ALTER TABLE t4 ADD b INT;
+/* GTID */ INSERT INTO t1 VALUES (9, 5, 1);
+/* GTID */ COMMIT;
+connect  tmp_con,localhost,root,,;
+/* GTID */ INSERT INTO t1 VALUES (10, 6, 0);
+/* GTID */ BEGIN;
+/* GTID */ CREATE TEMPORARY TABLE t5 (a INT PRIMARY KEY) ENGINE=InnoDB;
+/* GTID */ INSERT INTO t1 VALUES (11, 7, 0);
+/* GTID */ COMMIT;
+disconnect tmp_con;
+connection default;
+FLUSH LOGS;
+# server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
+START TRANSACTION
+#Q> /* GTID */ INSERT INTO t1 VALUES (1,0)
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Write_rows: table id # flags: STMT_END_F
+COMMIT/*!*/;
+# server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
+START TRANSACTION
+#Q> /* GTID */ INSERT INTO t1 VALUES (2,0)
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Write_rows: table id # flags: STMT_END_F
+COMMIT/*!*/;
+# server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# ddl
+/* GTID */ ALTER TABLE t1 ADD c INT
+# server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
+START TRANSACTION
+#Q> /* GTID */ INSERT INTO t1 VALUES (3,0,0)
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Write_rows: table id # flags: STMT_END_F
+COMMIT/*!*/;
+# server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
+START TRANSACTION
+#Q> /* GTID */ UPDATE t1 SET b=1, c=1 WHERE a=2
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Update_rows: table id # flags: STMT_END_F
+#Q> /* GTID */ INSERT INTO t1 SELECT a, 2, b FROM t2
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Write_rows: table id # flags: STMT_END_F
+#Q> /* GTID */ INSERT INTO t1 VALUES (6, 3, 0)
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Write_rows: table id # flags: STMT_END_F
+COMMIT/*!*/;
+# server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
+START TRANSACTION
+#Q> /* GTID */ DELETE FROM t1 WHERE a=5
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Delete_rows: table id # flags: STMT_END_F
+#Q> /* GTID */ INSERT INTO t1 SELECT a, 4, 0 FROM t3
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Write_rows: table id # flags: STMT_END_F
+#Q> /* GTID */ UPDATE t1 SET c=1 WHERE a=7
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Update_rows: table id # flags: STMT_END_F
+COMMIT/*!*/;
+# server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
+START TRANSACTION
+#Q> /* GTID */ INSERT INTO t1 VALUES (8, 5, 0)
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Write_rows: table id # flags: STMT_END_F
+COMMIT/*!*/;
+# server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
+START TRANSACTION
+#Q> /* GTID */ INSERT INTO t1 VALUES (9, 5, 1)
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Write_rows: table id # flags: STMT_END_F
+COMMIT/*!*/;
+# server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
+START TRANSACTION
+#Q> /* GTID */ INSERT INTO t1 VALUES (10, 6, 0)
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Write_rows: table id # flags: STMT_END_F
+COMMIT/*!*/;
+# server id 1  end_log_pos # CRC32 0x######## 	GTID #-#-# trans
+START TRANSACTION
+#Q> /* GTID */ INSERT INTO t1 VALUES (11, 7, 0)
+# server id 1  end_log_pos # CRC32 0x######## 	Table_map: `test`.`t1` mapped to number #
+# server id 1  end_log_pos # CRC32 0x######## 	Write_rows: table id # flags: STMT_END_F
+COMMIT/*!*/;
+DROP TABLE t1;

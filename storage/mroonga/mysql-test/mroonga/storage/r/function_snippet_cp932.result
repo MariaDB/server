@@ -1,0 +1,91 @@
+drop table if exists t1, t2, t3;
+set names cp932;
+create table t1 (c1 int primary key, c2 varchar(255), c3 text, fulltext index(c2), fulltext index(c3)) default charset cp932;
+insert into t1 values(1, "‚ ‚ ‚ ‚ ‚ ","‚Q‚X“ú‚Ì•xŽmŽR‚Ì“V‹C‚É‚Â‚¢‚Ä");
+insert into t1 values(2, "‚¢‚¢‚¢‚¢‚¢","‚Q‚X“ú‚Ì•xŽmŽR‚Ì“V‹C‚Í•ª‚©‚è‚Ü‚¹‚ñ");
+insert into t1 values(3, "‚¤‚¤‚¤‚¤‚¤","29“ú‚Ì•xŽmŽR‚Ì“V‹C‚É‚Â‚¢‚Ä");
+select c1, c2, mroonga_snippet(c3, 10, 2, 'cp932_japanese_ci', 0, 1, '...', '...<br>\n', '‚Q‚X“ú', '<span class="w1">', '</span>', '“V‹C', '<span class="w2">', '</span>', '•xŽmŽR', '<span class="w3">', '</span>') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'cp932_japanese_ci', 0, 1, '...', '...<br>\n', '‚Q‚X“ú', '<span class="w1">', '</span>', '“V‹C', '<span class="w2">', '</span>', '•xŽmŽR', '<span class="w3">', '</span>')
+1	‚ ‚ ‚ ‚ ‚ 	...<span class="w1">‚Q‚X“ú</span>‚Ì•x...<br>
+...‚Ì<span class="w2">“V‹C</span>‚É‚Â...<br>
+
+2	‚¢‚¢‚¢‚¢‚¢	...<span class="w1">‚Q‚X“ú</span>‚Ì•x...<br>
+...‚Ì<span class="w2">“V‹C</span>‚Í•ª...<br>
+
+3	‚¤‚¤‚¤‚¤‚¤	...<span class="w1">29“ú</span>‚Ì•xŽm...<br>
+...‚Ì<span class="w2">“V‹C</span>‚É‚Â...<br>
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'cp932_bin', 0, 1, '...', '...<br>\n', '‚Q‚X“ú', '<span class="w1">', '</span>', '“V‹C', '<span class="w2">', '</span>', '•xŽmŽR', '<span class="w3">', '</span>') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'cp932_bin', 0, 1, '...', '...<br>\n', '‚Q‚X“ú', '<span class="w1">', '</span>', '“V‹C', '<span class="w2">', '</span>', '•xŽmŽR', '<span class="w3">', '</span>')
+1	‚ ‚ ‚ ‚ ‚ 	...<span class="w1">‚Q‚X“ú</span>‚Ì•x...<br>
+...‚Ì<span class="w2">“V‹C</span>‚É‚Â...<br>
+
+2	‚¢‚¢‚¢‚¢‚¢	...<span class="w1">‚Q‚X“ú</span>‚Ì•x...<br>
+...‚Ì<span class="w2">“V‹C</span>‚Í•ª...<br>
+
+3	‚¤‚¤‚¤‚¤‚¤	...‚Ì<span class="w3">•xŽmŽR</span>‚Ì...<br>
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'cp932_japanese_ci', 1, 1, '...', '...<br>\n', '‚Q‚X“ú', '<span class="w1">', '</span>', '“V‹C', '<span class="w2">', '</span>', '•xŽmŽR', '<span class="w3">', '</span>') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'cp932_japanese_ci', 1, 1, '...', '...<br>\n', '‚Q‚X“ú', '<span class="w1">', '</span>', '“V‹C', '<span class="w2">', '</span>', '•xŽmŽR', '<span class="w3">', '</span>')
+1	‚ ‚ ‚ ‚ ‚ 	...<span class="w1">‚Q‚X“ú</span>‚Ì•x...<br>
+...‚Ì<span class="w2">“V‹C</span>‚É‚Â...<br>
+
+2	‚¢‚¢‚¢‚¢‚¢	...<span class="w1">‚Q‚X“ú</span>‚Ì•x...<br>
+...‚Ì<span class="w2">“V‹C</span>‚Í•ª...<br>
+
+3	‚¤‚¤‚¤‚¤‚¤	...<span class="w1">29“ú</span>‚Ì•xŽm...<br>
+...‚Ì<span class="w2">“V‹C</span>‚É‚Â...<br>
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'cp932_bin', 1, 1, '...', '...<br>\n', '‚Q‚X“ú', '<span class="w1">', '</span>', '“V‹C', '<span class="w2">', '</span>', '•xŽmŽR', '<span class="w3">', '</span>') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'cp932_bin', 1, 1, '...', '...<br>\n', '‚Q‚X“ú', '<span class="w1">', '</span>', '“V‹C', '<span class="w2">', '</span>', '•xŽmŽR', '<span class="w3">', '</span>')
+1	‚ ‚ ‚ ‚ ‚ 	...<span class="w1">‚Q‚X“ú</span>‚Ì•x...<br>
+...‚Ì<span class="w2">“V‹C</span>‚É‚Â...<br>
+
+2	‚¢‚¢‚¢‚¢‚¢	...<span class="w1">‚Q‚X“ú</span>‚Ì•x...<br>
+...‚Ì<span class="w2">“V‹C</span>‚Í•ª...<br>
+
+3	‚¤‚¤‚¤‚¤‚¤	...‚Ì<span class="w3">•xŽmŽR</span>‚Ì...<br>
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'cp932_japanese_ci', 0, 0, '...', '...\n', '‚Q‚X“ú', '(w1)[', ']', '“V‹C', '(w2)[', ']', '•xŽmŽR', '(w3)[', ']') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'cp932_japanese_ci', 0, 0, '...', '...\n', '‚Q‚X“ú', '(w1)[', ']', '“V‹C', '(w2)[', ']', '•xŽmŽR', '(w3)[', ']')
+1	‚ ‚ ‚ ‚ ‚ 	...(w1)[‚Q‚X“ú]‚Ì•x...
+...‚Ì(w2)[“V‹C]‚É‚Â...
+
+2	‚¢‚¢‚¢‚¢‚¢	...(w1)[‚Q‚X“ú]‚Ì•x...
+...‚Ì(w2)[“V‹C]‚Í•ª...
+
+3	‚¤‚¤‚¤‚¤‚¤	...(w1)[29“ú]‚Ì•xŽm...
+...‚Ì(w2)[“V‹C]‚É‚Â...
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'cp932_bin', 0, 0, '...', '...\n', '‚Q‚X“ú', '(w1)[', ']', '“V‹C', '(w2)[', ']', '•xŽmŽR', '(w3)[', ']') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'cp932_bin', 0, 0, '...', '...\n', '‚Q‚X“ú', '(w1)[', ']', '“V‹C', '(w2)[', ']', '•xŽmŽR', '(w3)[', ']')
+1	‚ ‚ ‚ ‚ ‚ 	...(w1)[‚Q‚X“ú]‚Ì•x...
+...‚Ì(w2)[“V‹C]‚É‚Â...
+
+2	‚¢‚¢‚¢‚¢‚¢	...(w1)[‚Q‚X“ú]‚Ì•x...
+...‚Ì(w2)[“V‹C]‚Í•ª...
+
+3	‚¤‚¤‚¤‚¤‚¤	...‚Ì(w3)[•xŽmŽR]‚Ì...
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'cp932_japanese_ci', 1, 0, '...', '...\n', '‚Q‚X“ú', '(w1)[', ']', '“V‹C', '(w2)[', ']', '•xŽmŽR', '(w3)[', ']') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'cp932_japanese_ci', 1, 0, '...', '...\n', '‚Q‚X“ú', '(w1)[', ']', '“V‹C', '(w2)[', ']', '•xŽmŽR', '(w3)[', ']')
+1	‚ ‚ ‚ ‚ ‚ 	...(w1)[‚Q‚X“ú]‚Ì•x...
+...‚Ì(w2)[“V‹C]‚É‚Â...
+
+2	‚¢‚¢‚¢‚¢‚¢	...(w1)[‚Q‚X“ú]‚Ì•x...
+...‚Ì(w2)[“V‹C]‚Í•ª...
+
+3	‚¤‚¤‚¤‚¤‚¤	...(w1)[29“ú]‚Ì•xŽm...
+...‚Ì(w2)[“V‹C]‚É‚Â...
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'cp932_bin', 1, 0, '...', '...\n', '‚Q‚X“ú', '(w1)[', ']', '“V‹C', '(w2)[', ']', '•xŽmŽR', '(w3)[', ']') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'cp932_bin', 1, 0, '...', '...\n', '‚Q‚X“ú', '(w1)[', ']', '“V‹C', '(w2)[', ']', '•xŽmŽR', '(w3)[', ']')
+1	‚ ‚ ‚ ‚ ‚ 	...(w1)[‚Q‚X“ú]‚Ì•x...
+...‚Ì(w2)[“V‹C]‚É‚Â...
+
+2	‚¢‚¢‚¢‚¢‚¢	...(w1)[‚Q‚X“ú]‚Ì•x...
+...‚Ì(w2)[“V‹C]‚Í•ª...
+
+3	‚¤‚¤‚¤‚¤‚¤	...‚Ì(w3)[•xŽmŽR]‚Ì...
+
+drop table t1;

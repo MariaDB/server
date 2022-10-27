@@ -1,0 +1,43 @@
+#
+# Test non-ascii data in table without a PK
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (
+	f1 VARCHAR(255),
+	KEY (f1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO t1 VALUES ('текст');
+
+--connection node_2
+SELECT f1 = 'текст' FROM t1;
+
+#
+# Provoke a conflict
+#
+
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f1 = 'текст2';
+
+--connection node_2
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f1 = 'текст3';
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+SELECT f1 = 'текст2' FROM t1;
+SELECT f1 = 'текст2' FROM t1 WHERE f1 = 'текст2';
+
+
+DROP TABLE t1;

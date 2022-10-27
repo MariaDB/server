@@ -1,0 +1,33 @@
+DROP TABLE IF EXISTS users;
+SET NAMES cp932;
+CREATE TABLE users (
+id int unsigned PRIMARY KEY AUTO_INCREMENT
+) DEFAULT CHARSET=cp932 COMMENT='Engine "InnoDB"';
+ALTER TABLE users
+ADD COLUMN 名前 text,
+ADD FULLTEXT INDEX (名前);
+INSERT INTO users (名前) VALUES ("やまだ");
+INSERT INTO users (名前) VALUES ("たなか");
+INSERT INTO users (名前) VALUES ("すずき");
+SELECT * FROM users;
+id	名前
+1	やまだ
+2	たなか
+3	すずき
+SELECT * FROM users
+WHERE MATCH (名前) AGAINST ('+たなか' IN BOOLEAN MODE);
+id	名前
+2	たなか
+SELECT mroonga_command("dump --dump_plugins no --dump_records no");
+mroonga_command("dump --dump_plugins no --dump_records no")
+table_create mroonga_operations TABLE_NO_KEY
+column_create mroonga_operations record COLUMN_SCALAR UInt32
+column_create mroonga_operations table COLUMN_SCALAR ShortText
+column_create mroonga_operations type COLUMN_SCALAR ShortText
+
+table_create users TABLE_HASH_KEY ShortText
+
+table_create users#@540d@524d TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerAuto
+
+column_create users#@540d@524d index COLUMN_INDEX|WITH_POSITION users
+DROP TABLE users;

@@ -1,0 +1,49 @@
+#
+# Exercise the crash points which crash the server at various points important to SR
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+--connect node_2_check, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connect node_3_check, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+#
+# crash_apply_cb_before_append_frag
+#
+
+--connection node_3
+SET GLOBAL debug_dbug="d,crash_apply_cb_before_append_frag";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes2.inc
+
+--connection node_3
+--error 0,2006,2013
+COMMIT;
+
+--source include/start_mysqld.inc
+--sleep 5
+--source suite/galera_3nodes/include/galera_sr_crash_post_check2.inc
+
+#
+# crash_apply_cb_after_append_frag
+#
+
+--connection node_3
+SET GLOBAL debug_dbug="d,crash_apply_cb_after_append_frag";
+--source suite/galera_3nodes/include/galera_expect_node_crash.inc
+--source suite/galera_3nodes/include/galera_sr_crash_prepare_nodes2.inc
+
+--connection node_3
+--error 0,2006,2013
+COMMIT;
+
+--source include/start_mysqld.inc
+--sleep 5
+--source suite/galera_3nodes/include/galera_sr_crash_post_check2.inc
+
+--connection node_1
+CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member");
+DROP TABLE t1;

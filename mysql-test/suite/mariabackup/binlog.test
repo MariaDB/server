@@ -1,0 +1,25 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+
+CREATE TABLE t(a varchar(60)) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+
+SHOW VARIABLES like 'log_bin';
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+
+exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir ;
+
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/current_test;
+--let SEARCH_PATTERN= Last binlog file .*, position .*
+--source include/search_pattern_in_file.inc
+--echo # expect FOUND
+
+DROP TABLE t;
+
+# Cleanup
+rmdir $basedir;

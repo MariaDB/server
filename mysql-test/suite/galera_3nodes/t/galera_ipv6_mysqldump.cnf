@@ -1,0 +1,26 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+wsrep_sst_method=rsync
+wsrep_node_address=::1
+
+[mysqld.1]
+wsrep-cluster-address=gcomm://
+wsrep_provider_options='base_host=[::1];base_port=@mysqld.1.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.1.#galera_port;ist.recv_addr=[::1]:@mysqld.1.#ist_port'
+wsrep_sst_receive_address='[::1]:@mysqld.1.#sst_port'
+wsrep_node_incoming_address='[::1]:@mysqld.1.port'
+bind-address=::
+
+[mysqld.2]
+wsrep_cluster_address='gcomm://[::1]:@mysqld.1.#galera_port'
+wsrep_provider_options='base_host=[::1];base_port=@mysqld.2.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.2.#galera_port;ist.recv_addr=[::1]:@mysqld.2.#ist_port'
+wsrep_sst_receive_address='[::1]:@mysqld.2.#sst_port'
+wsrep_node_incoming_address='[::1]:@mysqld.2.port'
+bind-address=::
+
+[mysqld.3]
+wsrep_cluster_address='gcomm://[::1]:@mysqld.1.#galera_port'
+wsrep_provider_options='base_host=[::1];base_port=@mysqld.3.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.3.#galera_port;ist.recv_addr=[::1]:@mysqld.3.#ist_port'
+wsrep_sst_receive_address='[::1]:@mysqld.3.#sst_port'
+wsrep_node_incoming_address='[::1]:@mysqld.3.port'
+bind-address=::

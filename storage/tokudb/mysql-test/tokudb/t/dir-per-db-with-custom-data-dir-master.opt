@@ -1,0 +1,1 @@
+--loose-tokudb_data_dir="$MYSQL_TMP_DIR" --loose-tokudb-dir-per-db=1

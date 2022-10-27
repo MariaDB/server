@@ -1,0 +1,8 @@
+SELECT * FROM information_schema.engines
+WHERE ENGINE = 'MyISAM';
+ENGINE	MyISAM
+SUPPORT	DEFAULT
+COMMENT	Non-transactional engine with good performance and small data footprint
+TRANSACTIONS	NO
+XA	NO
+SAVEPOINTS	NO

@@ -1,0 +1,185 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file $MTR_SUITE_DIR/std_data/people.csv $MYSQLD_DATADIR/test/people.csv
+
+SET NAMES utf8;
+
+--echo #
+--echo # Testing errors
+--echo #
+CREATE TABLE t1
+(
+  ID INT NOT NULL
+) Engine=CONNECT TABLE_TYPE=CSV FILE_NAME='nonexistent.txt';
+--replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
+# TODO: check why this is needed for Windows
+--replace_result Open(rt) Open(rb)
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing examples from the manual
+--echo #
+CREATE TABLE t1
+(
+  name CHAR(12) NOT NULL,
+  birth DATE NOT NULL DATE_FORMAT='DD/MM/YY',
+  children SMALLINT(2) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='people.csv'
+  HEADER=1 SEP_CHAR=';' QUOTED=1;
+SELECT * FROM t1;
+INSERT INTO t1 VALUES ('RONALD','1980-02-26',4);
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/people.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/people.csv'),'\r\n','\n');
+
+--echo #
+--echo # Testing READONLY tables
+--echo #
+CREATE TABLE t1
+(
+  name CHAR(12) NOT NULL,
+  birth DATE NOT NULL DATE_FORMAT='DD/MM/YY',
+  children SMALLINT(2) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='people.csv'
+  HEADER=1 SEP_CHAR=';' QUOTED=1 READONLY=yes;
+--error ER_OPEN_AS_READONLY
+INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
+--error ER_GET_ERRMSG
+UPDATE t1 SET children=6 WHERE name='BILL';
+--error ER_GET_ERRMSG
+DELETE FROM t1 WHERE name='BILL';
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+ALTER TABLE t1 READONLY=no;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
+SELECT * FROM t1;
+ALTER TABLE t1 READONLY=1;
+SHOW CREATE TABLE t1;
+--error ER_OPEN_AS_READONLY
+INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that the underlying file is created
+--echo #
+CREATE TABLE t1
+(
+  c1 CHAR(12) NOT NULL,
+  c2 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='tmp.csv'
+  HEADER=1 SEP_CHAR=',' QUOTED=1;
+INSERT INTO t1 VALUES (10,10),(20,20),(300,300),(4000,4000), ('a b','c d');
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/tmp.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/tmp.csv'),'\r\n','\n');
+
+--echo #
+--echo # Creating a CSV table from a MyISAM table
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) NOT NULL, b INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('test1',1), ('test2',2);
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t2.csv'
+  AS SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t2.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t2.csv'),'\r\n','\n');
+--remove_file $MYSQLD_DATADIR/test/t2.csv
+
+--echo #
+--echo # Testing international data
+--echo #
+CREATE TABLE t1
+(
+  c1 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv'
+  CHARSET=utf8;
+INSERT INTO t1 VALUES ('á');
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MYSQLD_DATADIR/test/t1.csv
+
+CREATE TABLE t1
+(
+  c1 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv'
+  CHARSET=utf8 DATA_CHARSET=latin1;
+INSERT INTO t1 VALUES ('á');
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MYSQLD_DATADIR/test/t1.csv
+
+CREATE TABLE t1
+(
+  c1 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv';
+INSERT INTO t1 VALUES ('á');
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MYSQLD_DATADIR/test/t1.csv
+
+CREATE TABLE t1
+(
+  c1 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv'
+  CHARSET=latin1;
+INSERT INTO t1 VALUES ('á');
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MYSQLD_DATADIR/test/t1.csv
+
+CREATE TABLE t1
+(
+  c1 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv'
+  CHARSET=latin1 DATA_CHARSET=utf8;
+INSERT INTO t1 VALUES ('á');
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MYSQLD_DATADIR/test/t1.csv
+
+CREATE TABLE t1
+(
+  c1 CHAR(12) CHARACTER SET latin1 NOT NULL,
+  c2 CHAR(12) CHARACTER SET utf8 NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv';
+INSERT INTO t1 VALUES ('á','á');
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT HEX(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.csv'),'\r\n','\n'));
+--remove_file $MYSQLD_DATADIR/test/t1.csv
+
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/people.csv
+--remove_file $MYSQLD_DATADIR/test/tmp.csv

@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (i INT, PRIMARY KEY (i) COMMENT '__system__') ENGINE = ROCKSDB;
+ERROR HY000: Incorrect arguments to column family not valid for storing index data.
+DROP TABLE IF EXISTS t1;

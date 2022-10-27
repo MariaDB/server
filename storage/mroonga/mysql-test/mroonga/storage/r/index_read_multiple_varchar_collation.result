@@ -1,0 +1,31 @@
+DROP TABLE IF EXISTS ids;
+CREATE TABLE ids (
+id VARCHAR(5),
+value VARCHAR(10),
+KEY (id, value)
+) DEFAULT CHARSET=utf8 COLLATE utf8_unicode_ci;
+INSERT INTO ids VALUES ("abc", "Abc");
+INSERT INTO ids VALUES ("acd", "aBc");
+INSERT INTO ids VALUES ("ade", "abC");
+INSERT INTO ids VALUES ("aef", "abc");
+INSERT INTO ids VALUES ("ABC", "aBC");
+INSERT INTO ids VALUES ("ACD", "AbC");
+INSERT INTO ids VALUES ("ADE", "ABc");
+INSERT INTO ids VALUES ("AEF", "ABC");
+SELECT * FROM ids;
+id	value
+abc	Abc
+acd	aBc
+ade	abC
+aef	abc
+ABC	aBC
+ACD	AbC
+ADE	ABc
+AEF	ABC
+SELECT * FROM ids WHERE id BETWEEN "ab" AND "ad";
+id	value
+abc	Abc
+ABC	aBC
+acd	aBc
+ACD	AbC
+DROP TABLE ids;

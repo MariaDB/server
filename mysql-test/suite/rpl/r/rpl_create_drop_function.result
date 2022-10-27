@@ -1,0 +1,58 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE FUNCTION hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Hello, ', str, '!');
+CREATE FUNCTION hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Hello, ', str, '!');
+ERROR 42000: FUNCTION hello already exists
+connection slave;
+SHOW CREATE FUNCTION hello;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+hello	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `hello`(str CHAR(20)) RETURNS char(50) CHARSET latin1
+    DETERMINISTIC
+RETURN
+CONCAT('Hello, ', str, '!')	latin1	latin1_swedish_ci	latin1_swedish_ci
+connection master;
+CREATE OR REPLACE FUNCTION IF NOT EXISTS hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Hello, ', str, '!');
+ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
+CREATE OR REPLACE FUNCTION hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Hello, ', str, '!');
+SELECT hello('master');
+hello('master')
+Hello, master!
+connection slave;
+SELECT hello('slave');
+hello('slave')
+Hello, slave!
+connection master;
+CREATE FUNCTION IF NOT EXISTS hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Hello, ', str, '!');
+Warnings:
+Note	1304	FUNCTION hello already exists
+CREATE OR REPLACE FUNCTION bye (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Bye, ', str, '!');
+SELECT hello('master');
+hello('master')
+Hello, master!
+SELECT bye('master');
+bye('master')
+Bye, master!
+connection slave;
+SELECT hello('slave');
+hello('slave')
+Hello, slave!
+SELECT bye('slave');
+bye('slave')
+Bye, slave!
+connection master;
+DROP FUNCTION hello;
+DROP FUNCTION IF EXISTS bye;
+connection slave;
+DROP FUNCTION hello;
+ERROR 42000: FUNCTION test.hello does not exist
+DROP FUNCTION IF EXISTS bye;
+Warnings:
+Note	1305	FUNCTION test.bye does not exist
+include/rpl_end.inc

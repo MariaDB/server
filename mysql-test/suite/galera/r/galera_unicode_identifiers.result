@@ -1,0 +1,52 @@
+connection node_2;
+connection node_1;
+SET GLOBAL wsrep_sync_wait = 15;
+connection node_2;
+SET GLOBAL wsrep_sync_wait = 15;
+connection node_1;
+CREATE DATABASE `database with space`;
+USE `database with space`;
+CREATE TABLE `table with space` (
+`column with space` INTEGER AUTO_INCREMENT PRIMARY KEY,
+`second column with space` INTEGER,
+UNIQUE `index name with space` (`second column with space`)
+) engine=innodb;
+INSERT INTO `table with space` VALUES (1, 1);
+CREATE DATABASE `база`;
+USE `база`;
+CREATE TABLE `таблица` (
+`първа_колона` INTEGER PRIMARY KEY,
+`втора_колона` INTEGER,
+UNIQUE `индекс` (`втора_колона`)
+) engine=innodb;
+INSERT INTO `таблица` VALUES (1, 1);
+CREATE DATABASE `втора база`;
+USE `втора база`;
+CREATE TABLE `втора таблица` (
+`първа колона` INTEGER,
+`втора колона` INTEGER,
+KEY `първи индекс` (`първа колона`)
+) engine=innodb;
+INSERT INTO `втора таблица` VALUES (1, 1);
+connection node_2;
+USE `database with space`;
+SELECT `second column with space` FROM `table with space`;
+second column with space
+1
+USE `база`;
+SELECT * FROM `таблица`;
+първа_колона	втора_колона
+1	1
+USE `втора база`;
+SELECT `втора колона` FROM `втора таблица`;
+втора колона
+1
+SET GLOBAL wsrep_sync_wait = (SELECT @@wsrep_sync_wait);
+connection node_1;
+DROP TABLE `database with space`.`table with space`;
+DROP TABLE `база`.`таблица`;
+DROP TABLE `втора база`.`втора таблица`;
+DROP DATABASE `database with space`;
+DROP DATABASE `база`;
+DROP DATABASE `втора база`;
+SET GLOBAL wsrep_sync_wait = (SELECT @@wsrep_sync_wait);

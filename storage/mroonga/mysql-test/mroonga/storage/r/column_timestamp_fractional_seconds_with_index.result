@@ -1,0 +1,32 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+created_at TIMESTAMP(6),
+updated_at TIMESTAMP(6),
+KEY (updated_at)
+) DEFAULT CHARSET UTF8;
+INSERT INTO diaries (title, created_at, updated_at)
+VALUES ("clear day",
+"2012-01-29 21:51:01.111111",
+"2012-01-29 21:51:02.222222");
+INSERT INTO diaries (title, created_at, updated_at)
+VALUES ("rainy day",
+"2012-01-30 01:23:45.333",
+"2012-01-30 01:23:46.444");
+INSERT INTO diaries (title, created_at, updated_at)
+VALUES ("cloudy day",
+"2012-01-31 08:32:10.5555",
+"2012-01-31 08:32:11.6666");
+SELECT * FROM diaries;
+id	title	created_at	updated_at
+1	clear day	2012-01-29 21:51:01.111111	2012-01-29 21:51:02.222222
+2	rainy day	2012-01-30 01:23:45.333000	2012-01-30 01:23:46.444000
+3	cloudy day	2012-01-31 08:32:10.555500	2012-01-31 08:32:11.666600
+SELECT * FROM diaries
+WHERE updated_at BETWEEN "2012-01-29 00:00:00.123456" AND
+"2012-01-31 00:00:00.999999";
+id	title	created_at	updated_at
+1	clear day	2012-01-29 21:51:01.111111	2012-01-29 21:51:02.222222
+2	rainy day	2012-01-30 01:23:45.333000	2012-01-30 01:23:46.444000
+DROP TABLE diaries;

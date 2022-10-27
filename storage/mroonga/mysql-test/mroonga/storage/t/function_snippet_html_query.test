@@ -1,0 +1,31 @@
+# Copyright(C) 2016 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/load_mroonga_functions.inc
+
+SET NAMES utf8;
+
+SELECT mroonga_snippet_html('Mroongaには2つの動作モードがあります。
+
+1つが「ストレージモード」で、データストアも検索機能もすべてGroongaを使うモードです。これがデフォルトのモードです。上述の参照ロックフリーなGroongaの性能特性をフルに活かした高速なデータ更新・全文検索・位置情報検索が特長です。一方、トランザクションなどの機能は提供されません。
+
+もう1つが「ラッパーモード」で、MyISAMやInnoDBといった他のストレージエンジンに 全文検索機能だけ を追加するモードです。このモードではトランザクションなど他のストレージエンジンがサポートしている機能に加えてGroongaの高速な全文検索機能を利用することができます。一方、Groongaの参照ロックフリーな特性は活かすことができません。また、更新処理は他のストレージエンジンがボトルネックになることが多いでしょう。',
+                            'ロック 更新 -ボトルネック' AS query) as snippet;
+
+--source ../../include/mroonga/unload_mroonga_functions.inc
+--source ../../include/mroonga/have_mroonga_deinit.inc

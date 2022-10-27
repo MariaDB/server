@@ -1,0 +1,54 @@
+source include/not_embedded.inc;
+
+#create a user with no privileges
+create user test_user@localhost;
+create role test_role1;
+grant test_role1 to test_user@localhost;
+--sorted_result
+select user, host from mysql.user where user not like 'root';
+--sorted_result
+select * from mysql.roles_mapping;
+grant select on *.* to test_role1;
+--sorted_result
+select * from mysql.user where user='test_role1';
+
+change_user 'test_user';
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+--sorted_result
+show grants;
+select current_user(), current_role();
+set role test_role1;
+select current_user(), current_role();
+--sorted_result
+show grants;
+--sorted_result
+select * from mysql.roles_mapping;
+
+set role none;
+select current_user(), current_role();
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+change_user 'root';
+delete from mysql.user where user='test_role1';
+delete from mysql.roles_mapping where Role='test_role1';
+flush privileges;
+drop user 'test_user'@'localhost';
+
+#
+# MDEV-9898 SET ROLE NONE can crash mysqld.
+#
+
+create user user1;
+
+--connect (con1,localhost,user1,,)
+select current_user;
+show grants;
+set role none;
+
+connection default;
+drop user user1;
+

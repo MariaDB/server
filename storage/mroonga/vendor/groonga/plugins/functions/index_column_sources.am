@@ -1,0 +1,2 @@
+index_column_la_SOURCES =			\
+	index_column.c

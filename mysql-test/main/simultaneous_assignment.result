@@ -1,0 +1,222 @@
+SET sql_mode='STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION,SIMULTANEOUS_ASSIGNMENT';
+#
+# MDEV-13417 UPDATE produces wrong values if an UPDATEd column is later used as an UPDATE source
+#
+CREATE TABLE t1 (c1 INTEGER, c2 INTEGER, c3 INTEGER) ENGINE=InnoDb;
+INSERT INTO t1(c1,c2,c3) VALUES (1,1,1);
+CREATE TABLE  t2 (c1 INTEGER, c2 INTEGER, c3 INTEGER) ENGINE=InnoDb;
+INSERT INTO t2(c1,c2,c3) VALUES (1,1,1);
+#
+# Check that a column is only updated once.
+#
+UPDATE t1
+SET c1 = 1,
+c1 = 2;
+ERROR HY000: The column `t1`.`c1` cannot be changed more than once in a single UPDATE statement
+UPDATE t1, t2
+SET t1.c1 = t1.c1 + 1,
+t1.c2 = t1.c1 + 1,
+t2.c2 = t1.c2 + 1,
+t2.c2 = t1.c2 + 1;
+ERROR HY000: The column `t2`.`c2` cannot be changed more than once in a single UPDATE statement
+#
+# Check standard update
+#
+UPDATE t1
+SET c1 = c1+1,
+c2 = c1+1,
+c3 = c2+1
+WHERE c1=10;
+START TRANSACTION;
+UPDATE t1
+SET c1 = c1+1,
+c2 = c1+1,
+c3 = c2+1;
+SELECT * FROM t1;
+c1	c2	c3
+2	2	2
+ROLLBACK;
+#
+# Check update through a single view
+#
+CREATE VIEW v1 (a, b) AS SELECT c1, c2 FROM t1;
+UPDATE v1
+SET a = 10,
+a = b+1;
+ERROR HY000: The column `t1`.`c1` cannot be changed more than once in a single UPDATE statement
+SELECT * FROM t1;
+c1	c2	c3
+1	1	1
+DROP VIEW v1;
+CREATE VIEW v1 (a, b) AS SELECT c2, c2 FROM t1;
+UPDATE v1
+SET a = 10,
+b = 20;
+ERROR HY000: The column `t1`.`c2` cannot be changed more than once in a single UPDATE statement
+SELECT * FROM t1;
+c1	c2	c3
+1	1	1
+DROP VIEW v1;
+#
+# Check update through a multi table view
+#
+CREATE VIEW v1 (a, b) AS SELECT t1.c1, t2.c1  FROM t1, t2 WHERE t1.c1=t2.c1;
+UPDATE v1
+SET a = 10,
+b = 20;
+ERROR HY000: Can not modify more than one base table through a join view 'test.v1'
+START TRANSACTION;
+UPDATE v1
+SET a = 10;
+ROLLBACK;
+UPDATE v1
+SET a = 10,
+a = a + 1;
+ERROR HY000: The column `t1`.`c1` cannot be changed more than once in a single UPDATE statement
+DROP VIEW v1;
+#
+# Check multi update
+#
+START TRANSACTION;
+UPDATE t1, t2
+SET t1.c1 = t1.c1 + 1,
+t1.c2 = t1.c1 + 1,
+t2.c2 = t1.c2 + 1,
+t2.c3 = t2.c2 + 1
+WHERE t1.c1=t2.c1;
+SELECT * FROM t1;
+c1	c2	c3
+2	2	1
+SELECT * FROM t2;
+c1	c2	c3
+1	2	2
+ROLLBACK;
+CREATE TRIGGER tr1 BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+INSERT INTO t2 VALUES(10+old.c1,10+old.c2,10+old.c3);
+INSERT INTO t2 VALUES(20+new.c1,10+new.c2,10+new.c3);
+END;
+/
+START TRANSACTION;
+UPDATE t1
+SET c1 = c1+1,
+c2 = c1+1,
+c3 = c2+1;
+SELECT * FROM t1;
+c1	c2	c3
+2	2	2
+SELECT * FROM t2;
+c1	c2	c3
+1	1	1
+11	11	11
+22	12	12
+ROLLBACK;
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# Check update fired by INSERT ... ON DUPLICATE KEY UPDATE
+#
+CREATE TABLE t1 (
+id INT(11) NOT NULL AUTO_INCREMENT,
+name VARCHAR(60) NOT NULL,
+nb_visits INT NOT NULL,
+nb_visits_prev INT NOT NULL default 0,
+PRIMARY KEY (id),
+UNIQUE KEY name (name)
+) ENGINE=InnoDB AUTO_INCREMENT=1;
+INSERT INTO t1(name, nb_visits) VALUES('nico', 1)
+ON DUPLICATE KEY UPDATE nb_visits = nb_visits + 1;
+SELECT * FROM t1;
+id	name	nb_visits	nb_visits_prev
+1	nico	1	0
+INSERT INTO t1(name, nb_visits) VALUES('nico', 1)
+ON DUPLICATE KEY UPDATE nb_visits = nb_visits + 1, nb_visits_prev=nb_visits;
+SELECT * FROM t1;
+id	name	nb_visits	nb_visits_prev
+1	nico	2	1
+DROP TABLE t1;
+#
+# Update table with virtual column
+#
+CREATE TABLE t1 (c1 INTEGER, c2 INTEGER, c3 INTEGER AS (c1 MOD 10) VIRTUAL, c4 INTEGER AS (c1+c2 MOD 5) PERSISTENT ) ENGINE=InnoDb;
+INSERT INTO t1(c1,c2) VALUES (1,1);
+SELECT * FROM t1;
+c1	c2	c3	c4
+1	1	1	2
+UPDATE t1 SET c2 = 10, c1 = c2;
+SELECT * FROM t1;
+c1	c2	c3	c4
+1	10	1	1
+UPDATE t1 SET c2 = 4, c1 = c2;
+SELECT * FROM t1;
+c1	c2	c3	c4
+10	4	0	14
+DROP TABLE t1;
+#
+# Update dynamic column
+#
+SET @@local.character_set_connection='latin1';
+CREATE TABLE assets (
+item_name VARCHAR(32) PRIMARY KEY,
+dynamic_col1  BLOB,
+dynamic_col2  BLOB
+);
+INSERT INTO assets VALUES ('Thinkpad Laptop', COLUMN_CREATE('color', 'black', 'price', 500),COLUMN_CREATE('CPU', 'Core I7', 'memory', '8Go'));
+INSERT INTO assets VALUES ('Thinkpad Laptop2', COLUMN_CREATE('color', 'yellow', 'price', 700),COLUMN_CREATE('CPU', 'Core I7', 'memory', '16Go'));
+SELECT item_name, COLUMN_GET(dynamic_col1, 'color' as char) AS color1,
+COLUMN_GET(dynamic_col2, 'color' as char) AS color2
+FROM assets;
+item_name	color1	color2
+Thinkpad Laptop	black	NULL
+Thinkpad Laptop2	yellow	NULL
+UPDATE assets
+SET dynamic_col1=COLUMN_ADD(dynamic_col1, 'warranty', '3 years'),
+dynamic_col2=dynamic_col1
+WHERE item_name LIKE 'Thinkpad Laptop%';
+SELECT item_name, COLUMN_GET(dynamic_col1, 'warranty' as char) AS waranty1,
+COLUMN_GET(dynamic_col2, 'warranty' as char) AS waranty2,
+COLUMN_GET(dynamic_col2, 'color' as char) AS color2
+FROM assets;
+item_name	waranty1	waranty2	color2
+Thinkpad Laptop	3 years	NULL	black
+Thinkpad Laptop2	3 years	NULL	yellow
+DROP TABLE assets;
+#
+# Update TEXT column
+#
+CREATE TABLE ft2(copy TEXT,copy2 TEXT,FULLTEXT(copy)) ENGINE=MyISAM;
+INSERT INTO ft2(copy) VALUES
+('MySQL vs MariaDB database'),
+('Oracle vs MariaDB database'),
+('PostgreSQL vs MariaDB database'),
+('MariaDB overview'),
+('Foreign keys'),
+('Primary keys'),
+('Indexes'),
+('Transactions'),
+('Triggers');
+SELECT * FROM ft2;
+copy	copy2
+MySQL vs MariaDB database	NULL
+Oracle vs MariaDB database	NULL
+PostgreSQL vs MariaDB database	NULL
+MariaDB overview	NULL
+Foreign keys	NULL
+Primary keys	NULL
+Indexes	NULL
+Transactions	NULL
+Triggers	NULL
+UPDATE ft2 SET copy = UPPER(copy),
+copy2= copy;
+SELECT * FROM ft2;
+copy	copy2
+MYSQL VS MARIADB DATABASE	MySQL vs MariaDB database
+ORACLE VS MARIADB DATABASE	Oracle vs MariaDB database
+POSTGRESQL VS MARIADB DATABASE	PostgreSQL vs MariaDB database
+MARIADB OVERVIEW	MariaDB overview
+FOREIGN KEYS	Foreign keys
+PRIMARY KEYS	Primary keys
+INDEXES	Indexes
+TRANSACTIONS	Transactions
+TRIGGERS	Triggers
+DROP TABLE ft2;

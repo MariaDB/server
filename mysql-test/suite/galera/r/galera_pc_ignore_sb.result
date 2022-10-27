@@ -1,0 +1,27 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+SET @wsrep_cluster_address_orig = @@GLOBAL.wsrep_cluster_address;
+SET @wsrep_provider_options_orig = @@GLOBAL.wsrep_provider_options;
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=true';
+connection node_2;
+Killing server ...
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 1
+1
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+VARIABLE_VALUE = 'ON'
+1
+SET GLOBAL wsrep_cluster_address = '';
+SET GLOBAL wsrep_cluster_address = @wsrep_cluster_address_orig;
+connection node_2;
+connection node_1;
+SET GLOBAL wsrep_provider_options = @wsrep_provider_options_orig;
+disconnect node_2;
+disconnect node_1;

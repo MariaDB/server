@@ -1,0 +1,21 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key, c2 text, fulltext index (c2));
+insert into t1 values(10, "aa ii uu ee");
+insert into t1 values(20, "ka ki ku ke");
+insert into t1 values(30, "sa si su se");
+select * from t1;
+c1	c2
+10	aa ii uu ee
+20	ka ki ku ke
+30	sa si su se
+select * from t1 where match(c2) against("ki");
+c1	c2
+20	ka ki ku ke
+delete from t1 where c1=20;
+select * from t1;
+c1	c2
+10	aa ii uu ee
+30	sa si su se
+select * from t1 where match(c2) against("ki");
+c1	c2
+drop table t1;

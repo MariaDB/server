@@ -1,0 +1,139 @@
+--echo #
+--echo # Range optimizer (and related) tests that need InnoDB.
+--echo # 
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--disable_warnings
+drop table if exists t0, t1, t2;
+--enable_warnings
+
+--echo #
+--echo # MDEV-6735: Range checked for each record used with key
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 + D.a * 1000
+from t0 A, t0 B, t0 C, t0 D;
+
+create table t2 ( 
+ a int,
+ b int,
+ filler1 char(100),
+ filler2 char(100),
+ filler3 char(100),
+ filler4 char(100),
+ key(a),
+ key(b)
+) engine=innodb;
+
+insert into t2 
+select 
+   a,a,
+  repeat('0123456789', 10), 
+  repeat('0123456789', 10), 
+  repeat('0123456789', 10),
+  repeat('0123456789', 10)
+from t1;
+
+analyze table t2;
+--echo # The following must not use "Range checked for each record":
+explain select * from t0 left join t2 on t2.a <t0.a and t2.b between 50 and 250;
+
+drop table t0,t1,t2;
+
+
+--echo #
+--echo # MDEV-10466: constructing an invalid SEL_ARG
+--echo #
+
+create table t1 (
+  pk int, a int, b int,
+  primary key (pk), index idx1(b), index idx2(b)
+) engine=innodb;
+insert into t1 values (1,6,0),(2,1,0),(3,5,2),(4,8,0);
+create table t2 (c int) engine=innodb;
+insert into t2 values (1),(2);
+create table t3 (d int) engine=innodb;
+insert into t3 values (3),(-1),(4);
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='extended_keys=on';
+
+explain
+select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
+select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
+
+set optimizer_switch=@save_optimizer_switch;
+
+drop table t1,t2,t3;
+
+CREATE TABLE t1 (
+  pk INT PRIMARY KEY, f1 INT, f2 CHAR(1), f3 CHAR(1),
+  KEY(f1), KEY(f2)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES
+(1,4,'v',NULL),(2,6,'v',NULL),(3,7,'c',NULL),(4,1,'e',NULL),(5,0,'x',NULL),
+(6,7,'i',NULL),(7,7,'e',NULL),(8,1,'p',NULL),(9,7,'s',NULL),(10,1,'j',NULL),
+(11,5,'z',NULL),(12,2,'c',NULL),(13,0,'a',NULL),(14,1,'q',NULL),(15,8,'y',NULL),
+(16,1,'m',NULL),(17,1,'r',NULL),(18,9,'v',NULL),(19,1,'n',NULL);
+
+CREATE TABLE t2 (f4 INT, f5 CHAR(1)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (4,'q'),(NULL,'j');
+
+SELECT * FROM t1 AS t1_1, t1 AS t1_2, t2
+WHERE f5 = t1_2.f2 AND ( t1_1.f1 = 103 AND t1_1.f2 = 'o' OR t1_1.pk < f4 );
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-14440: Server crash in in handler::ha_external_lock or Assertion `inited==RND'
+--echo # failed in handler::ha_rnd_end upon SELECT from partitioned table
+--echo #
+
+set @optimizer_switch_save= @@optimizer_switch;
+set optimizer_switch='index_merge_sort_intersection=off';
+create table t0 (a int)engine=innodb;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+  a int, b int, c int,
+  key(a),key(b),key(c)
+)engine=innodb;
+insert into t1
+select A.a+10*B.a, A.a+10*B.a, A.a+10*B.a+100*C.a
+from t0 A, t0 B, t0 C, t0 D where D.a<5;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+set @@global.debug_dbug="+d,ha_index_init_fail";
+explain select * from t1 where a=10 and b=10;
+--error ER_TABLE_DEF_CHANGED
+select * from t1 where a=10 and b=10;
+DROP TABLE t0,t1;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+set @@optimizer_switch= @optimizer_switch_save;
+
+--echo # End of 10.1 tests
+
+--echo #
+--echo # MDEV-19634: Assertion `0' failed in row_sel_convert_mysql_key_to_innobase,
+--echo # [Warning] InnoDB: Using a partial-field key prefix in search
+--echo #
+
+CREATE TABLE t1 (
+    pk INT,
+    a VARCHAR(1),
+    b INT,
+    PRIMARY KEY (pk),
+    KEY (a,b)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1,'a',1),(2,'b',2);
+
+explain SELECT a FROM t1 WHERE pk < 0 AND a <= 'w' and b > 0;
+SELECT a FROM t1 WHERE pk < 0 AND a <= 'w' and b > 0;
+drop table t1;
+
+-- echo # End of 10.4 tests

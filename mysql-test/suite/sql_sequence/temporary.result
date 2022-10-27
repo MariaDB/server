@@ -1,0 +1,43 @@
+#
+# Create
+#
+create temporary sequence s1 engine=innodb;
+alter table s1 engine myisam;
+select nextval(s1);
+nextval(s1)
+1
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1001	1	9223372036854775806	1	1	1000	0	0
+drop temporary sequence s1;
+#
+# MDEV-14762 Server crashes in MDL_ticket::has_stronger_or_equal_type
+# upon inserting into temporary sequence
+#
+CREATE TEMPORARY SEQUENCE s1 ENGINE=InnoDB;
+INSERT INTO s1 VALUES (1, 1, 1000, 1, 1, 1, 1, 0);
+DROP TEMPORARY SEQUENCE s1;
+#
+# MDEV-13007 ALTER .. ENGINE on temporary sequence may go wrong
+#
+create temporary sequence s1 engine=aria;
+alter table s1 engine myisam;
+select nextval(s1);
+nextval(s1)
+1
+drop temporary sequence s1;
+create temporary sequence s1 engine=innodb;
+alter table s1 engine myisam;
+select nextval(s1);
+nextval(s1)
+1
+drop temporary sequence s1;
+create temporary sequence s1;
+alter table s1 engine innodb;
+select nextval(s1);
+nextval(s1)
+1
+select nextval(s1);
+nextval(s1)
+2
+drop temporary sequence s1;

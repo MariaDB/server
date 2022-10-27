@@ -1,0 +1,63 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+connection node_2;
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+connection node_1;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+COMMIT;
+SET SESSION wsrep_trx_fragment_size = 0;
+INSERT INTO t1 VALUES (3),(4);
+COMMIT;
+connection node_1;
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-bin.000001	<Pos>	Gtid_list	1	<End_log_pos>	[]
+mysqld-bin.000001	<Pos>	Binlog_checkpoint	1	<End_log_pos>	mysqld-bin.000001
+mysqld-bin.000001	<Pos>	Gtid	1	<End_log_pos>	GTID 0-1-1
+mysqld-bin.000001	<Pos>	Query	1	<End_log_pos>	use `test`; CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB
+mysqld-bin.000001	<Pos>	Gtid	1	<End_log_pos>	BEGIN GTID 0-1-2
+mysqld-bin.000001	<Pos>	Annotate_rows	1	<End_log_pos>	INSERT INTO t1 VALUES (1),(2)
+mysqld-bin.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+mysqld-bin.000001	<Pos>	Write_rows_v1	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+mysqld-bin.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+mysqld-bin.000001	<Pos>	Write_rows_v1	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+mysqld-bin.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
+mysqld-bin.000001	<Pos>	Gtid	1	<End_log_pos>	BEGIN GTID 0-1-3
+mysqld-bin.000001	<Pos>	Annotate_rows	1	<End_log_pos>	INSERT INTO t1 VALUES (3),(4)
+mysqld-bin.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+mysqld-bin.000001	<Pos>	Write_rows_v1	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+mysqld-bin.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
+connection node_2;
+SELECT COUNT(*) = 4 FROM t1;
+COUNT(*) = 4
+1
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-bin.000001	<Pos>	Gtid_list	2	<End_log_pos>	[]
+mysqld-bin.000001	<Pos>	Binlog_checkpoint	2	<End_log_pos>	mysqld-bin.000001
+mysqld-bin.000001	<Pos>	Gtid	1	<End_log_pos>	GTID 0-1-1
+mysqld-bin.000001	<Pos>	Query	1	<End_log_pos>	use `test`; CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB
+mysqld-bin.000001	<Pos>	Gtid	1	<End_log_pos>	BEGIN GTID 0-1-2
+mysqld-bin.000001	<Pos>	Annotate_rows	1	<End_log_pos>	INSERT INTO t1 VALUES (1),(2)
+mysqld-bin.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+mysqld-bin.000001	<Pos>	Write_rows_v1	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+mysqld-bin.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+mysqld-bin.000001	<Pos>	Write_rows_v1	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+mysqld-bin.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
+mysqld-bin.000001	<Pos>	Gtid	1	<End_log_pos>	BEGIN GTID 0-1-3
+mysqld-bin.000001	<Pos>	Annotate_rows	1	<End_log_pos>	INSERT INTO t1 VALUES (3),(4)
+mysqld-bin.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+mysqld-bin.000001	<Pos>	Write_rows_v1	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+mysqld-bin.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
+connection node_1;
+DROP TABLE t1;

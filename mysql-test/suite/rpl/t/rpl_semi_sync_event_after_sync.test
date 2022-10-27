@@ -1,0 +1,3 @@
+set global rpl_semi_sync_master_wait_point=AFTER_SYNC;
+source rpl_semi_sync_event.test;
+set global rpl_semi_sync_master_wait_point=default;

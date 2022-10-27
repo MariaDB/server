@@ -1,0 +1,37 @@
+--source include/have_udf.inc
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+eval CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
+SELECT ret FROM mysql.func WHERE name like 'metaphon';
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--error ER_UDF_EXISTS
+CREATE FUNCTION metaphon RETURNS INT SONAME "$UDF_EXAMPLE_SO";
+SELECT ret FROM mysql.func WHERE name like 'metaphon';
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+eval CREATE FUNCTION IF NOT EXISTS metaphon RETURNS REAL SONAME "$UDF_EXAMPLE_SO";
+SELECT ret FROM mysql.func WHERE name like 'metaphon';
+
+DROP FUNCTION IF EXISTS metaphon;
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+eval CREATE FUNCTION IF NOT EXISTS metaphon RETURNS REAL SONAME "$UDF_EXAMPLE_SO";
+SELECT ret FROM mysql.func WHERE name like 'metaphon';
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--error ER_WRONG_USAGE
+eval CREATE OR REPLACE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
+SELECT ret FROM mysql.func WHERE name like 'metaphon';
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+eval CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
+SELECT ret FROM mysql.func WHERE name like 'metaphon';
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--error ER_UDF_EXISTS
+eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
+SELECT metaphon('mariadb');
+
+DROP FUNCTION metaphon;
+DROP FUNCTION IF EXISTS metaphon;

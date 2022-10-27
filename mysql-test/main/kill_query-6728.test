@@ -1,0 +1,13 @@
+#
+# MDEV-6728 KILL QUERY executed on an idle connection can interrupt the next query
+#
+--connect (con1,localhost,root,,)
+let $id=`select connection_id()`;
+
+--connection default
+--replace_result $id id
+eval kill query $id;
+
+--connection con1
+select count(*) > 0 from mysql.user;
+

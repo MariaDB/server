@@ -1,0 +1,7 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mysqld.2]
+slave-parallel-threads=2
+slave-parallel-mode=optimistic
+[mysqld.1]
+wsrep-slave-threads=10

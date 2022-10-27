@@ -1,0 +1,207 @@
+--source have_odbc_postgresql.inc
+#--source include/not_embedded.inc
+
+#
+# To configure your system to be able to run this test,
+# follow through the following steps:
+#
+# 1. Install and configure PostgreSQL database to stat on the system startup
+#
+# 2. Create user, database, schema and tables to be used by mtr:
+#    psql -U postgres < odbc_postgresql.sql
+#
+# 3. Install PostgreSQL ODBC Driver.
+# - On CentOS, Fedora:
+#   sudo yum install postgresql-odbc
+# - On Ubuntu, Debian:
+#   sudo apt-get install odbc-postgresql
+#
+# 4. Create a data source with the name "ConnectEnginePostgresql"
+# - On Windows: use odbcadm.exe
+# - On Linux: put these lines into /etc/odbc.ini
+#
+#[ConnectEnginePostgresql]
+#Description=PostgreSQL DSN for ConnectSE
+#Driver=PostgreSQL (should the path to the driver so file)
+#Database=mtr
+#Servername=localhost
+#Port=5432
+#
+# 5. Allow user "mtr" to connect to the database "mtr"
+# Add this line into the begginning of pg_hba.conf
+# (usually /var/lib/pgsql/data/pg_hba.conf on Linux):
+#host    mtr             mtr             127.0.0.1/32            password
+#
+# 6. Restart the server:
+# sudo service postgresql restart
+#
+#
+
+SET NAMES utf8;
+
+--echo #
+--echo # Checking CATFUNC=Tables
+--echo #
+--echo
+--echo # All tables in all schemas
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Tables;
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables in all schemas
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Tables TABNAME='%.%.%';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables in all schemas
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Tables TABNAME='%.%';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables in the default schema ("public")
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Tables TABNAME='%';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables "t1" in all schemas
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Tables TABNAME='%.%.t1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables "t1" in all schemas
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Tables TABNAME='%.t1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # Table "t1" in the default schema ("public")
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Tables TABNAME='t1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # Table "t1" in the schema "public"
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Tables TABNAME='%.public.t1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # Table "t1" in the schema "schema1"
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Tables TABNAME='%.schema1.t1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables "t1" in all schemas (Catalog name is ignored by PostgreSQL)
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Tables TABNAME='xxx.%.t1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo #
+--echo # Checking CATFUNC=Columns
+--echo #
+--echo
+
+#
+# For some reasons SQLColumn (unlike SQLTables) include columns of system
+# tables from the schemas like "information_schema", "pg_catalog", "pg_toast".
+# So we add the "Table_Schema IN ('public','schema1')" clause into some queries.
+#
+
+--echo # All columns in the schemas "public" and "schema1"
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns;
+SELECT * FROM t1 WHERE Table_Schema IN ('public','schema1') ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All columns in the schemas "public" and "schema1"
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.%.%';
+SELECT * FROM t1 WHERE Table_Schema IN ('public','schema1') ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables "t1" in all schemas
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.%.t1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # Table "t1" in the schema "public"
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.public.t1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # Table "t1" in the schema "schema1"
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.schema1.t1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables "t1" in all schemas (Catalog name is ignored by PostgreSQL)
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='xxx.%.t1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Checking tables
+--echo #
+--echo
+
+--echo # Table "t1" in the default schema ("public")
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr';
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # Table "t1" in the schema "public"
+CREATE TABLE t1 ENGINE=CONNECT TABNAME='public.t1' TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr';
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo # Table "t1" in the schema "schema1"
+CREATE TABLE t1 ENGINE=CONNECT TABNAME='schema1.t1' CHARSET=utf8 DATA_CHARSET=utf8 TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr';
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # View "v1" in the schema "schema1"
+CREATE TABLE t1 ENGINE=CONNECT TABNAME='schema1.v1' CHARSET=utf8 DATA_CHARSET=utf8 TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr';
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # Table "t2" in the schema "schema1"
+CREATE TABLE t1 ENGINE=CONNECT TABNAME='schema1.t2' CHARSET=utf8 DATA_CHARSET=utf8 TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr';
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;

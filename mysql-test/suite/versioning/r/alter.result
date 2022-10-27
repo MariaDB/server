@@ -1,0 +1,764 @@
+select @@system_versioning_alter_history;
+@@system_versioning_alter_history
+ERROR
+create table t(
+a int
+);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t drop system versioning;
+ERROR HY000: Table `t` is not system-versioned
+alter table t add system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t add column y int;
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
+alter table t add primary key (a);
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
+alter table t add unique key (a);
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change @@system_versioning_alter_history to proceed with ALTER.
+alter table t engine innodb;
+ERROR HY000: Not allowed for system-versioned `test`.`t`. Change to/from native system versioning engine is not supported.
+alter table t drop system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set system_versioning_alter_history= keep;
+alter table t add system versioning;
+alter table t drop system versioning, drop column row_start;
+ERROR 42000: Can't DROP COLUMN `row_start`; check that it exists
+alter table t drop system versioning;
+alter table t
+add column trx_start bigint(20) unsigned as row start invisible,
+add column trx_end bigint(20) unsigned as row end invisible,
+add period for system_time(trx_start, trx_end),
+add system versioning;
+ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for system-versioned table `t`
+alter table t
+add column trx_start timestamp as row start invisible,
+add column trx_end timestamp as row end invisible,
+add period for system_time(trx_start, trx_end),
+add system versioning;
+ERROR HY000: `trx_start` must be of type TIMESTAMP(6) for system-versioned table `t`
+alter table t
+add column trx_start timestamp(6) not null as row start invisible,
+add column trx_end timestamp(6) not null as row end invisible,
+add period for system_time(trx_start, trx_end),
+add system versioning;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'as row start invisible,
+add column trx_end timestamp(6) not null as row end i...' at line 2
+alter table t
+add column trx_start timestamp(6) as row start invisible,
+add column trx_end timestamp(6) as row end invisible,
+add period for system_time(trx_start, trx_end),
+add system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop system versioning;
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `trx_start`'
+alter table t drop column trx_start, drop column trx_end;
+select row_start from t;
+row_start
+alter table t drop system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t add column trx_start timestamp(6) as row start;
+ERROR HY000: Table `t` is not system-versioned
+alter table t add system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t add column trx_start timestamp(6) as row start;
+ERROR HY000: Duplicate ROW START column `trx_start`
+alter table t modify a int as row start;
+ERROR HY000: Duplicate ROW START column `a`
+alter table t add column b int;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t add column c int;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t add column d int first;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `d` int(11) DEFAULT NULL,
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t add column e int after d;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `d` int(11) DEFAULT NULL,
+  `e` int(11) DEFAULT NULL,
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop column a;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `d` int(11) DEFAULT NULL,
+  `e` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t (
+a int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end))
+with system versioning;
+select * from t for system_time all;
+a
+alter table t drop column row_start;
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_end`'
+alter table t drop column row_end;
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_start`'
+alter table t drop column row_start, drop column row_end;
+select * from t for system_time all;
+a
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop column row_start;
+ERROR 42000: Can't DROP COLUMN `row_start`; check that it exists
+alter table t drop column row_end;
+ERROR 42000: Can't DROP COLUMN `row_end`; check that it exists
+create or replace table t (
+a int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end))
+with system versioning;
+select * from t for system_time all;
+a
+alter table t drop column row_start, drop column row_end;
+select * from t for system_time all;
+a
+create or replace table t(
+a int
+);
+insert into t values(1);
+alter table t add system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+insert into t values(2);
+select * from t for system_time all;
+a
+1
+2
+select * from t;
+a
+1
+2
+update t set a=3 where a=1;
+select * from t;
+a
+3
+2
+select * from t for system_time all;
+a
+3
+2
+1
+select row_start from t where a=3 into @tm;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+alter table t add column b int;
+select @tm=row_start from t where a=3;
+@tm=row_start
+1
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t;
+a	b
+3	NULL
+2	NULL
+select * from t for system_time all;
+a	b
+3	NULL
+2	NULL
+1	NULL
+alter table t drop system versioning;
+select * from t;
+a	b
+3	NULL
+2	NULL
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t modify a int with system versioning;
+ERROR HY000: Table `t` is not system-versioned
+alter table t modify a int without system versioning;
+ERROR HY000: Table `t` is not system-versioned
+alter table t add system versioning;
+alter table t modify a int without system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t modify a int with system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t(
+a int
+) engine=innodb;
+alter table t
+add column trx_start timestamp(6) as row start invisible,
+add column trx_end timestamp(6) as row end invisible,
+add period for system_time(trx_start, trx_end),
+add system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `trx_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `trx_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+# Issue #211: drop of system columns required before drop system versioning
+alter table t drop column trx_start, drop column trx_end;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop system versioning;
+insert into t values(1);
+call verify_trt;
+No	A	B	C	D
+alter table t
+add column trx_start bigint(20) unsigned as row start invisible,
+add column trx_end bigint(20) unsigned as row end invisible,
+add period for system_time(trx_start, trx_end),
+add system versioning;
+call verify_trt;
+No	A	B	C	D
+1	1	1	1	1
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `trx_start` bigint(20) unsigned GENERATED ALWAYS AS ROW START INVISIBLE,
+  `trx_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop column trx_start, drop column trx_end;
+call verify_trt;
+No	A	B	C	D
+alter table t drop system versioning, algorithm=copy;
+call verify_trt;
+No	A	B	C	D
+alter table t add system versioning, algorithm=copy;
+call verify_trt;
+No	A	B	C	D
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+update t set a= 2;
+select * from t for system_time all;
+a
+2
+1
+alter table t add column b int, algorithm=copy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t;
+a	b
+2	NULL
+call verify_trt;
+No	A	B	C	D
+alter table t drop column b, algorithm=copy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t for system_time all;
+a
+2
+1
+call verify_trt;
+No	A	B	C	D
+alter table t drop system versioning, algorithm=copy;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+call verify_trt;
+No	A	B	C	D
+create or replace table t (a int);
+insert t values (1),(2),(3),(4);
+alter table t add b int auto_increment null unique;
+select * from t;
+a	b
+1	1
+2	2
+3	3
+4	4
+drop table t;
+create or replace table t (a int) with system versioning engine=innodb;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+alter table t add b int not null unique;
+Got one of the listed errors
+alter table t add b int auto_increment unique;
+Got one of the listed errors
+alter table t add b int auto_increment null unique;
+select * from t;
+a	b
+3	1
+select * from t for system_time all;
+a	b
+1	NULL
+2	NULL
+3	1
+insert into t values (4, 0);
+select * from t for system_time all;
+a	b
+1	NULL
+2	NULL
+3	1
+4	2
+create or replace table t (a int) with system versioning;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+alter table t add b int not null unique;
+Got one of the listed errors
+alter table t add b int auto_increment unique;
+Got one of the listed errors
+alter table t add b int auto_increment null unique;
+select * from t;
+a	b
+3	1
+select * from t for system_time all;
+a	b
+1	NULL
+2	NULL
+3	1
+insert into t values (4, 0);
+select * from t for system_time all;
+a	b
+1	NULL
+2	NULL
+3	1
+4	2
+create or replace table t (a int, b int primary key, c int unique) with system versioning;
+insert t values (1,2,3),(1,3,4),(1,4,5);
+alter table t drop system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`b`),
+  UNIQUE KEY `c` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from t;
+a	b	c
+1	2	3
+1	3	4
+1	4	5
+create or replace table t (
+a int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning;
+alter table t change column row_start asdf timestamp(6);
+ERROR HY000: Can not change system versioning field `row_start`
+insert into t values (1);
+alter table t modify column row_start bigint unsigned;
+ERROR HY000: Can not change system versioning field `row_start`
+set system_versioning_alter_history= SURVIVE;
+ERROR 42000: Variable 'system_versioning_alter_history' can't be set to the value of 'SURVIVE'
+set system_versioning_alter_history= 'DROP';
+ERROR 42000: Variable 'system_versioning_alter_history' can't be set to the value of 'DROP'
+create or replace table t (a int) with system versioning;
+alter table t add system versioning;
+ERROR HY000: Table `t` is already system-versioned
+alter table t add system versioning, drop system versioning;
+ERROR HY000: Table `t` is already system-versioned
+set @@system_versioning_alter_history=keep;
+create or replace table t(x int, y int) with system versioning engine=innodb;
+alter table t modify y int without system versioning;
+insert into t values(1, 1);
+update t set y=2;
+# MDEV-14681 Bogus ER_UNSUPPORTED_EXTENSION
+create or replace table t1 (pk int auto_increment unique) with system versioning;
+insert into t1 values (1);
+delete from t1;
+alter table t1 engine=myisam;
+# MDEV-14692 crash in MDL_context::upgrade_shared_lock()
+create or replace temporary table t (a int);
+alter table t change column if exists b c bigint unsigned generated always as row start;
+ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
+alter table t change column if exists b c bigint unsigned generated always as row end;
+ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
+alter table t add system versioning;
+ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
+drop table t;
+# MDEV-14744 trx_id-based and transaction-based mixup in assertion
+create or replace table t (c text) engine=innodb with system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `c` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t add fulltext key (c);
+create or replace table t (a int) with system versioning;
+alter table t drop column a;
+ERROR HY000: Table `t` must have at least one versioned column
+alter table t drop column a, drop column a;
+ERROR 42000: Can't DROP COLUMN `a`; check that it exists
+create or replace table t1 (row_start int);
+alter table t1 with system versioning;
+ERROR 42S21: Duplicate column name 'row_start'
+create or replace table t1 (row_end int);
+alter table t1 with system versioning;
+ERROR 42S21: Duplicate column name 'row_end'
+create or replace table t1 (a int, row_start int) with system versioning;
+ERROR 42S21: Duplicate column name 'row_start'
+create or replace table t1 (a int) with system versioning;
+set statement system_versioning_alter_history=keep for
+alter table t1 add column row_start int;
+ERROR 42S21: Duplicate column name 'row_start'
+set statement system_versioning_alter_history=keep for
+alter table t1 add column row_start timestamp(6);
+ERROR 42S21: Duplicate column name 'row_start'
+# MDEV-14798 Add, drop system versioning semantic and syntax
+create or replace table t (
+a int,
+row_start timestamp(6) generated always as row start,
+row_end timestamp(6) generated always as row end,
+period for system_time(row_start, row_end)
+) with system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t
+drop column row_start,
+drop column row_end,
+drop period for system_time,
+drop system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t drop period for system_time;
+ERROR HY000: Table `t` is not system-versioned
+create or replace table t (
+a int,
+row_start timestamp(6) generated always as row start,
+row_end timestamp(6) generated always as row end,
+period for system_time(row_start, row_end)
+) with system versioning;
+alter table t drop period for system_time;
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_start`, DROP COLUMN `row_end`'
+alter table t drop column sys_trx_start, drop period for system_time;
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_start`, DROP COLUMN `row_end`'
+alter table t drop column sys_trx_end, drop period for system_time;
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_start`, DROP COLUMN `row_end`'
+alter table t add period for system_time(sys_trx_start, sys_trx_end);
+ERROR HY000: Table `t` is already system-versioned
+#
+# MDEV-14790 System versioning for system tables does not work as expected
+#
+use mysql;
+create or replace table t (x int) with system versioning;
+ERROR HY000: System-versioned tables in the `mysql` database are not supported
+alter table db add system versioning;
+ERROR HY000: System-versioned tables in the `mysql` database are not supported
+use test;
+# MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column
+create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
+alter table t1 modify s timestamp(6) as row start;
+ERROR HY000: Duplicate ROW START column `s`
+# ignore CHECK for historical rows
+create or replace table t (a int) with system versioning;
+insert into t values (0), (1);
+delete from t where a = 0;
+alter table t add check (a > 1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t`
+alter table t add check (a > 0);
+insert into t values (0);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t`
+insert into t values (2);
+drop table t;
+#
+# MDEV-18869 Assertion `!((field)->vcol_info && (field)->stored_in_db())' failed in innodb_col_no upon altering table with system versioning
+#
+set system_versioning_alter_history= keep;
+create or replace table t1 (a int, b int generated always as (0) stored) engine=innodb with system versioning;
+insert into t1 (a) values (1);
+alter table t1 modify a int without system versioning, algorithm=copy;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+alter table t1 modify a int with system versioning, algorithm=copy;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+alter table t1 modify a int without system versioning;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+alter table t1 modify a int with system versioning;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (0) STORED
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t1;
+a	b
+1	0
+alter table t1 modify b int generated always as (0) stored without system versioning;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'without system versioning' at line 1
+alter table t1 modify b int generated always as (0) stored with system versioning;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'system versioning' at line 1
+alter table t1 modify b int without system versioning;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t1;
+a	b
+1	0
+create or replace table t1 (a int, b int generated always as (0) virtual) engine=innodb with system versioning;
+insert into t1 (a) values (1);
+alter table t1 modify a int without system versioning, algorithm=copy;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+alter table t1 modify a int with system versioning, algorithm=copy;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+alter table t1 modify a int without system versioning;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+alter table t1 modify a int with system versioning;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+select * from t1;
+a	b
+1	0
+affected rows: 1
+#
+# MDEV-19304 Segfault in ALTER TABLE after UPDATE for SIMULTANEOUS_ASSIGNMENT
+#
+create or replace table t1 (a int, s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) engine=myisam with system versioning;
+insert into t1 values (null, null, null);
+insert into t1 values (null, null, null);
+set sql_mode= 'simultaneous_assignment';
+update t1 set e= 1;
+Warnings:
+Warning	1906	The value specified for generated column 'e' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't1' has been ignored
+alter table t1 force;
+set sql_mode= default;
+#
+# MDEV-18862 Unfortunate error message upon attempt to drop system versioning
+#
+set system_versioning_alter_history= keep;
+create or replace table t1 (x int) with system versioning;
+alter table t1 drop column `row_start`, drop column `row_end`, drop period for system_time, drop system versioning;
+ERROR 42000: Can't DROP PERIOD FOR SYSTEM_TIME on `t1`; check that it exists
+alter table t1 drop period for system_time;
+ERROR 42000: Can't DROP PERIOD FOR SYSTEM_TIME on `t1`; check that it exists
+alter table t1 drop column `row_start`, drop column `row_end`, drop system versioning;
+ERROR 42000: Can't DROP COLUMN `row_start`; check that it exists
+alter table t1 drop column `row_end`;
+ERROR 42000: Can't DROP COLUMN `row_end`; check that it exists
+#
+# MDEV-19127 Assertion `row_start_field' failed in vers_prepare_keys upon ALTER TABLE
+#
+set system_versioning_alter_history=keep;
+create or replace table t1 (f1 int) with system versioning;
+alter table t1 add f2 int with system versioning, drop system versioning;
+create or replace table t1 (f1 int) with system versioning;
+alter table t1 drop system versioning, add f2 int with system versioning;
+ERROR HY000: Table `t1` is not system-versioned
+drop table t1;
+# MDEV-16490 It's possible to make a system versioned table without any versioning field
+set @@system_versioning_alter_history=keep;
+create or replace table t (a int) with system versioning engine=innodb;
+alter table t change column a a int without system versioning;
+ERROR HY000: Table `t` must have at least one versioned column
+alter table t
+change column a a int without system versioning,
+add column b int with system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t
+change column a new_a int,
+drop system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `new_a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+alter table t add system versioning;
+alter table t change column new_a a int without system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t
+add column c int,
+change column c c int without system versioning,
+change column b b int without system versioning;
+ERROR HY000: Table `t` must have at least one versioned column
+alter table t
+add column c int without system versioning,
+change column c c int,
+change column b b int without system versioning;
+drop table t;
+#
+# MDEV-21688 Assertion or ER_WARN_DATA_OUT_OF_RANGE upon ALTER on previously versioned table
+#
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (128);
+delete from t1;
+set statement system_versioning_alter_history=keep for
+alter table t1 drop system versioning, modify column a tinyint;
+drop table t1;
+#
+# MDEV-24690 Dropping primary key column from versioned table always fails with 1072
+#
+create table t1 (a int, b int primary key) with system versioning;
+alter table t1 drop column b;
+create or replace table t1 (
+a int, b int primary key,
+row_start timestamp(6) as row start,
+row_end timestamp(6) as row end,
+period for system_time(row_start, row_end)
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PRIMARY KEY (`b`,`row_end`),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t1 drop column b;
+ERROR 42000: Key column 'b' doesn't exist in table
+create or replace table t1 (
+a int, b int primary key,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PRIMARY KEY (`b`,`row_end`),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t1 drop column b;
+ERROR 42000: Key column 'b' doesn't exist in table
+drop table t1;
+#
+# MDEV-25172 Wrong error message for ADD COLUMN .. AS ROW START
+#
+create or replace table t1 (x int);
+alter table t1 add column y timestamp(6) as row start;
+ERROR HY000: Table `t1` is not system-versioned
+drop table t1;
+#
+# MDEV-25327 Unexpected ER_DUP_ENTRY upon dropping PK column from system-versioned table
+#
+create table t1 (pk int, a int, primary key (pk), key (a))
+with system versioning;
+insert into t1 values (1, 1), (2, 2);
+delete from t1;
+set system_versioning_alter_history= keep;
+alter table t1 drop pk;
+drop table t1;
+create table t1 (pk int, a int, primary key (pk), key (a))
+with system versioning;
+insert into t1 values (1, 2), (2, 8), (3, 4), (4, 4), (5, 0);
+delete from t1;
+set system_versioning_alter_history= keep;
+alter ignore table t1 drop pk;
+drop table t1;

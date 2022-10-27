@@ -1,0 +1,31 @@
+#
+# MDEV-13416 mariabackup fails with EFAULT "Bad Address"
+#
+# restart
+FOUND 1 /InnoDB: New log files created, LSN=175964\d{8}/ in mysqld.1.err
+CREATE TABLE t(i INT) ENGINE=INNODB ENCRYPTED=YES;
+INSERT INTO t VALUES(1);
+# xtrabackup backup
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+INSERT INTO t VALUES(2);
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t;
+i
+1
+FLUSH TABLE t FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t DISCARD TABLESPACE;
+ALTER TABLE t IMPORT TABLESPACE;
+FLUSH TABLE t FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t DISCARD TABLESPACE;
+ALTER TABLE t IMPORT TABLESPACE;
+DROP TABLE t;
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart

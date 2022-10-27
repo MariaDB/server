@@ -1,0 +1,43 @@
+# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/have_fractional_seconds.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS running_records;
+--enable_warnings
+
+CREATE TABLE running_records (
+  time TIME(6) PRIMARY KEY,
+  title TEXT
+) DEFAULT CHARSET UTF8;
+
+INSERT INTO running_records (time, title)
+       VALUES ("01:00:00.000001", "normal condition");
+INSERT INTO running_records (time, title)
+       VALUES ("12:23:34.123456", "bad condition");
+INSERT INTO running_records (time, title)
+       VALUES ("-838:59:59.000000", "record failure");
+
+SELECT * FROM running_records;
+
+SELECT * FROM running_records
+         WHERE time BETWEEN "00:59:59.999999" AND "12:23:34.123456";
+
+DROP TABLE running_records;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

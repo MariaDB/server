@@ -1,0 +1,4121 @@
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8865 Wrong field type or metadata for COALESCE(signed_int_column, unsigned_int_column)
+#
+#
+CREATE TABLE t1 (a INT, b INT UNSIGNED);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-1,1);
+INSERT INTO t1 VALUES (-2147483648,4294967295);
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	3	11	11	Y	32768	0	63
+def					case_______a	3	11	11	Y	32896	0	63
+def					case_____a_a	3	11	11	Y	32896	0	63
+def					coalesce___a	3	11	11	Y	32896	0	63
+def					coalesce_a_a	3	11	11	Y	32896	0	63
+def					if_______a_a	3	11	11	Y	32896	0	63
+def					ifnull___a_a	3	11	11	Y	32896	0	63
+def					least____a_a	3	11	11	Y	32896	0	63
+def					greatest_a_a	3	11	11	Y	32896	0	63
+def	test	t1	t1	b	___________b	3	10	10	Y	32800	0	63
+def					case_______b	3	10	10	Y	32928	0	63
+def					case_____b_b	3	10	10	Y	32928	0	63
+def					coalesce___b	3	10	10	Y	32928	0	63
+def					coalesce_b_b	3	10	10	Y	32928	0	63
+def					if_______b_b	3	10	10	Y	32928	0	63
+def					ifnull___b_b	3	10	10	Y	32928	0	63
+def					least____b_b	3	10	10	Y	32928	0	63
+def					greatest_b_b	3	10	10	Y	32928	0	63
+___________a	1
+case_______a	1
+case_____a_a	1
+coalesce___a	1
+coalesce_a_a	1
+if_______a_a	1
+ifnull___a_a	1
+least____a_a	1
+greatest_a_a	1
+___________b	1
+case_______b	1
+case_____b_b	1
+coalesce___b	1
+coalesce_b_b	1
+if_______b_b	1
+ifnull___b_b	1
+least____b_b	1
+greatest_b_b	1
+___________a	-1
+case_______a	-1
+case_____a_a	-1
+coalesce___a	-1
+coalesce_a_a	-1
+if_______a_a	-1
+ifnull___a_a	-1
+least____a_a	-1
+greatest_a_a	-1
+___________b	1
+case_______b	1
+case_____b_b	1
+coalesce___b	1
+coalesce_b_b	1
+if_______b_b	1
+ifnull___b_b	1
+least____b_b	1
+greatest_b_b	1
+___________a	-2147483648
+case_______a	-2147483648
+case_____a_a	-2147483648
+coalesce___a	-2147483648
+coalesce_a_a	-2147483648
+if_______a_a	-2147483648
+ifnull___a_a	-2147483648
+least____a_a	-2147483648
+greatest_a_a	-2147483648
+___________b	4294967295
+case_______b	4294967295
+case_____b_b	4294967295
+coalesce___b	4294967295
+coalesce_b_b	4294967295
+if_______b_b	4294967295
+ifnull___b_b	4294967295
+least____b_b	4294967295
+greatest_b_b	4294967295
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	246	11	11	Y	32896	0	63
+def					case_____b_a	246	11	10	Y	32896	0	63
+def					coalesce_a_b	246	11	11	Y	32896	0	63
+def					coalesce_b_a	246	11	10	Y	32896	0	63
+def					if_______a_b	246	11	10	Y	32896	0	63
+def					if_______b_a	246	11	11	Y	32896	0	63
+def					ifnull___a_b	246	11	11	Y	32896	0	63
+def					ifnull___b_a	246	11	10	Y	32896	0	63
+def					least____a_b	246	11	11	Y	32896	0	63
+def					least____b_a	246	11	11	Y	32896	0	63
+def					greatest_a_b	246	11	10	Y	32896	0	63
+def					greatest_b_a	246	11	10	Y	32896	0	63
+case_____a_b	1
+case_____b_a	1
+coalesce_a_b	1
+coalesce_b_a	1
+if_______a_b	1
+if_______b_a	1
+ifnull___a_b	1
+ifnull___b_a	1
+least____a_b	1
+least____b_a	1
+greatest_a_b	1
+greatest_b_a	1
+case_____a_b	-1
+case_____b_a	1
+coalesce_a_b	-1
+coalesce_b_a	1
+if_______a_b	1
+if_______b_a	-1
+ifnull___a_b	-1
+ifnull___b_a	1
+least____a_b	-1
+least____b_a	-1
+greatest_a_b	1
+greatest_b_a	1
+case_____a_b	-2147483648
+case_____b_a	4294967295
+coalesce_a_b	-2147483648
+coalesce_b_a	4294967295
+if_______a_b	4294967295
+if_______b_a	-2147483648
+ifnull___a_b	-2147483648
+ifnull___b_a	4294967295
+least____a_b	-2147483648
+least____b_a	-2147483648
+greatest_a_b	4294967295
+greatest_b_a	4294967295
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` int(11) DEFAULT NULL,
+  `case_______a` int(11) DEFAULT NULL,
+  `case_____a_a` int(11) DEFAULT NULL,
+  `coalesce___a` int(11) DEFAULT NULL,
+  `coalesce_a_a` int(11) DEFAULT NULL,
+  `if_______a_a` int(11) DEFAULT NULL,
+  `ifnull___a_a` int(11) DEFAULT NULL,
+  `least____a_a` int(11) DEFAULT NULL,
+  `greatest_a_a` int(11) DEFAULT NULL,
+  `___________b` int(10) unsigned DEFAULT NULL,
+  `case_______b` int(10) unsigned DEFAULT NULL,
+  `case_____b_b` int(10) unsigned DEFAULT NULL,
+  `coalesce___b` int(10) unsigned DEFAULT NULL,
+  `coalesce_b_b` int(10) unsigned DEFAULT NULL,
+  `if_______b_b` int(10) unsigned DEFAULT NULL,
+  `ifnull___b_b` int(10) unsigned DEFAULT NULL,
+  `least____b_b` int(10) unsigned DEFAULT NULL,
+  `greatest_b_b` int(10) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` decimal(10,0) DEFAULT NULL,
+  `case_____b_a` decimal(10,0) DEFAULT NULL,
+  `coalesce_a_b` decimal(10,0) DEFAULT NULL,
+  `coalesce_b_a` decimal(10,0) DEFAULT NULL,
+  `if_______a_b` decimal(10,0) DEFAULT NULL,
+  `if_______b_a` decimal(10,0) DEFAULT NULL,
+  `ifnull___a_b` decimal(10,0) DEFAULT NULL,
+  `ifnull___b_a` decimal(10,0) DEFAULT NULL,
+  `least____a_b` decimal(10,0) DEFAULT NULL,
+  `least____b_a` decimal(10,0) DEFAULT NULL,
+  `greatest_a_b` decimal(10,0) DEFAULT NULL,
+  `greatest_b_a` decimal(10,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-2147483648,2147483647);
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	3	11	11	Y	32768	0	63
+def					case_______a	3	11	11	Y	32896	0	63
+def					case_____a_a	3	11	11	Y	32896	0	63
+def					coalesce___a	3	11	11	Y	32896	0	63
+def					coalesce_a_a	3	11	11	Y	32896	0	63
+def					if_______a_a	3	11	11	Y	32896	0	63
+def					ifnull___a_a	3	11	11	Y	32896	0	63
+def					least____a_a	3	11	11	Y	32896	0	63
+def					greatest_a_a	3	11	11	Y	32896	0	63
+def	test	t1	t1	b	___________b	3	11	10	Y	32768	0	63
+def					case_______b	3	11	10	Y	32896	0	63
+def					case_____b_b	3	11	10	Y	32896	0	63
+def					coalesce___b	3	11	10	Y	32896	0	63
+def					coalesce_b_b	3	11	10	Y	32896	0	63
+def					if_______b_b	3	11	10	Y	32896	0	63
+def					ifnull___b_b	3	11	10	Y	32896	0	63
+def					least____b_b	3	11	10	Y	32896	0	63
+def					greatest_b_b	3	11	10	Y	32896	0	63
+___________a	1
+case_______a	1
+case_____a_a	1
+coalesce___a	1
+coalesce_a_a	1
+if_______a_a	1
+ifnull___a_a	1
+least____a_a	1
+greatest_a_a	1
+___________b	1
+case_______b	1
+case_____b_b	1
+coalesce___b	1
+coalesce_b_b	1
+if_______b_b	1
+ifnull___b_b	1
+least____b_b	1
+greatest_b_b	1
+___________a	-2147483648
+case_______a	-2147483648
+case_____a_a	-2147483648
+coalesce___a	-2147483648
+coalesce_a_a	-2147483648
+if_______a_a	-2147483648
+ifnull___a_a	-2147483648
+least____a_a	-2147483648
+greatest_a_a	-2147483648
+___________b	2147483647
+case_______b	2147483647
+case_____b_b	2147483647
+coalesce___b	2147483647
+coalesce_b_b	2147483647
+if_______b_b	2147483647
+ifnull___b_b	2147483647
+least____b_b	2147483647
+greatest_b_b	2147483647
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	3	11	11	Y	32896	0	63
+def					case_____b_a	3	11	10	Y	32896	0	63
+def					coalesce_a_b	3	11	11	Y	32896	0	63
+def					coalesce_b_a	3	11	10	Y	32896	0	63
+def					if_______a_b	3	11	10	Y	32896	0	63
+def					if_______b_a	3	11	11	Y	32896	0	63
+def					ifnull___a_b	3	11	11	Y	32896	0	63
+def					ifnull___b_a	3	11	10	Y	32896	0	63
+def					least____a_b	3	11	11	Y	32896	0	63
+def					least____b_a	3	11	11	Y	32896	0	63
+def					greatest_a_b	3	11	10	Y	32896	0	63
+def					greatest_b_a	3	11	10	Y	32896	0	63
+case_____a_b	1
+case_____b_a	1
+coalesce_a_b	1
+coalesce_b_a	1
+if_______a_b	1
+if_______b_a	1
+ifnull___a_b	1
+ifnull___b_a	1
+least____a_b	1
+least____b_a	1
+greatest_a_b	1
+greatest_b_a	1
+case_____a_b	-2147483648
+case_____b_a	2147483647
+coalesce_a_b	-2147483648
+coalesce_b_a	2147483647
+if_______a_b	2147483647
+if_______b_a	-2147483648
+ifnull___a_b	-2147483648
+ifnull___b_a	2147483647
+least____a_b	-2147483648
+least____b_a	-2147483648
+greatest_a_b	2147483647
+greatest_b_a	2147483647
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` int(11) DEFAULT NULL,
+  `case_______a` int(11) DEFAULT NULL,
+  `case_____a_a` int(11) DEFAULT NULL,
+  `coalesce___a` int(11) DEFAULT NULL,
+  `coalesce_a_a` int(11) DEFAULT NULL,
+  `if_______a_a` int(11) DEFAULT NULL,
+  `ifnull___a_a` int(11) DEFAULT NULL,
+  `least____a_a` int(11) DEFAULT NULL,
+  `greatest_a_a` int(11) DEFAULT NULL,
+  `___________b` int(11) DEFAULT NULL,
+  `case_______b` int(11) DEFAULT NULL,
+  `case_____b_b` int(11) DEFAULT NULL,
+  `coalesce___b` int(11) DEFAULT NULL,
+  `coalesce_b_b` int(11) DEFAULT NULL,
+  `if_______b_b` int(11) DEFAULT NULL,
+  `ifnull___b_b` int(11) DEFAULT NULL,
+  `least____b_b` int(11) DEFAULT NULL,
+  `greatest_b_b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` int(11) DEFAULT NULL,
+  `case_____b_a` int(11) DEFAULT NULL,
+  `coalesce_a_b` int(11) DEFAULT NULL,
+  `coalesce_b_a` int(11) DEFAULT NULL,
+  `if_______a_b` int(11) DEFAULT NULL,
+  `if_______b_a` int(11) DEFAULT NULL,
+  `ifnull___a_b` int(11) DEFAULT NULL,
+  `ifnull___b_a` int(11) DEFAULT NULL,
+  `least____a_b` int(11) DEFAULT NULL,
+  `least____b_a` int(11) DEFAULT NULL,
+  `greatest_a_b` int(11) DEFAULT NULL,
+  `greatest_b_a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+CREATE TABLE t1 (a BIGINT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-9223372036854775808,0xFFFFFFFFFFFFFFFF);
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	8	20	20	Y	32768	0	63
+def					case_______a	8	20	20	Y	32896	0	63
+def					case_____a_a	8	20	20	Y	32896	0	63
+def					coalesce___a	8	20	20	Y	32896	0	63
+def					coalesce_a_a	8	20	20	Y	32896	0	63
+def					if_______a_a	8	20	20	Y	32896	0	63
+def					ifnull___a_a	8	20	20	Y	32896	0	63
+def					least____a_a	8	20	20	Y	32896	0	63
+def					greatest_a_a	8	20	20	Y	32896	0	63
+def	test	t1	t1	b	___________b	8	20	20	Y	32800	0	63
+def					case_______b	8	20	20	Y	32928	0	63
+def					case_____b_b	8	20	20	Y	32928	0	63
+def					coalesce___b	8	20	20	Y	32928	0	63
+def					coalesce_b_b	8	20	20	Y	32928	0	63
+def					if_______b_b	8	20	20	Y	32928	0	63
+def					ifnull___b_b	8	20	20	Y	32928	0	63
+def					least____b_b	8	20	20	Y	32928	0	63
+def					greatest_b_b	8	20	20	Y	32928	0	63
+___________a	1
+case_______a	1
+case_____a_a	1
+coalesce___a	1
+coalesce_a_a	1
+if_______a_a	1
+ifnull___a_a	1
+least____a_a	1
+greatest_a_a	1
+___________b	1
+case_______b	1
+case_____b_b	1
+coalesce___b	1
+coalesce_b_b	1
+if_______b_b	1
+ifnull___b_b	1
+least____b_b	1
+greatest_b_b	1
+___________a	-9223372036854775808
+case_______a	-9223372036854775808
+case_____a_a	-9223372036854775808
+coalesce___a	-9223372036854775808
+coalesce_a_a	-9223372036854775808
+if_______a_a	-9223372036854775808
+ifnull___a_a	-9223372036854775808
+least____a_a	-9223372036854775808
+greatest_a_a	-9223372036854775808
+___________b	18446744073709551615
+case_______b	18446744073709551615
+case_____b_b	18446744073709551615
+coalesce___b	18446744073709551615
+coalesce_b_b	18446744073709551615
+if_______b_b	18446744073709551615
+ifnull___b_b	18446744073709551615
+least____b_b	18446744073709551615
+greatest_b_b	18446744073709551615
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	246	21	20	Y	32896	0	63
+def					case_____b_a	246	21	20	Y	32896	0	63
+def					coalesce_a_b	246	21	20	Y	32896	0	63
+def					coalesce_b_a	246	21	20	Y	32896	0	63
+def					if_______a_b	246	21	20	Y	32896	0	63
+def					if_______b_a	246	21	20	Y	32896	0	63
+def					ifnull___a_b	246	21	20	Y	32896	0	63
+def					ifnull___b_a	246	21	20	Y	32896	0	63
+def					least____a_b	246	21	20	Y	32896	0	63
+def					least____b_a	246	21	20	Y	32896	0	63
+def					greatest_a_b	246	21	20	Y	32896	0	63
+def					greatest_b_a	246	21	20	Y	32896	0	63
+case_____a_b	1
+case_____b_a	1
+coalesce_a_b	1
+coalesce_b_a	1
+if_______a_b	1
+if_______b_a	1
+ifnull___a_b	1
+ifnull___b_a	1
+least____a_b	1
+least____b_a	1
+greatest_a_b	1
+greatest_b_a	1
+case_____a_b	-9223372036854775808
+case_____b_a	18446744073709551615
+coalesce_a_b	-9223372036854775808
+coalesce_b_a	18446744073709551615
+if_______a_b	18446744073709551615
+if_______b_a	-9223372036854775808
+ifnull___a_b	-9223372036854775808
+ifnull___b_a	18446744073709551615
+least____a_b	-9223372036854775808
+least____b_a	-9223372036854775808
+greatest_a_b	18446744073709551615
+greatest_b_a	18446744073709551615
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` bigint(20) DEFAULT NULL,
+  `case_______a` bigint(20) DEFAULT NULL,
+  `case_____a_a` bigint(20) DEFAULT NULL,
+  `coalesce___a` bigint(20) DEFAULT NULL,
+  `coalesce_a_a` bigint(20) DEFAULT NULL,
+  `if_______a_a` bigint(20) DEFAULT NULL,
+  `ifnull___a_a` bigint(20) DEFAULT NULL,
+  `least____a_a` bigint(20) DEFAULT NULL,
+  `greatest_a_a` bigint(20) DEFAULT NULL,
+  `___________b` bigint(20) unsigned DEFAULT NULL,
+  `case_______b` bigint(20) unsigned DEFAULT NULL,
+  `case_____b_b` bigint(20) unsigned DEFAULT NULL,
+  `coalesce___b` bigint(20) unsigned DEFAULT NULL,
+  `coalesce_b_b` bigint(20) unsigned DEFAULT NULL,
+  `if_______b_b` bigint(20) unsigned DEFAULT NULL,
+  `ifnull___b_b` bigint(20) unsigned DEFAULT NULL,
+  `least____b_b` bigint(20) unsigned DEFAULT NULL,
+  `greatest_b_b` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` decimal(20,0) DEFAULT NULL,
+  `case_____b_a` decimal(20,0) DEFAULT NULL,
+  `coalesce_a_b` decimal(20,0) DEFAULT NULL,
+  `coalesce_b_a` decimal(20,0) DEFAULT NULL,
+  `if_______a_b` decimal(20,0) DEFAULT NULL,
+  `if_______b_a` decimal(20,0) DEFAULT NULL,
+  `ifnull___a_b` decimal(20,0) DEFAULT NULL,
+  `ifnull___b_a` decimal(20,0) DEFAULT NULL,
+  `least____a_b` decimal(20,0) DEFAULT NULL,
+  `least____b_a` decimal(20,0) DEFAULT NULL,
+  `greatest_a_b` decimal(20,0) DEFAULT NULL,
+  `greatest_b_a` decimal(20,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+CREATE TABLE t1 (a BIGINT, b BIGINT);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-9223372036854775808,9223372036854775807);
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	8	20	20	Y	32768	0	63
+def					case_______a	8	20	20	Y	32896	0	63
+def					case_____a_a	8	20	20	Y	32896	0	63
+def					coalesce___a	8	20	20	Y	32896	0	63
+def					coalesce_a_a	8	20	20	Y	32896	0	63
+def					if_______a_a	8	20	20	Y	32896	0	63
+def					ifnull___a_a	8	20	20	Y	32896	0	63
+def					least____a_a	8	20	20	Y	32896	0	63
+def					greatest_a_a	8	20	20	Y	32896	0	63
+def	test	t1	t1	b	___________b	8	20	19	Y	32768	0	63
+def					case_______b	8	20	19	Y	32896	0	63
+def					case_____b_b	8	20	19	Y	32896	0	63
+def					coalesce___b	8	20	19	Y	32896	0	63
+def					coalesce_b_b	8	20	19	Y	32896	0	63
+def					if_______b_b	8	20	19	Y	32896	0	63
+def					ifnull___b_b	8	20	19	Y	32896	0	63
+def					least____b_b	8	20	19	Y	32896	0	63
+def					greatest_b_b	8	20	19	Y	32896	0	63
+___________a	1
+case_______a	1
+case_____a_a	1
+coalesce___a	1
+coalesce_a_a	1
+if_______a_a	1
+ifnull___a_a	1
+least____a_a	1
+greatest_a_a	1
+___________b	1
+case_______b	1
+case_____b_b	1
+coalesce___b	1
+coalesce_b_b	1
+if_______b_b	1
+ifnull___b_b	1
+least____b_b	1
+greatest_b_b	1
+___________a	-9223372036854775808
+case_______a	-9223372036854775808
+case_____a_a	-9223372036854775808
+coalesce___a	-9223372036854775808
+coalesce_a_a	-9223372036854775808
+if_______a_a	-9223372036854775808
+ifnull___a_a	-9223372036854775808
+least____a_a	-9223372036854775808
+greatest_a_a	-9223372036854775808
+___________b	9223372036854775807
+case_______b	9223372036854775807
+case_____b_b	9223372036854775807
+coalesce___b	9223372036854775807
+coalesce_b_b	9223372036854775807
+if_______b_b	9223372036854775807
+ifnull___b_b	9223372036854775807
+least____b_b	9223372036854775807
+greatest_b_b	9223372036854775807
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	8	20	20	Y	32896	0	63
+def					case_____b_a	8	20	19	Y	32896	0	63
+def					coalesce_a_b	8	20	20	Y	32896	0	63
+def					coalesce_b_a	8	20	19	Y	32896	0	63
+def					if_______a_b	8	20	19	Y	32896	0	63
+def					if_______b_a	8	20	20	Y	32896	0	63
+def					ifnull___a_b	8	20	20	Y	32896	0	63
+def					ifnull___b_a	8	20	19	Y	32896	0	63
+def					least____a_b	8	20	20	Y	32896	0	63
+def					least____b_a	8	20	20	Y	32896	0	63
+def					greatest_a_b	8	20	19	Y	32896	0	63
+def					greatest_b_a	8	20	19	Y	32896	0	63
+case_____a_b	1
+case_____b_a	1
+coalesce_a_b	1
+coalesce_b_a	1
+if_______a_b	1
+if_______b_a	1
+ifnull___a_b	1
+ifnull___b_a	1
+least____a_b	1
+least____b_a	1
+greatest_a_b	1
+greatest_b_a	1
+case_____a_b	-9223372036854775808
+case_____b_a	9223372036854775807
+coalesce_a_b	-9223372036854775808
+coalesce_b_a	9223372036854775807
+if_______a_b	9223372036854775807
+if_______b_a	-9223372036854775808
+ifnull___a_b	-9223372036854775808
+ifnull___b_a	9223372036854775807
+least____a_b	-9223372036854775808
+least____b_a	-9223372036854775808
+greatest_a_b	9223372036854775807
+greatest_b_a	9223372036854775807
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` bigint(20) DEFAULT NULL,
+  `case_______a` bigint(20) DEFAULT NULL,
+  `case_____a_a` bigint(20) DEFAULT NULL,
+  `coalesce___a` bigint(20) DEFAULT NULL,
+  `coalesce_a_a` bigint(20) DEFAULT NULL,
+  `if_______a_a` bigint(20) DEFAULT NULL,
+  `ifnull___a_a` bigint(20) DEFAULT NULL,
+  `least____a_a` bigint(20) DEFAULT NULL,
+  `greatest_a_a` bigint(20) DEFAULT NULL,
+  `___________b` bigint(20) DEFAULT NULL,
+  `case_______b` bigint(20) DEFAULT NULL,
+  `case_____b_b` bigint(20) DEFAULT NULL,
+  `coalesce___b` bigint(20) DEFAULT NULL,
+  `coalesce_b_b` bigint(20) DEFAULT NULL,
+  `if_______b_b` bigint(20) DEFAULT NULL,
+  `ifnull___b_b` bigint(20) DEFAULT NULL,
+  `least____b_b` bigint(20) DEFAULT NULL,
+  `greatest_b_b` bigint(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` bigint(20) DEFAULT NULL,
+  `case_____b_a` bigint(20) DEFAULT NULL,
+  `coalesce_a_b` bigint(20) DEFAULT NULL,
+  `coalesce_b_a` bigint(20) DEFAULT NULL,
+  `if_______a_b` bigint(20) DEFAULT NULL,
+  `if_______b_a` bigint(20) DEFAULT NULL,
+  `ifnull___a_b` bigint(20) DEFAULT NULL,
+  `ifnull___b_a` bigint(20) DEFAULT NULL,
+  `least____a_b` bigint(20) DEFAULT NULL,
+  `least____b_a` bigint(20) DEFAULT NULL,
+  `greatest_a_b` bigint(20) DEFAULT NULL,
+  `greatest_b_a` bigint(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+CREATE TABLE t1 (a INT, b BIT(8));
+INSERT INTO t1 VALUES (-2147483648,0x32);
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	3	11	11	Y	32768	0	63
+def					case_______a	3	11	11	Y	32896	0	63
+def					case_____a_a	3	11	11	Y	32896	0	63
+def					coalesce___a	3	11	11	Y	32896	0	63
+def					coalesce_a_a	3	11	11	Y	32896	0	63
+def					if_______a_a	3	11	11	Y	32896	0	63
+def					ifnull___a_a	3	11	11	Y	32896	0	63
+def					least____a_a	3	11	11	Y	32896	0	63
+def					greatest_a_a	3	11	11	Y	32896	0	63
+def	test	t1	t1	b	___________b	16	8	1	Y	32	0	63
+def					case_______b	16	8	2	Y	160	0	63
+def					case_____b_b	16	8	2	Y	160	0	63
+def					coalesce___b	16	8	2	Y	160	0	63
+def					coalesce_b_b	16	8	2	Y	160	0	63
+def					if_______b_b	16	8	2	Y	160	0	63
+def					ifnull___b_b	16	8	2	Y	160	0	63
+def					least____b_b	16	8	2	Y	160	0	63
+def					greatest_b_b	16	8	2	Y	160	0	63
+___________a	-2147483648
+case_______a	-2147483648
+case_____a_a	-2147483648
+coalesce___a	-2147483648
+coalesce_a_a	-2147483648
+if_______a_a	-2147483648
+ifnull___a_a	-2147483648
+least____a_a	-2147483648
+greatest_a_a	-2147483648
+___________b	2
+case_______b	50
+case_____b_b	50
+coalesce___b	50
+coalesce_b_b	50
+if_______b_b	50
+ifnull___b_b	50
+least____b_b	50
+greatest_b_b	50
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	246	11	11	Y	32896	0	63
+def					case_____b_a	246	11	2	Y	32896	0	63
+def					coalesce_a_b	246	11	11	Y	32896	0	63
+def					coalesce_b_a	246	11	2	Y	32896	0	63
+def					if_______a_b	246	11	2	Y	32896	0	63
+def					if_______b_a	246	11	11	Y	32896	0	63
+def					ifnull___a_b	246	11	11	Y	32896	0	63
+def					ifnull___b_a	246	11	2	Y	32896	0	63
+def					least____a_b	246	11	11	Y	32896	0	63
+def					least____b_a	246	11	11	Y	32896	0	63
+def					greatest_a_b	246	11	2	Y	32896	0	63
+def					greatest_b_a	246	11	2	Y	32896	0	63
+case_____a_b	-2147483648
+case_____b_a	50
+coalesce_a_b	-2147483648
+coalesce_b_a	50
+if_______a_b	50
+if_______b_a	-2147483648
+ifnull___a_b	-2147483648
+ifnull___b_a	50
+least____a_b	-2147483648
+least____b_a	-2147483648
+greatest_a_b	50
+greatest_b_a	50
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` int(11) DEFAULT NULL,
+  `case_______a` int(11) DEFAULT NULL,
+  `case_____a_a` int(11) DEFAULT NULL,
+  `coalesce___a` int(11) DEFAULT NULL,
+  `coalesce_a_a` int(11) DEFAULT NULL,
+  `if_______a_a` int(11) DEFAULT NULL,
+  `ifnull___a_a` int(11) DEFAULT NULL,
+  `least____a_a` int(11) DEFAULT NULL,
+  `greatest_a_a` int(11) DEFAULT NULL,
+  `___________b` bit(8) DEFAULT NULL,
+  `case_______b` bit(8) DEFAULT NULL,
+  `case_____b_b` bit(8) DEFAULT NULL,
+  `coalesce___b` bit(8) DEFAULT NULL,
+  `coalesce_b_b` bit(8) DEFAULT NULL,
+  `if_______b_b` bit(8) DEFAULT NULL,
+  `ifnull___b_b` bit(8) DEFAULT NULL,
+  `least____b_b` bit(8) DEFAULT NULL,
+  `greatest_b_b` bit(8) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` decimal(10,0) DEFAULT NULL,
+  `case_____b_a` decimal(10,0) DEFAULT NULL,
+  `coalesce_a_b` decimal(10,0) DEFAULT NULL,
+  `coalesce_b_a` decimal(10,0) DEFAULT NULL,
+  `if_______a_b` decimal(10,0) DEFAULT NULL,
+  `if_______b_a` decimal(10,0) DEFAULT NULL,
+  `ifnull___a_b` decimal(10,0) DEFAULT NULL,
+  `ifnull___b_a` decimal(10,0) DEFAULT NULL,
+  `least____a_b` decimal(10,0) DEFAULT NULL,
+  `least____b_a` decimal(10,0) DEFAULT NULL,
+  `greatest_a_b` decimal(10,0) DEFAULT NULL,
+  `greatest_b_a` decimal(10,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+CREATE TABLE t1 (a INT UNSIGNED, b BIT(8));
+INSERT INTO t1 VALUES (4294967295,0x32);
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	3	10	10	Y	32800	0	63
+def					case_______a	3	10	10	Y	32928	0	63
+def					case_____a_a	3	10	10	Y	32928	0	63
+def					coalesce___a	3	10	10	Y	32928	0	63
+def					coalesce_a_a	3	10	10	Y	32928	0	63
+def					if_______a_a	3	10	10	Y	32928	0	63
+def					ifnull___a_a	3	10	10	Y	32928	0	63
+def					least____a_a	3	10	10	Y	32928	0	63
+def					greatest_a_a	3	10	10	Y	32928	0	63
+def	test	t1	t1	b	___________b	16	8	1	Y	32	0	63
+def					case_______b	16	8	2	Y	160	0	63
+def					case_____b_b	16	8	2	Y	160	0	63
+def					coalesce___b	16	8	2	Y	160	0	63
+def					coalesce_b_b	16	8	2	Y	160	0	63
+def					if_______b_b	16	8	2	Y	160	0	63
+def					ifnull___b_b	16	8	2	Y	160	0	63
+def					least____b_b	16	8	2	Y	160	0	63
+def					greatest_b_b	16	8	2	Y	160	0	63
+___________a	4294967295
+case_______a	4294967295
+case_____a_a	4294967295
+coalesce___a	4294967295
+coalesce_a_a	4294967295
+if_______a_a	4294967295
+ifnull___a_a	4294967295
+least____a_a	4294967295
+greatest_a_a	4294967295
+___________b	2
+case_______b	50
+case_____b_b	50
+coalesce___b	50
+coalesce_b_b	50
+if_______b_b	50
+ifnull___b_b	50
+least____b_b	50
+greatest_b_b	50
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	3	10	10	Y	32928	0	63
+def					case_____b_a	3	10	2	Y	32928	0	63
+def					coalesce_a_b	3	10	10	Y	32928	0	63
+def					coalesce_b_a	3	10	2	Y	32928	0	63
+def					if_______a_b	3	10	2	Y	32928	0	63
+def					if_______b_a	3	10	10	Y	32928	0	63
+def					ifnull___a_b	3	10	10	Y	32928	0	63
+def					ifnull___b_a	3	10	2	Y	32928	0	63
+def					least____a_b	3	10	2	Y	32928	0	63
+def					least____b_a	3	10	2	Y	32928	0	63
+def					greatest_a_b	3	10	10	Y	32928	0	63
+def					greatest_b_a	3	10	10	Y	32928	0	63
+case_____a_b	4294967295
+case_____b_a	50
+coalesce_a_b	4294967295
+coalesce_b_a	50
+if_______a_b	50
+if_______b_a	4294967295
+ifnull___a_b	4294967295
+ifnull___b_a	50
+least____a_b	50
+least____b_a	50
+greatest_a_b	4294967295
+greatest_b_a	4294967295
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` int(10) unsigned DEFAULT NULL,
+  `case_______a` int(10) unsigned DEFAULT NULL,
+  `case_____a_a` int(10) unsigned DEFAULT NULL,
+  `coalesce___a` int(10) unsigned DEFAULT NULL,
+  `coalesce_a_a` int(10) unsigned DEFAULT NULL,
+  `if_______a_a` int(10) unsigned DEFAULT NULL,
+  `ifnull___a_a` int(10) unsigned DEFAULT NULL,
+  `least____a_a` int(10) unsigned DEFAULT NULL,
+  `greatest_a_a` int(10) unsigned DEFAULT NULL,
+  `___________b` bit(8) DEFAULT NULL,
+  `case_______b` bit(8) DEFAULT NULL,
+  `case_____b_b` bit(8) DEFAULT NULL,
+  `coalesce___b` bit(8) DEFAULT NULL,
+  `coalesce_b_b` bit(8) DEFAULT NULL,
+  `if_______b_b` bit(8) DEFAULT NULL,
+  `ifnull___b_b` bit(8) DEFAULT NULL,
+  `least____b_b` bit(8) DEFAULT NULL,
+  `greatest_b_b` bit(8) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` int(10) unsigned DEFAULT NULL,
+  `case_____b_a` int(10) unsigned DEFAULT NULL,
+  `coalesce_a_b` int(10) unsigned DEFAULT NULL,
+  `coalesce_b_a` int(10) unsigned DEFAULT NULL,
+  `if_______a_b` int(10) unsigned DEFAULT NULL,
+  `if_______b_a` int(10) unsigned DEFAULT NULL,
+  `ifnull___a_b` int(10) unsigned DEFAULT NULL,
+  `ifnull___b_a` int(10) unsigned DEFAULT NULL,
+  `least____a_b` int(10) unsigned DEFAULT NULL,
+  `least____b_a` int(10) unsigned DEFAULT NULL,
+  `greatest_a_b` int(10) unsigned DEFAULT NULL,
+  `greatest_b_a` int(10) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+CREATE TABLE t1 (a BIT(7), b BIT(8));
+INSERT INTO t1 VALUES (0x32,0x32);
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	16	7	1	Y	32	0	63
+def					case_______a	16	7	2	Y	160	0	63
+def					case_____a_a	16	7	2	Y	160	0	63
+def					coalesce___a	16	7	2	Y	160	0	63
+def					coalesce_a_a	16	7	2	Y	160	0	63
+def					if_______a_a	16	7	2	Y	160	0	63
+def					ifnull___a_a	16	7	2	Y	160	0	63
+def					least____a_a	16	7	2	Y	160	0	63
+def					greatest_a_a	16	7	2	Y	160	0	63
+def	test	t1	t1	b	___________b	16	8	1	Y	32	0	63
+def					case_______b	16	8	2	Y	160	0	63
+def					case_____b_b	16	8	2	Y	160	0	63
+def					coalesce___b	16	8	2	Y	160	0	63
+def					coalesce_b_b	16	8	2	Y	160	0	63
+def					if_______b_b	16	8	2	Y	160	0	63
+def					ifnull___b_b	16	8	2	Y	160	0	63
+def					least____b_b	16	8	2	Y	160	0	63
+def					greatest_b_b	16	8	2	Y	160	0	63
+___________a	2
+case_______a	50
+case_____a_a	50
+coalesce___a	50
+coalesce_a_a	50
+if_______a_a	50
+ifnull___a_a	50
+least____a_a	50
+greatest_a_a	50
+___________b	2
+case_______b	50
+case_____b_b	50
+coalesce___b	50
+coalesce_b_b	50
+if_______b_b	50
+ifnull___b_b	50
+least____b_b	50
+greatest_b_b	50
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	16	8	2	Y	160	0	63
+def					case_____b_a	16	8	2	Y	160	0	63
+def					coalesce_a_b	16	8	2	Y	160	0	63
+def					coalesce_b_a	16	8	2	Y	160	0	63
+def					if_______a_b	16	8	2	Y	160	0	63
+def					if_______b_a	16	8	2	Y	160	0	63
+def					ifnull___a_b	16	8	2	Y	160	0	63
+def					ifnull___b_a	16	8	2	Y	160	0	63
+def					least____a_b	16	8	2	Y	160	0	63
+def					least____b_a	16	8	2	Y	160	0	63
+def					greatest_a_b	16	8	2	Y	160	0	63
+def					greatest_b_a	16	8	2	Y	160	0	63
+case_____a_b	50
+case_____b_a	50
+coalesce_a_b	50
+coalesce_b_a	50
+if_______a_b	50
+if_______b_a	50
+ifnull___a_b	50
+ifnull___b_a	50
+least____a_b	50
+least____b_a	50
+greatest_a_b	50
+greatest_b_a	50
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` bit(7) DEFAULT NULL,
+  `case_______a` bit(7) DEFAULT NULL,
+  `case_____a_a` bit(7) DEFAULT NULL,
+  `coalesce___a` bit(7) DEFAULT NULL,
+  `coalesce_a_a` bit(7) DEFAULT NULL,
+  `if_______a_a` bit(7) DEFAULT NULL,
+  `ifnull___a_a` bit(7) DEFAULT NULL,
+  `least____a_a` bit(7) DEFAULT NULL,
+  `greatest_a_a` bit(7) DEFAULT NULL,
+  `___________b` bit(8) DEFAULT NULL,
+  `case_______b` bit(8) DEFAULT NULL,
+  `case_____b_b` bit(8) DEFAULT NULL,
+  `coalesce___b` bit(8) DEFAULT NULL,
+  `coalesce_b_b` bit(8) DEFAULT NULL,
+  `if_______b_b` bit(8) DEFAULT NULL,
+  `ifnull___b_b` bit(8) DEFAULT NULL,
+  `least____b_b` bit(8) DEFAULT NULL,
+  `greatest_b_b` bit(8) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` bit(8) DEFAULT NULL,
+  `case_____b_a` bit(8) DEFAULT NULL,
+  `coalesce_a_b` bit(8) DEFAULT NULL,
+  `coalesce_b_a` bit(8) DEFAULT NULL,
+  `if_______a_b` bit(8) DEFAULT NULL,
+  `if_______b_a` bit(8) DEFAULT NULL,
+  `ifnull___a_b` bit(8) DEFAULT NULL,
+  `ifnull___b_a` bit(8) DEFAULT NULL,
+  `least____a_b` bit(8) DEFAULT NULL,
+  `least____b_a` bit(8) DEFAULT NULL,
+  `greatest_a_b` bit(8) DEFAULT NULL,
+  `greatest_b_a` bit(8) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+CREATE TABLE t1 (a FLOAT, b SMALLINT);
+INSERT INTO t1 VALUES (1,-32678);
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	4	12	1	Y	32768	31	63
+def					case_______a	4	12	1	Y	32896	31	63
+def					case_____a_a	4	12	1	Y	32896	31	63
+def					coalesce___a	4	12	1	Y	32896	31	63
+def					coalesce_a_a	4	12	1	Y	32896	31	63
+def					if_______a_a	4	12	1	Y	32896	31	63
+def					ifnull___a_a	4	12	1	Y	32896	31	63
+def					least____a_a	4	23	1	Y	32896	31	63
+def					greatest_a_a	4	23	1	Y	32896	31	63
+def	test	t1	t1	b	___________b	2	6	6	Y	32768	0	63
+def					case_______b	2	6	6	Y	32896	0	63
+def					case_____b_b	2	6	6	Y	32896	0	63
+def					coalesce___b	2	6	6	Y	32896	0	63
+def					coalesce_b_b	2	6	6	Y	32896	0	63
+def					if_______b_b	2	6	6	Y	32896	0	63
+def					ifnull___b_b	2	6	6	Y	32896	0	63
+def					least____b_b	2	6	6	Y	32896	0	63
+def					greatest_b_b	2	6	6	Y	32896	0	63
+___________a	1
+case_______a	1
+case_____a_a	1
+coalesce___a	1
+coalesce_a_a	1
+if_______a_a	1
+ifnull___a_a	1
+least____a_a	1
+greatest_a_a	1
+___________b	-32678
+case_______b	-32678
+case_____b_b	-32678
+coalesce___b	-32678
+coalesce_b_b	-32678
+if_______b_b	-32678
+ifnull___b_b	-32678
+least____b_b	-32678
+greatest_b_b	-32678
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	4	12	1	Y	32896	31	63
+def					case_____b_a	4	12	6	Y	32896	31	63
+def					coalesce_a_b	4	12	1	Y	32896	31	63
+def					coalesce_b_a	4	12	6	Y	32896	31	63
+def					if_______a_b	4	12	6	Y	32896	31	63
+def					if_______b_a	4	12	1	Y	32896	31	63
+def					ifnull___a_b	4	12	1	Y	32896	31	63
+def					ifnull___b_a	4	12	6	Y	32896	31	63
+def					least____a_b	5	23	6	Y	32896	31	63
+def					least____b_a	5	23	6	Y	32896	31	63
+def					greatest_a_b	5	23	1	Y	32896	31	63
+def					greatest_b_a	5	23	1	Y	32896	31	63
+case_____a_b	1
+case_____b_a	-32678
+coalesce_a_b	1
+coalesce_b_a	-32678
+if_______a_b	-32678
+if_______b_a	1
+ifnull___a_b	1
+ifnull___b_a	-32678
+least____a_b	-32678
+least____b_a	-32678
+greatest_a_b	1
+greatest_b_a	1
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` float DEFAULT NULL,
+  `case_______a` float DEFAULT NULL,
+  `case_____a_a` float DEFAULT NULL,
+  `coalesce___a` float DEFAULT NULL,
+  `coalesce_a_a` float DEFAULT NULL,
+  `if_______a_a` float DEFAULT NULL,
+  `ifnull___a_a` float DEFAULT NULL,
+  `least____a_a` float DEFAULT NULL,
+  `greatest_a_a` float DEFAULT NULL,
+  `___________b` smallint(6) DEFAULT NULL,
+  `case_______b` smallint(6) DEFAULT NULL,
+  `case_____b_b` smallint(6) DEFAULT NULL,
+  `coalesce___b` smallint(6) DEFAULT NULL,
+  `coalesce_b_b` smallint(6) DEFAULT NULL,
+  `if_______b_b` smallint(6) DEFAULT NULL,
+  `ifnull___b_b` smallint(6) DEFAULT NULL,
+  `least____b_b` smallint(6) DEFAULT NULL,
+  `greatest_b_b` smallint(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` float DEFAULT NULL,
+  `case_____b_a` float DEFAULT NULL,
+  `coalesce_a_b` float DEFAULT NULL,
+  `coalesce_b_a` float DEFAULT NULL,
+  `if_______a_b` float DEFAULT NULL,
+  `if_______b_a` float DEFAULT NULL,
+  `ifnull___a_b` float DEFAULT NULL,
+  `ifnull___b_a` float DEFAULT NULL,
+  `least____a_b` double DEFAULT NULL,
+  `least____b_a` double DEFAULT NULL,
+  `greatest_a_b` double DEFAULT NULL,
+  `greatest_b_a` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+CREATE TABLE t1 (a VARCHAR(10), b ENUM('b'));
+INSERT INTO t1 VALUES ('a','b');
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	253	10	1	Y	0	0	8
+def					case_______a	253	10	1	Y	0	39	8
+def					case_____a_a	253	10	1	Y	0	39	8
+def					coalesce___a	253	10	1	Y	0	39	8
+def					coalesce_a_a	253	10	1	Y	0	39	8
+def					if_______a_a	253	10	1	Y	0	39	8
+def					ifnull___a_a	253	10	1	Y	0	39	8
+def					least____a_a	253	10	1	Y	0	39	8
+def					greatest_a_a	253	10	1	Y	0	39	8
+def	test	t1	t1	b	___________b	254	1	1	Y	256	0	8
+def					case_______b	254	1	1	Y	0	39	8
+def					case_____b_b	254	1	1	Y	0	39	8
+def					coalesce___b	254	1	1	Y	0	39	8
+def					coalesce_b_b	254	1	1	Y	0	39	8
+def					if_______b_b	254	1	1	Y	0	39	8
+def					ifnull___b_b	254	1	1	Y	0	39	8
+def					least____b_b	254	1	1	Y	0	39	8
+def					greatest_b_b	254	1	1	Y	0	39	8
+___________a	a
+case_______a	a
+case_____a_a	a
+coalesce___a	a
+coalesce_a_a	a
+if_______a_a	a
+ifnull___a_a	a
+least____a_a	a
+greatest_a_a	a
+___________b	b
+case_______b	b
+case_____b_b	b
+coalesce___b	b
+coalesce_b_b	b
+if_______b_b	b
+ifnull___b_b	b
+least____b_b	b
+greatest_b_b	b
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	253	10	1	Y	0	39	8
+def					case_____b_a	253	10	1	Y	0	39	8
+def					coalesce_a_b	253	10	1	Y	0	39	8
+def					coalesce_b_a	253	10	1	Y	0	39	8
+def					if_______a_b	253	10	1	Y	0	39	8
+def					if_______b_a	253	10	1	Y	0	39	8
+def					ifnull___a_b	253	10	1	Y	0	39	8
+def					ifnull___b_a	253	10	1	Y	0	39	8
+def					least____a_b	253	10	1	Y	0	39	8
+def					least____b_a	253	10	1	Y	0	39	8
+def					greatest_a_b	253	10	1	Y	0	39	8
+def					greatest_b_a	253	10	1	Y	0	39	8
+case_____a_b	a
+case_____b_a	b
+coalesce_a_b	a
+coalesce_b_a	b
+if_______a_b	b
+if_______b_a	a
+ifnull___a_b	a
+ifnull___b_a	b
+least____a_b	a
+least____b_a	a
+greatest_a_b	b
+greatest_b_a	b
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` varchar(10) DEFAULT NULL,
+  `case_______a` varchar(10) DEFAULT NULL,
+  `case_____a_a` varchar(10) DEFAULT NULL,
+  `coalesce___a` varchar(10) DEFAULT NULL,
+  `coalesce_a_a` varchar(10) DEFAULT NULL,
+  `if_______a_a` varchar(10) DEFAULT NULL,
+  `ifnull___a_a` varchar(10) DEFAULT NULL,
+  `least____a_a` varchar(10) DEFAULT NULL,
+  `greatest_a_a` varchar(10) DEFAULT NULL,
+  `___________b` enum('b') DEFAULT NULL,
+  `case_______b` varchar(1) DEFAULT NULL,
+  `case_____b_b` varchar(1) DEFAULT NULL,
+  `coalesce___b` varchar(1) DEFAULT NULL,
+  `coalesce_b_b` varchar(1) DEFAULT NULL,
+  `if_______b_b` varchar(1) DEFAULT NULL,
+  `ifnull___b_b` varchar(1) DEFAULT NULL,
+  `least____b_b` varchar(1) DEFAULT NULL,
+  `greatest_b_b` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` varchar(10) DEFAULT NULL,
+  `case_____b_a` varchar(10) DEFAULT NULL,
+  `coalesce_a_b` varchar(10) DEFAULT NULL,
+  `coalesce_b_a` varchar(10) DEFAULT NULL,
+  `if_______a_b` varchar(10) DEFAULT NULL,
+  `if_______b_a` varchar(10) DEFAULT NULL,
+  `ifnull___a_b` varchar(10) DEFAULT NULL,
+  `ifnull___b_a` varchar(10) DEFAULT NULL,
+  `least____a_b` varchar(10) DEFAULT NULL,
+  `least____b_a` varchar(10) DEFAULT NULL,
+  `greatest_a_b` varchar(10) DEFAULT NULL,
+  `greatest_b_a` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+CREATE TABLE t1 (a INT, b YEAR);
+INSERT INTO t1 VALUES (-2147483648,2015);
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	3	11	11	Y	32768	0	63
+def					case_______a	3	11	11	Y	32896	0	63
+def					case_____a_a	3	11	11	Y	32896	0	63
+def					coalesce___a	3	11	11	Y	32896	0	63
+def					coalesce_a_a	3	11	11	Y	32896	0	63
+def					if_______a_a	3	11	11	Y	32896	0	63
+def					ifnull___a_a	3	11	11	Y	32896	0	63
+def					least____a_a	3	11	11	Y	32896	0	63
+def					greatest_a_a	3	11	11	Y	32896	0	63
+def	test	t1	t1	b	___________b	13	4	4	Y	32864	0	63
+def					case_______b	13	4	4	Y	32928	0	63
+def					case_____b_b	13	4	4	Y	32928	0	63
+def					coalesce___b	13	4	4	Y	32928	0	63
+def					coalesce_b_b	13	4	4	Y	32928	0	63
+def					if_______b_b	13	4	4	Y	32928	0	63
+def					ifnull___b_b	13	4	4	Y	32928	0	63
+def					least____b_b	13	4	4	Y	32928	0	63
+def					greatest_b_b	13	4	4	Y	32928	0	63
+___________a	-2147483648
+case_______a	-2147483648
+case_____a_a	-2147483648
+coalesce___a	-2147483648
+coalesce_a_a	-2147483648
+if_______a_a	-2147483648
+ifnull___a_a	-2147483648
+least____a_a	-2147483648
+greatest_a_a	-2147483648
+___________b	2015
+case_______b	2015
+case_____b_b	2015
+coalesce___b	2015
+coalesce_b_b	2015
+if_______b_b	2015
+ifnull___b_b	2015
+least____b_b	2015
+greatest_b_b	2015
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	246	11	11	Y	32896	0	63
+def					case_____b_a	246	11	4	Y	32896	0	63
+def					coalesce_a_b	246	11	11	Y	32896	0	63
+def					coalesce_b_a	246	11	4	Y	32896	0	63
+def					if_______a_b	246	11	4	Y	32896	0	63
+def					if_______b_a	246	11	11	Y	32896	0	63
+def					ifnull___a_b	246	11	11	Y	32896	0	63
+def					ifnull___b_a	246	11	4	Y	32896	0	63
+def					least____a_b	246	11	11	Y	32896	0	63
+def					least____b_a	246	11	11	Y	32896	0	63
+def					greatest_a_b	246	11	4	Y	32896	0	63
+def					greatest_b_a	246	11	4	Y	32896	0	63
+case_____a_b	-2147483648
+case_____b_a	2015
+coalesce_a_b	-2147483648
+coalesce_b_a	2015
+if_______a_b	2015
+if_______b_a	-2147483648
+ifnull___a_b	-2147483648
+ifnull___b_a	2015
+least____a_b	-2147483648
+least____b_a	-2147483648
+greatest_a_b	2015
+greatest_b_a	2015
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` int(11) DEFAULT NULL,
+  `case_______a` int(11) DEFAULT NULL,
+  `case_____a_a` int(11) DEFAULT NULL,
+  `coalesce___a` int(11) DEFAULT NULL,
+  `coalesce_a_a` int(11) DEFAULT NULL,
+  `if_______a_a` int(11) DEFAULT NULL,
+  `ifnull___a_a` int(11) DEFAULT NULL,
+  `least____a_a` int(11) DEFAULT NULL,
+  `greatest_a_a` int(11) DEFAULT NULL,
+  `___________b` year(4) DEFAULT NULL,
+  `case_______b` year(4) DEFAULT NULL,
+  `case_____b_b` year(4) DEFAULT NULL,
+  `coalesce___b` year(4) DEFAULT NULL,
+  `coalesce_b_b` year(4) DEFAULT NULL,
+  `if_______b_b` year(4) DEFAULT NULL,
+  `ifnull___b_b` year(4) DEFAULT NULL,
+  `least____b_b` year(4) DEFAULT NULL,
+  `greatest_b_b` year(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` decimal(10,0) DEFAULT NULL,
+  `case_____b_a` decimal(10,0) DEFAULT NULL,
+  `coalesce_a_b` decimal(10,0) DEFAULT NULL,
+  `coalesce_b_a` decimal(10,0) DEFAULT NULL,
+  `if_______a_b` decimal(10,0) DEFAULT NULL,
+  `if_______b_a` decimal(10,0) DEFAULT NULL,
+  `ifnull___a_b` decimal(10,0) DEFAULT NULL,
+  `ifnull___b_a` decimal(10,0) DEFAULT NULL,
+  `least____a_b` decimal(10,0) DEFAULT NULL,
+  `least____b_a` decimal(10,0) DEFAULT NULL,
+  `greatest_a_b` decimal(10,0) DEFAULT NULL,
+  `greatest_b_a` decimal(10,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+CREATE TABLE t1 (a INT UNSIGNED, b YEAR);
+INSERT INTO t1 VALUES (4294967295,2015);
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	3	10	10	Y	32800	0	63
+def					case_______a	3	10	10	Y	32928	0	63
+def					case_____a_a	3	10	10	Y	32928	0	63
+def					coalesce___a	3	10	10	Y	32928	0	63
+def					coalesce_a_a	3	10	10	Y	32928	0	63
+def					if_______a_a	3	10	10	Y	32928	0	63
+def					ifnull___a_a	3	10	10	Y	32928	0	63
+def					least____a_a	3	10	10	Y	32928	0	63
+def					greatest_a_a	3	10	10	Y	32928	0	63
+def	test	t1	t1	b	___________b	13	4	4	Y	32864	0	63
+def					case_______b	13	4	4	Y	32928	0	63
+def					case_____b_b	13	4	4	Y	32928	0	63
+def					coalesce___b	13	4	4	Y	32928	0	63
+def					coalesce_b_b	13	4	4	Y	32928	0	63
+def					if_______b_b	13	4	4	Y	32928	0	63
+def					ifnull___b_b	13	4	4	Y	32928	0	63
+def					least____b_b	13	4	4	Y	32928	0	63
+def					greatest_b_b	13	4	4	Y	32928	0	63
+___________a	4294967295
+case_______a	4294967295
+case_____a_a	4294967295
+coalesce___a	4294967295
+coalesce_a_a	4294967295
+if_______a_a	4294967295
+ifnull___a_a	4294967295
+least____a_a	4294967295
+greatest_a_a	4294967295
+___________b	2015
+case_______b	2015
+case_____b_b	2015
+coalesce___b	2015
+coalesce_b_b	2015
+if_______b_b	2015
+ifnull___b_b	2015
+least____b_b	2015
+greatest_b_b	2015
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	3	10	10	Y	32928	0	63
+def					case_____b_a	3	10	4	Y	32928	0	63
+def					coalesce_a_b	3	10	10	Y	32928	0	63
+def					coalesce_b_a	3	10	4	Y	32928	0	63
+def					if_______a_b	3	10	4	Y	32928	0	63
+def					if_______b_a	3	10	10	Y	32928	0	63
+def					ifnull___a_b	3	10	10	Y	32928	0	63
+def					ifnull___b_a	3	10	4	Y	32928	0	63
+def					least____a_b	3	10	4	Y	32928	0	63
+def					least____b_a	3	10	4	Y	32928	0	63
+def					greatest_a_b	3	10	10	Y	32928	0	63
+def					greatest_b_a	3	10	10	Y	32928	0	63
+case_____a_b	4294967295
+case_____b_a	2015
+coalesce_a_b	4294967295
+coalesce_b_a	2015
+if_______a_b	2015
+if_______b_a	4294967295
+ifnull___a_b	4294967295
+ifnull___b_a	2015
+least____a_b	2015
+least____b_a	2015
+greatest_a_b	4294967295
+greatest_b_a	4294967295
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` int(10) unsigned DEFAULT NULL,
+  `case_______a` int(10) unsigned DEFAULT NULL,
+  `case_____a_a` int(10) unsigned DEFAULT NULL,
+  `coalesce___a` int(10) unsigned DEFAULT NULL,
+  `coalesce_a_a` int(10) unsigned DEFAULT NULL,
+  `if_______a_a` int(10) unsigned DEFAULT NULL,
+  `ifnull___a_a` int(10) unsigned DEFAULT NULL,
+  `least____a_a` int(10) unsigned DEFAULT NULL,
+  `greatest_a_a` int(10) unsigned DEFAULT NULL,
+  `___________b` year(4) DEFAULT NULL,
+  `case_______b` year(4) DEFAULT NULL,
+  `case_____b_b` year(4) DEFAULT NULL,
+  `coalesce___b` year(4) DEFAULT NULL,
+  `coalesce_b_b` year(4) DEFAULT NULL,
+  `if_______b_b` year(4) DEFAULT NULL,
+  `ifnull___b_b` year(4) DEFAULT NULL,
+  `least____b_b` year(4) DEFAULT NULL,
+  `greatest_b_b` year(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` int(10) unsigned DEFAULT NULL,
+  `case_____b_a` int(10) unsigned DEFAULT NULL,
+  `coalesce_a_b` int(10) unsigned DEFAULT NULL,
+  `coalesce_b_a` int(10) unsigned DEFAULT NULL,
+  `if_______a_b` int(10) unsigned DEFAULT NULL,
+  `if_______b_a` int(10) unsigned DEFAULT NULL,
+  `ifnull___a_b` int(10) unsigned DEFAULT NULL,
+  `ifnull___b_a` int(10) unsigned DEFAULT NULL,
+  `least____a_b` int(10) unsigned DEFAULT NULL,
+  `least____b_a` int(10) unsigned DEFAULT NULL,
+  `greatest_a_b` int(10) unsigned DEFAULT NULL,
+  `greatest_b_a` int(10) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATE, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01','10:20:30');
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	10	10	10	Y	128	0	63
+def					case_______a	10	10	10	Y	128	0	63
+def					case_____a_a	10	10	10	Y	128	0	63
+def					coalesce___a	10	10	10	Y	128	0	63
+def					coalesce_a_a	10	10	10	Y	128	0	63
+def					if_______a_a	10	10	10	Y	128	0	63
+def					ifnull___a_a	10	10	10	Y	128	0	63
+def					least____a_a	10	10	10	Y	128	0	63
+def					greatest_a_a	10	10	10	Y	128	0	63
+def	test	t1	t1	b	___________b	11	10	8	Y	128	0	63
+def					case_______b	11	10	8	Y	128	0	63
+def					case_____b_b	11	10	8	Y	128	0	63
+def					coalesce___b	11	10	8	Y	128	0	63
+def					coalesce_b_b	11	10	8	Y	128	0	63
+def					if_______b_b	11	10	8	Y	128	0	63
+def					ifnull___b_b	11	10	8	Y	128	0	63
+def					least____b_b	11	10	8	Y	128	0	63
+def					greatest_b_b	11	10	8	Y	128	0	63
+___________a	2010-01-01
+case_______a	2010-01-01
+case_____a_a	2010-01-01
+coalesce___a	2010-01-01
+coalesce_a_a	2010-01-01
+if_______a_a	2010-01-01
+ifnull___a_a	2010-01-01
+least____a_a	2010-01-01
+greatest_a_a	2010-01-01
+___________b	10:20:30
+case_______b	10:20:30
+case_____b_b	10:20:30
+coalesce___b	10:20:30
+coalesce_b_b	10:20:30
+if_______b_b	10:20:30
+ifnull___b_b	10:20:30
+least____b_b	10:20:30
+greatest_b_b	10:20:30
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	12	19	19	Y	128	0	63
+def					case_____b_a	12	19	19	Y	128	0	63
+def					coalesce_a_b	12	19	19	Y	128	0	63
+def					coalesce_b_a	12	19	19	Y	128	0	63
+def					if_______a_b	12	19	19	Y	128	0	63
+def					if_______b_a	12	19	19	Y	128	0	63
+def					ifnull___a_b	12	19	19	Y	128	0	63
+def					ifnull___b_a	12	19	19	Y	128	0	63
+def					least____a_b	12	19	19	Y	128	0	63
+def					least____b_a	12	19	19	Y	128	0	63
+def					greatest_a_b	12	19	19	Y	128	0	63
+def					greatest_b_a	12	19	19	Y	128	0	63
+case_____a_b	2010-01-01 00:00:00
+case_____b_a	2001-01-01 10:20:30
+coalesce_a_b	2010-01-01 00:00:00
+coalesce_b_a	2001-01-01 10:20:30
+if_______a_b	2001-01-01 10:20:30
+if_______b_a	2010-01-01 00:00:00
+ifnull___a_b	2010-01-01 00:00:00
+ifnull___b_a	2001-01-01 10:20:30
+least____a_b	2001-01-01 10:20:30
+least____b_a	2001-01-01 10:20:30
+greatest_a_b	2010-01-01 00:00:00
+greatest_b_a	2010-01-01 00:00:00
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` date DEFAULT NULL,
+  `case_______a` date DEFAULT NULL,
+  `case_____a_a` date DEFAULT NULL,
+  `coalesce___a` date DEFAULT NULL,
+  `coalesce_a_a` date DEFAULT NULL,
+  `if_______a_a` date DEFAULT NULL,
+  `ifnull___a_a` date DEFAULT NULL,
+  `least____a_a` date DEFAULT NULL,
+  `greatest_a_a` date DEFAULT NULL,
+  `___________b` time DEFAULT NULL,
+  `case_______b` time DEFAULT NULL,
+  `case_____b_b` time DEFAULT NULL,
+  `coalesce___b` time DEFAULT NULL,
+  `coalesce_b_b` time DEFAULT NULL,
+  `if_______b_b` time DEFAULT NULL,
+  `ifnull___b_b` time DEFAULT NULL,
+  `least____b_b` time DEFAULT NULL,
+  `greatest_b_b` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` datetime DEFAULT NULL,
+  `case_____b_a` datetime DEFAULT NULL,
+  `coalesce_a_b` datetime DEFAULT NULL,
+  `coalesce_b_a` datetime DEFAULT NULL,
+  `if_______a_b` datetime DEFAULT NULL,
+  `if_______b_a` datetime DEFAULT NULL,
+  `ifnull___a_b` datetime DEFAULT NULL,
+  `ifnull___b_a` datetime DEFAULT NULL,
+  `least____a_b` datetime DEFAULT NULL,
+  `least____b_a` datetime DEFAULT NULL,
+  `greatest_a_b` datetime DEFAULT NULL,
+  `greatest_b_a` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a TIMESTAMP, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00','10:20:30');
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	7	19	19	N	9377	0	63
+def					case_______a	7	19	19	Y	128	0	63
+def					case_____a_a	7	19	19	N	129	0	63
+def					coalesce___a	7	19	19	N	129	0	63
+def					coalesce_a_a	7	19	19	N	129	0	63
+def					if_______a_a	7	19	19	N	129	0	63
+def					ifnull___a_a	7	19	19	N	129	0	63
+def					least____a_a	7	19	19	N	129	0	63
+def					greatest_a_a	7	19	19	N	129	0	63
+def	test	t1	t1	b	___________b	11	10	8	Y	128	0	63
+def					case_______b	11	10	8	Y	128	0	63
+def					case_____b_b	11	10	8	Y	128	0	63
+def					coalesce___b	11	10	8	Y	128	0	63
+def					coalesce_b_b	11	10	8	Y	128	0	63
+def					if_______b_b	11	10	8	Y	128	0	63
+def					ifnull___b_b	11	10	8	Y	128	0	63
+def					least____b_b	11	10	8	Y	128	0	63
+def					greatest_b_b	11	10	8	Y	128	0	63
+___________a	2010-01-01 00:00:00
+case_______a	2010-01-01 00:00:00
+case_____a_a	2010-01-01 00:00:00
+coalesce___a	2010-01-01 00:00:00
+coalesce_a_a	2010-01-01 00:00:00
+if_______a_a	2010-01-01 00:00:00
+ifnull___a_a	2010-01-01 00:00:00
+least____a_a	2010-01-01 00:00:00
+greatest_a_a	2010-01-01 00:00:00
+___________b	10:20:30
+case_______b	10:20:30
+case_____b_b	10:20:30
+coalesce___b	10:20:30
+coalesce_b_b	10:20:30
+if_______b_b	10:20:30
+ifnull___b_b	10:20:30
+least____b_b	10:20:30
+greatest_b_b	10:20:30
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	12	19	19	Y	128	0	63
+def					case_____b_a	12	19	19	Y	128	0	63
+def					coalesce_a_b	12	19	19	Y	128	0	63
+def					coalesce_b_a	12	19	19	Y	128	0	63
+def					if_______a_b	12	19	19	Y	128	0	63
+def					if_______b_a	12	19	19	Y	128	0	63
+def					ifnull___a_b	12	19	19	Y	128	0	63
+def					ifnull___b_a	12	19	19	N	129	0	63
+def					least____a_b	12	19	19	Y	128	0	63
+def					least____b_a	12	19	19	Y	128	0	63
+def					greatest_a_b	12	19	19	Y	128	0	63
+def					greatest_b_a	12	19	19	Y	128	0	63
+case_____a_b	2010-01-01 00:00:00
+case_____b_a	2001-01-01 10:20:30
+coalesce_a_b	2010-01-01 00:00:00
+coalesce_b_a	2001-01-01 10:20:30
+if_______a_b	2001-01-01 10:20:30
+if_______b_a	2010-01-01 00:00:00
+ifnull___a_b	2010-01-01 00:00:00
+ifnull___b_a	2001-01-01 10:20:30
+least____a_b	2001-01-01 10:20:30
+least____b_a	2001-01-01 10:20:30
+greatest_a_b	2010-01-01 00:00:00
+greatest_b_a	2010-01-01 00:00:00
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `case_______a` timestamp NULL DEFAULT NULL,
+  `case_____a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `coalesce___a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `coalesce_a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `if_______a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `ifnull___a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `least____a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `greatest_a_a` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `___________b` time DEFAULT NULL,
+  `case_______b` time DEFAULT NULL,
+  `case_____b_b` time DEFAULT NULL,
+  `coalesce___b` time DEFAULT NULL,
+  `coalesce_b_b` time DEFAULT NULL,
+  `if_______b_b` time DEFAULT NULL,
+  `ifnull___b_b` time DEFAULT NULL,
+  `least____b_b` time DEFAULT NULL,
+  `greatest_b_b` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` datetime DEFAULT NULL,
+  `case_____b_a` datetime DEFAULT NULL,
+  `coalesce_a_b` datetime DEFAULT NULL,
+  `coalesce_b_a` datetime DEFAULT NULL,
+  `if_______a_b` datetime DEFAULT NULL,
+  `if_______b_a` datetime DEFAULT NULL,
+  `ifnull___a_b` datetime DEFAULT NULL,
+  `ifnull___b_a` datetime NOT NULL,
+  `least____a_b` datetime DEFAULT NULL,
+  `least____b_a` datetime DEFAULT NULL,
+  `greatest_a_b` datetime DEFAULT NULL,
+  `greatest_b_a` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATETIME, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00','10:20:30');
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	12	19	19	Y	128	0	63
+def					case_______a	12	19	19	Y	128	0	63
+def					case_____a_a	12	19	19	Y	128	0	63
+def					coalesce___a	12	19	19	Y	128	0	63
+def					coalesce_a_a	12	19	19	Y	128	0	63
+def					if_______a_a	12	19	19	Y	128	0	63
+def					ifnull___a_a	12	19	19	Y	128	0	63
+def					least____a_a	12	19	19	Y	128	0	63
+def					greatest_a_a	12	19	19	Y	128	0	63
+def	test	t1	t1	b	___________b	11	10	8	Y	128	0	63
+def					case_______b	11	10	8	Y	128	0	63
+def					case_____b_b	11	10	8	Y	128	0	63
+def					coalesce___b	11	10	8	Y	128	0	63
+def					coalesce_b_b	11	10	8	Y	128	0	63
+def					if_______b_b	11	10	8	Y	128	0	63
+def					ifnull___b_b	11	10	8	Y	128	0	63
+def					least____b_b	11	10	8	Y	128	0	63
+def					greatest_b_b	11	10	8	Y	128	0	63
+___________a	2010-01-01 00:00:00
+case_______a	2010-01-01 00:00:00
+case_____a_a	2010-01-01 00:00:00
+coalesce___a	2010-01-01 00:00:00
+coalesce_a_a	2010-01-01 00:00:00
+if_______a_a	2010-01-01 00:00:00
+ifnull___a_a	2010-01-01 00:00:00
+least____a_a	2010-01-01 00:00:00
+greatest_a_a	2010-01-01 00:00:00
+___________b	10:20:30
+case_______b	10:20:30
+case_____b_b	10:20:30
+coalesce___b	10:20:30
+coalesce_b_b	10:20:30
+if_______b_b	10:20:30
+ifnull___b_b	10:20:30
+least____b_b	10:20:30
+greatest_b_b	10:20:30
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	12	19	19	Y	128	0	63
+def					case_____b_a	12	19	19	Y	128	0	63
+def					coalesce_a_b	12	19	19	Y	128	0	63
+def					coalesce_b_a	12	19	19	Y	128	0	63
+def					if_______a_b	12	19	19	Y	128	0	63
+def					if_______b_a	12	19	19	Y	128	0	63
+def					ifnull___a_b	12	19	19	Y	128	0	63
+def					ifnull___b_a	12	19	19	Y	128	0	63
+def					least____a_b	12	19	19	Y	128	0	63
+def					least____b_a	12	19	19	Y	128	0	63
+def					greatest_a_b	12	19	19	Y	128	0	63
+def					greatest_b_a	12	19	19	Y	128	0	63
+case_____a_b	2010-01-01 00:00:00
+case_____b_a	2001-01-01 10:20:30
+coalesce_a_b	2010-01-01 00:00:00
+coalesce_b_a	2001-01-01 10:20:30
+if_______a_b	2001-01-01 10:20:30
+if_______b_a	2010-01-01 00:00:00
+ifnull___a_b	2010-01-01 00:00:00
+ifnull___b_a	2001-01-01 10:20:30
+least____a_b	2001-01-01 10:20:30
+least____b_a	2001-01-01 10:20:30
+greatest_a_b	2010-01-01 00:00:00
+greatest_b_a	2010-01-01 00:00:00
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` datetime DEFAULT NULL,
+  `case_______a` datetime DEFAULT NULL,
+  `case_____a_a` datetime DEFAULT NULL,
+  `coalesce___a` datetime DEFAULT NULL,
+  `coalesce_a_a` datetime DEFAULT NULL,
+  `if_______a_a` datetime DEFAULT NULL,
+  `ifnull___a_a` datetime DEFAULT NULL,
+  `least____a_a` datetime DEFAULT NULL,
+  `greatest_a_a` datetime DEFAULT NULL,
+  `___________b` time DEFAULT NULL,
+  `case_______b` time DEFAULT NULL,
+  `case_____b_b` time DEFAULT NULL,
+  `coalesce___b` time DEFAULT NULL,
+  `coalesce_b_b` time DEFAULT NULL,
+  `if_______b_b` time DEFAULT NULL,
+  `ifnull___b_b` time DEFAULT NULL,
+  `least____b_b` time DEFAULT NULL,
+  `greatest_b_b` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` datetime DEFAULT NULL,
+  `case_____b_a` datetime DEFAULT NULL,
+  `coalesce_a_b` datetime DEFAULT NULL,
+  `coalesce_b_a` datetime DEFAULT NULL,
+  `if_______a_b` datetime DEFAULT NULL,
+  `if_______b_a` datetime DEFAULT NULL,
+  `ifnull___a_b` datetime DEFAULT NULL,
+  `ifnull___b_a` datetime DEFAULT NULL,
+  `least____a_b` datetime DEFAULT NULL,
+  `least____b_a` datetime DEFAULT NULL,
+  `greatest_a_b` datetime DEFAULT NULL,
+  `greatest_b_a` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATETIME, b DATE);
+INSERT INTO t1 VALUES ('2010-01-01 10:20:30','2001-01-02');
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	12	19	19	Y	128	0	63
+def					case_______a	12	19	19	Y	128	0	63
+def					case_____a_a	12	19	19	Y	128	0	63
+def					coalesce___a	12	19	19	Y	128	0	63
+def					coalesce_a_a	12	19	19	Y	128	0	63
+def					if_______a_a	12	19	19	Y	128	0	63
+def					ifnull___a_a	12	19	19	Y	128	0	63
+def					least____a_a	12	19	19	Y	128	0	63
+def					greatest_a_a	12	19	19	Y	128	0	63
+def	test	t1	t1	b	___________b	10	10	10	Y	128	0	63
+def					case_______b	10	10	10	Y	128	0	63
+def					case_____b_b	10	10	10	Y	128	0	63
+def					coalesce___b	10	10	10	Y	128	0	63
+def					coalesce_b_b	10	10	10	Y	128	0	63
+def					if_______b_b	10	10	10	Y	128	0	63
+def					ifnull___b_b	10	10	10	Y	128	0	63
+def					least____b_b	10	10	10	Y	128	0	63
+def					greatest_b_b	10	10	10	Y	128	0	63
+___________a	2010-01-01 10:20:30
+case_______a	2010-01-01 10:20:30
+case_____a_a	2010-01-01 10:20:30
+coalesce___a	2010-01-01 10:20:30
+coalesce_a_a	2010-01-01 10:20:30
+if_______a_a	2010-01-01 10:20:30
+ifnull___a_a	2010-01-01 10:20:30
+least____a_a	2010-01-01 10:20:30
+greatest_a_a	2010-01-01 10:20:30
+___________b	2001-01-02
+case_______b	2001-01-02
+case_____b_b	2001-01-02
+coalesce___b	2001-01-02
+coalesce_b_b	2001-01-02
+if_______b_b	2001-01-02
+ifnull___b_b	2001-01-02
+least____b_b	2001-01-02
+greatest_b_b	2001-01-02
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	12	19	19	Y	128	0	63
+def					case_____b_a	12	19	19	Y	128	0	63
+def					coalesce_a_b	12	19	19	Y	128	0	63
+def					coalesce_b_a	12	19	19	Y	128	0	63
+def					if_______a_b	12	19	19	Y	128	0	63
+def					if_______b_a	12	19	19	Y	128	0	63
+def					ifnull___a_b	12	19	19	Y	128	0	63
+def					ifnull___b_a	12	19	19	Y	128	0	63
+def					least____a_b	12	19	19	Y	128	0	63
+def					least____b_a	12	19	19	Y	128	0	63
+def					greatest_a_b	12	19	19	Y	128	0	63
+def					greatest_b_a	12	19	19	Y	128	0	63
+case_____a_b	2010-01-01 10:20:30
+case_____b_a	2001-01-02 00:00:00
+coalesce_a_b	2010-01-01 10:20:30
+coalesce_b_a	2001-01-02 00:00:00
+if_______a_b	2001-01-02 00:00:00
+if_______b_a	2010-01-01 10:20:30
+ifnull___a_b	2010-01-01 10:20:30
+ifnull___b_a	2001-01-02 00:00:00
+least____a_b	2001-01-02 00:00:00
+least____b_a	2001-01-02 00:00:00
+greatest_a_b	2010-01-01 10:20:30
+greatest_b_a	2010-01-01 10:20:30
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` datetime DEFAULT NULL,
+  `case_______a` datetime DEFAULT NULL,
+  `case_____a_a` datetime DEFAULT NULL,
+  `coalesce___a` datetime DEFAULT NULL,
+  `coalesce_a_a` datetime DEFAULT NULL,
+  `if_______a_a` datetime DEFAULT NULL,
+  `ifnull___a_a` datetime DEFAULT NULL,
+  `least____a_a` datetime DEFAULT NULL,
+  `greatest_a_a` datetime DEFAULT NULL,
+  `___________b` date DEFAULT NULL,
+  `case_______b` date DEFAULT NULL,
+  `case_____b_b` date DEFAULT NULL,
+  `coalesce___b` date DEFAULT NULL,
+  `coalesce_b_b` date DEFAULT NULL,
+  `if_______b_b` date DEFAULT NULL,
+  `ifnull___b_b` date DEFAULT NULL,
+  `least____b_b` date DEFAULT NULL,
+  `greatest_b_b` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` datetime DEFAULT NULL,
+  `case_____b_a` datetime DEFAULT NULL,
+  `coalesce_a_b` datetime DEFAULT NULL,
+  `coalesce_b_a` datetime DEFAULT NULL,
+  `if_______a_b` datetime DEFAULT NULL,
+  `if_______b_a` datetime DEFAULT NULL,
+  `ifnull___a_b` datetime DEFAULT NULL,
+  `ifnull___b_a` datetime DEFAULT NULL,
+  `least____a_b` datetime DEFAULT NULL,
+  `least____b_a` datetime DEFAULT NULL,
+  `greatest_a_b` datetime DEFAULT NULL,
+  `greatest_b_a` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+# MDEV-8873 Wrong field type or metadata for LEAST(int_column,string_column)
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (-2147483648,'100x');
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	___________a	3	11	11	Y	32768	0	63
+def					case_______a	3	11	11	Y	32896	0	63
+def					case_____a_a	3	11	11	Y	32896	0	63
+def					coalesce___a	3	11	11	Y	32896	0	63
+def					coalesce_a_a	3	11	11	Y	32896	0	63
+def					if_______a_a	3	11	11	Y	32896	0	63
+def					ifnull___a_a	3	11	11	Y	32896	0	63
+def					least____a_a	3	11	11	Y	32896	0	63
+def					greatest_a_a	3	11	11	Y	32896	0	63
+def	test	t1	t1	b	___________b	253	10	4	Y	0	0	8
+def					case_______b	253	10	4	Y	0	39	8
+def					case_____b_b	253	10	4	Y	0	39	8
+def					coalesce___b	253	10	4	Y	0	39	8
+def					coalesce_b_b	253	10	4	Y	0	39	8
+def					if_______b_b	253	10	4	Y	0	39	8
+def					ifnull___b_b	253	10	4	Y	0	39	8
+def					least____b_b	253	10	4	Y	0	39	8
+def					greatest_b_b	253	10	4	Y	0	39	8
+___________a	-2147483648
+case_______a	-2147483648
+case_____a_a	-2147483648
+coalesce___a	-2147483648
+coalesce_a_a	-2147483648
+if_______a_a	-2147483648
+ifnull___a_a	-2147483648
+least____a_a	-2147483648
+greatest_a_a	-2147483648
+___________b	100x
+case_______b	100x
+case_____b_b	100x
+coalesce___b	100x
+coalesce_b_b	100x
+if_______b_b	100x
+ifnull___b_b	100x
+least____b_b	100x
+greatest_b_b	100x
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					case_____a_b	253	11	11	Y	0	39	8
+def					case_____b_a	253	11	4	Y	0	39	8
+def					coalesce_a_b	253	11	11	Y	0	39	8
+def					coalesce_b_a	253	11	4	Y	0	39	8
+def					if_______a_b	253	11	4	Y	0	39	8
+def					if_______b_a	253	11	11	Y	0	39	8
+def					ifnull___a_b	253	11	11	Y	0	39	8
+def					ifnull___b_a	253	11	4	Y	0	39	8
+def					least____a_b	5	23	11	Y	32896	31	63
+def					least____b_a	5	23	11	Y	32896	31	63
+def					greatest_a_b	5	23	3	Y	32896	31	63
+def					greatest_b_a	5	23	3	Y	32896	31	63
+case_____a_b	-2147483648
+case_____b_a	100x
+coalesce_a_b	-2147483648
+coalesce_b_a	100x
+if_______a_b	100x
+if_______b_a	-2147483648
+ifnull___a_b	-2147483648
+ifnull___b_a	100x
+least____a_b	-2147483648
+least____b_a	-2147483648
+greatest_a_b	100
+greatest_b_a	100
+Warnings:
+Level	Warning
+Code	1292
+Message	Truncated incorrect DOUBLE value: '100x'
+Level	Warning
+Code	1292
+Message	Truncated incorrect DOUBLE value: '100x'
+Level	Warning
+Code	1292
+Message	Truncated incorrect DOUBLE value: '100x'
+Level	Warning
+Code	1292
+Message	Truncated incorrect DOUBLE value: '100x'
+CREATE TABLE t2 AS
+SELECT
+a                                         AS ___________a,
+CASE WHEN a IS NOT NULL THEN a END        AS case_______a,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS case_____a_a,
+COALESCE(a)                               AS coalesce___a,
+COALESCE(a, a)                            AS coalesce_a_a,
+IF(a IS NULL, a, a)                       AS if_______a_a,
+IFNULL(a, a)                              AS ifnull___a_a,
+LEAST(a, a)                               AS least____a_a,
+GREATEST(a, a)                            AS greatest_a_a,
+b                                         AS ___________b,
+CASE WHEN a IS NOT NULL THEN b END        AS case_______b,
+CASE WHEN a IS NOT NULL THEN b ELSE b END AS case_____b_b,
+COALESCE(b)                               AS coalesce___b,
+COALESCE(b, b)                            AS coalesce_b_b,
+IF(a IS NULL, b, b)                       AS if_______b_b,
+IFNULL(b, b)                              AS ifnull___b_b,
+LEAST(b, b)                               AS least____b_b,
+GREATEST(b, b)                            AS greatest_b_b
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `___________a` int(11) DEFAULT NULL,
+  `case_______a` int(11) DEFAULT NULL,
+  `case_____a_a` int(11) DEFAULT NULL,
+  `coalesce___a` int(11) DEFAULT NULL,
+  `coalesce_a_a` int(11) DEFAULT NULL,
+  `if_______a_a` int(11) DEFAULT NULL,
+  `ifnull___a_a` int(11) DEFAULT NULL,
+  `least____a_a` int(11) DEFAULT NULL,
+  `greatest_a_a` int(11) DEFAULT NULL,
+  `___________b` varchar(10) DEFAULT NULL,
+  `case_______b` varchar(10) DEFAULT NULL,
+  `case_____b_b` varchar(10) DEFAULT NULL,
+  `coalesce___b` varchar(10) DEFAULT NULL,
+  `coalesce_b_b` varchar(10) DEFAULT NULL,
+  `if_______b_b` varchar(10) DEFAULT NULL,
+  `ifnull___b_b` varchar(10) DEFAULT NULL,
+  `least____b_b` varchar(10) DEFAULT NULL,
+  `greatest_b_b` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t2 AS
+SELECT
+CASE WHEN a IS NOT NULL THEN a ELSE b END AS case_____a_b,
+CASE WHEN a IS NOT NULL THEN b ELSE a END AS case_____b_a,
+COALESCE(a, b)                            AS coalesce_a_b,
+COALESCE(b, a)                            AS coalesce_b_a,
+IF(a IS NULL, a, b)                       AS if_______a_b,
+IF(a IS NULL, b, a)                       AS if_______b_a,
+IFNULL(a, b)                              AS ifnull___a_b,
+IFNULL(b, a)                              AS ifnull___b_a,
+LEAST(a, b)                               AS least____a_b,
+LEAST(b, a)                               AS least____b_a,
+GREATEST(a, b)                            AS greatest_a_b,
+GREATEST(b, a)                            AS greatest_b_a
+FROM t1;
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '100x'
+Warning	1292	Truncated incorrect DOUBLE value: '100x'
+Warning	1292	Truncated incorrect DOUBLE value: '100x'
+Warning	1292	Truncated incorrect DOUBLE value: '100x'
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `case_____a_b` varchar(11) DEFAULT NULL,
+  `case_____b_a` varchar(11) DEFAULT NULL,
+  `coalesce_a_b` varchar(11) DEFAULT NULL,
+  `coalesce_b_a` varchar(11) DEFAULT NULL,
+  `if_______a_b` varchar(11) DEFAULT NULL,
+  `if_______b_a` varchar(11) DEFAULT NULL,
+  `ifnull___a_b` varchar(11) DEFAULT NULL,
+  `ifnull___b_a` varchar(11) DEFAULT NULL,
+  `least____a_b` double DEFAULT NULL,
+  `least____b_a` double DEFAULT NULL,
+  `greatest_a_b` double DEFAULT NULL,
+  `greatest_b_a` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-4848 Wrong metadata or column type for LEAST(1.0,'10')
+#
+SELECT LEAST(1.0,'10');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LEAST(1.0,'10')	5	23	1	N	32897	31	63
+LEAST(1.0,'10')
+1
+CREATE TABLE t1 AS SELECT LEAST(1.0,'10');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `LEAST(1.0,'10')` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# MDEV-657 LP:873142 - GREATEST() does not always return same signness of argument types
+#
+CREATE TABLE t1 (a BIGINT(20) UNSIGNED NOT NULL PRIMARY KEY);
+INSERT INTO t1 (a) VALUES (13836376518955650385) ON DUPLICATE KEY UPDATE a=GREATEST(a,VALUES(a));
+INSERT INTO t1 (a) VALUES (13836376518955650385) ON DUPLICATE KEY UPDATE a=GREATEST(a,VALUES(a));
+SELECT * FROM t1;
+a
+13836376518955650385
+DROP TABLE t1;
+#
+# MDEV-5694 GREATEST(date, time) returns a wrong data type
+#
+SET timestamp=UNIX_TIMESTAMP('2010-01-01 01:02:03');
+SELECT GREATEST(CURRENT_TIME, CURRENT_DATE), COALESCE(CURRENT_TIME, CURRENT_DATE);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					GREATEST(CURRENT_TIME, CURRENT_DATE)	12	19	19	N	129	0	63
+def					COALESCE(CURRENT_TIME, CURRENT_DATE)	12	19	19	N	129	0	63
+GREATEST(CURRENT_TIME, CURRENT_DATE)	COALESCE(CURRENT_TIME, CURRENT_DATE)
+2010-01-01 01:02:03	2010-01-01 01:02:03
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('2010-01-01 10:20:30');
+SELECT GREATEST(a,a) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					GREATEST(a,a)	7	19	19	N	129	0	63
+GREATEST(a,a)
+2010-01-01 10:20:30
+SELECT COALESCE(a,a) FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(a,a)	7	19	19	N	129	0	63
+COALESCE(a,a)
+2010-01-01 10:20:30
+DROP TABLE t1;
+CREATE TABLE t1 (a TIMESTAMP, b DATETIME);
+CREATE TABLE t2 AS SELECT LEAST(a,a),LEAST(b,b),LEAST(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,a)` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `LEAST(b,b)` datetime DEFAULT NULL,
+  `LEAST(a,b)` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+#
+# MDEV-8910 Wrong metadata or field type for MAX(COALESCE(string_field))
+#
+CREATE TABLE t1 (c1 TINYBLOB, c2 MEDIUMBLOB, c3 BLOB, c4 LONGBLOB);
+CREATE TABLE t2 AS
+SELECT
+MAX(COALESCE(c1)) AS c1,
+MAX(COALESCE(c2)) AS c2,
+MAX(COALESCE(c3)) AS c3,
+MAX(COALESCE(c4)) AS c4
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varbinary(255) DEFAULT NULL,
+  `c2` mediumblob DEFAULT NULL,
+  `c3` blob DEFAULT NULL,
+  `c4` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+MAX(COALESCE(c1)) AS c1,
+MAX(COALESCE(c2)) AS c2,
+MAX(COALESCE(c3)) AS c3,
+MAX(COALESCE(c4)) AS c4
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	255	0	Y	128	39	63
+def					c2	250	16777215	0	Y	128	39	63
+def					c3	252	65535	0	Y	128	39	63
+def					c4	251	4294967295	0	Y	128	39	63
+c1	c2	c3	c4
+NULL	NULL	NULL	NULL
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+MAX(COALESCE(c1)) AS c1,
+MAX(COALESCE(c2)) AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) DEFAULT NULL,
+  `c2` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+MAX(COALESCE(c1)) AS c1,
+MAX(COALESCE(c2)) AS c2
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+c1	c2
+NULL	NULL
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+MAX(COALESCE(c1)) AS c1,
+MAX(COALESCE(c2)) AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) CHARACTER SET utf8 DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+MAX(COALESCE(c1)) AS c1,
+MAX(COALESCE(c2)) AS c2
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+c1	c2
+NULL	NULL
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+MAX(COALESCE(c1)) AS c1,
+MAX(COALESCE(c2)) AS c2,
+MAX(COALESCE(c3)) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) DEFAULT NULL,
+  `c2` varchar(255) DEFAULT NULL,
+  `c3` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+MAX(COALESCE(c1)) AS c1,
+MAX(COALESCE(c2)) AS c2,
+MAX(COALESCE(c3)) AS c3
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+def					c3	252	20000	0	Y	0	39	8
+c1	c2	c3
+NULL	NULL	NULL
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+MAX(COALESCE(c1)) AS c1,
+MAX(COALESCE(c2)) AS c2,
+MAX(COALESCE(c3)) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) CHARACTER SET utf8 DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET utf8 DEFAULT NULL,
+  `c3` text CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+MAX(COALESCE(c1)) AS c1,
+MAX(COALESCE(c2)) AS c2,
+MAX(COALESCE(c3)) AS c3
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+def					c3	252	60000	0	Y	0	39	8
+c1	c2	c3
+NULL	NULL	NULL
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+MAX(COALESCE(c1)) AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+MAX(COALESCE(c1)) AS c1
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	39	8
+c1
+NULL
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+MAX(COALESCE(c1)) AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+MAX(COALESCE(c1)) AS c1
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	39	8
+c1
+NULL
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-8912 Wrong metadata or type for @c:=string_or_blob_field
+#
+CREATE TABLE t1 (c1 TINYBLOB, c2 BLOB, c3 MEDIUMBLOB, c4 LONGBLOB);
+CREATE TABLE t2 AS
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2,
+@c3:=c3 AS c3,
+@c4:=c4 AS c4
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varbinary(255) DEFAULT NULL,
+  `c2` blob DEFAULT NULL,
+  `c3` mediumblob DEFAULT NULL,
+  `c4` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2,
+@c3:=c3 AS c3,
+@c4:=c4 AS c4
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	255	0	Y	128	39	63
+def					c2	252	65535	0	Y	128	39	63
+def					c3	250	16777215	0	Y	128	39	63
+def					c4	251	4294967295	0	Y	128	39	63
+c1	c2	c3	c4
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) DEFAULT NULL,
+  `c2` varchar(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+c1	c2
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) CHARACTER SET utf8 DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c1:=c1 AS c1,
+@c2:=c2 AS c2
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+c1	c2
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+@c:=c1 AS c1,
+@c:=c2 AS c2,
+@c:=c3 AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) DEFAULT NULL,
+  `c2` varchar(255) DEFAULT NULL,
+  `c3` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c:=c1 AS c1,
+@c:=c2 AS c2,
+@c:=c3 AS c3
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+def					c3	252	20000	0	Y	0	39	8
+c1	c2	c3
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+@c:=c1 AS c1,
+@c:=c2 AS c2,
+@c:=c3 AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) CHARACTER SET utf8 DEFAULT NULL,
+  `c2` varchar(255) CHARACTER SET utf8 DEFAULT NULL,
+  `c3` text CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c:=c1 AS c1,
+@c:=c2 AS c2,
+@c:=c3 AS c3
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	39	8
+def					c2	253	255	0	Y	0	39	8
+def					c3	252	60000	0	Y	0	39	8
+c1	c2	c3
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+@c:=c1 AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c:=c1 AS c1
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	0	8
+c1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+@c:=c1 AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` varchar(1) CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT
+@c:=c1 AS c1
+FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	253	1	0	Y	0	0	8
+c1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-9653 Assertion `length || !scale' failed in uint my_decimal_length_to_precision(uint, uint, bool)
+#
+SELECT CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END;
+CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END
+NULL
+SELECT CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END;
+CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END
+NULL
+SELECT CASE WHEN TRUE THEN COALESCE(NULL) ELSE 4 END;
+CASE WHEN TRUE THEN COALESCE(NULL) ELSE 4 END
+NULL
+SELECT COALESCE(COALESCE(NULL), 1.1) AS c0, IF(0, COALESCE(NULL), 1.1) AS c1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c0	246	4	3	Y	32896	1	63
+def					c1	246	4	3	Y	32896	1	63
+c0	c1
+1.1	1.1
+#
+# MDEV-9752 Wrong data type for COALEASCE(?,1) in prepared statements
+#
+PREPARE stmt FROM "CREATE TABLE t1 AS SELECT CONCAT(COALESCE(?,1)) AS a, CONCAT(CASE WHEN TRUE THEN ? ELSE 1 END) AS b";
+SET @a=1;
+EXECUTE stmt USING @a,@a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(20) DEFAULT NULL,
+  `b` varchar(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# MDEV-11015 Assertion failed: precision > 0 in decimal_bin_size upon SELECT with DISTINCT, CAST and other functions
+#
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATETIME ) ) AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'foo'
+Warning	1292	Truncated incorrect datetime value: 'bar'
+DROP TABLE t1;
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS TIME) ) AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Incorrect time value: 'foo'
+Warning	1292	Incorrect time value: 'bar'
+DROP TABLE t1;
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATE) ) AS f FROM t1;
+f
+NULL
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'foo'
+Warning	1292	Truncated incorrect datetime value: 'bar'
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12497 Wrong data type for LEAST(latin1_expr, utf8_expr)
+#
+CREATE TABLE t1 AS SELECT
+LEAST(_latin1'aaa',_utf8 0xC39F) AS c1,
+COALESCE(_latin1'aaa',_utf8 0xC39F) AS c2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(3) CHARACTER SET utf8 NOT NULL,
+  `c2` varchar(3) CHARACTER SET utf8 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+c1	c2
+aaa	aaa
+DROP TABLE t1;
+#
+# MDEV-12504 Wrong data type for LEAST(date_expr,time_expr)
+#
+CREATE TABLE t1 AS SELECT
+LEAST(DATE'2001-01-01', TIME'10:20:30') AS c1,
+CONCAT(LEAST(DATE'2001-01-01', TIME'10:20:30')) AS c2;
+SELECT * FROM t1;
+c1	c2
+2001-01-01 00:00:00	2001-01-01 00:00:00
+DROP TABLE t1;
+#
+# MDEV-12505 Wrong data type for GREATEST(bit_column, int_column)
+#
+CREATE TABLE t1 (a BIT(64),b INT);
+INSERT INTO t1 VALUES (0xFFFFFFFFFFFFFFFF,-1);
+SELECT a>b, COALESCE(a,b), GREATEST(a,b) FROM t1;
+a>b	COALESCE(a,b)	GREATEST(a,b)
+1	18446744073709551615	18446744073709551615
+CREATE TABLE t2 AS SELECT COALESCE(a,b),GREATEST(a,b) FROM t1;
+SELECT * FROM t2;
+COALESCE(a,b)	GREATEST(a,b)
+18446744073709551615	18446744073709551615
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` decimal(64,0) DEFAULT NULL,
+  `GREATEST(a,b)` decimal(64,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-12601 Hybrid functions create a column of an impossible type DOUBLE(256,4)
+#
+CREATE TABLE t1 (a DOUBLE(255,4),b DOUBLE(255,3));
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` double(255,4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-12617 CASE and CASE-alike hybrid functions do not preserve exact data types
+#
+CREATE TABLE t1 (a FLOAT(10,2));
+CREATE TABLE t2 AS SELECT COALESCE(a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a)` float(10,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+CREATE TABLE t1 (a FLOAT(10,2));
+CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,a)` float(19,2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+CREATE TABLE t1 (a TINYINT(1));
+CREATE TABLE t2 AS SELECT COALESCE(a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a)` tinyint(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+CREATE TABLE t1 (a TINYINT(1));
+CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,a)` tinyint(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+#
+# MDEV-12875 Wrong VIEW column data type for COALESCE(int_column)
+#
+CREATE TABLE t1 (a INT);
+CREATE OR REPLACE VIEW v1 AS SELECT COALESCE(a) FROM t1;
+DESCRIBE v1;
+Field	Type	Null	Key	Default	Extra
+COALESCE(a)	int(11)	YES		NULL	
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-10309 COALESCE(12345678900) makes a column of a wrong type and truncates the data
+#
+CREATE TABLE t1 AS SELECT 12345678900 AS c1, COALESCE(12345678900) AS c2;
+SELECT * FROM t1;
+c1	c2
+12345678900	12345678900
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(11) NOT NULL,
+  `c2` bigint(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+9 AS i1, COALESCE(9) AS c1,
+99 AS i2, COALESCE(99) AS c2,
+999 AS i3, COALESCE(999) AS c3,
+9999 AS i4, COALESCE(9999) AS c4,
+99999 AS i5, COALESCE(99999) AS c5,
+999999 AS i6, COALESCE(999999) AS c6,
+9999999 AS i7, COALESCE(9999999) AS c7,
+99999999 AS i8, COALESCE(99999999) AS c8,
+999999999 AS i9, COALESCE(999999999) AS c9,
+2147483647, COALESCE(2147483647),
+2147483648, COALESCE(2147483648),
+9999999999 AS i10, COALESCE(9999999999) AS c10,
+99999999999 AS i11, COALESCE(99999999999) AS c11,
+999999999999 AS i12, COALESCE(999999999999) AS c12,
+9999999999999 AS i13, COALESCE(9999999999999) AS c13,
+99999999999999 AS i14, COALESCE(99999999999999) AS c14,
+999999999999999 AS i15, COALESCE(999999999999999) AS c15,
+9999999999999999 AS i16, COALESCE(9999999999999999) AS c16,
+99999999999999999 AS i17, COALESCE(99999999999999999) AS c17,
+999999999999999999 AS i18, COALESCE(999999999999999999) AS c18,
+9223372036854775807, COALESCE(9223372036854775807),
+9223372036854775808, COALESCE(9223372036854775808),
+9999999999999999999 AS i19, COALESCE(9999999999999999999) AS c19,
+18446744073709551615, COALESCE(18446744073709551615),
+18446744073709551616, COALESCE(18446744073709551616),
+99999999999999999999 AS i20, COALESCE(99999999999999999999) AS c20,
+999999999999999999999 AS i21, COALESCE(999999999999999999999) AS c21,
+9999999999999999999999 AS i22, COALESCE(9999999999999999999999) AS c22;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i1` int(1) NOT NULL,
+  `c1` int(1) NOT NULL,
+  `i2` int(2) NOT NULL,
+  `c2` int(2) NOT NULL,
+  `i3` int(3) NOT NULL,
+  `c3` int(3) NOT NULL,
+  `i4` int(4) NOT NULL,
+  `c4` int(4) NOT NULL,
+  `i5` int(5) NOT NULL,
+  `c5` int(5) NOT NULL,
+  `i6` int(6) NOT NULL,
+  `c6` int(6) NOT NULL,
+  `i7` int(7) NOT NULL,
+  `c7` int(7) NOT NULL,
+  `i8` int(8) NOT NULL,
+  `c8` int(8) NOT NULL,
+  `i9` int(9) NOT NULL,
+  `c9` int(9) NOT NULL,
+  `2147483647` bigint(10) NOT NULL,
+  `COALESCE(2147483647)` bigint(10) NOT NULL,
+  `2147483648` bigint(10) NOT NULL,
+  `COALESCE(2147483648)` bigint(10) NOT NULL,
+  `i10` bigint(10) NOT NULL,
+  `c10` bigint(10) NOT NULL,
+  `i11` bigint(11) NOT NULL,
+  `c11` bigint(11) NOT NULL,
+  `i12` bigint(12) NOT NULL,
+  `c12` bigint(12) NOT NULL,
+  `i13` bigint(13) NOT NULL,
+  `c13` bigint(13) NOT NULL,
+  `i14` bigint(14) NOT NULL,
+  `c14` bigint(14) NOT NULL,
+  `i15` bigint(15) NOT NULL,
+  `c15` bigint(15) NOT NULL,
+  `i16` bigint(16) NOT NULL,
+  `c16` bigint(16) NOT NULL,
+  `i17` bigint(17) NOT NULL,
+  `c17` bigint(17) NOT NULL,
+  `i18` bigint(18) NOT NULL,
+  `c18` bigint(18) NOT NULL,
+  `9223372036854775807` bigint(19) NOT NULL,
+  `COALESCE(9223372036854775807)` bigint(19) NOT NULL,
+  `9223372036854775808` bigint(19) unsigned NOT NULL,
+  `COALESCE(9223372036854775808)` bigint(19) unsigned NOT NULL,
+  `i19` bigint(19) unsigned NOT NULL,
+  `c19` bigint(19) unsigned NOT NULL,
+  `18446744073709551615` bigint(20) unsigned NOT NULL,
+  `COALESCE(18446744073709551615)` bigint(20) unsigned NOT NULL,
+  `18446744073709551616` decimal(20,0) NOT NULL,
+  `COALESCE(18446744073709551616)` decimal(20,0) NOT NULL,
+  `i20` decimal(20,0) NOT NULL,
+  `c20` decimal(20,0) NOT NULL,
+  `i21` decimal(21,0) NOT NULL,
+  `c21` decimal(21,0) NOT NULL,
+  `i22` decimal(22,0) NOT NULL,
+  `c22` decimal(22,0) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+i1	9
+c1	9
+i2	99
+c2	99
+i3	999
+c3	999
+i4	9999
+c4	9999
+i5	99999
+c5	99999
+i6	999999
+c6	999999
+i7	9999999
+c7	9999999
+i8	99999999
+c8	99999999
+i9	999999999
+c9	999999999
+2147483647	2147483647
+COALESCE(2147483647)	2147483647
+2147483648	2147483648
+COALESCE(2147483648)	2147483648
+i10	9999999999
+c10	9999999999
+i11	99999999999
+c11	99999999999
+i12	999999999999
+c12	999999999999
+i13	9999999999999
+c13	9999999999999
+i14	99999999999999
+c14	99999999999999
+i15	999999999999999
+c15	999999999999999
+i16	9999999999999999
+c16	9999999999999999
+i17	99999999999999999
+c17	99999999999999999
+i18	999999999999999999
+c18	999999999999999999
+9223372036854775807	9223372036854775807
+COALESCE(9223372036854775807)	9223372036854775807
+9223372036854775808	9223372036854775808
+COALESCE(9223372036854775808)	9223372036854775808
+i19	9999999999999999999
+c19	9999999999999999999
+18446744073709551615	18446744073709551615
+COALESCE(18446744073709551615)	18446744073709551615
+18446744073709551616	18446744073709551616
+COALESCE(18446744073709551616)	18446744073709551616
+i20	99999999999999999999
+c20	99999999999999999999
+i21	999999999999999999999
+c21	999999999999999999999
+i22	9999999999999999999999
+c22	9999999999999999999999
+DROP TABLE t1;
+#
+# MDEV-9406 CREATE TABLE..SELECT creates different columns for IFNULL() and equivalent COALESCE,CASE,IF
+#
+CREATE TABLE t1 (a SMALLINT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 AS SELECT
+IFNULL(a,a) AS c1,
+COALESCE(a,a) AS c2,
+CASE WHEN a IS NOT NULL THEN a ELSE a END AS c3,
+IF(a IS NULL,a,a) AS c4 FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` smallint(6) DEFAULT NULL,
+  `c2` smallint(6) DEFAULT NULL,
+  `c3` smallint(6) DEFAULT NULL,
+  `c4` smallint(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2,t1;
+CREATE TABLE t1 AS SELECT
+connection_id() AS c0,
+IFNULL(connection_id(),connection_id()) AS c1,
+COALESCE(connection_id(), connection_id()) AS c2,
+CASE WHEN 0 THEN connection_id() ELSE connection_id() END AS c3,
+IF(0,connection_id(),connection_id()) AS c4;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c0` int(10) unsigned NOT NULL,
+  `c1` int(10) unsigned NOT NULL,
+  `c2` int(10) unsigned NOT NULL,
+  `c3` int(10) unsigned NOT NULL,
+  `c4` int(10) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# MDEV-17759 Assertion `precision > 0' failed in decimal_bin_size upon CREATE TABLE .. SELECT
+#
+SET sql_mode='';
+CREATE TABLE t1 (d DECIMAL(43,0) UNSIGNED);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 AS SELECT
+IFNULL(SLEEP(0.01), NULL DIV d) AS f0,
+IFNULL(SLEEP(0.01), '' DIV d) AS f1
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f0` decimal(1,0) DEFAULT NULL,
+  `f1` decimal(1,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+#
+# MDEV-17325 NULL-ability problems with LEAST() in combination with NO_ZERO_DATE and NO_ZERO_IN_DATE
+#
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+SELECT
+LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+LEAST(0,DATE'2001-01-01') AS i1,
+LEAST(20010001,DATE'2001-01-01') AS i2,
+LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					s1	10	10	0	Y	128	0	63
+def					s2	10	10	0	Y	128	0	63
+def					s3	12	26	0	Y	128	0	63
+def					s4	12	26	0	Y	128	0	63
+def					i1	10	10	0	Y	128	0	63
+def					i2	10	10	0	Y	128	0	63
+def					i3	12	19	0	Y	128	0	63
+def					i4	12	19	0	Y	128	0	63
+s1	s2	s3	s4	i1	i2	i3	i4
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '0001-00-01 00:00:00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '2001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '2001-00-01 00:00:00'
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+CREATE TABLE t1 AS SELECT
+LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+LEAST(0,DATE'2001-01-01') AS i1,
+LEAST(20010001,DATE'2001-01-01') AS i2,
+LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '0001-00-01 00:00:00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '2001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '2001-00-01 00:00:00'
+SELECT * FROM t1;
+s1	s2	s3	s4	i1	i2	i3	i4
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `s1` date DEFAULT NULL,
+  `s2` date DEFAULT NULL,
+  `s3` datetime DEFAULT NULL,
+  `s4` datetime DEFAULT NULL,
+  `i1` date DEFAULT NULL,
+  `i2` date DEFAULT NULL,
+  `i3` datetime DEFAULT NULL,
+  `i4` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+SELECT * FROM t1;
+c1
+2001-01-01 00:00:00
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` datetime NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET old_mode=ZERO_DATE_TIME_CAST;
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00 10:20:30'
+SELECT * FROM t1;
+c1
+NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET old_mode=DEFAULT;
+SET timestamp=DEFAULT;
+SET sql_mode=DEFAULT;
+SET sql_mode='';
+SELECT LEAST(999,TIME'10:20:30') AS c1;
+c1
+NULL
+Warnings:
+Warning	1292	Incorrect time value: '999'
+CREATE TABLE t1 AS SELECT LEAST(999,TIME'10:20:30') AS c1;
+Warnings:
+Warning	1292	Incorrect time value: '999'
+SELECT * FROM t1;
+c1
+NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-18456 Assertion `item->maybe_null' failed in Type_handler_temporal_result::make_sort_key
+#
+CREATE TABLE t1 (t TIME NOT NULL);
+INSERT INTO t1 VALUES ('00:20:11'),('14:52:05');
+SELECT GREATEST('9999', t) FROM t1 ORDER BY 1;
+GREATEST('9999', t)
+NULL
+NULL
+Warnings:
+Warning	1292	Incorrect time value: '9999'
+Warning	1292	Incorrect time value: '9999'
+Warning	1292	Incorrect time value: '9999'
+Warning	1292	Incorrect time value: '9999'
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#
+#
+# MDEV-17325 NULL-ability problems with LEAST() in combination with NO_ZERO_DATE and NO_ZERO_IN_DATE
+#
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+SELECT
+LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+LEAST(0,DATE'2001-01-01') AS i1,
+LEAST(20010001,DATE'2001-01-01') AS i2,
+LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					s1	10	10	0	Y	128	0	63
+def					s2	10	10	0	Y	128	0	63
+def					s3	12	26	0	Y	128	0	63
+def					s4	12	26	0	Y	128	0	63
+def					i1	10	10	0	Y	128	0	63
+def					i2	10	10	0	Y	128	0	63
+def					i3	12	19	0	Y	128	0	63
+def					i4	12	19	0	Y	128	0	63
+s1	s2	s3	s4	i1	i2	i3	i4
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '0001-00-01 00:00:00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '2001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '2001-00-01 00:00:00'
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+CREATE TABLE t1 AS SELECT
+LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+LEAST(0,DATE'2001-01-01') AS i1,
+LEAST(20010001,DATE'2001-01-01') AS i2,
+LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '0001-00-01 00:00:00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '2001-00-01'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '2001-00-01 00:00:00'
+SELECT * FROM t1;
+s1	s2	s3	s4	i1	i2	i3	i4
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `s1` date DEFAULT NULL,
+  `s2` date DEFAULT NULL,
+  `s3` datetime DEFAULT NULL,
+  `s4` datetime DEFAULT NULL,
+  `i1` date DEFAULT NULL,
+  `i2` date DEFAULT NULL,
+  `i3` datetime DEFAULT NULL,
+  `i4` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+SELECT * FROM t1;
+c1
+2001-01-01 00:00:00
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` datetime NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET old_mode=ZERO_DATE_TIME_CAST;
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00 10:20:30'
+SELECT * FROM t1;
+c1
+NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET old_mode=DEFAULT;
+SET timestamp=DEFAULT;
+SET sql_mode=DEFAULT;
+SET sql_mode='';
+SELECT LEAST(999,TIME'10:20:30') AS c1;
+c1
+NULL
+Warnings:
+Warning	1292	Incorrect time value: '999'
+CREATE TABLE t1 AS SELECT LEAST(999,TIME'10:20:30') AS c1;
+Warnings:
+Warning	1292	Incorrect time value: '999'
+SELECT * FROM t1;
+c1
+NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-17318 CAST(LEAST(zero_date,non_zero_date) AS numeric_data_type) returns a wrong result
+#
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+SELECT
+LEAST('0000-00-00',DATE'2001-01-01') AS c0,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS CHAR) AS string,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATE) AS date,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATETIME) AS datetime,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS TIME) AS time,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DECIMAL) AS dc,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DOUBLE) AS dbl,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS SIGNED) AS sint,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS UNSIGNED) AS uint;
+c0	string	date	datetime	time	dc	dbl	sint	uint
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+CREATE TABLE t1 AS SELECT
+LEAST('0000-00-00',DATE'2001-01-01') AS c0,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS CHAR) AS string,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATE) AS date,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATETIME) AS datetime,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS TIME) AS time,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DECIMAL) AS dc,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DOUBLE) AS dbl,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS SIGNED) AS sint,
+CAST(LEAST('0000-00-00',DATE'2001-01-01') AS UNSIGNED) AS uint;
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+Warning	1292	Incorrect datetime value: '0000-00-00'
+SELECT * FROM t1;
+c0	string	date	datetime	time	dc	dbl	sint	uint
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c0` date DEFAULT NULL,
+  `string` varchar(10) DEFAULT NULL,
+  `date` date DEFAULT NULL,
+  `datetime` datetime DEFAULT NULL,
+  `time` time DEFAULT NULL,
+  `dc` decimal(10,0) DEFAULT NULL,
+  `dbl` double DEFAULT NULL,
+  `sint` bigint(10) DEFAULT NULL,
+  `uint` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-17330 Wrong result for 0 + LEAST(TIME'-10:00:00',TIME'10:00:00')
+#
+SELECT 0 + LEAST(TIME'-10:00:00',TIME'10:00:00') AS c;
+c
+-100000
+#
+# End of 10.4 tests
+#

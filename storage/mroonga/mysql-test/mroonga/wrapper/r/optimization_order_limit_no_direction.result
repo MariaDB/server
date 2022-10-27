@@ -1,0 +1,27 @@
+DROP TABLE IF EXISTS memos;
+FLUSH STATUS;
+CREATE TABLE memos (
+id int PRIMARY KEY,
+content TEXT,
+FULLTEXT INDEX (content)
+) COMMENT = 'engine "InnoDB"';
+INSERT INTO memos VALUES(1, "Groonga is fast");
+INSERT INTO memos VALUES(2, "Mroonga is fast");
+INSERT INTO memos VALUES(3, "Mroonga is easy");
+INSERT INTO memos VALUES(4, "Mroonga is useful");
+INSERT INTO memos VALUES(5, "Mroonga is great");
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	0
+SELECT id, content
+FROM memos
+WHERE MATCH(content) AGAINST("+Mroonga" IN BOOLEAN MODE)
+ORDER BY id
+LIMIT 2;
+id	content
+2	Mroonga is fast
+3	Mroonga is easy
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	1
+DROP TABLE memos;

@@ -1,0 +1,33 @@
+# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2014 Kentoku SHIBA
+# Copyright(C) 2017 Kentaro Hayashi <hayashi@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/have_mroonga_helper.inc
+
+SET GLOBAL mroonga_log_file = "groonga-query-log.log";
+
+SET GLOBAL mroonga_query_log_file = "groonga-query.log";
+--source ../../include/mroonga/print_groonga_query_log.inc
+
+SET GLOBAL mroonga_query_log_file = DEFAULT;
+SET GLOBAL mroonga_log_file = DEFAULT;
+
+--remove_file $MYSQLD_DATADIR/groonga-query-log.log
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

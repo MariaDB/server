@@ -1,0 +1,232 @@
+##
+## Tests the auto-increment with binlog in STATEMENT mode.
+##
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+##
+## Verify the correct operation of the auto-increment when the binlog
+## format artificially set to the 'STATEMENT' (although this mode is
+## not recommended in the current version):
+##
+
+--connection node_2
+SET GLOBAL wsrep_forced_binlog_format='STATEMENT';
+
+--connection node_1
+SET GLOBAL wsrep_forced_binlog_format='STATEMENT';
+
+CREATE TABLE t1 (
+     i int(11) NOT NULL AUTO_INCREMENT,
+     c char(32) DEFAULT 'dummy_text',
+     PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+insert into t1(i) values(null);
+
+select * from t1;
+
+insert into t1(i) values(null), (null), (null);
+
+select * from t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
+--source include/wait_condition.inc
+select * from t1;
+
+SET GLOBAL wsrep_forced_binlog_format='none';
+
+--connection node_1
+
+SET GLOBAL wsrep_forced_binlog_format='none';
+
+drop table t1;
+
+##
+## Check the operation when the automatic control over the auto-increment
+## settings is switched off, that is, when we use the increment step and
+## the offset specified by the user. In the current session, the binlog
+## format is set to 'STATEMENT'. It is important that the values of the
+## auto-increment options does not changed on other node - it allows us
+## to check the correct transmission of the auto-increment options to
+## other nodes:
+##
+
+--disable_warnings
+SET SESSION binlog_format='STATEMENT';
+--enable_warnings
+
+show variables like 'binlog_format';
+
+SET GLOBAL wsrep_auto_increment_control='OFF';
+
+let $increment_node1 = `SELECT @@session.auto_increment_increment`;
+let $offset_node1 = `SELECT @@session.auto_increment_offset`;
+SET SESSION auto_increment_increment = 3;
+SET SESSION auto_increment_offset = 1;
+
+CREATE TABLE t1 (
+     i int(11) NOT NULL AUTO_INCREMENT,
+     c char(32) DEFAULT 'dummy_text',
+     PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+insert into t1(i) values(null);
+
+select * from t1;
+
+insert into t1(i) values(null), (null), (null);
+
+select * from t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
+--source include/wait_condition.inc
+
+select * from t1;
+
+--connection node_1
+
+##
+## Verify the return to automatic calculation of the step
+## and offset of the auto-increment:
+##
+
+SET GLOBAL wsrep_auto_increment_control='ON';
+
+SET SESSION binlog_format='ROW';
+
+show variables like 'binlog_format';
+show variables like '%auto_increment%';
+
+##
+## Verify the recovery of original user-defined values after
+## stopping the automatic control over auto-increment:
+##
+
+SET GLOBAL wsrep_auto_increment_control='OFF';
+
+show variables like '%auto_increment%';
+
+##
+## Restore original options and drop test table:
+##
+
+SET GLOBAL wsrep_auto_increment_control='ON';
+
+drop table t1;
+
+##
+## Verify the correct operation of the auto-increment when the binlog
+## format set to the 'ROW':
+##
+
+--connection node_2
+SET GLOBAL wsrep_forced_binlog_format='ROW';
+
+--connection node_1
+SET GLOBAL wsrep_forced_binlog_format='ROW';
+
+CREATE TABLE t1 (
+     i int(11) NOT NULL AUTO_INCREMENT,
+     c char(32) DEFAULT 'dummy_text',
+     PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+insert into t1(i) values(null);
+
+select * from t1;
+
+insert into t1(i) values(null), (null), (null);
+
+select * from t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
+--source include/wait_condition.inc
+
+select * from t1;
+
+SET GLOBAL wsrep_forced_binlog_format='none';
+
+--connection node_1
+
+SET GLOBAL wsrep_forced_binlog_format='none';
+
+drop table t1;
+
+##
+## Check the operation when the automatic control over the auto-increment
+## settings is switched off, that is, when we use the increment step and
+## the offset specified by the user. In the current session, the binlog
+## format is set to 'ROW'. It is important that the values of the
+## auto-increment options does not changed on other node - it allows us
+## to check the correct transmission of the auto-increment options to
+## other nodes:
+##
+
+SET SESSION binlog_format='ROW';
+
+show variables like 'binlog_format';
+
+SET GLOBAL wsrep_auto_increment_control='OFF';
+
+SET SESSION auto_increment_increment = 3;
+SET SESSION auto_increment_offset = 1;
+
+CREATE TABLE t1 (
+     i int(11) NOT NULL AUTO_INCREMENT,
+     c char(32) DEFAULT 'dummy_text',
+     PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+insert into t1(i) values(null);
+
+select * from t1;
+
+insert into t1(i) values(null), (null), (null);
+
+select * from t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
+--source include/wait_condition.inc
+
+select * from t1;
+
+--connection node_1
+
+##
+## Verify the return to automatic calculation of the step
+## and offset of the auto-increment:
+##
+
+SET GLOBAL wsrep_auto_increment_control='ON';
+
+show variables like 'binlog_format';
+show variables like '%auto_increment%';
+
+##
+## Verify the recovery of original user-defined values after
+## stopping the automatic control over auto-increment:
+##
+
+SET GLOBAL wsrep_auto_increment_control='OFF';
+
+show variables like '%auto_increment%';
+
+##
+## Restore original options and drop test table:
+##
+
+SET GLOBAL wsrep_auto_increment_control='ON';
+
+drop table t1;
+
+--source include/auto_increment_offset_restore.inc

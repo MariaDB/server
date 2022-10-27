@@ -1,0 +1,105 @@
+drop table if exists t1, t2;
+#
+# Check that DECIMAL datatype supports 'index-only' scans and is decoded correctly.
+#  (Decoding happens from the mem-comparable image in the index, regardless
+#   of whether the value part has original value or not)
+#
+create table t1 (
+pk int not null primary key,
+col1 decimal (2,1) signed,
+col2 decimal (2,1) unsigned,
+filler varchar(100),
+key key1(col1, col2)
+)engine=rocksdb;
+insert into t1 values 
+(1,-9.1, 0.7, 'filler'),
+(2,-8.2, 1.6, 'filler'),
+(3, 0.3, 2.5, 'filler'),
+(4, 1.4, 3.4, 'filler'),
+(5, 2.5, 4.3, 'filler'),
+(6, 3.3, 5.3, 'filler');
+insert into t1 select pk+100, 9.0, 9.0, 'extra-data' from t1;
+insert into t1 select pk+200, 9.0, 9.0, 'extra-data' from t1;
+insert into t1 select pk+1000, 9.0, 9.0, 'extra-data' from t1;
+insert into t1 select pk+10000, 9.0, 9.0, 'extra-data' from t1;
+insert into t1 select pk+100000, 9.0, 9.0, 'extra-data' from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# The following can't use index-only:
+explain select * from t1 where col1 between -8 and 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	key1	key1	3	NULL	#	Using index condition
+# This will use index-only:
+explain
+select col1, col2 from t1 where col1 between -8 and 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	key1	key1	3	NULL	#	Using where; Using index
+select col1, col2 from t1 where col1 between -8 and 8;
+col1	col2
+0.3	2.5
+1.4	3.4
+2.5	4.3
+3.3	5.3
+insert into t1 values (11, NULL, 0.9, 'row1-with-null');
+insert into t1 values (10, -8.4, NULL, 'row2-with-null');
+explain
+select col1, col2 from t1 force index(key1) where col1 is null or col1 < -7;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	key1	key1	3	NULL	#	Using where; Using index
+select col1, col2 from t1 force index(key1) where col1 is null or col1 < -7;
+col1	col2
+NULL	0.9
+-9.1	0.7
+-8.4	NULL
+-8.2	1.6
+# Try an UPDATE
+select * from t1 where pk in (3,4);
+pk	col1	col2	filler
+3	0.3	2.5	filler
+4	1.4	3.4	filler
+update t1 set col2= col2+0.2 where pk in (3,4);
+select * from t1 where pk in (3,4);
+pk	col1	col2	filler
+3	0.3	2.7	filler
+4	1.4	3.6	filler
+drop table t1;
+#
+# Try another DECIMAL-based type that takes more space
+#
+create table t1 (
+pk int not null primary key,
+col1 decimal (12,6) signed,
+col2 decimal (12,6) unsigned,
+filler varchar(100),
+key key1(col1, col2)
+)engine=rocksdb;
+insert into t1 values 
+(1,-900.001, 000.007, 'filler'),
+(2,-700.002, 100.006, 'filler'),
+(3, 000.003, 200.005, 'filler'),
+(4, 100.004, 300.004, 'filler'),
+(5, 200.005, 400.003, 'filler'),
+(6, 300.003, 500.003, 'filler');
+insert into t1 select pk+100, col1+20000, col2+20000, 'extra-data' from t1;
+insert into t1 select pk+200, col1+20000, col2+20000, 'extra-data' from t1;
+insert into t1 select pk+1000, col1+20000, col2+20000, 'extra-data' from t1;
+insert into t1 select pk+10000, col1+20000, col2+20000, 'extra-data' from t1;
+insert into t1 select pk+100000, col1+20000, col2+20000, 'extra-data' from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+explain
+select col1, col2 from t1 force index(key1) where col1 between -800 and 800;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	key1	key1	7	NULL	#	Using where; Using index
+select col1, col2 from t1 force index(key1) where col1 between -800 and 800;
+col1	col2
+-700.002000	100.006000
+0.003000	200.005000
+100.004000	300.004000
+200.005000	400.003000
+300.003000	500.003000
+drop table t1;

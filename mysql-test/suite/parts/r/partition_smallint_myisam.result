@@ -1,0 +1,109 @@
+create table t1 (a smallint unsigned not null, primary key(a)) engine='MYISAM' 
+partition by key (a) (
+partition pa1 max_rows=20 min_rows=2,
+partition pa2 max_rows=30 min_rows=3,
+partition pa3 max_rows=30 min_rows=4,
+partition pa4 max_rows=40 min_rows=2);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` smallint(5) unsigned NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = MyISAM,
+ PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = MyISAM,
+ PARTITION `pa3` MAX_ROWS = 30 MIN_ROWS = 4 ENGINE = MyISAM,
+ PARTITION `pa4` MAX_ROWS = 40 MIN_ROWS = 2 ENGINE = MyISAM)
+insert into t1 values (65535), (65534), (65533), (65532), (1), (2), (256);
+select * from t1;
+a
+1
+2
+256
+65532
+65533
+65534
+65535
+select * from t1 where a=65533;
+a
+65533
+delete from t1 where a=65533;
+select * from t1;
+a
+1
+2
+256
+65532
+65534
+65535
+drop table t1;
+create table t2 (a smallint unsigned not null, primary key(a)) engine='MYISAM' 
+partition by key (a) partitions 8;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` smallint(5) unsigned NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+PARTITIONS 8
+insert into t2 values (65535), (65534), (65533), (65532);
+select * from t2;
+a
+65532
+65533
+65534
+65535
+select * from t2 where a=65533;
+a
+65533
+delete from t2 where a=65533;
+select * from t2;
+a
+65532
+65534
+65535
+delete from t2;
+65535 inserts;
+select count(*) from t2;
+count(*)
+65535
+drop table t2;
+create table t3 (a smallint not null, primary key(a)) engine='MYISAM' 
+partition by key (a) partitions 7;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` smallint(6) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+PARTITIONS 7
+insert into t3 values (32767), (32766), (32765), (32764), (-32768), (-32767), (1), (-1), (0);
+select * from t3;
+a
+-1
+-32767
+-32768
+0
+1
+32764
+32765
+32766
+32767
+select * from t3 where a=32765;
+a
+32765
+delete from t3 where a=32765;
+select * from t3;
+a
+-1
+-32767
+-32768
+0
+1
+32764
+32766
+32767
+drop table t3;

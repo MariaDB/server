@@ -1,0 +1,50 @@
+--source include/have_innodb.inc
+# Embedded server does not support restarting
+--source include/not_embedded.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # Bug#19685095 DO NOT CARE ABOUT UNRESOLVED MLOG_FILE_NAME
+--echo # IF THERE ARE NO OPERATIONS TO APPLY
+--echo #
+
+SET GLOBAL DEBUG_DBUG='+d,fil_names_write_bogus';
+--disable_query_log
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+FLUSH TABLES;
+--enable_query_log
+
+--let $n_logs=`SELECT if(@@innodb_log_files_in_group = 1, 2, 1)`
+--let $resize= --innodb-log-files-in-group=$n_logs --innodb-log-file-size=4M
+
+--source include/no_checkpoint_start.inc
+
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--let CLEANUP_IF_CHECKPOINT=DROP TABLE t1;
+--source include/no_checkpoint_end.inc
+
+--let $restart_parameters= --debug=d,innodb_log_abort_1 $resize
+--source include/start_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN = InnoDB: Tablespace 4294967280 was not found at .*, but there were no modifications either
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --debug=d,innodb_log_abort_3,ib_log $resize
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+--let SEARCH_PATTERN= ib_log: MLOG_CHECKPOINT.* written
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+# Initiate shutdown in order to issue a redo log checkpoint and to discard
+# the redo log record that was emitted due to '+d,fil_names_write_bogus'.
+--source include/restart_mysqld.inc
+DROP TABLE t1;

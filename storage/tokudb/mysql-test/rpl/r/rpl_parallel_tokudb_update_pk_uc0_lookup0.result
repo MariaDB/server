@@ -1,0 +1,41 @@
+include/master-slave.inc
+[connection master]
+connection master;
+drop table if exists t;
+connection slave;
+show variables like 'tokudb_rpl_%';
+Variable_name	Value
+connection master;
+create table t (a bigint not null, b bigint not null, primary key(a)) engine=tokudb;
+insert into t values (1,0);
+insert into t values (2,0),(3,0);
+insert into t values (4,0);
+connection master;
+connection slave;
+connection master;
+include/diff_tables.inc [master:test.t, slave:test.t]
+connection master;
+update t set b=b+1 where a=2;
+update t set b=b+2 where a=1;
+update t set b=b+3 where a=4;
+update t set b=b+4 where a=3;
+update t set b=b+1 where 1<=a and a<=3;
+# select unix_timestamp() into @tstart;
+connection master;
+connection slave;
+connection master;
+# Commented out for MariaDB
+# select unix_timestamp() into @tend;
+# select @tend-@tstart <= 5; # assert no delay in the delete time
+connection slave;
+select * from t;
+a	b
+1	3
+2	2
+3	5
+4	3
+include/diff_tables.inc [master:test.t, slave:test.t]
+connection master;
+drop table if exists t;
+connection slave;
+include/rpl_end.inc

@@ -1,0 +1,23 @@
+create table t1 (
+id int, 
+value int, 
+primary key (id)
+) engine=rocksdb;
+insert into t1 values(1,1),(2,2);
+set autocommit=0;
+begin;
+insert into t1 values (50,50);
+select * from t1;
+id	value
+1	1
+2	2
+50	50
+update t1 set id=id+100;
+select * from t1;
+id	value
+101	1
+102	2
+150	50
+rollback;
+set autocommit=1;
+drop table t1;

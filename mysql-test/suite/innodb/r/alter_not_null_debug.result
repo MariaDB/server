@@ -1,0 +1,100 @@
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT, PRIMARY KEY(c1))ENGINE=INNODB;
+INSERT INTO t1 VALUES(1, 1);
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+affected rows: 0
+ALTER TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2;
+connect  con1,localhost,root;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+affected rows: 0
+INSERT INTO t1 VALUES(2, NULL);
+affected rows: 1
+UPDATE t1 SET c1 = 3 WHERE c2 = 1;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+affected rows: 0
+connection default;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c2' at row 3
+SELECT * FROM t1;
+c1	c2
+2	0
+3	1
+DROP TABLE t1;
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT, PRIMARY KEY(c1))ENGINE=INNODB;
+INSERT INTO t1 VALUES(1, 1);
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+affected rows: 0
+ALTER TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+affected rows: 0
+INSERT INTO t1 VALUES(2, 3);
+affected rows: 1
+UPDATE t1 SET c1 = 3 WHERE c2 = 1;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+affected rows: 0
+connection default;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT * FROM t1;
+c1	c2
+2	3
+3	1
+DROP TABLE t1;
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT, c3 INT, PRIMARY KEY(c1))ENGINE=INNODB;
+INSERT INTO t1 VALUES(1, 2, 3);
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+affected rows: 0
+ALTER IGNORE TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+affected rows: 0
+UPDATE t1 SET c2= 2 WHERE c1 = 1;
+affected rows: 0
+info: Rows matched: 1  Changed: 0  Warnings: 0
+INSERT INTO t1 VALUES (2, NULL, 4);
+affected rows: 1
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+affected rows: 0
+connection default;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c2' at row 3
+SELECT * FROM t1;
+c1	c2	c3
+1	2	3
+2	0	4
+DROP TABLE t1;
+SET DEBUG_SYNC='RESET';
+#
+# MDEV-21539 Assertion ...prtype... in row_log_table_apply_convert_mrec
+#
+CREATE TABLE t1 (f VARCHAR(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci)
+ENGINE=InnoDB;
+connection con1;
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL scanned WAIT_FOR insert_done';
+ALTER TABLE t1 MODIFY f VARCHAR(256) COLLATE latin1_german2_ci NOT NULL;
+# session default
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+INSERT INTO t1 VALUES('one');
+SET DEBUG_SYNC = 'now SIGNAL insert_done';
+connection con1;
+disconnect con1;
+connection default;
+SET DEBUG_SYNC=RESET;
+ALTER TABLE t1 CHANGE f eins VARCHAR(257) COLLATE latin1_german1_ci NOT NULL,
+ALGORITHM=INSTANT;
+SELECT * FROM t1;
+eins
+one
+DROP TABLE t1;

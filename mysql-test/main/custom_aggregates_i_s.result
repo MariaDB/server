@@ -1,0 +1,94 @@
+flush status;
+show  status like "%custom_aggregate%";
+Variable_name	Value
+Feature_custom_aggregate_functions	0
+create table t2 (sal int(10));
+create table t3 (sal int(10),id int);
+insert into t3 values (0,1),(1,2),(2,3),(3,4);
+create aggregate function f1(x INT) returns int
+begin
+declare tot_sum int default 0;
+declare continue handler for not found return tot_sum;
+loop
+fetch group next row;
+set tot_sum= tot_sum + x;
+end loop;
+end|
+create aggregate function f2 (x int) returns int
+begin
+declare counter int default 0;
+declare continue handler for not found return 0;
+loop
+fetch group next row;
+set counter =counter + (select f1(sal) from t1); 
+end loop;
+end|
+create table t1 (sal int(10),id int(10));
+INSERT INTO t1 (sal,id) VALUES (5000,1);
+INSERT INTO t1 (sal,id) VALUES (2000,2);
+INSERT INTO t1 (sal,id) VALUES (1000,3);
+Normal select with custom aggregate function
+select f1(sal) from t1 where id>= 1;
+f1(sal)
+8000
+show  status like "%custom_aggregate%";
+Variable_name	Value
+Feature_custom_aggregate_functions	1
+subqueries with custom aggregates
+explain
+select * from t1, (select f1(sal) as a  from t1 where id>= 1) q where q.a=t1.sal;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.sal	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+show  status like "%custom_aggregate%";
+Variable_name	Value
+Feature_custom_aggregate_functions	2
+explain
+select * from t1, (select sal as a from t1 where (select f1(t3.sal) from t3) >=-1 ) q where q.a=t1.sal;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	4	
+show  status like "%custom_aggregate%";
+Variable_name	Value
+Feature_custom_aggregate_functions	3
+explain
+select (select f1(sal) as a from t3 where t3.id= t1.id )  from t1 ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	4	Using where
+show  status like "%custom_aggregate%";
+Variable_name	Value
+Feature_custom_aggregate_functions	4
+explain
+select (select f1(sal) as a from t3 where t3.id= t1.id )  from t1 ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	4	Using where
+show  status like "%custom_aggregate%";
+Variable_name	Value
+Feature_custom_aggregate_functions	5
+custom aggregates inside other customm aggregates
+explain
+select f2(sal) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
+show  status like "%custom_aggregate%";
+Variable_name	Value
+Feature_custom_aggregate_functions	6
+cte with custom aggregates
+with agg_sum as (
+select f1(sal) from t1 where t1.id >=1 group by t1.id
+)
+select * from agg_sum;
+f1(sal)
+5000
+2000
+1000
+show  status like "%custom_aggregate%";
+Variable_name	Value
+Feature_custom_aggregate_functions	7
+drop table t2,t1,t3;
+drop function f1;
+drop function f2;

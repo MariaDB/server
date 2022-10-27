@@ -1,0 +1,47 @@
+# Copyright(C) 2015  Naoya Murakami <naoya@createfield.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/load_mroonga_functions.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS memos;
+DROP TABLE IF EXISTS terms;
+--enable_warnings
+
+SET NAMES utf8;
+
+CREATE TABLE terms (
+  term VARCHAR(64) NOT NULL,
+  PRIMARY KEY (term) USING HASH
+) COMMENT='default_tokenizer "TokenBigram", normalizer "NormalizerAuto"' DEFAULT CHARSET=utf8;
+
+CREATE TABLE memos (
+  id INT NOT NULL PRIMARY KEY,
+  content TEXT NOT NULL,
+  FULLTEXT INDEX (content) COMMENT 'table "terms"'
+) DEFAULT CHARSET=utf8;
+
+INSERT INTO memos VALUES (1, "1日の消費㌍は約2000㌔㌍");
+
+SELECT * FROM memos
+  WHERE MATCH (content) AGAINST ("+カロリー" IN BOOLEAN MODE);
+
+DROP TABLE memos;
+DROP TABLE terms;
+
+--source ../../include/mroonga/unload_mroonga_functions.inc
+--source ../../include/mroonga/have_mroonga_deinit.inc

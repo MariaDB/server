@@ -1,0 +1,7 @@
+!include ../galera_3nodes.cnf
+
+[mysqld.1]
+binlog-ignore-db=db1
+
+[mysqld.2]
+replicate-wild-ignore-table=db2.t2A

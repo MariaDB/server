@@ -1,0 +1,66 @@
+# Author: Horst Hunger
+# Created: 2010-07-13
+
+source include/not_windows.inc;
+source include/have_partition.inc;
+source include/have_symlink.inc;
+
+let $engine_table= MYISAM;
+let $engine_part= MYISAM;
+let $engine_subpart= MYISAM;
+let $data_dir_path= $MYSQLTEST_VARDIR/mysql-test-data-dir;
+let $idx_dir_path= $MYSQLTEST_VARDIR/mysql-test-idx-dir;
+mkdir $data_dir_path;
+mkdir $idx_dir_path;
+
+echo # === Data/Index directories are identical;
+  let $p_data_directory= DATA DIRECTORY = '$data_dir_path';
+  let $data_directory= DATA DIRECTORY = '$data_dir_path';
+  let $p_index_directory= INDEX DIRECTORY = '$idx_dir_path';
+  let $index_directory= INDEX DIRECTORY = '$idx_dir_path';
+  source suite/parts/inc/part_exch_tabs.inc;
+  ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
+  source suite/parts/inc/part_exch_drop_tabs.inc;
+
+echo # === partition has directories, the table does not;
+  let $p_data_directory= DATA DIRECTORY = '$data_dir_path';
+  let $data_directory= ;
+  let $p_index_directory= INDEX DIRECTORY = '$idx_dir_path';
+  let $index_directory= ;
+  source suite/parts/inc/part_exch_tabs.inc;
+  error ER_TABLES_DIFFERENT_METADATA;
+  ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
+  source suite/parts/inc/part_exch_drop_tabs.inc;
+
+echo # === the table has directories, partition does not;
+  let $p_data_directory= ;
+  let $data_directory= DATA DIRECTORY = '$data_dir_path';
+  let $p_index_directory= ;
+  let $index_directory= INDEX DIRECTORY = '$idx_dir_path';
+  source suite/parts/inc/part_exch_tabs.inc;
+  error ER_TABLES_DIFFERENT_METADATA;
+  ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
+  source suite/parts/inc/part_exch_drop_tabs.inc;
+
+echo # === data directory differs;
+  let $p_data_directory= DATA DIRECTORY = '$data_dir_path';
+  let $data_directory= DATA DIRECTORY = '$idx_dir_path';
+  let $p_index_directory= INDEX DIRECTORY = '$idx_dir_path';
+  let $index_directory= INDEX DIRECTORY = '$idx_dir_path';
+  source suite/parts/inc/part_exch_tabs.inc;
+  error ER_TABLES_DIFFERENT_METADATA;
+  ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
+  source suite/parts/inc/part_exch_drop_tabs.inc;
+
+echo # === index directory differs;
+  let $p_data_directory= DATA DIRECTORY = '$data_dir_path';
+  let $data_directory= DATA DIRECTORY = '$data_dir_path';
+  let $p_index_directory= DATA DIRECTORY = '$data_dir_path';
+  let $index_directory= DATA DIRECTORY = '$idx_dir_path';
+  source suite/parts/inc/part_exch_tabs.inc;
+  error ER_TABLES_DIFFERENT_METADATA;
+  ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_10;
+  source suite/parts/inc/part_exch_drop_tabs.inc;
+
+rmdir $idx_dir_path;
+rmdir $data_dir_path;

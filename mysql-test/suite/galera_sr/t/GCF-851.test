@@ -1,0 +1,24 @@
+--source include/galera_cluster.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+SET SESSION WSREP_TRX_FRAGMENT_SIZE=1;
+SET SESSION AUTOCOMMIT=OFF;
+
+INSERT INTO t1 VALUES (10);
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+--connection node_2
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+START TRANSACTION;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) > 0 FROM t1;
+
+--connection node_1
+SELECT COUNT(*) > 0 FROM t1;
+DROP TABLE t1;
+

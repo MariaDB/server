@@ -1,0 +1,75 @@
+--source ../include/fast_update_gen_header.inc
+
+--let GENERATED=$MYSQL_TMP_DIR/generated_fast_update_varchar.inc
+
+--perl
+  my $nrows = 100;
+  open(FILE, '>', "$ENV{GENERATED}") or die;
+  foreach my $t ('varchar', 'varbinary') {
+    foreach my $l (32, 256) {
+      foreach my $n ('null', 'not null') {
+        test_varchar($t, $l, $n, $nrows)
+      }
+    }
+  }
+  close FILE;
+
+  sub test_varchar {
+    my $t = shift;
+    my $l = shift;
+    my $n = shift;
+    my $nrows = shift;
+
+    print FILE "create table tt (id bigint unsigned primary key,\n";
+    print FILE "    f0 int $n,\n";
+    foreach my $i (0..3) {
+        print FILE "     v$i $t($l) $n,\n";
+    }
+    print FILE "     b0 text $n\n";
+    print FILE ") engine=tokudb;\n";
+
+    if ($n eq 'null') {
+        print FILE "insert into tt (id) values (0);\n";
+    }
+    print FILE "insert into tt values (1, 2, 'a', 'b', 'c', 'd', 'e');\n";
+    foreach my $i (2..($nrows - 1)) {
+        print FILE "insert into tt values ($i, ".
+                    ($i + 1).
+                    ", '', '', '', '', '');\n";
+    }
+
+    print FILE "create table ti like tt;\n";
+    print FILE "alter table ti engine=innodb;\n";
+    print FILE "insert into ti select * from tt;\n";
+
+    my @nulltest = ('null this', 'null is', 'null a', 'null test');
+    foreach my $i (0..$#nulltest) {
+      print FILE "update tt set v$i = '$nulltest[$i] $i' where id = 0;\n";
+      print FILE "update ti set v$i = '$nulltest[$i] $i' where id = 0;\n";
+    }
+
+    my @test = ('this' ,'is', 'another', 'test');
+    foreach my $i (0..$#test) {
+      print FILE "update tt set v$i = '$test[$i] $i' where id = 1;\n";
+      print FILE "update ti set v$i='$test[$i] $i' where id = 1;\n";
+    }
+
+    foreach my $id (2 .. ($nrows - 1)) {
+      foreach my $i (0 .. 3) {
+        my $long_str = rnd_str($l, ("A" .. "Z", 0 .. 9));
+        print FILE "update tt set v$i='$long_str' where id=$id;\n";
+        print FILE "update ti set v$i='$long_str' where id=$id;\n";
+      }
+    }
+
+    print FILE 'let $diff_tables = test.tt, test.ti;'."\n";
+    print FILE "source include/diff_tables.inc;\n";
+
+    print FILE "drop table tt, ti;\n";
+  }
+
+  sub rnd_str { join '', @_[ map{ rand @_ } 1 .. shift ] }
+
+EOF
+
+--source ../include/fast_update_gen_footer_silent.inc

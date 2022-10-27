@@ -1,0 +1,130 @@
+#
+# Additional tests for wsrep_dirty_reads
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+SET SESSION wsrep_dirty_reads = 1;
+
+# Those statements should succeed
+
+--error 0
+SELECT f1 FROM t1;
+
+--error 0
+USE test;
+
+--error 0
+SHOW CREATE TABLE t1;
+
+--error 0
+LOCK TABLE t1 WRITE;
+
+--error 0
+UNLOCK TABLES;
+
+--error 0
+FLUSH TABLES WITH READ LOCK;
+
+--error 0
+UNLOCK TABLES;
+
+--error 0
+PREPARE stmt_select FROM 'SELECT f1 FROM t1';
+
+--error 0
+EXECUTE stmt_select;
+
+--error 0
+PREPARE stmt_update FROM 'UPDATE t1 SET f1 = f1 + f1';
+
+# Mysqldump should succeed
+
+SET GLOBAL wsrep_dirty_reads = 1;
+SET GLOBAL wsrep_sync_wait = 0;
+--error 0
+--exec $MYSQL_DUMP -u root -S $NODE_MYSOCK_2 test >/dev/null
+SET GLOBAL wsrep_dirty_reads = 0;
+SET GLOBAL wsrep_sync_wait = 15;
+
+# Those statements should fail
+
+SET SESSION wsrep_dirty_reads = 1;
+
+--error ER_UNKNOWN_COM_ERROR
+INSERT INTO t1 SELECT * FROM t1;
+
+--error ER_UNKNOWN_COM_ERROR
+DELETE FROM t1;
+
+--error ER_UNKNOWN_COM_ERROR
+UPDATE t1 SET f1 = f1 + 1;
+
+--error ER_UNKNOWN_COM_ERROR
+DROP TABLE t1;
+
+--error ER_UNKNOWN_COM_ERROR
+EXECUTE stmt_update;
+
+# With wsrep_dirty_reads = 0 , even SELECTS are not allowed
+
+SET SESSION wsrep_dirty_reads = 0;
+
+--error ER_UNKNOWN_COM_ERROR
+SELECT * FROM t1;
+
+--error ER_UNKNOWN_COM_ERROR
+EXECUTE stmt_select;
+
+# But reads from INFORMATION_SCHEMA are allowed
+
+--error 0
+SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST;
+
+# Restore cluster
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+--source include/galera_wait_ready.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--source include/galera_wait_ready.inc
+
+DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

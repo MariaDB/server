@@ -1,0 +1,43 @@
+--source include/have_rocksdb.inc
+
+--source include/have_log_bin.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+create table t1 (id int primary key, value int, value2 varchar(200), index(value)) engine=rocksdb;
+
+--disable_query_log
+let $i = 1;
+while ($i <= 50000) {
+  let $insert = INSERT INTO t1 VALUES($i, $i, REPEAT('x', 150));
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+
+optimize table t1;
+
+#wiping block cache
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+--exec echo "wait" > $restart_file
+--shutdown_server
+--source include/wait_until_disconnected.inc
+-- exec echo "restart:--rocksdb_default_cf_options=write_buffer_size=64k;target_file_size_base=64k;max_bytes_for_level_base=1m;compression_per_level=kNoCompression;disable_auto_compactions=true;level0_stop_writes_trigger=1000  " > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- enable_reconnect
+-- source include/wait_until_connected_again.inc
+
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_block_cache_add';
+
+--exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --rocksdb test > /dev/null
+
+# verifying block cache was not filled
+select case when variable_value - @a > 20 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_block_cache_add';
+
+select count(*) from t1;
+
+# verifying block cache was filled
+select case when variable_value - @a > 100 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_block_cache_add';
+
+#cleanup
+DROP TABLE t1;

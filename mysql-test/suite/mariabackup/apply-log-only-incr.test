@@ -1,0 +1,70 @@
+--source include/have_innodb.inc
+
+call mtr.add_suppression("InnoDB: New log files created");
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
+
+CREATE TABLE t(a INT UNSIGNED PRIMARY KEY) ENGINE INNODB;
+INSERT INTO t VALUES(0);
+COMMIT;
+
+start transaction;
+--disable_query_log
+let $n=100;
+while ($n) {
+eval INSERT t VALUES(101-$n);
+dec $n;
+}
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+let $n=100;
+while ($n) {
+eval INSERT t VALUES(201-$n);
+dec $n;
+}
+--enable_query_log
+connect (flush_log,localhost,root,,);
+BEGIN;
+DELETE FROM t LIMIT 1;
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+ROLLBACK;
+disconnect flush_log;
+connection default;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --ftwrl-wait-timeout=5 --ftwrl-wait-threshold=300 --ftwrl-wait-query-type=all --target-dir=$incremental_dir --incremental-basedir=$basedir ;
+exec $XTRABACKUP --prepare --verbose --target-dir=$basedir ;
+--enable_result_log
+
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/current_test;
+--let SEARCH_PATTERN= Rolled back recovered transaction
+--source include/search_pattern_in_file.inc
+--echo # expect NOT FOUND
+
+exec $XTRABACKUP --prepare --verbose --target-dir=$basedir --incremental-dir=$incremental_dir ;
+
+--source include/search_pattern_in_file.inc
+--echo # expect NOT FOUND
+
+commit;
+SELECT count(*) FROM t;
+echo # Restore and check results;
+--let $targetdir=$basedir
+--let $restart_parameters= --innodb-force-recovery=3
+--source include/restart_and_restore.inc
+
+rmdir $basedir;
+rmdir $incremental_dir;
+
+SELECT COUNT(*) FROM t;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) FROM t;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+SELECT * FROM t;
+DROP TABLE t;

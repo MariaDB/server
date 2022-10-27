@@ -1,0 +1,25 @@
+#
+# Test node connections over SSL. The accompanying galera_ssl.cnf has a customized
+# wsrep_provider_options setting that enables SSL.
+#
+# At this time, the actual operation of SSL is not visible only in the error log and not in SHOW STATUS.
+# So this test can only check that the cluster has formed and is replicating.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/big_test.inc
+
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+SELECT COUNT(*) = 1 FROM t1;
+
+DROP TABLE t1;

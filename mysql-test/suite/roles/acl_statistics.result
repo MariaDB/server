@@ -1,0 +1,110 @@
+SHOW STATUS LIKE 'Acl%';
+Variable_name	Value
+Acl_column_grants	0
+Acl_database_grants	2
+Acl_function_grants	0
+Acl_procedure_grants	0
+Acl_package_spec_grants	0
+Acl_package_body_grants	0
+Acl_proxy_users	2
+Acl_role_grants	0
+Acl_roles	0
+Acl_table_grants	1
+Acl_users	5
+SELECT count(*) COLUMN_GRANTS from mysql.columns_priv;
+COLUMN_GRANTS
+0
+SELECT count(*) DATABASE_GRANTS from mysql.db;
+DATABASE_GRANTS
+2
+SELECT count(*) FUNCTION_GRANTS from mysql.procs_priv where routine_type='FUNCTION';
+FUNCTION_GRANTS
+0
+SELECT count(*) PROCEDURE_GRANTS from mysql.procs_priv where routine_type='PROCEDURE';
+PROCEDURE_GRANTS
+0
+SELECT count(*) PROXY_USERS from mysql.proxies_priv;
+PROXY_USERS
+2
+SELECT count(*) ROLE_GRANTS from mysql.roles_mapping;
+ROLE_GRANTS
+0
+SELECT count(*) ROLES from mysql.user where is_role='Y';
+ROLES
+0
+SELECT count(*) TABLE_GRANTS from mysql.tables_priv;
+TABLE_GRANTS
+1
+SELECT count(*) USERS from mysql.user where is_role='N';
+USERS
+5
+CREATE USER u1;
+CREATE ROLE r1;
+CREATE ROLE r2;
+GRANT PROXY ON root TO u1;
+GRANT SELECT ON *.* to u1;
+GRANT SELECT ON *.* to r1;
+GRANT DELETE ON mysql.* to u1;
+GRANT DELETE ON mysql.* to r1;
+GRANT INSERT ON mysql.user to u1;
+GRANT INSERT ON mysql.user to r1;
+GRANT UPDATE (host) ON mysql.user to u1;
+GRANT UPDATE (host) ON mysql.user to r1;
+GRANT r1 to u1;
+GRANT r2 to r1;
+create procedure mysql.test_proc (OUT param1 INT)
+begin
+select COUNT(*) into param1 from mysql.roles_mapping;
+end|
+GRANT EXECUTE ON PROCEDURE mysql.test_proc TO r1;
+GRANT EXECUTE ON PROCEDURE mysql.test_proc TO u1;
+CREATE FUNCTION mysql.test_func (param INT) RETURNS INT
+RETURN (SELECT COUNT(*) FROM mysql.user);
+GRANT EXECUTE ON FUNCTION mysql.test_func TO r1;
+GRANT EXECUTE ON FUNCTION mysql.test_func TO u1;
+GRANT EXECUTE ON FUNCTION mysql.test_func TO r2;
+SHOW STATUS LIKE 'Acl%';
+Variable_name	Value
+Acl_column_grants	2
+Acl_database_grants	4
+Acl_function_grants	3
+Acl_procedure_grants	2
+Acl_package_spec_grants	0
+Acl_package_body_grants	0
+Acl_proxy_users	3
+Acl_role_grants	4
+Acl_roles	2
+Acl_table_grants	3
+Acl_users	6
+SELECT count(*) COLUMN_GRANTS from mysql.columns_priv;
+COLUMN_GRANTS
+2
+SELECT count(*) DATABASE_GRANTS from mysql.db;
+DATABASE_GRANTS
+4
+SELECT count(*) FUNCTION_GRANTS from mysql.procs_priv where routine_type='FUNCTION';
+FUNCTION_GRANTS
+3
+SELECT count(*) PROCEDURE_GRANTS from mysql.procs_priv where routine_type='PROCEDURE';
+PROCEDURE_GRANTS
+2
+SELECT count(*) PROXY_USERS from mysql.proxies_priv;
+PROXY_USERS
+3
+SELECT count(*) ROLE_GRANTS from mysql.roles_mapping;
+ROLE_GRANTS
+4
+SELECT count(*) ROLES from mysql.user where is_role='Y';
+ROLES
+2
+SELECT count(*) TABLE_GRANTS from mysql.tables_priv;
+TABLE_GRANTS
+3
+SELECT count(*) USERS from mysql.user where is_role='N';
+USERS
+6
+DROP PROCEDURE mysql.test_proc;
+DROP FUNCTION mysql.test_func;
+DROP ROLE r2;
+DROP ROLE r1;
+DROP USER u1;

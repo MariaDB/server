@@ -1,0 +1,44 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_debug
+--echo #
+
+--echo # save the initial value
+SET @wsrep_debug_global_saved = @@global.wsrep_debug;
+
+--echo # default
+SELECT @@global.wsrep_debug;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_debug;
+SET @@global.wsrep_debug=0;
+SELECT @@global.wsrep_debug;
+SET @@global.wsrep_debug=1;
+SELECT @@global.wsrep_debug;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_debug=NONE;
+SELECT @@global.wsrep_debug;
+SET @@global.wsrep_debug=SERVER;
+SELECT @@global.wsrep_debug;
+SET @@global.wsrep_debug=default;
+SELECT @@global.wsrep_debug;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_debug=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_debug='junk';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_debug=ON;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_debug = @wsrep_debug_global_saved;
+
+--echo # End of test

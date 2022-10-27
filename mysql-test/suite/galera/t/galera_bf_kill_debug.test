@@ -1,0 +1,140 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+#
+# Test case 7:
+# 1. Start a transaction on node_2,
+#    and leave it pending while holding a row locked
+# 2. set sync point pause applier
+# 3. send a conflicting write on node_1, it will pause
+#    at the sync point
+# 4. though another connection to node_2, kill the local
+#    transaction
+#
+
+--connection node_2
+CREATE TABLE t1(a int not null primary key auto_increment,b int) engine=InnoDB;
+insert into t1 values (NULL,1);
+
+#
+# connection node_2a runs a local transaction, that is victim of BF abort
+# and victim of KILL command by connection node_2
+#
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+truncate t1;
+insert into t1 values (1,0);
+
+# start a transaction that will conflict with later applier
+begin;
+update t1 set b=2 where a=1;
+
+--connection node_2
+set session wsrep_sync_wait=0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'root' AND COMMAND = 'Sleep' LIMIT 1
+--source include/wait_condition.inc
+
+--let $k_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'root' AND COMMAND = 'Sleep' LIMIT 1`
+
+# connection node_2b is for controlling debug syn points
+# first set a sync point for applier, to pause during BF aborting
+# and before THD::awake would be called
+#
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2b
+SET GLOBAL debug_dbug = "d,sync.before_wsrep_thd_abort";
+
+#
+# replicate an update, which will BF abort the victim node_2a
+# however, while applier in node 2 is handling the abort,
+# it will pause in sync point set by node_2b
+#
+--connection node_1
+select * from t1;
+update t1 set b= 1 where a=1;
+
+#
+# wait until the applying of above update has reached the sync point
+# in node 2
+#
+--connection node_2b
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.before_wsrep_thd_abort_reached";
+
+--connection node_2
+#
+# pause KILL execution before awake
+#
+SET DEBUG_SYNC= 'before_awake_no_mutex SIGNAL awake_reached WAIT_FOR continue_kill';
+--disable_query_log
+--send_eval KILL $k_thread
+--enable_query_log
+
+
+--connection node_2b
+SET DEBUG_SYNC='now WAIT_FOR awake_reached';
+
+# release applier and KILL operator
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.before_wsrep_thd_abort";
+SET DEBUG_SYNC = "now SIGNAL continue_kill";
+
+--connection node_2
+--reap
+
+--connection node_2a
+--error 0,1213,2013
+select * from t1;
+
+--connection node_2
+SET DEBUG_SYNC = "RESET";
+
+drop table t1;
+
+--disconnect node_2a
+#
+# Test case 7:
+# run a transaction in node 2, and set a sync point to pause the transaction
+# in commit phase.
+# Through another connection to node 2, kill the committing transaction by
+# KILL QUERY command
+#
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--let $connection_id = `SELECT CONNECTION_ID()`
+
+CREATE TABLE t1 (i int primary key);
+
+# Set up sync point
+SET DEBUG_SYNC = "before_wsrep_ordered_commit SIGNAL bwoc_reached WAIT_FOR bwoc_continue";
+
+# Send insert which will block in the sync point above
+--send INSERT INTO t1 VALUES (1)
+
+--connection node_2
+SET DEBUG_SYNC = "now WAIT_FOR bwoc_reached";
+
+--disable_query_log
+--disable_result_log
+# victim has passed the point of no return, kill is not possible anymore
+--eval KILL QUERY $connection_id
+--enable_result_log
+--enable_query_log
+
+SET DEBUG_SYNC = "now SIGNAL bwoc_continue";
+SET DEBUG_SYNC='RESET';
+--connection node_2a
+--error 0,1213
+--reap
+
+--connection node_2
+# victim was able to complete the INSERT
+select * from t1;
+
+--disconnect node_2a
+
+--connection node_1
+drop table t1;
+

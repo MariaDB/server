@@ -1,0 +1,41 @@
+connection node_2;
+connection node_1;
+SET SESSION wsrep_trx_fragment_size = 1;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;;
+connection node_2;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+Killing query ...
+connection node_1;
+ERROR 70100: Query execution was interrupted
+connection node_2;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+EXPECT_0
+0
+INSERT INTO t1 SELECT 1 FROM ten AS t1, ten AS t2, ten AS t3;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+connection node_1;
+SET GLOBAL wsrep_sync_wait=15;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+EXPECT_0
+0
+connection node_1;
+DROP TABLE t1;
+DROP TABLE ten;

@@ -1,0 +1,80 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-17042: prepared statement does not return error with
+--echo # SQL_MODE STRICT_TRANS_TABLES. (Part 2)
+--echo #
+
+set @save_sql_mode=@@sql_mode;
+set sql_mode='STRICT_TRANS_TABLES';
+
+CREATE TABLE t1 (id int, count int) engine=innodb;
+insert into t1 values (1,1),(0,2);
+--error ER_TRUNCATED_WRONG_VALUE
+update t1 set count = count + 1 where id = '1bad';
+
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt using @a;
+deallocate prepare stmt;
+drop table t1;
+
+CREATE TABLE t1 (id decimal(10,5), count int) engine=innodb;
+insert into t1 values (1,1),(0,2);
+--error ER_TRUNCATED_WRONG_VALUE
+update t1 set count = count + 1 where id = '1bad';
+
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt using @a;
+deallocate prepare stmt;
+drop table t1;
+
+CREATE TABLE t1 (id double, count int) engine=innodb;
+insert into t1 values (1,1),(0,2);
+--error ER_TRUNCATED_WRONG_VALUE
+update t1 set count = count + 1 where id = '1bad';
+
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt using @a;
+deallocate prepare stmt;
+drop table t1;
+
+CREATE TABLE t1 (id date, count int) engine=innodb;
+insert into t1 values ("2019-06-11",1),("2019-06-12",2);
+--error ER_TRUNCATED_WRONG_VALUE
+update t1 set count = count + 1 where id = '1bad';
+
+prepare stmt from "update t1 set count = count + 1 where id = '1bad'";
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+deallocate prepare stmt;
+
+prepare stmt from 'update t1 set count = count + 1 where id = ?';
+set @a = '1bad';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt using @a;
+deallocate prepare stmt;
+drop table t1;
+set sql_mode=@save_sql_mode;
+
+--echo # End of 5.5 tests

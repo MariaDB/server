@@ -1,0 +1,60 @@
+SET @start_global_value = @@global.log_disabled_statements;
+select @@global.log_disabled_statements;
+@@global.log_disabled_statements
+sp
+select @@session.log_disabled_statements;
+@@session.log_disabled_statements
+sp
+show global variables like 'log_disabled_statements';
+Variable_name	Value
+log_disabled_statements	sp
+show session variables like 'log_disabled_statements';
+Variable_name	Value
+log_disabled_statements	sp
+select * from information_schema.global_variables where variable_name='log_disabled_statements';
+VARIABLE_NAME	VARIABLE_VALUE
+LOG_DISABLED_STATEMENTS	sp
+select * from information_schema.session_variables where variable_name='log_disabled_statements';
+VARIABLE_NAME	VARIABLE_VALUE
+LOG_DISABLED_STATEMENTS	sp
+set global log_disabled_statements=1;
+select @@global.log_disabled_statements;
+@@global.log_disabled_statements
+slave
+set session log_disabled_statements=1;
+select @@session.log_disabled_statements;
+@@session.log_disabled_statements
+slave
+set session log_disabled_statements=1;
+select @@session.log_disabled_statements;
+@@session.log_disabled_statements
+slave
+set session log_disabled_statements=2;
+select @@session.log_disabled_statements;
+@@session.log_disabled_statements
+sp
+set session log_disabled_statements='slave';
+select @@session.log_disabled_statements;
+@@session.log_disabled_statements
+slave
+set session log_disabled_statements='sp';
+select @@session.log_disabled_statements;
+@@session.log_disabled_statements
+sp
+set session log_disabled_statements='slave,sp';
+select @@session.log_disabled_statements;
+@@session.log_disabled_statements
+slave,sp
+set session log_disabled_statements='';
+select @@session.log_disabled_statements;
+@@session.log_disabled_statements
+
+set session log_disabled_statements=1.1;
+ERROR 42000: Incorrect argument type to variable 'log_disabled_statements'
+set session log_disabled_statements=1e1;
+ERROR 42000: Incorrect argument type to variable 'log_disabled_statements'
+set session log_disabled_statements="foo";
+ERROR 42000: Variable 'log_disabled_statements' can't be set to the value of 'foo'
+set session log_disabled_statements=1024;
+ERROR 42000: Variable 'log_disabled_statements' can't be set to the value of '1024'
+SET @@global.log_disabled_statements = @start_global_value;

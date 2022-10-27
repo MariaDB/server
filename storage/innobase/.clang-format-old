@@ -1,0 +1,11 @@
+UseTab: Always
+TabWidth: 8
+IndentWidth: 8
+ContinuationIndentWidth: 8
+BreakBeforeBinaryOperators: All
+PointerAlignment: Left
+BreakBeforeBraces: Custom
+ColumnLimit: 79
+BraceWrapping:
+  AfterFunction: true
+AccessModifierOffset: -8

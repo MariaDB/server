@@ -1,0 +1,15 @@
+#
+# show the global and session values;
+#
+select @@global.old;
+select @@session.old;
+show global variables like 'old';
+show session variables like 'old';
+select * from information_schema.global_variables where variable_name='old';
+select * from information_schema.session_variables where variable_name='old';
+
+set global old=1;
+set session old=1;
+select @@global.old;
+select @@session.old;
+set @@global.old=DEFAULT;

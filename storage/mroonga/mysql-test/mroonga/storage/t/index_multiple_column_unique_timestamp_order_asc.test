@@ -1,0 +1,42 @@
+# Copyright(C) 2012 Kentoku SHIBA
+# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_signed_64bit_time_t.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS ranges;
+--enable_warnings
+
+CREATE TABLE ranges (
+  id int PRIMARY KEY,
+  start timestamp DEFAULT '2016-04-21 00:00:00',
+  end timestamp DEFAULT '2016-04-22 00:00:00',
+  UNIQUE KEY range_key(start, end)
+);
+
+INSERT INTO ranges VALUES (1, "2012-10-25 16:18:29", "2038-01-18 15:14:07");
+INSERT INTO ranges VALUES (2, "1970-01-01 12:00:00", "2012-10-05 16:18:29");
+INSERT INTO ranges VALUES (3, "2038-01-18 15:14:07", "1970-01-01 12:00:00");
+INSERT INTO ranges VALUES (4, "1970-01-01 12:00:00", "2038-01-18 15:14:07");
+
+SELECT * FROM ranges FORCE INDEX(range_key)
+         ORDER BY start, end;
+
+DROP TABLE ranges;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

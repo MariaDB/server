@@ -1,0 +1,12 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+COMMIT;
+DROP TABLE t1;
+connection node_2;

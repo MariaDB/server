@@ -1,0 +1,77 @@
+connection node_2;
+connection node_1;
+# On node_2
+connection node_2;
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+# On node_1
+connection node_1;
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+CREATE TABLE t1(i INT)ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+DELETE FROM t1 WHERE i = 1;
+# On node_2
+connection node_2;
+INSERT INTO t1 VALUES(2);
+DELETE FROM t1 WHERE i = 2;
+# On node_1
+connection node_1;
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM <start_pos>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-bin.000001	#	Gtid_list	1	#	[]
+mysqld-bin.000001	#	Binlog_checkpoint	1	#	mysqld-bin.000001
+mysqld-bin.000001	#	Gtid	1	#	GTID 0-1-1
+mysqld-bin.000001	#	Query	1	#	use `test`; CREATE TABLE t1(i INT)ENGINE=INNODB
+mysqld-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-2
+mysqld-bin.000001	#	Annotate_rows	1	#	INSERT INTO t1 VALUES(1)
+mysqld-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+mysqld-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	1	#	COMMIT /* xid= */
+mysqld-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-3
+mysqld-bin.000001	#	Annotate_rows	1	#	DELETE FROM t1 WHERE i = 1
+mysqld-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+mysqld-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	1	#	COMMIT /* xid= */
+mysqld-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-4
+mysqld-bin.000001	#	Annotate_rows	2	#	INSERT INTO t1 VALUES(2)
+mysqld-bin.000001	#	Table_map	2	#	table_id: # (test.t1)
+mysqld-bin.000001	#	Write_rows_v1	2	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	2	#	COMMIT /* xid= */
+mysqld-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-5
+mysqld-bin.000001	#	Annotate_rows	2	#	DELETE FROM t1 WHERE i = 2
+mysqld-bin.000001	#	Table_map	2	#	table_id: # (test.t1)
+mysqld-bin.000001	#	Delete_rows_v1	2	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	2	#	COMMIT /* xid= */
+# On node_2
+connection node_2;
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM <start_pos>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-bin.000001	#	Gtid_list	2	#	[]
+mysqld-bin.000001	#	Binlog_checkpoint	2	#	mysqld-bin.000001
+mysqld-bin.000001	#	Gtid	1	#	GTID 0-1-1
+mysqld-bin.000001	#	Query	1	#	use `test`; CREATE TABLE t1(i INT)ENGINE=INNODB
+mysqld-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-2
+mysqld-bin.000001	#	Annotate_rows	1	#	INSERT INTO t1 VALUES(1)
+mysqld-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+mysqld-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	1	#	COMMIT /* xid= */
+mysqld-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-3
+mysqld-bin.000001	#	Annotate_rows	1	#	DELETE FROM t1 WHERE i = 1
+mysqld-bin.000001	#	Table_map	1	#	table_id: # (test.t1)
+mysqld-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	1	#	COMMIT /* xid= */
+mysqld-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-4
+mysqld-bin.000001	#	Annotate_rows	2	#	INSERT INTO t1 VALUES(2)
+mysqld-bin.000001	#	Table_map	2	#	table_id: # (test.t1)
+mysqld-bin.000001	#	Write_rows_v1	2	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	2	#	COMMIT /* xid= */
+mysqld-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-5
+mysqld-bin.000001	#	Annotate_rows	2	#	DELETE FROM t1 WHERE i = 2
+mysqld-bin.000001	#	Table_map	2	#	table_id: # (test.t1)
+mysqld-bin.000001	#	Delete_rows_v1	2	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	2	#	COMMIT /* xid= */
+DROP TABLE t1;
+# End of test

@@ -1,0 +1,172 @@
+set @save_ext_key_optimizer_switch=@@optimizer_switch;
+#
+# MDEV-3992 Server crash or valgrind errors in test_if_skip_sort_order/test_if_cheaper_ordering
+# on GROUP BY with indexes on InnoDB table
+#
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+a VARCHAR(1) NOT NULL,
+KEY (pk)
+) ENGINE=InnoDB;
+set optimizer_switch='extended_keys=on';
+INSERT INTO t1 VALUES (1,'a'),(2,'b');
+EXPLAIN
+SELECT COUNT(*), pk field1, pk AS field2
+FROM t1 WHERE a = 'r' OR pk = 183 
+GROUP BY field1, field2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY,pk	PRIMARY	4	NULL	2	Using where
+SELECT COUNT(*), pk field1, pk AS field2
+FROM t1 WHERE a = 'r' OR pk = 183 
+GROUP BY field1, field2;
+COUNT(*)	field1	field2
+EXPLAIN
+SELECT COUNT(*), pk field1 FROM t1
+WHERE a = 'r' OR pk = 183 GROUP BY field1, field1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY,pk	PRIMARY	4	NULL	2	Using where
+SELECT COUNT(*), pk field1 FROM t1
+WHERE a = 'r' OR pk = 183 GROUP BY field1, field1;
+COUNT(*)	field1
+drop table t1;
+set optimizer_switch=@save_ext_key_optimizer_switch;
+#
+# MDEV-4002 Server crash or valgrind errors in Item_func_group_concat::setup and Item_func_group_concat::add
+#
+CREATE TABLE t1 ( 
+pk INT NOT NULL PRIMARY KEY, 
+d1 DOUBLE, 
+d2 DOUBLE, 
+i INT NOT NULL DEFAULT '0',
+KEY (i)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1.0,1.1,1),(2,2.0,2.2,2);
+PREPARE stmt FROM " 
+SELECT DISTINCT i, GROUP_CONCAT(  d1, d2 ORDER BY d1, d2 ) 
+FROM t1 a1 NATURAL JOIN t1 a2 GROUP BY i WITH ROLLUP 
+";
+EXECUTE stmt;
+i	GROUP_CONCAT(  d1, d2 ORDER BY d1, d2 )
+1	11.1
+2	22.2
+NULL	11.1,22.2
+EXECUTE stmt;
+i	GROUP_CONCAT(  d1, d2 ORDER BY d1, d2 )
+1	11.1
+2	22.2
+NULL	11.1,22.2
+DROP TABLE t1;
+End of 5.5 tests
+#
+# MDEV-5719: Wrong result with GROUP BY and LEFT OUTER JOIN
+#
+CREATE TABLE t1 (oidGroup INT, oid INT PRIMARY KEY)ENGINE=INNODB;
+INSERT INTO t1 VALUES (1,1),(1,2),(1,3),(1,4);
+CREATE TABLE t2 (oid INT PRIMARY KEY)ENGINE=INNODB;
+INSERT INTO t2 VALUES (3);
+SELECT a.oidGroup, a.oid, b.oid FROM t1 a LEFT JOIN t2 b ON
+a.oid=b.oid WHERE a.oidGroup=1;
+oidGroup	oid	oid
+1	1	NULL
+1	2	NULL
+1	3	3
+1	4	NULL
+SELECT a.oidGroup, a.oid, b.oid FROM t1 a LEFT JOIN t2 b ON
+a.oid=b.oid WHERE a.oidGroup=1 GROUP BY a.oid;
+oidGroup	oid	oid
+1	1	NULL
+1	2	NULL
+1	3	3
+1	4	NULL
+DROP TABLE t1, t2;
+#
+# MDEV-7193: Incorrect Query Result (MySQL Bug 68897) in MariaDB 10.0.14
+# (fixed by MDEV-5719)
+#
+CREATE TABLE  `t1` (
+`param` int(11) NOT NULL,
+`idx` int(11) NOT NULL,
+`text` varchar(255) default NULL,
+PRIMARY KEY  (`param`,`idx`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO `t1` (`param`, `idx`, `text`) VALUES
+(1, 0, 'select'),
+(1, 1, 'Kabel mit Stecker 5-polig'),
+(1, 2, 'Kabel ohne Stecker'),
+(2, 0, 'number'),
+(2, 1, '22'),
+(2, 2, '25');
+CREATE TABLE `t2` (
+`id` int PRIMARY KEY
+);
+INSERT INTO t2 VALUES (1),(2),(3),(4);
+SELECT t2.id AS id, T.text AS xtext,GROUP_CONCAT(T3.text) AS optionen
+FROM t2
+LEFT JOIN t1 AS T  ON(T.param=t2.id AND T.idx=0 )
+LEFT JOIN t1 AS T3 ON(T3.param=t2.id AND T3.idx>0 ) 
+GROUP BY t2.id
+ORDER BY id ASC;
+id	xtext	optionen
+1	select	Kabel mit Stecker 5-polig,Kabel ohne Stecker
+2	number	22,25
+3	NULL	NULL
+4	NULL	NULL
+SELECT t2.id AS id, T.text AS xtext,GROUP_CONCAT(T3.text) AS optionen
+FROM t2
+LEFT JOIN t1 AS T  ON(T.param=t2.id AND T.idx=0 )
+LEFT JOIN t1 AS T3 ON(T3.param=t2.id AND T3.idx>0 ) 
+GROUP BY t2.id
+ORDER BY id DESC;
+id	xtext	optionen
+4	NULL	NULL
+3	NULL	NULL
+2	number	22,25
+1	select	Kabel mit Stecker 5-polig,Kabel ohne Stecker
+DROP TABLE t1, t2;
+#
+# MDEV-11162: Assertion `num_records == m_idx_array.size()' failed in Filesort_buffer::alloc_sort_buffer(uint, uint)
+#
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+SELECT ( SELECT DISTINCT GROUP_CONCAT(SLEEP(0)) FROM t1 GROUP BY i );
+( SELECT DISTINCT GROUP_CONCAT(SLEEP(0)) FROM t1 GROUP BY i )
+NULL
+SELECT i FROM t1 order by i LIMIT 1;
+i
+DROP TABLE t1;
+# Port of testcase:
+#
+# Bug#20819199 ASSERTION FAILED IN TEST_IF_SKIP_SORT_ORDER
+#
+CREATE TABLE t0 ( a INT );
+INSERT INTO t0 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+CREATE TABLE t1 (
+pk INT NOT NULL AUTO_INCREMENT,
+a INT,
+b INT,
+PRIMARY KEY (pk),
+KEY idx1 (a),
+KEY idx2 (b, a),
+KEY idx3 (a, b)
+) ENGINE = InnoDB;
+INSERT INTO t1 (a, b) SELECT t01.a, t02.a FROM t0 t01, t0 t02;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+EXPLAIN SELECT DISTINCT a, MAX(b) FROM t1 WHERE a >= 0 GROUP BY a,a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1,idx3	idx3	5	NULL	100	Using where; Using index
+SELECT DISTINCT a, MAX(b) FROM t1 WHERE a >= 0 GROUP BY a,a;
+a	MAX(b)
+1	10
+2	10
+3	10
+4	10
+5	10
+6	10
+7	10
+8	10
+9	10
+10	10
+DROP TABLE t0, t1;
+# End of tests

@@ -1,0 +1,141 @@
+use test;
+CREATE TABLE t1(c INT);
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1
+FOR EACH ROW
+SET @a = 1;
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE PROCEDURE p1()
+SELECT 1;
+CREATE FUNCTION f1() RETURNS INT
+RETURN 1;
+CREATE DEFINER=a@b TRIGGER ti_ai AFTER INSERT ON t1
+FOR EACH ROW
+SET @b = 1;
+CREATE DEFINER=a@b VIEW v2 AS SELECT * FROM t1;
+CREATE DEFINER=a@b PROCEDURE p2()
+SELECT 2;
+CREATE DEFINER=a@b FUNCTION f2() RETURNS INT
+RETURN 2;
+CREATE DEFINER=a@'' TRIGGER ti_bu BEFORE UPDATE ON t1
+FOR EACH ROW
+SET @c = 1;
+CREATE DEFINER=a@'' VIEW v3 AS SELECT * FROM t1;
+CREATE DEFINER=a@'' PROCEDURE p3()
+SELECT 3;
+CREATE DEFINER=a@'' FUNCTION f3() RETURNS INT
+RETURN 3;
+SHOW CREATE VIEW v3;
+View	Create View	character_set_client	collation_connection
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`a`@`%` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`c` AS `c` from `t1`	latin1	latin1_swedish_ci
+SHOW CREATE PROCEDURE p3;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a`@`%` PROCEDURE `p3`()
+SELECT 3	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE FUNCTION f3;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f3	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`a`@`%` FUNCTION `f3`() RETURNS int(11)
+RETURN 3	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP TRIGGER t1_bi;
+DROP TRIGGER ti_ai;
+DROP TRIGGER ti_bu;
+DROP VIEW v1;
+DROP VIEW v2;
+DROP VIEW v3;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP FUNCTION f3;
+#
+# Bug #26807 "set global event_scheduler=1" and --skip-grant-tables crashes server
+#
+set global event_scheduler=1;
+Warnings:
+Note	1408	Event Scheduler: Loaded 0 events
+set global event_scheduler=0;
+#
+# Bug#26285 Selecting information_schema crahes server
+#
+select count(*) from information_schema.COLUMN_PRIVILEGES;
+count(*)
+0
+select count(*) from information_schema.SCHEMA_PRIVILEGES;
+count(*)
+0
+select count(*) from information_schema.TABLE_PRIVILEGES;
+count(*)
+0
+select count(*) from information_schema.USER_PRIVILEGES;
+count(*)
+0
+#
+# End of 5.0 tests
+#
+#
+# Bug#29817 Queries with UDF fail with non-descriptive error
+# if mysql.proc is missing
+#
+select no_such_function(1);
+ERROR 42000: FUNCTION test.no_such_function does not exist
+#
+# End of 5.1 tests
+#
+#
+# MDEV-8280 crash in 'show global status' with --skip-grant-tables
+#
+show global status like 'Acl%';
+Variable_name	Value
+Acl_column_grants	0
+Acl_database_grants	0
+Acl_function_grants	0
+Acl_procedure_grants	0
+Acl_package_spec_grants	0
+Acl_package_body_grants	0
+Acl_proxy_users	0
+Acl_role_grants	0
+Acl_roles	0
+Acl_table_grants	0
+Acl_users	0
+#
+# End of 10.1 tests
+#
+#
+# MDEV-22966 Server crashes or hangs with SET ROLE when started with skip-grant-tables
+#
+set role x;
+ERROR HY000: The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement
+#
+# End of 10.2 tests
+#
+show create user root@localhost;
+ERROR HY000: The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement
+insert mysql.global_priv values ('foo', 'bar', '{}');
+insert mysql.global_priv values ('baz', 'baz', '{"plugin":"baz"}');
+set password for bar@foo = password("pass word");
+ERROR HY000: The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement
+flush privileges;
+show create user root@localhost;
+CREATE USER for root@localhost
+CREATE USER `root`@`localhost`
+show create user bar@foo;
+CREATE USER for bar@foo
+CREATE USER `bar`@`foo`
+show create user baz@baz;
+CREATE USER for baz@baz
+CREATE USER `baz`@`baz` IDENTIFIED VIA baz
+set password for bar@foo = password("pass word");
+show create user bar@foo;
+CREATE USER for bar@foo
+CREATE USER `bar`@`foo` IDENTIFIED BY PASSWORD '*EDBBEA7F4E7B5D8B0BC8D7AC5D1936FB7DA10611'
+alter user baz@baz identified with mysql_native_password as password("baz");
+show create user baz@baz;
+CREATE USER for baz@baz
+CREATE USER `baz`@`baz` IDENTIFIED BY PASSWORD '*E52096EF8EB0240275A7FE9E069101C33F98CF07'
+drop user bar@foo;
+drop user baz@baz;
+# restart
+#
+# End of 10.3 tests
+#

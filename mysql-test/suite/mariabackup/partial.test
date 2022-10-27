@@ -1,0 +1,60 @@
+#--source include/innodb_page_size.inc
+
+# Export single table from backup
+# (xtrabackup with --prepare --export)
+
+CREATE TABLE t1(i INT) ENGINE INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t21(i INT) ENGINE INNODB;
+INSERT INTO t21 VALUES(1);
+
+CREATE TABLE t2(i int) ENGINE INNODB;
+
+echo # xtrabackup backup;
+
+let targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables=test.*1" --target-dir=$targetdir;
+--enable_result_log
+list_files $targetdir/test *.ibd;
+
+# Inject a junk .ibd file into backup dir to
+# see if prepare does not choke on it.
+write_file $targetdir/test/junk.ibd;
+EOF
+write_file $targetdir/test/junk.frm;
+EOF
+
+let server_cnf=$targetdir/server.cnf;
+copy_file $MYSQLTEST_VARDIR/my.cnf $server_cnf;
+
+# Emulate server config file turnes on binary logs
+perl;
+my $binlog_path="$ENV{'targetdir'}/mysqld-bin";
+my $config_path=$ENV{'server_cnf'};
+open(my $fd, '>>', "$config_path");
+print $fd "\n[mysqld]\n";
+print $fd "log-bin=$binlog_path\n";
+close $fd;
+EOF
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$server_cnf --defaults-group-suffix=.1 --prepare --export --target-dir=$targetdir;
+--enable_result_log
+
+list_files $targetdir/test *.cfg;
+# There must not be binary logs created on --prepare step
+list_files $targetdir/ mysqld-bin.*;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+ALTER TABLE t1 DISCARD TABLESPACE;
+copy_file $targetdir/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd;
+copy_file $targetdir/test/t1.cfg $MYSQLD_DATADIR/test/t1.cfg;
+ALTER TABLE t1 IMPORT TABLESPACE;
+
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t21;
+rmdir $targetdir;

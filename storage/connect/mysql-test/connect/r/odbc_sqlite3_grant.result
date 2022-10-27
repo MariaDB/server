@@ -1,0 +1,86 @@
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `Description` char(128) NOT NULL,
+  `Attributes` varchar(256) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Drivers'
+SET NAMES utf8;
+GRANT ALL PRIVILEGES ON *.* TO user@localhost;
+REVOKE FILE ON *.* FROM user@localhost;
+SELECT user();
+user()
+user@localhost
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=ODBC;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Drivers;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Sources;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+SELECT user();
+user()
+root@localhost
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(64) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=utf8 CONNECTION='Driver=SQLite3 ODBC Driver;Database=MTR_SUITE_DIR/std_data/test.sqlite3;NoWCHAR=yes' `TABLE_TYPE`='ODBC' `DATA_CHARSET`='utf8'
+SELECT * FROM t1;
+a
+test1
+test2
+тест1
+тест2
+ÆÇÈÉË
+SELECT user();
+user()
+user@localhost
+SELECT * FROM t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+INSERT INTO t1 VALUES ('xxx');
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DELETE FROM t1 WHERE a='xxx';
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+UPDATE t1 SET a='yyy' WHERE a='xxx';
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+TRUNCATE TABLE t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ALTER TABLE t1 READONLY=1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+CREATE VIEW v1 AS SELECT * FROM t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+# Testing a VIEW created with FILE privileges but accessed with no FILE
+# using SQL SECIRITY INVOKER
+SELECT user();
+user()
+root@localhost
+CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT * FROM t1;
+SELECT user();
+user()
+user@localhost
+SELECT * FROM v1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+INSERT INTO v1 VALUES (2);
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+UPDATE v1 SET a=123;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DELETE FROM v1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+# Testing a VIEW created with FILE privileges but accessed with no FILE
+# using SQL SECIRITY DEFINER
+DROP VIEW v1;
+SELECT user();
+user()
+root@localhost
+CREATE SQL SECURITY DEFINER VIEW v1 AS SELECT * FROM t1;
+SELECT user();
+user()
+user@localhost
+SELECT * FROM v1 WHERE a='test1';
+a
+test1
+SELECT user();
+user()
+root@localhost
+DROP VIEW v1;
+DROP TABLE t1;
+DROP USER user@localhost;

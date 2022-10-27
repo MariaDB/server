@@ -1,0 +1,275 @@
+drop table if exists t0, t1;
+create table t0 (a int) engine=myisam;
+insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
+#
+#  Tests for single-table DELETE
+# 
+explain select * from t0 where a=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	8	Using where
+explain delete from t0 where a=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	8	Using where
+# DELETE without WHERE is a special case:
+explain delete from t0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	8	Deleting all rows
+create table t1 (a int, b int, filler char(100), key(a), key(b));
+insert into t1 
+select A.a+10*B.a + 10*C.a, A.a+10*B.a + 10*C.a, 'filler' 
+from t0 A, t0 B, t0 C;
+# This should use an index,  possible_keys=NULL because there is no WHERE
+explain delete from t1 order by a limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	a	5	NULL	2	
+# This should use range, possible_keys={a,b}
+explain delete from t1 where a<20 and b < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a,b	a	5	NULL	1	Using where
+# This should use ALL + filesort
+explain delete from t1 order by a+1 limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	512	Using filesort
+# This should use range + using filesort
+explain delete from t1 where a<20 order by b limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	1	Using where; Using filesort
+# Try some subqueries:
+explain delete from t1 where a < (select max(a) from t0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	a	a	5	NULL	1	Using where
+2	SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	8	
+explain delete from t1 where a < (select max(a) from t0 where a < t1.b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	512	Using where
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	8	Using where
+#
+#  Tests for multi-table DELETE
+# 
+explain delete t1 from t0, t1 where t0.a = t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t0.a	4	
+drop table t0, t1;
+# ###################################################################
+# ## EXPLAIN UPDATE tests
+# ###################################################################
+create table t0 (a int) engine=myisam;
+insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
+explain update t0 set a=3 where a=4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	8	Using where
+create table t1 (a int, b int, filler char(100), key(a), key(b));
+insert into t1 
+select A.a+10*B.a + 10*C.a, A.a+10*B.a + 10*C.a, 'filler' 
+from t0 A, t0 B, t0 C;
+explain update t1 set a=a+1 where 3>4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+explain update t1 set a=a+1 where a=3 and a=4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+# This should use an index,  possible_keys=NULL because there is no WHERE
+explain update t1 set a=a+1 order by a limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	512	Using filesort
+# This should use range, possible_keys={a,b}
+explain update t1 set filler='fooo' where a<20 and b < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a,b	a	5	NULL	1	Using where
+# This should use ALL + filesort
+explain update t1 set filler='fooo' order by a+1 limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	512	Using filesort
+# This should use range + using filesort
+explain update t1 set filler='fooo' where a<20 order by b limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	1	Using where; Using filesort
+# Try some subqueries:
+explain update t1 set filler='fooo' where a < (select max(a) from t0);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	a	a	5	NULL	1	Using where
+2	SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	8	
+explain update t1 set filler='fooo' where a < (select max(a) from t0 where a < t1.b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	512	Using where
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	8	Using where
+#
+#  Tests for multi-table UPDATE
+# 
+explain update t0, t1 set t1.a=t1.a+1 where t0.a = t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t0.a	4	
+drop table t0, t1;
+#
+# Try DELETE ... RETURNING ...
+#
+create table t0 (a int);
+insert into t0 values (1),(2),(3),(4);
+explain delete from t0 where a=1 returning a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	4	Using where
+explain delete from t0 returning a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	4	
+drop table t0;
+#
+# MDEV-5070 - EXPLAIN INSERT ... SELECT crashes on 10.0-base-explain-slowquerylog
+#
+create table t0 (a int);
+insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
+create table t1 (a int);
+explain insert into t1 select * from t0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	8	
+explain replace into t1 select * from t0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	8	
+drop table t0, t1;
+#
+# MDEV-5067: Valgrind warnings (Invalid read) in QPF_table_access::print_explain
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7),(0),(9);
+SELECT * FROM t1 INNER JOIN ( SELECT DISTINCT * FROM t1 ) AS sq ON (sq.i = t1.i);
+i	i
+7	7
+0	0
+9	9
+DROP TABLE t1;
+#
+# MDEV-5093, MDEV-5094: EXPLAIN PARTITIONS and EXPLAIN EXTENDED do not
+#  work for EXPLAIN UPDATE.
+#
+create table t1 (i int);
+explain partitions update t1 set i = 3;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	0	
+create table t2 (a int, b int) partition by hash(a) partitions 5;
+insert into t2 values (0,0),(1,1),(2,2),(3,3),(4,4);
+explain partitions update t2 set b=3 where a in (3,4);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	p3,p4	ALL	NULL	NULL	NULL	NULL	2	Using where
+explain partitions delete from t2 where a in (3,4);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	p3,p4	ALL	NULL	NULL	NULL	NULL	2	Using where
+explain extended update t2 set b=3 where a in (3,4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+explain extended delete from t2 where a in (3,4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+drop table t1,t2;
+#
+#  Check the special case where partition pruning removed all partitions
+#
+create table t1 (a int, b int) 
+partition by range (a) (
+partition p0 values less than (10),
+partition p1 values less than (20),
+partition p2 values less than (30)
+);
+insert into t1 values (9,9), (19,19), (29,29);
+explain partitions select * from t1 where a in (32,33);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+explain partitions delete from t1 where a in (32,33);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No matching rows after partition pruning
+explain partitions update t1 set b=12345 where a in (32,33);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No matching rows after partition pruning
+drop table t1;
+#
+# Tests for EXPLAIN INSERT ... VALUES 
+#
+create table t1 (a int, key(a));
+explain insert into t1 values (1),(2),(3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL
+insert into t1 values (1),(2),(3);
+create table t2 (a int, b int);
+explain insert into t2 values 
+(10, 1+(select max(a)   from t1)),
+(11, 1+(select max(a+1) from t1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	INSERT	t2	ALL	NULL	NULL	NULL	NULL	NULL	NULL
+3	SUBQUERY	t1	index	NULL	a	5	NULL	3	Using index
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+drop table t1,t2;
+#
+# MDEV-5122: "Commands out of sync", "Malformed packet" or client hang up on unique key violation
+#
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+drop function if exists f1;
+create table t1 (a int, unique(a));
+create function f1(x int)
+returns int
+begin
+insert into t1 values(x),(x);
+return 10;
+end|
+select f1(100);
+ERROR 23000: Duplicate entry '100' for key 'a'
+select 'OK';
+OK
+OK
+drop function f1;
+drop table t1;
+#
+# MDEV-7038: Assertion `status_var.memory_used == 0' failed in THD::~THD()
+#            on disconnect after executing EXPLAIN for multi-table UPDATE
+#
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+EXPLAIN UPDATE v1, mysql.user SET v1.a = v1.a + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	global_priv	index	NULL	PRIMARY	420	NULL	5	Using index
+DROP TABLE t1;
+DROP VIEW v1;
+#
+# MDEV-8299: MyISAM or Aria table gets corrupted after EXPLAIN INSERT and INSERT
+#
+CREATE TABLE t1 (pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY, i INT, KEY(i)) ENGINE=MyISAM;
+INSERT INTO t1 (i) VALUES (100),(200);
+CREATE TABLE t2 (j INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (10),(20);
+EXPLAIN INSERT INTO t1 (i) SELECT j FROM t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
+INSERT INTO t1 (i) VALUES (300);
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1, t2;
+#
+# MDEV-8321: Assertion `! is_set()' failed in Diagnostics_area::set_eof_status on EXPLAIN INSERT ... UNION
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (3),(4);
+INSERT INTO t3 VALUES (5),(6);
+EXPLAIN INSERT INTO t1 SELECT * FROM t2 UNION SELECT * FROM t3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
+2	UNION	t3	ALL	NULL	NULL	NULL	NULL	2	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+drop table t1,t2,t3;
+#
+# MDEV-6223: Assertion `! is_set()' fails in Diagnostics_area::set_eof_status on EXPLAIN INSERT executed as a PS
+#
+CREATE TABLE t1 (a INT) ENGINE = MyISAM;
+CREATE TABLE t2 (b INT) ENGINE = MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+PREPARE stmt FROM 'EXPLAIN INSERT INTO t1 SELECT * FROM t2';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
+drop table t1,t2;

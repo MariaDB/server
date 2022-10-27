@@ -1,0 +1,2 @@
+--loose-metadata_lock_info
+--plugin-load-add=$METADATA_LOCK_INFO_SO

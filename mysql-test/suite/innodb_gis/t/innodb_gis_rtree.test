@@ -1,0 +1,3 @@
+-- source include/innodb_page_size.inc
+-- source include/innodb_row_format.inc
+-- source ../../../main/gis-rtree.test

@@ -1,0 +1,23 @@
+--source include/have_tokudb_backup.inc
+--source include/not_gtid_enabled.inc
+
+
+--let $SLAVE_INFO_FILE=tokubackup_slave_info
+--let $BACKUP_DIR_SLAVE=$MYSQL_TMP_DIR/tokudb_backup_slave
+--let DDIR=$BACKUP_DIR_SLAVE
+
+--mkdir $BACKUP_DIR_SLAVE
+
+--echo Backup
+--disable_query_log
+--eval SET SESSION tokudb_backup_dir='$BACKUP_DIR_SLAVE'
+--enable_query_log
+
+--list_files $BACKUP_DIR_SLAVE $SLAVE_INFO_FILE
+
+--perl
+use File::Path 'rmtree';
+$DDIR=$ENV{"DDIR"};
+rmtree([ "$DDIR" ]);
+EOF
+

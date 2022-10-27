@@ -1,0 +1,82 @@
+--source include/have_rocksdb.inc
+
+#
+# VARCHAR column types
+#
+
+--echo #
+--echo # A basic test whether endspace-aware variable length encoding 
+--echo # works when in PK
+--echo #
+create table t1 ( pk varchar(10) primary key, col1 int not null) ;
+insert into t1 values ('a', 1);
+select * from t1;
+drop table t1;
+
+--source type_varchar.inc
+
+
+--echo #
+--echo # Endspace-comparison tests: 
+--echo #
+
+--let $character_set_collate=CHARACTER SET latin1 COLLATE latin1_bin
+--source type_varchar_endspace.inc
+
+--let $character_set_collate=CHARACTER SET utf8 COLLATE utf8_bin
+--source type_varchar_endspace.inc
+
+--let $character_set_collate=CHARACTER SET ucs2 COLLATE ucs2_bin
+--source type_varchar_endspace.inc
+
+--let $character_set_collate=CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+--source type_varchar_endspace.inc
+
+--let $character_set_collate=CHARACTER SET utf16 COLLATE utf16_bin
+--source type_varchar_endspace.inc
+
+create table t1 (
+  pk int primary key,
+  col1 varchar(10) collate utf8mb4_bin not null,
+  col2 varchar(20),
+  key(col1)
+) engine=rocksdb;
+
+insert into t1 values (1, 'ab','ab');
+insert into t1 values (2, 'ab\0','ab0');
+
+select pk, hex(col1), col2 from t1 force index(col1) order by col1;
+select pk, hex(col1), col2 from t1 ignore index(col1) order by col1;
+drop table t1;
+
+# Issue #306 - Do not store trailing spaces for prefixed keys.
+create table t (id int primary key, email varchar(100), KEY email_i (email(30)));
+insert into t values (1, 'abcabcabcabcabcabcabcabcabcabcabc  ');
+--replace_column 9 #
+explain select 'email_i' as index_name, count(*) AS count from t force index(email_i);
+select 'email_i' as index_name, count(*) AS count from t force index(email_i);
+drop table t;
+
+set @save_rocksdb_checksums_pct = @@global.rocksdb_checksums_pct;
+set @save_rocksdb_verify_row_debug_checksums = @@session.rocksdb_verify_row_debug_checksums;
+set global rocksdb_checksums_pct = 100;
+set session rocksdb_verify_row_debug_checksums = on;
+create table t (id int primary key, email varchar(100), KEY email_i (email(30)));
+insert into t values (1, 'a');
+--replace_column 9 #
+explain select 'email_i' as index_name, count(*) AS count from t force index(email_i);
+select 'email_i' as index_name, count(*) AS count from t force index(email_i);
+drop table t;
+set global rocksdb_checksums_pct = @save_rocksdb_checksums_pct;
+set session rocksdb_verify_row_debug_checksums = @save_rocksdb_verify_row_debug_checksums;
+
+# Issue #784 - Skip trailing space bytes for non-unpackable fields
+
+drop table if exists t;
+create table t (h varchar(31) character set utf8 collate utf8_bin not null, i varchar(19) collate latin1_bin not null, primary key(i), key(h)) engine=rocksdb;
+insert into t(i,h) values('a','b');
+check table t;
+alter table t modify h varchar(31) character set cp1257 collate cp1257_bin not null;
+check table t;
+drop table t;
+

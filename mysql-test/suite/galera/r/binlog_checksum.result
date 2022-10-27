@@ -1,0 +1,45 @@
+connection node_2;
+connection node_1;
+# On node_1
+connection node_1;
+SET @binlog_checksum_saved= @@GLOBAL.BINLOG_CHECKSUM;
+SET @@GLOBAL.BINLOG_CHECKSUM=CRC32;
+# On node_2
+connection node_2;
+SET @binlog_checksum_saved= @@GLOBAL.BINLOG_CHECKSUM;
+SET @@GLOBAL.BINLOG_CHECKSUM=CRC32;
+USE test;
+CREATE TABLE t1(c1 INT PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+SELECT * FROM t1;
+c1
+1
+2
+3
+4
+5
+SELECT * FROM test.t1;
+c1
+1
+2
+3
+4
+5
+
+# On node_2
+connection node_2;
+SELECT * FROM test.t1;
+c1
+1
+2
+3
+4
+5
+DROP TABLE t1;
+connection node_1;
+SET @@GLOBAL.BINLOG_CHECKSUM = @binlog_checksum_saved;
+connection node_2;
+SET @@GLOBAL.BINLOG_CHECKSUM = @binlog_checksum_saved;
+disconnect node_2;
+disconnect node_1;
+# End of test

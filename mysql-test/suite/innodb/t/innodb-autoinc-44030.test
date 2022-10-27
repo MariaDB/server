@@ -1,0 +1,36 @@
+-- source include/have_innodb.inc
+# embedded server does not support restarting
+-- source include/not_embedded.inc
+
+# Before MDEV-6076 Persistent AUTO_INCREMENT for InnoDB
+# this was a test for
+# Bug #44030: Error: (1500) Couldn't read the MAX(ID) autoinc value from
+# the index (PRIMARY)
+# This test requires a restart of the server
+SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (null);
+INSERT INTO t1 VALUES (null);
+--enable_info
+ALTER TABLE t1 CHANGE c1 d1 INT NOT NULL AUTO_INCREMENT;
+--disable_info
+SELECT * FROM t1;
+-- source include/restart_mysqld.inc
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES(null);
+SELECT * FROM t1;
+
+# Before WL#5534, the following statement would copy the table,
+# and effectively set AUTO_INCREMENT to 4, because while copying
+# it would write values 1,2,3 to the column.
+# WL#5534 makes this an in-place ALTER, setting AUTO_INCREMENT=3 for real.
+# However, to keep compatibility with ALGORITHM=COPY MySQL 5.6.11 will
+# go back to the original behaviour, setting AUTO_INCREMENT to 4.
+--enable_info
+ALTER TABLE t1 AUTO_INCREMENT = 3;
+--disable_info
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES(null);
+INSERT INTO t1 VALUES(null);
+SELECT * FROM t1;
+DROP TABLE t1;

@@ -1,0 +1,2629 @@
+drop table if exists t1,t2;
+drop database if exists mysqltest;
+set @save_max_allowed_packet=@@global.max_allowed_packet;
+create table t1 (
+col1 int not null auto_increment primary key,
+col2 varchar(30) not null,
+col3 varchar (20) not null,
+col4 varchar(4) not null,
+col5 enum('PENDING', 'ACTIVE', 'DISABLED') not null,
+col6 int not null, to_be_deleted int);
+insert into t1 values (2,4,3,5,"PENDING",1,7);
+alter table t1
+add column col4_5 varchar(20) not null after col4,
+add column col7 varchar(30) not null after col5,
+add column col8 datetime not null, drop column to_be_deleted,
+change column col2 fourth varchar(30) not null after col3,
+modify column col6 int not null first;
+select * from t1;
+col6	col1	col3	fourth	col4	col4_5	col5	col7	col8
+1	2	3	4	5		PENDING		0000-00-00 00:00:00
+drop table t1;
+create table t1 (bandID MEDIUMINT UNSIGNED NOT NULL PRIMARY KEY, payoutID SMALLINT UNSIGNED NOT NULL);
+insert into t1 (bandID,payoutID) VALUES (1,6),(2,6),(3,4),(4,9),(5,10),(6,1),(7,12),(8,12);
+alter table t1 add column new_col int, order by payoutid,bandid;
+select * from t1;
+bandID	payoutID	new_col
+6	1	NULL
+3	4	NULL
+1	6	NULL
+2	6	NULL
+4	9	NULL
+5	10	NULL
+7	12	NULL
+8	12	NULL
+alter table t1 order by bandid,payoutid;
+select * from t1;
+bandID	payoutID	new_col
+1	6	NULL
+2	6	NULL
+3	4	NULL
+4	9	NULL
+5	10	NULL
+6	1	NULL
+7	12	NULL
+8	12	NULL
+drop table t1;
+CREATE TABLE t1 (
+GROUP_ID int(10) unsigned DEFAULT '0' NOT NULL,
+LANG_ID smallint(5) unsigned DEFAULT '0' NOT NULL,
+NAME varchar(80) DEFAULT '' NOT NULL,
+PRIMARY KEY (GROUP_ID,LANG_ID),
+KEY NAME (NAME));
+ALTER TABLE t1 CHANGE NAME NAME CHAR(80) not null;
+SHOW FULL COLUMNS FROM t1;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+GROUP_ID	int(10) unsigned	NULL	NO	PRI	0		#	
+LANG_ID	smallint(5) unsigned	NULL	NO	PRI	0		#	
+NAME	char(80)	latin1_swedish_ci	NO	MUL	NULL		#	
+DROP TABLE t1;
+create table t1 (n int);
+insert into t1 values(9),(3),(12),(10);
+alter table t1 order by n;
+select * from t1;
+n
+3
+9
+10
+12
+drop table t1;
+CREATE TABLE t1 (
+id int(11) unsigned NOT NULL default '0',
+category_id tinyint(4) unsigned NOT NULL default '0',
+type_id tinyint(4) unsigned NOT NULL default '0',
+body text NOT NULL,
+user_id int(11) unsigned NOT NULL default '0',
+status enum('new','old') NOT NULL default 'new',
+PRIMARY KEY (id)
+) ENGINE=MyISAM;
+ALTER TABLE t1 ORDER BY t1.id, t1.status, t1.type_id, t1.user_id, t1.body;
+DROP TABLE t1;
+CREATE TABLE t1 (AnamneseId int(10) unsigned NOT NULL auto_increment,B BLOB,PRIMARY KEY (AnamneseId)) engine=myisam;
+insert into t1 values (null,"hello");
+LOCK TABLES t1 WRITE;
+ALTER TABLE t1 ADD Column new_col int not null;
+UNLOCK TABLES;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+DROP TABLE t1;
+create table t1 (i int unsigned not null auto_increment primary key);
+insert into t1 values (null),(null),(null),(null);
+alter table t1 drop i,add i int unsigned not null auto_increment, drop primary key, add primary key (i);
+select * from t1;
+i
+1
+2
+3
+4
+drop table t1;
+create table t1 (name char(15));
+insert into t1 (name) values ("current");
+create database mysqltest;
+create table mysqltest.t1 (name char(15));
+insert into mysqltest.t1 (name) values ("mysqltest");
+select * from t1;
+name
+current
+select * from mysqltest.t1;
+name
+mysqltest
+alter table t1 rename mysqltest.t1;
+ERROR 42S01: Table 't1' already exists
+select * from t1;
+name
+current
+select * from mysqltest.t1;
+name
+mysqltest
+drop table t1;
+drop database mysqltest;
+create table t1 (n1 int not null, n2 int, n3 int, n4 float,
+unique(n1),
+key (n1, n2, n3, n4),
+key (n2, n3, n4, n1),
+key (n3, n4, n1, n2),
+key (n4, n1, n2, n3) );
+alter table t1 disable keys;
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	n1	1	n1	A	0	NULL	NULL		BTREE		
+t1	1	n1_2	1	n1	A	NULL	NULL	NULL		BTREE	disabled	
+t1	1	n1_2	2	n2	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n1_2	3	n3	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n1_2	4	n4	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n2	1	n2	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n2	2	n3	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n2	3	n4	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n2	4	n1	A	NULL	NULL	NULL		BTREE	disabled	
+t1	1	n3	1	n3	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n3	2	n4	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n3	3	n1	A	NULL	NULL	NULL		BTREE	disabled	
+t1	1	n3	4	n2	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n4	1	n4	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n4	2	n1	A	NULL	NULL	NULL		BTREE	disabled	
+t1	1	n4	3	n2	A	NULL	NULL	NULL	YES	BTREE	disabled	
+t1	1	n4	4	n3	A	NULL	NULL	NULL	YES	BTREE	disabled	
+alter table t1 enable keys;
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	n1	1	n1	A	10	NULL	NULL		BTREE		
+t1	1	n1_2	1	n1	A	10	NULL	NULL		BTREE		
+t1	1	n1_2	2	n2	A	10	NULL	NULL	YES	BTREE		
+t1	1	n1_2	3	n3	A	10	NULL	NULL	YES	BTREE		
+t1	1	n1_2	4	n4	A	10	NULL	NULL	YES	BTREE		
+t1	1	n2	1	n2	A	10	NULL	NULL	YES	BTREE		
+t1	1	n2	2	n3	A	10	NULL	NULL	YES	BTREE		
+t1	1	n2	3	n4	A	10	NULL	NULL	YES	BTREE		
+t1	1	n2	4	n1	A	10	NULL	NULL		BTREE		
+t1	1	n3	1	n3	A	10	NULL	NULL	YES	BTREE		
+t1	1	n3	2	n4	A	10	NULL	NULL	YES	BTREE		
+t1	1	n3	3	n1	A	10	NULL	NULL		BTREE		
+t1	1	n3	4	n2	A	10	NULL	NULL	YES	BTREE		
+t1	1	n4	1	n4	A	10	NULL	NULL	YES	BTREE		
+t1	1	n4	2	n1	A	10	NULL	NULL		BTREE		
+t1	1	n4	3	n2	A	10	NULL	NULL	YES	BTREE		
+t1	1	n4	4	n3	A	10	NULL	NULL	YES	BTREE		
+drop table t1;
+create table t1 (i int unsigned not null auto_increment primary key);
+alter table t1 rename t2;
+alter table t2 rename t1, add c char(10) comment "no comment";
+show columns from t1;
+Field	Type	Null	Key	Default	Extra
+i	int(10) unsigned	NO	PRI	NULL	auto_increment
+c	char(10)	YES		NULL	
+drop table t1;
+create table t1 (a int, b int);
+alter table t1 add unique (a,b), add key (b);
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	3	NULL	NULL	YES	BTREE		
+t1	0	a	2	b	A	300	NULL	NULL	YES	BTREE		
+t1	1	b	1	b	A	100	NULL	NULL	YES	BTREE		
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	3	NULL	NULL	YES	BTREE		
+t1	0	a	2	b	A	300	NULL	NULL	YES	BTREE		
+t1	1	b	1	b	A	100	NULL	NULL	YES	BTREE		
+drop table t1;
+CREATE TABLE t1 (i int(10), index(i) ) ENGINE=MyISAM;
+ALTER TABLE t1 DISABLE KEYS;
+INSERT DELAYED INTO t1 VALUES(1),(2),(3);
+ALTER TABLE t1 ENABLE KEYS;
+drop table t1;
+CREATE TABLE t1 (
+Host varchar(16) binary NOT NULL default '',
+User varchar(16) binary NOT NULL default '',
+PRIMARY KEY  (Host,User)
+) ENGINE=MyISAM;
+ALTER TABLE t1 DISABLE KEYS;
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES ('localhost','root'),('localhost',''),('games','monty');
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	Host	A	NULL	NULL	NULL		BTREE		
+t1	0	PRIMARY	2	User	A	0	NULL	NULL		BTREE		
+ALTER TABLE t1 ENABLE KEYS;
+UNLOCK TABLES;
+CHECK TABLES t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+CREATE TABLE t1 (
+Host varchar(16) binary NOT NULL default '',
+User varchar(16) binary NOT NULL default '',
+PRIMARY KEY  (Host,User),
+KEY  (Host)
+) ENGINE=MyISAM;
+ALTER TABLE t1 DISABLE KEYS;
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	Host	A	NULL	NULL	NULL		BTREE		
+t1	0	PRIMARY	2	User	A	0	NULL	NULL		BTREE		
+t1	1	Host	1	Host	A	NULL	NULL	NULL		BTREE	disabled	
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES ('localhost','root'),('localhost','');
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	Host	A	NULL	NULL	NULL		BTREE		
+t1	0	PRIMARY	2	User	A	0	NULL	NULL		BTREE		
+t1	1	Host	1	Host	A	NULL	NULL	NULL		BTREE	disabled	
+ALTER TABLE t1 ENABLE KEYS;
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	Host	A	NULL	NULL	NULL		BTREE		
+t1	0	PRIMARY	2	User	A	2	NULL	NULL		BTREE		
+t1	1	Host	1	Host	A	1	NULL	NULL		BTREE		
+UNLOCK TABLES;
+CHECK TABLES t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+LOCK TABLES t1 WRITE;
+ALTER TABLE t1 RENAME t2;
+UNLOCK TABLES;
+select * from t2;
+Host	User
+localhost	
+localhost	root
+DROP TABLE t2;
+CREATE TABLE t1 (
+Host varchar(16) binary NOT NULL default '',
+User varchar(16) binary NOT NULL default '',
+PRIMARY KEY  (Host,User),
+KEY  (Host)
+) ENGINE=MyISAM;
+LOCK TABLES t1 WRITE;
+ALTER TABLE t1 DISABLE KEYS;
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	Host	A	NULL	NULL	NULL		BTREE		
+t1	0	PRIMARY	2	User	A	0	NULL	NULL		BTREE		
+t1	1	Host	1	Host	A	NULL	NULL	NULL		BTREE	disabled	
+DROP TABLE t1;
+create table t1 (a int);
+alter table t1 rename to ``;
+ERROR 42000: Incorrect table name ''
+rename table t1 to ``;
+ERROR 42000: Incorrect table name ''
+drop table t1;
+drop table if exists t1, t2;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.t2'
+create table t1 ( a varchar(10) not null primary key ) engine=myisam;
+create table t2 ( a varchar(10) not null primary key ) engine=merge union=(t1);
+flush tables;
+alter table t1 modify a varchar(10);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(10) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 UNION=(`t1`)
+flush tables;
+alter table t1 modify a varchar(10) not null;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(10) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=latin1 UNION=(`t1`)
+drop table if exists t1, t2;
+create table t1 (a int, b int, c int, d int, e int, f int, g int, h int,i int, primary key (a,b,c,d,e,f,g,i,h)) engine=MyISAM;
+insert ignore into t1 (a) values(1);
+Warnings:
+Warning	1364	Field 'b' doesn't have a default value
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
+Warning	1364	Field 'e' doesn't have a default value
+Warning	1364	Field 'f' doesn't have a default value
+Warning	1364	Field 'g' doesn't have a default value
+Warning	1364	Field 'h' doesn't have a default value
+Warning	1364	Field 'i' doesn't have a default value
+show table status like 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	37	X	X	X	X	X	X	X	X	latin1_swedish_ci	NULL			X	N
+alter table t1 modify a int;
+show table status like 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	37	X	X	X	X	X	X	X	X	latin1_swedish_ci	NULL			X	N
+drop table t1;
+create table t1 (a int not null, b int not null, c int not null, d int not null, e int not null, f int not null, g int not null, h int not null,i int not null, primary key (a,b,c,d,e,f,g,i,h)) engine=MyISAM;
+insert ignore into t1 (a) values(1);
+Warnings:
+Warning	1364	Field 'b' doesn't have a default value
+Warning	1364	Field 'c' doesn't have a default value
+Warning	1364	Field 'd' doesn't have a default value
+Warning	1364	Field 'e' doesn't have a default value
+Warning	1364	Field 'f' doesn't have a default value
+Warning	1364	Field 'g' doesn't have a default value
+Warning	1364	Field 'h' doesn't have a default value
+Warning	1364	Field 'i' doesn't have a default value
+show table status like 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	37	X	X	X	X	X	X	X	X	latin1_swedish_ci	NULL			X	N
+drop table t1;
+set names koi8r;
+create table t1 (a char(10) character set koi8r);
+insert into t1 values ('тест');
+select a,hex(a) from t1;
+a	hex(a)
+тест	D4C5D3D4
+alter table t1 change a a char(10) character set cp1251;
+select a,hex(a) from t1;
+a	hex(a)
+тест	F2E5F1F2
+alter table t1 change a a binary(4);
+select a,hex(a) from t1;
+a	hex(a)
+РЕЯР	F2E5F1F2
+alter table t1 change a a char(10) character set cp1251;
+select a,hex(a) from t1;
+a	hex(a)
+тест	F2E5F1F2
+alter table t1 change a a char(10) character set koi8r;
+select a,hex(a) from t1;
+a	hex(a)
+тест	D4C5D3D4
+alter table t1 change a a varchar(10) character set cp1251;
+select a,hex(a) from t1;
+a	hex(a)
+тест	F2E5F1F2
+alter table t1 change a a char(10) character set koi8r;
+select a,hex(a) from t1;
+a	hex(a)
+тест	D4C5D3D4
+alter table t1 change a a text character set cp1251;
+select a,hex(a) from t1;
+a	hex(a)
+тест	F2E5F1F2
+alter table t1 change a a char(10) character set koi8r;
+select a,hex(a) from t1;
+a	hex(a)
+тест	D4C5D3D4
+delete from t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) CHARACTER SET koi8r DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 DEFAULT CHARACTER SET latin1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) CHARACTER SET koi8r DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 CONVERT TO CHARACTER SET latin1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 DEFAULT CHARACTER SET cp1251;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) CHARACTER SET latin1 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=cp1251
+drop table t1;
+create table t1 (myblob longblob,mytext longtext) 
+default charset latin1 collate latin1_general_cs;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `myblob` longblob DEFAULT NULL,
+  `mytext` longtext COLLATE latin1_general_cs DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_general_cs
+alter table t1 character set latin2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `myblob` longblob DEFAULT NULL,
+  `mytext` longtext CHARACTER SET latin1 COLLATE latin1_general_cs DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin2
+drop table t1;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT UNIQUE);
+ALTER TABLE t1 DROP PRIMARY KEY;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  UNIQUE KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE t1 DROP PRIMARY KEY;
+ERROR 42000: Can't DROP INDEX `PRIMARY`; check that it exists
+DROP TABLE t1;
+create table t1 (a int, b int, key(a));
+insert into t1 values (1,1), (2,2);
+alter table t1 drop key no_such_key;
+ERROR 42000: Can't DROP INDEX `no_such_key`; check that it exists
+alter table t1 drop key a;
+drop table t1;
+CREATE TABLE T12207(a int) ENGINE=MYISAM;
+ALTER TABLE T12207 DISCARD TABLESPACE;
+ERROR HY000: Storage engine MyISAM of the table `test`.`T12207` doesn't have this option
+DROP TABLE T12207;
+create table t1 (a text) character set koi8r;
+insert into t1 values (_koi8r'тест');
+select hex(a) from t1;
+hex(a)
+D4C5D3D4
+alter table t1 convert to character set cp1251;
+select hex(a) from t1;
+hex(a)
+F2E5F1F2
+drop table t1;
+create table t1 ( a timestamp );
+alter table t1 add unique ( a(1) );
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+drop table t1;
+drop table if exists t1;
+create table t1 (a int, key(a));
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+"this used not to disable the index"
+alter table t1 modify a int, disable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE	disabled	
+alter table t1 enable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+alter table t1 modify a bigint, disable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE	disabled	
+alter table t1 enable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+alter table t1 add b char(10), disable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE	disabled	
+alter table t1 add c decimal(10,2), enable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+"this however did"
+alter table t1 disable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE	disabled	
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	bigint(20)	YES	MUL	NULL	
+b	char(10)	YES		NULL	
+c	decimal(10,2)	YES		NULL	
+alter table t1 add d decimal(15,5);
+"The key should still be disabled"
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE	disabled	
+drop table t1;
+"Now will test with one unique index"
+create table t1(a int, b char(10), unique(a));
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+alter table t1 disable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+alter table t1 enable keys;
+"If no copy on noop change, this won't touch the data file"
+"Unique index, no change"
+alter table t1 modify a int, disable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+"Change the type implying data copy"
+"Unique index, no change"
+alter table t1 modify a bigint, disable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+alter table t1 modify a bigint;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+alter table t1 modify a int;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+drop table t1;
+"Now will test with one unique and one non-unique index"
+create table t1(a int, b char(10), unique(a), key(b));
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
+alter table t1 disable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE	disabled	
+alter table t1 enable keys;
+"If no copy on noop change, this won't touch the data file"
+"The non-unique index will be disabled"
+alter table t1 modify a int, disable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE	disabled	
+alter table t1 enable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
+"Change the type implying data copy"
+"The non-unique index will be disabled"
+alter table t1 modify a bigint, disable keys;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE	disabled	
+"Change again the type, but leave the indexes as_is"
+alter table t1 modify a int;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE	disabled	
+"Try the same. When data is no copied on similar tables, this is noop"
+alter table t1 modify a int;
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE	disabled	
+drop table t1;
+create database mysqltest;
+create table t1 (c1 int);
+alter table t1 rename mysqltest.t1;
+drop table t1;
+ERROR 42S02: Unknown table 'test.t1'
+alter table mysqltest.t1 rename t1;
+drop table t1;
+create table t1 (c1 int);
+use mysqltest;
+drop database mysqltest;
+alter table test.t1 rename t1;
+ERROR 3D000: No database selected
+alter table test.t1 rename test.t1;
+use test;
+drop table t1;
+CREATE TABLE t1(a INT) ROW_FORMAT=FIXED;
+CREATE INDEX i1 ON t1(a);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  KEY `i1` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 ROW_FORMAT=FIXED
+DROP INDEX i1 ON t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 ROW_FORMAT=FIXED
+DROP TABLE t1;
+DROP TABLE IF EXISTS bug24219;
+DROP TABLE IF EXISTS bug24219_2;
+CREATE TABLE bug24219 (a INT, INDEX(a));
+SHOW INDEX FROM bug24219;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+bug24219	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+ALTER TABLE bug24219 RENAME TO bug24219_2, DISABLE KEYS;
+SHOW INDEX FROM bug24219_2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+bug24219_2	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE	disabled	
+DROP TABLE bug24219_2;
+drop table if exists table_24562;
+create table table_24562(
+section int,
+subsection int,
+title varchar(50));
+insert into table_24562 values
+(1, 0, "Introduction"),
+(1, 1, "Authors"),
+(1, 2, "Acknowledgements"),
+(2, 0, "Basics"),
+(2, 1, "Syntax"),
+(2, 2, "Client"),
+(2, 3, "Server"),
+(3, 0, "Intermediate"),
+(3, 1, "Complex queries"),
+(3, 2, "Stored Procedures"),
+(3, 3, "Stored Functions"),
+(4, 0, "Advanced"),
+(4, 1, "Replication"),
+(4, 2, "Load balancing"),
+(4, 3, "High availability"),
+(5, 0, "Conclusion");
+select * from table_24562;
+section	subsection	title
+1	0	Introduction
+1	1	Authors
+1	2	Acknowledgements
+2	0	Basics
+2	1	Syntax
+2	2	Client
+2	3	Server
+3	0	Intermediate
+3	1	Complex queries
+3	2	Stored Procedures
+3	3	Stored Functions
+4	0	Advanced
+4	1	Replication
+4	2	Load balancing
+4	3	High availability
+5	0	Conclusion
+alter table table_24562 add column reviewer varchar(20),
+order by title;
+select * from table_24562;
+section	subsection	title	reviewer
+1	2	Acknowledgements	NULL
+4	0	Advanced	NULL
+1	1	Authors	NULL
+2	0	Basics	NULL
+2	2	Client	NULL
+3	1	Complex queries	NULL
+5	0	Conclusion	NULL
+4	3	High availability	NULL
+3	0	Intermediate	NULL
+1	0	Introduction	NULL
+4	2	Load balancing	NULL
+4	1	Replication	NULL
+2	3	Server	NULL
+3	3	Stored Functions	NULL
+3	2	Stored Procedures	NULL
+2	1	Syntax	NULL
+update table_24562 set reviewer="Me" where section=2;
+update table_24562 set reviewer="You" where section=3;
+alter table table_24562
+order by section ASC, subsection DESC;
+select * from table_24562;
+section	subsection	title	reviewer
+1	2	Acknowledgements	NULL
+1	1	Authors	NULL
+1	0	Introduction	NULL
+2	3	Server	Me
+2	2	Client	Me
+2	1	Syntax	Me
+2	0	Basics	Me
+3	3	Stored Functions	You
+3	2	Stored Procedures	You
+3	1	Complex queries	You
+3	0	Intermediate	You
+4	3	High availability	NULL
+4	2	Load balancing	NULL
+4	1	Replication	NULL
+4	0	Advanced	NULL
+5	0	Conclusion	NULL
+alter table table_24562
+order by table_24562.subsection ASC, table_24562.section DESC;
+select * from table_24562;
+section	subsection	title	reviewer
+5	0	Conclusion	NULL
+4	0	Advanced	NULL
+3	0	Intermediate	You
+2	0	Basics	Me
+1	0	Introduction	NULL
+4	1	Replication	NULL
+3	1	Complex queries	You
+2	1	Syntax	Me
+1	1	Authors	NULL
+4	2	Load balancing	NULL
+3	2	Stored Procedures	You
+2	2	Client	Me
+1	2	Acknowledgements	NULL
+4	3	High availability	NULL
+3	3	Stored Functions	You
+2	3	Server	Me
+alter table table_24562 order by 12;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '12' at line 1
+alter table table_24562 order by (section + 12);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(section + 12)' at line 1
+alter table table_24562 order by length(title);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(title)' at line 1
+alter table table_24562 order by (select 12 from dual);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(select 12 from dual)' at line 1
+alter table table_24562 order by no_such_col;
+ERROR 42S22: Unknown column 'no_such_col' in 'order clause'
+drop table table_24562;
+create table t1 (mycol int(10) not null);
+alter table t1 alter column mycol set default 0;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+mycol	int(10)	NO		0	
+drop table t1;
+create table t1(id int(8) primary key auto_increment) engine=heap;
+insert into t1 values (null);
+insert into t1 values (null);
+select * from t1;
+id
+1
+2
+alter table t1 auto_increment = 50;
+alter table t1 engine = myisam;
+insert into t1 values (null);
+select * from t1;
+id
+1
+2
+50
+alter table t1 engine = heap;
+insert into t1 values (null);
+select * from t1;
+id
+1
+2
+50
+51
+drop table t1;
+set @orig_sql_mode = @@sql_mode;
+set sql_mode="no_zero_date";
+create table t1(f1 int);
+alter table t1 add column f2 datetime not null, add column f21 date not null;
+insert into t1 values(1,'2000-01-01','2000-01-01');
+alter table t1 add column f3 datetime not null;
+ERROR 22007: Incorrect datetime value: '0000-00-00 00:00:00' for column `test`.`t1`.`f3` at row 1
+alter table t1 add column f3 date not null;
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`f3` at row 1
+alter table t1 add column f4 datetime not null default '2002-02-02',
+add column f41 date not null;
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`f41` at row 1
+alter table t1 add column f4 datetime not null default '2002-02-02',
+add column f41 date not null default '2002-02-02';
+select * from t1;
+f1	f2	f21	f4	f41
+1	2000-01-01 00:00:00	2000-01-01	2002-02-02 00:00:00	2002-02-02
+drop table t1;
+set sql_mode= @orig_sql_mode;
+create table t1 (v varchar(32));
+insert into t1 values ('def'),('abc'),('hij'),('3r4f');
+select * from t1;
+v
+def
+abc
+hij
+3r4f
+alter table t1 change v v2 varchar(32);
+select * from t1;
+v2
+def
+abc
+hij
+3r4f
+alter table t1 change v2 v varchar(64);
+select * from t1;
+v
+def
+abc
+hij
+3r4f
+update t1 set v = 'lmn' where v = 'hij';
+select * from t1;
+v
+def
+abc
+lmn
+3r4f
+alter table t1 add i int auto_increment not null primary key first;
+select * from t1;
+i	v
+1	def
+2	abc
+3	lmn
+4	3r4f
+update t1 set i=5 where i=3;
+select * from t1;
+i	v
+1	def
+2	abc
+5	lmn
+4	3r4f
+alter table t1 change i i bigint;
+select * from t1;
+i	v
+1	def
+2	abc
+5	lmn
+4	3r4f
+alter table t1 add unique key (i, v);
+select * from t1 where i between 2 and 4 and v in ('def','3r4f','lmn');
+i	v
+4	3r4f
+drop table t1;
+create table t1 (t varchar(255) default null, key t (t(80)))
+engine=myisam default charset=latin1;
+alter table t1 change t t text;
+drop table t1;
+CREATE TABLE t1 (a varchar(500));
+ALTER TABLE t1 ADD b GEOMETRY NOT NULL, ADD SPATIAL INDEX(b);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(500) DEFAULT NULL,
+  `b` geometry NOT NULL,
+  SPATIAL KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE t1 ADD KEY(b(50));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(500) DEFAULT NULL,
+  `b` geometry NOT NULL,
+  SPATIAL KEY `b` (`b`),
+  KEY `b_2` (`b`(50))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE t1 ADD c POINT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(500) DEFAULT NULL,
+  `b` geometry NOT NULL,
+  `c` point DEFAULT NULL,
+  SPATIAL KEY `b` (`b`),
+  KEY `b_2` (`b`(50))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t2 (a INT, KEY (a(20)));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+ALTER TABLE t1 ADD d INT;
+ALTER TABLE t1 ADD KEY (d(20));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+ALTER TABLE t1 ADD e GEOMETRY NOT NULL, ADD SPATIAL KEY (e(30));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+DROP TABLE t1;
+CREATE TABLE t1 (s CHAR(8) BINARY);
+INSERT INTO t1 VALUES ('test');
+SELECT LENGTH(s) FROM t1;
+LENGTH(s)
+4
+ALTER TABLE t1 MODIFY s CHAR(10) BINARY;
+SELECT LENGTH(s) FROM t1;
+LENGTH(s)
+4
+DROP TABLE t1;
+CREATE TABLE t1 (s BINARY(8));
+INSERT INTO t1 VALUES ('test');
+SELECT LENGTH(s) FROM t1;
+LENGTH(s)
+8
+SELECT HEX(s) FROM t1;
+HEX(s)
+7465737400000000
+ALTER TABLE t1 MODIFY s BINARY(10);
+SELECT HEX(s) FROM t1;
+HEX(s)
+74657374000000000000
+SELECT LENGTH(s) FROM t1;
+LENGTH(s)
+10
+DROP TABLE t1;
+CREATE TABLE t1 (v VARCHAR(3), b INT);
+INSERT INTO t1 VALUES ('abc', 5);
+SELECT * FROM t1;
+v	b
+abc	5
+ALTER TABLE t1 MODIFY COLUMN v VARCHAR(4);
+SELECT * FROM t1;
+v	b
+abc	5
+DROP TABLE t1;
+create table t1 (a tinytext character set latin1);
+alter table t1 convert to character set utf8;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+drop table t1;
+create table t1 (a mediumtext character set latin1);
+alter table t1 convert to character set utf8;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+drop table t1;
+End of 5.0 tests
+drop table if exists t1, t2, t3;
+create table t1 (i int);
+create table t3 (j int);
+insert into t1 values ();
+insert into t3 values ();
+lock table t1 write, t3 read;
+alter table t1 modify i int default 1;
+insert into t1 values ();
+select * from t1;
+i
+NULL
+1
+alter table t1 change i c char(10) default "Two";
+insert into t1 values ();
+select * from t1;
+c
+NULL
+1
+Two
+alter table t1 modify c char(10) default "Three", rename to t2;
+select * from t1;
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+select * from t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+select * from t3;
+j
+NULL
+unlock tables;
+insert into t2 values ();
+select * from t2;
+c
+NULL
+1
+Two
+Three
+lock table t2 write, t3 read;
+alter table t2 change c vc varchar(100) default "Four", rename to t1;
+select * from t1;
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+select * from t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+select * from t3;
+j
+NULL
+unlock tables;
+insert into t1 values ();
+select * from t1;
+vc
+NULL
+1
+Two
+Three
+Four
+drop tables t1, t3;
+DROP TABLE IF EXISTS `t+1`, `t+2`;
+CREATE TABLE `t+1` (c1 INT);
+ALTER TABLE  `t+1` RENAME `t+2`;
+CREATE TABLE `t+1` (c1 INT);
+ALTER TABLE  `t+1` RENAME `t+2`;
+ERROR 42S01: Table 't+2' already exists
+DROP TABLE   `t+1`, `t+2`;
+CREATE TEMPORARY TABLE `tt+1` (c1 INT);
+ALTER TABLE  `tt+1` RENAME `tt+2`;
+CREATE TEMPORARY TABLE `tt+1` (c1 INT);
+ALTER TABLE  `tt+1` RENAME `tt+2`;
+ERROR 42S01: Table 'tt+2' already exists
+SHOW CREATE TABLE `tt+1`;
+Table	Create Table
+tt+1	CREATE TEMPORARY TABLE `tt+1` (
+  `c1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW CREATE TABLE `tt+2`;
+Table	Create Table
+tt+2	CREATE TEMPORARY TABLE `tt+2` (
+  `c1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE   `tt+1`, `tt+2`;
+CREATE TABLE `#sql1` (c1 INT);
+CREATE TABLE `@0023sql2` (c1 INT);
+SHOW TABLES;
+Tables_in_test
+#sql1
+@0023sql2
+RENAME TABLE `#sql1`     TO `@0023sql1`;
+RENAME TABLE `@0023sql2` TO `#sql2`;
+SHOW TABLES;
+Tables_in_test
+#sql2
+@0023sql1
+ALTER TABLE `@0023sql1`  RENAME `#sql-1`;
+ALTER TABLE `#sql2`      RENAME `@0023sql-2`;
+SHOW TABLES;
+Tables_in_test
+#sql-1
+@0023sql-2
+INSERT INTO `#sql-1`     VALUES (1);
+INSERT INTO `@0023sql-2` VALUES (2);
+DROP TABLE `#sql-1`, `@0023sql-2`;
+CREATE TEMPORARY TABLE `#sql1` (c1 INT);
+CREATE TEMPORARY TABLE `@0023sql2` (c1 INT);
+SHOW TABLES;
+Tables_in_test
+ALTER TABLE `#sql1`      RENAME `@0023sql1`;
+ALTER TABLE `@0023sql2`  RENAME `#sql2`;
+SHOW TABLES;
+Tables_in_test
+INSERT INTO `#sql2`      VALUES (1);
+INSERT INTO `@0023sql1`  VALUES (2);
+SHOW CREATE TABLE `#sql2`;
+Table	Create Table
+#sql2	CREATE TEMPORARY TABLE `#sql2` (
+  `c1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW CREATE TABLE `@0023sql1`;
+Table	Create Table
+@0023sql1	CREATE TEMPORARY TABLE `@0023sql1` (
+  `c1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE `#sql2`, `@0023sql1`;
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+CREATE TABLE t1 (
+int_field INTEGER UNSIGNED NOT NULL,
+char_field CHAR(10),
+INDEX(`int_field`)
+);
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+int_field	int(10) unsigned	NO	MUL	NULL	
+char_field	char(10)	YES		NULL	
+SHOW INDEXES FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	int_field	1	int_field	A	NULL	NULL	NULL		BTREE		
+INSERT INTO t1 VALUES (1, "edno"), (1, "edno"), (2, "dve"), (3, "tri"), (5, "pet");
+"Non-copy data change - new frm, but old data and index files"
+ALTER TABLE t1
+CHANGE int_field unsigned_int_field INTEGER UNSIGNED NOT NULL,
+RENAME t2;
+SELECT * FROM t1 ORDER BY int_field;
+ERROR 42S02: Table 'test.t1' doesn't exist
+SELECT * FROM t2 ORDER BY unsigned_int_field;
+unsigned_int_field	char_field
+1	edno
+1	edno
+2	dve
+3	tri
+5	pet
+DESCRIBE t2;
+Field	Type	Null	Key	Default	Extra
+unsigned_int_field	int(10) unsigned	NO	MUL	NULL	
+char_field	char(10)	YES		NULL	
+DESCRIBE t2;
+Field	Type	Null	Key	Default	Extra
+unsigned_int_field	int(10) unsigned	NO	MUL	NULL	
+char_field	char(10)	YES		NULL	
+ALTER TABLE t2 MODIFY unsigned_int_field BIGINT UNSIGNED NOT NULL;
+DESCRIBE t2;
+Field	Type	Null	Key	Default	Extra
+unsigned_int_field	bigint(20) unsigned	NO	MUL	NULL	
+char_field	char(10)	YES		NULL	
+DROP TABLE t2;
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT);
+INSERT INTO t1 VALUES (1, 2, NULL);
+SELECT * FROM t1;
+f1	f2	f3
+1	2	NULL
+ALTER TABLE t1 MODIFY COLUMN f3 INT AFTER f1;
+SELECT * FROM t1;
+f1	f3	f2
+1	NULL	2
+ALTER TABLE t1 MODIFY COLUMN f3 INT AFTER f2;
+SELECT * FROM t1;
+f1	f2	f3
+1	2	NULL
+DROP TABLE t1;
+create table t1 (c char(10) default "Two");
+lock table t1 write;
+insert into t1 values ();
+alter table t1 modify c char(10) default "Three";
+unlock tables;
+select * from t1;
+c
+Two
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (id int, c int) character set latin1;
+INSERT INTO t1 VALUES (1,1);
+ALTER TABLE t1 CHANGE c d int;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 CHANGE d c int;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY c VARCHAR(10);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 CHANGE c d varchar(10);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 CHANGE d c varchar(10);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (id int, c int) character set utf8;
+INSERT INTO t1 VALUES (1,1);
+ALTER TABLE t1 CHANGE c d int;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 CHANGE d c int;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY c VARCHAR(10);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 CHANGE c d varchar(10);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 CHANGE d c varchar(10);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+create table t1(f1 int not null, f2 int not null, key  (f1), key (f2));
+select index_length into @unpaked_keys_size from
+information_schema.tables where table_name='t1';
+alter table t1 pack_keys=1;
+select index_length into @paked_keys_size from
+information_schema.tables where table_name='t1';
+select (@unpaked_keys_size > @paked_keys_size);
+(@unpaked_keys_size > @paked_keys_size)
+1
+select max_data_length into @orig_max_data_length from
+information_schema.tables where table_name='t1';
+alter table t1 max_rows=100;
+select max_data_length into @changed_max_data_length from
+information_schema.tables where table_name='t1';
+select (@orig_max_data_length > @changed_max_data_length);
+(@orig_max_data_length > @changed_max_data_length)
+1
+drop table t1;
+CREATE TABLE t1(a INT AUTO_INCREMENT PRIMARY KEY, 
+b ENUM('a', 'b', 'c') NOT NULL);
+INSERT INTO t1 (b) VALUES ('a'), ('c'), ('b'), ('b'), ('a');
+ALTER TABLE t1 MODIFY b ENUM('a', 'z', 'b', 'c') NOT NULL;
+SELECT * FROM t1;
+a	b
+1	a
+2	c
+3	b
+4	b
+5	a
+DROP TABLE t1;
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode=strict_all_tables;
+CREATE TABLE t1 (a int NOT NULL default 42);
+INSERT INTO t1 values ();
+SELECT * FROM t1;
+a
+42
+ALTER TABLE t1 ALTER COLUMN a DROP DEFAULT;
+INSERT INTO t1 values ();
+ERROR HY000: Field 'a' doesn't have a default value
+INSERT INTO t1 (a) VALUES (11);
+SELECT * FROM t1 ORDER BY a;
+a
+11
+42
+DROP TABLE t1;
+SET @@sql_mode=@save_sql_mode;
+#
+# Bug#45567: Fast ALTER TABLE broken for enum and set
+#
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a ENUM('a1','a2'));
+INSERT INTO t1 VALUES ('a1'),('a2');
+# No copy: No modification
+ALTER TABLE t1 MODIFY COLUMN a ENUM('a1','a2');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# No copy: Add new enumeration to the end
+ALTER TABLE t1 MODIFY COLUMN a ENUM('a1','a2','a3');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Copy: Modify and add new to the end
+ALTER TABLE t1 MODIFY COLUMN a ENUM('a1','a2','xx','a5');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+# Copy: Remove from the end
+ALTER TABLE t1 MODIFY COLUMN a ENUM('a1','a2','xx');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+# Copy: Add new enumeration
+ALTER TABLE t1 MODIFY COLUMN a ENUM('a1','a2','a0','xx');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+# No copy: Add new enumerations to the end
+ALTER TABLE t1 MODIFY COLUMN a ENUM('a1','a2','a0','xx','a5','a6');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+CREATE TABLE t1 (a SET('a1','a2'));
+INSERT INTO t1 VALUES ('a1'),('a2');
+# No copy: No modification
+ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# No copy: Add new to the end
+ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a3');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Copy: Modify and add new to the end
+ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','xx','a5');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+# Copy: Remove from the end
+ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','xx');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+# Copy: Add new member
+ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+# No copy: Add new to the end
+ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Copy: Numerical incrase (pack lenght)
+ALTER TABLE t1 MODIFY COLUMN a SET('a1','a2','a0','xx','a5','a6','a7','a8','a9','a10');
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+CREATE TABLE t1 (f1 TIMESTAMP NULL DEFAULT NULL,
+f2 INT(11) DEFAULT NULL) ENGINE=MYISAM DEFAULT CHARSET=utf8;
+INSERT INTO t1 VALUES (NULL, NULL), ("2009-10-09 11:46:19", 2);
+this should affect no rows as there is no real change
+ALTER TABLE t1 CHANGE COLUMN f1 f1_no_real_change TIMESTAMP NULL DEFAULT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+#
+# Bug #31145: ALTER TABLE DROP COLUMN, ADD COLUMN crashes (linux) 
+#   or freezes (win) the server
+#
+CREATE TABLE t1 (a TEXT, id INT, b INT);
+ALTER TABLE t1 DROP COLUMN a, ADD COLUMN c TEXT FIRST;
+DROP TABLE t1;
+#
+# Test for bug #12652385 - "61493: REORDERING COLUMNS TO POSITION
+#                           FIRST CAN CAUSE DATA TO BE CORRUPTED".
+#
+drop table if exists t1;
+# Use MyISAM engine as the fact that InnoDB doesn't support
+# in-place ALTER TABLE in cases when columns are being renamed
+# hides some bugs.
+create table t1 (i int, j int) engine=myisam;
+insert into t1 value (1, 2);
+# First, test for original problem described in the bug report.
+select * from t1;
+i	j
+1	2
+# Change of column order by the below ALTER TABLE statement should
+# affect both column names and column contents.
+alter table t1 modify column j int first;
+select * from t1;
+j	i
+2	1
+# Now test for similar problem with the same root.
+# The below ALTER TABLE should change not only the name but
+# also the value for the last column of the table.
+alter table t1 drop column i, add column k int default 0;
+select * from t1;
+j	k
+2	0
+# Clean-up.
+drop table t1;
+End of 5.1 tests
+CREATE TABLE t1(c CHAR(10), 
+i INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY);
+INSERT INTO t1 VALUES('a',2),('b',4),('c',6);
+ALTER TABLE t1
+DROP i,
+ADD i INT UNSIGNED NOT NULL AUTO_INCREMENT,
+AUTO_INCREMENT = 1;
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(1), PRIMARY KEY (a(255)));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+CREATE TABLE t1 (a CHAR(1));
+ALTER TABLE t1 ADD PRIMARY KEY (a(20));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+ALTER TABLE t1 ADD KEY (a(20));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+CREATE UNIQUE INDEX i1 ON t1 (a(20));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+CREATE INDEX i2 ON t1 (a(20));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+DROP TABLE t1;
+CREATE TABLE t1 (id int);
+INSERT INTO t1 VALUES (1), (2);
+ALTER TABLE t1 ADD COLUMN (f1 INT), ADD COLUMN (f2 INT), ADD KEY f2k(f2);
+DROP TABLE t1;
+#
+# Test for bug #53820 "ALTER a MEDIUMINT column table causes full
+#                      table copy".
+#
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT, b MEDIUMINT);
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+# The below ALTER should not copy table and so no rows should
+# be shown as affected.
+ALTER TABLE t1 CHANGE a id INT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+#
+# Bug#11754461 CANNOT ALTER TABLE WHEN KEY PREFIX TOO LONG
+#
+DROP DATABASE IF EXISTS db1;
+CREATE DATABASE db1 CHARACTER SET utf8;
+CREATE TABLE db1.t1 (bar TINYTEXT, KEY (bar(100)));
+ALTER TABLE db1.t1 ADD baz INT;
+DROP DATABASE db1;
+# Additional coverage for refactoring which is made as part
+# of fix for bug #27480 "Extend CREATE TEMPORARY TABLES privilege
+# to allow temp table operations".
+#
+# At some point the below test case failed on assertion.
+DROP TABLE IF EXISTS t1;
+CREATE TEMPORARY TABLE t1 (i int) ENGINE=MyISAM;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ERROR HY000: Storage engine MyISAM of the table `test`.`t1` doesn't have this option
+DROP TABLE t1;
+#
+# Bug#11938039 RE-EXECUTION OF FRM-ONLY ALTER TABLE WITH RENAME
+#              CLAUSE FAILS OR ABORTS SERVER.
+#
+drop table if exists t1;
+create table t1 (a int);
+prepare stmt1 from 'alter table t1 alter column a set default 1, rename to t2';
+execute stmt1;
+rename table t2 to t1;
+# The below statement should succeed and not emit error or abort server.
+execute stmt1;
+deallocate prepare stmt1;
+drop table t2;
+#
+# MDEV-8960 Can't refer the same column twice in one ALTER TABLE
+#
+CREATE TABLE t1 (
+`a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL,
+ALTER COLUMN `consultant_id` DROP DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `consultant_id` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL,
+ALTER COLUMN `consultant_id` SET DEFAULT 2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `consultant_id` int(11) NOT NULL DEFAULT 2
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL DEFAULT 2,
+ALTER COLUMN `consultant_id` DROP DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `consultant_id` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+DROP TABLE t1;
+CREATE TABLE t1 (
+`a` int(11) DEFAULT NULL
+) DEFAULT CHARSET=utf8;
+ALTER TABLE t1 ADD COLUMN `consultant_id` integer NOT NULL DEFAULT 2,
+ALTER COLUMN `consultant_id` DROP DEFAULT,
+MODIFY COLUMN `consultant_id` BIGINT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `consultant_id` bigint(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8
+DROP TABLE t1;
+#
+# BUG#27788685: NO WARNING WHEN TRUNCATING A STRING WITH DATA LOSS
+#
+SET GLOBAL max_allowed_packet=17825792;
+connect con1, localhost, root,,;
+CREATE TABLE t1 (t1_fld1 TEXT);
+CREATE TABLE t2 (t2_fld1 MEDIUMTEXT);
+CREATE TABLE t3 (t3_fld1 LONGTEXT);
+INSERT INTO t1 VALUES (REPEAT('a',300));
+INSERT INTO t2 VALUES (REPEAT('b',65680));
+INSERT INTO t3 VALUES (REPEAT('c',16777300));
+SELECT LENGTH(t1_fld1) FROM t1;
+LENGTH(t1_fld1)
+300
+SELECT LENGTH(t2_fld1) FROM t2;
+LENGTH(t2_fld1)
+65680
+SELECT LENGTH(t3_fld1) FROM t3;
+LENGTH(t3_fld1)
+16777300
+# With strict mode
+SET SQL_MODE='STRICT_ALL_TABLES';
+ALTER TABLE t1 CHANGE `t1_fld1` `my_t1_fld1` TINYTEXT;
+ERROR 22001: Data too long for column 'my_t1_fld1' at row 1
+ALTER TABLE t2 CHANGE `t2_fld1` `my_t2_fld1` TEXT;
+ERROR 22001: Data too long for column 'my_t2_fld1' at row 1
+ALTER TABLE t3 CHANGE `t3_fld1` `my_t3_fld1` MEDIUMTEXT;
+ERROR 22001: Data too long for column 'my_t3_fld1' at row 1
+# With non-strict mode
+SET SQL_MODE='';
+ALTER TABLE t1 CHANGE `t1_fld1` `my_t1_fld1` TINYTEXT;
+Warnings:
+Warning	1265	Data truncated for column 'my_t1_fld1' at row 1
+ALTER TABLE t2 CHANGE `t2_fld1` `my_t2_fld1` TEXT;
+Warnings:
+Warning	1265	Data truncated for column 'my_t2_fld1' at row 1
+ALTER TABLE t3 CHANGE `t3_fld1` `my_t3_fld1` MEDIUMTEXT;
+Warnings:
+Warning	1265	Data truncated for column 'my_t3_fld1' at row 1
+SELECT LENGTH(my_t1_fld1) FROM t1;
+LENGTH(my_t1_fld1)
+255
+SELECT LENGTH(my_t2_fld1) FROM t2;
+LENGTH(my_t2_fld1)
+65535
+SELECT LENGTH(my_t3_fld1) FROM t3;
+LENGTH(my_t3_fld1)
+16777215
+disconnect con1;
+connection default;
+DROP TABLE t1, t2, t3;
+SET SQL_MODE=default;
+SET GLOBAL max_allowed_packet=@save_max_allowed_packet;
+CREATE TABLE t1 (
+id INT(11) NOT NULL,
+x_param INT(11) DEFAULT NULL,
+PRIMARY KEY (id)
+) ENGINE=MYISAM;
+ALTER TABLE t1 ADD COLUMN IF NOT EXISTS id INT,
+ADD COLUMN IF NOT EXISTS lol INT AFTER id;
+Warnings:
+Note	1060	Duplicate column name 'id'
+ALTER TABLE t1 ADD COLUMN IF NOT EXISTS lol INT AFTER id;
+Warnings:
+Note	1060	Duplicate column name 'lol'
+ALTER TABLE t1 DROP COLUMN IF EXISTS lol;
+ALTER TABLE t1 DROP COLUMN IF EXISTS lol;
+Warnings:
+Note	1091	Can't DROP COLUMN `lol`; check that it exists
+ALTER TABLE t1 ADD KEY IF NOT EXISTS x_param(x_param);
+ALTER TABLE t1 ADD KEY IF NOT EXISTS x_param(x_param);
+Warnings:
+Note	1061	Duplicate key name 'x_param'
+ALTER TABLE t1 MODIFY IF EXISTS lol INT;
+Warnings:
+Note	1054	Unknown column 'lol' in 't1'
+DROP INDEX IF EXISTS x_param ON t1;
+DROP INDEX IF EXISTS x_param ON t1;
+Warnings:
+Note	1091	Can't DROP INDEX `x_param`; check that it exists
+CREATE INDEX IF NOT EXISTS x_param1 ON t1(x_param);
+CREATE INDEX IF NOT EXISTS x_param1 ON t1(x_param);
+Warnings:
+Note	1061	Duplicate key name 'x_param1'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `x_param` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `x_param1` (`x_param`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (
+id INT(11) NOT NULL,
+x_param INT(11) DEFAULT NULL,
+PRIMARY KEY (id)
+) ENGINE=INNODB;
+CREATE TABLE t2 (
+id INT(11) NOT NULL) ENGINE=INNODB;
+ALTER TABLE t1 ADD COLUMN IF NOT EXISTS id INT,
+ADD COLUMN IF NOT EXISTS lol INT AFTER id;
+Warnings:
+Note	1060	Duplicate column name 'id'
+ALTER TABLE t1 ADD COLUMN IF NOT EXISTS lol INT AFTER id;
+Warnings:
+Note	1060	Duplicate column name 'lol'
+ALTER TABLE t1 DROP COLUMN IF EXISTS lol;
+ALTER TABLE t1 DROP COLUMN IF EXISTS lol;
+Warnings:
+Note	1091	Can't DROP COLUMN `lol`; check that it exists
+ALTER TABLE t1 ADD KEY IF NOT EXISTS x_param(x_param);
+ALTER TABLE t1 ADD KEY IF NOT EXISTS x_param(x_param);
+Warnings:
+Note	1061	Duplicate key name 'x_param'
+ALTER TABLE t1 MODIFY IF EXISTS lol INT;
+Warnings:
+Note	1054	Unknown column 'lol' in 't1'
+DROP INDEX IF EXISTS x_param ON t1;
+DROP INDEX IF EXISTS x_param ON t1;
+Warnings:
+Note	1091	Can't DROP INDEX `x_param`; check that it exists
+CREATE INDEX IF NOT EXISTS x_param1 ON t1(x_param);
+CREATE INDEX IF NOT EXISTS x_param1 ON t1(x_param);
+Warnings:
+Note	1061	Duplicate key name 'x_param1'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `x_param` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `x_param1` (`x_param`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS fk(id) REFERENCES t1(id);
+ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS fk(id) REFERENCES t1(id);
+Warnings:
+Note	1061	Duplicate key name 'fk'
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS fk;
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS fk;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `fk`; check that it exists
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  KEY `fk` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t2 ADD FOREIGN KEY (id) REFERENCES t1(id);
+ALTER TABLE t2 ADD FOREIGN KEY IF NOT EXISTS t2_ibfk_1(id) REFERENCES t1(id);
+Warnings:
+Note	1061	Duplicate key name 't2_ibfk_1'
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS t2_ibfk_1;
+ALTER TABLE t2 DROP FOREIGN KEY IF EXISTS t2_ibfk_1;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `t2_ibfk_1`; check that it exists
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  KEY `id` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 (
+id INT(11) NOT NULL);
+ALTER TABLE t2 ADD COLUMN a INT, ADD COLUMN IF NOT EXISTS a INT;
+Warnings:
+Note	1060	Duplicate column name 'a'
+ALTER TABLE t2 ADD KEY k_id(id), ADD KEY IF NOT EXISTS k_id(id);
+Warnings:
+Note	1061	Duplicate key name 'k_id'
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  KEY `k_id` (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE t2 DROP KEY k_id, DROP KEY IF EXISTS k_id;
+Warnings:
+Note	1091	Can't DROP INDEX `k_id`; check that it exists
+ALTER TABLE t2 DROP COLUMN a, DROP COLUMN IF EXISTS a;
+Warnings:
+Note	1091	Can't DROP COLUMN `a`; check that it exists
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (
+`transaction_id` int(11) NOT NULL DEFAULT '0', 
+KEY `transaction_id` (`transaction_id`));
+ALTER TABLE t1 DROP KEY IF EXISTS transaction_id, ADD PRIMARY KEY IF NOT EXISTS (transaction_id);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `transaction_id` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`transaction_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+# Bug#11748057 (formerly known as 34972): ALTER TABLE statement doesn't
+#                                         identify correct column name.
+#
+CREATE TABLE t1 (c1 int unsigned , c2 char(100) not null default '');
+ALTER TABLE t1 ADD c3 char(16) NOT NULL DEFAULT '' AFTER c2,
+MODIFY c2 char(100) NOT NULL DEFAULT '' AFTER c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(10) unsigned DEFAULT NULL,
+  `c2` char(100) NOT NULL DEFAULT '',
+  `c3` char(16) NOT NULL DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# WL#5534 Online ALTER, Phase 1
+#
+# Single thread tests.
+# See innodb_mysql_sync.test for multi thread tests.
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1(a INT PRIMARY KEY, b INT) engine=InnoDB;
+CREATE TABLE m1(a INT PRIMARY KEY, b INT) engine=MyISAM;
+INSERT INTO t1 VALUES (1,1), (2,2);
+INSERT INTO m1 VALUES (1,1), (2,2);
+#
+# 1: Test ALGORITHM keyword
+#
+# --enable_info allows us to see how many rows were updated
+# by ALTER TABLE. in-place will show 0 rows, while copy > 0.
+ALTER TABLE t1 ADD INDEX i1(b);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= COPY;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i3`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i4`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i5(b), ALGORITHM= INVALID;
+ERROR HY000: Unknown ALGORITHM 'INVALID'
+ALTER TABLE m1 ENABLE KEYS;
+affected rows: 0
+ALTER TABLE m1 ENABLE KEYS, ALGORITHM= DEFAULT;
+affected rows: 0
+ALTER TABLE m1 ENABLE KEYS, ALGORITHM= COPY;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE;
+affected rows: 0
+ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
+#
+# 2: Test ALGORITHM + old_alter_table
+#
+SET SESSION old_alter_table= 1;
+affected rows: 0
+ALTER TABLE t1 ADD INDEX i1(b);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= COPY;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i3`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i4`. This is deprecated and will be disallowed in a future release
+SET SESSION old_alter_table= 0;
+affected rows: 0
+ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
+#
+# 3: Test unsupported in-place operation
+#
+ALTER TABLE t1 ADD COLUMN (c1 INT);
+ALTER TABLE t1 ADD COLUMN (c2 INT), ALGORITHM= DEFAULT;
+ALTER TABLE t1 ADD COLUMN (c3 INT), ALGORITHM= COPY;
+ALTER TABLE t1 ADD COLUMN (c4 INT), ALGORITHM= INPLACE;
+ALTER TABLE t1 DROP COLUMN c1, DROP COLUMN c2, DROP COLUMN c3, DROP COLUMN c4;
+#
+# 4: Test LOCK keyword
+#
+ALTER TABLE t1 ADD INDEX i1(b), LOCK= DEFAULT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD INDEX i2(b), LOCK= NONE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i3(b), LOCK= SHARED;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i3`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i4(b), LOCK= EXCLUSIVE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i4`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i5(b), LOCK= INVALID;
+ERROR HY000: Unknown LOCK type 'INVALID'
+ALTER TABLE m1 ENABLE KEYS, LOCK= DEFAULT;
+ALTER TABLE m1 ENABLE KEYS, LOCK= NONE;
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
+ALTER TABLE m1 ENABLE KEYS, LOCK= SHARED;
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
+ALTER TABLE m1 ENABLE KEYS, LOCK= EXCLUSIVE;
+ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
+#
+# 5: Test ALGORITHM + LOCK
+#
+ALTER TABLE t1 ADD INDEX i1(b), ALGORITHM= INPLACE, LOCK= NONE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= INPLACE, LOCK= SHARED;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= INPLACE, LOCK= EXCLUSIVE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i3`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= COPY, LOCK= NONE;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+ALTER TABLE t1 ADD INDEX i5(b), ALGORITHM= COPY, LOCK= SHARED;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i5`. This is deprecated and will be disallowed in a future release
+ALTER TABLE t1 ADD INDEX i6(b), ALGORITHM= COPY, LOCK= EXCLUSIVE;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `i6`. This is deprecated and will be disallowed in a future release
+ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= NONE;
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
+ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= SHARED;
+ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
+ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= EXCLUSIVE;
+affected rows: 0
+ALTER TABLE m1 ENABLE KEYS, ALGORITHM= COPY, LOCK= NONE;
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+ALTER ONLINE TABLE m1 ADD COLUMN c int;
+ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
+ALTER TABLE m1 ENABLE KEYS, ALGORITHM= COPY, LOCK= SHARED;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE m1 ENABLE KEYS, ALGORITHM= COPY, LOCK= EXCLUSIVE;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+DROP TABLE t1, m1;
+#
+# 6: Possible deadlock involving thr_lock.c
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2);
+START TRANSACTION;
+INSERT INTO t1 VALUES (3,3);
+connect  con1, localhost, root;
+# Sending:
+ALTER TABLE t1 DISABLE KEYS;
+connection default;
+# Waiting until ALTER TABLE is blocked.
+UPDATE t1 SET b = 4;
+COMMIT;
+connection con1;
+# Reaping: ALTER TABLE t1 DISABLE KEYS
+disconnect con1;
+connection default;
+DROP TABLE t1;
+#
+# 7: Which operations require copy and which can be done in-place?
+#
+# Test which ALTER TABLE operations are done in-place and
+# which operations are done using temporary table copy.
+#
+# --enable_info allows us to see how many rows were updated
+# by ALTER TABLE. in-place will show 0 rows, while copy > 0.
+#
+DROP TABLE IF EXISTS ti1, ti2, ti3, tm1, tm2, tm3;
+# Single operation tests
+CREATE TABLE ti1(a INT NOT NULL, b INT, c INT) engine=InnoDB;
+CREATE TABLE tm1(a INT NOT NULL, b INT, c INT) engine=MyISAM;
+CREATE TABLE ti2(a INT PRIMARY KEY AUTO_INCREMENT, b INT, c INT) engine=InnoDB;
+CREATE TABLE tm2(a INT PRIMARY KEY AUTO_INCREMENT, b INT, c INT) engine=MyISAM;
+INSERT INTO ti1 VALUES (1,1,1), (2,2,2);
+INSERT INTO ti2 VALUES (1,1,1), (2,2,2);
+INSERT INTO tm1 VALUES (1,1,1), (2,2,2);
+INSERT INTO tm2 VALUES (1,1,1), (2,2,2);
+ALTER TABLE ti1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ADD COLUMN d VARCHAR(200);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ADD COLUMN d VARCHAR(200);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ADD COLUMN d2 VARCHAR(200);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ADD COLUMN d2 VARCHAR(200);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ADD COLUMN e ENUM('a', 'b') FIRST;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ADD COLUMN e ENUM('a', 'b') FIRST;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ADD COLUMN f INT AFTER a;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ADD COLUMN f INT AFTER a;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ADD INDEX ii1(b);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ADD INDEX im1(b);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ADD UNIQUE INDEX ii2 (c);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ADD UNIQUE INDEX im2 (c);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ADD FULLTEXT INDEX ii3 (d);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ADD FULLTEXT INDEX im3 (d);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ADD FULLTEXT INDEX ii4 (d2);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ADD FULLTEXT INDEX im4 (d2);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ADD PRIMARY KEY(a), ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
+ALTER TABLE ti1 ADD PRIMARY KEY(a);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ADD PRIMARY KEY(a);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 DROP INDEX ii3;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 DROP INDEX im3;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 DROP COLUMN d2;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 DROP COLUMN d2;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ADD CONSTRAINT fi1 FOREIGN KEY (b) REFERENCES ti2(a);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ADD CONSTRAINT fm1 FOREIGN KEY (b) REFERENCES tm2(a);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ALTER COLUMN b SET DEFAULT 1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ALTER COLUMN b SET DEFAULT 1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 ALTER COLUMN b DROP DEFAULT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ALTER COLUMN b DROP DEFAULT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 CHANGE COLUMN f g INT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 CHANGE COLUMN f g INT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 CHANGE COLUMN g h VARCHAR(20);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 CHANGE COLUMN g h VARCHAR(20);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 MODIFY COLUMN e ENUM('a', 'b', 'c');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 MODIFY COLUMN e ENUM('a', 'b', 'c');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 MODIFY COLUMN e INT;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 MODIFY COLUMN e INT;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 MODIFY COLUMN e INT AFTER h;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 MODIFY COLUMN e INT AFTER h;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 MODIFY COLUMN e INT FIRST;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 MODIFY COLUMN e INT FIRST;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+SET @orig_sql_mode = @@sql_mode;
+SET @@sql_mode = 'STRICT_TRANS_TABLES';
+ALTER TABLE ti1 MODIFY COLUMN c INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SET @@sql_mode = @orig_sql_mode;
+ALTER TABLE tm1 MODIFY COLUMN c INT NOT NULL;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 MODIFY COLUMN c INT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 MODIFY COLUMN c INT NULL;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 MODIFY COLUMN h VARCHAR(30);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 MODIFY COLUMN h VARCHAR(30);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 MODIFY COLUMN h VARCHAR(30) AFTER d;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 MODIFY COLUMN h VARCHAR(30) AFTER d;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 DROP COLUMN h;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 DROP COLUMN h;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 DROP INDEX ii2;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 DROP INDEX im2;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 DROP PRIMARY KEY;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 DROP PRIMARY KEY;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 DROP FOREIGN KEY fi1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 DROP FOREIGN KEY fm1;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 RENAME TO ti3;
+affected rows: 0
+ALTER TABLE tm1 RENAME TO tm3;
+affected rows: 0
+ALTER TABLE ti3 RENAME TO ti1;
+affected rows: 0
+ALTER TABLE tm3 RENAME TO tm1;
+affected rows: 0
+ALTER TABLE ti1 ORDER BY b;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 ORDER BY b;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 CONVERT TO CHARACTER SET utf16;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 CONVERT TO CHARACTER SET utf16;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 DEFAULT CHARACTER SET utf8;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 DEFAULT CHARACTER SET utf8;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 FORCE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 FORCE;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 AUTO_INCREMENT 3;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 AUTO_INCREMENT 3;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 AVG_ROW_LENGTH 10;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 AVG_ROW_LENGTH 10;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 CHECKSUM 1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 CHECKSUM 1;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 COMMENT 'test';
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 COMMENT 'test';
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 MAX_ROWS 100;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 MAX_ROWS 100;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 MIN_ROWS 1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 MIN_ROWS 1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE ti1 PACK_KEYS 1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE tm1 PACK_KEYS 1;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+DROP TABLE ti1, ti2, tm1, tm2;
+# Tests of >1 operation (InnoDB)
+CREATE TABLE ti1(a INT PRIMARY KEY AUTO_INCREMENT, b INT) engine=InnoDB;
+INSERT INTO ti1(b) VALUES (1), (2);
+ALTER TABLE ti1 RENAME TO ti3, ADD INDEX ii1(b);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE ti3 DROP INDEX ii1, AUTO_INCREMENT 5;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO ti3(b) VALUES (5);
+ALTER TABLE ti3 ADD INDEX ii1(b), AUTO_INCREMENT 7;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO ti3(b) VALUES (7);
+SELECT * FROM ti3;
+a	b
+1	1
+2	2
+5	5
+7	7
+DROP TABLE ti3;
+#
+# 8: Scenario in which ALTER TABLE was returning an unwarranted
+#    ER_ILLEGAL_HA error at some point during work on this WL.
+#
+CREATE TABLE tm1(i INT DEFAULT 1) engine=MyISAM;
+ALTER TABLE tm1 ADD INDEX ii1(i), ALTER COLUMN i DROP DEFAULT;
+DROP TABLE tm1;
+create table if not exists t1 (i int);
+alter table t1 add key (i);
+alter table t1 add key if not exists (i);
+Warnings:
+Note	1061	Duplicate key name 'i'
+DROP TABLE t1;
+create table t1 (a int);
+alter table t1 change column if exists a b bigint;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` bigint(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+create table t1 (i int);
+alter table t1 add unique index if not exists idx(i);
+alter table t1 add unique index if not exists idx(i);
+Warnings:
+Note	1061	Duplicate key name 'idx'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL,
+  UNIQUE KEY `idx` (`i`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (
+`event_id` bigint(20) unsigned NOT NULL DEFAULT '0',
+`market_id` bigint(20) unsigned NOT NULL DEFAULT '0',
+PRIMARY KEY (`event_id`,`market_id`)
+);
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS event_id (event_id,market_id);
+Warnings:
+Note	1061	Multiple primary key defined
+DROP TABLE t1;
+#
+# MDEV-11126 Crash while altering persistent virtual column
+#
+CREATE TABLE `tab1` (
+`id` bigint(20) NOT NULL AUTO_INCREMENT,
+`field2` set('option1','option2','option3','option4') NOT NULL,
+`field3` set('option1','option2','option3','option4','option5') NOT NULL,
+`field4` set('option1','option2','option3','option4') NOT NULL,
+`field5` varchar(32) NOT NULL,
+`field6` varchar(32) NOT NULL,
+`field7` varchar(32) NOT NULL,
+`field8` varchar(32) NOT NULL,
+`field9` int(11) NOT NULL DEFAULT '1',
+`field10` varchar(16) NOT NULL,
+`field11` enum('option1','option2','option3') NOT NULL DEFAULT 'option1',
+`v_col` varchar(128) AS (IF(field11='option1',CONCAT_WS(":","field1",field2,field3,field4,field5,field6,field7,field8,field9,field10), CONCAT_WS(":","field1",field11,field2,field3,field4,field5,field6,field7,field8,field9,field10))) PERSISTENT,
+PRIMARY KEY (`id`)
+) DEFAULT CHARSET=latin1;
+ALTER TABLE `tab1` CHANGE COLUMN v_col `v_col` varchar(128);
+SHOW CREATE TABLE `tab1`;
+Table	Create Table
+tab1	CREATE TABLE `tab1` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `field2` set('option1','option2','option3','option4') NOT NULL,
+  `field3` set('option1','option2','option3','option4','option5') NOT NULL,
+  `field4` set('option1','option2','option3','option4') NOT NULL,
+  `field5` varchar(32) NOT NULL,
+  `field6` varchar(32) NOT NULL,
+  `field7` varchar(32) NOT NULL,
+  `field8` varchar(32) NOT NULL,
+  `field9` int(11) NOT NULL DEFAULT 1,
+  `field10` varchar(16) NOT NULL,
+  `field11` enum('option1','option2','option3') NOT NULL DEFAULT 'option1',
+  `v_col` varchar(128) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE `tab1` CHANGE COLUMN v_col `v_col` varchar(128) AS (IF(field11='option1',CONCAT_WS(":","field1",field2,field3,field4,field5,field6,field7,field8,field9,field10), CONCAT_WS(":","field1",field11,field2,field3,field4,field5,field6,field7,field8,field9,field10))) PERSISTENT;
+SHOW CREATE TABLE `tab1`;
+Table	Create Table
+tab1	CREATE TABLE `tab1` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `field2` set('option1','option2','option3','option4') NOT NULL,
+  `field3` set('option1','option2','option3','option4','option5') NOT NULL,
+  `field4` set('option1','option2','option3','option4') NOT NULL,
+  `field5` varchar(32) NOT NULL,
+  `field6` varchar(32) NOT NULL,
+  `field7` varchar(32) NOT NULL,
+  `field8` varchar(32) NOT NULL,
+  `field9` int(11) NOT NULL DEFAULT 1,
+  `field10` varchar(16) NOT NULL,
+  `field11` enum('option1','option2','option3') NOT NULL DEFAULT 'option1',
+  `v_col` varchar(128) GENERATED ALWAYS AS (if(`field11` = 'option1',concat_ws(':','field1',`field2`,`field3`,`field4`,`field5`,`field6`,`field7`,`field8`,`field9`,`field10`),concat_ws(':','field1',`field11`,`field2`,`field3`,`field4`,`field5`,`field6`,`field7`,`field8`,`field9`,`field10`))) STORED,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE `tab1`;
+#
+# MDEV-11548 Reproducible server crash after the 2nd ALTER TABLE ADD FOREIGN KEY IF NOT EXISTS
+#
+CREATE TABLE t1 (id INT UNSIGNED NOT NULL PRIMARY KEY);
+CREATE TABLE t2 (id1 INT UNSIGNED NOT NULL);
+ALTER TABLE t2
+ADD FOREIGN KEY IF NOT EXISTS (id1)
+REFERENCES t1 (id);
+ALTER TABLE t2
+ADD FOREIGN KEY IF NOT EXISTS (id1)
+REFERENCES t1 (id);
+Warnings:
+Note	1061	Duplicate key name 'id1'
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# MDEV-6390 CONVERT TO CHARACTER SET utf8 doesn't change DEFAULT CHARSET.
+#
+CREATE TABLE t1 (id int(11) NOT NULL, a int(11) NOT NULL, b int(11))
+ENGINE=InnoDB DEFAULT CHARSET=latin1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+DROP TABLE t1;
+#
+# MDEV-15308
+# Assertion `ha_alter_info->alter_info->drop_list.elements > 0' failed
+# in ha_innodb::prepare_inplace_alter_table
+#
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN b;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `fk`; check that it exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN b;
+Warnings:
+Note	1091	Can't DROP INDEX `fk`; check that it exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT, KEY(c)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN c;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `fk`; check that it exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT, KEY c1(c)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP INDEX c1;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `fk`; check that it exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN IF EXISTS c;
+Warnings:
+Note	1091	Can't DROP INDEX `fk`; check that it exists
+Note	1091	Can't DROP COLUMN `c`; check that it exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# MDEV-14668 ADD PRIMARY KEY IF NOT EXISTS on composite key
+#
+CREATE TABLE t1 (
+`ID` BIGINT(20) NOT NULL,
+`RANK` MEDIUMINT(4) NOT NULL,
+`CHECK_POINT` BIGINT(20) NOT NULL,
+UNIQUE INDEX `HORIZON_UIDX01` (`ID`, `RANK`)
+) ENGINE=InnoDB;
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `ID` bigint(20) NOT NULL,
+  `RANK` mediumint(4) NOT NULL,
+  `CHECK_POINT` bigint(20) NOT NULL,
+  PRIMARY KEY (`ID`,`CHECK_POINT`),
+  UNIQUE KEY `HORIZON_UIDX01` (`ID`,`RANK`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+Warnings:
+Note	1061	Multiple primary key defined
+DROP TABLE t1;
+#
+# End of 10.0 tests
+#
+#
+# MDEV-7374 : Losing connection to MySQL while running ALTER TABLE
+#
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d, t1 e;
+ALTER TABLE t1 MODIFY i FLOAT;
+DROP TABLE t1;
+#
+# MDEV-7816 ALTER with DROP INDEX and ADD INDEX .. COMMENT='comment2' ignores the new comment
+#
+CREATE TABLE t1(a INT);
+CREATE INDEX i1 ON t1(a) COMMENT 'comment1';
+ALTER TABLE t1 DROP INDEX i1, ADD INDEX i1(a) COMMENT 'comment2';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  KEY `i1` (`a`) COMMENT 'comment2'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#
+#
+# MDEV-10421 duplicate CHECK CONSTRAINTs
+#
+CREATE TABLE t1 (a INT, b INT) engine=myisam;
+ALTER TABLE t1 ADD CONSTRAINT IF NOT EXISTS `min` CHECK (a+b > 100);
+ALTER TABLE t1 ADD CONSTRAINT `min` CHECK (a+b > 100);
+ERROR HY000: Duplicate CHECK constraint name 'min'
+ALTER TABLE t1 ADD CONSTRAINT IF NOT EXISTS `min` CHECK (a+b > 100);
+Warnings:
+Note	1826	Duplicate CHECK constraint name 'min'
+ALTER TABLE t1 ADD CONSTRAINT `mini` CHECK (a+b > 100);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `min` CHECK (`a` + `b` > 100),
+  CONSTRAINT `mini` CHECK (`a` + `b` > 100)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1(a INT, b INT, CONSTRAINT min check (a>5),
+CONSTRAINT min check (b>5));
+ERROR HY000: Duplicate CHECK constraint name 'min'
+create table t1 (a int, b int, check(a>b));
+alter table t1 drop column a;
+ERROR 42S22: Unknown column 'a' in 'CHECK'
+alter table t1 drop column b, add column b bigint first;
+ERROR 42S22: Unknown column 'b' in 'CHECK'
+alter table t1 drop column a, drop constraint constraint_1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a int, b int, check(a>0));
+alter table t1 drop column a;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a int, b int, check(a>0));
+alter table t1 drop column a, add column a bigint first;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a int, b int, c int, unique(a));
+alter table t1 drop column a;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a int, b int, c int, unique(a,b));
+alter table t1 drop column a;
+ERROR 42000: Key column 'a' doesn't exist in table
+alter table t1 drop column a, drop index a;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (i int);
+alter table t1 alter column if exists a set default 1;
+Warnings:
+Note	1054	Unknown column 'a' in 't1'
+alter table t1 alter column if exists a drop default;
+Warnings:
+Note	1054	Unknown column 'a' in 't1'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+#
+# MDEV-13508 Check that rename of columns changes defaults, virtual
+# columns and constraints
+#
+create table t1 (a int, b int, check(a>b));
+alter table t1 change column a b int, change column b a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL,
+  `a` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`b` > `a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a int primary key, b int, c int default (a+b) check (a+b>0),
+d int as (a+b),
+key (b),
+constraint test check (a+b > 1));
+alter table t1 change b new_b int not null, add column b char(1), add constraint new check (length(b) > 0);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `new_b` int(11) NOT NULL,
+  `c` int(11) DEFAULT (`a` + `new_b`) CHECK (`a` + `new_b` > 0),
+  `d` int(11) GENERATED ALWAYS AS (`a` + `new_b`) VIRTUAL,
+  `b` char(1) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`new_b`),
+  CONSTRAINT `test` CHECK (`a` + `new_b` > 1),
+  CONSTRAINT `new` CHECK (octet_length(`b`) > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+#
+# MDEV-11071: Assertion `thd->transaction.stmt.is_empty()' failed
+# in Locked_tables_list::unlock_locked_tables
+#
+CREATE TABLE t1 (d DATETIME DEFAULT CURRENT_TIMESTAMP, i INT) ENGINE=InnoDB;
+INSERT INTO t1 (i) VALUES (1),(1);
+LOCK TABLE t1 WRITE;
+ALTER TABLE t1 ADD UNIQUE(i);
+ERROR 23000: Duplicate entry '1' for key 'i'
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# MDEV-17599 ALTER TABLE DROP CONSTRAINT does not work for foreign keys.
+#
+CREATE TABLE t1(id INT PRIMARY KEY, c1 INT) ENGINE= INNODB;
+CREATE TABLE t2(id INT PRIMARY KEY, c1 INT, c2 INT NOT NULL,
+CONSTRAINT sid FOREIGN KEY (`c1`) REFERENCES t1 (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+CONSTRAINT UNIQUE `ui`(c2)) ENGINE= INNODB;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ui` (`c2`),
+  KEY `sid` (`c1`),
+  CONSTRAINT `sid` FOREIGN KEY (`c1`) REFERENCES `t1` (`id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t2 DROP CONSTRAINT sid;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ui` (`c2`),
+  KEY `sid` (`c1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t2 DROP CONSTRAINT ui;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `sid` (`c1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t2 DROP CONSTRAINT PRIMARY KEY;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) NOT NULL,
+  KEY `sid` (`c1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t2, t1;
+#
+# MDEV-18163: Assertion `table_share->tmp_table != NO_TMP_TABLE ||
+# m_lock_type != 2' failed in handler::ha_rnd_next(); / Assertion
+# `table_list->table' failed in find_field_in_table_ref / ERROR 1901
+# (on optimized builds)
+#
+CREATE TABLE t1 (k1 varchar(10) DEFAULT 5);
+CREATE TABLE t2 (i1 int);
+ALTER TABLE t1 ALTER COLUMN k1 SET DEFAULT (SELECT 1 FROM t2 limit 1);
+ERROR HY000: Function or expression 'select ...' cannot be used in the DEFAULT clause of `k1`
+DROP TABLE t1,t2;
+#
+# MDEV-25403 ALTER TABLE wrongly checks for field's default value if AFTER is used
+#
+create table t1(t int, d date not null);
+insert into t1 values (1,'2001-1-1');
+set sql_mode = "no_zero_date";
+alter table t1 change d d date not null after t, add i int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` int(11) DEFAULT NULL,
+  `d` date NOT NULL,
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 add x date not null;
+ERROR 22007: Incorrect date value: '0000-00-00' for column `test`.`t1`.`x` at row 1
+drop table t1;
+#
+# End of 10.2 tests
+#
+#
+# MDEV-17778: Alter table leads to a truncation warning with ANALYZE command
+#
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @@optimizer_use_condition_selectivity=4;
+set @@use_stat_tables=PREFERABLY;
+create table t1 (a int)engine=InnoDB;
+insert into t1 values (1),(1),(2),(3);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+alter table t1 change a b int;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set @@use_stat_tables= @save_use_stat_tables;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1;
+#
+# MDEV-18154 Deadlock and assertion upon no-op ALTER under LOCK TABLES
+#
+create or replace table t1 (pk int, i int, primary key (pk)) engine myisam;
+create or replace view v1 as select * from t1;
+lock table v1 read, t1 write;
+alter table t1 change f1 f2 int;
+ERROR 42S22: Unknown column 'f1' in 't1'
+set max_statement_time= 1;
+alter table t1 add column if not exists i int after pk;
+Warnings:
+Note	1060	Duplicate column name 'i'
+set max_statement_time= 0;
+drop table t1;
+drop view v1;
+#
+# End of 10.3 tests
+#
+#
+# MDEV-22563 Segfault on duplicate free of Item_func_in::array
+#
+create or replace table person_principal (
+person_id bigint not null,
+insurant_id varchar(10) not null,
+principal_id bigint not null,
+principal_officer_id bigint not null,
+nursing_degree tinyint null,
+nursing_degree_valid_from date not null default cast(current_timestamp(6) as date),
+carma_user_id bigint not null,
+current_date_time timestamp(6) not null default current_timestamp(6) on update current_timestamp(6),
+constraint pk_person_principal primary key (person_id asc),
+constraint ck_person_principal_nursing_degree check (nursing_degree in (1,2,3,4,5)));
+Warnings:
+Warning	1280	Name 'pk_person_principal' ignored for PRIMARY key.
+create or replace table person_principal_hist (
+person_id bigint not null,
+insurant_id varchar(10) not null,
+principal_id bigint not null,
+principal_officer_id bigint not null,
+nursing_degree tinyint null,
+nursing_degree_valid_from date not null default cast(now() as date),
+carma_user_id bigint not null,
+orig_date_time datetime(6) not null,
+constraint pk_person_principal_hist primary key (person_id asc, orig_date_time asc),
+constraint ck_person_principal_hist_nursing_degree check (nursing_degree in (1,2,3,4,5)));
+Warnings:
+Warning	1280	Name 'pk_person_principal_hist' ignored for PRIMARY key.
+insert into person_principal (person_id, insurant_id, principal_id, principal_officer_id, nursing_degree, nursing_degree_valid_from, carma_user_id)
+values (1, 'A123456789', 5, 1, 1, '2018-05-06', 1);
+alter table person_principal add column if not exists date_mask tinyint null;
+update person_principal set date_mask = 0;
+alter table person_principal modify column date_mask tinyint not null;
+drop tables person_principal_hist, person_principal;
+CREATE OR REPLACE TABLE `t1` (   `id` varchar(64) NOT NULL,   `name` varchar(255) NOT NULL,   `extra` text DEFAULT NULL,   `password` varchar(128) DEFAULT NULL,   `enabled` tinyint(1) DEFAULT NULL,   `domain_id` varchar(64) NOT NULL,   `default_project_id` varchar(64) DEFAULT NULL,   PRIMARY KEY (`id`),  CONSTRAINT `CONSTRAINT_1` CHECK (`enabled` in (0,1)) ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+insert into t1 (id,name,enabled,domain_id) values (1,"Monty",1,"domain_id");
+insert into t1 (id,name,enabled,domain_id) values (2,"Monty2",1,"domain_id2");
+ALTER TABLE t1 ADD CONSTRAINT ixu_user2_name_domain_id UNIQUE (domain_id, name);
+DROP TABLE t1;

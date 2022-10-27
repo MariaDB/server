@@ -1,0 +1,24 @@
+--source include/innodb_page_size.inc
+
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+mkdir $targetdir;
+let $streamfile=$MYSQLTEST_VARDIR/tmp/backup.xb;
+
+echo # xtrabackup backup to stream;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --stream=xbstream > $streamfile 2>$targetdir/backup_stream.log;
+echo # xbstream extract;
+--disable_result_log
+exec $XBSTREAM -x -C $targetdir  < $streamfile;
+
+echo # xtrabackup prepare;
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+
+-- source include/restart_and_restore.inc
+--enable_result_log
+SELECT * FROM t;
+DROP TABLE t;
+rmdir $targetdir;
+

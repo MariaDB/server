@@ -1,0 +1,29 @@
+#
+# Test repl.max_ws_size . A transaction larger than this size can not commit.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
+
+CREATE TABLE t1 (f1 VARCHAR(512)) ENGINE=InnoDB;
+
+SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=512';
+
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 VALUES (REPEAT('a', 512));
+
+SELECT COUNT(*) = 0 FROM t1;
+
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_orig';
+--enable_query_log
+
+DROP TABLE t1;
+
+CALL mtr.add_suppression("Maximum writeset size exceeded by");
+CALL mtr.add_suppression("transaction size limit");
+CALL mtr.add_suppression("transaction size exceeded");
+CALL mtr.add_suppression("rbr write fail");

@@ -1,0 +1,22 @@
+SELECT variable_value into @old_encrypted FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_temp_blocks_encrypted';
+SELECT variable_value into @old_decrypted FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_temp_blocks_decrypted';
+CREATE TEMPORARY TABLE t1(f1 CHAR(200), f2 CHAR(200)) ENGINE=InnoDB;
+INSERT INTO t1 (f1,f2) SELECT '', '' FROM seq_1_to_8192;
+CREATE TEMPORARY TABLE t2(f1 CHAR(100), f2 CHAR(200), f3 CHAR(200))ENGINE=InnoDB;
+INSERT INTO t2 (f1,f2,f3) SELECT '', '', '' FROM seq_1_to_8192;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+8192
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+8192
+SELECT variable_value > @old_encrypted FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_temp_blocks_encrypted';
+variable_value > @old_encrypted
+1
+SELECT variable_value > @old_decrypted FROM information_schema.global_status
+WHERE variable_name = 'innodb_encryption_n_temp_blocks_decrypted';
+variable_value > @old_decrypted
+1

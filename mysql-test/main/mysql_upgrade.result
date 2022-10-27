@@ -1,0 +1,845 @@
+set sql_mode="";
+Run mysql_upgrade once
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+Run it again - should say already completed
+This installation of MariaDB is already upgraded to VERSION, use --force if you still need to run mysql_upgrade
+Force should run it regardless of whether it has been run before
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+CREATE USER mysqltest1@'%' IDENTIFIED by 'sakila';
+GRANT ALL ON *.* TO mysqltest1@'%';
+Run mysql_upgrade with password protected account
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+DROP USER mysqltest1@'%';
+Version check failed. Got the following error when calling the 'mysql' command line client
+ERROR 1045 (28000): Access denied for user 'mysqltest1'@'localhost' (using password: YES)
+FATAL ERROR: Upgrade failed
+Run mysql_upgrade with a non existing server socket
+mysqlcheck: Got error: 2005: Unknown MySQL server host 'not_existing_host' (errno) when trying to connect
+FATAL ERROR: Upgrade failed
+set GLOBAL sql_mode='STRICT_ALL_TABLES,ANSI_QUOTES,NO_ZERO_DATE';
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+set GLOBAL sql_mode=default;
+#
+# Bug #41569 mysql_upgrade (ver 5.1) add 3 fields to mysql.proc table 
+# but does not set values.
+#
+CREATE PROCEDURE testproc() BEGIN END;
+UPDATE mysql.proc SET character_set_client = NULL WHERE name LIKE 'testproc';
+UPDATE mysql.proc SET collation_connection = NULL WHERE name LIKE 'testproc';
+UPDATE mysql.proc SET db_collation = NULL WHERE name LIKE 'testproc';
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+CALL testproc();
+DROP PROCEDURE testproc;
+WARNING: NULL values of the 'character_set_client' column ('mysql.proc' table) have been updated with a default value (latin1). Please verify if necessary.
+WARNING: NULL values of the 'collation_connection' column ('mysql.proc' table) have been updated with a default value (latin1_swedish_ci). Please verify if necessary.
+WARNING: NULL values of the 'db_collation' column ('mysql.proc' table) have been updated with default values. Please verify if necessary.
+#
+# Bug #53613: mysql_upgrade incorrectly revokes 
+#   TRIGGER privilege on given table
+#
+GRANT USAGE ON *.* TO 'user3'@'%';
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
+Run mysql_upgrade with all privileges on a user
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+SHOW GRANTS FOR 'user3'@'%';
+Grants for user3@%
+GRANT USAGE ON *.* TO `user3`@`%`
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO `user3`@`%`
+DROP USER 'user3'@'%';
+# End of 5.1 tests
+The --upgrade-system-tables option was used, user tables won't be touched.
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views... Skipped
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names ... Skipped
+Phase 6/7: Checking and upgrading tables... Skipped
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+#
+# Bug#11827359 60223: MYSQL_UPGRADE PROBLEM WITH OPTION
+#                     SKIP-WRITE-BINLOG
+#
+# Droping the previously created mysql_upgrade_info file..
+# Running mysql_upgrade with --skip-write-binlog..
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+#
+# Bug #21489398: MYSQL_UPGRADE: FATAL ERROR: UPGRADE FAILED - IMPROVE ERROR
+#
+Run mysql_upgrade with unauthorized access
+Version check failed. Got the following error when calling the 'mysql' command line client
+ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+FATAL ERROR: Upgrade failed
+#
+# MDEV-4332 Increase username length from 16 characters
+# MDEV-6068, MDEV-6178 mysql_upgrade breaks databases with long user names
+#
+connection default;
+GRANT SELECT ON mysql.* TO very_long_user_name_number_1;
+GRANT SELECT ON mysql.* TO very_long_user_name_number_2;
+GRANT ALL ON *.* TO even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost WITH GRANT OPTION;
+GRANT INSERT ON mysql.user TO very_long_user_name_number_1;
+GRANT INSERT ON mysql.user TO very_long_user_name_number_2;
+GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_1;
+GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_2;
+CREATE PROCEDURE test.pr() BEGIN END;
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+SELECT definer FROM mysql.proc WHERE db = 'test' AND name = 'pr';
+definer
+even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost
+SELECT grantor FROM mysql.tables_priv WHERE db = 'mysql' AND table_name = 'user';
+grantor
+even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost
+even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost
+DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
+DROP PROCEDURE test.pr;
+use test;
+create table extralongname_extralongname_extralongname_extralongname_ext (
+id int(10) unsigned not null,
+created_date date not null,
+created timestamp not null,
+primary key (created,id,created_date)
+) engine=innodb stats_persistent=1 default charset=latin1
+partition by range (year(created_date))
+subpartition by hash (month(created_date))
+subpartitions 2 (
+partition p2007 values less than (2008),
+partition p2008 values less than (2009)
+);
+select length(table_name) from mysql.innodb_table_stats;
+length(table_name)
+79
+79
+79
+79
+drop table extralongname_extralongname_extralongname_extralongname_ext;
+# End of 10.0 tests
+set sql_mode=default;
+# Droping the previously created mysql_upgrade_info file..
+create table test.t1(a int) engine=MyISAM;
+# Trying to enforce InnoDB for all tables
+SET GLOBAL enforce_storage_engine=InnoDB;
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+test.t1                                            OK
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+# Should return 2
+SELECT count(*) FROM information_schema.tables where ENGINE="InnoDB";
+count(*)
+3
+SHOW CREATE TABLE test.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE test.t1;
+SET GLOBAL enforce_storage_engine=NULL;
+# End of 10.1 tests
+#
+# MDEV-23201 'Roles' are created incorrectly on an install that was previously MySQL 5.7
+#
+#
+DROP VIEW mysql.user;
+FLUSH TABLES mysql.user;
+FLUSH PRIVILEGES;
+SHOW CREATE TABLE mysql.user;
+Table	Create Table
+user	CREATE TABLE `user` (
+  `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(32) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `Select_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Insert_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Update_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Delete_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Create_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Drop_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Reload_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Shutdown_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Process_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `File_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Grant_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `References_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Index_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Alter_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Show_db_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Super_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Create_tmp_table_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Lock_tables_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Execute_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Repl_slave_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Repl_client_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Create_view_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Show_view_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Create_routine_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Alter_routine_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Create_user_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Event_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Trigger_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `Create_tablespace_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `ssl_type` enum('','ANY','X509','SPECIFIED') CHARACTER SET utf8 NOT NULL DEFAULT '',
+  `ssl_cipher` blob NOT NULL,
+  `x509_issuer` blob NOT NULL,
+  `x509_subject` blob NOT NULL,
+  `max_questions` int(11) unsigned NOT NULL DEFAULT 0,
+  `max_updates` int(11) unsigned NOT NULL DEFAULT 0,
+  `max_connections` int(11) unsigned NOT NULL DEFAULT 0,
+  `max_user_connections` int(11) unsigned NOT NULL DEFAULT 0,
+  `plugin` char(64) COLLATE utf8_bin NOT NULL DEFAULT 'mysql_native_password',
+  `authentication_string` text COLLATE utf8_bin DEFAULT NULL,
+  `password_expired` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  `password_last_changed` timestamp NULL DEFAULT NULL,
+  `password_lifetime` smallint(5) unsigned DEFAULT NULL,
+  `account_locked` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
+  PRIMARY KEY (`Host`,`User`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Users and global privileges'
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+mysql.user                                         OK
+Upgrading from a version before MariaDB-10.1
+Phase 2/7: Installing used storage engines
+Checking for tables with unknown storage engine
+Phase 3/7: Fixing views
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+SHOW CREATE TABLE mysql.user;
+View	Create View	character_set_client	collation_connection
+user	CREATE ALGORITHM=UNDEFINED DEFINER=`mariadb.sys`@`localhost` SQL SECURITY DEFINER VIEW `mysql`.`user` AS select `mysql`.`global_priv`.`Host` AS `Host`,`mysql`.`global_priv`.`User` AS `User`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.plugin') in ('mysql_native_password','mysql_old_password'),ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.authentication_string'),''),'') AS `Password`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1,'Y','N') AS `Select_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2,'Y','N') AS `Insert_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4,'Y','N') AS `Update_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8,'Y','N') AS `Delete_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16,'Y','N') AS `Create_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 32,'Y','N') AS `Drop_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 64,'Y','N') AS `Reload_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 128,'Y','N') AS `Shutdown_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 256,'Y','N') AS `Process_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 512,'Y','N') AS `File_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1024,'Y','N') AS `Grant_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2048,'Y','N') AS `References_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4096,'Y','N') AS `Index_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8192,'Y','N') AS `Alter_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16384,'Y','N') AS `Show_db_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 32768,'Y','N') AS `Super_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 65536,'Y','N') AS `Create_tmp_table_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 131072,'Y','N') AS `Lock_tables_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 262144,'Y','N') AS `Execute_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 524288,'Y','N') AS `Repl_slave_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1048576,'Y','N') AS `Repl_client_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2097152,'Y','N') AS `Create_view_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4194304,'Y','N') AS `Show_view_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8388608,'Y','N') AS `Create_routine_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16777216,'Y','N') AS `Alter_routine_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 33554432,'Y','N') AS `Create_user_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 67108864,'Y','N') AS `Event_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 134217728,'Y','N') AS `Trigger_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 268435456,'Y','N') AS `Create_tablespace_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 536870912,'Y','N') AS `Delete_history_priv`,elt(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.ssl_type'),0) + 1,'','ANY','X509','SPECIFIED') AS `ssl_type`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.ssl_cipher'),'') AS `ssl_cipher`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.x509_issuer'),'') AS `x509_issuer`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.x509_subject'),'') AS `x509_subject`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_questions'),0) as unsigned) AS `max_questions`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_updates'),0) as unsigned) AS `max_updates`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_connections'),0) as unsigned) AS `max_connections`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_user_connections'),0) as signed) AS `max_user_connections`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.plugin'),'') AS `plugin`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.authentication_string'),'') AS `authentication_string`,if(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.password_last_changed'),1) = 0,'Y','N') AS `password_expired`,elt(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.is_role'),0) + 1,'N','Y') AS `is_role`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.default_role'),'') AS `default_role`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_statement_time'),0.0) as decimal(12,6)) AS `max_statement_time` from `mysql`.`global_priv`	latin1	latin1_swedish_ci
+CREATE ROLE `aRole`;
+SET ROLE `aRole`;
+FLUSH PRIVILEGES;
+SET ROLE `aRole`;
+SELECT `User`, `is_role` FROM `mysql`.`user`;
+User	is_role
+mariadb.sys	N
+root	N
+root	N
+root	N
+root	N
+aRole	Y
+DROP ROLE aRole;
+#
+# MDEV-24122 Fix previously MySQL-5.7 data directories that upgraded prior to MDEV-23201
+#
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
+drop table mysql.user;
+truncate table mysql.tables_priv;
+FLUSH TABLES mysql.user;
+ALTER TABLE mysql.user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE mysql.user ADD default_role char(80) binary DEFAULT '' NOT NULL;
+ALTER TABLE mysql.user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
+FLUSH PRIVILEGES;
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv_bak                              OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+mysql.user                                         OK
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+SHOW CREATE TABLE mysql.user;
+View	Create View	character_set_client	collation_connection
+user	CREATE ALGORITHM=UNDEFINED DEFINER=`mariadb.sys`@`localhost` SQL SECURITY DEFINER VIEW `mysql`.`user` AS select `mysql`.`global_priv`.`Host` AS `Host`,`mysql`.`global_priv`.`User` AS `User`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.plugin') in ('mysql_native_password','mysql_old_password'),ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.authentication_string'),''),'') AS `Password`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1,'Y','N') AS `Select_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2,'Y','N') AS `Insert_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4,'Y','N') AS `Update_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8,'Y','N') AS `Delete_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16,'Y','N') AS `Create_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 32,'Y','N') AS `Drop_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 64,'Y','N') AS `Reload_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 128,'Y','N') AS `Shutdown_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 256,'Y','N') AS `Process_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 512,'Y','N') AS `File_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1024,'Y','N') AS `Grant_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2048,'Y','N') AS `References_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4096,'Y','N') AS `Index_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8192,'Y','N') AS `Alter_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16384,'Y','N') AS `Show_db_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 32768,'Y','N') AS `Super_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 65536,'Y','N') AS `Create_tmp_table_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 131072,'Y','N') AS `Lock_tables_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 262144,'Y','N') AS `Execute_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 524288,'Y','N') AS `Repl_slave_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1048576,'Y','N') AS `Repl_client_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2097152,'Y','N') AS `Create_view_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4194304,'Y','N') AS `Show_view_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8388608,'Y','N') AS `Create_routine_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16777216,'Y','N') AS `Alter_routine_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 33554432,'Y','N') AS `Create_user_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 67108864,'Y','N') AS `Event_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 134217728,'Y','N') AS `Trigger_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 268435456,'Y','N') AS `Create_tablespace_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 536870912,'Y','N') AS `Delete_history_priv`,elt(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.ssl_type'),0) + 1,'','ANY','X509','SPECIFIED') AS `ssl_type`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.ssl_cipher'),'') AS `ssl_cipher`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.x509_issuer'),'') AS `x509_issuer`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.x509_subject'),'') AS `x509_subject`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_questions'),0) as unsigned) AS `max_questions`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_updates'),0) as unsigned) AS `max_updates`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_connections'),0) as unsigned) AS `max_connections`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_user_connections'),0) as signed) AS `max_user_connections`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.plugin'),'') AS `plugin`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.authentication_string'),'') AS `authentication_string`,if(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.password_last_changed'),1) = 0,'Y','N') AS `password_expired`,elt(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.is_role'),0) + 1,'N','Y') AS `is_role`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.default_role'),'') AS `default_role`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_statement_time'),0.0) as decimal(12,6)) AS `max_statement_time` from `mysql`.`global_priv`	latin1	latin1_swedish_ci
+CREATE ROLE `aRole`;
+SET DEFAULT ROLE aRole;
+SHOW GRANTS;
+Grants for root@localhost
+GRANT `aRole` TO `root`@`localhost` WITH ADMIN OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `aRole`
+SET DEFAULT ROLE aRole FOR 'root'@'localhost'
+SET DEFAULT ROLE NONE;
+SHOW GRANTS;
+Grants for root@localhost
+GRANT `aRole` TO `root`@`localhost` WITH ADMIN OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `aRole`
+DROP ROLE `aRole`;
+FLUSH PRIVILEGES;
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# End of 10.2 tests
+#
+# Ensure that mysql_upgrade correctly sets truncate_versioning_priv
+# on upgrade from 10.2
+#
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
+CREATE USER 'user3'@'%';
+GRANT USAGE ON *.* TO 'user3'@'%';
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
+alter table mysql.user drop column Delete_history_priv;
+alter table mysql.db drop column Delete_history_priv;
+# restart
+Run mysql_upgrade with all privileges on a user
+flush privileges;
+SHOW GRANTS FOR 'user3'@'%';
+Grants for user3@%
+GRANT USAGE ON *.* TO `user3`@`%`
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO `user3`@`%`
+DROP USER 'user3'@'%';
+update mysql.db set Delete_history_priv='Y' where db like 'test%';
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# End of 10.3 tests
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
+create user 'user3'@'localhost' identified with mysql_native_password as password('a_password');
+show create user user3@localhost;
+CREATE USER for user3@localhost
+CREATE USER `user3`@`localhost` IDENTIFIED BY PASSWORD '*5DC1D11F45824A9DD613961F05C1EC1E7A1601AA'
+update mysql.user set password=authentication_string, authentication_string='' where user='user3';
+select password,plugin,authentication_string from mysql.user where user='user3';
+password	plugin	authentication_string
+*5DC1D11F45824A9DD613961F05C1EC1E7A1601AA	mysql_native_password	
+flush privileges;
+show create user user3@localhost;
+CREATE USER for user3@localhost
+CREATE USER `user3`@`localhost` IDENTIFIED BY PASSWORD '*5DC1D11F45824A9DD613961F05C1EC1E7A1601AA' PASSWORD EXPIRE NEVER
+connect con1,localhost,user3,a_password;
+select current_user();
+current_user()
+user3@localhost
+disconnect con1;
+connection default;
+# mysql_upgrade --force --silent 2>&1
+show create user user3@localhost;
+CREATE USER for user3@localhost
+CREATE USER `user3`@`localhost` IDENTIFIED BY PASSWORD '*5DC1D11F45824A9DD613961F05C1EC1E7A1601AA'
+connect con1,localhost,user3,a_password;
+select current_user();
+current_user()
+user3@localhost
+disconnect con1;
+connection default;
+drop user user3@localhost;
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
+drop table mysql.innodb_index_stats, mysql.innodb_table_stats;
+# mysql_upgrade --force --silent 2>&1
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
+alter table mysql.user change authentication_string auth_string text collate utf8_bin not null;
+# mysql_upgrade --force --silent 2>&1
+select count(*) from mysql.global_priv;
+count(*)
+5
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+# End of 10.4 tests

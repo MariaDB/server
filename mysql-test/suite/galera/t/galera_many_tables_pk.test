@@ -1,0 +1,101 @@
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+if (!`SELECT @@open_files_limit >= 1024`){
+  skip Need at least an open file limit of 1024;
+}
+
+#
+# First, create 100 tables and make sure the DDLs are all propagated
+#
+
+--connection node_1
+
+--let $count = 100
+while ($count)
+{
+  --disable_query_log
+  --let $ddl_var = `SELECT CONCAT("CREATE TABLE t", $count, " (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB")`
+  --eval $ddl_var
+  --enable_query_log
+  --dec $count
+}
+
+--connection node_2
+SELECT COUNT(*) = 100 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't%';
+
+#
+# Second, create a transaction that uses all those tables
+# 
+
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+--let $count = 100
+while ($count)
+{
+  --disable_query_log
+  --let $ddl_var = `SELECT CONCAT("INSERT INTO t", $count, " VALUES (1)")`
+  --eval $ddl_var
+  --enable_query_log
+  --dec $count
+}
+
+COMMIT;
+
+#
+# Third, confirm that all the inserts have arrived on the second node
+#
+
+--connection node_2
+CREATE TABLE sum_table (f1 INTEGER);
+
+--let $count = 100
+while ($count)
+{
+  --disable_query_log
+  --let $ddl_var = `SELECT CONCAT("INSERT INTO sum_table SELECT COUNT(*) FROM t", $count)`
+  --eval $ddl_var
+  --enable_query_log
+  --dec $count
+}
+
+SELECT SUM(f1) = 100 FROM sum_table;
+
+#
+# Fourth, create a deadlock
+#
+
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+--let $count = 100
+while ($count)
+{
+  --disable_query_log
+  --let $ddl_var = `SELECT CONCAT("UPDATE t", $count, " SET f1 = 2")`
+  --eval $ddl_var
+  --enable_query_log
+  --dec $count
+}
+
+--connection node_2
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t100 SET f1 = 3;
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+--let $diff_servers = 1 2
+--source include/diff_servers.inc
+
+DROP SCHEMA test;
+CREATE SCHEMA test;

@@ -1,0 +1,148 @@
+--source include/galera_cluster.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+#
+# Test case 1: "ONE TIME" events should be dropped on slave nodes after expiring on master (event creator node)
+#
+
+--connection node_1
+
+CREATE TABLE event_table(a int) engine=innodb;
+
+CREATE EVENT event_2 ON SCHEDULE EVERY 1 SECOND
+ENDS NOW() + INTERVAL 6 SECOND
+ON COMPLETION NOT PRESERVE
+DO
+  INSERT INTO event_table VALUES (1);
+
+--echo # node_1 event should be there
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='event_2';
+
+--connection node_2
+set global wsrep_sync_wait=15;
+--echo # node_2 event should be there
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='event_2';
+
+--connection node_1
+SET GLOBAL event_scheduler=ON;
+SHOW VARIABLES LIKE 'event_scheduler';
+
+# Let event_2 reach the end of its execution interval
+let $wait_condition=select count(*) = 0 from information_schema.events where event_name='event_2';
+--source include/wait_condition.inc
+
+--echo # node_1 event should be removed
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='event_2';
+
+--connection node_2
+--echo # node_2 event should be removed
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='event_2';
+
+--connection node_1
+SET GLOBAL event_scheduler=OFF;
+DROP TABLE event_table;
+
+#
+# Test case 2: After doing ALTER EVENT, slave nodes should have same definer as master
+#
+
+--connection node_1
+
+CREATE DATABASE IF NOT EXISTS events_test;
+use events_test;
+CREATE USER ev_test@localhost;
+GRANT ALL ON events_test.* to ev_test@localhost;
+connect (ev_con1,localhost,ev_test,,events_test);
+
+CREATE EVENT one_event ON SCHEDULE EVERY 10 SECOND DO SELECT 123;
+--replace_column 8 # 9 #
+SHOW EVENTS;
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS ORDER BY EVENT_SCHEMA, EVENT_NAME;
+ALTER EVENT one_event ON SCHEDULE EVERY 10 SECOND;
+--echo "The definer should be ev_test@localhost"
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+--source include/wait_condition.inc
+
+use events_test;
+--echo "The definer should be ev_test@localhost"
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+
+--connection node_1
+--disconnect ev_con1
+use test;
+DROP EVENT events_test.one_event;
+DROP USER ev_test@localhost;
+DROP DATABASE events_test;
+
+#
+# Test case 3: After SST from master node (the one where event is ENABLED) , slave event status should be 'SLAVESIDE_DISABLED'
+#
+
+--connection node_1
+use test;
+CREATE EVENT one_event ON SCHEDULE EVERY 10 SECOND DO SELECT 123;
+
+--echo # node_1 Event should be enabled
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+
+--connection node_2
+use test;
+--echo # node_2 Event should be SERVERSIDE_DISABLED
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) engine=InnoDB;
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a'), (3, 'a');
+
+SELECT * FROM t1;
+
+# Initiate normal shutdown on the node 2 and wait until shutdown has been completed:
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+UPDATE t1 SET f2 = 'b' WHERE f1 > 1;
+UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
+
+SELECT * FROM t1;
+
+--connection node_2
+
+# Remove the "grastate.dat" file (to initiate new SST) and restart node 2
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+
+--echo # Force SST from node_1 to node_2
+--let $start_mysqld_params=
+--echo Starting server ...
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Sanity check (node 2 is running now and can perform SQL operators):
+
+SELECT * FROM t1;
+--echo # node_2 Event should be SERVERSIDE_DISABLED
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+
+--connection node_1
+SELECT * FROM t1;
+--echo # node_1 Event should be ENABLED
+SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
+
+DROP TABLE t1;
+DROP EVENT one_event;
+
+--source include/auto_increment_offset_restore.inc

@@ -1,0 +1,49 @@
+#
+# Test wsrep_reject_queries
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+call mtr.add_suppression("WSREP has not yet prepared node for application use");
+
+CREATE TABLE t1 (f1 INTEGER);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+--connection node_1
+--error ER_GLOBAL_VARIABLE
+SET SESSION wsrep_reject_queries = ALL;
+
+SET GLOBAL wsrep_reject_queries = ALL;
+
+--error ER_UNKNOWN_COM_ERROR,1047
+SELECT * FROM t1;
+
+#
+# Original behavior was lost connection,
+# but since 10.1, we allow controlling connection to remain alive
+#
+--error 0,2013
+SET GLOBAL wsrep_reject_queries = ALL_KILL;
+
+--connection node_1a
+--error ER_CONNECTION_KILLED,2013,2006
+SELECT * FROM t1;
+
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--error ER_UNKNOWN_COM_ERROR,1047
+SELECT * FROM t1;
+
+# Confirm that replication continues
+
+--connection node_2
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+INSERT INTO t1 VALUES (1);
+
+--connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET GLOBAL wsrep_reject_queries = NONE;
+
+SELECT COUNT(*) = 1 FROM t1;
+
+DROP TABLE t1;

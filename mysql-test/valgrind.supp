@@ -1,0 +1,1919 @@
+# Copyright (c) 2005, 2015, Oracle and/or its affiliates.
+# Copyright (c) 2008, 2019, MariaDB
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public
+# License as published by the Free Software Foundation; version 2
+# of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Library General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
+
+#
+# Suppress some common (not fatal) errors in system libraries found by valgrind
+#
+
+{
+   pthead_exit memory loss 1
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_new_object
+   fun:_dl_map_object_from_fd
+}
+
+{
+   pthread_exit memory loss 2
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_map_object
+   fun:dl_open_worker
+}
+
+{
+   pthread_exit memory loss 3
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_map_object_deps
+   fun:dl_open_worker
+}
+
+{
+   pthread_exit memory loss 4
+   Memcheck:Leak
+   fun:calloc
+   fun:_dl_check_map_versions
+   fun:dl_open_worker
+}
+
+{
+   pthread_exit memory loss 5
+   Memcheck:Leak
+   fun:calloc
+   fun:_dl_new_object
+   fun:_dl_map_object_from_fd
+}
+
+{
+   pthread pthread_key_create
+   Memcheck:Leak
+   fun:malloc
+   fun:*
+   fun:*
+   fun:pthread_key_create
+   fun:my_thread_global_init
+}
+
+{
+   pthread strstr uninit
+   Memcheck:Cond
+   fun:strstr
+   obj:/lib/tls/libpthread.so.*
+   obj:/lib/tls/libpthread.so.*
+   fun:call_init
+   fun:_dl_init
+   obj:/lib/ld-*.so
+}
+
+{
+   pthread strstr uninit
+   Memcheck:Cond
+   fun:strstr
+   obj:/lib/tls/libpthread.so.*
+   obj:/lib/tls/libpthread.so.*
+   fun:call_init
+   fun:_dl_init
+   obj:/lib/ld-*.so
+}
+
+{  
+   somewhere in ld.so, when loading mysqld
+   Memcheck:Cond
+   ...
+   fun:dl_main
+   fun:_dl_sysdep_start
+   fun:_dl_start
+}
+
+#
+# Warnings in libz becasue it works with aligned memory(?)
+#
+
+{
+   libz tr_flush_block
+   Memcheck:Cond
+   fun:_tr_flush_block
+   fun:deflate_slow
+   fun:deflate
+   fun:do_flush
+   fun:gzclose
+}
+
+{
+   libz tr_flush_block2
+   Memcheck:Cond
+   fun:_tr_flush_block
+   fun:deflate_slow
+   fun:deflate
+   fun:compress2
+}
+
+{
+   libz longest_match
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:do_flush
+}
+
+{
+   libz longest_match called from btr_store_big_rec_extern_fields
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:btr_store_big_rec_extern_fields
+}
+
+{
+   libz longest_match called from page_zip_compress
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:page_zip_compress
+}
+
+{
+   libz longest_match2
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:compress2
+}
+
+{
+   libz longest_match 3
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:gzclose
+}
+
+{
+   libz longest_match 4 
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:gzflush
+}
+
+{
+   libz longest_match3
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:azflush
+}
+
+{
+   libz longest_match3
+   Memcheck:Cond
+   fun:longest_match
+   fun:deflate_slow
+   fun:deflate
+   fun:azclose
+}
+
+{
+   libz deflate
+   Memcheck:Cond
+   obj:*/libz.so.*
+   obj:*/libz.so.*
+   fun:deflate
+   fun:compress2
+}
+
+{
+   libz deflate2
+   Memcheck:Cond
+   obj:*/libz.so.*
+   obj:*/libz.so.*
+   fun:deflate
+   obj:*/libz.so.*
+   fun:gzflush
+}
+
+{
+   libz deflate3
+   Memcheck:Cond
+   obj:*/libz.so.*
+   obj:*/libz.so.*
+   fun:deflate
+   fun:do_flush
+}
+
+{
+   libz inflatereset2
+   Memcheck:Cond
+   fun:inflateReset2
+   fun:inflateInit2_
+   fun:uncompress
+}
+
+
+#
+# Warning from my_thread_init becasue mysqld dies before kill thread exists
+#
+
+{
+   my_thread_init kill thread memory loss second
+   Memcheck:Leak
+   fun:calloc
+   fun:my_thread_init
+   fun:kill_server_thread
+}
+
+
+# Red Hat AS 4 32 bit
+{
+   dl_relocate_object
+   Memcheck:Cond
+   fun:_dl_relocate_object
+}
+
+#
+# Leaks reported in _dl_* internal functions on Linux amd64 / glibc2.3.2.
+#
+
+{
+   _dl_start invalid write8
+   Memcheck:Addr8
+   fun:_dl_start
+}
+
+{
+   _dl_start invalid write4
+   Memcheck:Addr4
+   fun:_dl_start
+}
+
+{
+   _dl_start/_dl_setup_hash invalid read8
+   Memcheck:Addr8
+   fun:_dl_setup_hash
+   fun:_dl_start
+}
+
+{
+   _dl_sysdep_start invalid write8
+   Memcheck:Addr8
+   fun:_dl_sysdep_start
+}
+
+{
+   _dl_init invalid write8
+   Memcheck:Addr8
+   fun:_dl_init
+}
+
+{
+   _dl_init invalid write4
+   Memcheck:Addr4
+   fun:_dl_init
+}
+
+{
+   _dl_init/_dl_init invalid read8
+   Memcheck:Addr8
+   fun:_dl_debug_initialize
+   fun:_dl_init
+}
+
+{
+   _dl_init/_dl_debug_state invalid read8
+   Memcheck:Addr8
+   fun:_dl_debug_state
+   fun:_dl_init
+}
+
+{
+   init invalid write8
+   Memcheck:Addr8
+   fun:init
+}
+
+{
+   fixup invalid write8
+   Memcheck:Addr8
+   fun:fixup
+}
+
+{
+   fixup/_dl_lookup_versioned_symbol invalid read8
+   Memcheck:Addr8
+   fun:_dl_lookup_versioned_symbol
+   fun:fixup
+}
+
+{
+   _dl_runtime_resolve invalid read8
+   Memcheck:Addr8
+   fun:_dl_runtime_resolve
+}
+
+{
+   __libc_start_main invalid write8
+   Memcheck:Addr8
+   fun:__libc_start_main
+}
+
+{
+   __libc_start_main/__sigjmp_save invalid write4
+   Memcheck:Addr4
+   fun:__sigjmp_save
+   fun:__libc_start_main
+}
+
+#
+# dl_init reports leaked memory in memalign on OpenSuse 12.3
+
+{
+   memory "loss" from _dl_init
+   Memcheck:Leak
+   fun:memalign
+   ...
+   fun:call_init*
+   fun:_dl_init
+}
+
+# This one is on OpenSuse 10.3 with gcc 5.4
+{
+   memory "loss" from _dl_init 2
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:call_init*
+   fun:_dl_init
+}
+
+#
+#  dlclose can allocate memory for error message, the memory will be
+#  freed by dlerror or other dl* function.
+#
+{
+   memory "loss" from dlclose error messages
+   Memcheck:Leak
+   fun:*alloc
+   ...
+   fun:dlclose
+}
+
+
+#
+#  dlsym can allocate memory for error message, the memory will be
+#  freed by dlerror or other dl* function.
+#
+{
+   memory "loss" from dlclose error messages
+   Memcheck:Leak
+   fun:*alloc
+   ...
+   fun:dlsym
+}
+
+
+{
+   dlopen / ptread_cancel_init memory loss on Suse Linux 10.3 32/64 bit ver 1
+   Memcheck:Leak
+   fun:*alloc
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/libc-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+}
+
+{
+   dlopen / ptread_cancel_init memory loss on Suse Linux 10.3 32/64 bit ver 2
+   Memcheck:Leak
+   fun:*alloc
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/libc-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+}
+
+{
+   dlopen / ptread_cancel_init memory loss on Suse Linux 10.3 32/64 bit
+   Memcheck:Leak
+   fun:*alloc
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/libc-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+}
+
+
+#
+# Reading wrong addresses on SuSe Linux 10.3 32 bit
+#
+
+{
+   Reading wrong data in libc_dlopen
+   Memcheck:Addr4
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/libc-*.so
+   obj:/lib*/ld-*.so
+   obj:/lib*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+}
+
+#
+# These seem to be libc threading stuff, not related to MySQL code (allocations
+# during pthread_exit()). Googling shows other projects also using these
+# suppressions.
+#
+# Note that these all stem from pthread_exit() deeper in the call stack, but
+# Valgrind only allows the top four calls in the suppressions.
+#
+
+{
+   libc pthread_exit 1
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_new_object
+   fun:_dl_map_object_from_fd
+   fun:_dl_map_object
+}
+
+{
+   libc pthread_exit 2
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_map_object
+   fun:dl_open_worker
+   fun:_dl_catch_error
+}
+
+{
+   libc pthread_exit 3
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_map_object_deps
+   fun:dl_open_worker
+   fun:_dl_catch_error
+}
+
+{
+   libc pthread_exit 4
+   Memcheck:Leak
+   fun:calloc
+   fun:_dl_check_map_versions
+   fun:dl_open_worker
+   fun:_dl_catch_error
+}
+
+{
+   libc pthread_exit 5
+   Memcheck:Leak
+   fun:calloc
+   fun:_dl_new_object
+   fun:_dl_map_object_from_fd
+   fun:_dl_map_object
+}
+
+{
+   libc pthread_exit 6
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_map_object
+   fun:openaux
+   fun:_dl_catch_error 
+}
+
+{
+   libc pthread_exit 7
+   Memcheck:Leak
+   fun:malloc
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+}
+
+{
+   libc pthread_exit 8
+   Memcheck:Leak
+   fun:malloc
+   fun:local_strdup
+   fun:_dl_map_object
+   fun:dl_open_worker
+}
+
+{
+   libc pthread_exit 9
+   Memcheck:Leak
+   fun:malloc
+   fun:local_strdup
+   fun:_dl_map_object
+   fun:openaux
+   fun:_dl_catch_error 
+}
+
+{
+   libc do_lookup_x
+   Memcheck:Leak
+   fun:calloc
+   fun:do_lookup_x
+   fun:_dl_lookup_symbol_x
+   ...
+   fun:_dl_catch_error 
+}
+
+#
+# This is seen internally in the system libraries on 64-bit RHAS3.
+#
+
+{
+   __lll_mutex_unlock_wake uninitialized
+   Memcheck:Param
+   futex(utime)
+   fun:__lll_mutex_unlock_wake
+}
+
+#
+# Warning when printing stack trace (to suppress some not needed warnings)
+#
+
+{
+   vprintf on stacktrace
+   Memcheck:Cond
+   fun:vfprintf
+   fun:uffered_vfprintf
+   fun:vfprintf
+   fun:fprintf
+   fun:print_stacktrace
+}
+
+#
+# Safe warnings, that may happen because of thread scheduling
+#
+
+{
+   dbug initialization by kill_server
+   Memcheck:Leak
+   fun:malloc
+   fun:DbugMalloc
+   fun:code_state
+   fun:_db_enter_
+   fun:kill_server
+}
+
+{
+   Aria checkpoint background thread not dying fast enough
+   Memcheck:Leak
+   fun:calloc
+   fun:my_thread_init
+   fun:ma_checkpoint_background
+}
+
+#
+# Warning caused by small memory leak in threaded dlopen
+#
+
+{
+   dlopen threaded memory leak
+   Memcheck:Leak
+   fun:calloc
+   obj:*/libdl-*.so
+   fun:dlopen*
+}
+
+#
+# Warning caused by small memory leak in _dl_init
+#
+
+{
+   dl_init memory leak
+   Memcheck:Leak
+   fun:malloc
+   obj:*/libstdc++.so*
+   fun:call_init.part*
+   fun:_dl_init
+}
+
+#
+# In glibc (checked version 2.7), inet_ntoa allocates an 18-byte
+# per-thread static buffer for the return value. That memory is freed
+# at thread exit, however if called from the main thread, Valgrind
+# does not see the free (test main.no-threads).
+#
+# Since inet_ntoa() does not allocate memory dynamically per-call, this
+# suppression is safe.
+#
+
+{
+   inet_ntoa thread local storage
+   Memcheck:Leak
+   fun:malloc
+   fun:inet_ntoa
+}
+
+
+#
+# Some problem inside glibc on Ubuntu 9.04, x86 (but not amd64):
+# 
+# ==5985== 19 bytes in 1 blocks are still reachable in loss record 1 of 6
+# ==5985==    at 0x7AF3FDE: malloc (vg_replace_malloc.c:207) 
+#               ... 11,12, or 13 functions w/o symbols ...
+# ==5985==    by 0x8717185: nptl_pthread_exit_hack_handler (my_thr_init.c:55)
+#
+# Since valgrind 3.3.0 doesn't support '...' multi-function pattern, using
+# multiple suppressions:
+#
+{
+   Mem loss inside nptl_pthread_exit_hack_handler
+   Memcheck:Leak
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:nptl_pthread_exit_hack_handler 
+}
+
+{
+   Mem loss inside nptl_pthread_exit_hack_handler
+   Memcheck:Leak
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:nptl_pthread_exit_hack_handler 
+}
+
+{
+   Mem loss inside nptl_pthread_exit_hack_handler
+   Memcheck:Leak
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:*
+   fun:nptl_pthread_exit_hack_handler 
+}
+
+#
+# BUG#45630
+# Suppress valgrind failures within nptl_pthread_exit_hack_handler on Ubuntu 9.04, x86 (but not amd64)
+#
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 1
+   Memcheck:Leak
+   fun:malloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+   fun:clone
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 2
+   Memcheck:Leak
+   fun:malloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+   fun:clone
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 3
+   Memcheck:Leak
+   fun:calloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+   fun:clone
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 4
+   Memcheck:Leak
+   fun:malloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 5
+   Memcheck:Leak
+   fun:calloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+}
+
+#
+# Problem with glibc and gethostbyaddr_r
+#
+
+{
+   libc_res_nsend: Conditional jump or move depends on uninitialised value
+   Memcheck:Cond
+   fun: __libc_res_nsend
+   fun: __libc_res_nquery
+   obj: /lib64/libnss_dns-*so)
+   obj: /lib64/libnss_dns-*so)
+   fun: gethostbyaddr_r
+}
+
+# suppressions for glibc 2.6.1 64 bit
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 6
+   Memcheck:Leak
+   fun:malloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 7
+   Memcheck:Leak
+   fun:malloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+   fun:clone
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 8
+   Memcheck:Leak
+   fun:calloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+   fun:start_thread
+   fun:clone
+}
+
+{
+   Mem loss within nptl_pthread_exit_hack_handler 8
+   Memcheck:Leak
+   fun:calloc
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+}
+
+{
+   Invalid read within nptl_pthread_exit_hack_handler
+   Memcheck:Addr8
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   obj:*/ld-*.so
+   obj:*/libc-*.so
+   fun:__libc_dlopen_mode
+   fun:pthread_cancel_init
+   fun:_Unwind_ForcedUnwind
+   fun:__pthread_unwind
+   fun:pthread_exit
+   fun:nptl_pthread_exit_hack_handler
+}
+
+{
+   memory "leak" in backtrace() of glibc 2.9 (not present in 2.13)
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:pthread_once
+   fun:backtrace
+}
+
+{
+   memory leak in mysqld_exit
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_close_worker
+   fun:_dl_close
+}
+
+#
+# Bug in Glibc 2.9: http://sourceware.org/bugzilla/show_bug.cgi?id=10391
+# Fixed in latest Glibc, but suppressed here for running tests on hosts
+# with older Glibc version.
+#
+{
+   Glibc bug in __libc_res_nsend
+   Memcheck:Cond
+   fun:__libc_res_nsend
+   fun:__libc_res_nquery
+}
+
+{
+   buf_buddy_relocate peeking (space,page) in potentially free blocks
+   Memcheck:Addr1
+   fun:buf_buddy_relocate
+}
+
+{
+   Bug 59874 Valgrind warning in InnoDB compression code
+   Memcheck:Cond
+   fun:*
+   fun:*
+   fun:deflate
+   fun:btr_store_big_rec_extern_fields_func
+   fun:row_ins_index_entry_low
+   fun:row_ins_index_entry
+   fun:row_ins_index_entry_step
+   fun:row_ins
+   fun:row_ins_step
+   fun:row_insert_for_mysql
+}
+
+{
+   In page0zip.c we have already checked that the memory is initialized before calling deflate()
+   Memcheck:Cond
+   fun:*
+   fun:*
+   fun:deflate
+   fun:page_zip_compress
+}
+
+{
+   In page0zip.c we have already checked that the memory is initialized before calling deflate()
+   Memcheck:Cond
+   fun:*
+   fun:*
+   fun:deflate
+   fun:page_zip_compress_deflate
+}
+
+{
+   Bug 59875 Valgrind warning in buf0buddy.c
+   Memcheck:Addr1
+   fun:mach_read_from_4
+   fun:buf_buddy_relocate
+   fun:buf_buddy_free_low
+   fun:buf_buddy_free
+}
+
+# Note the wildcard in the (mangled) function signatures of
+# write_keys() and find_all_keys().
+# They both return ha_rows, which is platform dependent.
+#
+# The '...' wildcards are for 'fun:inline_mysql_file_write' and
+# 'fun:find_all_keys' which *may* be inlined.
+{
+   Bug#12856915 VALGRIND FAILURE IN FILESORT/CREATE_SORT_INDEX / one
+   Memcheck:Param
+   write(buf)
+   obj:*/libpthread*.so
+   fun:my_write
+   ...
+   fun:my_b_flush_io_cache
+   fun:_my_b_write
+   fun:_Z*10write_keysP13st_sort_paramPPhjP11st_io_cacheS4_
+   ...
+   fun:_Z8filesortP3THDP5TABLEP13st_sort_fieldjP10SQL_SELECTybPy
+}
+
+{
+   Bug#12856915 VALGRIND FAILURE IN FILESORT/CREATE_SORT_INDEX / two
+   Memcheck:Param
+   write(buf)
+   obj:*/libpthread*.so
+   fun:my_write
+   ...
+   fun:my_b_flush_io_cache
+   fun:_Z15merge_many_buffP13st_sort_paramPhP10st_buffpekPjP11st_io_cache
+   fun:_Z8filesortP3THDP5TABLEP13st_sort_fieldjP10SQL_SELECTybPy
+}
+
+{
+   Bug#12856915 VALGRIND FAILURE IN FILESORT/CREATE_SORT_INDEX / three
+   Memcheck:Param
+   write(buf)
+   obj:*/libpthread*.so
+   fun:my_write
+   ...
+   fun:my_b_flush_io_cache
+   fun:_Z8filesortP3THDP5TABLEP13st_sort_fieldjP10SQL_SELECTybPy
+}
+
+{
+   OpenSSL still reachable.
+   Memcheck:Leak
+   fun:*alloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   obj:*libssl*
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+}
+
+{
+   OpenSSL still reachable.
+   Memcheck:Leak
+   fun:*alloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+}
+
+{
+   OpenSSL still reachable.
+   Memcheck:Leak
+   fun:*alloc
+   fun:CRYPTO_malloc
+   obj:*libssl*
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+}
+
+{
+   OpenSSL still reachable.
+   Memcheck:Leak
+   fun:*alloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+}
+
+{
+   libcrypto 2.2.1 leak
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:ERR_get_state
+}
+
+{
+  Problem with udf and libresolve
+  Memcheck:Cond
+   obj:*/libresolv*.so
+   fun:__libc_res_nquery
+   fun:_nss_dns_gethostbyaddr2_r
+   fun:_nss_dns_gethostbyaddr_r
+   fun:gethostbyaddr_r
+}
+
+#
+# Detached threads may not complete deiniitialization by the time shutdown
+# thread calls exit. This is unfortunate property of detached threads, which
+# we currently can only ignore. Unfortunately there is no way to distinguish
+# between false positives generated by detached threads and real memory leaks
+# generated by not joined joinable threads. So we hide both cases.
+#
+# To avoid enumeration of the whole variety of possible traces we ignore all
+# "possibly lost" blocks allocated by pthread_create (and it's callees).
+#
+{
+   Detached threads memory loss
+   Memcheck:Leak
+   match-leak-kinds:possible
+   ...
+   fun:pthread_create*
+}
+
+{
+   Memory Leak in loader and valgrind malloc
+   Memcheck:Leak
+   match-leak-kinds:reachable
+   obj:*/vgpreload_memcheck*.so
+   ...
+   obj:*/ld-*.so
+   ...
+}
+
+{
+  ConnectSE: unixODBC SQLAllocEnv leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:malloc
+   fun:strdup
+   ...
+   obj:*/libodbc.so*
+   fun:_ZN7ODBConn10GetDriversEP7_qryres
+}
+
+{
+  ConnectSE: unixODBC SQLAllocEnv leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:calloc
+   ...
+   obj:*/libodbc.so*
+   fun:_ZN7ODBConn10GetDriversEP7_qryres
+}
+
+{
+  ConnectSE: unixODBC SQLAllocEnv leavs some "still reachable" pointers
+  Memcheck:Leak
+  fun:malloc
+  fun:strdup
+  ...
+  obj:*/libodbc.so*
+  fun:_ZN7ODBConn14GetDataSourcesEP7_qryres
+}
+
+
+{
+  ConnectSE: unixODBC SQLAllocEnv leavs some "still reachable" pointers
+  Memcheck:Leak
+  fun:calloc
+  ...
+  obj:*/libodbc.so*
+  fun:_ZN7ODBConn14GetDataSourcesEP7_qryres
+}
+
+
+{
+  ConnectSE: unixODBC SQLDriverConnect leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:malloc
+   fun:strdup
+   ...
+   obj:*/libodbc.so*
+   fun:SQLDriverConnect
+   fun:_ZN7ODBConn7ConnectEj
+   fun:_ZN7ODBConn4OpenEPcj
+   fun:_Z11ODBCColumnsP7_globalPcS1_S1_b
+   fun:_ZL26connect_assisted_discoveryP10handlertonP3THDP11TABLE_SHAREP14HA_CREATE_INFO
+}
+
+{
+  ConnectSE: unixODBC SQLDriverConnect leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:calloc
+   ...
+   obj:*/libodbc.so*
+   fun:SQLDriverConnect
+   fun:_ZN7ODBConn7ConnectEj
+   fun:_ZN7ODBConn4OpenEPcj
+   fun:_Z11ODBCColumnsP7_globalPcS1_S1_b
+   fun:_ZL26connect_assisted_discoveryP10handlertonP3THDP11TABLE_SHAREP14HA_CREATE_INFO
+}
+
+{
+  ConnectSE: unixODBC SQLDriverConnect leaves some "still reachable" pointers
+  Memcheck:Leak
+   fun:malloc
+   ...
+   obj:*/libodbc.so*
+   fun:SQLDriverConnect
+   fun:_ZN7ODBConn7ConnectEj
+   fun:_ZN7ODBConn4OpenEPcj
+   fun:_Z11ODBCColumnsP7_globalPcS1_S1_b
+   fun:_ZL26connect_assisted_discoveryP10handlertonP3THDP11TABLE_SHAREP14HA_CREATE_INFO
+}
+
+{
+  ConnectSE: unixODBC dlopen leaves some "still reachable"
+  Memcheck:Leak
+  fun:malloc
+  fun:expand_dynamic_string_token
+  ...
+  obj:*/libltdl.so*
+  ...
+  obj:*/libodbc.so*
+}
+
+{
+  TokuDB uses gcc __thread variables
+  Memcheck:Leak
+  fun:memalign
+  fun:*
+  fun:__tls_get_addr
+}
+
+{
+  Galera uses gcc __thread variables
+  Memcheck:Leak
+  fun:memalign
+  fun:__tls_get_addr
+}
+
+{
+  Mroonga: dlopen leaves some "still reachable"
+  Memcheck:Leak
+  fun:malloc
+  ...
+  fun:dl_open_worker
+  fun:_dl_catch_error
+  fun:_dl_open
+  fun:dlopen_doit
+  fun:_dl_catch_error
+  fun:_dlerror_run
+  fun:dlopen@@GLIBC_2.2.5
+}
+
+# 
+# MDEV-11061: OpenSSL 0.9.8 problems
+#
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   obj:*/libz.so*
+   ...
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   obj:*/libz.so*
+   ...
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   obj:*/libssl.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   obj:*/libssl.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   fun:memcpy
+   obj:*/libcrypto.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   fun:memcpy
+   obj:*/libcrypto.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   fun:is_overlap
+   fun:memcpy
+   obj:*/libcrypto.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   fun:memset
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   fun:memset
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Param
+   write(buf)
+   obj:*/libpthread-2.9.so*
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+  vasprintf in OpenSuse 12.3
+  Memcheck:Leak
+  fun:malloc
+  fun:vasprintf
+  fun:asprintf
+  fun:dlerror
+}
+
+{
+   GitHub codership/galera#330
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   obj:/usr/lib64/libssl.so.1.0.1e
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EE7do_initC1Ev
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EE7do_init8instanceEv
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EEC1Ev
+   fun:_Z41__static_initialization_and_destruction_0ii.constprop.120
+   fun:call_init.part.0
+   fun:_dl_init
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+   fun:dlopen_doit
+}
+{
+   GitHub codership/galera#330
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:CRYPTO_malloc
+   fun:sk_new
+   obj:/usr/lib64/libssl.so.1.0.1e
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EE7do_initC1Ev
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EE7do_init8instanceEv
+   fun:_ZN4asio3ssl6detail12openssl_initILb1EEC1Ev
+   fun:_Z41__static_initialization_and_destruction_0ii.constprop.120
+   fun:call_init.part.0
+   fun:_dl_init
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+   fun:dlopen_doit
+}
+
+{
+   GitHub codership/mysql-wsrep#175
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:calloc
+   fun:do_lookup_x
+   fun:_dl_lookup_symbol_x
+   fun:_dl_relocate_object
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen@@GLIBC_2.2.5
+   fun:wsrep_load
+   fun:_Z10wsrep_initv
+   fun:_Z18wsrep_init_startupb
+   fun:_ZL22init_server_componentsv
+   fun:_Z11mysqld_mainiPPc
+}
+
+{
+   galera/mysql-wsrep#147
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   fun:_ZNK6galera13ReplicatorSMM9stats_getEv
+   fun:_ZL28export_wsrep_status_to_mysqlP3THD
+   fun:_Z17wsrep_show_statusP3THDP17st_mysql_show_varPc
+   fun:_ZL17show_status_arrayP3THDPKcP17st_mysql_show_var13enum_var_typeP17system_status_varS2_P5TABLEbP4Item
+   fun:_Z11fill_statusP3THDP10TABLE_LISTP4Item
+   fun:_ZL13do_fill_tableP3THDP10TABLE_LISTP13st_join_table
+   fun:_Z24get_schema_tables_resultP4JOIN23enum_schema_table_state
+   fun:_ZN4JOIN14prepare_resultEPP4ListI4ItemE
+   fun:_ZN4JOIN4execEv
+   fun:_ZL20mysql_execute_selectP3THDP13st_select_lexb
+   fun:_Z12mysql_selectP3THDP10TABLE_LISTjR4ListI4ItemEPS4_P10SQL_I_ListI8st_orderESB_S7_yP13select_resultP18st_select_lex_unitP13st_select_lex
+   fun:_Z13handle_selectP3THDP13select_resultm
+   fun:_ZL21execute_sqlcom_selectP3THDP10TABLE_LIST
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:DbugMalloc
+   fun:ListParse
+   fun:_gu_db_push_
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+   fun:galera_parameters_set
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:state_map_insert
+   fun:code_state
+   fun:_gu_db_push_
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+   fun:galera_parameters_set
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:DbugMalloc
+   fun:StrDup
+   fun:ListParse
+   fun:_gu_db_push_
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+   fun:galera_parameters_set
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:code_state
+   fun:_gu_db_push_
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+   fun:galera_parameters_set
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+   fun:handle_one_connection
+}
+
+{
+   codership/mysql-wsrep/issues#176
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:DbugMalloc
+   fun:PushState
+   fun:_gu_db_push_
+   fun:_Z16wsrep_set_paramsRN6galera10ReplicatorEPKc
+   fun:galera_parameters_set
+   fun:_Z29wsrep_provider_options_updateP7sys_varP3THD13enum_var_type
+   fun:_ZN7sys_var6updateEP3THDP7set_var
+   fun:_ZN7set_var6updateEP3THD
+   fun:_Z17sql_set_variablesP3THDP4ListI12set_var_baseE
+   fun:_Z21mysql_execute_commandP3THD
+   fun:_Z11mysql_parseP3THDPcjP12Parser_state
+   fun:_ZL17wsrep_mysql_parseP3THDPcjP12Parser_state
+   fun:_Z16dispatch_command19enum_server_commandP3THDPcj
+   fun:_Z10do_commandP3THD
+   fun:_Z24do_handle_one_connectionP3THD
+}
+
+{
+   codership/galera#331
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:state_map_insert
+   fun:code_state
+   fun:_gu_db_keyword_
+   fun:_ZN6galera3ist6Sender4sendEll
+   fun:run_async_sender
+   fun:start_thread
+   fun:clone
+}
+
+{
+   codership/galera#331
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:code_state
+   fun:_gu_db_keyword_
+   fun:_ZN6galera3ist6Sender4sendEll
+   fun:run_async_sender
+   fun:start_thread
+   fun:clone
+}
+
+# 
+# MDEV-11061: OpenSSL 0.9.8 problems
+#
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   obj:*/libz.so*
+   ...
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   obj:*/libz.so*
+   ...
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   obj:*/libssl.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   obj:*/libssl.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   fun:memcpy
+   obj:*/libcrypto.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   fun:memcpy
+   obj:*/libcrypto.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   fun:is_overlap
+   fun:memcpy
+   obj:*/libcrypto.so.0.9.8
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Cond
+   fun:memset
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Value8
+   fun:memset
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+{
+   MDEV-11061: OpenSSL 0.9.8
+   Memcheck:Param
+   write(buf)
+   obj:*/libpthread-2.9.so*
+   obj:*/libcrypto.so.0.9.8
+   ...
+   obj:*/libssl.so.0.9.8
+   ...
+}
+
+#
+# OpenSSL 1.0.1k problems
+#
+
+{
+   OPENSSL 1.0.1k crypto leak
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:CRYPTO_malloc
+   ...
+   fun:ENGINE_add
+}
+
+{
+   OPENSSL 1.0.1k crypto leak
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:CRYPTO_malloc
+   fun:ENGINE_new
+}
+
+#
+# OpenSSL 1.0.1l problems
+#
+
+{
+   OpenSSL 1.0.1l wrong jump
+   Memcheck:Cond
+   fun:bcmp
+   obj:/usr/lib64/libcrypto.so*
+   fun:FIPS_selftest
+}
+
+{
+   OpenSSL 1.0.1l wrong jump 2
+   Memcheck:Cond
+   obj:/usr/lib64/libcrypto.so*
+   fun:FIPS_mode_set
+   obj:/usr/lib64/libcrypto.so*
+}
+
+
+
+##
+## The following is a copy of facebook/mysql-5.6 suppressions:
+##
+
+#
+# RocksDB Storage Engine suppressions start
+#
+
+{
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb16ThreadStatusUtil19NewColumnFamilyInfoEPKNS_2DBEPKNS_16ColumnFamilyDataERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPKNS_3EnvE
+   fun:_ZNK7rocksdb6DBImpl21NewThreadStatusCfInfoEPNS_16ColumnFamilyDataE
+   fun:_ZN7rocksdb2DB4OpenERKNS_9DBOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorINS_22ColumnFamilyDescriptorESaISD_EEPSC_IPNS_18ColumnFamilyHandleESaISJ_EEPPS0_
+   fun:_ZN7rocksdb13TransactionDB4OpenERKNS_9DBOptionsERKNS_20TransactionDBOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorINS_22ColumnFamilyDescriptorESaISG_EEPSF_IPNS_18ColumnFamilyHandleESaISM_EEPPS0_
+   fun:_ZN7myrocksL17rocksdb_init_funcEPv
+}
+
+
+{
+   Still reachable for once-per-process initializations 2
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb16ThreadStatusUtil19NewColumnFamilyInfoEPKNS_2DBEPKNS_16ColumnFamilyDataERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPKNS_3EnvE
+   fun:_ZNK7rocksdb6DBImpl21NewThreadStatusCfInfoEPNS_16ColumnFamilyDataE
+   fun:_ZN7rocksdb6DBImpl4OpenERKNS_9DBOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorINS_22ColumnFamilyDescriptorESaISD_EEPSC_IPNS_18ColumnFamilyHandleESaISJ_EEPPNS_2DBEbb
+   fun:_ZN7rocksdb13TransactionDB4OpenERKNS_9DBOptionsERKNS_20TransactionDBOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorINS_22ColumnFamilyDescriptorESaISG_EEPSF_IPNS_18ColumnFamilyHandleESaISM_EEPPS0_
+#   fun:_ZN7myrocksL17rocksdb_init_funcEPv
+#  ^ commenting the above out because we are hitting the --num-callers=16
+#    limitation that MTR sets for valgrind
+}
+
+{
+   Still reachable for once-per-process initializations 3
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb16ThreadStatusUtil19NewColumnFamilyInfoEPKNS_2DBEPKNS_16ColumnFamilyDataERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPKNS_3EnvE
+   fun:_ZNK7rocksdb6DBImpl21NewThreadStatusCfInfoEPNS_16ColumnFamilyDataE
+   fun:_ZN7rocksdb6DBImpl22CreateColumnFamilyImplERKNS_19ColumnFamilyOptionsERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPPNS_18ColumnFamilyHandleE
+}
+
+{
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb19ThreadStatusUpdater14RegisterThreadENS_12ThreadStatus10ThreadTypeEm
+   fun:_ZN7rocksdb16ThreadStatusUtil14RegisterThreadEPKNS_3EnvENS_12ThreadStatus10ThreadTypeE
+   fun:_ZN7rocksdb14ThreadPoolImpl4Impl15BGThreadWrapperEPv
+   ...
+}
+
+{
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb14ThreadLocalPtr14InitSingletonsEv
+   fun:_ZN7rocksdb3Env7DefaultEv
+   fun:_ZN7rocksdb9DBOptionsC1Ev
+   ...
+   fun:_ZN7myrocksL27rdb_init_rocksdb_db_optionsEv
+}
+
+{
+   Still reachable for once-per-process initializations
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb12_GLOBAL__N_18PosixEnv*
+   fun:_ZN7rocksdb3Env7DefaultEv
+   fun:_ZN7rocksdb9DBOptionsC1Ev
+   ...
+   fun:_ZN7myrocksL27rdb_init_rocksdb_db_optionsEv
+}
+
+{
+   Still reachable for thread local storage initialization (SetHandle)
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZNSt13unordered_mapIjPFvPvESt4hashIjESt8equal_toIjESaISt4pairIKjS2_EEEixERS8_
+   fun:_ZN7rocksdb14ThreadLocalPtr10StaticMeta10SetHandlerEjPFvPvE
+   fun:_ZN7rocksdb14ThreadLocalPtrC1EPFvPvE
+   ...
+}
+
+{
+   Still reachable for thread local storage initialization (ReclaimId)
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7rocksdb10autovectorIjLm8EE9push_backERKj
+   fun:_ZN7rocksdb14ThreadLocalPtr10StaticMeta9ReclaimIdEj
+   fun:_ZN7rocksdb14ThreadLocalPtrD1Ev
+   ...
+}
+
+{
+   Static initialization
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_Z41__static_initialization_and_destruction_0ii
+   ...
+}
+
+##
+## RocksDB Storage Engine suppressions end
+##
+

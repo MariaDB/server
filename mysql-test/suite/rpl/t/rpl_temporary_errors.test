@@ -1,0 +1,42 @@
+source include/have_binlog_format_row.inc;
+source include/have_innodb.inc;
+source include/master-slave.inc;
+
+call mtr.add_suppression("Deadlock found");
+call mtr.add_suppression("Can't find record in 't.'");
+
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4);
+sync_slave_with_master;
+SHOW STATUS LIKE 'Slave_retried_transactions';
+# since bug#31552/31609 idempotency is not default any longer. In order
+# the following UPDATE t1 to pass the mode is switched temprorarily
+set @@global.slave_exec_mode= 'IDEMPOTENT';
+UPDATE t1 SET a = 5, b = 47 WHERE a = 1;
+SELECT * FROM t1;
+connection master;
+UPDATE t1 SET a = 5, b = 5 WHERE a = 1;
+SELECT * FROM t1;
+#SHOW BINLOG EVENTS;
+sync_slave_with_master;
+set @@global.slave_exec_mode= default;
+SHOW STATUS LIKE 'Slave_retried_transactions';
+SELECT * FROM t1;
+source include/check_slave_is_running.inc;
+
+connection slave;
+call mtr.add_suppression("Slave SQL.*Could not execute Update_rows event on table test.t1");
+
+connection master;
+DROP TABLE t1;
+--sync_slave_with_master
+--connection master
+
+# We must wait for the slave to stop.
+# Otherwise the warnings in the error log about deadlock may be written to
+# the error log only during shutdown, and currently the suppression of
+# "Deadlock found" set in this test case is not effective during server
+# shutdown.
+
+--source include/rpl_end.inc

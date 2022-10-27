@@ -1,0 +1,399 @@
+set @old_debug= @@debug_dbug;
+create table t_tmp(a int, b int);
+set debug_dbug= "+d,test_pseudo_invisible";
+create table t1(a int);
+set debug_dbug=@old_debug;
+insert into t1 values(1);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select a , invisible from t1;
+a	invisible
+1	9
+insert into t1(a, invisible) values(99,99);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+select default(invisible) from t1;
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+insert into t1(invisible) values(99);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+insert into t_tmp select a, invisible from t1;
+insert into t1 select * from t_tmp;
+ERROR 21S01: Column count doesn't match value count at row 1
+insert into t1(a,invisible) select * from t_tmp;
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+select a , invisible from t1;
+a	invisible
+1	9
+insert into t1 values (5), (invisible+1);
+select a , invisible from t1;
+a	invisible
+1	9
+5	9
+10	9
+delete from t1 where a > 1;
+update t1 set a = invisible where a=1;
+select a , invisible from t1;
+a	invisible
+9	9
+update t1 set a = (select invisible+100 from t1 limit 1) where a=(select a from t1 limit 1);
+select a , invisible from t1;
+a	invisible
+109	9
+update t1 set invisible = 23 where a=(select a from t1 limit 1);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+update t1 set invisible = 101 where a=(select a from t1 limit 1);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+update t1 set invisible = (select invisible+100 from t1 limit 1) where a=(select invisible from t1 limit 1);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+select a , invisible from t1;
+a	invisible
+109	9
+set @a=12;
+update t1 set invisible = (select @a from dual) where a=(select a from t1 limit 1);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+select a , invisible from t1;
+a	invisible
+109	9
+update t1 set invisible = (select invisible+100 from t1 limit 1) where a=(select a from t1 limit 1);
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+select a , invisible from t1;
+a	invisible
+109	9
+set @a=(select invisible from t1 limit 1);
+select @a from dual;
+@a
+9
+alter table t1 add constraint a check (invisible > 2);
+ERROR 42S22: Unknown column 'invisible' in 'CHECK'
+set debug_dbug= "+d,test_pseudo_invisible";
+create table t2(a int, b int as (invisible +2) virtual);
+ERROR 42S22: Unknown column 'invisible' in 'GENERATED ALWAYS AS'
+create table t2(a int , b int);
+insert into t2 values(2,2);
+insert into t2 select a, invisible from t1;
+set debug_dbug=@old_debug;
+select * from t1;
+a
+109
+select invisible ,a from t1;
+invisible	a
+9	109
+drop table t1,t2,t_tmp;
+set debug_dbug= "+d,test_completely_invisible";
+create table t1(a int);
+set debug_dbug=@old_debug;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values(1);
+select * from t1;
+a
+1
+select invisible ,a from t1;
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+set debug_dbug= "+d,test_completely_invisible";
+select invisible ,a from t1;
+invisible	a
+9	1
+set debug_dbug=@old_debug;
+create table t2 (invisible int);
+select * from t1 join t2 using (invisible);
+ERROR 42S22: Unknown column 'invisible' in 'from clause'
+select * from t2 join t1 using (invisible);
+ERROR 42S22: Unknown column 'invisible' in 'from clause'
+insert t2 values (8),(9);
+select * from t1 natural join t2;
+a	invisible
+1	8
+1	9
+select * from t2 natural join t1;
+invisible	a
+8	1
+9	1
+drop table t1, t2;
+set debug_dbug= "+d,test_pseudo_invisible";
+create table t1(a int);
+set debug_dbug=@old_debug;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+insert into t1 values(1);
+select * from t1;
+a
+1
+select invisible ,a from t1;
+invisible	a
+9	1
+ALTER table t1 change invisible b int;
+ERROR 42S22: Unknown column 'invisible' in 't1'
+select * from t1;
+a
+1
+select invisible ,a from t1;
+invisible	a
+9	1
+ALTER table t1 modify invisible char;
+ERROR 42S22: Unknown column 'invisible' in 't1'
+select * from t1;
+a
+1
+select invisible ,a from t1;
+invisible	a
+9	1
+ALTER table t1 drop invisible;
+ERROR 42000: Can't DROP COLUMN `invisible`; check that it exists
+select * from t1;
+a
+1
+select invisible ,a from t1;
+invisible	a
+9	1
+ALTER table t1 add invisible int;
+ERROR 42S21: Duplicate column name 'invisible'
+select * from t1;
+a
+1
+select invisible ,a from t1;
+invisible	a
+9	1
+ALTER table t1 add invisible2 int default 2;
+select * from t1;
+a	invisible2
+1	2
+select invisible ,a from t1;
+invisible	a
+9	1
+create trigger trg before insert on t1 for each row set new.invisible=1;
+ERROR 42S22: Unknown column 'invisible' in 'NEW'
+create trigger trg before insert on t1 for each row set @a:=new.invisible;
+drop table t1;
+set debug_dbug= "+d,test_completely_invisible";
+create table t1(a int);
+set debug_dbug=@old_debug;
+create trigger trg before insert on t1 for each row set new.invisible=1;
+ERROR 42S22: Unknown column 'invisible' in 'NEW'
+create trigger trg before insert on t1 for each row set @a:=new.invisible;
+ERROR 42S22: Unknown column 'invisible' in 'NEW'
+set debug_dbug= "+d,test_completely_invisible";
+desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+insert into t1 values(1);
+select * from t1;
+a
+1
+select invisible ,a from t1;
+invisible	a
+9	1
+ALTER table t1 change invisible b int;
+ERROR 42S22: Unknown column 'invisible' in 't1'
+select * from t1;
+a
+1
+select invisible ,a from t1;
+invisible	a
+9	1
+ALTER table t1 modify invisible char;
+ERROR 42S22: Unknown column 'invisible' in 't1'
+select * from t1;
+a
+1
+select invisible ,a from t1;
+invisible	a
+9	1
+ALTER table t1 drop invisible;
+ERROR 42000: Can't DROP COLUMN `invisible`; check that it exists
+select * from t1;
+a
+1
+select invisible ,a from t1;
+invisible	a
+9	1
+ALTER table t1 add invisible int;
+select * from t1;
+a	invisible
+1	NULL
+select invisible1, invisible ,a from t1;
+invisible1	invisible	a
+9	NULL	1
+ALTER table t1 add hid int default 2;
+select * from t1;
+a	invisible	hid
+1	NULL	2
+select invisible ,a from t1;
+invisible	a
+NULL	1
+drop table t1;
+set debug_dbug=@old_debug;
+Create table t1( a int default(99) invisible, b int);
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+insert into t1 values(4);
+select * from t1 order by b;
+b
+1
+2
+3
+4
+alter table t1 add index(a);
+alter table t1 add index(a,b);
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	a_2	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	a_2	2	b	A	NULL	NULL	NULL	YES	BTREE		
+drop table t1;
+set debug_dbug= "+d,test_pseudo_invisible";
+Create table t1( a int default(99) invisible, b int);
+Create table t2( a int default(99) invisible, b int, unique(invisible));
+ERROR 42000: Key column 'invisible' doesn't exist in table
+set debug_dbug=@old_debug;
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+insert into t1 values(4);
+select * from t1 order by b;
+b
+1
+2
+3
+4
+select invisible, a, b from t1 order by b;
+invisible	a	b
+9	99	1
+9	99	2
+9	99	3
+9	99	4
+alter table t1 add index(invisible);
+ERROR 42000: Key column 'invisible' doesn't exist in table
+alter table t1 add index(b,invisible);
+ERROR 42000: Key column 'invisible' doesn't exist in table
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+drop table t1;
+set debug_dbug= "+d,test_completely_invisible";
+Create table t1( a int default(99) invisible, b int);
+Create table t2( a int default(99) invisible, b int, unique(invisible));
+ERROR 42000: Key column 'invisible' doesn't exist in table
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+insert into t1 values(4);
+select * from t1 order by b;
+b
+1
+2
+3
+4
+select invisible, a, b from t1 order by b;
+invisible	a	b
+9	99	1
+9	99	2
+9	99	3
+9	99	4
+set debug_dbug=@old_debug;
+alter table t1 add index(invisible);
+ERROR 42000: Key column 'invisible' doesn't exist in table
+alter table t1 add index(b,invisible);
+ERROR 42000: Key column 'invisible' doesn't exist in table
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+drop table t1;
+set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
+Create table t1( a int default(99) , b int,c int, index(b));
+set debug_dbug=@old_debug;
+Show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
+select * from INFORMATION_SCHEMA.STATISTICS where TABLE_SCHEMA ='test' and table_name='t1';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
+def	test	t1	1	test	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT 99,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,2);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,5);
+insert into t1 values(6,6,6);
+insert into t1 values(7,7,7);
+set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
+select invisible, a ,b from t1 order by b;
+invisible	a	b
+9	1	1
+9	2	2
+9	3	3
+9	4	4
+9	5	5
+9	6	6
+9	7	7
+explain select * from t1 where invisible =9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	invisible	NULL	NULL	NULL	7	Using where
+alter table t1 add x int default 3;
+select invisible, a ,b from t1;
+invisible	a	b
+9	1	1
+9	2	2
+9	3	3
+9	4	4
+9	5	5
+9	6	6
+9	7	7
+set debug_dbug=@old_debug;
+Show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
+create index a1 on t1(invisible);
+ERROR 42000: Key column 'invisible' doesn't exist in table
+set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
+drop index invisible on t1;
+ERROR 42000: Can't DROP INDEX `invisible`; check that it exists
+explain select * from t1 where invisible =9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	invisible	NULL	NULL	NULL	7	Using where
+create index invisible on t1(c);
+explain select * from t1 where invisible =9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	invisible_2	NULL	NULL	NULL	7	Using where
+show indexes in t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	invisible	1	c	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	invisible_2	1	invisible	A	NULL	NULL	NULL	YES	BTREE		
+drop table t1;
+set @old_debug= @@debug_dbug;
+CREATE TABLE t1 (i INT );
+SET debug_dbug="+d,test_completely_invisible,test_invisible_index";
+CREATE TABLE t2 LIKE t1;
+SET debug_dbug= DEFAULT;
+DROP TABLE t1, t2;
+#
+# MDEV-20210
+# If you have an INVISIBLE VIRTUAL column, SHOW CREATE TABLE doesn't list it as INVISIBLE
+#
+CREATE TABLE t1 (i INT, v int GENERATED ALWAYS AS (1) VIRTUAL INVISIBLE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL,
+  `v` int(11) GENERATED ALWAYS AS (1) VIRTUAL INVISIBLE
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

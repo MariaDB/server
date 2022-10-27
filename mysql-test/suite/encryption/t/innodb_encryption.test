@@ -1,0 +1,98 @@
+#
+#
+#
+-- source include/have_innodb.inc
+-- source include/have_example_key_management_plugin.inc
+-- source include/innodb_undo_tablespaces.inc
+
+# embedded does not support restart
+-- source include/not_embedded.inc
+
+SET @start_global_value = @@global.innodb_encryption_threads;
+
+SHOW VARIABLES LIKE 'innodb_encrypt%';
+
+SET GLOBAL innodb_encrypt_tables = ON;
+
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces + 1 from information_schema.tables where engine = 'InnoDB'`
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+
+--echo # Success!
+
+--echo # Now turn off encryption and wait for threads to decrypt everything
+SET GLOBAL innodb_encrypt_tables = off;
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+
+--echo # Success!
+
+--echo # Shutdown innodb_encryption_threads
+SET GLOBAL innodb_encryption_threads=0;
+
+--echo # Turn on encryption
+--echo # since threads are off tables should remain unencrypted
+SET GLOBAL innodb_encrypt_tables = on;
+
+--echo # Wait 15s to check that nothing gets encrypted
+--let $wait_timeout= 15
+--let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+
+--echo # Success!
+
+--echo # Startup innodb_encryption_threads
+SET GLOBAL innodb_encryption_threads=@start_global_value;
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+
+--echo # Success!
+--echo # Restart mysqld --innodb_encrypt_tables=0 --innodb_encryption_threads=0
+-- let $restart_parameters=--innodb_encrypt_tables=0 --innodb_encryption_threads=0
+-- source include/restart_mysqld.inc
+
+SHOW VARIABLES LIKE 'innodb_encrypt%';
+
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';

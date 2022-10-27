@@ -1,0 +1,81 @@
+--source include/have_metadata_lock_info.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-12882 - Assertion `mdl_ticket->m_type == MDL_SHARED_UPGRADABLE ||
+--echo #                         mdl_ticket->m_type == MDL_SHARED_NO_WRITE ||
+--echo #                         mdl_ticket->m_type == MDL_SHARED_NO_READ_WRITE ||
+--echo #                         mdl_ticket->m_type == MDL_SHARED_READ'
+--echo #                         failed in MDL_context::upgrade_shared_lock
+--echo #
+
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+CREATE TABLE t3(a INT) ENGINE=myisam;
+LOCK TABLES t1 WRITE CONCURRENT, t1 AS t2 READ;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+UNLOCK TABLES;
+LOCK TABLES t1 AS t2 READ, t1 WRITE CONCURRENT;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+UNLOCK TABLES;
+LOCK TABLES t1 WRITE CONCURRENT, t3 WRITE;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+UNLOCK TABLES;
+LOCK TABLES t3 WRITE, t1 WRITE CONCURRENT;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+UNLOCK TABLES;
+LOCK TABLES t1 WRITE, mysql.user WRITE;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+UNLOCK TABLES;
+--error ER_CANT_LOCK_LOG_TABLE
+LOCK TABLES mysql.general_log WRITE;
+# The following may work in embedded server
+--error 0,ER_DBACCESS_DENIED_ERROR
+LOCK TABLES t1 WRITE,information_schema.tables READ;
+UNLOCK TABLES;
+DROP TABLE t1,t3;
+
+--echo #
+--echo # Check MDL locks taken for different kind of tables by open
+--echo #
+
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+CREATE TABLE t3(a INT) ENGINE=myisam;
+connect (locker,localhost,root,,);
+connection default;
+
+FLUSH TABLES WITH READ LOCK;
+connection locker;
+--send insert into t1 values (1)
+connection default;
+# Wait till above update gets blocked on a user lock.
+let $wait_condition=
+  select count(*) > 0 from information_schema.processlist
+  where state = "Waiting for backup lock";
+--source include/wait_condition.inc
+connection default;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+unlock tables;
+connection locker;
+--reap
+unlock tables;
+connection default;
+
+FLUSH TABLES WITH READ LOCK;
+connection locker;
+--send insert into t3 values (2)
+connection default;
+# Wait till above update gets blocked on a user lock.
+let $wait_condition=
+  select count(*) > 0 from information_schema.processlist
+  where state = "Waiting for backup lock";
+--source include/wait_condition.inc
+connection default;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+unlock tables;
+connection locker;
+--reap
+unlock tables;
+connection default;
+
+disconnect locker;
+DROP TABLE t1,t3;

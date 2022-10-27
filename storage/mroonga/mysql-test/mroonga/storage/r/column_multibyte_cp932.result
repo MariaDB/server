@@ -1,0 +1,32 @@
+DROP TABLE IF EXISTS users;
+SET NAMES cp932;
+CREATE TABLE users (
+名前 text,
+FULLTEXT INDEX (名前)
+) DEFAULT CHARSET=cp932;
+INSERT INTO users VALUES ("やまだ");
+INSERT INTO users VALUES ("たなか");
+INSERT INTO users VALUES ("すずき");
+SELECT * FROM users;
+名前
+やまだ
+たなか
+すずき
+SELECT * FROM users
+WHERE MATCH (名前) AGAINST ('+たなか' IN BOOLEAN MODE);
+名前
+たなか
+SELECT mroonga_command("dump --dump_plugins no --dump_records no");
+mroonga_command("dump --dump_plugins no --dump_records no")
+table_create mroonga_operations TABLE_NO_KEY
+column_create mroonga_operations record COLUMN_SCALAR UInt32
+column_create mroonga_operations table COLUMN_SCALAR ShortText
+column_create mroonga_operations type COLUMN_SCALAR ShortText
+
+table_create users TABLE_NO_KEY
+column_create users @540d@524d COLUMN_SCALAR LongText
+
+table_create users#@540d@524d TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerAuto
+
+column_create users#@540d@524d index COLUMN_INDEX|WITH_POSITION users @540d@524d
+DROP TABLE users;

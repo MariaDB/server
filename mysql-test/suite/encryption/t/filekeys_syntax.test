@@ -1,0 +1,109 @@
+#
+# first test - missing key file
+#
+let SEARCH_PATTERN=File '.*keys.txt' not found;
+source filekeys_badtest.inc;
+
+#
+# key id= 0
+#
+write_file $MYSQL_TMP_DIR/keys.txt;
+1;11111111111111111111111111111111
+0;00000000000000000000000000000000
+2;22222222222222222222222222222222
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--error 2
+install soname 'file_key_management';
+source filekeys_badtest.inc;
+let SEARCH_PATTERN=Invalid key id;
+source filekeys_badtest.inc;
+
+#
+# id too big
+#
+remove_file $MYSQL_TMP_DIR/keys.txt;
+write_file $MYSQL_TMP_DIR/keys.txt;
+1;11111111111111111111111111111111
+4294967299;00000000000000000000000000000000
+2;22222222222222222222222222222222
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--error 2
+install soname 'file_key_management';
+source filekeys_badtest.inc;
+let SEARCH_PATTERN=Invalid key id;
+source filekeys_badtest.inc;
+#
+# wrong key length (not 16, 24, 23 bytes)
+#
+remove_file $MYSQL_TMP_DIR/keys.txt;
+write_file $MYSQL_TMP_DIR/keys.txt;
+1;11111111111111111111111111111111
+3;00000000000000000000000000000000111122223333
+2;22222222222222222222222222222222
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--error 2
+install soname 'file_key_management';
+source filekeys_badtest.inc;
+let SEARCH_PATTERN=Invalid key;
+source filekeys_badtest.inc;
+#
+# wrong key length (not an even number of digits)
+#
+remove_file $MYSQL_TMP_DIR/keys.txt;
+write_file $MYSQL_TMP_DIR/keys.txt;
+1;11111111111111111111111111111111
+3;0000000000000000000000000000000
+2;22222222222222222222222222222222
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--error 2
+install soname 'file_key_management';
+source filekeys_badtest.inc;
+let SEARCH_PATTERN=Invalid key;
+source filekeys_badtest.inc;
+#
+# no semicolon
+#
+remove_file $MYSQL_TMP_DIR/keys.txt;
+write_file $MYSQL_TMP_DIR/keys.txt;
+1;11111111111111111111111111111111
+3:0000000000000000000000000000000
+2;22222222222222222222222222222222
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--error 2
+install soname 'file_key_management';
+source filekeys_badtest.inc;
+let SEARCH_PATTERN=Syntax error;
+source filekeys_badtest.inc;
+#
+# another syntax error
+#
+remove_file $MYSQL_TMP_DIR/keys.txt;
+write_file $MYSQL_TMP_DIR/keys.txt;
+1;11111111111111111111111111111111
+syntax error
+2;22222222222222222222222222222222
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--error 2
+install soname 'file_key_management';
+source filekeys_badtest.inc;
+let SEARCH_PATTERN=Syntax error;
+source filekeys_badtest.inc;
+#
+# no key id 1
+#
+remove_file $MYSQL_TMP_DIR/keys.txt;
+write_file $MYSQL_TMP_DIR/keys.txt;
+3;22222222222222222222222222222222
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--error 2
+install soname 'file_key_management';
+source filekeys_badtest.inc;
+let SEARCH_PATTERN=System key id 1;
+source filekeys_badtest.inc;

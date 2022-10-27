@@ -1,0 +1,25 @@
+--source include/not_embedded.inc
+#
+# MDEV-5170 Assertion `(&(&acl_cache->lock)->m_mutex)->count > 0 && pthread_equal(pthread_self(), (&(&acl_cache->lock)->m_mutex)->thread)' fails after restarting server with a pre-created role grants
+#
+create user user1@localhost;
+create role r1 with admin user1@localhost;
+grant all on test.* to r1;
+flush tables;
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+--shutdown_server
+--source include/wait_until_disconnected.inc
+--enable_reconnect
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+--source include/wait_until_connected_again.inc
+
+select 1;
+
+drop role r1;
+drop user user1@localhost;
+

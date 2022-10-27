@@ -1,0 +1,5 @@
+-- source include/have_innodb.inc
+-- source include/master-slave.inc
+let $engine_type=innodb;
+-- source include/rpl_commit_after_flush.test
+--source include/rpl_end.inc

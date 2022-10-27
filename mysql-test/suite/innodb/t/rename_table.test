@@ -1,0 +1,45 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+CREATE DATABASE test_jfg;
+CREATE DATABASE test_jfg2;
+CREATE TABLE test_jfg.test (a int unsigned PRIMARY KEY) ENGINE=InnoDB;
+RENAME TABLE test_jfg.test TO test_jfg2.test;
+
+SELECT REPLACE(path,'\\','/') path
+FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%';
+
+DROP DATABASE test_jfg;
+
+--source include/restart_mysqld.inc
+
+DROP DATABASE test_jfg2;
+
+CREATE DATABASE abc_def;
+CREATE DATABASE abc_def2;
+
+CREATE TABLE abc_def.test (a int unsigned PRIMARY KEY) ENGINE=InnoDB;
+RENAME TABLE abc_def.test TO abc_def2.test1;
+
+SELECT REPLACE(path,'\\','/') path
+FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%';
+
+DROP DATABASE abc_def;
+
+--source include/restart_mysqld.inc
+
+DROP DATABASE abc_def2;
+
+call mtr.add_suppression("InnoDB: (Operating system error|The error means|Cannot rename file)");
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+--replace_result "\\" "/"
+--error ER_ERROR_ON_RENAME
+RENAME TABLE t1 TO non_existing_db.t1;
+
+--let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot rename file '.*t1\.ibd' to '.*non_existing_db
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--source include/search_pattern_in_file.inc
+
+# Cleanup
+DROP TABLE t1;

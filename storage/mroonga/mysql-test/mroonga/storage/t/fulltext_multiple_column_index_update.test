@@ -1,0 +1,42 @@
+# Copyright(C) 2011 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists diaries;
+--enable_warnings
+
+set names utf8;
+create table diaries (
+  id int primary key,
+  title varchar(255),
+  content text,
+  fulltext index (title, content),
+  fulltext index (title),
+  fulltext index (content)
+) default charset utf8;
+insert into diaries values(1, "Hello", "はじめました。");
+insert into diaries values(2, "天気", "明日の富士山の天気について");
+insert into diaries values(3, "富士山", "今日もきれい。");
+update diaries set title = "チョモランマ" where id = 3;
+update diaries set content = "チョモランマと富士山" where id = 1;
+select * from diaries where match(title, content) against("富士山");
+select * from diaries where match(title) against("富士山");
+select * from diaries where match(content) against("富士山");
+drop table diaries;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

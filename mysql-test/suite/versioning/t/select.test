@@ -1,0 +1,474 @@
+--source suite/versioning/engines.inc
+--source suite/versioning/common.inc
+--source include/default_optimizer_switch.inc
+
+# test_01
+
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t1 (
+  x int unsigned,
+  y int unsigned,
+  sys_trx_start $sys_datatype_expl as row start invisible,
+  sys_trx_end $sys_datatype_expl as row end invisible,
+  period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning;
+
+insert into t1 (x, y) values
+  (0, 100),
+  (1, 101),
+  (2, 102),
+  (3, 103),
+  (4, 104),
+  (5, 105),
+  (6, 106),
+  (7, 107),
+  (8, 108),
+  (9, 109);
+
+set @t0= now(6);
+if ($MTR_COMBINATION_TRX_ID)
+{
+--disable_query_log
+  select sys_trx_start from t1 limit 1 into @x0;
+--enable_query_log
+}
+
+delete from t1 where x = 3;
+delete from t1 where x > 7;
+
+insert into t1(x, y) values(3, 33);
+select sys_trx_start from t1 where x = 3 and y = 33 into @t1;
+if ($MTR_COMBINATION_TRX_ID)
+{
+--disable_query_log
+  set @x1= @t1;
+  select trt_commit_ts(@x1) into @t1;
+--enable_query_log
+}
+
+select x, y from t1;
+select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
+select x as FROMTO_x, y from t1 for system_time from timestamp '1970-01-01 00:00:00' to timestamp @t1;
+select x as BETWAND_x, y from t1 for system_time between timestamp '1970-01-01 00:00:00' and timestamp @t1;
+select x as ALL_x, y from t1 for system_time all;
+
+--disable_query_log
+if ($MTR_COMBINATION_TRX_ID)
+{
+  select x as ASOF2_x, y from t1 for system_time as of @x0;
+  select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
+  select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
+}
+if ($MTR_COMBINATION_TIMESTAMP)
+{
+  select x as ASOF2_x, y from t1 for system_time as of @t0;
+  select x as FROMTO2_x, y from t1 for system_time from timestamp '1970-01-01 00:00:00' to timestamp @t1;
+  select x as BETWAND2_x, y from t1 for system_time between timestamp '1970-01-01 00:00:00' and timestamp @t1;
+}
+--enable_query_log
+
+# test_02
+
+create or replace table t1 (
+  x int unsigned,
+  y int unsigned
+) with system versioning;
+create or replace table t2 (
+  x int unsigned,
+  y int unsigned
+) with system versioning;
+
+insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
+insert into t2 values (1, 2), (2, 1), (3, 1);
+set @t0= now(6);
+
+select t1.x as IJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x;
+select t1.x as LJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x;
+select t1.x as RJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x;
+
+delete from t1;
+delete from t2;
+
+#384
+explain extended select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+explain extended select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+#383
+explain extended select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+
+select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+
+drop table t1;
+drop table t2;
+
+# Query conditions check
+
+create or replace table t1(x int) with system versioning;
+insert into t1 values (1);
+delete from t1;
+insert into t1 values (2);
+delete from t1;
+insert into t1 values (3);
+delete from t1;
+
+select row_start into @start1 from t1 for system_time all where x = 1;
+select row_end into @end1 from t1 for system_time all where x = 1;
+select row_start into @start2 from t1 for system_time all where x = 2;
+select row_end into @end2 from t1 for system_time all where x = 2;
+select row_start into @start3 from t1 for system_time all where x = 3;
+select row_end into @end3 from t1 for system_time all where x = 3;
+
+select x as ASOF_x from t1 for system_time as of @start2;
+select x as ASOF_x from t1 for system_time as of @end2;
+select x as FROMTO_x from t1 for system_time from @start1 to @end3;
+select x as FROMTO_x from t1 for system_time from @end1 to @start2;
+select x as BETWAND_x from t1 for system_time between @start1 and @end3;
+select x as BETWAND_x from t1 for system_time between @end1 and @start2;
+
+drop table t1;
+
+# Wildcard expansion on hidden fields
+
+create table t1(
+  A int
+) with system versioning;
+insert into t1 values(1);
+select * from t1;
+
+create or replace table t1 (x int);
+insert into t1 values (1);
+--error ER_VERS_NOT_VERSIONED
+select * from t1 for system_time all;
+
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+select * from t1 for system_time all for update;
+
+create or replace table t1 (a int not null auto_increment primary key) with system versioning;
+select * from (t1 as t2 left join t1 as t3 using (a)) natural left join t1;
+
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (a int) with system versioning;
+insert into t1 values(1);
+insert into t2 values(1);
+create view v1 as select * from t2 inner join t1 using (a);
+select * from v1;
+drop view v1;
+
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create view vt1 as select a from t1;
+select * from t1 natural join vt1;
+drop view vt1;
+
+create or replace table t1(x int) with system versioning;
+select * from (t1 as r left join t1 as u using (x)), t1;
+
+# @end should be max
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create trigger read_end after update on t1
+  for each row set @end = old.row_end;
+update t1 set a=2;
+--replace_result 18446744073709551615 MAX_RESULT "2038-01-19 03:14:07.999999" MAX_RESULT
+select @end;
+
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (b int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+select * from (select * from t1 cross join t2) as tmp;
+select * from (select * from (select * from t1 cross join t2) as tmp1) as tmp2;
+select * from (select * from t1 cross join t2 for system_time as of timestamp ('1970-01-01 00:00:00')) as tmp;
+
+create or replace table t1(a1 int) with system versioning;
+create or replace table t2(a2 int) with system versioning;
+insert into t1 values(1),(2);
+insert into t2 values(1),(2);
+select * from t1 for system_time all natural left join t2 for system_time all;
+
+# natural join of a view and table
+create or replace table t1(a1 int) with system versioning;
+create or replace table t2(a2 int) with system versioning;
+insert into t1 values(1),(2);
+insert into t2 values(1),(2);
+create or replace view v1 as select a1 from t1;
+
+select * from v1 natural join t2;
+select * from v1 natural left join t2;
+select * from v1 natural right join t2;
+
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+insert into t1 values (2);
+insert into t1 values (3);
+explain extended
+select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
+select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
+
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int) with system versioning;
+insert into t1 values (1), (2), (3);
+delete from t1 where x = 3;
+insert into t2 values (1);
+select * from t1, t2 for system_time all;
+
+--error ER_VERS_NOT_VERSIONED
+select * from (select * from t1 for system_time all, t2 for system_time all)
+for system_time all as t;
+
+--echo # TRANSACTION/TIMESTAMP specifier in SYSTEM_TIME [MDEV-14645, Issue #396]
+create or replace table t1 (x int) with system versioning engine myisam;
+--error ER_VERS_ENGINE_UNSUPPORTED
+select * from t1 for system_time as of transaction 1;
+--echo # MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+create or replace procedure sp()
+select * from t1 for system_time as of transaction 1;
+--error ER_VERS_ENGINE_UNSUPPORTED
+call sp;
+--error ER_VERS_ENGINE_UNSUPPORTED
+call sp;
+create or replace table t1 (a int);
+create or replace procedure sp()
+select * from t1 for system_time all;
+--error ER_VERS_NOT_VERSIONED
+call sp;
+--error ER_VERS_NOT_VERSIONED
+call sp;
+drop procedure sp;
+
+create or replace table t1 (
+  x int,
+  sys_trx_start bigint unsigned as row start invisible,
+  sys_trx_end bigint unsigned as row end invisible,
+  period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning engine innodb;
+insert into t1 values (1);
+set @ts= now(6);
+delete from t1;
+select sys_trx_start from t1 for system_time all into @trx_start;
+
+--echo ## ensure @trx_start is much lower than unix timestamp
+select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
+
+--echo ## TIMESTAMP specifier
+select x from t1 for system_time as of timestamp @ts;
+
+set @ts= timestamp'1-1-1 0:0:0';
+
+select x from t1 for system_time as of timestamp @ts;
+
+--echo ## TRANSACTION specifier
+select x from t1 for system_time as of transaction @trx_start;
+
+--echo ## no specifier (auto-detection)
+select x from t1 for system_time as of @ts;
+select x from t1 for system_time as of @trx_start;
+
+--echo ### Issue #365, bug 4 (related to #226, optimized fields)
+create or replace table t1 (i int, b int) with system versioning;
+insert into t1 values (0, 0), (0, 0);
+select min(i) over (partition by b) as f
+from (select i + 0 as i, b from t1) as tt
+order by i;
+
+--echo ### Issue #365, bug 5 (dangling AND)
+create or replace table t1 (a int);
+create or replace table t2 (b int) with system versioning;
+select * from t1
+where exists (select 1 from t2 where t2.b = t1.a and t2.b = t1.a);
+
+--echo ### Issue #365, bug 9 (not a derived subquery)
+create or replace table t1 (x int) with system versioning;
+select t1.x in (select x from t1) a from t1, (select x from t1) b;
+
+--echo ### Issue #365, bug 10 (WHERE cond freed prematurely for PS)
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+create or replace view v1 as select x from t1 where x = 1;
+prepare stmt from "
+select x from t1 where x in (select x from v1);";
+execute stmt;
+execute stmt;
+
+--echo ### Issue #365, bug 11 (WHERE cond not top level item)
+create or replace table t1 (a int, b int,  key idx(a)) with system versioning;
+insert into t1 values (1, 1), (2, 2);
+select * from t1 where (a, 2) in ((1, 1), (2, 2)) and b = 1;
+
+--echo ### Issue #398, NOW is now non-magic
+create or replace table t1 (x int) with system versioning;
+select * from t1 for system_time as of current_timestamp;
+--error ER_BAD_FIELD_ERROR
+select * from t1 for system_time as of now;
+
+--echo ### Issue #405, NATURAL JOIN failure
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (b int);
+create or replace view v1 as select a, row_start, row_end from t1 where a > round(rand()*1000);
+select * from v1 natural join t2;
+
+--echo #
+--echo # Issue #406, MDEV-14633 Assertion on TRT read
+--echo #
+create or replace table t1 (pk int primary key, i int, t time, key (i)) with system versioning;
+insert into t1 values (1, 10, '15:01:53'), (2, 20, '00:00:00');
+delete from t1;
+--disable_warnings
+select * from t1 where t = '00:00:00' and i > 0 and row_end <> '2012-12-12 00:00:00';
+--enable_warnings
+
+--echo #
+--echo # MDEV-14816 Assertion `join->best_read < double(1.797...e+308L)' failed in bool greedy_search
+--echo #
+create or replace table t1 (f1 int) with system versioning;
+create or replace table t2 (f2 int) with system versioning;
+create or replace table t3 (f3 int);
+create or replace table t4 (f4 int);
+insert into t1 values (1), (2), (3), (4);
+insert into t2 values (1), (2), (3);
+insert into t3 values (1), (2);
+insert into t4 values (1);
+select * from
+  t1 as t1a
+    left join t2 as t2a left join (t3 as t3a inner join t1) on t2a.f2 = t3a.f3  on t1a.f1 = t2a.f2
+    left join (t2 join t3 inner join t4) on t2a.f2 = t1a.f1;
+
+--echo #
+--echo # MDEV-15004 parser greedily parses AS OF TIMESTAMP
+--echo #
+--error ER_WRONG_VALUE
+select timestamp'2016-02-30 08:07:06';
+--error ER_WRONG_VALUE
+select * from t1 for system_time as of timestamp'2016-02-30 08:07:06';
+select timestamp('2003-12-31 12:00:00','12:00:00');
+select * from t1 for system_time as of timestamp('2003-12-31 12:00:00','12:00:00');
+
+
+--echo #
+--echo # MDEV-15391 Server crashes in JOIN::fix_all_splittings_in_plan or Assertion `join->best_read < double(1.79...e+308L)' failed [tempesta-tech#475]
+--echo #
+create or replace table t1 (f1 int) with system versioning;
+insert t1 values (1),(2);
+create or replace table t2 (f2 int);
+create or replace table t3 (f3 int);
+create or replace table t4 (f4 int) with system versioning;
+select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
+insert t2 values (1),(2);
+insert t3 values (1),(2);
+insert t4 values (1),(2);
+explain extended
+select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
+
+drop view v1;
+drop table t1, t2, t3, t4;
+
+--echo #
+--echo # MDEV-15980 FOR SYSTEM_TIME BETWEEN and FROM .. TO work with negative intervals
+--echo #
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t1 (
+  a int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning;
+insert into t1 values (1);
+delete from t1;
+select row_start from t1 for system_time all into @t1;
+select row_end from t1 for system_time all into @t2;
+select * from t1 for system_time between @t1 and @t2;
+select * from t1 for system_time between @t2 and @t1;
+select * from t1 for system_time from @t1 to @t2;
+select * from t1 for system_time from @t2 to @t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-15991 Server crashes in setup_on_expr upon calling SP or function executing DML on versioned tables
+--echo #
+create or replace table t1 (i int);
+insert into t1 values (1);
+--delimiter $
+create or replace procedure p(n int)
+begin
+  select * from t1;
+end $
+--delimiter ;
+call p(1);
+alter table t1 add system versioning;
+call p(2);
+call p(3);
+
+--echo #
+--echo # MDEV-15947 ASAN heap-use-after-free in Item_ident::print or in my_strcasecmp_utf8 or unexpected ER_BAD_FIELD_ERROR upon call of stored procedure reading from versioned table
+--echo #
+create or replace table t1 (i int) with system versioning;
+create or replace procedure p() select * from t1;
+call p;
+flush tables;
+call p;
+call p;
+drop procedure p;
+drop table t1;
+
+--echo #
+--echo # MDEV-21234 Server crashes in in setup_on_expr upon 3rd execution of SP
+--echo #
+create table t1 (a varchar(8));
+insert into t1 values ('foo'),('bar');
+create table t2 (b date);
+
+create procedure pr() insert into t2 select * from t1;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+prepare stmt from 'insert into t2 select * from t1';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+alter table t1 add system versioning;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+drop prepare stmt;
+
+# cleanup
+drop procedure pr;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-23799 CREATE .. SELECT wrong result on join versioned table
+--echo #
+create or replace table x (id Int) with system versioning;
+create or replace table x_p (elementId Int, pkey varchar(20), pvalue varchar(20)) with system versioning;
+
+insert into x values (1), (2), (3);
+insert into x_p values (1, 'gender', 'male');
+insert into x_p values (2, 'gender', 'female');
+insert into x_p values (3, 'gender', 'male');
+
+create table tmp1
+select xgender.pvalue as gender, xtitle.pvalue as title
+from x
+    left join x_p as xgender on x.id = xgender.elementId and xgender.pkey = 'gender'
+    left join x_p as xtitle on x.id = xtitle.elementId and xtitle.pkey = 'title';
+
+select * from tmp1;
+
+drop table tmp1;
+drop tables x, x_p;
+
+call verify_trt_dummy(34);
+
+-- source suite/versioning/common_finish.inc

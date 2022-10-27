@@ -1,0 +1,44 @@
+# WL#6745 InnoDB R-tree support
+# This test case will test R-tree multi level split.
+
+# Restarting is not supported in embedded
+--source include/not_embedded.inc
+
+--source include/innodb_page_size_small.inc
+--source include/big_test.inc
+# Valgrind takes too much time on PB2 even in the --big-test runs.
+--source include/not_valgrind.inc
+let $restart_noprint=2;
+
+SET GLOBAL innodb_file_per_table=1;
+
+# Create table with R-tree index.
+create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb ROW_FORMAT=COMPRESSED;
+
+# Insert enough values to let R-tree split.
+delimiter |;
+create procedure insert_t1(IN total int)
+begin
+	declare i int default 1;
+	while (i <= total) DO
+		insert into t1 values (i, Point(i, i));
+		set i = i + 1;
+	end while;
+end|
+delimiter ;|
+
+# Test level 3 rtree.
+begin;
+CALL insert_t1(70000);
+commit;
+
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+
+check table t1;
+select count(*) from t1;
+delete from t1;
+
+# Clean up.
+drop procedure insert_t1;
+drop table t1;

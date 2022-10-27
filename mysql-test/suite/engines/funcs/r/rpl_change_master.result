@@ -1,0 +1,29 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Slave I/O: The slave I/O thread stops because a fatal error is encountered when it tried to SET @master_binlog_checksum");
+connection master;
+create table t1(n int);
+connection slave;
+select * from t1;
+n
+stop slave sql_thread;
+connection master;
+insert into t1 values(1);
+insert into t1 values(2);
+connection slave;
+include/wait_for_slave_param.inc [Read_Master_Log_Pos]
+include/stop_slave.inc
+change master to master_user='root';
+start slave;
+select * from t1;
+n
+1
+2
+connection master;
+drop table t1;
+connection slave;
+connection master;
+CHANGE MASTER TO MASTER_USER='root', MASTER_SSL=0, MASTER_SSL_CA='', MASTER_SSL_CERT='',
+MASTER_SSL_KEY='', MASTER_SSL_CRL='', MASTER_SSL_CRLPATH='';
+CHANGE MASTER TO MASTER_USER='root', MASTER_PASSWORD='', MASTER_SSL=0;
+include/rpl_end.inc

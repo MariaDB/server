@@ -1,0 +1,440 @@
+--echo #
+--echo # Start of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-15955 Assertion `field_types == 0 || field_types[field_pos] == MYSQL_TYPE_LONGLONG' failed in Protocol_text::store_longlong
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT @a := 1 FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+SELECT COALESCE(1) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+SELECT COALESCE(@a:=1) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+SELECT COALESCE(@a) FROM t1 ORDER BY STRCMP(STDDEV_SAMP(a), 'bar');
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21065 UNIQUE constraint causes a query with string comparison to omit a row in the result set
+--echo #
+
+CREATE TABLE t1 (c0 INT UNIQUE);
+INSERT INTO t1 VALUES (NULL), (NULL), (NULL), (NULL), (1), (0);
+SELECT * FROM t1 WHERE c0 < '\n2';
+DROP TABLE t1;
+
+SELECT CAST('\n2' AS INT);
+
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8741 Equal field propagation leaves some remainders after simplifying WHERE zerofill_column=2010 AND zerofill_column>=2010
+--echo #
+
+CREATE TABLE t1 (a INT ZEROFILL);
+INSERT INTO t1 VALUES (2010),(2020);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND a>=2010;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+--echo #
+CREATE TABLE t1 (a INT ZEROFILL);
+INSERT INTO t1 VALUES (128),(129);
+SELECT * FROM t1 WHERE a=128;
+SELECT * FROM t1 WHERE hex(a)='80';
+SELECT * FROM t1 WHERE a=128 AND hex(a)='80';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=128 AND hex(a)='80';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-9393 Split Copy_field::get_copy_func() into virtual methods in Field
+--echo #
+
+# DECIMAL -> INT
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10.1),(10.9);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a DECIMAL(10,2));
+INSERT INTO t2 VALUES (10.1),(10.9);
+INSERT INTO t1 SELECT a FROM t2;
+SELECT * FROM t1;
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a DECIMAL(10,2));
+INSERT INTO t1 VALUES (10.1),(10.9);
+ALTER TABLE t1 MODIFY a INT;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# TIME -> INT
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (TIME'00:00:10.1'),(TIME'00:00:10.9');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a TIME(1));
+INSERT INTO t2 VALUES (10.1),(10.9);
+INSERT INTO t1 SELECT a FROM t2;
+SELECT * FROM t1;
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a TIME(1));
+INSERT INTO t1 VALUES (10.1),(10.9);
+ALTER TABLE t1 MODIFY a INT;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9334 ALTER from DECIMAL to BIGINT UNSIGNED returns a wrong result
+--echo #
+
+CREATE TABLE t1 (a DECIMAL(30,0));
+INSERT INTO t1 VALUES (CAST(0xFFFFFFFFFFFFFFFF AS UNSIGNED));
+SELECT * FROM t1;
+ALTER TABLE t1 MODIFY a BIGINT UNSIGNED;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-15926 MEDIUMINT returns wrong I_S attributes
+--echo #
+
+CREATE TABLE t1 (a MEDIUMINT, b MEDIUMINT UNSIGNED);
+SELECT COLUMN_NAME, NUMERIC_PRECISION FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1' ORDER BY COLUMN_NAME;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15946 MEDIUMINT(N<8) creates a wrong data type on conversion to string
+--echo #
+
+CREATE TABLE t1 (
+  uint8  TINYINT(2) UNSIGNED,   sint8  TINYINT(2),
+  uint16 SMALLINT(2) UNSIGNED,  sint16 SMALLINT(2),
+  uint24 MEDIUMINT(2) UNSIGNED, sint24 MEDIUMINT(2),
+  uint32 INT(2) UNSIGNED,       sint32 INT(2),
+  uint64 BIGINT(2) UNSIGNED,    sint64 BIGINT(2)
+);
+
+CREATE TABLE t2 AS SELECT
+  CONCAT(uint8),CONCAT(sint8),
+  CONCAT(uint16),CONCAT(sint16),
+  CONCAT(uint24),CONCAT(sint24),
+  CONCAT(uint32),CONCAT(sint32),
+  CONCAT(uint64),CONCAT(sint64)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+CREATE TABLE t2 AS SELECT
+  CONCAT(COALESCE(uint8)),CONCAT(COALESCE(sint8)),
+  CONCAT(COALESCE(uint16)),CONCAT(COALESCE(sint16)),
+  CONCAT(COALESCE(uint24)),CONCAT(COALESCE(sint24)),
+  CONCAT(COALESCE(uint32)),CONCAT(COALESCE(sint32)),
+  CONCAT(COALESCE(uint64)),CONCAT(COALESCE(sint64))
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+DROP TABLE t1;
+
+CREATE FUNCTION uint8() RETURNS TINYINT(2) UNSIGNED RETURN 1;
+CREATE FUNCTION sint8() RETURNS TINYINT(2) RETURN 1;
+CREATE FUNCTION uint16() RETURNS SMALLINT(2) UNSIGNED RETURN 1;
+CREATE FUNCTION sint16() RETURNS SMALLINT(2) RETURN 1;
+CREATE FUNCTION uint24() RETURNS MEDIUMINT(2) UNSIGNED RETURN 1;
+CREATE FUNCTION sint24() RETURNS MEDIUMINT(2) RETURN 1;
+CREATE FUNCTION uint32() RETURNS INT(2) UNSIGNED RETURN 1;
+CREATE FUNCTION sint32() RETURNS INT(2) RETURN 1;
+CREATE FUNCTION uint64() RETURNS BIGINT(2) UNSIGNED RETURN 1;
+CREATE FUNCTION sint64() RETURNS BIGINT(2) RETURN 1;
+
+CREATE TABLE t1 AS SELECT
+  CONCAT(uint8()), CONCAT(sint8()),
+  CONCAT(uint16()),CONCAT(sint16()),
+  CONCAT(uint24()),CONCAT(sint24()),
+  CONCAT(uint32()),CONCAT(sint32()),
+  CONCAT(uint64()),CONCAT(sint64());
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  CONCAT(COALESCE(uint8())),CONCAT(COALESCE(sint8())),
+  CONCAT(COALESCE(uint16())),CONCAT(COALESCE(sint16())),
+  CONCAT(COALESCE(uint24())),CONCAT(COALESCE(sint24())),
+  CONCAT(COALESCE(uint32())),CONCAT(COALESCE(sint32())),
+  CONCAT(COALESCE(uint64())),CONCAT(COALESCE(sint64()));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP FUNCTION uint8;
+DROP FUNCTION sint8;
+DROP FUNCTION uint16;
+DROP FUNCTION sint16;
+DROP FUNCTION uint24;
+DROP FUNCTION sint24;
+DROP FUNCTION uint32;
+DROP FUNCTION sint32;
+DROP FUNCTION uint64;
+DROP FUNCTION sint64;
+
+--echo #
+--echo # MDEV-20285 Wrong result on INSERT..SELECT when converting from SIGNED to UNSIGNED
+--echo #
+
+CREATE TABLE t1 (a TINYINT UNSIGNED);
+CREATE TABLE t2 (a TINYINT);
+INSERT INTO t1 VALUES (255);
+INSERT IGNORE INTO t2 SELECT a FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-11362 True condition elimination does not work for DECIMAL and temporal dynamic SQL parameters
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1+a<=>1+a;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING 1,1;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>1+a' USING 1;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1+a<=>?+a' USING 1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15759 Expect "Impossible WHERE" for indexed_int_column=out_of_range_int_constant
+--echo #
+
+CREATE TABLE t1 (a TINYINT, KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+EXPLAIN SELECT * FROM t1 WHERE a=200;
+EXPLAIN SELECT * FROM t1 WHERE a<=>200;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8554 Expect "Impossible WHERE" for never true values like a!=a, a<a, a>a
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+EXPLAIN SELECT * FROM t1 WHERE a!=a;
+SELECT COUNT(*) FROM t1 WHERE a!=a;
+EXPLAIN SELECT * FROM t1 WHERE a>a;
+SELECT COUNT(*) FROM t1 WHERE a>a;
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a<a;
+SELECT COUNT(*) FROM t1 WHERE a<a;
+
+ALTER TABLE t1 MODIFY a TINYINT NOT NULL;
+
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a!=a;
+SELECT COUNT(*) FROM t1 WHERE a!=a;
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a>a;
+SELECT COUNT(*) FROM t1 WHERE a>a;
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a<a;
+SELECT COUNT(*) FROM t1 WHERE a<a;
+
+--echo #
+--echo # MDEV-8554 Modifing expression doesn't hit "Impossible WHERE" clause
+--echo #
+
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE not (a!=a);
+SELECT COUNT(*) FROM t1 WHERE not (a!=a);
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a>a-1;
+SELECT COUNT(*) FROM t1 WHERE a>a-1;
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a<a+1;
+SELECT COUNT(*) FROM t1 WHERE a<a+1;
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a-1<a;
+SELECT COUNT(*) FROM t1 WHERE a-1<a;
+
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a NOT LIKE a;
+SELECT COUNT(*) FROM t1 WHERE a NOT LIKE a;
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a XOR a;
+SELECT COUNT(*) FROM t1 WHERE a XOR a;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23337 Rounding functions create a wrong data type for numeric input
+--echo # MDEV-23350 ROUND(bigint_22_or_longer) returns a wrong data type
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(t VARCHAR(64))
+BEGIN
+  SELECT t AS ``;
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a TYPE)', 'TYPE', t);
+  INSERT IGNORE INTO t1 VALUES (-100000000000000000000000000000);
+  INSERT IGNORE INTO t1 VALUES (100000000000000000000000000000);
+  CREATE  TABLE t2 AS SELECT a, ROUND(a), ROUND(a,1), ROUND(a,10), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t1, t2;
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+CALL p1('tinyint');
+CALL p1('smallint');
+CALL p1('mediumint');
+CALL p1('int');
+CALL p1('bigint');
+CALL p1('bigint(20)');
+CALL p1('bigint(21)');
+CALL p1('bigint(22)');
+CALL p1('bigint(23)');
+CALL p1('bigint(30)');
+
+CALL p1('tinyint unsigned');
+CALL p1('smallint unsigned');
+CALL p1('mediumint unsigned');
+CALL p1('int unsigned');
+CALL p1('bigint unsigned');
+CALL p1('bigint(20) unsigned');
+CALL p1('bigint(21) unsigned');
+CALL p1('bigint(22) unsigned');
+CALL p1('bigint(23) unsigned');
+CALL p1('bigint(30) unsigned');
+--horizontal_results
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-23368 ROUND(18446744073709551615,-11) returns a wrong result
+--echo #
+
+SELECT ROUND(18446744073709551615,-10), ROUND(18446744073709551615,-11);
+CREATE TABLE t1 AS SELECT ROUND(18446744073709551615,-10), ROUND(18446744073709551615,-11);
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23367 ROUND(18446744073709551615,-1) returns a wrong result
+--echo #
+
+--vertical_results
+SELECT
+  ROUND(18446744073709551615,-1) AS c01,
+  ROUND(18446744073709551615,-19) AS c19;
+
+CREATE OR REPLACE TABLE t1 AS
+SELECT
+  ROUND(18446744073709551615,-1) AS c01,
+  ROUND(18446744073709551615,-19) AS c19;
+
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--horizontal_results
+
+DELIMITER $$;
+CREATE PROCEDURE p1(t VARCHAR(64))
+BEGIN
+  SELECT t AS ``;
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a TYPE)', 'TYPE', t);
+  INSERT IGNORE INTO t1 VALUES (-100000000000000000000000000000);
+  INSERT IGNORE INTO t1 VALUES (100000000000000000000000000000);
+  CREATE TABLE t2 AS SELECT
+    a, ROUND(a,-1), ROUND(a,-2), ROUND(a,-19), ROUND(a,-20), ROUND(a,-30)
+  FROM t1
+  ORDER BY a;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t1, t2;
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+CALL p1('tinyint');
+CALL p1('smallint');
+CALL p1('mediumint');
+CALL p1('int');
+CALL p1('bigint');
+CALL p1('bigint(20)');
+CALL p1('bigint(21)');
+CALL p1('bigint(22)');
+CALL p1('bigint(23)');
+CALL p1('bigint(30)');
+
+CALL p1('tinyint unsigned');
+CALL p1('smallint unsigned');
+CALL p1('mediumint unsigned');
+CALL p1('int unsigned');
+CALL p1('bigint unsigned');
+CALL p1('bigint(20) unsigned');
+CALL p1('bigint(21) unsigned');
+CALL p1('bigint(22) unsigned');
+CALL p1('bigint(23) unsigned');
+CALL p1('bigint(30) unsigned');
+--horizontal_results
+
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-23366 ROUND(18446744073709551615,rand()*0) returns a wrong result
+--echo #
+
+--vertical_results
+SELECT
+  ROUND(18446744073709551615,NULL) AS c1,
+  ROUND(18446744073709551615,rand()*0) AS c2,
+  ROUND(18446744073709551615,rand()*0-19) AS c3;
+
+CREATE OR REPLACE TABLE t1 AS
+SELECT
+  ROUND(18446744073709551615,NULL) AS c1,
+  ROUND(18446744073709551615,rand()*0) AS c2,
+  ROUND(18446744073709551615,rand()*0-19) AS c3;
+
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--horizontal_results
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

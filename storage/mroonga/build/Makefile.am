@@ -1,0 +1,2 @@
+SUBDIRS =					\
+	cmake_modules

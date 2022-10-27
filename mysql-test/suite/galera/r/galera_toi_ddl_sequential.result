@@ -1,0 +1,41 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+INSERT INTO t1 VALUES (2, 3);
+connection node_1;
+ALTER TABLE t1 DROP COLUMN f2;
+INSERT INTO t1 VALUES (4);
+connection node_2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 3 FROM t1;
+COUNT(*) = 3
+1
+SELECT * FROM t1 ORDER BY f1;
+f1
+1
+2
+4
+connection node_1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 3 FROM t1;
+COUNT(*) = 3
+1
+SELECT * FROM t1 ORDER BY f1;
+f1
+1
+2
+4
+DROP TABLE t1;

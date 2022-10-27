@@ -1,0 +1,20 @@
+alter table mysql.plugin engine=myisam;
+Warnings:
+Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
+set @old_dbug=@@debug_dbug;
+call mtr.add_suppression("Index for table.*mysql.plugin.MYI");
+call mtr.add_suppression("Index for table 'plugin' is corrupt; try to repair it");
+SET debug_dbug='+d,myisam_pretend_crashed_table_on_usage';
+install plugin audit_null soname 'adt_null';
+ERROR HY000: Index for table './mysql/plugin.MYI' is corrupt; try to repair it
+SET debug_dbug=@old_dbug;
+install plugin audit_null soname 'adt_null';
+SET debug_dbug='+d,myisam_pretend_crashed_table_on_usage';
+uninstall plugin audit_null;
+ERROR HY000: Index for table './mysql/plugin.MYI' is corrupt; try to repair it
+SET debug_dbug=@old_dbug;
+uninstall plugin audit_null;
+uninstall plugin audit_null;
+ERROR 42000: PLUGIN audit_null does not exist
+delete from mysql.plugin where name='audit_null';
+alter table mysql.plugin engine=aria;

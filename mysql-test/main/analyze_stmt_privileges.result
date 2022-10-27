@@ -1,0 +1,41 @@
+#
+# MDEV-7025 and MDEV-7027 ANALYZE SELECT/INSERT/UPDATE/DELETE from a
+# view does not check access permissions on the underlying table
+#
+create database db;
+use db;
+create table t1 (i int, c varchar(8));
+insert into t1 values (1,'foo'),(2,'bar'),(3,'baz'),(4,'qux');
+create view v1 as select * from t1 where i > 1;
+CREATE USER u1@localhost;
+grant ALL on db.v1 to u1@localhost;
+connect  con1,localhost,u1,,;
+select * from db.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table 't1'
+explain select * from db.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table 't1'
+analyze select * from db.t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table 't1'
+select * from db.v1;
+i	c
+2	bar
+3	baz
+4	qux
+explain select * from db.v1;
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+analyze select * from db.v1;
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+UPDATE db.v1 SET i = 5;
+explain UPDATE db.v1 SET i = 5;
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+analyze UPDATE db.v1 SET i = 5;
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+DELETE FROM db.v1 WHERE i = 5;
+explain DELETE FROM db.v1 WHERE i = 5;
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+analyze DELETE FROM db.v1 WHERE i = 5;
+ERROR HY000: ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+disconnect con1;
+connection default;
+drop user u1@localhost;
+drop database db;

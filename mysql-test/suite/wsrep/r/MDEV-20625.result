@@ -1,0 +1,5 @@
+SET GLOBAL wsrep_on=ON;
+SHOW GLOBAL STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	0
+SET GLOBAL wsrep_on=OFF;

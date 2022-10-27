@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS tags;
+CREATE TABLE tags (
+name VARCHAR(16) NOT NULL,
+KEY index_name (name)
+);
+INSERT INTO tags VALUES ('mroonga');
+INSERT INTO tags VALUES ('mysql');
+INSERT INTO tags VALUES ('');
+SELECT * FROM tags WHERE name != "";
+name
+mroonga
+mysql
+DROP TABLE tags;

@@ -1,0 +1,20 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/show_table_status.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/show_table_status.reject	2017-06-22 14:04:10.723690009 +0300
+@@ -19,7 +19,7 @@
+ Create_time	###
+ Update_time	###
+ Check_time	NULL
+-Collation	latin1_swedish_ci
++Collation	latin1_bin
+ Checksum	NULL
+ Create_options	
+ Comment	
+@@ -37,7 +37,7 @@
+ Create_time	###
+ Update_time	###
+ Check_time	NULL
+-Collation	latin1_swedish_ci
++Collation	latin1_bin
+ Checksum	NULL
+ Create_options	
+ Comment	

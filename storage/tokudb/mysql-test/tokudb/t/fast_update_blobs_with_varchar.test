@@ -1,0 +1,84 @@
+--source ../include/fast_update_gen_header.inc
+
+--let GENERATED=$MYSQL_TMP_DIR/generated_fast_update_blobs_with_varchar.inc
+
+--perl
+
+  my $nrows = 10;
+  open(FILE, '>', "$ENV{GENERATED}") or die;
+  my @blob_types = ('tinyblob', 'blob', 'mediumblob', 'longblob');
+  foreach my $i (0, 1) {
+    foreach my $a (@blob_types) {
+      foreach my $b (@blob_types) {
+        foreach my $c (@blob_types) {
+          foreach my $n ('null', 'not null') {
+            foreach my $v ('varchar(32)', 'varchar(256)') {
+              test_blobs([$a, $b, $c], $v, $n, $i, $nrows);
+            }
+          }
+        }
+      }
+    }
+  }
+  close FILE;
+
+  sub test_blobs {
+    my $cols = shift;
+    my $v = shift;
+    my $n = shift;
+    my $need_fixed_int = shift;
+    my $nrows = shift;
+
+    print FILE "create table tt (id bigint unsigned primary key,\n";
+    print FILE "    f0 int $n,\n" if ($need_fixed_int);
+    print FILE "    v0 $v $n,\n";
+    foreach my $i (0 .. $#{$cols}) {
+      if ($i < $#{$cols}) {
+        print FILE "    b$i $cols->[$i] $n,\n";
+      }
+      else {
+        print FILE "    b$i $cols->[$i] $n\n";
+      }
+    }
+    print FILE ") engine=tokudb;\n";
+
+    foreach my $id (1 .. ($nrows - 1)) {
+      if ($n eq 'null') {
+        print FILE "insert into tt (id) values ($id);\n";
+      }
+      else {
+        if ($need_fixed_int) {
+          print FILE "insert into tt values ($id, 0, '', '', '', '');\n";
+        }
+        else {
+          print FILE "insert into tt values ($id, '', '', '', '');\n";
+        }
+      }
+    }
+
+    print FILE "create table ti like tt;\n";
+    print FILE "alter table ti engine=innodb;\n";
+    print FILE "insert into ti select * from tt;\n";
+
+    foreach my $id (1 .. ($nrows - 1)) {
+      foreach my $i (0 .. 2) {
+        my $long_str = rnd_str((rand(32) + 1), ("A" .. "Z", 0 .. 9));
+        print FILE "update tt set v0='$long_str' where id=$id;\n";
+        print FILE "update ti set v0='$long_str' where id=$id;\n";
+
+        $long_str = rnd_str((rand(32) + 1), ("A" .. "Z", 0 .. 9));
+        print FILE "update tt set b$i='$long_str' where id=$id;\n";
+        print FILE "update ti set b$i='$long_str' where id=$id;\n";
+      }
+    }
+
+    print FILE '--let $diff_tables = test.tt, test.ti'."\n";
+    print FILE "--source include/diff_tables.inc\n";
+    print FILE "drop table tt, ti;\n";
+  }
+
+  sub rnd_str { join '', @_[ map{ rand @_ } 1 .. shift ] }
+
+EOF
+
+--source ../include/fast_update_gen_footer_silent.inc

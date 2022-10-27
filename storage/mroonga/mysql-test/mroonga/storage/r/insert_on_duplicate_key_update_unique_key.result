@@ -1,0 +1,24 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+day DATE,
+title TEXT,
+UNIQUE KEY day (day)
+) DEFAULT CHARSET=UTF8;
+INSERT INTO diaries (day, title)
+VALUES ("2012-02-14", "clear day1")
+ON DUPLICATE KEY UPDATE title = "clear day1 (duplicated)";
+INSERT INTO diaries (day, title)
+VALUES ("2012-02-14", "clear day2")
+ON DUPLICATE KEY UPDATE title = "clear day2 (duplicated)";
+INSERT INTO diaries (day, title)
+VALUES ("2012-02-14", "clear day3")
+ON DUPLICATE KEY UPDATE title = "clear day3 (duplicated)";
+INSERT INTO diaries (day, title)
+VALUES ("2012-02-15", "cloudy day")
+ON DUPLICATE KEY UPDATE title = "cloudy day (duplicated)";
+SELECT * FROM diaries;
+id	day	title
+1	2012-02-14	clear day3 (duplicated)
+4	2012-02-15	cloudy day
+DROP TABLE diaries;

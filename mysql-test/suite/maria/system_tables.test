@@ -1,0 +1,27 @@
+#
+# Test related to Aria system tables
+#
+
+#
+# MDEV-16986 Unitialized mutex, SIGSEGV and assorted assertion failures in
+# Aria code
+#
+
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+LOCK TABLE t1 WRITE;
+
+--connect (con1,localhost,root,,test)
+SET lock_wait_timeout= 2;
+FLUSH TABLES;
+--send FLUSH TABLES t1
+--connection default
+--error ER_SP_DOES_NOT_EXIST
+CALL non_existing_sp;
+--connection con1
+--error ER_LOCK_WAIT_TIMEOUT
+--reap
+
+# Cleanup
+--disconnect con1
+--connection default
+DROP TABLE t1;

@@ -1,0 +1,64 @@
+--source include/have_tokudb.inc
+
+SET GLOBAL tokudb_dir_per_db=true;
+--let DATADIR=`SELECT @@datadir`
+
+--echo ######
+--echo # Tokudb and mysql data dirs are the same, rename to existent db
+--echo ###
+CREATE DATABASE new_db;
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
+ALTER TABLE test.t1 RENAME new_db.t1;
+--echo The content of "test" directory:
+--source include/table_files_replace_pattern.inc
+--sorted_result
+--list_files $DATADIR/test
+--echo The content of "new_db" directory:
+--source include/table_files_replace_pattern.inc
+--sorted_result
+--list_files $DATADIR/new_db
+DROP DATABASE new_db;
+
+--echo ######
+--echo # Tokudb and mysql data dirs are the same, rename to nonexistent db
+--echo ###
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
+CALL mtr.add_suppression("because destination db does not exist");
+--error ER_ERROR_ON_RENAME
+ALTER TABLE test.t1 RENAME foo.t1;
+DROP TABLE t1;
+
+--let $custom_tokudb_data_dir=$MYSQL_TMP_DIR/custom_tokudb_data_dir
+--mkdir $custom_tokudb_data_dir
+--replace_result $custom_tokudb_data_dir CUSTOM_TOKUDB_DATA_DIR
+--source include/restart_mysqld.inc
+
+--replace_result $custom_tokudb_data_dir CUSTOM_TOKUDB_DATA_DIR
+SELECT @@tokudb_data_dir;
+SELECT @@tokudb_dir_per_db;
+
+--echo ######
+--echo # Tokudb and mysql data dirs are different, rename to existent db
+--echo ###
+CREATE DATABASE new_db;
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
+ALTER TABLE test.t1 RENAME new_db.t1;
+--echo The content of "test" direcotry:
+--source include/table_files_replace_pattern.inc
+--sorted_result
+--echo The content of "new_db" directory:
+--source include/table_files_replace_pattern.inc
+--sorted_result
+DROP DATABASE new_db;
+
+--echo ######
+--echo # Tokudb and mysql data dirs are different, rename to nonexistent db
+--echo ###
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
+CALL mtr.add_suppression("because destination db does not exist");
+--error ER_ERROR_ON_RENAME
+ALTER TABLE test.t1 RENAME foo.t1;
+DROP TABLE t1;
+
+SET GLOBAL tokudb_dir_per_db=default;
+

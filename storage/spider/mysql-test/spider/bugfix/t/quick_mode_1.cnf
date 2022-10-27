@@ -1,0 +1,4 @@
+!include include/default_mysqld.cnf
+!include ../my_1_1.cnf
+!include ../my_2_1.cnf
+!include ../my_2_2.cnf

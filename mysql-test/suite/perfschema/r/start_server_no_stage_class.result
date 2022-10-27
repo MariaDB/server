@@ -1,0 +1,47 @@
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+test
+select count(*) from performance_schema.performance_timers;
+count(*)
+5
+select count(*) from performance_schema.setup_consumers;
+count(*)
+12
+select count(*) > 3 from performance_schema.setup_instruments;
+count(*) > 3
+1
+select count(*) from performance_schema.setup_timers;
+count(*)
+4
+show engine PERFORMANCE_SCHEMA status;
+show status like "performance_schema%";
+show variables like "performance_schema_max_stage_classes";
+Variable_name	Value
+performance_schema_max_stage_classes	0
+select count(*) from performance_schema.setup_instruments
+where name like "stage/%";
+count(*)
+0
+select variable_value > 0 from information_schema.global_status
+where variable_name like 'PERFORMANCE_SCHEMA_STAGE_CLASSES_LOST';
+variable_value > 0
+1
+select count(*) from performance_schema.events_stages_current;
+count(*)
+0
+select count(*) from performance_schema.events_stages_history;
+count(*)
+0
+select count(*) from performance_schema.events_stages_history_long;
+count(*)
+0
+select count(*) from performance_schema.events_stages_summary_by_thread_by_event_name;
+count(*)
+0
+select count(*) from performance_schema.events_stages_summary_global_by_event_name;
+count(*)
+0

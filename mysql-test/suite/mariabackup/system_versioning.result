@@ -1,0 +1,49 @@
+create table t (a int) with system versioning;
+insert into t values (1);
+update t set a=2;
+insert into t values (3);
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=INNODB_OR_MYISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t;
+a
+2
+select a from t for system_time all;
+a
+2
+1
+create or replace table t (
+a int,
+s bigint unsigned as row start invisible,
+e bigint unsigned as row end invisible,
+period for system_time(s, e)
+) with system versioning engine=innodb;
+insert into t values (1);
+update t set a=2;
+insert into t values (3);
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `s` bigint(20) unsigned GENERATED ALWAYS AS ROW START INVISIBLE,
+  `e` bigint(20) unsigned GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`s`, `e`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t;
+a
+2
+select a from t for system_time all;
+a
+2
+1
+drop table t;

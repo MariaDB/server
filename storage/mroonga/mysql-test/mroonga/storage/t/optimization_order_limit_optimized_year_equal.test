@@ -1,0 +1,55 @@
+# Copyright(C) 2013 Kentoku SHIBA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS mroonga_releases;
+--enable_warnings
+
+FLUSH STATUS;
+
+CREATE TABLE mroonga_releases (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  release_title TEXT,
+  release_year YEAR,
+  KEY (release_year),
+  FULLTEXT KEY (release_title)
+) DEFAULT CHARSET UTF8;
+
+INSERT INTO mroonga_releases (release_title, release_year)
+       VALUES ("Groonga storage engine (code name Mroonga) 1.0 has been released", "11");
+INSERT INTO mroonga_releases (release_title, release_year)
+       VALUES ("Rename Groonga storage engine to Mroonga", "2011");
+INSERT INTO mroonga_releases (release_title, release_year)
+       VALUES ("Mroonga 1.11 has been released", "2011");
+INSERT INTO mroonga_releases (release_title, release_year)
+       VALUES ("Mroonga 2.0 has been released", "2012");
+INSERT INTO mroonga_releases (release_title, release_year)
+       VALUES ("Mroonga 3.0 has been released", "13");
+INSERT INTO mroonga_releases (release_title, release_year)
+       VALUES ("Mroonga 4.0 will be released", "2014");
+
+SELECT * FROM mroonga_releases
+         WHERE release_year = "11" AND
+               MATCH(release_title) AGAINST("Mroonga" IN BOOLEAN MODE)
+         ORDER BY id DESC LIMIT 1,2;
+
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+
+DROP TABLE mroonga_releases;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

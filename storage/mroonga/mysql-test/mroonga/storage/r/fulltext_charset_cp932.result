@@ -1,0 +1,18 @@
+drop table if exists t1, t2, t3;
+set names cp932;
+create table t1 (c1 int primary key, c2 varchar(255), c3 text, fulltext index(c2), fulltext index(c3)) default charset cp932;
+insert into t1 values(1, "明日の富士山の天気について","あああああああ");
+insert into t1 values(2, "いいいいい","明日の富士山の天気は分かりません");
+insert into t1 values(3, "dummy", "dummy");
+select * from t1;
+c1	c2	c3
+1	明日の富士山の天気について	あああああああ
+2	いいいいい	明日の富士山の天気は分かりません
+3	dummy	dummy
+select * from t1 where match(c2) against("富士山");
+c1	c2	c3
+1	明日の富士山の天気について	あああああああ
+select * from t1 where match(c3) against("富士山");
+c1	c2	c3
+2	いいいいい	明日の富士山の天気は分かりません
+drop table t1;

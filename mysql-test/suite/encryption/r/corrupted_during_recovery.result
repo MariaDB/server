@@ -1,0 +1,19 @@
+CREATE TABLE t1(a BIGINT PRIMARY KEY) ENGINE=InnoDB, ENCRYPTED=YES;
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t2(a BIGINT PRIMARY KEY) ENGINE=InnoDB, ENCRYPTED=YES;
+INSERT INTO t1 VALUES(2);
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+INSERT INTO t2 VALUES(2);
+# Kill the server
+# Corrupt the pages
+SELECT * FROM t1;
+ERROR 42000: Unknown storage engine 'InnoDB'
+SELECT * FROM t1;
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
+SELECT * FROM t2;
+a
+2
+CHECK TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t1, t2;

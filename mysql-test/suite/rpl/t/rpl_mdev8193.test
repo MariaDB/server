@@ -1,0 +1,56 @@
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+--connection slave
+
+--source include/stop_slave_sql.inc
+
+--connection master
+
+CALL mtr.add_suppression("Statement is unsafe because it uses a system function that may return a different value on the slave");
+create table t1 (i int);
+insert into t1 values (1),(2);
+insert into t1 values (3),(4);
+# This sleep() helps trigger the failure more reliably.
+insert into t1 select i+20+0*sleep(1) from t1 where i=1;
+flush logs;
+insert into t1 values (5),(6);
+insert into t1 values (7),(8);
+insert into t1 values (9),(10);
+
+--let $master_file = query_get_value(show master status,File,1)
+--let $master_pos = query_get_value(show master status,Position,1)
+
+insert into t1 values (11),(12);
+insert into t1 values (13),(14);
+insert into t1 values (15),(16);
+
+--connection slave
+
+set global slave_parallel_threads = 1;
+--replace_result $master_file MASTER_FILE $master_pos MASTER_POS
+eval start slave until master_log_file='$master_file', master_log_pos=$master_pos;
+
+--let $show_statement = SHOW SLAVE STATUS
+--let $field = Slave_SQL_Running
+--let $condition = = 'No'
+--let $wait_timeout = 10
+
+--source include/wait_show_condition.inc
+
+if (`select COUNT(*) > 11 from t1`) 
+{
+	query_vertical show slave status;
+	SELECT * FROM t1;
+	die "Wrong number of rows in the table";
+}
+
+drop table t1;
+--source include/stop_slave_io.inc
+set global slave_parallel_threads = DEFAULT;
+
+--connection master
+drop table t1;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc

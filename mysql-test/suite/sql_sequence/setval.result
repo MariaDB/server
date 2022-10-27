@@ -1,0 +1,271 @@
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+#
+# Test setval function
+#
+CREATE SEQUENCE t1 cache 10 engine=myisam;
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+1	0
+do setval(t1,10);
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+11	0
+select next value for t1;
+next value for t1
+11
+do setval(t1,12,1);
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+21	0
+select next value for t1;
+next value for t1
+13
+do setval(t1,15,0);
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+21	0
+select next value for t1;
+next value for t1
+15
+select setval(t1,16,0);
+setval(t1,16,0)
+16
+select next value for t1;
+next value for t1
+16
+do setval(t1,1000,0);
+select next value for t1;
+next value for t1
+1000
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+1010	0
+do setval(t1,2000,0);
+select next value for t1;
+next value for t1
+2000
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+2010	0
+select setval(t1,1000,0);
+setval(t1,1000,0)
+NULL
+select next value for t1;
+next value for t1
+2001
+select setval(t1,1000,TRUE);
+setval(t1,1000,TRUE)
+NULL
+select next value for t1;
+next value for t1
+2002
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+2010	0
+select setval(t1,2002,0);
+setval(t1,2002,0)
+NULL
+select next value for t1;
+next value for t1
+2003
+select setval(t1,2010,0);
+setval(t1,2010,0)
+2010
+select next value for t1;
+next value for t1
+2010
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+2020	0
+drop sequence t1;
+#
+# Testing with cycle
+#
+CREATE SEQUENCE t1 cache=10 maxvalue=100 cycle engine=innodb;
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+1	0
+select setval(t1,100,0);
+setval(t1,100,0)
+100
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+100	0
+select next value for t1;
+next value for t1
+100
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+101	0
+select setval(t1,100,0);
+setval(t1,100,0)
+NULL
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+101	0
+select next value for t1;
+next value for t1
+1
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+11	1
+select next value for t1;
+next value for t1
+2
+select setval(t1,100,0,1);
+setval(t1,100,0,1)
+100
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+100	1
+select next value for t1;
+next value for t1
+100
+select setval(t1,100,1,2);
+setval(t1,100,1,2)
+100
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+101	2
+select next value for t1;
+next value for t1
+1
+select setval(t1,100,0,3);
+setval(t1,100,0,3)
+100
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+100	3
+select next value for t1;
+next value for t1
+100
+drop sequence t1;
+#
+# Testing extreme values
+#
+CREATE SEQUENCE t1 cache=10 maxvalue=100 engine=innodb;
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+1	0
+select setval(t1,200);
+setval(t1,200)
+200
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+101	0
+select next value for t1;
+ERROR HY000: Sequence 'test.t1' has run out
+drop sequence t1;
+CREATE SEQUENCE t1 cache=10 maxvalue=100 cycle engine=innodb;
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+1	0
+select setval(t1,200);
+setval(t1,200)
+200
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+101	0
+select next value for t1;
+next value for t1
+1
+drop sequence t1;
+CREATE SEQUENCE t1 cache=10 maxvalue=0 increment=-10;
+select setval(t1,-10);
+setval(t1,-10)
+-10
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+-20	0
+select next value for t1;
+next value for t1
+-20
+select setval(t1,-15);
+setval(t1,-15)
+NULL
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+-120	0
+select next value for t1;
+next value for t1
+-30
+select setval(t1,-500,FALSE);
+setval(t1,-500,FALSE)
+-500
+select next value for t1;
+next value for t1
+-500
+select next value for t1;
+next value for t1
+-510
+select setval(t1,-525,0);
+setval(t1,-525,0)
+-525
+select next value for t1;
+next value for t1
+-525
+select next value for t1;
+next value for t1
+-535
+drop sequence t1;
+CREATE SEQUENCE t1 cache=10 maxvalue=0 increment=-10;
+select setval(t1,-10,0);
+setval(t1,-10,0)
+-10
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+-10	0
+select next value for t1;
+next value for t1
+-10
+drop sequence t1;
+#
+# Other testing
+#
+CREATE SEQUENCE t1;
+select setval(t1,10,0),setval(t1,15,1),setval(t1,5,1);
+setval(t1,10,0)	setval(t1,15,1)	setval(t1,5,1)
+10	15	NULL
+select next value for t1;
+next value for t1
+16
+select next_not_cached_value,cycle_count from t1;
+next_not_cached_value	cycle_count
+1016	0
+explain extended select setval(t1,100),setval(t1,100,TRUE),setval(t1,100,FALSE,50);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select setval(`test`.`t1`,100,1,0) AS `setval(t1,100)`,setval(`test`.`t1`,100,1,0) AS `setval(t1,100,TRUE)`,setval(`test`.`t1`,100,0,50) AS `setval(t1,100,FALSE,50)`
+drop sequence t1;
+create table t1 (a int);
+select setval(t1,10);
+ERROR 42S02: 'test.t1' is not a SEQUENCE
+drop table t1;
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+CREATE SEQUENCE s1;
+SELECT SETVAL(s1,10);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					SETVAL(s1,10)	8	20	2	Y	32896	0	63
+SETVAL(s1,10)
+10
+DROP SEQUENCE s1;
+#
+# MDEV-15732: Assertion `next_free_value % real_increment == offset &&
+# next_free_value >= reserved_until' failed in
+# sequence_definition::adjust_values upon SETVAL for sequence with
+# INCREMENT 0
+#
+CREATE SEQUENCE s INCREMENT 0;
+SELECT NEXTVAL(s);
+NEXTVAL(s)
+1
+SELECT SETVAL(s, 10);
+SETVAL(s, 10)
+10
+DROP SEQUENCE s;
+# End of 10.3 tests

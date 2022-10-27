@@ -1,0 +1,87 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+connection slave;
+CREATE TABLE t1 (
+`id` int(20) primary key,
+`group` int NOT NULL default 1,
+`a\\b` int NOT NULL default 2,
+`a\\` int unsigned,
+`name` varchar(32) default 'name')
+DEFAULT CHARSET=latin1;
+connection master;
+CREATE TABLE t1 ENGINE=FEDERATED CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(20) NOT NULL,
+  `group` int(11) NOT NULL DEFAULT 1,
+  `a\\b` int(11) NOT NULL DEFAULT 2,
+  `a\\` int(10) unsigned DEFAULT NULL,
+  `name` varchar(32) DEFAULT 'name',
+  PRIMARY KEY (`id`)
+) ENGINE=FEDERATED DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
+INSERT INTO t1 (id, name) VALUES (1, 'foo');
+INSERT INTO t1 (id, name) VALUES (2, 'fee');
+SELECT * FROM t1;
+id	group	a\\b	a\\	name
+1	1	2	NULL	foo
+2	1	2	NULL	fee
+DROP TABLE t1;
+connection slave;
+SELECT * FROM t1;
+id	group	a\\b	a\\	name
+1	1	2	NULL	foo
+2	1	2	NULL	fee
+DROP TABLE t1;
+#
+# MDEV-11311 Create federated table does not work as expected
+#
+create table t1 (
+a bigint(20) not null auto_increment,
+b bigint(20) not null,
+c tinyint(4) not null,
+d varchar(4096) not null,
+primary key (a),
+key (b,c,d(255))
+);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) NOT NULL AUTO_INCREMENT,
+  `b` bigint(20) NOT NULL,
+  `c` tinyint(4) NOT NULL,
+  `d` varchar(4096) NOT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`,`c`,`d`(255))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master;
+create table t1 engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) NOT NULL AUTO_INCREMENT,
+  `b` bigint(20) NOT NULL,
+  `c` tinyint(4) NOT NULL,
+  `d` varchar(4096) NOT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`,`c`,`d`(255))
+) ENGINE=FEDERATED DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
+drop table t1;
+connection slave;
+drop table t1;
+#
+# MDEV-17227 Server crash in TABLE_SHARE::init_from_sql_statement_string upon table discovery with non-existent database
+#
+connection master;
+create table t1 engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+ERROR HY000: Unable to connect to foreign data source: Table 'test.t1' doesn't exist
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

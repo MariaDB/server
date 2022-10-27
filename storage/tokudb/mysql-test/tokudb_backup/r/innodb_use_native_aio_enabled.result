@@ -1,0 +1,5 @@
+SELECT @@innodb_use_native_aio;
+@@innodb_use_native_aio
+1
+SET SESSION tokudb_backup_dir='MYSQL_TMP_DIR/tokudb_backup';
+ERROR 42000: Variable 'tokudb_backup_dir' can't be set to the value of 'MYSQL_TMP_DIR/tokudb_backup'

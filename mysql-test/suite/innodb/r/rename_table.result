@@ -1,0 +1,28 @@
+CREATE DATABASE test_jfg;
+CREATE DATABASE test_jfg2;
+CREATE TABLE test_jfg.test (a int unsigned PRIMARY KEY) ENGINE=InnoDB;
+RENAME TABLE test_jfg.test TO test_jfg2.test;
+SELECT REPLACE(path,'\\','/') path
+FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%';
+path
+./test_jfg2/test.ibd
+DROP DATABASE test_jfg;
+# restart
+DROP DATABASE test_jfg2;
+CREATE DATABASE abc_def;
+CREATE DATABASE abc_def2;
+CREATE TABLE abc_def.test (a int unsigned PRIMARY KEY) ENGINE=InnoDB;
+RENAME TABLE abc_def.test TO abc_def2.test1;
+SELECT REPLACE(path,'\\','/') path
+FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%';
+path
+./abc_def2/test1.ibd
+DROP DATABASE abc_def;
+# restart
+DROP DATABASE abc_def2;
+call mtr.add_suppression("InnoDB: (Operating system error|The error means|Cannot rename file)");
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+RENAME TABLE t1 TO non_existing_db.t1;
+ERROR HY000: Error on rename of './test/t1' to './non_existing_db/t1' (errno: 168 "Unknown (generic) error from engine")
+FOUND 1 /\[ERROR\] InnoDB: Cannot rename file '.*t1\.ibd' to '.*non_existing_db/ in mysqld.1.err
+DROP TABLE t1;

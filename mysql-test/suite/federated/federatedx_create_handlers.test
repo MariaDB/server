@@ -1,0 +1,271 @@
+--source have_federatedx.inc
+--source include/federated.inc
+
+connection default;
+
+set global federated_pushdown=1;
+
+connection slave;
+
+DROP TABLE IF EXISTS federated.t1;
+
+CREATE TABLE federated.t1 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+
+INSERT INTO federated.t1 VALUES
+  (3,'xxx'), (7,'yyy'), (4,'xxx'), (1,'zzz'), (5,'yyy');
+
+DROP TABLE IF EXISTS federated.t2;
+
+CREATE TABLE federated.t2 (
+  name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+
+INSERT INTO federated.t2 VALUES
+  ('yyy'), ('www'), ('yyy'), ('xxx'), ('www'), ('yyy'), ('www');
+
+
+connection master;
+
+DROP TABLE IF EXISTS federated.t1;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+DROP TABLE IF EXISTS federated.t2;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t2 (
+  name varchar(16) NOT NULL default ''
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t2';
+
+SELECT * FROM federated.t1;
+
+SELECT id FROM federated.t1 WHERE id < 5;
+
+SELECT count(*), name FROM federated.t1 WHERE id < 5 GROUP BY name;
+
+SELECT * FROM federated.t1, federated.t2
+  WHERE federated.t1.name = federated.t2.name;
+
+SELECT * FROM federated.t1 LEFT JOIN federated.t2
+              ON federated.t1.name = federated.t2.name
+  WHERE federated.t1.id > 1;
+
+SELECT * FROM federated.t1
+  WHERE id IN (SELECT count(*) FROM federated.t2 GROUP BY name);
+
+EXPLAIN
+SELECT id FROM federated.t1 WHERE id < 5;
+ 
+EXPLAIN EXTENDED
+SELECT id FROM federated.t1 WHERE id < 5;
+
+EXPLAIN FORMAT=JSON
+SELECT id FROM federated.t1 WHERE id < 5;
+
+ANALYZE
+SELECT id FROM federated.t1 WHERE id < 5;
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT id FROM federated.t1 WHERE id < 5;
+
+CREATE TABLE federated.t3 (
+  name varchar(16) NOT NULL default ''
+)
+DEFAULT CHARSET=latin1;
+
+INSERT INTO federated.t3 VALUES
+  ('yyy'), ('www'), ('yyy'), ('xxx'), ('www'), ('yyy'), ('www');
+
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+
+EXPLAIN
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+
+EXPLAIN FORMAT=JSON
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+
+ANALYZE
+SELECT *
+FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
+WHERE federated.t3.name=t.name;
+
+SELECT *
+FROM federated.t3, (SELECT t1.name FROM federated.t1
+                    WHERE id IN (SELECT count(*)
+                                 FROM federated.t2 GROUP BY name)) t
+WHERE federated.t3.name=t.name;
+
+EXPLAIN
+SELECT *
+FROM federated.t3, (SELECT t1.name FROM federated.t1
+                    WHERE id IN (SELECT count(*)
+                                 FROM federated.t2 GROUP BY name)) t
+WHERE federated.t3.name=t.name;
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT *
+FROM federated.t3, (SELECT t1.name FROM federated.t1
+                    WHERE id IN (SELECT count(*)
+                                 FROM federated.t2 GROUP BY name)) t
+WHERE federated.t3.name=t.name;
+
+SELECT t.id, federated.t3.name
+FROM federated.t3,
+     ( SELECT * FROM federated.t1 WHERE id < 3
+       UNION
+       SELECT * FROM federated.t1 WHERE id >= 5) t
+WHERE federated.t3.name=t.name;
+
+EXPLAIN
+SELECT t.id, federated.t3.name
+FROM federated.t3,
+     ( SELECT * FROM federated.t1 WHERE id < 3
+       UNION
+       SELECT * FROM federated.t1 WHERE id >= 5) t
+WHERE federated.t3.name=t.name;
+
+--echo #
+--echo # MDEV-21887: federatedx crashes on SELECT ... INTO query in select_handler code
+--echo #
+
+CREATE TABLE federated.t4 (
+  id int(20) NOT NULL,
+  name varchar(16) NOT NULL default ''
+) engine=myisam;
+insert into federated.t4 select * from federated.t1;
+
+--sorted_result
+select * from federated.t4;
+
+select name into @var from federated.t1 where id=3 limit 1 ;
+select @var;
+select name into outfile 'tmp.txt' from federated.t1;
+
+let $path=`select concat(@@datadir, 'test/tmp.txt')`;
+remove_file $path;
+
+--echo #
+--echo # MDEV-22993: Crash on EXPLAIN with PUSHED DOWN SELECT and subquery
+--echo #
+
+explain
+select * from federated.t1
+where name in (select name from federated.t2);
+
+explain format=json
+select * from federated.t1
+where name in (select name from federated.t2);
+
+--echo #
+--echo # MDEV-22993, testcase #2: EXPLAIN output doesn't make sense when
+--echo #   derived table pushdown is used.
+--echo #
+
+create table t5 (a int) engine=myisam;
+insert into t5 values (1),(2);
+
+--echo # Must not show lines with id=3
+explain 
+select * from t5, 
+(select id from federated.t1
+ where name in (select name from federated.t2) or name like 'foo%') as TQ;
+
+--echo # Must not show elements with select_id=3
+explain format=json
+select * from t5, 
+(select id from federated.t1
+ where name in (select name from federated.t2) or name like 'foo%') as TQ;
+
+drop table t5;
+
+DROP TABLE federated.t1, federated.t2, federated.t3, federated.t4;
+
+connection slave;
+DROP TABLE federated.t1, federated.t2;
+
+connection default;
+
+--echo #
+--echo # MDEV-23778: Derived handler used for big derived tables
+--echo #
+
+connection slave;
+
+CREATE TABLE federated.t1 (
+  a varchar(100) NOT NULL default '123'
+)
+DEFAULT CHARSET=latin1;
+
+CREATE TABLE federated.t2 LIKE federated.t1;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE i INT DEFAULT 0;
+  START TRANSACTION;
+  WHILE i < 70000 DO
+    INSERT INTO federated.t1 VALUES (i);
+    SET i = i + 1;
+  END WHILE;
+  COMMIT;
+END
+$$
+
+DELIMITER ;$$
+
+connection master;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1 (
+  a varchar(100) NOT NULL default '123'
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t2 (
+  a varchar(100) NOT NULL default '123'
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t2';
+
+SELECT COUNT(DISTINCT a) FROM federated.t1;
+
+INSERT INTO federated.t2
+  SELECT * FROM (SELECT * FROM federated.t1 LIMIT 100) dt;
+SELECT COUNT(DISTINCT a) FROM federated.t2;
+
+TRUNCATE TABLE federated.t2;
+INSERT INTO federated.t2
+  SELECT * FROM (SELECT * FROM federated.t1 LIMIT 70000) dt;
+SELECT COUNT(DISTINCT a) FROM federated.t2;
+
+set global federated_pushdown=0;
+
+source include/federated_cleanup.inc;
+

@@ -1,0 +1,776 @@
+# files in MYSQL_DATA_DIR
+ibtmp1
+create temporary table t1 (i int, f float, c char(100)) engine=innodb;
+insert into t1 values (100, 1.1, 'pune');
+insert into t1 values (99, 1.2, 'mumbai');
+insert into t1 values (98, 1.3, 'jaipur');
+insert into t1 values (97, 1.4, 'delhi');
+insert into t1 values (96, 1.5, 'ahmedabad');
+select * from t1;
+i	f	c
+100	1.1	pune
+99	1.2	mumbai
+98	1.3	jaipur
+97	1.4	delhi
+96	1.5	ahmedabad
+select * from t1 where i = 98;
+i	f	c
+98	1.3	jaipur
+select * from t1 where i < 100;
+i	f	c
+99	1.2	mumbai
+98	1.3	jaipur
+97	1.4	delhi
+96	1.5	ahmedabad
+explain select * from t1 where f > 1.29999;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+alter table t1 add index sec_index(f);
+explain select * from t1 where f > 1.29999;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	sec_index	NULL	NULL	NULL	5	Using where
+select * from t1 where f > 1.29999;
+i	f	c
+98	1.3	jaipur
+97	1.4	delhi
+96	1.5	ahmedabad
+explain select * from t1 where i = 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+alter table t1 add unique index pri_index(i);
+explain select * from t1 where i = 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	pri_index	pri_index	5	const	1	
+select * from t1 where i = 100;
+i	f	c
+100	1.1	pune
+delete from t1 where i < 97;
+select * from t1;
+i	f	c
+100	1.1	pune
+99	1.2	mumbai
+98	1.3	jaipur
+97	1.4	delhi
+insert into t1 values (96, 1.5, 'kolkata');
+select * from t1;
+i	f	c
+100	1.1	pune
+99	1.2	mumbai
+98	1.3	jaipur
+97	1.4	delhi
+96	1.5	kolkata
+update t1 set f = 1.44 where c = 'delhi';
+select * from t1;
+i	f	c
+100	1.1	pune
+99	1.2	mumbai
+98	1.3	jaipur
+97	1.44	delhi
+96	1.5	kolkata
+truncate table t1;
+insert into t1 values (100, 1.1, 'pune');
+insert into t1 values (99, 1.2, 'mumbai');
+insert into t1 values (98, 1.3, 'jaipur');
+insert into t1 values (97, 1.4, 'delhi');
+insert into t1 values (96, 1.5, 'ahmedabad');
+select * from t1;
+i	f	c
+100	1.1	pune
+99	1.2	mumbai
+98	1.3	jaipur
+97	1.4	delhi
+96	1.5	ahmedabad
+alter table t1 discard tablespace;
+ERROR HY000: Cannot DISCARD/IMPORT tablespace associated with temporary table
+alter table t1 import tablespace;
+ERROR HY000: Cannot DISCARD/IMPORT tablespace associated with temporary table
+drop temporary table t1;
+create temporary table t1
+(keyc int, c1 char(100), c2 char(100),
+primary key(keyc)) engine = innodb;
+CREATE PROCEDURE populate_t1()
+BEGIN
+DECLARE i INT DEFAULT 1;
+while (i <= 20000) DO
+insert into t1 values (i, 'a', 'b');
+SET i = i + 1;
+END WHILE;
+END|
+set autocommit=0;
+select count(*) from t1;
+count(*)
+0
+call populate_t1();
+select count(*) from t1;
+count(*)
+20000
+select * from t1 limit 10;
+keyc	c1	c2
+1	a	b
+2	a	b
+3	a	b
+4	a	b
+5	a	b
+6	a	b
+7	a	b
+8	a	b
+9	a	b
+10	a	b
+set autocommit=1;
+truncate table t1;
+select * from t1;
+keyc	c1	c2
+# test condition of full-temp-tablespace
+# restart: --innodb_temp_data_file_path=ibtmp1:12M
+create temporary table t1
+(keyc int, c1 char(100), c2 char(100),
+primary key(keyc)) engine = innodb;
+begin;
+call populate_t1();
+ERROR HY000: The table 't1' is full
+drop procedure populate_t1;
+# test read-only mode
+# restart: --innodb-read-only
+# files in MYSQL_DATA_DIR
+select * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+show tables;
+Tables_in_test
+create temporary table t1 (keyc int, c1 char(100), c2 char(100)) engine = innodb;
+ERROR HY000: Can't create table `test`.`t1` (errno: 165 "Table is read only")
+# test various bad start-up parameters
+FOUND 2 /InnoDB: Unable to create temporary file/ in mysqld.1.err
+# restart: --innodb_data_file_path=ibdata1:12M:autoextend --innodb_temp_data_file_path=ibdata1:12M:autoextend
+FOUND 1 /innodb_temporary and innodb_system file names seem to be the same/ in mysqld.1.err
+SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# restart: --innodb_temp_data_file_path=foobar:3Gnewraw
+FOUND 1 /support raw device/ in mysqld.1.err
+SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# restart: --innodb_temp_data_file_path=barbar:3Graw
+FOUND 2 /support raw device/ in mysqld.1.err
+SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# restart: --innodb_temp_data_file_path=
+FOUND 1 /InnoDB: syntax error in file path/ in mysqld.1.err
+SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# restart
+create temporary table t (
+i int)
+engine = innodb row_format = compressed;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+create temporary table t (
+i int)
+engine = innodb row_format = compressed key_block_size = 8;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+create temporary table t (
+i int)
+engine = innodb row_format = dynamic;
+show warnings;
+Level	Code	Message
+drop table t;
+create temporary table t (
+i int)
+engine = innodb row_format = dynamic;
+show warnings;
+Level	Code	Message
+drop table t;
+set innodb_strict_mode = off;
+create temporary table t (
+i int)
+engine = innodb row_format = compressed key_block_size = 8;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=8.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=8.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+set innodb_strict_mode = default;
+drop table t;
+create temporary table t (
+i int)
+engine = innodb row_format = compressed;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+#files in MYSQL_TMP_DIR, expecting only default temporary tablespace file
+ibtmp1
+create temporary table t (
+i int)
+engine = innodb row_format = dynamic;
+show warnings;
+Level	Code	Message
+drop table t;
+create temporary table t (
+i int)
+engine = innodb row_format = dynamic;
+show warnings;
+Level	Code	Message
+drop table t;
+set innodb_strict_mode = off;
+create temporary table t (
+i int)
+engine = innodb row_format = dynamic key_block_size = 4;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+drop table t;
+create temporary table t (
+i int)
+engine = innodb row_format = compact;
+show warnings;
+Level	Code	Message
+drop table t;
+create temporary table t (
+i int)
+engine = innodb key_block_size = 4;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+drop table t;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB KEY_BLOCK_SIZE = 4;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `c` char(10) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=4
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = REDUNDANT;
+SHOW WARNINGS;
+Level	Code	Message
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `c` char(10) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = COMPACT;
+SHOW WARNINGS;
+Level	Code	Message
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `c` char(10) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB KEY_BLOCK_SIZE = 4;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `c` char(10) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=4
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = COMPRESSED;
+Warnings:
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `c` char(10) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = COMPRESSED KEY_BLOCK_SIZE = 8;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=8.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=8.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `c` char(10) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = DYNAMIC KEY_BLOCK_SIZE = 8;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=8.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=8.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `c` char(10) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=8
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = DYNAMIC;
+SHOW WARNINGS;
+Level	Code	Message
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `c` char(10) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY
+) ENGINE = InnoDB ROW_FORMAT = REDUNDANT;
+ALTER TABLE t1 ROW_FORMAT = COMPRESSED;
+Warnings:
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+ALTER TABLE t1 KEY_BLOCK_SIZE = 4;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4
+ALTER TABLE t1 KEY_BLOCK_SIZE = 4 ROW_FORMAT = COMPRESSED;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4
+ALTER TABLE t1 ROW_FORMAT = DYNAMIC KEY_BLOCK_SIZE = 4;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=4
+ALTER TABLE t1 ROW_FORMAT = DYNAMIC;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=4
+DROP TABLE t1;
+set innodb_strict_mode = ON;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB KEY_BLOCK_SIZE = 4;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB KEY_BLOCK_SIZE = 4, ROW_FORMAT = COMPACT;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = REDUNDANT;
+SHOW WARNINGS;
+Level	Code	Message
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `c` char(10) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB KEY_BLOCK_SIZE = 4;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = COMPRESSED;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = COMPRESSED KEY_BLOCK_SIZE = 8;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = COMPRESSED KEY_BLOCK_SIZE = 7;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY,
+c CHAR(10) NOT NULL
+) ENGINE = InnoDB ROW_FORMAT = DYNAMIC;
+SHOW WARNINGS;
+Level	Code	Message
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `c` char(10) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (
+i INT NOT NULL PRIMARY KEY
+) ENGINE = InnoDB ROW_FORMAT = REDUNDANT;
+ALTER TABLE t1 ROW_FORMAT = COMPRESSED;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+ALTER TABLE t1 KEY_BLOCK_SIZE = 4;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+ALTER TABLE t1 ROW_FORMAT = DYNAMIC KEY_BLOCK_SIZE = 4;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+ALTER TABLE t1 ROW_FORMAT = DYNAMIC;
+set innodb_strict_mode = OFF;
+ALTER TABLE t1 ROW_FORMAT = COMPRESSED;
+Warnings:
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+set innodb_strict_mode = ON;
+ALTER TABLE t1 ROW_FORMAT = DYNAMIC;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+set innodb_strict_mode = OFF;
+ALTER TABLE t1 ROW_FORMAT = COMPRESSED;
+Warnings:
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+ALTER TABLE t1 KEY_BLOCK_SIZE = 8;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=8.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=8.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+set innodb_strict_mode = ON;
+ALTER TABLE t1 ADD COLUMN j INT;
+ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SHOW WARNINGS;
+Level	Code	Message
+Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8
+set innodb_strict_mode = OFF;
+ALTER TABLE t1 KEY_BLOCK_SIZE = 0;
+Warnings:
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  PRIMARY KEY (`i`) KEY_BLOCK_SIZE=8
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+ALTER TABLE t1 ROW_FORMAT = DYNAMIC;
+set innodb_strict_mode = ON;
+ALTER TABLE t1 ADD COLUMN j INT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `j` int(11) DEFAULT NULL,
+  PRIMARY KEY (`i`) KEY_BLOCK_SIZE=8
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1(f1 INT, KEY(f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(NULL);
+UPDATE t1 SET f1 = 0;
+START TRANSACTION;
+UPDATE t1 SET f1 = 4;
+UPDATE t1 SET f1 = 0;
+ROLLBACK;
+SELECT * FROM t1;
+f1
+0
+DROP TABLE t1;
+create procedure t1_proc()
+begin
+DECLARE var INT UNSIGNED;
+CREATE TEMPORARY TABLE t1(f1 INT UNSIGNED, f2 INT UNSIGNED, KEY( f1, f2 ) )engine=innodb;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+START TRANSACTION;
+INSERT INTO t1 SET f1 = 1, f2 = 1;
+UPDATE t1 SET f2 = 2;
+SET var = ( SELECT 1 FROM t1 );
+DROP TABLE t1;
+END//
+call t1_proc;
+drop procedure t1_proc;
+#
+# MDEV-15874 CREATE TABLE creates extra transaction
+#
+call mtr.add_suppression("Warning 150 Create  table `mysqld.1`.`t1` with foreign key constraint failed. Temporary tables can't have foreign key constraints.*");
+SET FOREIGN_KEY_CHECKS = 0;
+CREATE TEMPORARY TABLE t1(f1 INT NOT NULL,
+FOREIGN KEY(f1) REFERENCES t0(f1))ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+INSERT INTO t VALUES(0);
+CREATE TEMPORARY TABLE t2 (c INT) ENGINE=InnoDB;
+START TRANSACTION READ ONLY;
+INSERT INTO t2 SELECT * FROM t;
+COMMIT;
+DROP TABLE t, t2;
+CREATE TEMPORARY TABLE t (c INT,c2 INT) ENGINE=InnoDB;
+START TRANSACTION READ ONLY;
+INSERT INTO t VALUES(0);
+ERROR 21S01: Column count doesn't match value count at row 1
+SAVEPOINT s;
+INSERT INTO t VALUES(0,0);
+COMMIT;
+DROP TABLE t;
+CREATE TEMPORARY TABLE t (c INT,c2 INT) ENGINE=InnoDB;
+START TRANSACTION READ ONLY;
+INSERT INTO t VALUES(0);
+ERROR 21S01: Column count doesn't match value count at row 1
+SAVEPOINT s;
+INSERT INTO t VALUES(0,0);
+ROLLBACK;
+DROP TABLE t;
+CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+START TRANSACTION READ ONLY;
+UPDATE t1 SET a= 2;
+COMMIT;
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t(c INT) ENGINE=InnoDB;
+SET SESSION tx_read_only=TRUE;
+LOCK TABLE test.t READ;
+SELECT * FROM t;
+c
+INSERT INTO t VALUES(0xADC3);
+SET SESSION tx_read_only=FALSE;
+DROP TABLE t;
+CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+START TRANSACTION READ ONLY;
+UPDATE t1 SET a= 2;
+COMMIT;
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY, b int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 1);
+START TRANSACTION READ ONLY;
+UPDATE t1 SET b= 2;
+COMMIT;
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY, b int, c varchar(255)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 1, repeat('a', 200));
+START TRANSACTION READ ONLY;
+UPDATE t1 SET b= 2, c=repeat('a', 250);
+COMMIT;
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+START TRANSACTION READ ONLY;
+UPDATE t1 SET a= 2;
+ROLLBACK;
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+START TRANSACTION READ ONLY;
+DELETE FROM t1 WHERE a= 2;
+COMMIT;
+DROP TABLE t1;
+CREATE TEMPORARY TABLE tmp (a INT) ENGINE=InnoDB;
+INSERT INTO tmp () VALUES (),();
+SET TX_READ_ONLY= 1;
+INSERT INTO tmp SELECT * FROM tmp;
+SET TX_READ_ONLY= 0;
+DROP TABLE tmp;
+SET sql_mode='';
+SET GLOBAL tx_read_only=TRUE;
+CREATE TEMPORARY TABLE t (c INT);
+SET SESSION tx_read_only=DEFAULT;
+INSERT INTO t VALUES(1);
+INSERT INTO t SELECT * FROM t;
+SET SESSION tx_read_only=FALSE;
+SET GLOBAL tx_read_only=OFF;
+DROP TABLE t;
+CREATE TEMPORARY TABLE t(a INT);
+SET SESSION tx_read_only=ON;
+LOCK TABLE t READ;
+SELECT COUNT(*)FROM t;
+COUNT(*)
+0
+INSERT INTO t VALUES (0);
+SET SESSION tx_read_only=OFF;
+DROP TABLE t;
+CREATE TEMPORARY TABLE t (a INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1);
+START TRANSACTION READ ONLY;
+UPDATE t SET a = NULL;
+ROLLBACK;

@@ -1,0 +1,46 @@
+#
+# Test the operation of TRUNCATE with concurrent DML.
+# The DML should be BF-aborted if the DDL arrives from another node
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+#
+# INSERT and TRUNCATE on different nodes
+#
+
+--connection node_1
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 10 FROM ten;
+--source include/wait_condition.inc
+
+# Prevent autocommit retring from masking the deadlock error we expect to get
+SET SESSION wsrep_retry_autocommit = 0;
+--send INSERT INTO t1 (f1) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6, ten AS a7, ten AS a8
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Sending data%' AND INFO LIKE 'INSERT INTO t1 (f1)%';
+--source include/wait_condition.inc
+
+--connection node_1
+TRUNCATE TABLE t1;
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+--reap
+
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+
+--connection node_1
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+
+DROP TABLE t1;
+DROP TABLE ten;

@@ -1,0 +1,36 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_restart_slave
+--echo #
+
+--echo # save the initial value
+SET @wsrep_restart_slave_global_saved = @@global.wsrep_restart_slave;
+
+--echo # default
+SELECT @@global.wsrep_restart_slave;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_restart_slave;
+
+--echo
+--echo # scope and valid values
+#--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+#TODO: check if it is expected for variable to be dynamic?
+SET @@global.wsrep_restart_slave=OFF;
+SELECT @@global.wsrep_restart_slave;
+#--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_restart_slave=ON;
+SELECT @@global.wsrep_restart_slave;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_restart_slave=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_restart_slave='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_restart_slave = @wsrep_restart_slave_global_saved;
+
+--echo # End of test

@@ -1,0 +1,297 @@
+#
+# Test keywords as fields
+#
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (time time, date date, timestamp timestamp,
+quarter int, week int, year int, timestampadd int, timestampdiff int);
+insert into t1 values ("12:22:22","97:02:03","1997-01-02",1,2,3,4,5);
+select * from t1;
+select t1.time+0,t1.date+0,t1.timestamp+0,concat(date," ",time),
+       t1.quarter+t1.week, t1.year+timestampadd,  timestampdiff from t1;
+drop table t1;
+create table events(binlog int);
+insert into events values(1);
+select events.binlog from events;
+drop table events;
+
+# End of 4.1 tests
+
+#
+# Bug#19939 "AUTHORS is not a keyword"
+#
+delimiter |;
+create procedure p1()
+begin
+   declare n int default 2;
+   authors: while n > 0 do
+     set n = n -1;
+   end while authors;
+end|
+create procedure p2()
+begin
+   declare n int default 2;
+   contributors: while n > 0 do
+     set n = n -1;
+   end while contributors;
+end|
+delimiter ;|
+drop procedure p1;
+drop procedure p2;
+
+# End of 5.1 tests
+
+#
+# Bug#12204 - CONNECTION should not be a reserved word
+#
+
+create table t1 (connection int, b int);
+delimiter |;
+create procedure p1()
+begin
+  declare connection int;
+  select max(t1.connection) into connection from t1;
+  select concat("max=",connection) 'p1';
+end|
+delimiter ;|
+insert into t1 (connection) values (1);
+call p1();
+drop procedure p1;
+drop table t1;
+
+# End of 5.0 tests
+
+#
+# BUG#57899: Certain reserved words should not be reserved
+#
+
+#
+# We are looking for SYNTAX ERRORS here, so no need to 
+# log the queries
+#
+
+CREATE TABLE slow (slow INT, general INT, master_heartbeat_period INT, ignore_server_ids INT);
+INSERT INTO slow(slow, general, master_heartbeat_period, ignore_server_ids) VALUES (1,2,3,4), (5,6,7,8);
+INSERT INTO slow(slow, general, master_heartbeat_period) VALUES (1,2,3), (5,6,7);
+INSERT INTO slow(slow, general) VALUES (1,2), (5,6);
+INSERT INTO slow(slow) VALUES (1), (5);
+SELECT slow, general, master_heartbeat_period, ignore_server_ids FROM slow ORDER BY slow;
+SELECT slow, general, master_heartbeat_period FROM slow ORDER BY slow;
+SELECT slow, master_heartbeat_period FROM slow ORDER BY slow;
+SELECT slow FROM slow ORDER BY slow;
+DROP TABLE slow;
+CREATE TABLE general (slow INT, general INT, master_heartbeat_period INT, ignore_server_ids INT);
+INSERT INTO general(slow, general, master_heartbeat_period, ignore_server_ids) VALUES (1,2,3,4), (5,6,7,8);
+INSERT INTO general(slow, general, master_heartbeat_period) VALUES (1,2,3), (5,6,7);
+INSERT INTO general(slow, general) VALUES (1,2), (5,6);
+INSERT INTO general(slow) VALUES (1), (5);
+SELECT slow, general, master_heartbeat_period, ignore_server_ids FROM general ORDER BY slow;
+SELECT slow, general, master_heartbeat_period FROM general ORDER BY slow;
+SELECT slow, master_heartbeat_period FROM general ORDER BY slow;
+SELECT slow FROM general ORDER BY slow;
+DROP TABLE general;
+CREATE TABLE master_heartbeat_period (slow INT, general INT, master_heartbeat_period INT, ignore_server_ids INT);
+INSERT INTO master_heartbeat_period(slow, general, master_heartbeat_period, ignore_server_ids) VALUES (1,2,3,4), (5,6,7,8);
+INSERT INTO master_heartbeat_period(slow, general, master_heartbeat_period) VALUES (1,2,3), (5,6,7);
+INSERT INTO master_heartbeat_period(slow, general) VALUES (1,2), (5,6);
+INSERT INTO master_heartbeat_period(slow) VALUES (1), (5);
+SELECT slow, general, master_heartbeat_period, ignore_server_ids FROM master_heartbeat_period ORDER BY slow;
+SELECT slow, general, master_heartbeat_period FROM master_heartbeat_period ORDER BY slow;
+SELECT slow, master_heartbeat_period FROM master_heartbeat_period ORDER BY slow;
+SELECT slow FROM master_heartbeat_period ORDER BY slow;
+DROP TABLE master_heartbeat_period;
+CREATE TABLE ignore_server_ids (slow INT, general INT, master_heartbeat_period INT, ignore_server_ids INT);
+INSERT INTO ignore_server_ids(slow, general, master_heartbeat_period, ignore_server_ids) VALUES (1,2,3,4), (5,6,7,8);
+INSERT INTO ignore_server_ids(slow, general, master_heartbeat_period) VALUES (1,2,3), (5,6,7);
+INSERT INTO ignore_server_ids(slow, general) VALUES (1,2), (5,6);
+INSERT INTO ignore_server_ids(slow) VALUES (1), (5);
+SELECT slow, general, master_heartbeat_period, ignore_server_ids FROM ignore_server_ids ORDER BY slow;
+SELECT slow, general, master_heartbeat_period FROM ignore_server_ids ORDER BY slow;
+SELECT slow, master_heartbeat_period FROM ignore_server_ids ORDER BY slow;
+SELECT slow FROM ignore_server_ids ORDER BY slow;
+DROP TABLE ignore_server_ids;
+
+CREATE TABLE t1 (slow INT, general INT, ignore_server_ids INT, master_heartbeat_period INT);
+INSERT INTO t1 VALUES (1,2,3,4);
+DELIMITER |;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE slow INT;
+  DECLARE general INT;
+  DECLARE ignore_server_ids INT;
+  DECLARE master_heartbeat_period INT;
+
+  SELECT max(t1.slow) INTO slow FROM t1;
+  SELECT max(t1.general) INTO general FROM t1;
+  SELECT max(t1.ignore_server_ids) INTO ignore_server_ids FROM t1;
+  SELECT max(t1.master_heartbeat_period) INTO master_heartbeat_period FROM t1;
+
+  SELECT slow, general, ignore_server_ids, master_heartbeat_period;
+END|
+
+CREATE PROCEDURE p2()
+BEGIN
+
+   DECLARE n INT DEFAULT 2;
+   general: WHILE n > 0 DO 
+     SET n = n -1;
+   END WHILE general;
+
+   SET n = 2;
+   slow: WHILE n > 0 DO 
+     SET n = n -1;
+   END WHILE slow;
+
+   SET n = 2;
+   ignore_server_ids: WHILE n > 0 DO 
+     SET n = n -1;
+   END WHILE ignore_server_ids;
+
+   SET n = 2;
+   master_heartbeat_period: WHILE n > 0 DO 
+     SET n = n -1;
+   END WHILE master_heartbeat_period;
+
+END|
+DELIMITER ;|
+CALL p1();
+call p2();
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+
+#
+# OPTION is not anymore a keyword
+#
+
+create table option (option int not null);
+drop table option;
+--error 1193
+set option=1;
+--error ER_PARSE_ERROR
+set option option=1;
+
+--echo #
+--echo # MDEV-9979 Keywords UNBOUNDED, PRECEDING, FOLLOWING, TIES, OTHERS should be non-reserved
+--echo #
+CREATE TABLE EXCLUDE (EXCLUDE INT);
+SELECT EXCLUDE FROM EXCLUDE;
+SELECT EXCLUDE EXCLUDE FROM EXCLUDE;
+SELECT EXCLUDE AS EXCLUDE FROM EXCLUDE;
+DROP TABLE EXCLUDE;
+
+CREATE TABLE UNBOUNDED (UNBOUNDED INT);
+SELECT UNBOUNDED FROM UNBOUNDED;
+SELECT UNBOUNDED UNBOUNDEX FROM UNBOUNDED;
+SELECT UNBOUNDED AS UNBOUNDEX FROM UNBOUNDED;
+DROP TABLE UNBOUNDED;
+
+CREATE TABLE PRECEDING (PRECEDING INT);
+SELECT PRECEDING FROM PRECEDING;
+SELECT PRECEDING PRECEDING FROM PRECEDING;
+SELECT PRECEDING AS PRECEDING FROM PRECEDING;
+DROP TABLE PRECEDING;
+
+CREATE TABLE FOLLOWING (FOLLOWING INT);
+SELECT FOLLOWING FROM FOLLOWING;
+SELECT FOLLOWING FOLLOWING FROM FOLLOWING;
+SELECT FOLLOWING AS FOLLOWING FROM FOLLOWING;
+DROP TABLE FOLLOWING;
+
+CREATE TABLE TIES (TIES INT);
+SELECT TIES FROM TIES;
+SELECT TIES TIES FROM TIES;
+SELECT TIES AS TIES FROM TIES;
+DROP TABLE TIES;
+
+CREATE TABLE OTHERS (OTHERS INT);
+SELECT OTHERS FROM OTHERS;
+SELECT OTHERS OTHERS FROM OTHERS;
+SELECT OTHERS AS OTHERS FROM OTHERS;
+DROP TABLE OTHERS;
+
+
+--echo #
+--echo # MDEV-10585 EXECUTE IMMEDIATE statement
+--echo #
+
+CREATE TABLE immediate (immediate int);
+DROP TABLE immediate;
+
+--echo #
+--echo # MDEV-10142 Pluggable parser
+--echo # Testing keywords that were added into lex.h for Oracle compatibility
+--echo # that are not reserved keywords in MariaDB
+--echo #
+
+CREATE TABLE clob (clob int);
+DROP TABLE clob;
+
+CREATE TABLE elsif (elsif INT);
+DROP TABLE elsif;
+
+CREATE TABLE exception (exception INT);
+DROP TABLE exception;
+
+CREATE TABLE raw (raw int);
+DROP TABLE raw;
+
+CREATE TABLE varchar2 (varchar2 int);
+DROP TABLE varchar2;
+
+CREATE TABLE decode (decode int);
+DROP TABLE decode;
+
+CREATE TABLE rowcount (rowcount int);
+DROP TABLE rowcount;
+
+CREATE TABLE isopen (isopen int);
+DROP TABLE isopen;
+
+CREATE TABLE notfound (notfound int);
+DROP TABLE notfound;
+
+CREATE TABLE raise (raise int);
+DROP TABLE raise;
+
+CREATE TABLE reuse (reuse int);
+DROP TABLE reuse;
+
+
+--echo #
+--echo # MDEV-17363 Compressed columns cannot be restored from dump
+--echo # COMPRESSED is not valid as an SP label any more
+--echo # but is still valid as an SP variable name.
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+BEGIN NOT ATOMIC
+compressed:
+  BEGIN
+    SELECT 1 AS a;
+  END;
+END
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+`compressed`:
+  BEGIN
+    SELECT 1 AS a;
+  END;
+END
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE compressed INT DEFAULT 1;
+  SELECT compressed;
+END
+$$
+DELIMITER ;$$

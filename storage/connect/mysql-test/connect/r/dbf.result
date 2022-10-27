@@ -1,0 +1,649 @@
+#
+# Testing errors
+#
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf'
+SELECT * FROM t1;
+a
+Warnings:
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1.dbf: No such file or directory
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR HY000: Cannot open DATADIR/test/t1.dbf
+SHOW WARNINGS;
+Level	Code	Message
+Error	1105	Cannot open DATADIR/test/t1.dbf
+Error	1030	Got error 122 "Internal (unspecified) error in handler" from storage engine CONNECT
+CREATE PROCEDURE test.dbf_field(in fieldno INT, in content BLOB) DETERMINISTIC
+BEGIN
+SELECT '---';
+SELECT fieldno AS `FieldN`;
+SELECT TRIM(TRAILING 0x00 FROM LEFT(content, 10)) AS `Name`;
+SELECT SUBSTRING(content, 12, 1) AS `Type`;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,13,4))),16,10) AS `Offset`;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,17,1))),16,10) AS `Length`;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,18,1))),16,10) AS `Dec`;
+SELECT HEX(REVERSE(SUBSTRING(content,19,1))) AS `Flags`;
+-- SELECT CONV(HEX(REVERSE(SUBSTRING(content,20,4))),16,10) AS `Next`;
+-- SELECT CONV(HEX(REVERSE(SUBSTRING(content,24,4))),16,10) AS `Step`;
+END//
+CREATE PROCEDURE test.dbf_header(in fname VARCHAR(1024)) DETERMINISTIC
+BEGIN
+DECLARE content BLOB;
+DECLARE offset INT;
+DECLARE fieldno INT;
+SELECT '--------';
+SELECT LOAD_FILE(fname) INTO content;
+SELECT LENGTH(content) AS FileSize;
+SELECT HEX(LEFT(content, 1)) AS DBF_Version;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,5,4))),16,10) AS NRecords;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,9,2))),16,10) AS FirstRecPos;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,11,2))),16,10) AS RecLength;
+SELECT HEX(REVERSE(SUBSTRING(content,29,2))) AS TableFlags;
+SELECT HEX(REVERSE(SUBSTRING(content,30,1))) AS CodePageMark;
+SET offset=33;
+SET fieldno=0;
+WHILE SUBSTR(content, offset, 1) <> 0x0D AND offset + 32 < LENGTH(content) DO
+CALL dbf_field(fieldno, SUBSTRING(content, offset, 32));
+SET offset=offset + 32;
+SET fieldno=fieldno + 1;
+END WHILE;
+SELECT '--------';
+END//
+#
+# Testing READONLY tables
+#
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf'
+INSERT INTO t1 VALUES (10),(20);
+SELECT * FROM t1;
+a
+10
+20
+ALTER TABLE t1 READONLY=Yes;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf' `READONLY`=Yes
+INSERT INTO t1 VALUES (30);
+ERROR HY000: Table 't1' is read only
+UPDATE t1 SET a=30 WHERE a=10;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+DELETE FROM t1 WHERE a=10;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+TRUNCATE TABLE t1;
+ERROR HY000: Table 't1' is read only
+ALTER TABLE t1 READONLY=NO;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf' `READONLY`=NO
+INSERT INTO t1 VALUES (30);
+SELECT * FROM t1;
+a
+10
+20
+30
+DROP TABLE t1;
+#
+# This SQL script crashed (dbf01.sql)
+#
+CREATE TABLE t1
+(
+a int(11) NOT NULL,
+b char(10) NOT NULL,
+c varchar(10) NOT NULL
+) ENGINE=CONNECT table_type=DBF file_name='t1.dbf';
+INSERT INTO t1 VALUES (1,'1','1');
+INSERT INTO t1 VALUES (2,'2','2');
+SELECT * FROM t1;
+a	b	c
+1	1	1
+2	2	2
+DROP TABLE t1;
+#
+# Testing that table options in lower case and mixed case are understood:
+#
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT table_type=dbf file_name='t1.dbf';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `table_type`=dbf `file_name`='t1.dbf'
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+a
+10
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(10) NOT NULL) ENGINE=CONNECT Table_Type=dbf File_Name='t1.dbf';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `Table_Type`=dbf `File_Name`='t1.dbf'
+INSERT INTO t1 VALUES ('test');
+SELECT * FROM t1;
+a
+test
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	77
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	11
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE t1;
+#
+# Testing multiple columns
+#
+CREATE TABLE t1
+(
+a INT NOT NULL,
+b CHAR(10) NOT NULL,
+c VARCHAR(10) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (1,'1','1');
+INSERT INTO t1 VALUES (2,'2','2');
+SELECT * FROM t1;
+a	b	c
+1	1	1
+2	2	2
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	194
+DBF_Version	03
+NRecords	2
+FirstRecPos	130
+RecLength	32
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	N
+Offset	0
+Length	11
+Dec	0
+Flags	00
+---	---
+FieldN	1
+Name	b
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+---	---
+FieldN	2
+Name	c
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE t1;
+#
+# Testing long column name
+#
+CREATE TABLE t1
+(
+a012345678901234567890123456789 INT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR HY000: DBF: Column name 'a012345678901234567890123456789' is too long (max=10)
+#
+# Testing 2 columns with long names (12)
+#
+CREATE TABLE t1
+(
+a0123456789a INT NOT NULL,
+b0123456789b INT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x11.dbf';
+ERROR HY000: DBF: Column name 'a0123456789a' is too long (max=10)
+#
+# Testing 2 columns with long names (11)
+#
+CREATE TABLE t1
+(
+a012345678a INT NOT NULL,
+b012345678b INT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x12.dbf';
+ERROR HY000: DBF: Column name 'a012345678a' is too long (max=10)
+#
+# Testing 2 columns name length 10 (maximum possible length)
+#
+CREATE TABLE t1
+(
+a01234567a INT NOT NULL,
+b01234567b INT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x13.dbf';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a01234567a` int(11) NOT NULL,
+  `b01234567b` int(11) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t02x13.dbf'
+INSERT INTO t1 VALUES (1,2);
+SELECT * FROM t1;
+a01234567a	b01234567b
+1	2
+DROP TABLE t1;
+#
+# Testing BIGINT
+#
+CREATE TABLE t1
+(
+a bigint NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
+INSERT INTO t1 VALUES (-0x8000000000000000);
+SELECT * FROM t1;
+a
+9223372036854775807
+-9223372036854775808
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	108
+DBF_Version	03
+NRecords	2
+FirstRecPos	66
+RecLength	21
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	N
+Offset	0
+Length	20
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE t1;
+#
+# Testing TINYINT
+#
+CREATE TABLE t1
+(
+a TINYINT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (123);
+SELECT * FROM t1;
+a
+123
+DROP TABLE t1;
+#
+# Testing SMALLINT
+#
+CREATE TABLE t1
+(
+a SMALLINT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (0x7FFF);
+INSERT INTO t1 VALUES (-0x8000);
+SELECT * FROM t1;
+a
+32767
+-32768
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	80
+DBF_Version	03
+NRecords	2
+FirstRecPos	66
+RecLength	7
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	N
+Offset	0
+Length	6
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE t1;
+#
+# Testing VARCHAR
+#
+CREATE TABLE t1
+(
+a VARCHAR(255) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (REPEAT('a',255));
+SELECT LENGTH(a) FROM t1;
+LENGTH(a)
+255
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	322
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	256
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	C
+Offset	0
+Length	255
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE t1;
+#
+# Testing too long CHAR
+# All columns longer than 255 bytes should be rejected
+#
+CREATE TABLE t1
+(
+a CHAR(86) CHARACTER SET utf8 NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR HY000: DBF: Column length too big for 'a' (max=255)
+#
+# Testing too long VARCHAR
+# All columns longer than 255 bytes should be rejected
+#
+CREATE TABLE t1
+(
+a VARCHAR(256) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR HY000: DBF: Column length too big for 'a' (max=255)
+CREATE TABLE t1
+(
+a VARCHAR(86) CHARACTER SET utf8 NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR HY000: DBF: Column length too big for 'a' (max=255)
+CREATE TABLE t1
+(
+a VARCHAR(64000) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR HY000: DBF: Column length too big for 'a' (max=255)
+#
+# Testing BLOB
+#
+CREATE TABLE t1
+(
+a BLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
+CREATE TABLE t1
+(
+a TINYBLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
+CREATE TABLE t1
+(
+a MEDIUMBLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
+CREATE TABLE t1
+(
+a LONGBLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
+#
+# Testing DATE
+#
+CREATE TABLE t1
+(
+a DATE NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES ('2001-01-01');
+SELECT * FROM t1;
+a
+2001-01-01
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	75
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	9
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	D
+Offset	0
+Length	8
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE t1;
+#
+# Testing FLOAT
+#
+CREATE TABLE t1
+(
+a FLOAT(12,4) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (123);
+SELECT * FROM t1;
+a
+123.0000
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	79
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	13
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	F
+Offset	0
+Length	12
+Dec	4
+Flags	00
+--------	--------
+DROP TABLE t1;
+#
+# Testing double
+#
+CREATE TABLE t1
+(
+a DOUBLE(20,5) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (123);
+INSERT INTO t1 VALUES (123456789.12345);
+SELECT * FROM t1;
+a
+123.00000
+123456789.12345
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	108
+DBF_Version	03
+NRecords	2
+FirstRecPos	66
+RecLength	21
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	F
+Offset	0
+Length	20
+Dec	5
+Flags	00
+--------	--------
+DROP TABLE IF EXISTS t1;
+#
+# Testing ALTER
+#
+CREATE TABLE t1
+(
+a VARCHAR(10) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1c.dbf';
+INSERT INTO t1 VALUES ('10');
+SELECT * FROM t1;
+a
+10
+CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
+--------	--------
+FileSize	77
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	11
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+--------	--------
+ALTER TABLE t1 MODIFY a VARCHAR(10) NOT NULL;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1c.dbf'
+SELECT * FROM t1;
+a
+10
+CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
+--------	--------
+FileSize	77
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	11
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+--------	--------
+ALTER TABLE t1 MODIFY a INT(10) NOT NULL;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1c.dbf'
+SELECT * FROM t1;
+a
+10
+CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
+--------	--------
+FileSize	77
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	11
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE IF EXISTS t1;
+#
+# Testing NULL
+#
+CREATE TABLE t1
+(
+c1 VARCHAR(10) NOT NULL,
+c2 VARCHAR(10) NOT NULL DEFAULT 'def',
+i1 INT NOT NULL,
+i2 INT NOT NULL DEFAULT 123
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES ('10','10',10,10);
+INSERT INTO t1(c1,i1) VALUES ('20',20);
+INSERT INTO t1 VALUES ('30',DEFAULT,30,DEFAULT);
+SELECT * FROM t1;
+c1	c2	i1	i2
+10	10	10	10
+20	def	20	123
+30	def	30	123
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	291
+DBF_Version	03
+NRecords	3
+FirstRecPos	162
+RecLength	43
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	c1
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+---	---
+FieldN	1
+Name	c2
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+---	---
+FieldN	2
+Name	i1
+Type	N
+Offset	0
+Length	11
+Dec	0
+Flags	00
+---	---
+FieldN	3
+Name	i2
+Type	N
+Offset	0
+Length	11
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE IF EXISTS t1;
+DROP PROCEDURE test.dbf_field;
+DROP PROCEDURE test.dbf_header;

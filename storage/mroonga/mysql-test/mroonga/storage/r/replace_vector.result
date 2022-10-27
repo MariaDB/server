@@ -1,0 +1,29 @@
+DROP TABLE IF EXISTS vector_replace;
+DROP TABLE IF EXISTS vector_replace_vec;
+CREATE TABLE vector_replace_vec (
+vec CHAR(10) PRIMARY KEY
+) DEFAULT CHARSET=utf8
+COMMENT='default_tokenizer "TokenDelimit"';
+CREATE TABLE vector_replace (
+id INT NOT NULL,
+vec TEXT COMMENT 'flags "COLUMN_VECTOR", type "vector_replace_vec"',
+PRIMARY KEY(id)
+) DEFAULT CHARSET=utf8;
+INSERT INTO vector_replace VALUES(1, 'first second third');
+SELECT id, vec FROM vector_replace;
+id	vec
+1	FIRST SECOND THIRD
+REPLACE INTO vector_replace VALUES(1, 'fourth fifth');
+SELECT id, vec FROM vector_replace;
+id	vec
+1	FOURTH FIFTH
+INSERT INTO vector_replace VALUES(1, 'sixth seventh') ON DUPLICATE KEY UPDATE vec = 'sixth seventh';
+SELECT id, vec FROM vector_replace;
+id	vec
+1	SIXTH SEVENTH
+UPDATE vector_replace SET vec = 'eighth nineth tenth';
+SELECT id, vec FROM vector_replace;
+id	vec
+1	EIGHTH NINETH TENTH
+DROP TABLE vector_replace;
+DROP TABLE vector_replace_vec;

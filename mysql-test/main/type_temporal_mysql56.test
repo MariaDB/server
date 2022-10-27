@@ -1,0 +1,23 @@
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file std_data/mysql56time.frm $MYSQLD_DATADIR/test/mysql56time.frm
+--copy_file std_data/mysql56time.MYD $MYSQLD_DATADIR/test/mysql56time.MYD
+--copy_file std_data/mysql56time.MYI $MYSQLD_DATADIR/test/mysql56time.MYI
+SHOW CREATE TABLE mysql56time;
+--query_vertical SELECT * FROM mysql56time
+DROP TABLE mysql56time;
+
+--copy_file std_data/mysql56datetime.frm $MYSQLD_DATADIR/test/mysql56datetime.frm
+--copy_file std_data/mysql56datetime.MYD $MYSQLD_DATADIR/test/mysql56datetime.MYD
+--copy_file std_data/mysql56datetime.MYI $MYSQLD_DATADIR/test/mysql56datetime.MYI
+SHOW CREATE TABLE mysql56datetime;
+--query_vertical SELECT * FROM mysql56datetime
+DROP TABLE mysql56datetime;
+
+--copy_file std_data/mysql56timestamp.frm $MYSQLD_DATADIR/test/mysql56timestamp.frm
+--copy_file std_data/mysql56timestamp.MYD $MYSQLD_DATADIR/test/mysql56timestamp.MYD
+--copy_file std_data/mysql56timestamp.MYI $MYSQLD_DATADIR/test/mysql56timestamp.MYI
+SET TIME_ZONE='+00:00';
+SHOW CREATE TABLE mysql56timestamp;
+--query_vertical SELECT * FROM mysql56timestamp
+DROP TABLE mysql56timestamp;

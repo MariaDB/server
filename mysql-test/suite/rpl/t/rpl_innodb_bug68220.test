@@ -1,0 +1,53 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+#
+# Bug#68220: innodb_rows_updated is misleading on slave when *info_repository=TABLE
+#
+
+# created all the base variables at the beginning at the test
+--connection master
+select variable_value into @master_rows_read from information_schema.global_status where variable_name = 'innodb_rows_read';
+select variable_value into @master_rows_updated from information_schema.global_status where variable_name = 'innodb_rows_updated';
+select variable_value into @master_rows_deleted from information_schema.global_status where variable_name = 'innodb_rows_deleted';
+select variable_value into @master_rows_inserted from information_schema.global_status where variable_name = 'innodb_rows_inserted';
+select variable_value into @master_system_rows_read from information_schema.global_status where variable_name = 'innodb_system_rows_read';
+select variable_value into @master_system_rows_updated from information_schema.global_status where variable_name = 'innodb_system_rows_updated';
+select variable_value into @master_system_rows_deleted from information_schema.global_status where variable_name = 'innodb_system_rows_deleted';
+select variable_value into @master_system_rows_inserted from information_schema.global_status where variable_name = 'innodb_system_rows_inserted';
+
+--connection slave
+select variable_value into @slave_rows_read from information_schema.global_status where variable_name = 'innodb_rows_read';
+select variable_value into @slave_rows_updated from information_schema.global_status where variable_name = 'innodb_rows_updated';
+select variable_value into @slave_rows_deleted from information_schema.global_status where variable_name = 'innodb_rows_deleted';
+select variable_value into @slave_rows_inserted from information_schema.global_status where variable_name = 'innodb_rows_inserted';
+select variable_value into @slave_system_rows_read from information_schema.global_status where variable_name = 'innodb_system_rows_read';
+select variable_value into @slave_system_rows_updated from information_schema.global_status where variable_name = 'innodb_system_rows_updated';
+select variable_value into @slave_system_rows_deleted from information_schema.global_status where variable_name = 'innodb_system_rows_deleted';
+select variable_value into @slave_system_rows_inserted from information_schema.global_status where variable_name = 'innodb_system_rows_inserted';
+
+--connection master
+CREATE DATABASE testdb;
+USE testdb;
+CREATE TABLE testdb.t1 (i int NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+
+# insert a row and show counters on master and slave
+INSERT INTO testdb.t1 VALUES (1);
+--source suite/rpl/include/rpl_innodb_rows_counters.inc
+
+# update the row and show counters on master and slave
+UPDATE t1 SET i=2 WHERE i=1;
+--sync_slave_with_master
+--source suite/rpl/include/rpl_innodb_rows_counters.inc
+
+# delete the row and show counters on master and slave
+DELETE FROM t1 WHERE i=2;
+--source suite/rpl/include/rpl_innodb_rows_counters.inc
+
+# clean the test
+DROP TABLE t1;
+DROP DATABASE testdb;
+--sync_slave_with_master
+
+--source include/rpl_end.inc

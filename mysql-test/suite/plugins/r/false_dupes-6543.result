@@ -1,0 +1,5 @@
+install soname 'ha_federated';
+install soname 'ha_federated';
+install soname 'ha_federatedx';
+ERROR HY000: Function 'FEDERATED' already exists
+uninstall soname 'ha_federated';

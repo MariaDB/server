@@ -1,0 +1,347 @@
+create table t1(
+x int unsigned,
+y int unsigned,
+sys_start SYS_TYPE as row start invisible,
+sys_end SYS_TYPE as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning engine=ENGINE;
+insert into t1 (x, y) values
+(0, 100),
+(1, 101),
+(2, 102),
+(3, 103),
+(4, 104),
+(5, 105),
+(6, 106),
+(7, 107),
+(8, 108),
+(9, 109);
+set @t0= now(6);
+select sys_start from t1 limit 1 into @x0;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+delete from t1 where x = 3;
+delete from t1 where x > 7;
+insert into t1(x, y) values(3, 33);
+select sys_start from t1 where x = 3 and y = 33 into @t1;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select x, y from t1;
+x	y
+0	100
+1	101
+2	102
+4	104
+5	105
+6	106
+7	107
+3	33
+select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
+ASOF_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+select x as FROMTO_x, y from t1 for system_time from '1970-01-01 00:00' to timestamp @t1;
+FROMTO_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+select x as BETWAND_x, y from t1 for system_time between '1970-01-01 00:00' and timestamp @t1;
+BETWAND_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+3	33
+select x as ALL_x, y from t1 for system_time all;
+ALL_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+3	33
+select x as ASOF2_x, y from t1 for system_time as of @t0;
+ASOF2_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+select x as FROMTO2_x, y from t1 for system_time from '1970-01-01 00:00' to @t1;
+FROMTO2_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+select x as BETWAND2_x, y from t1 for system_time between timestamp '1970-01-01 00:00' and timestamp @t1;
+BETWAND2_x	y
+0	100
+1	101
+2	102
+3	103
+4	104
+5	105
+6	106
+7	107
+8	108
+9	109
+3	33
+drop table t1;
+create table t1(
+x int,
+y int,
+sys_start SYS_TYPE as row start invisible,
+sys_end SYS_TYPE as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning engine=ENGINE;
+create table t2 like t1;
+insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
+insert into t2 values (1, 2), (2, 1), (3, 1);
+set @t0= now(6);
+select t1.x as IJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x;
+IJ1_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+select t1.x as LJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x;
+LJ1_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+4	4	NULL	NULL
+5	5	NULL	NULL
+select t1.x as RJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x;
+RJ1_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+NULL	NULL	2	1
+NULL	NULL	3	1
+delete from t1;
+delete from t2;
+select IJ2_x1,y1,x2,y2 from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+IJ2_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+select LJ2_x1,y1,x2,y2 from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+LJ2_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+4	4	NULL	NULL
+5	5	NULL	NULL
+select RJ2_x1,y1,x2,y2 from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+RJ2_x1	y1	x2	y2
+1	1	1	2
+1	2	1	2
+1	3	1	2
+NULL	NULL	2	1
+NULL	NULL	3	1
+drop table t1;
+drop table t2;
+# MDEV-14686 Server crashes in Item_field::used_tables on 2nd call of SP [#422]
+create or replace table t1 (called int, bad int) with system versioning;
+create or replace procedure bad() select * from t1 where bad in (select called from t1);
+called	bad
+called	bad
+called	bad
+called	bad
+called	bad
+called	bad
+called	bad
+called	bad
+# bad() is good.
+# MDEV-14751 Server crashes in TABLE::versioned on 2nd execution of SP [#431]
+create or replace table t1 (called_bad int);
+create or replace table t2 (b int);
+create or replace procedure bad() select * from t1 where ( 5, 6 ) in ( select b, b from t2 ) and called_bad in ( select max(b) from t2 );
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+# bad() is good.
+# MDEV-14786 Server crashes in Item_cond::transform on 2nd execution of SP querying from a view [#436]
+create or replace table t1 (called_bad int) with system versioning;
+create or replace view v1 as select called_bad from t1 where called_bad < 5;
+create or replace procedure bad() select called_bad from v1;
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+called_bad
+# bad() is good.
+# wildcard expansion on hidden fields.
+create or replace table t1(
+A int
+) with system versioning;
+insert into t1 values(1);
+select * from t1;
+A
+1
+create or replace table t1 (x int);
+insert into t1 values (1);
+select * from t1 for system_time all;
+ERROR HY000: Table `t1` is not system-versioned
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+select * from t1 for system_time as of now() for update;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+create or replace table t1 (a int not null auto_increment primary key) with system versioning;
+select * from (t1 as t2 left join t1 as t3 using (a)) natural left join t1;
+a
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (a int) with system versioning;
+insert into t1 values(1);
+insert into t2 values(1);
+create or replace view v1 as select * from t2 inner join t1 using (a);
+select * from v1;
+a
+1
+drop view v1;
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create view vt1 as select a from t1;
+select * from t1 natural join vt1;
+a
+1
+drop view vt1;
+create or replace table t1(x int) with system versioning;
+select * from (t1 as r left join t1 as u using (x)), t1;
+x	x
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create trigger read_end after update on t1
+for each row set @end = old.row_end;
+update t1 set a=2;
+select @end;
+@end
+MAX_RESULT
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (b int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+select * from (select * from t1 cross join t2) as tmp;
+a	b
+1	2
+select * from (select * from (select * from t1 cross join t2) as tmp1) as tmp2;
+a	b
+1	2
+select * from (select * from t1 cross join t2 for system_time as of timestamp ('1970-01-01 00:00')) as tmp;
+a	b
+create or replace table t1(a1 int) with system versioning;
+create or replace table t2(a2 int) with system versioning;
+insert into t1 values(1),(2);
+insert into t2 values(1),(2);
+select * from t1 for system_time all natural left join t2 for system_time all;
+a1	a2
+1	1
+2	1
+1	2
+2	2
+create or replace table t1(a1 int) with system versioning;
+create or replace table t2(a2 int) with system versioning;
+insert into t1 values(1),(2);
+insert into t2 values(1),(2);
+create or replace view v1 as select a1 from t1;
+select * from v1 natural join t2;
+a1	a2
+1	1
+2	1
+1	2
+2	2
+select * from v1 natural left join t2;
+a1	a2
+1	1
+2	1
+1	2
+2	2
+select * from v1 natural right join t2;
+a2	a1
+1	1
+2	1
+1	2
+2	2
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+insert into t1 values (2);
+insert into t1 values (3);
+select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
+a	a
+2	1
+3	1
+2	2
+3	2
+2	3
+3	3
+1	NULL
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int) with system versioning;
+insert into t1 values (1), (2), (3);
+delete from t1 where x = 3;
+insert into t2 values (1);
+select * from t1, t2 for system_time all;
+x	y
+1	1
+2	1
+select * from (select * from t1 for system_time all, t2 for system_time all) for system_time all as t;
+ERROR HY000: Table `t` is not system-versioned
+select * from (t1 for system_time all join t2 for system_time all) for system_time all;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'system_time all' at line 1
+# MDEV-16043 Assertion thd->Item_change_list::is_empty() failed in mysql_parse upon SELECT from a view reading from a versioned table
+create or replace table t1 (a int) with system versioning;
+create or replace view v1 as select * from t1;
+prepare stmt from "select * from t1 where exp( '20010609211642053929' )";
+execute stmt;
+ERROR 22003: DOUBLE value is out of range in 'exp('20010609211642053929')'
+select a from v1;
+a
+drop view v1;
+drop table t1, t2;

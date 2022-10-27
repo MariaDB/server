@@ -1,0 +1,69 @@
+--source include/have_innodb.inc
+--source include/default_charset.inc
+# need to restart server
+--source include/not_embedded.inc
+CREATE SCHEMA `repro`;
+
+CREATE TABLE `repro`.`crew` (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`code` varchar(50) NOT NULL,
+`name` varchar(50) NOT NULL,
+`created_at` timestamp NULL DEFAULT NULL,
+`updated_at` timestamp NULL DEFAULT NULL,
+PRIMARY KEY (`id`),
+KEY `code` (`code`)
+) ENGINE=InnoDB;
+
+CREATE TABLE `repro`.`pilot` (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`code` varchar(50) NOT NULL,
+`name` varchar(50) NOT NULL,
+`created_at` timestamp NULL DEFAULT NULL,
+`updated_at` timestamp NULL DEFAULT NULL,
+PRIMARY KEY (`id`),
+KEY `code` (`code`)
+) ENGINE=InnoDB;
+
+CREATE TABLE `repro`.`crew_role_assigned` (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`crew_id` int(11) NOT NULL,
+`role_code` varchar(50) NOT NULL,
+PRIMARY KEY (`id`),
+KEY `fk_crewRoleAssigned_roleCode` (`role_code`),
+CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `repro`.`crew` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `repro`.`pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB COMMENT="This is a comment about tables";
+
+-- let $restart_parameters=--innodb-read-only
+-- source include/restart_mysqld.inc
+
+--error ER_OPEN_AS_READONLY
+ALTER TABLE `repro`.`crew_role_assigned` COMMENT = 'innodb_read_only';
+SHOW CREATE TABLE `repro`.`crew_role_assigned`;
+
+# These should be ignored in innodb_read_only mode.
+SET GLOBAL innodb_buffer_pool_load_now = ON;
+SET GLOBAL innodb_buffer_pool_dump_now = ON;
+SET GLOBAL innodb_buffer_pool_load_abort = ON;
+
+-- let $restart_parameters=
+-- source include/restart_mysqld.inc
+
+ALTER TABLE `repro`.`crew_role_assigned` COMMENT = "This is a new comment about tables";
+SHOW CREATE TABLE `repro`.`crew_role_assigned`;
+
+-- let $restart_parameters=--innodb-read-only
+-- source include/restart_mysqld.inc
+
+#
+# Below create table should contain also fk definitions
+#
+SHOW CREATE TABLE `repro`.`crew_role_assigned`;
+
+-- let $restart_parameters=
+-- source include/restart_mysqld.inc
+
+DROP TABLE `repro`.`crew_role_assigned`;
+DROP TABLE `repro`.`pilot`;
+DROP TABLE `repro`.`crew`;
+DROP SCHEMA `repro`;

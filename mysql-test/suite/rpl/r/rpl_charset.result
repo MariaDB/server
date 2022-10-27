@@ -1,0 +1,147 @@
+include/master-slave.inc
+[connection master]
+set timestamp=1000000000;
+create database mysqltest2 character set latin2;
+set @@character_set_server=latin5;
+create database mysqltest3;
+show create database mysqltest2;
+Database	Create Database
+mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin2 */
+show create database mysqltest3;
+Database	Create Database
+mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin5 */
+connection slave;
+show create database mysqltest2;
+Database	Create Database
+mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin2 */
+show create database mysqltest3;
+Database	Create Database
+mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin5 */
+connection master;
+set @@collation_server=armscii8_bin;
+drop database mysqltest3;
+create database mysqltest3;
+show create database mysqltest3;
+Database	Create Database
+mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET armscii8 COLLATE armscii8_bin */
+connection slave;
+show create database mysqltest3;
+Database	Create Database
+mysqltest3	CREATE DATABASE `mysqltest3` /*!40100 DEFAULT CHARACTER SET armscii8 COLLATE armscii8_bin */
+connection master;
+use mysqltest2;
+create table t1 (a int auto_increment primary key, b varchar(100));
+set character_set_client=cp850, collation_connection=latin2_croatian_ci;
+insert into t1 (b) values(@@character_set_server);
+insert into t1 (b) values(@@collation_server);
+insert into t1 (b) values(@@character_set_client);
+insert into t1 (b) values(@@character_set_connection);
+insert into t1 (b) values(@@collation_connection);
+select * from t1 order by a;
+a	b
+1	armscii8
+2	armscii8_bin
+3	cp850
+4	latin2
+5	latin2_croatian_ci
+connection slave;
+select * from mysqltest2.t1 order by a;
+a	b
+1	armscii8
+2	armscii8_bin
+3	cp850
+4	latin2
+5	latin2_croatian_ci
+connection master;
+set character_set_client=latin1, collation_connection=latin1_german1_ci;
+truncate table t1;
+insert into t1 (b) values(@@collation_connection);
+insert into t1 (b) values(LEAST("Müller","Muffler"));
+set collation_connection=latin1_german2_ci;
+insert into t1 (b) values(@@collation_connection);
+insert into t1 (b) values(LEAST("Müller","Muffler"));
+select * from t1 order by a;
+a	b
+1	latin1_german1_ci
+2	Muffler
+3	latin1_german2_ci
+4	Müller
+connection slave;
+select * from mysqltest2.t1 order by a;
+a	b
+1	latin1_german1_ci
+2	Muffler
+3	latin1_german2_ci
+4	Müller
+connection master;
+set @a= _cp850 'Müller' collate cp850_general_ci;
+truncate table t1;
+insert into t1 (b) values(collation(@a));
+select * from t1 order by a;
+a	b
+1	cp850_general_ci
+connection slave;
+select * from mysqltest2.t1 order by a;
+a	b
+1	cp850_general_ci
+connection master;
+drop database mysqltest2;
+drop database mysqltest3;
+connection slave;
+set global character_set_server=latin2;
+set global character_set_server=latin1;
+connection master;
+set global character_set_server=latin2;
+set global character_set_server=latin1;
+set character_set_client=9999999;
+ERROR 42000: Unknown character set: '9999999'
+set collation_server=9999998;
+ERROR HY000: Unknown collation: '9999998'
+use test;
+CREATE TABLE t1 (c1 VARBINARY(255), c2 VARBINARY(255));
+SET CHARACTER_SET_CLIENT=koi8r,
+CHARACTER_SET_CONNECTION=cp1251, 
+CHARACTER_SET_RESULTS=koi8r;
+INSERT INTO t1 (c1, c2) VALUES ('îÕ, ÚÁ ÒÙÂÁÌËÕ','îÕ, ÚÁ ÒÙÂÁÌËÕ');
+select hex(c1), hex(c2) from t1;
+hex(c1)	hex(c2)
+CDF32C20E7E020F0FBE1E0EBEAF3	CDF32C20E7E020F0FBE1E0EBEAF3
+connection slave;
+select hex(c1), hex(c2) from t1;
+hex(c1)	hex(c2)
+CDF32C20E7E020F0FBE1E0EBEAF3	CDF32C20E7E020F0FBE1E0EBEAF3
+connection master;
+drop table t1;
+connection slave;
+connection master;
+create table `t1` (
+`pk` varchar(10) not null default '', 
+primary key (`pk`)
+) engine=myisam default charset=latin1;
+set @p=_latin1 'test';
+update t1 set pk='test' where pk=@p;
+drop table t1;
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12685 Oracle-compatible function CHR()
+#
+connection master;
+CREATE DATABASE db1 DEFAULT CHARACTER SET latin1 COLLATE latin1_bin;
+USE db1;
+CREATE TABLE t1 AS SELECT CHR(0x60);
+connection slave;
+SHOW CREATE TABLE db1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `CHR(0x60)` varchar(4) COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_bin
+connection master;
+USE test;
+DROP DATABASE db1;
+connection slave;
+#
+# End of 10.3 tests
+#
+include/rpl_end.inc

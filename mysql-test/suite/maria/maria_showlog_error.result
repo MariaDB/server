@@ -1,0 +1,16 @@
+connect  admin, localhost, root,,test,,;
+connection default;
+connection default;
+connection admin;
+* shut down mysqld, removed logs, restarted it
+connection default;
+connection default;
+show engine aria logs;
+Type	Name	Status
+Aria	Size unknown ; aria_log.00000001	can't stat
+connection default;
+connection admin;
+* shut down mysqld, removed logs, restarted it
+connection default;
+disconnect admin;
+connection default;

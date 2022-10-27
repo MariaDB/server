@@ -1,0 +1,38 @@
+create table t (a int primary key) engine=rocksdb;
+
+begin;
+insert into t values (0);
+
+--source include/count_sessions.inc
+--connect (con1,localhost,root,,)
+--connection con1
+set @@rocksdb_lock_wait_timeout=1;
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+begin;
+
+--connect (con2,localhost,root,,)
+--connection con2
+set @@rocksdb_lock_wait_timeout=1;
+begin;
+
+--connection con1
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_row_lock_wait_timeouts';
+--error ER_LOCK_WAIT_TIMEOUT
+insert into t values(0);
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+select case when variable_value-@a = 1 then 'true' else 'false' end as waits from information_schema.global_status where variable_name='rocksdb_row_lock_wait_timeouts';
+
+--connection con2
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_row_lock_wait_timeouts';
+--error ER_LOCK_WAIT_TIMEOUT
+insert into t values(0);
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+select case when variable_value-@a = 1 then 'true' else 'false' end as waits from information_schema.global_status where variable_name='rocksdb_row_lock_wait_timeouts';
+
+--disconnect con1
+--connection default
+--disconnect con2
+drop table t;
+--source include/wait_until_count_sessions.inc

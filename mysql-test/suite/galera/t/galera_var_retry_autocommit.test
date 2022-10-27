@@ -1,0 +1,143 @@
+#
+# Test that the wsrep_retry_autocommit variable is respected.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+#
+# With wsrep_retry_autocommit = 0, error is certain
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+SET SESSION wsrep_retry_autocommit = 0;
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continue';
+--send INSERT INTO t1 (f1) VALUES (2)
+
+--connection node_1a
+SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
+
+--connection node_2
+TRUNCATE TABLE t1;
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+SELECT COUNT(*) = 0 FROM t1;
+
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+
+
+#
+# With wsrep_retry_autocommit = 1, success against one TRUNCATE
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+SET SESSION wsrep_retry_autocommit = 1;
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continue';
+--send INSERT INTO t1 (f1) VALUES (3)
+
+--connection node_1a
+SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
+
+--connection node_2
+TRUNCATE TABLE t1;
+
+--connection node_1
+--reap
+SELECT COUNT(*) = 1 FROM t1;
+
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+
+
+#
+# With wsrep_retry_autcommit = 1, failure against multiple TRUNCATEs
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+SET SESSION wsrep_retry_autocommit = 1;
+SET GLOBAL debug_dbug = '+d,sync.wsrep_retry_autocommit';
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continue EXECUTE 2';
+
+--send INSERT INTO t1 VALUES (4);
+
+--connection node_1a
+SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
+
+--connection node_2
+TRUNCATE TABLE t1;
+
+--connection node_1a
+SET DEBUG_SYNC = 'now WAIT_FOR wsrep_retry_autocommit_reached';
+SELECT COUNT(*) = 0 FROM t1;
+SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue WAIT_FOR before_cert';
+
+--connection node_2
+TRUNCATE TABLE t1;
+
+--connection node_1a
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL debug_dbug = NULL;
+DROP TABLE t1;
+
+
+#
+# With wsrep_retry_autocommit = 64, success against 64 TRUNCATEs
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+SET SESSION wsrep_retry_autocommit = 64;
+SET GLOBAL debug_dbug = '+d,sync.wsrep_retry_autocommit';
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continue EXECUTE 64';
+
+--send INSERT INTO t1 VALUES (5)
+
+--disable_query_log
+--disable_result_log
+--let $count = 64
+while ($count)
+{
+  --connection node_1a
+  SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
+
+  --connection node_2
+  TRUNCATE TABLE t1;
+
+  --connection node_1a
+  SET DEBUG_SYNC = 'now WAIT_FOR wsrep_retry_autocommit_reached';
+  SELECT COUNT(*) = 1 FROM t1;
+  SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue';
+
+  --dec $count
+}
+--enable_result_log
+--enable_query_log
+
+--connection node_1
+--reap
+SELECT COUNT(*) = 1 FROM t1;
+
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL debug_dbug = NULL;
+DROP TABLE t1;

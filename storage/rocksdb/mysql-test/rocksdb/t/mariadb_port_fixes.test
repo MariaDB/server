@@ -1,0 +1,114 @@
+--source include/have_rocksdb.inc
+
+--echo #
+--echo # MDEV-14433: RocksDB may show empty or incorrect output with rocksdb_strict_collation_check=off
+--echo #
+set global rocksdb_strict_collation_check=off;
+set @tmp_rscc=@@rocksdb_strict_collation_check;
+
+CREATE TABLE t1(
+  a varchar(10) NOT NULL,
+  b char(1) DEFAULT 'X',
+  c char(2) NOT NULL DEFAULT '??',
+  d varchar(10) NOT NULL,
+  e int(11) DEFAULT 0,
+  PRIMARY KEY (a,d),
+  KEY (e)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
+ 
+insert into t1 select 1,1,1,1,0;
+insert into t1 select 2,1,1,1,0;
+insert into t1 select 3,1,1,1,0;
+ 
+--replace_column 9 #
+explain
+select a from t1 force index(e) where e<10000;
+select a from t1;
+select * from t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14563: Wrong query plan for query with no PK
+--echo #
+
+CREATE TABLE t1(
+  pk int primary key,
+  a varchar(10) NOT NULL,   
+  e int(11) DEFAULT 0,   
+  KEY (a) 
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
+insert into t1 values (1,1,1),(2,2,2);
+--replace_column 9 #
+explain select a from t1 where a <'zzz';
+
+CREATE TABLE t2(
+  pk int,
+  a varchar(10) NOT NULL,
+  e int(11) DEFAULT 0,   
+  KEY (a)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
+insert into t2 values (1,1,1),(2,2,2);
+--replace_column 9 #
+explain select a from t2 where a <'zzz';
+
+drop table t1,t2;
+
+set global rocksdb_strict_collation_check=@tmp_rscc;
+
+--echo #
+--echo # MDEV-14389: MyRocks and NOPAD collations
+--echo #
+
+--error ER_MYROCKS_CANT_NOPAD_COLLATION
+create table t1 (pk varchar(10) collate latin1_nopad_bin, primary key(pk)) engine=rocksdb;
+
+set global rocksdb_strict_collation_check=off;
+--error ER_MYROCKS_CANT_NOPAD_COLLATION
+create table t1 (pk varchar(10) collate latin1_nopad_bin, primary key(pk)) engine=rocksdb;
+
+set global rocksdb_strict_collation_check=@tmp_rscc;
+
+--echo #
+--echo # MDEV-14679: RocksdB plugin fails to load with "Loading of unknown plugin ROCKSDB_CFSTATS
+--echo #
+select plugin_name, plugin_maturity from information_schema.plugins where plugin_name like '%rocksdb%';
+
+
+--echo #
+--echo #  MDEV-12466 : Assertion `thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||  ...
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=RocksDB;
+--error ER_ILLEGAL_HA
+FLUSH TABLE t1 FOR EXPORT;
+DROP TABLE t1;
+
+--echo # 
+--echo # MDEV-16154 Server crashes in in myrocks::ha_rocksdb::load_auto_incr_value_from_inde
+--echo # 
+CREATE TABLE t1 (a INT) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 AUTO_INCREMENT 10;
+ 
+DROP TABLE t1;
+
+--echo # 
+--echo # MDEV-16155: UPDATE on RocksDB table with unique constraint does not work
+--echo # 
+CREATE TABLE t1 (a INT, b CHAR(8), UNIQUE INDEX(a)) ENGINE=RocksDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo'),(2,'bar');
+UPDATE t1 SET a=a+100;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15319: [SQL Layer] Server crashes in Field::set_null / myrocks::ha_rocksdb::convert_record_from_storage_format
+--echo #  (just a testcase)
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 ENGINE=RocksDB AS SELECT VALUE(i) AS a FROM t1;
+DELETE FROM t2;
+DROP TABLE t1,t2;

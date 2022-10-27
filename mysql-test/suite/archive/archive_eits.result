@@ -1,0 +1,24 @@
+drop table if exists t1;
+#
+# MDEV-17297: stats.records=0 for a table of Archive engine when it has rows, when we run ANALYZE command
+#
+CREATE TABLE t1 (fid INTEGER PRIMARY KEY AUTO_INCREMENT, g POINT)engine=archive;
+INSERT INTO t1 VALUES 
+(101, PointFromText('POINT(10 10)')),
+(102, PointFromText('POINT(20 10)')),
+(103, PointFromText('POINT(20 20)')),
+(104, PointFromWKB(AsWKB(PointFromText('POINT(10 20)'))));
+set @tmp1= @@optimizer_use_condition_selectivity;
+set @tmp2= @@use_stat_tables;
+set optimizer_use_condition_selectivity=4;
+set use_stat_tables=PREFERABLY;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	note	The storage engine for the table doesn't support analyze
+select * from mysql.table_stats where table_name='t1' and db_name=database();
+db_name	table_name	cardinality
+test	t1	4
+drop table t1;
+set optimizer_use_condition_selectivity=@tmp1;
+set use_stat_tables=@tmp2;

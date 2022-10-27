@@ -1,0 +1,1 @@
+--loose-tokudb-commit-sync=OFF --loose-tokudb-fsync-log-period=1000000

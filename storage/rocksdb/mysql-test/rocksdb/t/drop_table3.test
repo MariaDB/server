@@ -1,0 +1,5 @@
+--source include/have_rocksdb.inc
+
+-- let $truncate_table = 0
+-- let $drop_table = 1
+-- source drop_table3.inc

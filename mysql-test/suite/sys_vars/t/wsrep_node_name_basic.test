@@ -1,0 +1,54 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_node_name
+--echo #
+
+call mtr.add_suppression("WSREP: Failed to get provider options");
+
+--echo # save the initial value
+SET @wsrep_node_name_global_saved = @@global.wsrep_node_name;
+
+--echo # default (expect 1)
+SELECT COUNT(@@global.wsrep_node_name);
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_node_name;
+SET @@global.wsrep_node_name='node_name';
+SELECT @@global.wsrep_node_name;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_node_name='my_node';
+SELECT @@global.wsrep_node_name;
+SET @@global.wsrep_node_name='hyphenated-node-name';
+SELECT @@global.wsrep_node_name;
+SET @@global.wsrep_node_name=default;
+--echo # default (expect 1)
+SELECT COUNT(@@global.wsrep_node_name);
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_node_name=NULL;
+SELECT COUNT(@@global.wsrep_node_name);
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_node_name=1;
+SELECT COUNT(@@global.wsrep_node_name);
+
+--echo #
+--echo # MDEV-6699 : wsrep_node_name not automaticly set to hostname
+--echo #
+SET @@global.wsrep_node_name=default;
+SELECT @@GLOBAL.wsrep_node_name = VARIABLE_VALUE FROM
+INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='hostname';
+SELECT @@GLOBAL.wsrep_node_name = VARIABLE_VALUE FROM
+INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='wsrep_node_name';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_node_name = @wsrep_node_name_global_saved;
+
+--echo # End of test

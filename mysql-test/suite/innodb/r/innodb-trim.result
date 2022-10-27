@@ -1,0 +1,20 @@
+set global innodb_compression_algorithm = 1;
+create table innodb_page_compressed (c1 int not null primary key auto_increment, b char(200), c char(200), d char(200)) engine=innodb page_compressed=1 page_compression_level=9;
+show warnings;
+Level	Code	Message
+create procedure innodb_insert_proc (repeat_count int)
+begin
+declare current_num int;
+set current_num = 0;
+while current_num < repeat_count do
+insert into innodb_page_compressed values (NULL,repeat('A',150),repeat('AB',75),repeat('B', 175));
+set current_num = current_num + 1;
+end while;
+end//
+commit;
+set autocommit=0;
+call innodb_insert_proc(16000);
+commit;
+set autocommit=1;
+DROP PROCEDURE innodb_insert_proc;
+DROP TABLE innodb_page_compressed;

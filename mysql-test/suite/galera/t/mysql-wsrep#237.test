@@ -1,0 +1,34 @@
+# hang because of replicated FLUSH TABLE command
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+
+--connection node_1
+SET DEBUG_SYNC = 'wsrep_before_certification WAIT_FOR continue';
+--send INSERT INTO t values (1);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: wsrep_before_certification'
+--source include/wait_condition.inc
+
+--connection node_2
+FLUSH TABLES;
+
+
+--connection node_1a
+SELECT SLEEP(1);
+
+SET DEBUG_SYNC= 'now SIGNAL continue';
+
+--connection node_1
+--reap
+
+# Cleanup
+DROP TABLE t;
+--connection node_1a
+SET DEBUG_SYNC= 'RESET';

@@ -1,0 +1,144 @@
+call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
+set global event_scheduler=off;
+drop database if exists events_test;
+create database events_test;
+use events_test;
+create table execution_log(name char(10));
+create event abc1 on schedule every 1 second do
+insert into execution_log value('abc1');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+create event abc2 on schedule every 1 second do
+insert into execution_log value('abc2');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+create event abc3 on schedule every 1 second do 
+insert into execution_log value('abc3');
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+create table event_like like mysql.event;
+insert into event_like select * from mysql.event;
+alter table mysql.event
+change column body  body longtext character set utf8 collate utf8_bin;
+"Now we restart the server"
+# restart
+use events_test;
+select @@event_scheduler;
+@@event_scheduler
+OFF
+show events;
+ERROR HY000: Cannot proceed, because event scheduler is disabled
+select event_name from information_schema.events;
+ERROR HY000: Cannot proceed, because event scheduler is disabled
+show create event intact_check;
+ERROR HY000: Cannot proceed, because event scheduler is disabled
+drop event no_such_event;
+ERROR HY000: Cannot proceed, because event scheduler is disabled
+create event intact_check_1 on schedule every 5 hour do select 5;
+ERROR HY000: Cannot proceed, because event scheduler is disabled
+alter event intact_check_1 on schedule every 8 hour do select 8;
+ERROR HY000: Cannot proceed, because event scheduler is disabled
+alter event intact_check_1 rename to intact_check_2;
+ERROR HY000: Cannot proceed, because event scheduler is disabled
+drop event intact_check_1;
+ERROR HY000: Cannot proceed, because event scheduler is disabled
+drop event intact_check_2;
+ERROR HY000: Cannot proceed, because event scheduler is disabled
+drop event intact_check;
+ERROR HY000: Cannot proceed, because event scheduler is disabled
+set global event_scheduler=on;
+ERROR HY000: Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler.
+set global event_scheduler=off;
+ERROR HY000: Event Scheduler: An error occurred when initializing system tables. Disabling the Event Scheduler.
+show variables like 'event_scheduler';
+Variable_name	Value
+event_scheduler	OFF
+Make sure that we still can create and drop databases,
+and no warnings are produced.
+drop database if exists mysqltest_database_not_exists;
+Warnings:
+Note	1008	Can't drop database 'mysqltest_database_not_exists'; database doesn't exist
+create database mysqltest_db1;
+drop database mysqltest_db1;
+Warnings:
+Error	1545	Failed to open mysql.event
+Restore the original mysql.event table
+drop table mysql.event;
+rename table event_like to mysql.event;
+check that we can now enable events without restart
+set global event_scheduler=original;
+Warnings:
+Note	1408	Event Scheduler: Loaded 3 events
+select @@global.event_scheduler;
+@@global.event_scheduler
+ON
+set global event_scheduler=on;
+select @@global.event_scheduler;
+@@global.event_scheduler
+ON
+show events;
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+events_test	abc1	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+events_test	abc2	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+events_test	abc3	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+Now let's restart the server again
+# restart
+use events_test;
+select @@event_scheduler;
+@@event_scheduler
+ON
+drop table execution_log;
+drop database events_test;
+#
+# Test for bug#11748899 -- EVENT SET TO DISABLED AND ON COMPLETION
+#                          NOT PRESERVE IS DELETED AT SERVER
+#
+SELECT @@event_scheduler;
+@@event_scheduler
+ON
+USE test;
+DROP EVENT IF EXISTS e1;
+CREATE EVENT e1 ON SCHEDULE EVERY 1 SECOND DISABLE DO SELECT 1;
+SHOW EVENTS;
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+test	e1	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+"Now we restart the server"
+# restart
+USE test;
+SELECT @@event_scheduler;
+@@event_scheduler
+ON
+SHOW EVENTS;
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+test	e1	root@localhost	SYSTEM	RECURRING	#	1	SECOND	#	#	DISABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP EVENT e1;
+# end test for bug#11748899
+#
+# Test for MDEV-21758 Events switched randomly to SLAVESIDE_DISABLED
+#
+create event ev on schedule every 1 minute do set @a= 1;
+select name, originator, status from mysql.event;
+name	originator	status
+ev	1	ENABLED
+#
+# Restarting server with server_id=100
+#
+# restart: --server-id=100
+select @@global.server_id;
+@@global.server_id
+100
+select name, originator, status from mysql.event;
+name	originator	status
+ev	1	ENABLED
+set global server_id= 1;
+#
+# Restarting server with the original server_id=1
+#
+# restart
+select @@global.server_id;
+@@global.server_id
+1
+select name, originator, status from mysql.event;
+name	originator	status
+ev	1	ENABLED
+drop event ev;

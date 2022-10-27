@@ -1,0 +1,66 @@
+create table t1 (a int primary key) engine=rocksdb;
+Verify rocksdb_rows_inserted
+select variable_value into @old_rows_inserted from information_schema.global_status where variable_name = 'rocksdb_rows_inserted';
+insert into t1 values(1);
+select variable_value into @new_rows_inserted from information_schema.global_status where variable_name = 'rocksdb_rows_inserted';
+select @new_rows_inserted - @old_rows_inserted;
+@new_rows_inserted - @old_rows_inserted
+1
+Verify rocksdb_rows_updated
+select variable_value into @old_rows_updated from information_schema.global_status where variable_name = 'rocksdb_rows_updated';
+update t1 set a=2 where a=1;
+select variable_value into @new_rows_updated from information_schema.global_status where variable_name = 'rocksdb_rows_updated';
+select @new_rows_updated - @old_rows_updated;
+@new_rows_updated - @old_rows_updated
+1
+Verify rocksdb_rows_read
+select variable_value into @old_rows_read from information_schema.global_status where variable_name = 'rocksdb_rows_read';
+select * from t1;
+a
+2
+select variable_value into @new_rows_read from information_schema.global_status where variable_name = 'rocksdb_rows_read';
+select @new_rows_read - @old_rows_read;
+@new_rows_read - @old_rows_read
+1
+Verify rocksdb_rows_deleted
+select variable_value into @old_rows_deleted from information_schema.global_status where variable_name = 'rocksdb_rows_deleted';
+delete from t1;
+select variable_value into @new_rows_deleted from information_schema.global_status where variable_name = 'rocksdb_rows_deleted';
+select @new_rows_deleted - @old_rows_deleted;
+@new_rows_deleted - @old_rows_deleted
+1
+use mysql;
+create table t1(a int primary key) engine=rocksdb;
+Verify rocksdb_system_rows_inserted
+select variable_value into @old_system_rows_inserted from information_schema.global_status where variable_name = 'rocksdb_system_rows_inserted';
+insert into t1 values(1);
+select variable_value into @new_system_rows_inserted from information_schema.global_status where variable_name = 'rocksdb_system_rows_inserted';
+select @new_system_rows_inserted - @old_system_rows_inserted;
+@new_system_rows_inserted - @old_system_rows_inserted
+1
+Verify rocksdb_system_rows_updated
+select variable_value into @old_system_rows_updated from information_schema.global_status where variable_name = 'rocksdb_system_rows_updated';
+update t1 set a=2 where a=1;
+select variable_value into @new_system_rows_updated from information_schema.global_status where variable_name = 'rocksdb_system_rows_updated';
+select @new_system_rows_updated - @old_system_rows_updated;
+@new_system_rows_updated - @old_system_rows_updated
+1
+Verify rocksdb_system_rows_read
+select variable_value into @old_system_rows_read from information_schema.global_status where variable_name = 'rocksdb_system_rows_read';
+select * from t1;
+a
+2
+select variable_value into @new_system_rows_read from information_schema.global_status where variable_name = 'rocksdb_system_rows_read';
+select @new_system_rows_read - @old_system_rows_read;
+@new_system_rows_read - @old_system_rows_read
+1
+Verify rocksdb_system_rows_deleted
+select variable_value into @old_system_rows_deleted from information_schema.global_status where variable_name = 'rocksdb_system_rows_deleted';
+delete from t1;
+select variable_value into @new_system_rows_deleted from information_schema.global_status where variable_name = 'rocksdb_system_rows_deleted';
+select @new_system_rows_deleted - @old_system_rows_deleted;
+@new_system_rows_deleted - @old_system_rows_deleted
+1
+drop table t1;
+use test;
+drop table t1;

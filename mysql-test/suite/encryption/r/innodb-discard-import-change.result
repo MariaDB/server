@@ -1,0 +1,104 @@
+call mtr.add_suppression("InnoDB: Table .* tablespace is set as discarded");
+SET GLOBAL innodb_compression_algorithm = 1;
+create table t1(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb encrypted=yes encryption_key_id=4;
+create table t2(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
+create table t3(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb page_compressed=yes;
+create table t4(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb page_compressed=yes encrypted=yes encryption_key_id=4;
+create table t5(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb;
+insert into t1 values (NULL, 'verysecretmessage');
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t1(b) select b from t1;
+insert into t2 select * from t1;
+insert into t3 select * from t1;
+insert into t4 select * from t1;
+insert into t5 select * from t1;
+FLUSH TABLE t1,t2,t3,t4,t5 FOR EXPORT;
+backup: t1
+backup: t2
+backup: t3
+backup: t4
+backup: t5
+db.opt
+t1.cfg
+t1.frm
+t1.ibd
+t2.cfg
+t2.frm
+t2.ibd
+t3.cfg
+t3.frm
+t3.ibd
+t4.cfg
+t4.frm
+t4.ibd
+t5.cfg
+t5.frm
+t5.ibd
+UNLOCK TABLES;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t2 DISCARD TABLESPACE;
+ALTER TABLE t3 DISCARD TABLESPACE;
+ALTER TABLE t4 DISCARD TABLESPACE;
+ALTER TABLE t5 DISCARD TABLESPACE;
+DROP TABLE t1;
+DROP TABLE t3;
+DROP TABLE t4;
+DROP TABLE t5;
+create table t6(a int) engine=innodb;
+create table t5(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb;
+create table t3(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb page_compressed=yes;
+create table t1(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb encrypted=yes encryption_key_id=4;
+create table t4(c1 bigint not null primary key auto_increment, b char(200))  engine=innodb page_compressed=yes encrypted=yes encryption_key_id=4;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t3 DISCARD TABLESPACE;
+ALTER TABLE t4 DISCARD TABLESPACE;
+ALTER TABLE t5 DISCARD TABLESPACE;
+restore: t1 .ibd and .cfg files
+restore: t2 .ibd and .cfg files
+restore: t3 .ibd and .cfg files
+restore: t4 .ibd and .cfg files
+restore: t5 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) NOT NULL AUTO_INCREMENT,
+  `b` char(200) DEFAULT NULL,
+  PRIMARY KEY (`c1`)
+) ENGINE=InnoDB AUTO_INCREMENT=504 DEFAULT CHARSET=latin1 `encrypted`=yes `encryption_key_id`=4
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+256
+ALTER TABLE t2 IMPORT TABLESPACE;
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+256
+ALTER TABLE t3 IMPORT TABLESPACE;
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+256
+ALTER TABLE t4 IMPORT TABLESPACE;
+SELECT COUNT(*) FROM t4;
+COUNT(*)
+256
+ALTER TABLE t5 IMPORT TABLESPACE;
+SELECT COUNT(*) FROM t5;
+COUNT(*)
+256
+# t1 encrypted expecting NOT FOUND
+NOT FOUND /verysecretmessage/ in t1.ibd
+# t2 encrypted expecting NOT FOUND
+NOT FOUND /verysecretmessage/ in t2.ibd
+# t3 page compressed expecting NOT FOUND
+NOT FOUND /verysecretmessage/ in t3.ibd
+# t4 page compressed and encrypted expecting NOT FOUND
+NOT FOUND /verysecretmessage/ in t4.ibd
+# t5 normal expecting FOUND
+FOUND 289 /verysecretmessage/ in t5.ibd
+DROP TABLE t1,t2,t3,t4,t5,t6;

@@ -1,0 +1,27 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-23991 dict_table_stats_lock() has unnecessarily long scope
+--echo #
+CREATE TABLE t1(a INT) ENGINE=INNODB STATS_PERSISTENT=1;
+
+SET DEBUG_SYNC='dict_stats_update_persistent SIGNAL stop WAIT_FOR go';
+--send ANALYZE TABLE t1
+
+--connect(con1, localhost, root)
+SET DEBUG_SYNC='now WAIT_FOR stop';
+
+SELECT ENGINE,SUM(DATA_LENGTH+INDEX_LENGTH),COUNT(ENGINE),SUM(DATA_LENGTH),SUM(INDEX_LENGTH) FROM information_schema.TABLES WHERE ENGINE='InnoDB';
+
+SET DEBUG_SYNC='now SIGNAL go';
+--disconnect con1
+
+--connection default
+--reap
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc

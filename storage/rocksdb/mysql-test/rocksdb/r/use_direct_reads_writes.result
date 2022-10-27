@@ -1,0 +1,22 @@
+call mtr.add_suppression("rocksdb");
+call mtr.add_suppression("Aborting");
+# This shows that RocksDB plugin is loaded:
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
+plugin_name	plugin_type
+ROCKSDB	STORAGE ENGINE
+Checking direct reads
+# restart
+FOUND 1 /enable both use_direct_reads/ in use_direct_reads_writes.err
+Checking direct writes
+# restart
+FOUND 1 /enable both use_direct_io_for_flush_and_compaction/ in use_direct_reads_writes.err
+Checking rocksdb_flush_log_at_trx_commit
+# restart
+FOUND 1 /rocksdb_flush_log_at_trx_commit needs to be/ in use_direct_reads_writes.err
+Validate flush_log settings when direct writes is enabled
+set global rocksdb_flush_log_at_trx_commit=0;
+set global rocksdb_flush_log_at_trx_commit=1;
+ERROR 42000: Variable 'rocksdb_flush_log_at_trx_commit' can't be set to the value of '1'
+set global rocksdb_flush_log_at_trx_commit=2;
+ERROR 42000: Variable 'rocksdb_flush_log_at_trx_commit' can't be set to the value of '2'
+# restart

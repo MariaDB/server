@@ -1,0 +1,144 @@
+-- source include/have_archive.inc
+let $mysqld_datadir= `select @@datadir`;
+
+create table t1 (a int) engine=archive;
+show create table t1;
+insert t1 values (1);
+show tables;
+
+--echo #
+--echo # simple discover on use
+--echo #
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+insert t1 values (2);
+select * from t1;
+--list_files $mysqld_datadir/test
+
+--echo #
+--echo # show tables
+--echo #
+create table t2 (a int) engine=archive;
+select * from t2;
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+show tables;
+--list_files $mysqld_datadir/test
+
+--echo #
+--echo # show full tables
+--echo #
+flush tables;
+show full tables;
+--list_files $mysqld_datadir/test
+
+--echo #
+--echo # discover on truncate
+--echo #
+flush tables;
+--error ER_ILLEGAL_HA
+truncate table t1;
+--list_files $mysqld_datadir/test
+
+--echo #
+--echo # discover on rename
+--echo #
+remove_file $mysqld_datadir/test/t2.frm;
+flush tables;
+rename table t2 to t0;
+--list_files $mysqld_datadir/test
+
+--echo #
+--echo # discover on HA_ERR_TABLE_DEF_CHANGED
+--echo #
+copy_file $mysqld_datadir/test/t1.ARZ $MYSQL_TMP_DIR/t1.ARZ;
+alter table t1 modify a int default 5;
+remove_file $mysqld_datadir/test/t1.ARZ;
+copy_file $MYSQL_TMP_DIR/t1.ARZ $mysqld_datadir/test/t1.ARZ;
+remove_file $MYSQL_TMP_DIR/t1.ARZ;
+show create table t1;
+
+--echo #
+--echo # discover on drop
+--echo #
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+drop table t1;
+--list_files $mysqld_datadir/test
+
+--echo #
+--echo # discover of table non-existance on drop
+--echo #
+select * from t0;
+remove_file $mysqld_datadir/test/t0.ARZ;
+flush tables;
+drop table t0;
+--list_files $mysqld_datadir/test
+show status like 'Handler_discover';
+
+--echo #
+--echo # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
+--echo #
+
+create table t1 (a int) engine=archive;
+show create table t1;
+insert into t1 values (1);
+optimize table t1;
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+insert into t1 values (2);
+select * from t1 order by a;
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # BUG#58205 - Valgrind failure in fn_format when called from
+--echo #             archive_discover
+--echo #
+create table `a/../`(a int) engine=archive;
+select * from `a/../`; flush tables;
+remove_file $mysqld_datadir/test/a@002f@002e@002e@002f.frm;
+drop table `a/../`;
+
+#
+# MDEV-4441 DROP DATABASE with a newly created ARCHIVE table does not work
+#
+create database test1;
+create table test1.t1 (i int) engine=archive;
+drop database test1;
+
+#
+# MDEV-4456 Reverse discovery of ARCHIVE table on SELECT after disappearance of ARZ file
+#
+create table t1 (a int) engine=archive;
+select * from t1;
+flush tables;
+remove_file $mysqld_datadir/test/t1.ARZ;
+--error ER_NO_SUCH_TABLE
+select * from t1;
+--list_files $mysqld_datadir/test
+
+#
+# MDEV-4955 discover of table non-existance on CREATE
+#
+create table t1 (a int) engine=archive;
+select * from t1;
+flush tables;
+remove_file $mysqld_datadir/test/t1.ARZ;
+create table t1 (a int) engine=archive;
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+--error ER_TABLE_EXISTS_ERROR
+create table t1 (a int) engine=archive;
+drop table t1;
+
+#
+# MDEV-11317: Error in deleting non existing .frm for tables with disocvery
+#
+
+CREATE OR REPLACE TABLE t1 ( pk INT AUTO_INCREMENT PRIMARY KEY ) ENGINE = ARCHIVE;
+CREATE OR REPLACE TABLE t1 ( pk INT AUTO_INCREMENT PRIMARY KEY ) ENGINE = ARCHIVE;
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 ( pk INT AUTO_INCREMENT PRIMARY KEY ) ENGINE = ARCHIVE;
+SELECT * FROM t1;
+DROP TABLE t1;

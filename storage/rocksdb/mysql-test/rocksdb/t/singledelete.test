@@ -1,0 +1,105 @@
+--source include/have_rocksdb.inc
+
+# only SingleDelete increases
+CREATE TABLE t1 (id INT, value int, PRIMARY KEY (id), INDEX (value)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,1);
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+--disable_query_log
+let $i = 1;
+while ($i <= 10000) {
+  let $update = UPDATE t1 SET value=value+1 WHERE value=$i;
+  inc $i;
+  eval $update;
+}
+--enable_query_log
+optimize table t1;
+select case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select case when variable_value-@d < 10 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+
+
+# both SingleDelete and Delete increases
+CREATE TABLE t2 (id INT, value int, PRIMARY KEY (id), INDEX (value)) ENGINE=RocksDB;
+INSERT INTO t2 VALUES (1,1);
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+--disable_query_log
+let $i = 1;
+while ($i <= 10000) {
+  let $update = UPDATE t2 SET id=id+1 WHERE id=$i;
+  inc $i;
+  eval $update;
+}
+--enable_query_log
+optimize table t2;
+select case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select case when variable_value-@d > 9000 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+
+# only Delete increases
+CREATE TABLE t3 (id INT, value int, PRIMARY KEY (id)) ENGINE=RocksDB;
+INSERT INTO t3 VALUES (1,1);
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+--disable_query_log
+let $i = 1;
+while ($i <= 10000) {
+  let $update = UPDATE t3 SET id=id+1 WHERE id=$i;
+  inc $i;
+  eval $update;
+}
+--enable_query_log
+optimize table t3;
+select case when variable_value-@s = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select case when variable_value-@d > 9000 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+
+# only SingleDelete increases
+CREATE TABLE t4 (id INT, PRIMARY KEY (id)) ENGINE=RocksDB;
+INSERT INTO t4 VALUES (1);
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+--disable_query_log
+let $i = 1;
+while ($i <= 10000) {
+  let $update = UPDATE t4 SET id=id+1 WHERE id=$i;
+  inc $i;
+  eval $update;
+}
+--enable_query_log
+optimize table t4;
+select case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select case when variable_value-@d < 10 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+
+# only SingleDelete increases
+CREATE TABLE t5 (id1 INT, id2 INT, PRIMARY KEY (id1, id2), INDEX(id2)) ENGINE=RocksDB;
+INSERT INTO t5 VALUES (1, 1);
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+--disable_query_log
+let $i = 1;
+while ($i <= 10000) {
+  let $update = UPDATE t5 SET id1=id1+1 WHERE id1=$i;
+  inc $i;
+  eval $update;
+}
+--enable_query_log
+optimize table t5;
+select case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select case when variable_value-@d < 10 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+
+# SingleDelete used for PK. Verify old PK is always deleted.
+CREATE TABLE t6 (
+  pk VARCHAR(64) COLLATE latin1_swedish_ci PRIMARY KEY
+) ENGINE=RocksDB;
+INSERT INTO t6 VALUES ('a');
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+SELECT * FROM t6;
+UPDATE t6 SET pk='A' WHERE pk='a';
+SELECT * FROM t6;
+DELETE FROM t6 where pk='A';
+--echo SELECT should return nothing;
+SELECT * FROM t6;
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+--echo SELECT should return nothing;
+SELECT * FROM t6;
+
+DROP TABLE t1, t2, t3, t4, t5, t6;

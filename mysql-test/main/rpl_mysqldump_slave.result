@@ -1,0 +1,68 @@
+include/master-slave.inc
+[connection master]
+#
+# New --dump-slave, --apply-slave-statements functionality
+#
+connection slave;
+connection master;
+use test;
+connection slave;
+-- SET GLOBAL gtid_slave_pos='';
+CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+STOP ALL SLAVES;
+-- SET GLOBAL gtid_slave_pos='';
+CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+START ALL SLAVES;
+STOP ALL SLAVES;
+-- SET GLOBAL gtid_slave_pos='';
+CHANGE MASTER '' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT, MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+START ALL SLAVES;
+start slave;
+Warnings:
+Note	1254	Slave is already running
+-- SET GLOBAL gtid_slave_pos='';
+CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+start slave;
+Warnings:
+Note	1254	Slave is already running
+*** Test mysqldump --dump-slave GTID functionality.
+connection master;
+SET gtid_seq_no = 1000;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+DROP TABLE t1;
+connection slave;
+connection slave;
+CREATE TABLE t2 (a INT PRIMARY KEY);
+DROP TABLE t2;
+
+1. --dump-slave=1
+
+SET GLOBAL gtid_slave_pos='0-1-1001';
+CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
+-- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+
+2. --dump-slave=2
+
+-- SET GLOBAL gtid_slave_pos='0-1-1001';
+-- CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
+-- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+*** Test mysqldump --master-data GTID functionality.
+
+1. --master-data=1
+
+-- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+SET GLOBAL gtid_slave_pos='0-2-1003';
+
+2. --master-data=2
+
+-- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
+-- CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+-- SET GLOBAL gtid_slave_pos='0-2-1003';
+
+3. --master-data --single-transaction
+
+-- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
+SET GLOBAL gtid_slave_pos='0-2-1003';
+include/rpl_end.inc

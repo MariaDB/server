@@ -1,0 +1,75 @@
+#
+# This test performs two dependent updates on two nodes and checks the results on the third where
+# parallel apply is enabled.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connect node_1_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_3
+SET GLOBAL wsrep_slave_threads = 2;
+
+--connection node_1_ctrl
+SET SESSION wsrep_sync_wait=0;
+
+#
+# We will make the following UPDATE depend on the UPDATE below
+#
+--connection node_1
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continue';
+--send UPDATE t1 SET f1 = f1 + 10;
+
+--connection node_1_ctrl
+SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
+SET GLOBAL debug_dbug = '+d,sync.wsrep_retry_autocommit';
+
+--connection node_2
+--send UPDATE t1 SET f1 = f1 + 100;
+
+#
+# Let's wait for the first UPDATE the be BF aborted
+#
+--connection node_1_ctrl
+SET DEBUG_SYNC = 'now WAIT_FOR wsrep_retry_autocommit_reached';
+
+#
+# and make sure the second has committed
+#
+--let $wait_condition = SELECT VARIABLE_VALUE > $wsrep_last_committed_before FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--source include/wait_condition.inc
+
+#
+# now release the first UPDATE.
+#
+SET GLOBAL debug_dbug = NULL;
+SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue';
+
+#
+# Both UPDATEs should succeed.
+#
+--connection node_1
+--reap
+
+--connection node_2
+--reap
+
+--connection node_3
+SELECT f1 = 111 FROM t1;
+SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%committed%';
+
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+
+DROP TABLE t1;
+
+--connection node_1
+SET DEBUG_SYNC= 'RESET';

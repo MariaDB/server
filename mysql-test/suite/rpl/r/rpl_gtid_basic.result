@@ -1,0 +1,583 @@
+include/rpl_init.inc [topology=1->2->3->4]
+connection server_1;
+*** GTID position should be empty here ***
+SELECT BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>);
+BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>)
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, "m1");
+INSERT INTO t1 VALUES (2, "m2"), (3, "m3"), (4, "m4");
+INSERT INTO t2 VALUES (1, "i1");
+BEGIN;
+INSERT INTO t2 VALUES (2, "i2"), (3, "i3");
+INSERT INTO t2 VALUES (4, "i4");
+COMMIT;
+*** GTID position should be non-empty here ***
+SELECT BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>);
+BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>)
+<GTID_POS_SERVER_1>
+connection server_2;
+*** GTID position should be the same as on server_1 ***
+SELECT BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>);
+BINLOG_GTID_POS('<BINLOG_FILE>',<BINLOG_POS>)
+<GTID_POS_SERVER_1>
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+connection server_3;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+connection server_4;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+*** Now take out D, let it fall behind a bit, and then test re-attaching it to A ***
+connection server_4;
+include/stop_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (5, "m1a");
+INSERT INTO t2 VALUES (5, "i1a");
+connection server_4;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_USE_GTID=CURRENT_POS;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+5	m1a
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+5	i1a
+*** Now move B to D (C is still replicating from B) ***
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4,
+MASTER_USE_GTID=CURRENT_POS;
+include/start_slave.inc
+connection server_4;
+UPDATE t2 SET b="j1a" WHERE a=5;
+connection server_2;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+5	m1a
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+5	j1a
+*** Now move C to D, after letting it fall a little behind ***
+connection server_3;
+include/stop_slave.inc
+connection server_1;
+INSERT INTO t2 VALUES (6, "i6b");
+INSERT INTO t2 VALUES (7, "i7b");
+include/save_master_gtid.inc
+connection server_3;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4,
+MASTER_USE_GTID=CURRENT_POS;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+5	j1a
+6	i6b
+7	i7b
+*** Now change everything back to what it was, to make rpl_end.inc happy
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_MYPORT;
+include/start_slave.inc
+include/wait_for_slave_to_start.inc
+connection server_3;
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SLAVE_MYPORT;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+connection server_4;
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_3;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1,t2;
+include/save_master_gtid.inc
+*** A few more checks for BINLOG_GTID_POS function ***
+SELECT BINLOG_GTID_POS();
+ERROR 42000: Incorrect parameter count in the call to native function 'BINLOG_GTID_POS'
+SELECT BINLOG_GTID_POS('a');
+ERROR 42000: Incorrect parameter count in the call to native function 'BINLOG_GTID_POS'
+SELECT BINLOG_GTID_POS('a',1,NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'BINLOG_GTID_POS'
+SELECT BINLOG_GTID_POS(1,'a');
+BINLOG_GTID_POS(1,'a')
+NULL
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'a'
+SELECT BINLOG_GTID_POS(NULL,NULL);
+BINLOG_GTID_POS(NULL,NULL)
+NULL
+SELECT BINLOG_GTID_POS('',1);
+BINLOG_GTID_POS('',1)
+
+SELECT BINLOG_GTID_POS('a',1);
+BINLOG_GTID_POS('a',1)
+NULL
+SELECT BINLOG_GTID_POS('master-bin.000001',-1);
+BINLOG_GTID_POS('master-bin.000001',-1)
+NULL
+SELECT BINLOG_GTID_POS('master-bin.000001',0);
+BINLOG_GTID_POS('master-bin.000001',0)
+
+SELECT BINLOG_GTID_POS('master-bin.000001',18446744073709551615);
+BINLOG_GTID_POS('master-bin.000001',18446744073709551615)
+NULL
+SELECT BINLOG_GTID_POS('master-bin.000001',18446744073709551616);
+BINLOG_GTID_POS('master-bin.000001',18446744073709551616)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '18446744073709551616' to INT. Value truncated
+*** Some tests of @@GLOBAL.gtid_binlog_state ***
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_1;
+SET @old_state= @@GLOBAL.gtid_binlog_state;
+SET GLOBAL gtid_binlog_state = '';
+ERROR HY000: This operation is not allowed if any GTID has been logged to the binary log. Run RESET MASTER first to erase the log
+RESET MASTER;
+SET GLOBAL gtid_binlog_state = '';
+FLUSH LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+SET GLOBAL gtid_binlog_state = '0-1-10,1-2-20,0-3-30';
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000001	#	Gtid_list	#	#	[#-#-#]
+master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+SET GLOBAL gtid_binlog_state = @old_state;
+ERROR HY000: This operation is not allowed if any GTID has been logged to the binary log. Run RESET MASTER first to erase the log
+RESET MASTER;
+SET GLOBAL gtid_binlog_state = @old_state;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+SET gtid_seq_no=100;
+INSERT INTO t1 VALUES (1);
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1;
+a
+1
+Gtid_IO_Pos = '0-1-100'
+*** Test @@LAST_GTID and MASTER_GTID_WAIT() ***
+connection server_1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+connection server_2;
+include/stop_slave.inc
+connect  m1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SELECT @@last_gtid;
+@@last_gtid
+
+SET gtid_seq_no=110;
+SELECT @@last_gtid;
+@@last_gtid
+
+BEGIN;
+SELECT @@last_gtid;
+@@last_gtid
+
+INSERT INTO t1 VALUES (2);
+SELECT @@last_gtid;
+@@last_gtid
+
+COMMIT;
+SELECT @@last_gtid;
+@@last_gtid
+0-1-110
+connect  s1,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SET @pos= '0-1-110';
+SELECT master_gtid_wait(NULL);
+master_gtid_wait(NULL)
+NULL
+SELECT master_gtid_wait('', NULL);
+master_gtid_wait('', NULL)
+0
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+Variable_name	Value
+Master_gtid_wait_count	1
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+Variable_name	Value
+Master_gtid_wait_timeouts	0
+SHOW STATUS LIKE 'Master_gtid_wait_time';
+Variable_name	Value
+Master_gtid_wait_time	0
+SELECT master_gtid_wait(@pos, 0.5);
+master_gtid_wait(@pos, 0.5)
+-1
+SELECT * FROM t1 ORDER BY a;
+a
+SELECT master_gtid_wait(@pos);
+connection server_2;
+include/start_slave.inc
+connection s1;
+master_gtid_wait(@pos)
+0
+SELECT * FROM t1 ORDER BY a;
+a
+2
+include/stop_slave.inc
+connection server_1;
+SET gtid_domain_id= 1;
+INSERT INTO t1 VALUES (3);
+connection s1;
+SET @pos= 'POS';
+SELECT master_gtid_wait(@pos, 0);
+master_gtid_wait(@pos, 0)
+-1
+SELECT * FROM t1 WHERE a >= 3;
+a
+SELECT master_gtid_wait(@pos, -1);
+connection server_2;
+include/start_slave.inc
+connection s1;
+master_gtid_wait(@pos, -1)
+0
+SELECT * FROM t1 WHERE a >= 3;
+a
+3
+SELECT master_gtid_wait('1-1-1', 0);
+master_gtid_wait('1-1-1', 0)
+0
+connection s1;
+SELECT master_gtid_wait('2-1-1,1-1-4,0-1-110');
+connect  s2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SELECT master_gtid_wait('0-1-1000', 0.5);
+connect  s3,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SELECT master_gtid_wait('0-1-2000');
+connect  s4,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SELECT master_gtid_wait('2-1-10');
+connect  s5,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SELECT master_gtid_wait('2-1-6', 1);
+connect  s6,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SELECT master_gtid_wait('2-1-5');
+connect  s7,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SELECT master_gtid_wait('2-1-10');
+connect  s8,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SELECT master_gtid_wait('2-1-5,1-1-4,0-1-110');
+connect  s9,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SELECT master_gtid_wait('2-1-2');
+connection server_2;
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+Variable_name	Value
+Master_gtid_wait_timeouts	0
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+Variable_name	Value
+Master_gtid_wait_count	3
+SELECT master_gtid_wait('1-1-1');
+master_gtid_wait('1-1-1')
+0
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+Variable_name	Value
+Master_gtid_wait_timeouts	0
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+Variable_name	Value
+Master_gtid_wait_count	4
+SET @a= MASTER_GTID_WAIT_TIME;
+SELECT IF(@a <= 100*1000*1000, "OK", CONCAT("Error: wait time ", @a, " is larger than expected"))
+AS Master_gtid_wait_time_as_expected;
+Master_gtid_wait_time_as_expected
+OK
+connect  s10,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+SELECT master_gtid_wait('0-1-109');
+connection server_2;
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+Variable_name	Value
+Master_gtid_wait_timeouts	0
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+Variable_name	Value
+Master_gtid_wait_count	4
+SELECT master_gtid_wait('2-1-2', 0.5);
+master_gtid_wait('2-1-2', 0.5)
+-1
+SHOW STATUS LIKE 'Master_gtid_wait_timeouts';
+Variable_name	Value
+Master_gtid_wait_timeouts	1
+SHOW STATUS LIKE 'Master_gtid_wait_count';
+Variable_name	Value
+Master_gtid_wait_count	5
+SET @a= MASTER_GTID_WAIT_TIME;
+SELECT IF(@a BETWEEN 0.4*1000*1000 AND 100*1000*1000, "OK", CONCAT("Error: wait time ", @a, " not as expected")) AS Master_gtid_wait_time_as_expected;
+Master_gtid_wait_time_as_expected
+OK
+KILL QUERY KILL_ID;
+connection s3;
+ERROR 70100: Query execution was interrupted
+connection server_1;
+SET gtid_domain_id=2;
+SET gtid_seq_no=2;
+INSERT INTO t1 VALUES (4);
+connection s9;
+master_gtid_wait('2-1-2')
+0
+connection server_2;
+KILL CONNECTION KILL_ID;
+connection s6;
+Got one of the listed errors
+connection server_1;
+SET gtid_domain_id=1;
+SET gtid_seq_no=4;
+INSERT INTO t1 VALUES (5);
+SET gtid_domain_id=2;
+SET gtid_seq_no=5;
+INSERT INTO t1 VALUES (6);
+connection s8;
+master_gtid_wait('2-1-5,1-1-4,0-1-110')
+0
+connection s1;
+master_gtid_wait('2-1-1,1-1-4,0-1-110')
+0
+connection s2;
+master_gtid_wait('0-1-1000', 0.5)
+-1
+connection s5;
+master_gtid_wait('2-1-6', 1)
+-1
+connection s10;
+master_gtid_wait('0-1-109')
+0
+connection server_1;
+SET gtid_domain_id=2;
+SET gtid_seq_no=10;
+INSERT INTO t1 VALUES (7);
+connection s4;
+master_gtid_wait('2-1-10')
+0
+connection s7;
+master_gtid_wait('2-1-10')
+0
+*** Test gtid_slave_pos when used with GTID ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+SET gtid_domain_id=2;
+SET gtid_seq_no=1000;
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (11);
+connection server_2;
+SET sql_slave_skip_counter= 1;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a
+11
+SELECT IF(LOCATE("2-1-1001", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 2-1-1001 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+include/stop_slave.inc
+connection server_1;
+SET gtid_domain_id=2;
+SET gtid_seq_no=1010;
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (13);
+connection server_2;
+SET sql_slave_skip_counter= 2;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a
+11
+13
+SELECT IF(LOCATE("2-1-1011", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 2-1-1011 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+include/stop_slave.inc
+connection server_1;
+SET gtid_domain_id=2;
+SET gtid_seq_no=1020;
+INSERT INTO t1 VALUES (14);
+INSERT INTO t1 VALUES (15);
+INSERT INTO t1 VALUES (16);
+connection server_2;
+SET sql_slave_skip_counter= 3;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a
+11
+13
+15
+16
+SELECT IF(LOCATE("2-1-1022", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 2-1-1022 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+include/stop_slave.inc
+connection server_1;
+SET gtid_domain_id=2;
+SET gtid_seq_no=1030;
+SET @@binlog_annotate_row_events= 0;
+INSERT INTO t1 VALUES (17);
+INSERT INTO t1 VALUES (18);
+INSERT INTO t1 VALUES (19);
+SET @@binlog_annotate_row_events= 1;
+connection server_2;
+SET sql_slave_skip_counter= 5;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a
+11
+13
+15
+16
+19
+SELECT IF(LOCATE("2-1-1032", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 2-1-1032 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+include/stop_slave.inc
+connection server_1;
+SET gtid_domain_id=3;
+SET gtid_seq_no=100;
+CREATE TABLE t2 (a INT PRIMARY KEY);
+DROP TABLE t2;
+SET gtid_domain_id=2;
+SET gtid_seq_no=1040;
+INSERT INTO t1 VALUES (20);
+connection server_2;
+SET @saved_mode= @@GLOBAL.slave_ddl_exec_mode;
+SET GLOBAL slave_ddl_exec_mode=STRICT;
+SET sql_slave_skip_counter=1;
+START SLAVE UNTIL master_gtid_pos="3-1-100";
+include/sync_with_master_gtid.inc
+include/wait_for_slave_to_stop.inc
+SELECT * FROM t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+SELECT IF(LOCATE("3-1-100", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 3-1-100 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Slave: Unknown table 'test\\.t2' Error_code: 1051");
+SET sql_log_bin=1;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1051]
+SELECT IF(LOCATE("3-1-100", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 3-1-100 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+STOP SLAVE IO_THREAD;
+SET sql_slave_skip_counter=2;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
+a
+20
+SELECT IF(LOCATE("3-1-101", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 3-1-101 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+SELECT IF(LOCATE("2-1-1040", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 2-1-1040 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+SET GLOBAL slave_ddl_exec_mode= @saved_mode;
+*** Test GTID-connecting to a master with out-of-order sequence numbers in the binlog. ***
+connection server_1;
+SET gtid_domain_id= @@GLOBAL.gtid_domain_id;
+INSERT INTO t1 VALUES (31);
+connection server_2;
+SET gtid_domain_id= @@GLOBAL.gtid_domain_id;
+INSERT INTO t1 VALUES (32);
+connection server_1;
+INSERT INTO t1 VALUES (33);
+connection server_2;
+connection server_3;
+include/stop_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (34);
+connection server_2;
+connection server_3;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
+connection server_4;
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
+connection server_1;
+DROP TABLE t1;
+include/rpl_end.inc
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+CREATE TABLE t1 (a VARCHAR(100) DEFAULT BINLOG_GTID_POS("master-bin.000001", 600));
+ERROR HY000: Function or expression 'binlog_gtid_pos()' cannot be used in the DEFAULT clause of `a`
+#
+# End  of 10.2 tests
+#
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-13967 Parameter data type control for Item_long_func
+#
+SELECT MASTER_GTID_WAIT(ROW(1,1),'str');
+ERROR HY000: Illegal parameter data type row for operation 'master_gtid_wait'
+SELECT MASTER_GTID_WAIT('str',ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'master_gtid_wait'
+#
+# End of 10.3 tests
+#

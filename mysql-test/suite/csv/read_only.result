@@ -1,0 +1,32 @@
+create table t1 (a int not null) engine=csv;
+insert t1 values (1),(2);
+flush tables;
+select * from information_schema.tables where table_schema='test';
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	t1
+TABLE_TYPE	BASE TABLE
+ENGINE	NULL
+VERSION	NULL
+ROW_FORMAT	NULL
+TABLE_ROWS	NULL
+AVG_ROW_LENGTH	NULL
+DATA_LENGTH	NULL
+MAX_DATA_LENGTH	NULL
+INDEX_LENGTH	NULL
+DATA_FREE	NULL
+AUTO_INCREMENT	NULL
+CREATE_TIME	NULL
+UPDATE_TIME	NULL
+CHECK_TIME	NULL
+TABLE_COLLATION	NULL
+CHECKSUM	NULL
+CREATE_OPTIONS	NULL
+TABLE_COMMENT	File './test/t1.CSM' not found (Errcode: 13 "Permission denied")
+MAX_INDEX_LENGTH	NULL
+TEMPORARY	NULL
+Warnings:
+Level	Warning
+Code	29
+Message	File './test/t1.CSM' not found (Errcode: 13 "Permission denied")
+drop table t1;

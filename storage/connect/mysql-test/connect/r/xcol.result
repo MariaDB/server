@@ -1,0 +1,117 @@
+#
+# Make the children list table
+#
+CREATE TABLE chlist (
+mother char(12) NOT NULL COMMENT 'The mother of the listed children',
+children varchar(30) DEFAULT NULL COMMENT 'The comma separated list of children'
+) ENGINE=CONNECT;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use chlist.dos
+INSERT INTO chlist VALUES('Sophia','Vivian, Antony');
+INSERT INTO chlist VALUES('Lisbeth','Lucy,Charles,Diana');
+INSERT INTO chlist VALUES('Corinne',NULL);
+INSERT INTO chlist VALUES('Claude','Marc');
+INSERT INTO chlist VALUES('Janet','Arthur,Sandra,Peter,John');
+SELECT * FROM chlist;
+mother	children
+Sophia	Vivian, Antony
+Lisbeth	Lucy,Charles,Diana
+Corinne	NULL
+Claude	Marc
+Janet	Arthur,Sandra,Peter,John
+#
+# Checking XCOL tables
+#
+CREATE TABLE child ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist OPTION_LIST='colname=children';
+SELECT * FROM child;
+mother	children
+Sophia	Vivian
+Sophia	Antony
+Lisbeth	Lucy
+Lisbeth	Charles
+Lisbeth	Diana
+Corinne	NULL
+Claude	Marc
+Janet	Arthur
+Janet	Sandra
+Janet	Peter
+Janet	John
+SELECT * FROM child ORDER BY mother;
+mother	children
+Claude	Marc
+Corinne	NULL
+Janet	Peter
+Janet	Sandra
+Janet	Arthur
+Janet	John
+Lisbeth	Diana
+Lisbeth	Charles
+Lisbeth	Lucy
+Sophia	Antony
+Sophia	Vivian
+SELECT * FROM child ORDER BY children;
+mother	children
+Corinne	NULL
+Sophia	Antony
+Janet	Arthur
+Lisbeth	Charles
+Lisbeth	Diana
+Janet	John
+Lisbeth	Lucy
+Claude	Marc
+Janet	Peter
+Janet	Sandra
+Sophia	Vivian
+SELECT mother FROM child;
+mother
+Sophia
+Lisbeth
+Corinne
+Claude
+Janet
+SELECT mother, COUNT(*) FROM child GROUP BY mother;
+mother	COUNT(*)
+Claude	1
+Corinne	1
+Janet	1
+Lisbeth	1
+Sophia	1
+SELECT mother, COUNT(children) FROM child GROUP BY mother;
+mother	COUNT(children)
+Claude	1
+Corinne	0
+Janet	4
+Lisbeth	3
+Sophia	2
+#
+# Test using special columns
+#
+CREATE TABLE `child2` (
+`row` int NOT NULL SPECIAL=ROWID,
+`num` int NOT NULL SPECIAL=ROWNUM,
+`mother` varchar(12) NOT NULL COMMENT 'The mother of the children',
+`child` varchar(12) NOT NULL COMMENT 'The child name' FLAG=2
+) ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist `OPTION_LIST`='colname=child';
+SELECT * FROM child2;
+row	num	mother	child
+1	1	Sophia	Vivian
+2	2	Sophia	Antony
+3	1	Lisbeth	Lucy
+4	2	Lisbeth	Charles
+5	3	Lisbeth	Diana
+7	1	Claude	Marc
+8	1	Janet	Arthur
+9	2	Janet	Sandra
+10	3	Janet	Peter
+11	4	Janet	John
+# List only first child
+SELECT mother, child FROM child2 where num = 1;
+mother	child
+Sophia	Vivian
+Lisbeth	Lucy
+Claude	Marc
+Janet	Arthur
+DROP TABLE child;
+DROP TABLE chlist;
+DROP TABLE child2;

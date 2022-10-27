@@ -1,0 +1,156 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+drop table if exists t1;
+
+--echo #
+--echo # Test setval function
+--echo #
+
+CREATE SEQUENCE t1 cache 10 engine=myisam;
+select next_not_cached_value,cycle_count from t1;
+do setval(t1,10);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+do setval(t1,12,1);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+do setval(t1,15,0);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select setval(t1,16,0);
+select next value for t1;
+do setval(t1,1000,0);
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+do setval(t1,2000,0);
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+# Set smaller value
+select setval(t1,1000,0);
+select next value for t1;
+select setval(t1,1000,TRUE);
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select setval(t1,2002,0);
+select next value for t1;
+select setval(t1,2010,0);
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+drop sequence t1;
+
+--echo #
+--echo # Testing with cycle
+--echo #
+
+CREATE SEQUENCE t1 cache=10 maxvalue=100 cycle engine=innodb;
+select next_not_cached_value,cycle_count from t1;
+select setval(t1,100,0);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select setval(t1,100,0);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select setval(t1,100,0,1);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select setval(t1,100,1,2);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select setval(t1,100,0,3);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+drop sequence t1;
+
+--echo #
+--echo # Testing extreme values
+--echo #
+
+CREATE SEQUENCE t1 cache=10 maxvalue=100 engine=innodb;
+select next_not_cached_value,cycle_count from t1;
+select setval(t1,200);
+select next_not_cached_value,cycle_count from t1;
+--error ER_SEQUENCE_RUN_OUT
+select next value for t1;
+drop sequence t1;
+
+CREATE SEQUENCE t1 cache=10 maxvalue=100 cycle engine=innodb;
+select next_not_cached_value,cycle_count from t1;
+select setval(t1,200);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+drop sequence t1;
+
+CREATE SEQUENCE t1 cache=10 maxvalue=0 increment=-10;
+select setval(t1,-10);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select setval(t1,-15);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+select setval(t1,-500,FALSE);
+select next value for t1;
+select next value for t1;
+select setval(t1,-525,0);
+select next value for t1;
+select next value for t1;
+drop sequence t1;
+
+CREATE SEQUENCE t1 cache=10 maxvalue=0 increment=-10;
+select setval(t1,-10,0);
+select next_not_cached_value,cycle_count from t1;
+select next value for t1;
+drop sequence t1;
+
+--echo #
+--echo # Other testing
+--echo #
+
+CREATE SEQUENCE t1;
+select setval(t1,10,0),setval(t1,15,1),setval(t1,5,1);
+select next value for t1;
+select next_not_cached_value,cycle_count from t1;
+explain extended select setval(t1,100),setval(t1,100,TRUE),setval(t1,100,FALSE,50);
+drop sequence t1;
+
+#
+# Some error testing
+#
+
+create table t1 (a int);
+--error ER_NOT_SEQUENCE
+select setval(t1,10);
+drop table t1;
+
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+CREATE SEQUENCE s1;
+SELECT SETVAL(s1,10);
+DROP SEQUENCE s1;
+--enable_ps_protocol
+--disable_metadata
+
+--echo #
+--echo # MDEV-15732: Assertion `next_free_value % real_increment == offset &&
+--echo # next_free_value >= reserved_until' failed in
+--echo # sequence_definition::adjust_values upon SETVAL for sequence with
+--echo # INCREMENT 0
+--echo #
+
+CREATE SEQUENCE s INCREMENT 0;
+SELECT NEXTVAL(s);
+SELECT SETVAL(s, 10);
+
+# Cleanup
+DROP SEQUENCE s;
+
+
+--echo # End of 10.3 tests

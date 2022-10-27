@@ -1,0 +1,73 @@
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+DROP TABLE IF EXISTS t3;
+create table t1(
+id bigint not null primary key auto_increment,
+a varchar(255) not null,
+b bigint,
+index t1_1(b)
+) engine=rocksdb;
+create table t2(
+id bigint not null primary key auto_increment,
+a varchar(255) not null,
+b bigint,
+index t2_1(b) comment 'cf_t3'
+) engine=rocksdb;
+create table t3(
+id bigint not null primary key auto_increment,
+a varchar(255) not null,
+b bigint,
+index t3_1(b) comment 'rev:cf_t4'
+) engine=rocksdb;
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE() and table_name <> 't1';
+table_name	table_rows
+t2	1000
+t3	1000
+SELECT CASE WHEN table_rows < 100000 then 'true' else 'false' end from information_schema.tables where table_name = 't1';
+CASE WHEN table_rows < 100000 then 'true' else 'false' end
+true
+set global rocksdb_force_flush_memtable_now = true;
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
+table_name	table_rows
+t1	1000
+t2	1000
+t3	1000
+SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables WHERE table_schema = DATABASE();
+table_name	data_length>0	index_length>0
+t1	1	1
+t2	1	1
+t3	1	1
+# restart
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
+table_name	table_rows
+t1	1000
+t2	1000
+t3	1000
+SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables WHERE table_schema = DATABASE();
+table_name	data_length>0	index_length>0
+t1	1	1
+t2	1	1
+t3	1	1
+analyze table t1,t2,t3,t4,t5;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+test.t4	analyze	Error	Table 'test.t4' doesn't exist
+test.t4	analyze	status	Operation failed
+test.t5	analyze	Error	Table 'test.t5' doesn't exist
+test.t5	analyze	status	Operation failed
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
+table_name	table_rows
+t1	1000
+t2	1000
+t3	1000
+SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables WHERE table_schema = DATABASE();
+table_name	data_length>0	index_length>0
+t1	1	1
+t2	1	1
+t3	1	1
+drop table t1, t2, t3;

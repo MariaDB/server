@@ -1,0 +1,21 @@
+CREATE TABLE bug51920 (i INT) ENGINE=InnoDB;
+INSERT INTO bug51920 VALUES (1);
+BEGIN;
+SELECT * FROM bug51920 FOR UPDATE;
+i
+1
+connect  con1,localhost,root,,;
+connection con1;
+UPDATE bug51920 SET i=2;
+connection default;
+SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE INFO="UPDATE bug51920 SET i=2"
+INTO @thread_id;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+KILL @thread_id;
+connection con1;
+Got one of the listed errors
+connection default;
+DROP TABLE bug51920;
+disconnect con1;

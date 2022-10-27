@@ -1,0 +1,452 @@
+SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
+CREATE TABLE t1 (
+pk INT AUTO_INCREMENT PRIMARY KEY,
+c1 INT,
+c2 VARCHAR(255),
+c3 VARCHAR(255),
+c4 INT,
+c5 INT,
+c6 INT,
+c7 VARCHAR(255),
+c8 TIMESTAMP NULL
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL,1,NULL,'foo',NULL,1,NULL,NULL,'2011-11-11 00:00:00');
+ALTER TABLE t1 ADD COLUMN f INT;
+REPLACE INTO t1 (c7) VALUES ('bar');
+CREATE TABLE t2 (i INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (-1),(1);
+ALTER TABLE t2 ADD COLUMN j INT;
+BEGIN;
+DELETE FROM t2;
+ROLLBACK;
+TRUNCATE TABLE t2;
+INSERT INTO t2 VALUES (1,2);
+CREATE TABLE t3 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t3 () VALUES ();
+ALTER TABLE t3 ADD COLUMN f INT;
+UPDATE t3 SET pk = DEFAULT;
+SELECT * FROM t3;
+pk	f
+0	NULL
+CREATE TABLE t4 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (0);
+ALTER TABLE t4 ADD COLUMN b INT;
+SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.COLUMNS
+LEFT JOIN t4 ON (NUMERIC_SCALE = pk);
+COUNT(*)>0
+1
+ALTER TABLE t4 ADD COLUMN c INT;
+CREATE TABLE t5 (i INT, KEY(i)) ENGINE=InnoDB;
+INSERT INTO t5 VALUES (-42);
+ALTER TABLE t5 ADD UNIQUE ui(i);
+ALTER TABLE t5 ADD COLUMN i2 INT, DROP INDEX i;
+CREATE TABLE t6 (i INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t6 VALUES (0);
+ALTER TABLE t6 ADD COLUMN j INT;
+TRUNCATE TABLE t6;
+INSERT INTO t6 VALUES (1,2);
+CREATE TABLE t7 (i INT) ENGINE=InnoDB;
+INSERT INTO t7 VALUES (1),(2),(3),(4),(5);
+ALTER TABLE t7 ADD t TEXT DEFAULT '';
+CREATE TABLE t8 (i INT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t8 VALUES (NULL);
+ALTER TABLE t8 ADD c CHAR(3);
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR dml';
+ALTER TABLE t8 FORCE;
+connect  dml,localhost,root,,;
+SET DEBUG_SYNC='now WAIT_FOR rebuilt';
+BEGIN;
+INSERT INTO t8 SET i=1;
+UPDATE t8 SET i=ISNULL(i);
+ROLLBACK;
+SET DEBUG_SYNC='now SIGNAL dml';
+connection default;
+SET DEBUG_SYNC='RESET';
+CREATE TABLE t9 (
+pk INT AUTO_INCREMENT PRIMARY KEY,
+c1 BIGINT UNSIGNED,
+c2 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+c3 BIGINT,
+c4 VARCHAR(257) CHARACTER SET utf8,
+c5 TINYINT UNSIGNED,
+c6 TINYINT,
+c7 VARCHAR(257) CHARACTER SET latin1,
+c8 VARCHAR(257) CHARACTER SET binary
+) ENGINE=InnoDB;
+INSERT INTO t9 () VALUES ();
+ALTER TABLE t9 ADD COLUMN IF NOT EXISTS t TIMESTAMP NULL KEY;
+Warnings:
+Note	1061	Multiple primary key defined
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL rebuilt WAIT_FOR dml';
+OPTIMIZE TABLE t9;
+connection dml;
+SET DEBUG_SYNC='now WAIT_FOR rebuilt';
+BEGIN;
+INSERT INTO t9 () VALUES (),();
+UPDATE t9 SET t=current_timestamp();
+ROLLBACK;
+SET DEBUG_SYNC='now SIGNAL dml';
+disconnect dml;
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t9	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t9	optimize	status	OK
+SET DEBUG_SYNC='RESET';
+CREATE TABLE t10 (pk INT DEFAULT 0 KEY) ENGINE=InnoDB;
+INSERT INTO t10 (pk) VALUES (1);
+ALTER TABLE t10 ADD c INT;
+TRUNCATE TABLE t10;
+INSERT INTO t10 VALUES (1,1),(2,2);
+ALTER TABLE t10 FORCE;
+CREATE TABLE t11 (
+c01 enum('a','b'),
+c02 bit,
+c03 blob,
+c04 enum('c','d'),
+c05 blob,
+c06 decimal,
+c07 char(1),
+c08 int,
+c09 char(1),
+c10 set('e','f'),
+c11 char(1),
+c12 float,
+c13 bit,
+c14 char(1),
+c15 int,
+c16 float,
+c17 decimal,
+c18 char(1) CHARACTER SET utf8 not null default '',
+c19 float,
+c20 set('g','h'),
+c21 char(1),
+c22 int,
+c23 int,
+c24 int,
+c25 set('i','j'),
+c26 decimal,
+c27 float,
+c28 char(1),
+c29 int,
+c30 enum('k','l'),
+c31 decimal,
+c32 char(1),
+c33 decimal,
+c34 bit,
+c35 enum('m','n'),
+c36 set('o','p'),
+c37 enum('q','r'),
+c38 blob,
+c39 decimal,
+c40 blob not null default '',
+c41 char(1),
+c42 int,
+c43 float,
+c44 float,
+c45 enum('s','t'),
+c46 decimal,
+c47 set('u','v'),
+c48 enum('w','x'),
+c49 set('y','z'),
+c50 float
+) ENGINE=InnoDB;
+INSERT INTO t11 () VALUES  ();
+ALTER TABLE t11 ADD COLUMN f INT;
+INSERT INTO t11 () VALUES ();
+UPDATE t11 SET c22 = 1;
+InnoDB		0 transactions not purged
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11;
+#
+# MDEV-15060 Assertion in row_log_table_apply_op after instant ADD
+# when the table is emptied during subsequent ALTER TABLE
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL);
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL;
+connect stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connect ddl,localhost,root,,test;
+DELETE FROM t1;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
+ALTER TABLE t1 FORCE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR copied';
+BEGIN;
+INSERT INTO t1 SET b=1;
+ROLLBACK;
+connection stop_purge;
+COMMIT;
+connection default;
+InnoDB		2 transactions not purged
+SET DEBUG_SYNC='now SIGNAL logged';
+connection ddl;
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC='RESET';
+#
+# MDEV-16131 Assertion failed in dict_index_t::instant_field_value()
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 SET a=0;
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2, ADD COLUMN c INT;
+BEGIN NOT ATOMIC
+DECLARE c TEXT DEFAULT(SELECT CONCAT('ALTER TABLE t1 ADD (c',
+GROUP_CONCAT(seq SEPARATOR ' INT, c'), ' INT), ALGORITHM=INSTANT;') FROM seq_1_to_130);
+EXECUTE IMMEDIATE c;
+END;
+$$
+connection stop_purge;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM t1;
+connection ddl;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
+ALTER TABLE t1 FORCE;
+connection stop_purge;
+COMMIT;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR copied';
+InnoDB		1 transactions not purged
+INSERT INTO t1 SET a=1;
+INSERT INTO t1 SET a=2,b=3,c=4;
+SET DEBUG_SYNC = 'now SIGNAL logged';
+connection ddl;
+connection default;
+SET DEBUG_SYNC = RESET;
+SELECT a, b, c FROM t1;
+a	b	c
+1	2	NULL
+2	3	4
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+connection stop_purge;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM t1;
+connection ddl;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2 AFTER a, FORCE;
+disconnect stop_purge;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR copied';
+InnoDB		1 transactions not purged
+INSERT INTO t1 SET a=1;
+INSERT INTO t1 SET a=2,c=4;
+SET DEBUG_SYNC = 'now SIGNAL logged';
+connection ddl;
+UPDATE t1 SET b = b + 1 WHERE a = 2;
+connection default;
+SET DEBUG_SYNC = RESET;
+SELECT a, b, c FROM t1;
+a	b	c
+1	2	NULL
+2	3	4
+#
+# MDEV-15872 Crash in online ALTER TABLE...ADD PRIMARY KEY
+# after instant ADD COLUMN ... NULL
+#
+ALTER TABLE t1 ADD COLUMN d INT, ALGORITHM=INSTANT;
+UPDATE t1 SET d=1;
+connection ddl;
+SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
+ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY (a,d);
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR copied';
+BEGIN;
+INSERT INTO t1 SET a=3;
+ROLLBACK;
+SET DEBUG_SYNC = 'now SIGNAL logged';
+connection ddl;
+ERROR 22004: Invalid use of NULL value
+disconnect ddl;
+connection default;
+SET DEBUG_SYNC = RESET;
+SELECT a, b, c, d FROM t1;
+a	b	c	d
+1	2	NULL	1
+2	3	4	1
+DROP TABLE t1;
+#
+# MDEV-19916 Corruption after instant ADD/DROP and shrinking the tree
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET @old_limit = @@innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
+INSERT INTO t1 VALUES (1),(5),(4),(3),(2);
+SET GLOBAL innodb_limit_optimistic_insert_debug = @old_limit;
+ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM=INSTANT;
+SET @old_defragment = @@innodb_defragment;
+SET GLOBAL innodb_defragment = 1;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+SET GLOBAL innodb_defragment = @old_defragment;
+ALTER TABLE t1 ADD vb INT AS (b) VIRTUAL;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1;
+a	b	vb
+1	NULL	NULL
+2	NULL	NULL
+3	NULL	NULL
+4	NULL	NULL
+5	NULL	NULL
+DROP TABLE t1;
+#
+# MDEV-21045 AddressSanitizer: use-after-poison in mem_heap_dup / row_log_table_get_pk_col
+#
+CREATE TABLE t1 (a TEXT) ENGINE = InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 (a) VALUES ('foo');
+ALTER TABLE t1 ADD COLUMN b INT DEFAULT 0,algorithm=instant;
+connect  con2,localhost,root,,test;
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL onlinealter WAIT_FOR update';
+ALTER TABLE t1 ADD PRIMARY KEY (b);
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR onlinealter';
+UPDATE t1 SET b = 1;
+SET DEBUG_SYNC='now SIGNAL update';
+connection con2;
+connection default;
+DROP TABLE t1;
+#
+# MDEV-21658 Error on online ADD PRIMARY KEY after instant DROP/reorder
+#
+CREATE TABLE t1 (a INT, b INT, c INT, col INT) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES ();
+ALTER TABLE t1 DROP b, DROP c, DROP col;
+ALTER TABLE t1 ADD COLUMN col INT;
+ALTER TABLE t1 DROP a, DROP col, ADD COLUMN b INT;
+connection con2;
+SET SQL_MODE= '';
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL scanned WAIT_FOR dml';
+ALTER TABLE t1 ADD PRIMARY KEY(b);
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+UPDATE t1 SET b = 1;
+SET DEBUG_SYNC = 'now SIGNAL dml';
+connection con2;
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+connection default;
+SELECT * FROM t1;
+b
+1
+SET DEBUG_SYNC='RESET';
+disconnect con2;
+DROP TABLE t1;
+#
+# MDEV-24653 Assertion block->page.id.page_no() == index->page failed
+# in innobase_add_instant_try()
+#
+SET @saved_limit = @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+ALTER TABLE t1 ADD COLUMN b INT;
+DELETE FROM t1;
+InnoDB		0 transactions not purged
+ALTER TABLE t1 ADD COLUMN c INT;
+SELECT * FROM t1;
+a	b	c
+DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+#
+# MDEV-24796 Assertion page_has_next... failed
+# in btr_pcur_store_position()
+#
+CREATE TABLE t1 (c INT KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+ALTER TABLE t1 ADD COLUMN d INT;
+DELETE FROM t1;
+InnoDB		0 transactions not purged
+SELECT * FROM t1 WHERE c<>1 ORDER BY c DESC;
+c	d
+DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+#
+# MDEV-24620 ASAN heap-buffer-overflow in btr_pcur_restore_position()
+#
+CREATE TABLE t1 (a VARCHAR(1) PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect  stop_purge,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+ALTER TABLE t1 ADD c INT;
+BEGIN;
+DELETE FROM t1;
+connect  dml,localhost,root,,test;
+SET DEBUG_SYNC='row_mysql_handle_errors SIGNAL s1 WAIT_FOR s2';
+UPDATE t1 SET c=1;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s1';
+COMMIT;
+connection stop_purge;
+COMMIT;
+disconnect stop_purge;
+connection default;
+InnoDB		0 transactions not purged
+SET DEBUG_SYNC='now SIGNAL s2';
+connection dml;
+disconnect dml;
+connection default;
+SET DEBUG_SYNC=RESET;
+DROP TABLE t1;
+# End of 10.3 tests
+#
+# MDEV-17899 Assertion failures on rollback of instant ADD/DROP
+# MDEV-18098 Crash after rollback of instant DROP COLUMN
+#
+SET @save_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='+d,ib_commit_inplace_fail_1';
+CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,2);
+ALTER TABLE t1 DROP COLUMN b;
+ERROR HY000: Internal error: Injected error!
+ALTER TABLE t1 DROP COLUMN b;
+ERROR HY000: Internal error: Injected error!
+ALTER TABLE t1 ADD COLUMN c INT;
+ERROR HY000: Internal error: Injected error!
+SELECT * FROM t1;
+a	b
+1	2
+DROP TABLE t1;
+CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN c INT;
+ERROR HY000: Internal error: Injected error!
+BEGIN;
+INSERT INTO t1 VALUES(1, 1);
+ROLLBACK;
+ALTER TABLE t1 DROP COLUMN b;
+ERROR HY000: Internal error: Injected error!
+INSERT INTO t1 values (1,1);
+SELECT * FROM t1;
+a	b
+1	1
+DROP TABLE t1;
+SET debug_dbug = @save_dbug;
+#
+# MDEV-24512 Assertion failed in rec_is_metadata()
+#            in btr_discard_only_page_on_level()
+#
+SET @save_limit= @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+CREATE TABLE t1 (c CHAR(1) UNIQUE) ENGINE=InnoDB;
+ALTER TABLE t1 ADD c2 INT NOT NULL DEFAULT 0 FIRST;
+INSERT INTO t1 (c) VALUES ('x'),('d'),('r'),('f'),('y'),('u'),('m'),('d');
+ERROR 23000: Duplicate entry 'd' for key 'c'
+SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
+SELECT * FROM t1;
+c2	c
+DROP TABLE t1;
+# End of 10.4 tests
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+instants
+32

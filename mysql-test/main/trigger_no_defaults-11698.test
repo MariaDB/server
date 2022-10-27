@@ -1,0 +1,42 @@
+#
+# MDEV-11698 Old Bug possibly not fixed; BEFORE INSERT Trigger on NOT NULL
+#
+set sql_mode='strict_all_tables';
+create table t1 (a int not null, b int);
+--error ER_NO_DEFAULT_FOR_FIELD
+insert t1 (b) values (1);
+delimiter |;
+create trigger trgi before insert on t1 for each row
+  case new.b
+  when 10 then
+    set new.a = new.b;
+  when 30 then
+    set new.a = new.a;
+  else
+    do 1;
+  end case|
+delimiter ;|
+insert t1 (b) values (10);
+--error ER_NO_DEFAULT_FOR_FIELD
+insert t1 (b) values (20);
+# arguably the statement below should fail too
+insert t1 (b) values (30);
+select * from t1;
+drop table t1;
+set sql_mode=default;
+
+#
+# MDEV-11842 Fail to insert on a table where a field has no default
+#
+set sql_mode='';
+create table t1 (
+  id int(11) not null auto_increment primary key,
+  data1 varchar(10) not null,
+  data2 varchar(10) not null
+);
+insert into t1 (data2) values ('x');
+create trigger test_trigger before insert on t1 for each row begin end;
+insert into t1 (data2) values ('y');
+select * from t1;
+drop table t1;
+set sql_mode=default;

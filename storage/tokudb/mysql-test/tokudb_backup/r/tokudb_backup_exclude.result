@@ -1,0 +1,31 @@
+create table t1(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c)) engine='tokudb';
+create table t1a(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c)) engine='tokudb';
+create table t1b(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c)) engine='tokudb';
+create table t1c(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c)) engine='tokudb';
+select @@session.tokudb_backup_last_error;
+@@session.tokudb_backup_last_error
+0
+select @@session.tokudb_backup_last_error_string;
+@@session.tokudb_backup_last_error_string
+NULL
+20
+set session tokudb_backup_exclude='(t1a|t1c)+';
+select @@session.tokudb_backup_last_error;
+@@session.tokudb_backup_last_error
+0
+select @@session.tokudb_backup_last_error_string;
+@@session.tokudb_backup_last_error_string
+NULL
+10
+set session tokudb_backup_exclude='t1[abc]+';
+select @@session.tokudb_backup_last_error;
+@@session.tokudb_backup_last_error
+0
+select @@session.tokudb_backup_last_error_string;
+@@session.tokudb_backup_last_error_string
+NULL
+5
+drop table t1;
+drop table t1a;
+drop table t1b;
+drop table t1c;

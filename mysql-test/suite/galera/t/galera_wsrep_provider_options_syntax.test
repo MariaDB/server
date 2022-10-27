@@ -1,0 +1,20 @@
+#
+# PXC-318: Typo in wsrep_provider_options causes an unhandled exception
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--let LOGF=$MYSQLTEST_VARDIR/log/mysqld.1.err
+--disable_info
+call mtr.add_suppression("WSREP\: Unknown parameter 'gmcasts\.segment'");
+call mtr.add_suppression("WSREP\: Set options returned 7");
+--error ER_WRONG_ARGUMENTS  
+SET GLOBAL wsrep_provider_options="gmcasts.segment=1";
+# Search for unhandled exception message.
+perl;
+  use strict;
+  my $logf= $ENV{'LOGF'} or die "LOGF not set";
+  open(FILE, "$logf") or die("Unable to open $logf: $!\n");
+  my $count_warnings=grep(/terminate called after throwing an instance of /gi,<FILE>);
+  print "Unhandled exceptions: $count_warnings\n";
+  close(FILE);
+EOF

@@ -1,0 +1,37 @@
+call mtr.add_suppression("InnoDB: New log files created");
+CREATE TABLE t(a INT UNSIGNED PRIMARY KEY) ENGINE INNODB;
+INSERT INTO t VALUES(0);
+COMMIT;
+start transaction;
+connect  flush_log,localhost,root,,;
+BEGIN;
+DELETE FROM t LIMIT 1;
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+ROLLBACK;
+disconnect flush_log;
+connection default;
+NOT FOUND /Rolled back recovered transaction/ in current_test
+# expect NOT FOUND
+NOT FOUND /Rolled back recovered transaction/ in current_test
+# expect NOT FOUND
+commit;
+SELECT count(*) FROM t;
+count(*)
+201
+# Restore and check results
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart: --innodb-force-recovery=3
+SELECT COUNT(*) FROM t;
+COUNT(*)
+1
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) FROM t;
+COUNT(*)
+201
+# restart
+SELECT * FROM t;
+a
+0
+DROP TABLE t;

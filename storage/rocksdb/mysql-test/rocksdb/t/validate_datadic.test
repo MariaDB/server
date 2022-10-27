@@ -1,0 +1,108 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+
+#
+# Validate that the server starts when everything is okay, but detects errors
+# if a table exists in the data dictionary but not as an .frm or vice versa.
+# The default mode causes these failures to keep the server from starting, but
+# this is problematic for the test as a server start failure is not easily
+# trappable.  Instead use the mode where it will detect the problem and report
+# it in the log bug still start:  --rocksdb_validate_tables=2
+#
+
+call mtr.add_suppression('RocksDB: Schema mismatch');
+
+CREATE TABLE t1 (pk int primary key) ENGINE=ROCKSDB;
+CREATE TABLE t2 (pk int primary key) ENGINE=ROCKSDB PARTITION BY KEY(pk) PARTITIONS 4;
+
+# Write file to make mysql-test-run.pl expect the "crash", but don't restart the
+# server until it is told to
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--let LOG=$MYSQLTEST_VARDIR/tmp/validate_datadic.err
+
+--exec echo "wait" >$_expect_file_name
+
+# Send shutdown to the connected server and give it 10 seconds to die before
+# zapping it
+shutdown_server;
+
+# Write file to make mysql-test-run.pl start up the server again
+--exec echo "restart" >$_expect_file_name
+--sleep 5
+
+# Turn on reconnect
+--enable_reconnect
+
+# Call script that will poll the server waiting for it to be back online again
+--source include/wait_until_connected_again.inc
+
+# Turn off reconnect again
+--disable_reconnect
+
+# Now shut down again and rename one of the .frm files
+--exec echo "wait" >$_expect_file_name
+shutdown_server;
+
+# Rename the file
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm.tmp
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm.tmp
+
+# Attempt to restart the server
+--exec echo "restart:--rocksdb_validate_tables=2 --log-error=$LOG" >$_expect_file_name
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+# We should now have an error message
+--echo "Expect errors that we are missing two .frm files"
+#--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+#--let SEARCH_PATTERN=Schema mismatch
+#--source include/search_pattern_in_file.inc
+#--let SEARCH_PATTERN=RocksDB: Schema mismatch - Table test.t2 is registered in RocksDB but does not have a .frm file
+#--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$LOG
+--let SEARCH_PATTERN=RocksDB: Schema mismatch - Table test.t1 is registered in RocksDB but does not have a .frm file
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=RocksDB: Schema mismatch - Table test.t2 is registered in RocksDB but does not have a .frm file
+--source include/search_pattern_in_file.inc
+
+# Now shut down again and rename one the .frm file back and make a copy of it
+--exec echo "wait" >$_expect_file_name
+shutdown_server;
+--remove_file $LOG
+# Rename the file
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm.tmp $MYSQLTEST_VARDIR/mysqld.1/data/test/t2.frm
+--copy_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.1/data/test/t1_dummy.frm
+
+# Attempt to restart the server
+--exec echo "restart:--rocksdb_validate_tables=2 --log-error=$LOG" >$_expect_file_name
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+# We should now have an error message for the second case
+--echo "Expect an error that we have an extra .frm file"
+--let SEARCH_FILE=$LOG
+--let SEARCH_PATTERN=Schema mismatch - A .frm file exists for table test.t1_dummy, but that table is not registered in RocksDB
+--source include/search_pattern_in_file.inc
+
+# Shut down an clean up
+--exec echo "wait" >$_expect_file_name
+shutdown_server;
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/data/test/t1_dummy.frm
+--exec echo "restart" >$_expect_file_name
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+# Remove log file
+--remove_file $LOG
+
+--disable_warnings
+DROP TABLE t1, t2;
+--enable_warnings
+

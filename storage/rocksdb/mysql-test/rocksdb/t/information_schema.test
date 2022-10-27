@@ -1,0 +1,89 @@
+--source include/have_rocksdb.inc
+--source include/have_log_bin.inc
+
+--source include/restart_mysqld.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+DROP TABLE IF EXISTS t3;
+--enable_warnings
+
+# MariaDB: the following is for handling the case where the tests
+#   is started on a totally empty datadir, where no MyRocks table has
+#   ever been created). In that case, there is no MAX_INDEX_ID.
+#   Create/drop a table so that we do have MAX_INDEX_ID.
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=1;
+create table t1 (a int) engine=rocksdb;
+drop table t1;
+
+--let $max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
+--replace_result $max_index_id max_index_id
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type<>'DDL_DROP_INDEX_ONGOING';
+select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type<>'DDL_DROP_INDEX_ONGOING';
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
+
+select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
+
+CREATE TABLE t1 (i1 INT, i2 INT, PRIMARY KEY (i1)) ENGINE = ROCKSDB;
+INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
+
+set global rocksdb_force_flush_memtable_now = true;
+# No binlog coordinates in MariaDB: --let $MASTER_UUID = query_get_value(SELECT @@SERVER_UUID, @@SERVER_UUID, 1)
+--let $max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
+# No binlog coordinates in MariaDB: --replace_result $MASTER_UUID uuid $max_index_id max_index_id
+--replace_result $max_index_id max_index_id
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+
+set global rocksdb_force_flush_memtable_now = true;
+set global rocksdb_compact_cf='default';
+select case when VALUE-@keysIn >= 3 then 'true' else 'false' end from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
+
+CREATE INDEX tindex1 on t1 (i1);
+--let $start_max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
+
+CREATE INDEX tindex2 on t1 (i2);
+--let $end_max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
+
+if ($end_max_index_id <= $start_max_index_id) {
+  echo Max index ID did not increase;
+}
+
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where TYPE = 'CF_FLAGS';
+
+CREATE TABLE t2 (
+    a int,
+    b int,
+    c int,
+    d int,
+    PRIMARY KEY (a) COMMENT "cf_a",
+    KEY (b) COMMENT "cf_b",
+    KEY (c) COMMENT "cf_c",
+    KEY (d) COMMENT "rev:cf_d") ENGINE=ROCKSDB;
+
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where TYPE = 'CF_FLAGS';
+
+CREATE TABLE t3 (a INT, PRIMARY KEY (a)) ENGINE=ROCKSDB;
+insert into t3 (a) values (1), (2), (3);
+SET @ORIG_ROCKSDB_PAUSE_BACKGROUND_WORK = @@GLOBAL.ROCKSDB_PAUSE_BACKGROUND_WORK;
+--let $t3_index_id = query_get_value(SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_DDL WHERE TABLE_NAME = 't3', INDEX_NUMBER, 1)
+--let $t3_cf_id = query_get_value(SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_DDL WHERE TABLE_NAME = 't3', COLUMN_FAMILY, 1)
+SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=1;
+SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=1;
+SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
+DROP TABLE t3;
+--let $result = query_get_value("SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO WHERE TYPE = 'DDL_DROP_INDEX_ONGOING' AND NAME LIKE 'cf_id:$t3_cf_id,index_id:$t3_index_id'", NAME, 1)
+--echo $result
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
+SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
+--echo next line shouldn't cause assertion to fail
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
+SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_ROCKSDB_PAUSE_BACKGROUND_WORK;
+
+DROP TABLE t1;
+DROP TABLE t2;
+

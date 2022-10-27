@@ -1,0 +1,26 @@
+#
+# Bug#22444530 - GCOLS + PARTITIONED TABLE, CRASH IN
+#
+set sql_mode='';
+create table t (
+a int not null,
+b int generated always as (1) virtual,
+c int generated always as (1) virtual,
+key (c)
+) engine=innodb partition by key (a) partitions 2;
+insert into t(a) values(1);
+select b from t group by c;
+b
+1
+drop table t;
+create table t (
+a int not null,
+b blob generated always as ("a") virtual,
+c int generated always as (1) virtual,
+key (c)
+) engine=innodb partition by key (a) partitions 2;
+insert into t(a) values(1);
+select b from t group by c;
+b
+a
+drop table t;

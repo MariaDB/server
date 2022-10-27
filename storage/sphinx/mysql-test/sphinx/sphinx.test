@@ -1,0 +1,56 @@
+
+--replace_result $SPHINXSEARCH_PORT SPHINXSEARCH_PORT
+eval create table ts ( id bigint unsigned not null, w int not null, q varchar(255) not null, index(q) ) engine=sphinx connection="sphinx://127.0.0.1:$SPHINXSEARCH_PORT/*";
+select * from ts where q='test';
+drop table ts;
+
+--replace_result $SPHINXSEARCH_PORT SPHINXSEARCH_PORT
+eval create table ts ( id bigint unsigned not null, w int not null, q varchar(255) not null, index(q) ) engine=sphinx connection="sphinx://127.0.0.1:$SPHINXSEARCH_PORT/*";
+select * from ts where q='test;filter=gid,1;mode=extended';
+select * from ts where q='test|one;mode=extended';
+select * from ts where q='test;offset=1;limit=1';
+--replace_result $SPHINXSEARCH_PORT SPHINXSEARCH_PORT
+eval alter table ts connection="sphinx://127.0.0.1:$SPHINXSEARCH_PORT/test1";
+select id, w from ts where q='one';
+drop table ts;
+
+--replace_result $SPHINXSEARCH_PORT SPHINXSEARCH_PORT
+eval create table ts ( id bigint unsigned not null, w int not null, q varchar(255) not null, gid int not null, _sph_count int not null, index(q) ) engine=sphinx connection="sphinx://127.0.0.1:$SPHINXSEARCH_PORT/test1";
+select * from ts;
+select * from ts where q='';
+select * from ts where q=';groupby=attr:gid';
+explain select * from ts where q=';groupby=attr:gid';
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='index_condition_pushdown=off';
+explain select * from ts where q=';groupby=attr:gid';
+SET optimizer_switch=@save_optimizer_switch;
+drop table ts;
+
+#
+# Don't show sphinx error as this is different between sphinx versions
+# show status like "sphinx_error%";
+
+show status like "sphinx_total%";
+show status like "sphinx_word%";
+
+--replace_result $SPHINXSEARCH_PORT SPHINXSEARCH_PORT
+eval create table ts ( id bigint unsigned not null, w int not null, q varchar(255) not null, index(q) ) engine=sphinx connection="sphinx://127.0.0.1:$SPHINXSEARCH_PORT/*";
+select * from ts where q=';filter=meta.foo_count,100';
+select * from ts where q='test;filter=meta.sub.int,7';
+select * from ts where q=';filter=meta.sub.list[0],4';
+select * from ts where q=';filter=meta.sub.list[1],4';
+select * from ts where q='test;range=meta.foo_count,100,500';
+drop table ts;
+
+--echo #
+--echo # MDEV-19205: Sphinx unable to connect using a host name
+--echo #
+
+--replace_result $SPHINXSEARCH_PORT SPHINXSEARCH_PORT
+eval create table ts ( id bigint unsigned not null, w int not null, q varchar(255) not null, index(q) ) engine=sphinx connection="sphinx://localhost:$SPHINXSEARCH_PORT/*";
+select * from ts where q=';filter=meta.foo_count,100';
+select * from ts where q='test;filter=meta.sub.int,7';
+select * from ts where q=';filter=meta.sub.list[0],4';
+select * from ts where q=';filter=meta.sub.list[1],4';
+select * from ts where q='test;range=meta.foo_count,100,500';
+drop table ts;

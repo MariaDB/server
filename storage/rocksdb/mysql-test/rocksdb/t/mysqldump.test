@@ -1,0 +1,67 @@
+--source include/have_rocksdb.inc
+--source include/have_log_bin.inc
+--source include/restart_mysqld.inc
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+connection con1;
+create table r1 (id1 int, id2 int, id3 varchar(100), id4 int, value1 int, value2 int, value3 int, value4 int, primary key (id1, id2, id3, id4), KEY (value1, value2, value3)) engine=rocksdb;
+insert into r1 values (1,1,1,1,1,1,1,1);
+insert into r1 values (1,1,1,2,2,2,2,2);
+insert into r1 values (1,1,2,1,3,3,3,3);
+insert into r1 values (1,1,2,2,4,4,4,4);
+insert into r1 values (1,2,1,1,5,5,5,5);
+insert into r1 values (1,2,1,2,6,6,6,6);
+insert into r1 values (1,2,2,1,7,7,7,7);
+insert into r1 values (1,2,2,2,8,8,8,8);
+insert into r1 values (2,1,1,1,9,9,9,9);
+insert into r1 values (2,1,1,2,10,10,10,10);
+insert into r1 values (2,1,2,1,11,11,11,11);
+insert into r1 values (2,1,2,2,12,12,12,12);
+insert into r1 values (2,2,1,1,13,13,13,13);
+insert into r1 values (2,2,1,2,14,14,14,14);
+insert into r1 values (2,2,2,1,15,15,15,15);
+insert into r1 values (2,2,2,2,16,16,16,16);
+
+connection con2;
+BEGIN;
+insert into r1 values (5,5,5,5,5,5,5,5);
+update r1 set value1=value1+100 where id1=1 and id2=1 and id3='1';
+
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --rocksdb --order-by-primary-desc --rocksdb_bulk_load test
+
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --rocksdb --order-by-primary-desc --rocksdb_bulk_load --rocksdb_bulk_load_allow_sk test
+
+rollback;
+
+connection con1;
+
+let SEARCH_FILE=$MYSQLTEST_VARDIR/mysqld.1/mysqld.log;
+let SEARCH_PATTERN=START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+source include/search_pattern_in_file.inc;
+
+set @save_default_storage_engine=@@global.default_storage_engine;
+SET GLOBAL default_storage_engine=rocksdb;
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key test
+source include/search_pattern_in_file.inc;
+
+# Sanity test mysqldump when the --innodb-stats-on-metadata is specified (no effect)
+--echo ==== mysqldump with --innodb-stats-on-metadata ====
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key --innodb-stats-on-metadata test
+
+# testing mysqldump work with statement based binary logging
+SET GLOBAL binlog_format=statement;
+--exec ASAN_OPTIONS="detect_leaks=0" $MYSQL_DUMP --skip-comments --single-transaction --master-data=2 --print-ordering-key test > /dev/null
+SET GLOBAL binlog_format=row;
+
+drop table r1;
+reset master;
+set @@global.default_storage_engine=@save_default_storage_engine;

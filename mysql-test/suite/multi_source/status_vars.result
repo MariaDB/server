@@ -1,0 +1,107 @@
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
+call mtr.add_suppression("Connection 'master1' already exists");
+change master 'master1' to 
+master_port=MYPORT_1, 
+master_host='127.0.0.1', 
+master_user='root',
+master_heartbeat_period = 25;
+start slave 'master1';
+set default_master_connection = 'master1';
+include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+change master to
+master_port=MYPORT_2,
+master_host='127.0.0.1',
+master_user='root',
+master_heartbeat_period=35;
+start slave;
+include/wait_for_slave_to_start.inc
+#
+# Check how status works for the default connection, anonymous or named
+#
+# Slave_running and Slave_heartbeat_period should be local for a connection
+#
+set default_master_connection = '';
+show status like 'Slave_running';
+Variable_name	Value
+Slave_running	ON
+show status like 'Slave_heartbeat_period';
+Variable_name	Value
+Slave_heartbeat_period	35.000
+stop slave io_thread;
+include/wait_for_slave_io_to_stop.inc
+show status like 'Slave_running';
+Variable_name	Value
+Slave_running	OFF
+set default_master_connection = 'master1';
+show status like 'Slave_running';
+Variable_name	Value
+Slave_running	ON
+show status like 'Slave_heartbeat_period';
+Variable_name	Value
+Slave_heartbeat_period	25.000
+#
+# Slave_received_heartbeats should also be local
+#
+set default_master_connection = '';
+stop slave sql_thread;
+include/wait_for_slave_sql_to_stop.inc
+change master to master_heartbeat_period=1;
+show status like 'Slave_received_heartbeats';
+Variable_name	Value
+Slave_received_heartbeats	0
+start slave;
+include/wait_for_slave_to_start.inc
+show status like 'Slave_received_heartbeats';
+Variable_name	Value
+Slave_received_heartbeats	2
+stop slave;
+include/wait_for_slave_to_stop.inc
+set default_master_connection = 'master1';
+show status like 'Slave_received_heartbeats';
+Variable_name	Value
+Slave_received_heartbeats	0
+stop slave;
+include/wait_for_slave_to_stop.inc
+change master to master_heartbeat_period=2;
+start slave;
+include/wait_for_slave_to_start.inc
+show status like 'Slave_received_heartbeats';
+Variable_name	Value
+Slave_received_heartbeats	1
+#
+# Slave_open_temp_tables should be global
+#
+set default_master_connection = '';
+start slave;
+include/wait_for_slave_to_start.inc
+connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+set binlog_format = statement;
+create temporary table tmp1 (i int) engine=MyISAM;
+connection slave;
+show status like 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	1
+set default_master_connection = 'master1';
+show status like 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	1
+connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+set binlog_format = statement;
+create temporary table tmp1 (i int) engine=MyISAM;
+connection slave;
+show status like 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	2
+set default_master_connection = '';
+show status like 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	2
+include/reset_master_slave.inc
+disconnect slave;
+connection master1;
+include/reset_master_slave.inc
+disconnect master1;
+connection master2;
+include/reset_master_slave.inc
+disconnect master2;

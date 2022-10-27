@@ -1,0 +1,66 @@
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+--source include/have_binlog_format_statement.inc
+
+--connection server_1
+SET @old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+select @@global.log_slave_updates;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t1 VALUES (2, 1);
+--save_master_pos
+
+--connection server_2
+SET @old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+select @@global.log_slave_updates;
+
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+--source include/stop_slave.inc
+
+--connection server_1
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SLAVE_MYPORT,
+     master_user = 'root', master_use_gtid = current_pos;
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+--connection server_2
+INSERT INTO t1 VALUES (3, 2);
+INSERT INTO t1 VALUES (4, 2);
+--source include/save_master_gtid.inc
+
+--source include/show_binlog_events.inc
+
+--connection server_1
+--source include/sync_with_master_gtid.inc
+
+SELECT * FROM t1 ORDER BY a;
+
+--source include/stop_slave.inc
+RESET SLAVE;
+INSERT INTO t1 VALUES (5, 1);
+INSERT INTO t1 VALUES (6, 1);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
+     master_use_gtid = current_pos;
+START SLAVE;
+--source include/sync_with_master_gtid.inc
+
+SELECT * FROM t1 ORDER BY a;
+
+# Cleanup.
+SET GLOBAL gtid_strict_mode= @old_strict;
+
+--connection server_1
+SET GLOBAL gtid_strict_mode= @old_strict;
+DROP TABLE t1;
+
+--source include/rpl_end.inc

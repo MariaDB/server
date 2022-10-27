@@ -1,0 +1,3 @@
+alter_table    : MDEV-13153 - Assertion `global_status_var.global_memory_used == 0'
+optimize_table : MDEV-13148 - LOCK TABLE on RocksDB table fails with a bogus error message
+repair_table   : MDEV-13148 - LOCK TABLE on RocksDB table fails with a bogus error message

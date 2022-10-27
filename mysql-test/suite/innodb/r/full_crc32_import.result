@@ -1,0 +1,177 @@
+FLUSH TABLES;
+# Treating compact format as dynamic format after import stmt
+CREATE TABLE t1
+(a int AUTO_INCREMENT PRIMARY KEY,
+b blob,
+c blob,
+KEY (b(200))) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 (b, c) values (repeat("ab", 200), repeat("bc", 200));
+INSERT INTO t1 (b, c) values (repeat("bc", 200), repeat("cd", 200));
+INSERT INTO t1 (b, c) values (repeat("cd", 200), repeat("ef", 200));
+INSERT INTO t1 (b, c) values (repeat("de", 200), repeat("fg", 200));
+INSERT INTO t1 (b, c) values (repeat("ef", 200), repeat("gh", 200));
+INSERT INTO t1 (b, c) values (repeat("fg", 200), repeat("hi", 200));
+INSERT INTO t1 (b, c) values (repeat("gh", 200), repeat("ij", 200));
+INSERT INTO t1 (b, c) values (repeat("hi", 200), repeat("jk", 200));
+INSERT INTO t1 (b, c) values (repeat("ij", 200), repeat("kl", 200));
+INSERT INTO t1 (b, c) values (repeat("jk", 200), repeat("lm", 200));
+INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
+INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+40
+FLUSH TABLE t1 FOR EXPORT;
+# List before copying files
+db.opt
+t1.cfg
+t1.frm
+t1.ibd
+backup: t1
+UNLOCK TABLES;
+ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISCARD TABLESPACE;
+db.opt
+t1.frm
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL AUTO_INCREMENT,
+  `b` blob DEFAULT NULL,
+  `c` blob DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b` (`b`(200))
+) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+UPDATE t1 set b = repeat("de", 100) where b = repeat("cd", 200);
+explain SELECT a FROM t1 where b = repeat("de", 100);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	b	b	203	const	#	Using where
+SELECT a FROM t1 where b = repeat("de", 100);
+a
+3
+13
+28
+38
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+40
+DELETE FROM t1;
+InnoDB		0 transactions not purged
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+CREATE TABLE t1
+(c1 int AUTO_INCREMENT PRIMARY KEY,
+c2 POINT NOT NULL,
+c3 LINESTRING NOT NULL,
+SPATIAL INDEX idx1(c2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1(c2,c3) VALUES(
+ST_GeomFromText('POINT(10 10)'),
+ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'));
+INSERT INTO t1(c2,c3) VALUES(
+ST_GeomFromText('POINT(20 20)'),
+ST_GeomFromText('LINESTRING(5 15,20 10,30 20)'));
+INSERT INTO t1(c2,c3) VALUES(
+ST_GeomFromText('POINT(30 30)'),
+ST_GeomFromText('LINESTRING(10 5,20 24,30 32)'));
+INSERT INTO t1(c2,c3) VALUES(
+ST_GeomFromText('POINT(40 40)'),
+ST_GeomFromText('LINESTRING(15 5,25 20,35 30)'));
+INSERT INTO t1(c2,c3) VALUES(
+ST_GeomFromText('POINT(50 10)'),
+ST_GeomFromText('LINESTRING(15 15,24 10,31 20)'));
+INSERT INTO t1(c2,c3) VALUES(
+ST_GeomFromText('POINT(60 50)'),
+ST_GeomFromText('LINESTRING(10 15,20 44,35 32)'));
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+FLUSH TABLE t1 FOR EXPORT;
+# List before copying files
+db.opt
+t1.cfg
+t1.frm
+t1.ibd
+backup: t1
+UNLOCK TABLES;
+ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISCARD TABLESPACE;
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL AUTO_INCREMENT,
+  `c2` point NOT NULL,
+  `c3` linestring NOT NULL,
+  PRIMARY KEY (`c1`),
+  SPATIAL KEY `idx1` (`c2`)
+) ENGINE=InnoDB AUTO_INCREMENT=14325 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+UPDATE t1 SET C2 = ST_GeomFromText('POINT(0 0)');
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+12288
+DELETE FROM t1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+InnoDB		0 transactions not purged
+DROP TABLE t1;
+SET @save_algo = @@GLOBAL.innodb_compression_algorithm;
+SET GLOBAL innodb_compression_algorithm=2;
+CREATE TABLE t1(a SERIAL) PAGE_COMPRESSED=1 ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+FLUSH TABLE t1 FOR EXPORT;
+# List before copying files
+db.opt
+t1.cfg
+t1.frm
+t1.ibd
+backup: t1
+UNLOCK TABLES;
+SET GLOBAL innodb_compression_algorithm=0;
+ALTER TABLE t1 FORCE;
+ALTER TABLE t1 DISCARD TABLESPACE;
+db.opt
+t1.frm
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+INSERT INTO t1 VALUES(2);
+SELECT * FROM t1;
+a
+1
+2
+SET GLOBAL innodb_compression_algorithm=3;
+FLUSH TABLE t1 FOR EXPORT;
+# List before copying files
+db.opt
+t1.cfg
+t1.frm
+t1.ibd
+backup: t1
+UNLOCK TABLES;
+SET GLOBAL innodb_compression_algorithm=0;
+ALTER TABLE t1 FORCE;
+ALTER TABLE t1 DISCARD TABLESPACE;
+db.opt
+t1.frm
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+INSERT INTO t1 VALUES(3);
+SELECT * FROM t1;
+a
+1
+2
+3
+DROP TABLE t1;
+SET GLOBAL innodb_compression_algorithm=@save_algo;

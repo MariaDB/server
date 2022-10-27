@@ -1,0 +1,8 @@
+create table t1(a int) engine=innodb;
+# restart
+select * from t1;
+a
+1
+2
+5
+drop table t1;

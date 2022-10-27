@@ -1,0 +1,15 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 VARCHAR(512)) ENGINE=InnoDB;
+SET GLOBAL wsrep_provider_options = 'repl.max_ws_size=512';
+INSERT INTO t1 VALUES (REPEAT('a', 512));
+ERROR HY000: Got error 5 "Input/output error" during COMMIT
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+DROP TABLE t1;
+CALL mtr.add_suppression("Maximum writeset size exceeded by");
+CALL mtr.add_suppression("transaction size limit");
+CALL mtr.add_suppression("transaction size exceeded");
+CALL mtr.add_suppression("rbr write fail");

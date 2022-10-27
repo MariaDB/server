@@ -1,0 +1,57 @@
+# set session
+
+SET @start_global_value = @@global.log_slow_disabled_statements;
+
+#
+# exists as global only
+#
+select @@global.log_slow_disabled_statements;
+select @@session.log_slow_disabled_statements;
+show global variables like 'log_slow_disabled_statements';
+show session variables like 'log_slow_disabled_statements';
+select * from information_schema.global_variables where variable_name='log_slow_disabled_statements';
+select * from information_schema.session_variables where variable_name='log_slow_disabled_statements';
+
+#
+# show that it's writable
+#
+set global log_slow_disabled_statements=1;
+select @@global.log_slow_disabled_statements;
+set session log_slow_disabled_statements=1;
+select @@session.log_slow_disabled_statements;
+
+#
+# all valid values
+#
+set session log_slow_disabled_statements=1;
+select @@session.log_slow_disabled_statements;
+set session log_slow_disabled_statements=2;
+select @@session.log_slow_disabled_statements;
+set session log_slow_disabled_statements=5;
+select @@session.log_slow_disabled_statements;
+set session log_slow_disabled_statements='admin';
+select @@session.log_slow_disabled_statements;
+set session log_slow_disabled_statements='slave';
+select @@session.log_slow_disabled_statements;
+set session log_slow_disabled_statements='call';
+select @@session.log_slow_disabled_statements;
+set session log_slow_disabled_statements='sp';
+select @@session.log_slow_disabled_statements;
+set session log_slow_disabled_statements='admin,sp,call,slave';
+select @@session.log_slow_disabled_statements;
+set session log_slow_disabled_statements='';
+select @@session.log_slow_disabled_statements;
+
+#
+# incorrect types/values
+#
+--error ER_WRONG_TYPE_FOR_VAR
+set session log_slow_disabled_statements=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set session log_slow_disabled_statements=1e1;
+--error ER_WRONG_VALUE_FOR_VAR
+set session log_slow_disabled_statements="foo";
+--error ER_WRONG_VALUE_FOR_VAR
+set session log_slow_disabled_statements=1024;
+
+SET @@global.log_slow_disabled_statements = @start_global_value;

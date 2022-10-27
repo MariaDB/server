@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS oq_backing;
+DROP TABLE IF EXISTS oq_graph;
+CREATE TABLE oq_backing (origid INT UNSIGNED NOT NULL, destid INT UNSIGNED NOT NULL, PRIMARY KEY (origid, destid), KEY (destid));
+INSERT INTO oq_backing(origid, destid) VALUES (1,2), (2,3), (3,4), (4,5), (2,6), (5,6);
+CREATE TABLE oq_graph (latch VARCHAR(32) NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL,  KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH) ENGINE=OQGRAPH data_table='oq_backing' origid='origid' destid='destid';
+SELECT * FROM oq_graph WHERE latch='breadth_first' AND origid=1 AND destid=6;
+latch	origid	destid	weight	seq	linkid
+breadth_first	1	6	NULL	0	1
+breadth_first	1	6	1	1	2
+breadth_first	1	6	1	2	6
+DROP TABLE IF EXISTS oq_graph;
+DROP TABLE IF EXISTS oq_backing;

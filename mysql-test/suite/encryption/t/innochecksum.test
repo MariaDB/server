@@ -1,0 +1,284 @@
+#
+# MDEV-8773: InnoDB innochecksum does not work with encrypted or page compressed tables
+#
+
+# Don't test under embedded as we restart server
+-- source include/not_embedded.inc
+# Require InnoDB
+-- source include/have_innodb.inc
+-- source include/have_file_key_management_plugin.inc
+-- source include/innodb_page_size_small.inc
+-- source include/innodb_checksum_algorithm.inc
+
+if (!$INNOCHECKSUM) {
+  --echo Need innochecksum binary
+  --die Need innochecksum binary
+}
+
+let $checksum_algorithm = `SELECT @@innodb_checksum_algorithm`;
+SET GLOBAL innodb_file_per_table = ON;
+# zlib
+set global innodb_compression_algorithm = 1;
+
+
+--echo # Create and populate a tables
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+CREATE TABLE t2 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+CREATE TABLE t3 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED ENCRYPTED=NO;
+CREATE TABLE t4 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB PAGE_COMPRESSED=1;
+CREATE TABLE t5 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+CREATE TABLE t6 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
+
+--disable_query_log
+--let $i = 1000
+begin;
+while ($i)
+{
+  INSERT INTO t1 (b) VALUES (REPEAT('abcdefghijklmnopqrstuvwxyz', 100));
+  dec $i;
+}
+INSERT INTO t2 SELECT * FROM t1;
+INSERT INTO t3 SELECT * FROM t1;
+INSERT INTO t4 SELECT * FROM t1;
+INSERT INTO t5 SELECT * FROM t1;
+INSERT INTO t6 SELECT * FROM t1;
+commit;
+--enable_query_log
+
+let $MYSQLD_DATADIR=`select @@datadir`;
+let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
+let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd;
+let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd;
+let t4_IBD = $MYSQLD_DATADIR/test/t4.ibd;
+let t5_IBD = $MYSQLD_DATADIR/test/t5.ibd;
+let t6_IBD = $MYSQLD_DATADIR/test/t6.ibd;
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+
+--source include/shutdown_mysqld.inc
+
+--echo # Run innochecksum on t1
+-- disable_result_log
+--exec $INNOCHECKSUM $t1_IBD
+
+--echo # Run innochecksum on t2
+
+--exec $INNOCHECKSUM $t2_IBD
+
+--echo # Run innochecksum on t3
+
+--exec $INNOCHECKSUM $t3_IBD
+
+--echo # Run innochecksum on t4
+
+--exec $INNOCHECKSUM $t4_IBD
+
+--echo # Run innochecksum on t4
+
+--exec $INNOCHECKSUM $t4_IBD
+
+--echo # Run innochecksum on t5
+
+--exec $INNOCHECKSUM $t5_IBD
+
+--echo # Run innochecksum on t6
+
+--exec $INNOCHECKSUM $t6_IBD
+
+--enable_result_log
+
+--echo # Backup tables before corrupting
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd.backup
+--copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t2.ibd.backup
+--copy_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t3.ibd.backup
+--copy_file $MYSQLD_DATADIR/test/t4.ibd $MYSQLD_DATADIR/test/t4.ibd.backup
+--copy_file $MYSQLD_DATADIR/test/t5.ibd $MYSQLD_DATADIR/test/t5.ibd.backup
+--copy_file $MYSQLD_DATADIR/test/t6.ibd $MYSQLD_DATADIR/test/t6.ibd.backup
+
+#
+# MDEV-11939: innochecksum mistakes a file for an encrypted one
+#
+
+--echo # Corrupt FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+
+perl;
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t1.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t2.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t3.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t6.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+EOF
+
+-- disable_result_log
+--error 1
+--exec $INNOCHECKSUM $t1_IBD
+
+--echo # Run innochecksum on t2
+
+--error 1
+--exec $INNOCHECKSUM $t2_IBD
+
+--echo # Run innochecksum on t3
+--echo # no encryption corrupting the field should not have effect
+--exec $INNOCHECKSUM $t3_IBD
+
+--echo # Run innochecksum on t6
+--echo # In new checksum format, checksum calculated for whole page.
+--echo # So It should affected.
+let $error_code = 0;
+if ($checksum_algorithm == "full_crc32")
+{
+ let $error_code = 1;
+}
+
+if ($checksum_algorithm == "strict_full_crc32")
+{
+ let $error_code = 1;
+}
+
+--error $error_code
+--exec $INNOCHECKSUM $t6_IBD
+
+--enable_result_log
+
+--echo # Restore the original tables
+--remove_file $MYSQLD_DATADIR/test/t1.ibd
+--remove_file $MYSQLD_DATADIR/test/t2.ibd
+--remove_file $MYSQLD_DATADIR/test/t3.ibd
+--remove_file $MYSQLD_DATADIR/test/t4.ibd
+--remove_file $MYSQLD_DATADIR/test/t5.ibd
+--remove_file $MYSQLD_DATADIR/test/t6.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
+--copy_file $MYSQLD_DATADIR/test/t2.ibd.backup $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t3.ibd.backup $MYSQLD_DATADIR/test/t3.ibd
+--copy_file $MYSQLD_DATADIR/test/t4.ibd.backup $MYSQLD_DATADIR/test/t4.ibd
+--copy_file $MYSQLD_DATADIR/test/t5.ibd.backup $MYSQLD_DATADIR/test/t5.ibd
+--copy_file $MYSQLD_DATADIR/test/t6.ibd.backup $MYSQLD_DATADIR/test/t6.ibd
+
+--echo # Corrupt FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+4 (post encryption checksum)
+
+perl;
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t1.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 30, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t2.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 30, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t3.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 30, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t6.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 30, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+EOF
+
+-- disable_result_log
+--error 1
+--exec $INNOCHECKSUM $t1_IBD
+
+--echo # Run innochecksum on t2
+--error 1
+--exec $INNOCHECKSUM $t2_IBD
+
+--echo # Run innochecksum on t3
+--error 1
+--exec $INNOCHECKSUM $t3_IBD
+
+--echo # Run innochecksum on t6
+--echo # Space ID mismatch
+--error 1
+--exec $INNOCHECKSUM $t6_IBD
+
+--enable_result_log
+
+--echo # Restore the original tables
+--remove_file $MYSQLD_DATADIR/test/t1.ibd
+--remove_file $MYSQLD_DATADIR/test/t2.ibd
+--remove_file $MYSQLD_DATADIR/test/t3.ibd
+--remove_file $MYSQLD_DATADIR/test/t4.ibd
+--remove_file $MYSQLD_DATADIR/test/t5.ibd
+--remove_file $MYSQLD_DATADIR/test/t6.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
+--copy_file $MYSQLD_DATADIR/test/t2.ibd.backup $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t3.ibd.backup $MYSQLD_DATADIR/test/t3.ibd
+--copy_file $MYSQLD_DATADIR/test/t4.ibd.backup $MYSQLD_DATADIR/test/t4.ibd
+--copy_file $MYSQLD_DATADIR/test/t5.ibd.backup $MYSQLD_DATADIR/test/t5.ibd
+--copy_file $MYSQLD_DATADIR/test/t6.ibd.backup $MYSQLD_DATADIR/test/t6.ibd
+
+--echo # Corrupt FIL_DATA+10 (data)
+
+perl;
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t1.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 48, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t2.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 48, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t3.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 48, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t6.ibd") or die "open";
+binmode FILE;
+seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 48, SEEK_SET) or die "seek";
+print FILE pack("H*", "c00lcafedeadb017");
+close FILE or die "close";
+EOF
+
+-- disable_result_log
+--error 1
+--exec $INNOCHECKSUM $t1_IBD
+
+--echo # Run innochecksum on t2
+--error 1
+--exec $INNOCHECKSUM $t2_IBD
+
+--echo # Run innochecksum on t3
+--error 1
+--exec $INNOCHECKSUM $t3_IBD
+
+--echo # Run innochecksum on t6
+--error 1
+--exec $INNOCHECKSUM $t6_IBD
+
+--enable_result_log
+
+--echo # Restore the original tables
+--move_file $MYSQLD_DATADIR/test/t1.ibd.backup $MYSQLD_DATADIR/test/t1.ibd
+--move_file $MYSQLD_DATADIR/test/t2.ibd.backup $MYSQLD_DATADIR/test/t2.ibd
+--move_file $MYSQLD_DATADIR/test/t3.ibd.backup $MYSQLD_DATADIR/test/t3.ibd
+--move_file $MYSQLD_DATADIR/test/t4.ibd.backup $MYSQLD_DATADIR/test/t4.ibd
+--move_file $MYSQLD_DATADIR/test/t5.ibd.backup $MYSQLD_DATADIR/test/t5.ibd
+--move_file $MYSQLD_DATADIR/test/t6.ibd.backup $MYSQLD_DATADIR/test/t6.ibd
+
+--source include/start_mysqld.inc
+DROP TABLE t1, t2, t3, t4, t5, t6;

@@ -1,0 +1,2 @@
+create_table_token_filters_index_comment_multiple_token_filters : Bundled Mroonga does not support token filter yet.
+create_table_token_filters_index_comment_one_token_filter : Bundled Mroonga does not support token filter yet.

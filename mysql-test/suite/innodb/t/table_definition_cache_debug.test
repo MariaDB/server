@@ -1,0 +1,70 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
+
+call mtr.add_suppression("InnoDB: innodb_open_files=13 is exceeded");
+
+SET @save_tdc= @@GLOBAL.table_definition_cache;
+SET @save_toc= @@GLOBAL.table_open_cache;
+
+# InnoDB plugin essentially ignores table_definition_cache size
+# and hard-wires it to 400, which also is the minimum allowed value.
+SET GLOBAL table_definition_cache= 400;
+SET GLOBAL table_open_cache= 1024;
+
+CREATE TABLE to_be_evicted(a INT PRIMARY KEY, b INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO to_be_evicted VALUES(1,2),(2,1);
+
+connect(ddl,localhost,root,,);
+SET DEBUG_SYNC = 'row_log_apply_before SIGNAL scanned WAIT_FOR got_duplicate';
+--send
+ALTER TABLE to_be_evicted ADD UNIQUE INDEX(b);
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+
+# During the ADD UNIQUE INDEX, start a transaction that inserts a duplicate
+# and then hogs the table lock, so that the unique index cannot be dropped.
+BEGIN;
+INSERT INTO to_be_evicted VALUES(3, 2);
+SET DEBUG_SYNC = 'now SIGNAL got_duplicate';
+
+connection ddl;
+--error ER_DUP_ENTRY
+reap;
+
+disconnect ddl;
+connection default;
+# Release the table lock.
+COMMIT;
+SET DEBUG_SYNC = RESET;
+
+# Allow cache eviction.
+FLUSH TABLES;
+--disable_query_log
+
+# Pollute the cache with many tables, so that our table will be evicted.
+let $N=1000;
+let $loop=$N;
+while ($loop)
+{
+  eval CREATE TABLE t_$loop(id INT)ENGINE=InnoDB;
+  dec $loop;
+}
+
+# Hopefully let InnoDB evict the tables.
+sleep 10;
+
+let $loop=$N;
+while ($loop)
+{
+  eval DROP TABLE t_$loop;
+  dec $loop;
+}
+
+SET GLOBAL table_definition_cache= @save_tdc;
+SET GLOBAL table_open_cache= @save_toc;
+
+DROP TABLE to_be_evicted;

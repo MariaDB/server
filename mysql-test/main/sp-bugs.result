@@ -1,0 +1,355 @@
+#
+# Bug #47412: Valgrind warnings / user can read uninitialized memory
+# using SP variables
+#
+CREATE SCHEMA testdb;
+USE testdb;
+CREATE FUNCTION f2 () RETURNS INTEGER
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLSTATE '42000' SET @aux = 1;
+RETURN f_not_exists () ;
+END|
+CREATE PROCEDURE p3 ( arg1 VARCHAR(32) )
+BEGIN
+CALL p_not_exists ( );
+END|
+# should not return valgrind warnings
+CALL p3 ( f2 () );
+ERROR 42000: PROCEDURE testdb.p_not_exists does not exist
+DROP SCHEMA testdb;
+CREATE SCHEMA testdb;
+USE testdb;
+CREATE FUNCTION f2 () RETURNS INTEGER
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLSTATE '42000' SET @aux = 1;
+RETURN f_not_exists () ;
+END|
+CREATE PROCEDURE p3 ( arg2 INTEGER )
+BEGIN
+CALL p_not_exists ( );
+END|
+# should not return valgrind warnings
+CALL p3 ( f2 () );
+ERROR 42000: PROCEDURE testdb.p_not_exists does not exist
+DROP SCHEMA testdb;
+CREATE SCHEMA testdb;
+USE testdb;
+CREATE FUNCTION f2 () RETURNS INTEGER
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLSTATE '42000' SET @aux = 1;
+RETURN f_not_exists () ;
+END|
+# should not return valgrind warnings
+SELECT f2 ();
+f2 ()
+NULL
+DROP SCHEMA testdb;
+USE test;
+#
+# Bug#50423: Crash on second call of a procedure dropping a trigger
+#
+DROP TABLE IF EXISTS t1;
+DROP TRIGGER IF EXISTS tr1;
+DROP PROCEDURE IF EXISTS p1;
+CREATE TABLE t1 (f1 INTEGER);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @aux = 1;
+CREATE PROCEDURE p1 () DROP TRIGGER tr1;
+CALL p1 ();
+CALL p1 ();
+ERROR HY000: Trigger does not exist
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Bug#54375: Error in stored procedure leaves connection
+# in different default schema
+#
+SET @@SQL_MODE = 'STRICT_ALL_TABLES';
+DROP DATABASE IF EXISTS db1;
+CREATE DATABASE db1;
+USE db1;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (c1 int NOT NULL PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+CREATE FUNCTION f1 (
+some_value int
+)
+RETURNS smallint
+DETERMINISTIC
+BEGIN
+INSERT INTO t1 SET c1 = some_value;
+RETURN(LAST_INSERT_ID());
+END$$
+DROP DATABASE IF EXISTS db2;
+CREATE DATABASE db2;
+USE db2;
+SELECT DATABASE();
+DATABASE()
+db2
+SELECT db1.f1(1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SELECT DATABASE();
+DATABASE()
+db2
+USE test;
+DROP FUNCTION db1.f1;
+DROP TABLE db1.t1;
+DROP DATABASE db1;
+DROP DATABASE db2;
+USE test;
+#
+# Bug#13105873:valgrind warning:possible crash in foreign 
+# key handling on subsequent create table if not exists 
+#
+DROP DATABASE IF EXISTS testdb;
+CREATE DATABASE testdb;
+USE testdb;
+CREATE TABLE t1 (id1 INT PRIMARY KEY);
+CREATE PROCEDURE `p1`()
+BEGIN
+CREATE TABLE IF NOT EXISTS t2(id INT PRIMARY KEY,
+CONSTRAINT FK FOREIGN KEY (id) REFERENCES t1( id1 ));
+END$
+CALL p1();
+# below stmt should not return valgrind warnings
+CALL p1();
+Warnings:
+Note	1050	Table 't2' already exists
+DROP DATABASE testdb;
+USE test;
+#
+# End of 5.1 tests
+#
+#
+# BUG#13489996 valgrind:conditional jump or move depends on
+# uninitialised values-field_blob
+#
+CREATE FUNCTION sf() RETURNS BLOB RETURN "";
+SELECT sf();
+sf()
+
+DROP FUNCTION sf;
+#
+# Bug#11763507 - 56224: FUNCTION NAME IS CASE-SENSITIVE
+#
+SET @@SQL_MODE = '';
+CREATE FUNCTION testf_bug11763507() RETURNS INT
+BEGIN
+RETURN 0;
+END
+$
+CREATE PROCEDURE testp_bug11763507()
+BEGIN
+SELECT "PROCEDURE testp_bug11763507";
+END
+$
+SELECT testf_bug11763507();
+testf_bug11763507()
+0
+SELECT TESTF_bug11763507();
+TESTF_bug11763507()
+0
+SHOW FUNCTION STATUS LIKE  'testf_bug11763507';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW FUNCTION STATUS WHERE NAME='testf_bug11763507';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW FUNCTION STATUS LIKE  'TESTF_bug11763507';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW FUNCTION STATUS WHERE NAME='TESTF_bug11763507';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test	testf_bug11763507	FUNCTION	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE FUNCTION testf_bug11763507;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+testf_bug11763507		CREATE DEFINER=`root`@`localhost` FUNCTION `testf_bug11763507`() RETURNS int(11)
+BEGIN
+RETURN 0;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE FUNCTION TESTF_bug11763507;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+testf_bug11763507		CREATE DEFINER=`root`@`localhost` FUNCTION `testf_bug11763507`() RETURNS int(11)
+BEGIN
+RETURN 0;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+CALL testp_bug11763507();
+PROCEDURE testp_bug11763507
+PROCEDURE testp_bug11763507
+CALL TESTP_bug11763507();
+PROCEDURE testp_bug11763507
+PROCEDURE testp_bug11763507
+SHOW PROCEDURE STATUS LIKE  'testp_bug11763507';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW PROCEDURE STATUS WHERE NAME='testp_bug11763507';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW PROCEDURE STATUS LIKE  'TESTP_bug11763507';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW PROCEDURE STATUS WHERE NAME='TESTP_bug11763507';
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+test	testp_bug11763507	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE PROCEDURE testp_bug11763507;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+testp_bug11763507		CREATE DEFINER=`root`@`localhost` PROCEDURE `testp_bug11763507`()
+BEGIN
+SELECT "PROCEDURE testp_bug11763507";
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE PROCEDURE TESTP_bug11763507;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+testp_bug11763507		CREATE DEFINER=`root`@`localhost` PROCEDURE `testp_bug11763507`()
+BEGIN
+SELECT "PROCEDURE testp_bug11763507";
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT specific_name FROM INFORMATION_SCHEMA.ROUTINES WHERE specific_name LIKE 'testf_bug11763507';
+specific_name
+testf_bug11763507
+SELECT specific_name FROM INFORMATION_SCHEMA.ROUTINES WHERE specific_name LIKE 'TESTF_bug11763507';
+specific_name
+testf_bug11763507
+SELECT specific_name FROM INFORMATION_SCHEMA.ROUTINES WHERE specific_name='testf_bug11763507';
+specific_name
+testf_bug11763507
+SELECT specific_name FROM INFORMATION_SCHEMA.ROUTINES WHERE specific_name='TESTF_bug11763507';
+specific_name
+testf_bug11763507
+DROP PROCEDURE testp_bug11763507;
+DROP FUNCTION testf_bug11763507;
+#END OF BUG#11763507 test.
+#
+# MDEV-5531 double call procedure in one session
+#
+CREATE TABLE  `t1` (
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`create_ts` int(10) unsigned DEFAULT '0',
+PRIMARY KEY (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=0 DEFAULT CHARSET=utf8;
+CREATE PROCEDURE test_5531 (IN step TINYINT(1))
+BEGIN
+DECLARE counts INT DEFAULT 0;
+DECLARE cur1 CURSOR FOR
+SELECT ct.id
+FROM (SELECT NULL) AS z
+JOIN (
+SELECT id
+FROM `t1`
+    LIMIT 10
+) AS ct
+JOIN (SELECT NULL) AS x ON(
+EXISTS(
+SELECT 1
+FROM `t1`
+      WHERE id=ct.id
+LIMIT 1
+)
+);
+IF step=1 THEN
+TRUNCATE t1;
+REPEAT
+INSERT INTO `t1`
+      (create_ts) VALUES
+(UNIX_TIMESTAMP());
+SET counts=counts+1;
+UNTIL counts>150 END REPEAT;
+SET max_sp_recursion_depth=1;
+CALL test_5531(2);
+SET max_sp_recursion_depth=2;
+CALL test_5531(2);
+ELSEIF step=2 THEN
+OPEN cur1; CLOSE cur1;
+END IF;
+END $$
+CALL test_5531(1);
+DROP PROCEDURE test_5531;
+DROP TABLE t1;
+create procedure sp() begin
+commit;
+end|
+start transaction;
+call sp();
+drop procedure sp;
+#
+# MDEV-11146 SP variables of the SET data type erroneously allow values with comma
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a SET('a','b','c','a,b');
+SET a='a,b';
+SELECT a, a+0;
+END;
+$$
+ERROR 22007: Illegal set 'a,b' value found during parsing
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-16117 SP with a single FOR statement creates but further fails to load
+#
+CREATE PROCEDURE p1()
+FOR i IN 1..10 DO
+set @x = 5;
+END FOR;
+$$
+CALL p1;
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='p1';
+body
+FOR i IN 1..10 DO
+set @x = 5;
+END FOR
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() WITH t1 AS (SELECT 1) SELECT 1;
+$$
+CALL p1;
+1
+1
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='p1';
+body
+WITH t1 AS (SELECT 1) SELECT 1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() VALUES (1);
+$$
+CALL p1;
+1
+1
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='p1';
+body
+VALUES (1)
+DROP PROCEDURE p1;
+CREATE FUNCTION f1() RETURNS INT
+FOR i IN 1..10 DO
+RETURN 1;
+END FOR;
+$$
+SELECT f1();
+f1()
+1
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='f1';
+body
+FOR i IN 1..10 DO
+RETURN 1;
+END FOR
+DROP FUNCTION f1;
+#
+# End of 10.2 tests
+#
+#
+# MDEV-25501 routine_definition in information_schema.routines loses tablename if it starts with an _ and is not backticked
+#
+create table _t1 (a int);
+create procedure p1() select * from _t1;
+show create procedure p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1		CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+select * from _t1	latin1	latin1_swedish_ci	latin1_swedish_ci
+select routine_definition from information_schema.routines where routine_schema=database() and specific_name='p1';
+routine_definition
+select * from _t1
+select body, body_utf8 from mysql.proc where name='p1';
+body	body_utf8
+select * from _t1	select * from _t1
+drop procedure p1;
+drop table _t1;
+#
+# End of 10.3 tests
+#

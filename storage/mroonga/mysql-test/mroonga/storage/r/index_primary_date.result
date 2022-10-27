@@ -1,0 +1,21 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+day DATE PRIMARY KEY,
+title TEXT
+) DEFAULT CHARSET UTF8;
+INSERT INTO diaries (day, title) VALUES ("2012-01-29", "clear day");
+INSERT INTO diaries (day, title) VALUES ("2012-01-30", "rainy day");
+INSERT INTO diaries (day, title) VALUES ("2012-01-31", "cloudy day");
+INSERT INTO diaries (day, title) VALUES ("2012-01-31", "duplicated day");
+ERROR 23000: Duplicate entry '2012-01-31' for key 'PRIMARY'
+SELECT * FROM diaries;
+day	title
+2012-01-29	clear day
+2012-01-30	rainy day
+2012-01-31	cloudy day
+SELECT * FROM diaries
+WHERE day BETWEEN "2012-01-29" AND "2012-01-30";
+day	title
+2012-01-29	clear day
+2012-01-30	rainy day
+DROP TABLE diaries;

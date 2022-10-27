@@ -1,0 +1,528 @@
+#
+# Check backup and FTWRL
+#
+flush tables with read lock;
+backup stage start;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+unlock tables;
+backup stage start;
+flush tables with read lock;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+backup stage end;
+#
+# Check backup and FLUSH TABLES
+#
+flush tables;
+backup stage start;
+flush tables;
+backup stage end;
+#
+# Check BACKUP STAGE under lock tables
+#
+create table t1 (a int);
+lock table t1 write;
+backup stage start;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+backup stage end;
+ERROR HY000: You must start backup with "BACKUP STAGE START"
+unlock tables;
+lock table t1 read;
+backup stage start;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+backup stage end;
+ERROR HY000: You must start backup with "BACKUP STAGE START"
+unlock tables;
+#
+# Check lock tables under BACKUP STAGE
+#
+backup stage start;
+unlock tables;
+select lock_mode from information_schema.metadata_lock_info;
+lock_mode
+MDL_BACKUP_START
+lock table t1 write;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+lock table t1 read;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+unlock tables;
+backup stage end;
+drop table t1;
+#
+# Check setting readonly under BACKUP STAGE
+#
+backup stage start;
+set @@global.read_only=1;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+backup stage end;
+# also make sure going back from read-only mode is not allowed
+set @@global.read_only=1;
+backup stage start;
+set @@global.read_only=0;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+backup stage end;
+set @@global.read_only=0;
+#
+# Check BACKUP STAGE under read_only
+#
+set @@global.read_only=1;
+backup stage start;
+backup stage end;
+set @@global.read_only=0;
+#
+# Check that we can't create tables during backup
+#
+backup stage start;
+create table t1 (a int);
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+backup stage end;
+# also make sure we can't write to a table during backup
+create table t1(a INT);
+backup stage start;
+insert into t1 values(1);
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+insert delayed into t1 values(1);
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+update t1 set a=1;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+delete from t1;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+truncate table t1;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+drop table t1;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+backup stage end;
+drop table t1;
+#
+# BACKUP STAGE performs implicit commits
+#
+create table t1(a int) engine=InnoDB;
+begin;
+insert into t1 values(1);
+select lock_mode from information_schema.metadata_lock_info;
+lock_mode
+MDL_SHARED_WRITE
+backup stage start;
+select lock_mode from information_schema.metadata_lock_info;
+lock_mode
+MDL_BACKUP_START
+backup stage block_commit;
+commit;
+backup stage end;
+drop table t1;
+# Ensure that BACKUP STAGE ... does AUTOCOMMIT like most DDL.
+# Sideeffect:
+# Show the impact of not yet committed INSERT before sequence start
+# and ROLLBACK sliding through the sequence.
+CREATE TABLE t1 (col1 INT) ENGINE = InnoDB;
+SET AUTOCOMMIT = 0;
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+ROLLBACK;
+BACKUP STAGE END;
+#----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+ROLLBACK;
+BACKUP STAGE END;
+#----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+ROLLBACK;
+BACKUP STAGE END;
+#----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+ROLLBACK;
+BACKUP STAGE END;
+#----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+BACKUP STAGE END;
+ROLLBACK;
+SELECT COUNT(*) = 5 AS expect_1 FROM t1;
+expect_1
+1
+# Show the impact of not yet committed INSERT before sequence start
+# and a COMMIT sliding through the sequence.
+SET AUTOCOMMIT = 0;
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+COMMIT;
+BACKUP STAGE END;
+#----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+COMMIT;
+BACKUP STAGE END;
+#----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+COMMIT;
+BACKUP STAGE END;
+#----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+COMMIT;
+BACKUP STAGE END;
+#----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+BACKUP STAGE END;
+COMMIT;
+SELECT COUNT(*) = 10 AS expect_1 FROM t1;
+expect_1
+1
+DELETE FROM t1;
+COMMIT;
+drop table t1;
+#
+# CHECK: RO transaction under BACKUP STAGE is a potential deadlock
+# OTOH we most probably allow them under FTWRL as well
+#
+CREATE TABLE t1 (col1 INT) ENGINE = InnoDB;
+insert into t1 values (1);
+backup stage start;
+backup stage block_commit;
+begin;
+select * from t1;
+col1
+1
+select lock_mode from information_schema.metadata_lock_info;
+lock_mode
+MDL_BACKUP_WAIT_COMMIT
+MDL_SHARED_READ
+backup stage end;
+select lock_mode from information_schema.metadata_lock_info;
+lock_mode
+drop table t1;
+#
+# Check that handler are closed by backup stage block_ddl
+#
+create table t1 (a int, key a (a));
+insert into t1 (a) values (1), (2), (3), (4), (5);
+handler t1 open;
+handler t1 read a prev;
+a
+5
+backup stage start;
+handler t1 read a prev;
+a
+4
+backup stage flush;
+backup stage block_ddl;
+handler t1 read a prev;
+a
+5
+backup stage block_commit;
+handler t1 read a prev;
+a
+4
+backup stage end;
+handler t1 close;
+drop table t1;
+# Show the fate and impact of some SELECT /HANDLER ... READ
+# sliding through the sequence.
+CREATE TABLE t1_innodb (col1 INT) ENGINE = InnoDB;
+INSERT INTO t1_innodb values (1),(2),(3);
+COMMIT;
+CREATE TABLE t1_myisam (col1 INT) ENGINE = MyISAM;
+INSERT INTO t1_myisam values (1),(2),(3);
+BACKUP STAGE START;
+SELECT COUNT(*) FROM t1_innodb;
+COUNT(*)
+3
+SELECT * FROM t1_innodb;
+col1
+1
+2
+3
+HANDLER t1_innodb OPEN;
+HANDLER t1_innodb READ FIRST;
+col1
+1
+HANDLER t1_innodb CLOSE;
+SELECT COUNT(*) FROM t1_myisam;
+COUNT(*)
+3
+HANDLER t1_myisam OPEN;
+HANDLER t1_myisam READ FIRST;
+col1
+1
+HANDLER t1_myisam CLOSE;
+BACKUP STAGE FLUSH;
+SELECT COUNT(*) FROM t1_innodb;
+COUNT(*)
+3
+HANDLER t1_innodb OPEN;
+HANDLER t1_innodb READ FIRST;
+col1
+1
+HANDLER t1_innodb CLOSE;
+SELECT COUNT(*) FROM t1_myisam;
+COUNT(*)
+3
+HANDLER t1_myisam OPEN;
+HANDLER t1_myisam READ FIRST;
+col1
+1
+HANDLER t1_myisam CLOSE;
+BACKUP STAGE BLOCK_DDL;
+SELECT COUNT(*) FROM t1_innodb;
+COUNT(*)
+3
+HANDLER t1_innodb OPEN;
+HANDLER t1_innodb READ FIRST;
+col1
+1
+HANDLER t1_innodb CLOSE;
+SELECT COUNT(*) FROM t1_myisam;
+COUNT(*)
+3
+HANDLER t1_myisam OPEN;
+HANDLER t1_myisam READ FIRST;
+col1
+1
+HANDLER t1_myisam CLOSE;
+BACKUP STAGE BLOCK_COMMIT;
+SELECT COUNT(*) FROM t1_innodb;
+COUNT(*)
+3
+HANDLER t1_innodb OPEN;
+HANDLER t1_innodb READ FIRST;
+col1
+1
+HANDLER t1_innodb CLOSE;
+SELECT COUNT(*) FROM t1_myisam;
+COUNT(*)
+3
+HANDLER t1_myisam OPEN;
+HANDLER t1_myisam READ FIRST;
+col1
+1
+HANDLER t1_myisam CLOSE;
+BACKUP STAGE END;
+drop table t1_innodb,t1_myisam;
+# Show the fate and impact of some SET GLOBAL tx_read_only = 1/0
+# sliding through the sequence.
+BACKUP STAGE START;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+BACKUP STAGE FLUSH;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+BACKUP STAGE BLOCK_DDL;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+BACKUP STAGE BLOCK_COMMIT;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+BACKUP STAGE END;
+# Show the fate and impact of some SET SESSION sql_log_bin = 0/1
+# sliding through the sequence.
+COMMIT;
+SET SESSION sql_log_bin = 1;
+BACKUP STAGE START;
+SET SESSION sql_log_bin = 0;
+SET SESSION sql_log_bin = 1;
+BACKUP STAGE FLUSH;
+SET SESSION sql_log_bin = 0;
+SET SESSION sql_log_bin = 1;
+BACKUP STAGE BLOCK_DDL;
+SET SESSION sql_log_bin = 0;
+SET SESSION sql_log_bin = 1;
+BACKUP STAGE BLOCK_COMMIT;
+SET SESSION sql_log_bin = 0;
+SET SESSION sql_log_bin = 1;
+BACKUP STAGE END;
+#----
+SET SESSION sql_log_bin = 0;
+BACKUP STAGE START;
+SET SESSION sql_log_bin = 1;
+SET SESSION sql_log_bin = 0;
+BACKUP STAGE FLUSH;
+SET SESSION sql_log_bin = 1;
+SET SESSION sql_log_bin = 0;
+BACKUP STAGE BLOCK_DDL;
+SET SESSION sql_log_bin = 1;
+SET SESSION sql_log_bin = 0;
+BACKUP STAGE BLOCK_COMMIT;
+SET SESSION sql_log_bin = 1;
+SET SESSION sql_log_bin = 0;
+BACKUP STAGE END;
+SET SESSION sql_log_bin = 1;
+#-----------------------------------------------------------------------
+# BACKUP STAGE statements are not allowed in stored routines
+#-----------------------------------------------------------------------
+CREATE TABLE t1 (col1 INT);
+CREATE PROCEDURE p1()
+BEGIN
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+BACKUP STAGE END;
+END|
+ERROR 0A000: BACKUP STAGE is not allowed in stored procedures
+CREATE FUNCTION f1 (s CHAR(20)) RETURNS INT DETERMINISTIC
+BEGIN
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+BACKUP STAGE END;
+RETURN 1;
+END|
+ERROR 0A000: BACKUP STAGE is not allowed in stored procedures
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+BACKUP STAGE END;
+END|
+ERROR 0A000: BACKUP STAGE is not allowed in stored procedures
+DROP TABLE t1;
+#-----------------------------------------------------------------------
+# Check BACKUP status variables
+#-----------------------------------------------------------------------
+SET SESSION lock_wait_timeout = 1;
+FLUSH STATUS;
+# Show how the status variable 'Com_backup' changes after BACKUP STAGE ..
+SHOW STATUS LIKE 'Com_backup';
+Variable_name	Value
+Com_backup	0
+BACKUP STAGE START;
+SHOW STATUS LIKE 'Com_backup';
+Variable_name	Value
+Com_backup	1
+BACKUP STAGE START;
+ERROR HY000: Backup stage 'START' is same or before current backup stage 'START'
+SHOW STATUS LIKE 'Com_backup';
+Variable_name	Value
+Com_backup	2
+BACKUP STAGE FLUSH;
+SHOW STATUS LIKE 'Com_backup';
+Variable_name	Value
+Com_backup	3
+BACKUP STAGE BLOCK_DDL;
+SHOW STATUS LIKE 'Com_backup';
+Variable_name	Value
+Com_backup	4
+BACKUP STAGE BLOCK_COMMIT;
+SHOW STATUS LIKE 'Com_backup';
+Variable_name	Value
+Com_backup	5
+BACKUP STAGE END;
+# In case the backup lock is taken by the current connection than
+# - DML modifying some permanent table is not allowed
+CREATE TABLE t1_innodb (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t1_myisam (col1 INT) ENGINE = MyISAM;
+BACKUP STAGE START;
+SET AUTOCOMMIT = 0;
+INSERT INTO t1_innodb SET col1 = 1;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+SET AUTOCOMMIT = 1;
+INSERT INTO t1_innodb SET col1 = 1;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+INSERT INTO t1_myisam SET col1 = 1;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+# - DDL creating or renaming a permanent table or a procedure etc.
+#   is not allowed.                                                               
+CREATE TABLE throw_away (col1 INT) ENGINE = InnoDB;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+RENAME TABLE t1_innodb To throw_away;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+CREATE PROCEDURE p1() SELECT 13;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+CREATE PROCEDURE p1() SELECT 13;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+BACKUP STAGE END;
+DROP TABLE t1_innodb;
+DROP TABLE t1_myisam;
+#
+# Creating and modifying TEMPORARY TABLES are allowed
+#
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_DDL;
+CREATE TEMPORARY TABLE tmp (col1 INT);
+DROP TEMPORARY TABLE tmp;
+CREATE TEMPORARY TABLE t_temporary_innodb (col1 INT) ENGINE = InnoDB;
+CREATE TEMPORARY TABLE t_temporary_myisam (col1 INT) ENGINE = MyISAM;
+# - DML modifying that temporary table is allowed.
+INSERT INTO t_temporary_innodb SET col1 = 1;
+SELECT COUNT(*) FROM t_temporary_innodb;
+COUNT(*)
+1
+INSERT INTO t_temporary_myisam SET col1 = 1;
+SELECT COUNT(*) FROM t_temporary_myisam;
+COUNT(*)
+1
+BACKUP STAGE END;
+# Show the fate and impact of some auto committed INSERT into temporary
+# table sliding through the sequence.
+SET AUTOCOMMIT = 1;
+BACKUP STAGE START;
+INSERT INTO t_temporary_innodb SET col1 = 1;
+INSERT INTO t_temporary_myisam SET col1 = 1;
+BACKUP STAGE FLUSH;
+INSERT INTO t_temporary_innodb SET col1 = 1;
+INSERT INTO t_temporary_myisam SET col1 = 1;
+BACKUP STAGE BLOCK_DDL;
+INSERT INTO t_temporary_innodb SET col1 = 1;
+INSERT INTO t_temporary_myisam SET col1 = 1;
+BACKUP STAGE BLOCK_COMMIT;
+INSERT INTO t_temporary_innodb SET col1 = 1;
+INSERT INTO t_temporary_myisam SET col1 = 1;
+BACKUP STAGE END;
+SELECT COUNT(*) FROM t_temporary_innodb;
+COUNT(*)
+5
+# Show the fate and impact of some DROP/CREATE TEMPORARY TABLE sliding
+# through the sequence.
+SET AUTOCOMMIT = 1;
+BACKUP STAGE START;
+DROP TEMPORARY TABLE t_temporary_innodb;
+CREATE TEMPORARY TABLE t_temporary_innodb (col1 INT) ENGINE = InnoDB;
+BACKUP STAGE FLUSH;
+DROP TEMPORARY TABLE t_temporary_innodb;
+CREATE TEMPORARY TABLE t_temporary_innodb (col1 INT) ENGINE = InnoDB;
+BACKUP STAGE BLOCK_DDL;
+DROP TEMPORARY TABLE t_temporary_innodb;
+CREATE TEMPORARY TABLE t_temporary_innodb (col1 INT) ENGINE = InnoDB;
+BACKUP STAGE BLOCK_COMMIT;
+DROP TEMPORARY TABLE t_temporary_innodb;
+CREATE TEMPORARY TABLE t_temporary_innodb (col1 INT) ENGINE = InnoDB;
+BACKUP STAGE END;
+# Show that even more DDL on the temporary table is allowed.
+BACKUP STAGE START;
+TRUNCATE t_temporary_innodb;
+ALTER TABLE t_temporary_innodb ADD COLUMN col2 INT;
+ALTER TABLE t_temporary_innodb ADD KEY idx(col2);
+BACKUP STAGE END;
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY, f INT);
+BACKUP STAGE START;
+FLUSH TABLE t1 FOR EXPORT;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+FLUSH TABLE t1 WITH READ LOCK;
+ERROR HY000: Can't execute the command as you have a BACKUP STAGE active
+BACKUP STAGE END;
+DROP TABLE t1;

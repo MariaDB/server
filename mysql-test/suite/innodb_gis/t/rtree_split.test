@@ -1,0 +1,75 @@
+# WL#6745 InnoDB R-tree support
+# This test case will test R-tree split, mostly on duplicate records.
+
+# Not supported in embedded
+--source include/not_embedded.inc
+
+--source include/have_innodb.inc
+--source include/big_test.inc
+--source include/not_valgrind.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+let $restart_noprint=2;
+
+# Create table with R-tree index.
+create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb;
+
+begin;
+# Insert enough values to let R-tree split.
+insert into t1 select @s:=1+(seq mod 9), point(@s, @s)
+from seq_1_to_576;
+
+#Check second round spliting.
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,rtr_page_need_second_split';
+insert into t1 select @s:=1+(seq mod 9), point(@s, @s)
+from seq_1_to_576;
+SET debug_dbug = @saved_dbug;
+rollback;
+
+insert into t1 select @s:=1+(seq mod 9), point(@s, @s)
+from seq_1_to_2304;
+begin;
+insert into t1 select @s:=1+(seq mod 9), point(@s, @s)
+from seq_1_to_2304;
+rollback;
+check table t1;
+insert into t1 select @s:=1+(seq mod 9), point(@s, @s)
+from seq_1_to_71424;
+check table t1;
+
+select count(*) from t1;
+
+set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
+select count(*) from t1 where MBRWithin(t1.c2, @g1);
+
+set @g1 = ST_GeomFromText('Polygon((10 10,10 800,800 800,800 10,10 10))');
+select count(*) from t1 where MBRWithin(t1.c2, @g1);
+
+drop index c2 on t1;
+
+# Test create index with algorithm=inplace
+--enable_info
+create spatial index idx2 on t1(c2);
+--disable_info
+
+show create table t1;
+
+# test read only case
+let $restart_parameters = --innodb-read-only;
+--source include/restart_mysqld.inc
+set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
+select count(*) from t1 where MBRWithin(t1.c2, @g1);
+set @g1 = ST_GeomFromText('Polygon((2 2,2 800,800 800,800 2,2 2))');
+select count(*) from t1 where MBRWithin(t1.c2, @g1);
+
+let $restart_parameters =;
+--source include/restart_mysqld.inc
+
+set @g1 = ST_GeomFromText('Polygon((0 0,0 100,100 100,100 0,0 0))');
+select count(*) from t1 where MBRWithin(t1.c2, @g1);
+set @g1 = ST_GeomFromText('Polygon((2 2,2 800,800 800,800 2,2 2))');
+select count(*) from t1 where MBRWithin(t1.c2, @g1);
+
+# Clean up.
+drop table t1;

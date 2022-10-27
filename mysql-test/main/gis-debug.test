@@ -1,0 +1,149 @@
+--source include/have_geometry.inc
+--source include/have_debug.inc
+
+SET @tmp=ST_GIS_DEBUG(1);
+
+--source include/gis_debug.inc
+
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT DEFAULT ST_GIS_DEBUG(1));
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # Comparison data type aggregation for pluggable data types
+--echo #
+
+SET SESSION debug_dbug="+d,Item_func_in";
+SET SESSION debug_dbug="+d,Predicant_to_list_comparator";
+
+CREATE TABLE t1 (a POINT);
+INSERT INTO t1 VALUES (POINT(1,1)),(POINT(1,2)),(POINT(1,3));
+SELECT COUNT(*) FROM t1 WHERE a IN (POINT(1,1),POINT(10,20),POINT(10,30));
+SELECT COUNT(*) FROM t1 WHERE a IN (POINT(1,1),POINT(10,20),POINT(10,30),'test');
+SELECT COUNT(*) FROM t1 WHERE a IN ('test','test1');
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES ('test'),('test1'),('test2');
+SELECT * FROM t1 WHERE a IN ('test',POINT(1,1));
+DROP TABLE t1;
+
+SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
+SET SESSION debug_dbug="-d,Item_func_in";
+
+
+--echo #
+--echo # MDEV-12238 Add Type_handler::Item_func_{plus|minus|mul|div|mod}_fix_length_and_dec()
+--echo #
+
+# This tests is to check that operators '+' and '*' are commutative,
+# while operators '/', '-' and 'MOD' are not commutative.
+#
+# It forces substitution of type_aggregator_for_{plus|minus|mul|div|mod} to
+# type_aggregator_for_result / type_aggregator_non_commutative_test,
+# which have pairs:
+#  (GEOMETRY,GEOMETRY)->GEOMETRY
+#  (GEOMETRY,VARCHAR)->GEOMETRY
+# Note, they don't not have a pair:
+#  (VARCHAR,GEOMETRY)->GEOMETRY
+#
+# Commutative operators should work for all these argument type combinations:
+# (GEOMETRY,GEOMETRY), (GEOMETRY,VARCHAR), (VARCHAR,GEOMETRY).
+# Non-commutative operators should work for:
+# (GEOMETRY,GEOMETRY), (GEOMETRY,VARCHAR),
+# but should fail for (VARCHAR,GEOMETRY).
+#
+# Note, LIMIT 0 is needed to avoid calling str_op(), which does DBUG_ASSERT(0).
+
+SET debug_dbug='+d,num_op';
+
+# (GEOMETRY,GEOMETRY) gives GEOMETRY for all operators
+CREATE TABLE t1 AS SELECT
+  POINT(0,0)+POINT(0,0),
+  POINT(0,0)-POINT(0,0),
+  POINT(0,0)*POINT(0,0),
+  POINT(0,0)/POINT(0,0),
+  POINT(0,0) MOD POINT(0,0) LIMIT 0;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# (GEOMETRY,VARCHAR) gives GEOMETRY for all operators
+CREATE TABLE t1 AS SELECT
+  POINT(0,0)+'0',
+  POINT(0,0)-'0',
+  POINT(0,0)*'0',
+  POINT(0,0)/'0',
+  POINT(0,0) MOD '0' LIMIT 0;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# (VARCHAR,GEOMETRY) gives GEOMETRY for commutative operators
+CREATE TABLE t1 AS SELECT
+  '0'+POINT(0,0),
+  '0'*POINT(0,0) LIMIT 0;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# (VARCHAR,GEOMETRY) gives an error for non-commutative operators
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t1 AS SELECT '0'-POINT(0,0) LIMIT 0;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t1 AS SELECT '0'/POINT(0,0) LIMIT 0;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+CREATE TABLE t1 AS SELECT '0' MOD POINT(0,0) LIMIT 0;
+
+SET debug_dbug='-d,num_op';
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16454 Bad results for IN with ROW
+--echo #
+
+SET SESSION debug_dbug="+d,cmp_item";
+SET SESSION debug_dbug="+d,Item_func_in";
+SET SESSION debug_dbug="+d,Predicant_to_list_comparator";
+
+SELECT (POINT(1,1),0) IN ((POINT(1,1),0),((POINT(1,1)),1));
+SELECT (1,(POINT(1,1),0)) IN ((1,(POINT(1,1),0)),(0,(POINT(1,1),0)));
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT (1,0) IN ((POINT(1,1),0),(0,0));
+SHOW WARNINGS;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
+SHOW WARNINGS;
+
+SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
+SET SESSION debug_dbug="-d,Item_func_in";
+SET SESSION debug_dbug="-d,cmp_item";
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

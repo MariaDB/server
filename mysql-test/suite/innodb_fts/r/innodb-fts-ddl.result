@@ -1,0 +1,291 @@
+CREATE TABLE fts_test (
+id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+title VARCHAR(200),
+body TEXT
+) ENGINE=InnoDB;
+INSERT INTO fts_test (title,body) VALUES
+('MySQL Tutorial','DBMS stands for DataBase ...')  ,
+('How To Use MySQL Well','After you went through a ...'),
+('Optimizing MySQL','In this tutorial we will show ...'),
+('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+('MySQL vs. YourSQL','In the following database comparison ...'),
+('MySQL Security','When configured properly, MySQL ...');
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+ERROR 0A000: ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=INPLACE
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=INPLACE;
+SELECT * FROM fts_test WHERE MATCH (title, body)
+AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+id	title	body
+1	MySQL Tutorial	DBMS stands for DataBase ...
+3	Optimizing MySQL	In this tutorial we will show ...
+DROP INDEX idx ON fts_test;
+INSERT INTO fts_test (title,body) VALUES
+('MySQL Tutorial','DBMS stands for DataBase ...')  ,
+('How To Use MySQL Well','After you went through a ...'),
+('Optimizing MySQL','In this tutorial we will show ...'),
+('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+('MySQL vs. YourSQL','In the following database comparison ...'),
+('MySQL Security','When configured properly, MySQL ...');
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+SELECT * FROM fts_test WHERE MATCH (title, body)
+AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+id	title	body
+1	MySQL Tutorial	DBMS stands for DataBase ...
+3	Optimizing MySQL	In this tutorial we will show ...
+7	MySQL Tutorial	DBMS stands for DataBase ...
+9	Optimizing MySQL	In this tutorial we will show ...
+SELECT * FROM fts_test WHERE MATCH (title,body)
+AGAINST ('+MySQL -YourSQL' IN BOOLEAN MODE);
+id	title	body
+6	MySQL Security	When configured properly, MySQL ...
+12	MySQL Security	When configured properly, MySQL ...
+1	MySQL Tutorial	DBMS stands for DataBase ...
+2	How To Use MySQL Well	After you went through a ...
+3	Optimizing MySQL	In this tutorial we will show ...
+4	1001 MySQL Tricks	1. Never run mysqld as root. 2. ...
+7	MySQL Tutorial	DBMS stands for DataBase ...
+8	How To Use MySQL Well	After you went through a ...
+9	Optimizing MySQL	In this tutorial we will show ...
+10	1001 MySQL Tricks	1. Never run mysqld as root. 2. ...
+TRUNCATE TABLE fts_test;
+DROP INDEX idx ON fts_test;
+INSERT INTO fts_test (title,body) VALUES
+('MySQL Tutorial','DBMS stands for DataBase ...')  ,
+('How To Use MySQL Well','After you went through a ...'),
+('Optimizing MySQL','In this tutorial we will show ...'),
+('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+('MySQL vs. YourSQL','In the following database comparison ...'),
+('MySQL Security','When configured properly, MySQL ...');
+CREATE FULLTEXT INDEX idx on fts_test (title, body);
+SELECT * FROM fts_test WHERE MATCH (title, body)
+AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+id	title	body
+1	MySQL Tutorial	DBMS stands for DataBase ...
+3	Optimizing MySQL	In this tutorial we will show ...
+DROP TABLE fts_test;
+CREATE TABLE fts_test (
+FTS_DOC_ID BIGINT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+title VARCHAR(200),
+body TEXT
+) ENGINE=InnoDB;
+INSERT INTO fts_test (title,body) VALUES
+('MySQL Tutorial','DBMS stands for DataBase ...')  ,
+('How To Use MySQL Well','After you went through a ...'),
+('Optimizing MySQL','In this tutorial we will show ...'),
+('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+('MySQL vs. YourSQL','In the following database comparison ...'),
+('MySQL Security','When configured properly, MySQL ...');
+CREATE FULLTEXT INDEX idx on fts_test (title, body) LOCK=NONE;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, LOCK=NONE;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
+ALTER TABLE fts_test ROW_FORMAT=REDUNDANT;
+SELECT * FROM fts_test WHERE MATCH (title, body)
+AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+FTS_DOC_ID	title	body
+1	MySQL Tutorial	DBMS stands for DataBase ...
+3	Optimizing MySQL	In this tutorial we will show ...
+drop index idx on fts_test;
+CREATE FULLTEXT INDEX idx on fts_test (title, body);
+SELECT * FROM fts_test WHERE MATCH (title, body)
+AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+FTS_DOC_ID	title	body
+1	MySQL Tutorial	DBMS stands for DataBase ...
+3	Optimizing MySQL	In this tutorial we will show ...
+drop index idx on fts_test;
+CREATE FULLTEXT INDEX idx on fts_test (title, body);
+SELECT * FROM fts_test WHERE MATCH (title, body)
+AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+FTS_DOC_ID	title	body
+1	MySQL Tutorial	DBMS stands for DataBase ...
+3	Optimizing MySQL	In this tutorial we will show ...
+drop table fts_test;
+CREATE TABLE fts_test (
+FTS_DOC_ID bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+title varchar(255) NOT NULL DEFAULT '',
+text mediumtext NOT NULL,
+PRIMARY KEY (FTS_DOC_ID),
+UNIQUE KEY FTS_DOC_ID_INDEX (FTS_DOC_ID),
+FULLTEXT KEY idx (title,text)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1;
+set @@auto_increment_increment=10;
+INSERT INTO fts_test (title, text) VALUES
+('MySQL Tutorial','DBMS stands for DataBase ...'),
+('How To Use MySQL Well','After you went through a ...'),
+('Optimizing MySQL','In this tutorial we will show ...'),
+('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+('MySQL vs. YourSQL','In the following database comparison ...'),
+('MySQL Security','When configured properly, MySQL ...');
+ANALYZE TABLE fts_test;
+set @@auto_increment_increment=1;
+select *, match(title, text)  AGAINST ('database') as score
+from fts_test order by score desc;
+FTS_DOC_ID	title	text	score
+11	MySQL Tutorial	DBMS stands for DataBase ...	0.22764469683170319
+51	MySQL vs. YourSQL	In the following database comparison ...	0.22764469683170319
+21	How To Use MySQL Well	After you went through a ...	0
+31	Optimizing MySQL	In this tutorial we will show ...	0
+41	1001 MySQL Tricks	1. Never run mysqld as root. 2. ...	0
+61	MySQL Security	When configured properly, MySQL ...	0
+drop index idx on fts_test;
+drop table fts_test;
+CREATE TABLE fts_test (
+FTS_DOC_ID int(20) unsigned NOT NULL AUTO_INCREMENT,
+title varchar(255) NOT NULL DEFAULT '',
+text mediumtext NOT NULL,
+PRIMARY KEY (FTS_DOC_ID),
+UNIQUE KEY FTS_DOC_ID_INDEX (FTS_DOC_ID),
+FULLTEXT KEY idx (title,text)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1;
+ERROR 42000: Incorrect column name 'FTS_DOC_ID'
+CREATE TABLE fts_test (
+FTS_DOC_ID bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+title varchar(255) NOT NULL DEFAULT '',
+text mediumtext NOT NULL,
+PRIMARY KEY (FTS_DOC_ID),
+KEY FTS_DOC_ID_INDEX (FTS_DOC_ID),
+FULLTEXT KEY idx (title,text)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1;
+ERROR HY000: Index 'FTS_DOC_ID_INDEX' is of wrong type for an InnoDB FULLTEXT index
+CREATE TABLE articles (
+FTS_DOC_ID BIGINT UNSIGNED NOT NULL ,
+title VARCHAR(200),
+body TEXT
+) ENGINE=InnoDB;
+INSERT INTO articles (FTS_DOC_ID, title, body) VALUES
+(9, 'MySQL Tutorial','DBMS stands for DataBase ...'),
+(10, 'How To Use MySQL Well','After you went through a ...'),
+(12, 'Optimizing MySQL','In this tutorial we will show ...'),
+(14,'1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+(19, 'MySQL vs. YourSQL','In the following database comparison ...'),
+(20, 'MySQL Security','When configured properly, MySQL ...');
+ALTER TABLE articles ADD FULLTEXT INDEX idx (title),
+ADD FULLTEXT INDEX idx3 (title), ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
+ALTER TABLE articles ADD FULLTEXT INDEX idx (title),
+ADD FULLTEXT INDEX idx3 (title);
+affected rows: 6
+info: Records: 6  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1831	Duplicate index `idx3`. This is deprecated and will be disallowed in a future release
+ALTER TABLE articles ADD INDEX t20 (title(20)), LOCK=NONE;
+ALTER TABLE articles DROP INDEX t20;
+INSERT INTO articles (FTS_DOC_ID, title, body) VALUES
+(29, 'MySQL Tutorial','DBMS stands for DataBase ...'),
+(30, 'How To Use MySQL Well','After you went through a ...'),
+(32, 'Optimizing MySQL','In this tutorial we will show ...'),
+(34,'1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+(39, 'MySQL vs. YourSQL','In the following database comparison ...'),
+(40, 'MySQL Security','When configured properly, MySQL ...');
+SELECT * FROM articles WHERE MATCH (title)
+AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+FTS_DOC_ID	title	body
+9	MySQL Tutorial	DBMS stands for DataBase ...
+29	MySQL Tutorial	DBMS stands for DataBase ...
+DROP INDEX idx ON articles;
+SELECT * FROM articles WHERE MATCH (title)
+AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+FTS_DOC_ID	title	body
+9	MySQL Tutorial	DBMS stands for DataBase ...
+29	MySQL Tutorial	DBMS stands for DataBase ...
+CREATE FULLTEXT INDEX idx on articles (title, body);
+SELECT * FROM articles WHERE MATCH (title, body)
+AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+FTS_DOC_ID	title	body
+9	MySQL Tutorial	DBMS stands for DataBase ...
+12	Optimizing MySQL	In this tutorial we will show ...
+29	MySQL Tutorial	DBMS stands for DataBase ...
+32	Optimizing MySQL	In this tutorial we will show ...
+DROP TABLE articles;
+create table articles(`FTS_DOC_ID` serial,
+`col32` timestamp not null,`col115` text) engine=innodb;
+create fulltext index `idx5` on articles(`col115`) ;
+alter ignore table articles add primary key  (`col32`)  ;
+drop table articles;
+CREATE TABLE articles (
+id INT UNSIGNED NOT NULL,
+title VARCHAR(200),
+body TEXT
+) ENGINE=InnoDB;
+INSERT INTO articles VALUES
+(1, 'MySQL Tutorial','DBMS stands for DataBase ...')  ,
+(2, 'How To Use MySQL Well','After you went through a ...'),
+(3, 'Optimizing MySQL','In this tutorial we will show ...'),
+(4, '1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+(5, 'MySQL vs. YourSQL','In the following database comparison ...'),
+(6, 'MySQL Security','When configured properly, MySQL ...');
+CREATE FULLTEXT INDEX idx on articles (title, body);
+DROP INDEX idx ON articles;
+CREATE UNIQUE INDEX idx2 ON articles(id);
+CREATE FULLTEXT INDEX idx on articles (title, body);
+SELECT * FROM articles WHERE MATCH (title, body)
+AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+id	title	body
+1	MySQL Tutorial	DBMS stands for DataBase ...
+3	Optimizing MySQL	In this tutorial we will show ...
+DROP TABLE articles;
+#
+# MDEV-22811 DDL fails to drop and re-create FTS index
+#
+CREATE TABLE t1 (FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY,
+f1 VARCHAR(200),FULLTEXT fidx(f1))engine=innodb;
+ALTER TABLE t1 DROP index fidx, ADD FULLTEXT INDEX(f1);
+DROP TABLE t1;
+#
+# MDEV-21478 Inplace alter fails to report error when
+#	FTS_DOC_ID is added
+SET NAMES utf8;
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+ALTER TABLE t1 ADD FTS_DOC_ıD BIGINT UNSIGNED NOT NULL, ALGORITHM=COPY;
+ALTER TABLE t1 DROP COLUMN FTS_DOC_ıD;
+ALTER TABLE t1 ADD FTS_DOC_ıD BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INT NOT NULL)ENGINE=InnoDB;
+ALTER TABLE t1 ADD FTS_DOC_İD BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
+ERROR 42000: Incorrect column name 'FTS_DOC_İD'
+ALTER TABLE t1 ADD FTS_DOC_İD BIGINT UNSIGNED NOT NULL, ALGORITHM=COPY;
+ERROR 42000: Incorrect column name 'FTS_DOC_İD'
+ALTER TABLE t1 ADD fts_doc_id INT, ALGORITHM=COPY;
+ERROR 42000: Incorrect column name 'fts_doc_id'
+ALTER TABLE t1 ADD fts_doc_id INT, ALGORITHM=INPLACE;
+ERROR 42000: Incorrect column name 'fts_doc_id'
+ALTER TABLE t1 ADD fts_doc_id BIGINT UNSIGNED NOT NULL, ALGORITHM=COPY;
+ERROR 42000: Incorrect column name 'fts_doc_id'
+ALTER TABLE t1 ADD fts_doc_id BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
+ERROR 42000: Incorrect column name 'fts_doc_id'
+ALTER TABLE t1 ADD FTS_DOC_ID INT UNSIGNED NOT NULL, ALGORITHM=COPY;
+ERROR 42000: Incorrect column name 'FTS_DOC_ID'
+ALTER TABLE t1 ADD FTS_DOC_ID INT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
+ERROR 42000: Incorrect column name 'FTS_DOC_ID'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# MDEV-25271 Double free of table when inplace alter
+#        FTS add index fails
+#
+call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation.");
+call mtr.add_suppression("InnoDB: Error number .* means");
+call mtr.add_suppression("InnoDB: Cannot create file");
+call mtr.add_suppression("InnoDB: Failed to create");
+CREATE TABLE t1(a TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL UNIQUE) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
+ERROR HY000: Got error 11 "Resource temporarily unavailable" from storage engine InnoDB
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(3)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FULLTEXT KEY(a), ADD COLUMN b VARCHAR(3), ADD FULLTEXT KEY(b);
+DROP TABLE t1;
+#
+# MDEV-18152 Assertion 'num_fts_index <= 1' failed
+# in prepare_inplace_alter_table_dict
+#
+CREATE TABLE t1
+(a VARCHAR(128), b VARCHAR(128), FULLTEXT INDEX(a), FULLTEXT INDEX(b))
+ENGINE=InnoDB;
+ALTER TABLE t1 ADD c SERIAL;
+DROP TABLE t1;
+# End of 10.3 tests

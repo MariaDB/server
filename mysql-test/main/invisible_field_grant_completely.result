@@ -1,0 +1,68 @@
+set @old_debug= @@debug_dbug;
+create user user_1;
+show grants for user_1;
+Grants for user_1@%
+GRANT USAGE ON *.* TO `user_1`@`%`
+# create user
+create database d;
+use d;
+
+#Completely Invisible
+set debug_dbug= "+d,test_completely_invisible";
+create table t1(a int);
+insert into t1 values(1);
+select a,invisible from t1;
+a	invisible
+1	9
+set debug_dbug=@old_debug;
+grant insert(a) on t1 to user_1;
+grant update(a) on t1 to user_1;
+grant select(a) on t1 to user_1;
+grant delete on t1 to user_1;
+connect  con1, localhost, user_1,,test;
+connection con1;
+select user();
+user()
+user_1@localhost
+use d;
+select * from t1;
+a
+1
+insert into t1 values(2);
+select * from t1;
+a
+1
+2
+insert into t1(a) values(3);
+select * from t1;
+a
+1
+2
+3
+select invisible,a from t1;
+ERROR 42S22: Unknown column 'invisible' in 'field list'
+delete from t1 where a =1;
+update t1 set a=1 where a=3;
+select * from t1;
+a
+2
+1
+connection default;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM user_1;
+connection con1;
+select * from t1;
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't1'
+select invisible from t1;
+ERROR 42000: SELECT command denied to user 'user_1'@'localhost' for table 't1'
+disconnect con1;
+
+#Final Cleanup
+connection default;
+set debug_dbug= "+d,test_completely_invisible";
+select a,invisible from t1;
+a	invisible
+2	9
+1	9
+drop user user_1;
+drop database d;
+set @old_debug= @@debug_dbug;

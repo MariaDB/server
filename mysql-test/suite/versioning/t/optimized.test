@@ -1,0 +1,40 @@
+create table t (
+  a int,
+  b int without system versioning
+) with system versioning;
+
+insert into t values(1, 2);
+insert into t values(3, 4);
+select * from t;
+select a from t for system_time as of timestamp now(6);
+select a, b, b+0 from t for system_time as of timestamp now(6);
+select * from t for system_time as of timestamp now(6);
+select count(*) from t for system_time as of timestamp now(6) group by b;
+select * from t for system_time as of timestamp now(6) order by b asc;
+select * from t for system_time as of timestamp now(6) order by b desc;
+select * from t for system_time as of timestamp now(6) group by a having a=2;
+select * from t for system_time as of timestamp now(6) group by b having b=2;
+select a from t for system_time as of timestamp now(6) where b=2;
+select a from t for system_time as of timestamp now(6) where b=NULL;
+select a from t for system_time as of timestamp now(6) where b is NULL;
+select count(*), b from t for system_time as of timestamp now(6) group by b having b=NULL;
+select a, b from t;
+
+create or replace table t (
+  a int,
+  b int not null without system versioning
+) with system versioning;
+
+insert into t values (1, 2), (3, 4);
+
+select * from t for system_time as of timestamp now(6);
+select * from t for system_time as of timestamp now(6) where b is NULL;
+
+#
+# MDEV-15062 Information Schema COLUMNS Table does not show system versioning information
+#
+create or replace table t (x int with system versioning, y int);
+select column_name, extra from information_schema.columns where table_name='t';
+show create table t;
+
+drop table t;

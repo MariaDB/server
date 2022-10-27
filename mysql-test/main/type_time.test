@@ -1,0 +1,1555 @@
+#
+# testing of the TIME column type
+#
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (t time);
+insert into t1 values("10:22:33"),("12:34:56.78"),(10),(1234),(123456.78),(1234559.99),("1"),("1:23"),("1:23:45"), ("10.22"), ("-10  1:22:33.45"),("20 10:22:33"),("1999-02-03 20:33:34");
+insert t1 values (30),(1230),("1230"),("12:30"),("12:30:35"),("1 12:30:31.32");
+select * from t1;
+# Test wrong values
+insert ignore into t1 values("10.22.22"),(1234567),(123456789),(123456789.10),("10 22:22"),("12.45a");
+select * from t1;
+drop table t1;
+
+create table t1 (t time);
+insert into t1 values ('09:00:00'),('13:00:00'),('19:38:34'), ('13:00:00'),('09:00:00'),('09:00:00'),('13:00:00'),('13:00:00'),('13:00:00'),('09:00:00');
+select t, time_to_sec(t),sec_to_time(time_to_sec(t)) from t1;
+select sec_to_time(time_to_sec(t)) from t1;
+drop table t1;
+
+#
+# BUG #12440: Incorrect processing of time values containing
+# long fraction part and/or large exponent part.
+#
+# These must return normal result:
+# ##########################################################
+# To be uncommented after fix BUG #15805
+# ##########################################################
+# SELECT CAST(235959.123456 AS TIME);
+# SELECT CAST(0.235959123456e+6 AS TIME);
+# SELECT CAST(235959123456e-6 AS TIME);
+# These must cut fraction part and produce warning:
+# SELECT CAST(235959.1234567 AS TIME);
+# SELECT CAST(0.2359591234567e6 AS TIME);
+# This must return NULL and produce warning:
+# SELECT CAST(0.2359591234567e+30 AS TIME);
+# ##########################################################
+
+--echo End of 4.1 tests
+
+#
+# Bug#29555: Comparing time values as strings may lead to a wrong result.
+#
+select cast('100:55:50' as time) < cast('24:00:00' as time);
+select cast('100:55:50' as time) < cast('024:00:00' as time);
+select cast('300:55:50' as time) < cast('240:00:00' as time);
+select cast('100:55:50' as time) > cast('24:00:00' as time);
+select cast('100:55:50' as time) > cast('024:00:00' as time);
+select cast('300:55:50' as time) > cast('240:00:00' as time);
+create table t1 (f1 time);
+insert into t1 values ('24:00:00');
+select cast('24:00:00' as time) = (select f1 from t1);
+drop table t1;
+
+#
+# Bug#29739: Incorrect time comparison in BETWEEN.
+#
+create table t1(f1 time, f2 time);
+insert into t1 values('20:00:00','150:00:00');
+select 1 from t1 where cast('100:00:00' as time) between f1 and f2;
+drop table t1;
+
+#
+# Bug#29729: Wrong conversion error led to an empty result set.
+#
+CREATE TABLE  t1 (
+  f2 date NOT NULL,
+  f3 int(11) unsigned NOT NULL default '0',
+  PRIMARY KEY  (f3, f2)
+);
+insert into t1 values('2007-07-01', 1);
+insert into t1 values('2007-07-01', 2);
+insert into t1 values('2007-07-02', 1);
+insert into t1 values('2007-07-02', 2);
+SELECT sum(f3) FROM t1 where f2='2007-07-01 00:00:00' group by f2;
+drop table t1;
+
+
+--echo #
+--echo # Bug #44792: valgrind warning when casting from time to time
+--echo #
+
+CREATE TABLE t1 (c TIME);
+INSERT INTO t1 VALUES ('0:00:00');
+SELECT CAST(c AS TIME) FROM t1;
+DROP TABLE t1;
+
+--echo End of 5.0 tests
+
+--echo #
+--echo # Bug#53942 valgrind warnings with timestamp() function and incomplete datetime values
+--echo #
+
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
+CREATE TABLE t1(f1 TIME);
+INSERT INTO t1 VALUES ('23:38:57');
+SELECT TIMESTAMP(f1,'1') FROM t1;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo End of 5.1 tests
+
+create table t1 (a time);
+insert t1 values (-131415);
+select * from t1;
+drop table t1;
+
+#
+# lp:731229 Different results depending on table access method with TIME column and CURDATE()
+#
+create table t1 (f1 time , f2 varchar(5), key(f1));
+insert into t1 values ('00:20:01','a'),('00:20:03','b');
+select * from t1 force key (f1) where f1 < curdate();
+select * from t1 ignore key (f1) where f1 < curdate();
+select * from t1 force key (f1) where f1 > curdate();
+select * from t1 ignore key (f1) where f1 > curdate();
+delete from t1;
+insert into t1 values ('-00:20:01','a'),('-00:20:03','b');
+select * from t1 force key (f1) where f1 < curdate();
+select * from t1 ignore key (f1) where f1 < curdate();
+drop table t1;
+
+#
+# comparison of time and datetime:
+#
+create table t1(f1 time);
+insert into t1 values ('23:38:57');
+select f1, f1 = '2010-10-11 23:38:57' from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-4634 Crash in CONVERT_TZ
+--echo #
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
+SELECT CONVERT_TZ(GREATEST(TIME('00:00:00'),TIME('00:00:00')),'+00:00','+7:5');
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # MDEV-4652 Wrong result for CONCAT(GREATEST(TIME('00:00:01'),TIME('00:00:00')))
+--echo #
+SELECT CONCAT(GREATEST(TIME('00:00:01'),TIME('00:00:00')));
+SELECT CONCAT(GREATEST(TIME('32 00:00:01'),TIME('00:00:00')));
+
+--echo #
+--echo # MDEV-4859 Wrong value and data type of "SELECT MAX(time_column) + 1 FROM t1"
+--echo #
+CREATE TABLE t1 (t0 TIME);
+INSERT INTO t1 VALUES ('10:10:10');
+SELECT MAX(t0)+1 FROM t1;
+CREATE TABLE t2 AS SELECT MAX(t0)+1 FROM t1;
+SELECT * FROM t2;
+SHOW COLUMNS FROM t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (t0 TIME);
+INSERT INTO t1 VALUES ('10:10:10');
+SELECT MAX(t0)+1.1 FROM t1;
+CREATE TABLE t2 AS SELECT MAX(t0)+1.1 FROM t1;
+SELECT * FROM t2;
+SHOW COLUMNS FROM t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (t0 TIME);
+INSERT INTO t1 VALUES ('10:10:10');
+SELECT MAX(t0)+1e0 FROM t1;
+CREATE TABLE t2 AS SELECT MAX(t0)+1e0 FROM t1;
+SELECT * FROM t2;
+SHOW COLUMNS FROM t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (t1 TIME(1));
+INSERT INTO t1 VALUES ('10:10:10');
+SELECT MAX(t1)+1 FROM t1;
+CREATE TABLE t2 AS SELECT MAX(t1)+1 FROM t1;
+SELECT * FROM t2;
+SHOW COLUMNS FROM t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (t0 DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 10:10:10');
+SELECT MAX(t0)+1 FROM t1;
+CREATE TABLE t2 AS SELECT MAX(t0)+1 FROM t1;
+SELECT * FROM t2;
+SHOW COLUMNS FROM t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (t0 DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 10:10:10');
+SELECT MAX(t0)+1.1 FROM t1;
+CREATE TABLE t2 AS SELECT MAX(t0)+1.1 FROM t1;
+SELECT * FROM t2;
+SHOW COLUMNS FROM t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (t0 DATETIME);
+INSERT INTO t1 VALUES ('2001-01-01 10:10:10');
+SELECT MAX(t0)+1e0 FROM t1;
+CREATE TABLE t2 AS SELECT MAX(t0)+1e0 FROM t1;
+SELECT * FROM t2;
+SHOW COLUMNS FROM t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (t1 DATETIME(1));
+INSERT INTO t1 VALUES ('2001-01-01 10:10:10');
+SELECT MAX(t1)+1 FROM t1;
+CREATE TABLE t2 AS SELECT MAX(t1)+1 FROM t1;
+SELECT * FROM t2;
+SHOW COLUMNS FROM t2;
+DROP TABLE t2,t1;
+
+--echo #
+--echo # MDEV-4858 Wrong results for a huge unsigned value inserted into a TIME column
+--echo #
+SET sql_mode=traditional;
+CREATE TABLE t1 (a TIME(6));
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED)); 
+SET sql_mode=DEFAULT;
+INSERT IGNORE INTO t1 VALUES (CAST(0xFFFFFFFF00000000 AS UNSIGNED)); 
+SELECT * FROM t1;
+DROP TABLE t1;
+SELECT TIME'00:00:00'> CAST(0xFFFFFFFF00000000 AS UNSIGNED);
+
+--echo #
+--echo # MDEV-6100 No warning on CAST(9000000 AS TIME)
+--echo #
+SELECT CAST(9000000 AS TIME);
+
+--echo #
+--echo # End of 5.3 tests
+--echo #
+
+#
+# Bug#42664 - Sign ignored for TIME types when not comparing as longlong
+#
+
+CREATE TABLE t1 (f1 TIME);
+INSERT INTO t1 VALUES ('24:00:00');
+SELECT      '24:00:00' = (SELECT f1 FROM t1);
+SELECT CAST('24:00:00' AS TIME) = (SELECT f1 FROM t1);
+SELECT CAST('-24:00:00' AS TIME) = (SELECT f1 FROM t1);
+TRUNCATE t1;
+INSERT INTO t1 VALUES ('-24:00:00');
+SELECT CAST('24:00:00' AS TIME) = (SELECT f1 FROM t1);
+SELECT CAST('-24:00:00' AS TIME) = (SELECT f1 FROM t1);
+SELECT '-24:00:00' = (SELECT f1 FROM t1);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-6592 Assertion `ltime->day == 0' failed with TIMESTAMP, MAKETIME
+--echo #
+CREATE TABLE t1 (d DATE, c VARCHAR(10), KEY(d))  engine=myisam;
+INSERT INTO t1 VALUES ('2008-10-02','2008-10-02'), ('2008-10-02','2008-10-02');
+SELECT * FROM t1 WHERE TIMESTAMP(c,'02:04:42') AND d <=> MAKETIME(97,0,7);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-6102 Comparison between TIME and DATETIME does not use CURRENT_DATE
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2014-04-14 01:02:03');
+SELECT CAST(TIME'10:20:30' AS DATETIME), TIME'10:20:30'=TIMESTAMP'2014-04-14 10:20:30' AS cmp;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8699 Wrong result for SELECT..WHERE HEX(date_column)!='323030312D30312D3031' AND date_column='2001-01-01x'
+--echo #
+
+--echo # Trailing garbage in string literals
+
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='00:00:00x';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='00:00:00x';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='00:00:00x';
+DROP TABLE t1;
+
+--echo # Trailing fractional digits in string literals
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='00:00:00.000000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='00:00:00.000000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='00:00:00.000000';
+DROP TABLE t1;
+
+--echo # Trailing fractional digits in temporal literals
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'00:00:00.000000';
+DROP TABLE t1;
+
+--echo # Trailing fractional digits in temporal literals, same precision
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'00:00:00.000000';
+DROP TABLE t1;
+
+--echo # Leading spaces in string literals
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=' 00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=' 00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=' 00:00:00';
+DROP TABLE t1;
+
+--echo # Numeric format in string literals
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='000000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='000000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='000000';
+DROP TABLE t1;
+
+--echo # 
+--echo # MDEV-8766 Wrong result for SELECT..WHERE LENGTH(time_column)=8 AND time_column=TIMESTAMP'2001-01-01 10:20:31'
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+
+--echo # TIMESTAMP literal with the same scale, ok to propagate
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('10:20:31'),('-10:20:31');
+SELECT * FROM t1 WHERE a=TIMESTAMP'2001-01-01 10:20:31';
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 10:20:31';
+DROP TABLE t1;
+
+--echo # TIMESTAMP literal with a bigger scale and fractional second truncation
+--echo # Ok to propagate with precision truncation
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('10:20:31'),('-10:20:31');
+SELECT * FROM t1 WHERE a=TIMESTAMP'2001-01-01 10:20:31.123';
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 10:20:31.123';
+DROP TABLE t1;
+
+--echo # TIMESTAMP literal with a bigger scale and no fractional second truncation
+--echo # Ok to propagate
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('10:20:31'),('-10:20:31');
+SELECT * FROM t1 WHERE a=TIMESTAMP'2001-01-01 10:20:31.000';
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 10:20:31.000';
+DROP TABLE t1;
+
+--echo # TIMESTAMP literal with a smaller scale
+--echo # Ok to propagate
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES ('10:20:31'),('-10:20:31');
+SELECT * FROM t1 WHERE a=TIMESTAMP'2001-01-01 10:20:31.123';
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 10:20:31.123';
+DROP TABLE t1;
+
+
+--echo # TIME literal with a bigger scale and fractional second truncation
+--echo # Ok to propagate with precision truncation
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('10:20:31'),('-10:20:31');
+SELECT * FROM t1 WHERE a=TIME'10:20:31.123';
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'10:20:31.123';
+DROP TABLE t1;
+
+--echo # TIME literal with a bigger scale and no fractional second truncation
+--echo # Ok to propagate
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('10:20:31'),('-10:20:31');
+SELECT * FROM t1 WHERE a=TIME'10:20:31.000';
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'10:20:31.000';
+DROP TABLE t1;
+
+--echo # TIME literal with a smaller scale
+--echo # Ok to propagate
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES ('10:20:31'),('-10:20:31');
+SELECT * FROM t1 WHERE a=TIME'10:20:31.123';
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'10:20:31.123';
+DROP TABLE t1;
+
+
+--echo # TIME-alike string literal with a bigger scale and fractional second truncation
+--echo # Ok to propagate with precision truncation
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('10:20:31'),('-10:20:31');
+SELECT * FROM t1 WHERE a='10:20:31.123';
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='10:20:31.123';
+DROP TABLE t1;
+
+--echo # TIME-alike string literal with a bigger scale and no fractional second truncation
+--echo # Ok to propagate
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('10:20:31'),('-10:20:31');
+SELECT * FROM t1 WHERE a='10:20:31.000';
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.000';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='10:20:31.000';
+DROP TABLE t1;
+
+--echo # TIME-alike string literal with a smaller scale
+--echo # Ok to propagate
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES ('10:20:31'),('-10:20:31');
+SELECT * FROM t1 WHERE a='10:20:31.123';
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.123';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='10:20:31.123';
+DROP TABLE t1;
+
+SET timestamp=DEFAULT;
+
+
+SET @@old_mode=zero_date_time_cast;
+--echo # TIMESTAMP literal, old mode
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('0000-00-00 10:20:30'),('0000-00-00 10:20:31');
+INSERT INTO t1 VALUES ('0000-00-01 10:20:30'),('0000-00-01 10:20:31');
+INSERT INTO t1 VALUES ('31 10:20:30'),('32 10:20:30'),('33 10:20:30'),('34 10:20:30');
+SELECT * FROM t1;
+
+--echo # Old mode, TIMESTAMP literal, zero YYYYMMDD, Ok to propagate
+SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-00 10:20:30';
+SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-00 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-00 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-00 10:20:30' AND LENGTH(a)=30+RAND();
+
+--echo # Old mode, TIMESTAMP literal, non-zero YYYYMMDD, no propagation
+SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-01 10:20:30';
+SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-01 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-01 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-01 10:20:30' AND LENGTH(a)=30+RAND();
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=TIMESTAMP'0000-01-00 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=TIMESTAMP'0001-00-00 10:20:30' AND LENGTH(a)=8;
+
+--echo # Old mode, TIMESTAMP-alike string literal, zero YYYYMMDD, Ok to propagate
+SELECT * FROM t1 WHERE a='0000-00-00 10:20:30';
+SELECT * FROM t1 WHERE a='0000-00-00 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a='0000-00-00 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a='0000-00-00 10:20:30' AND LENGTH(a)=30+RAND();
+
+--echo # Old mode, TIMESTAMP-alike literal, non-zero YYYYMMDD, no propagation
+SELECT * FROM t1 WHERE a='0000-00-01 10:20:30';
+SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=30+RAND();
+
+DROP TABLE t1;
+
+SET @@old_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-8706 Wrong result for SELECT..WHERE time_column=TIMESTAMP'2015-08-30 00:00:00' AND time_column='00:00:00'
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2015-08-30 10:20:30');
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE a=TIMESTAMP'2015-08-30 00:00:00';
+SELECT * FROM t1 WHERE a='00:00:00';
+SELECT * FROM t1 WHERE a=TIMESTAMP'2015-08-30 00:00:00' AND a='00:00:00';
+SELECT * FROM t1 WHERE a>=TIMESTAMP'2015-08-30 00:00:00' AND a='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a>=TIMESTAMP'2015-08-30 00:00:00' AND a='00:00:00';
+DROP TABLE t1;
+
+# TIMESTAMP literal with fractional seconds
+SET timestamp=UNIX_TIMESTAMP('2015-08-30 10:20:30');
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE DATE(a)<=TIMESTAMP'2015-08-30 00:00:00.1' AND a='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE DATE(a)<=TIMESTAMP'2015-08-30 00:00:00.1' AND a='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE TIMESTAMP('2015-08-08',a+RAND())<=TIMESTAMP'2015-08-30 00:00:00.1' AND a='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE TIMESTAMP('2015-08-08',a+RAND())<=TIMESTAMP'2015-08-30 00:00:00.1' AND a='00:00:00.1';
+DROP TABLE t1;
+
+# DATE literal
+SET timestamp=UNIX_TIMESTAMP('2015-08-30 10:20:30');
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE DATE(a)<=DATE'2015-08-30' AND a='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE DATE(a)<=DATE'2015-08-30' AND a='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE TIMESTAMP('2015-08-08',a+RAND())<=DATE'2015-08-30' AND a='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE TIMESTAMP('2015-08-08',a+RAND())<=DATE'2015-08-30' AND a='00:00:00.1';
+DROP TABLE t1;
+
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # MDEV-8795 Equal expression propagation does not work for temporal literals
+--echo #
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:01'),('00:00:02');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(a)=TIME'00:00:01' AND COALESCE(a)>=TIME'00:00:01';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8793 Wrong result set for SELECT ... WHERE COALESCE(time_column)=TIME('00:00:00') AND COALESCE(time_column)=DATE('2015-09-11')
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2015-09-11 20:20:20');
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES('10:20:30'),('00:00:00');
+SELECT * FROM t1 WHERE COALESCE(a)=TIME('00:00:00');
+SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11');
+
+--echo # TIME cast + DATE cast
+SELECT * FROM t1 WHERE COALESCE(a)=TIME('00:00:00') AND COALESCE(a)=DATE('2015-09-11');
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=TIME('00:00:00') AND COALESCE(a)=DATE('2015-09-11');
+
+--echo # TIME cast + DATE literal
+SELECT * FROM t1 WHERE COALESCE(a)=TIME('00:00:00') AND COALESCE(a)=DATE'2015-09-11';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=TIME('00:00:00') AND COALESCE(a)=DATE'2015-09-11';
+
+--echo # TIME literal + DATE cast
+SELECT * FROM t1 WHERE COALESCE(a)=TIME'00:00:00' AND COALESCE(a)=DATE('2015-09-11');
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=TIME'00:00:00' AND COALESCE(a)=DATE('2015-09-11');
+
+--echo # TIME literal + DATE literal
+SELECT * FROM t1 WHERE COALESCE(a)=TIME'00:00:00' AND COALESCE(a)=DATE'2015-09-11';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=TIME'00:00:00' AND COALESCE(a)=DATE'2015-09-11';
+
+--echo # TIME-alike string literal + DATE cast
+SELECT * FROM t1 WHERE COALESCE(a)='00:00:00' AND COALESCE(a)=DATE('2015-09-11');
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)='00:00:00' AND COALESCE(a)=DATE('2015-09-11');
+
+--echo # TIME-alike string literal + DATE literal
+SELECT * FROM t1 WHERE COALESCE(a)='00:00:00' AND COALESCE(a)=DATE'2015-09-11';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)='00:00:00' AND COALESCE(a)=DATE'2015-09-11';
+
+--echo # TIME-alike integer literal + DATE cast
+SELECT * FROM t1 WHERE COALESCE(a)=0 AND COALESCE(a)=DATE('2015-09-11');
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=0 AND COALESCE(a)=DATE('2015-09-11');
+
+--echo # TIME-alike integer literal + DATE literal
+SELECT * FROM t1 WHERE COALESCE(a)=0 AND COALESCE(a)=DATE'2015-09-11';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=0 AND COALESCE(a)=DATE'2015-09-11';
+
+
+### Now test the opposite order of the two equality expressions
+
+--echo # DATE cast + TIME cast
+SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=TIME('00:00:00');
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=TIME('00:00:00');
+
+--echo # DATE cast + TIME literal
+SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=TIME'00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=TIME'00:00:00';
+
+--echo # DATE cast + TIME-alike string literal
+SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)='00:00:00';
+
+--echo # DATE cast + TIME-alike integer literal
+SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=0;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=0;
+
+--echo # DATE literal + TIME cast
+SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)=TIME('00:00:00');
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)=TIME('00:00:00');
+
+--echo # DATE literal + TIME literal
+SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)=TIME'00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)=TIME'00:00:00';
+
+--echo # DATE literal + TIME-alike string literal
+SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)='00:00:00';
+
+--echo # DATE literal + TIME-alike integer literal
+SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)=0;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)=0;
+
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # MDEV-8814 Wrong result for WHERE datetime_column > TIME('00:00:00')
+--echo #
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES ('2000-09-12 00:00:00'), ('2007-04-25 05:08:49');
+SELECT * FROM t1 WHERE a>TIME'00:00:00';
+SELECT * FROM t1 WHERE a>TIME('00:00:00');
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-8660 TIME(int_zerofill_column) returns a wrong result
+--echo #
+CREATE TABLE t1 (a BIGINT(15), b BIGINT(15) ZEROFILL);
+INSERT INTO t1 VALUES (9,9);
+SELECT TIME(a),TIME(b) FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a BIGINT);
+INSERT INTO t1 VALUES (-9223372036854775808);
+SELECT CAST(a AS TIME), CAST(-9223372036854775808 AS TIME) FROM t1;
+DROP TABLE t1;
+
+# Make sure all numeric types produce the same TIME value
+CREATE TABLE t1 (a INT, b DECIMAL, c DOUBLE);
+INSERT INTO t1 VALUES (-9000000,-9000000,-9000000);
+INSERT INTO t1 VALUES (-1,-1,-1);
+INSERT INTO t1 VALUES (0,0,0),(1,1,1),(9,9,9);
+INSERT INTO t1 VALUES (9000000,9000000,9000000);
+SELECT a, TIME(a),TIME(b),TIME(c) FROM t1 ORDER BY a;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b DECIMAL, c DOUBLE);
+INSERT INTO t1 VALUES (0,0,0),(1,1,1),(9,9,9);
+INSERT INTO t1 VALUES (9000000,9000000,9000000);
+SELECT a, TIME(a),TIME(b),TIME(c) FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8862 Wrong field type for MAX(COALESCE(datetime_column))
+--echo #
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('10:10:10'),('10:20:30');
+SELECT MAX(a), MAX(COALESCE(a)) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15321: different results when using value of optimizer_use_condition_selectivity=4 and =1
+--echo #
+
+SET @save_old_mode=@@old_mode;
+SET @@old_mode=zero_date_time_cast;
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('0000-00-00 10:20:30'),('0000-00-00 10:20:31');
+INSERT INTO t1 VALUES ('0000-00-01 10:20:30'),('0000-00-01 10:20:31');
+INSERT INTO t1 VALUES ('31 10:20:30'),('32 10:20:30'),('33 10:20:30'),('34 10:20:30');
+
+SET @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+SET @@optimizer_use_condition_selectivity=1;
+SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
+
+SET @@optimizer_use_condition_selectivity=4;
+SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
+drop table t1;
+SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set @@old_mode= @save_old_mode;
+
+--echo #
+--echo # MDEV-21319 COUNT(*) returns 1, actual SELECT returns no result in 10.3.21, but 1 result in 10.1.41
+--echo #
+
+CREATE OR REPLACE TABLE t1
+(
+  id INT NOT NULL PRIMARY KEY,
+  id2 INT,
+  k TINYINT,
+  j INT,
+  t TIME,
+  KEY k1 (id2,k,j,t)
+);
+INSERT INTO t1 VALUES
+(53,54,1,0,'10:09:59'),
+(54,54,1,0,'16:28:41'),
+(55,54,1,0,'16:29:10'),
+(56,54,1,0,'16:29:43'),
+(57,54,1,0,'16:30:16'),
+(58,54,1,0,'16:30:49'),
+(59,54,1,0,'16:31:23'),
+(60,54,1,0,'16:31:55'),
+(61,54,1,0,'16:32:28'),
+(62,54,1,0,'16:33:01'),
+(63,54,1,0,'16:33:34'),
+(64,54,1,0,'16:34:07'),
+(65,54,1,0,'16:34:40'),
+(66,54,1,0,'16:35:13'),
+(67,54,1,0,'16:35:46'),
+(68,54,1,0,'16:36:19');
+SELECT t FROM t1 GROUP BY t HAVING t=MAX(t);
+SELECT t FROM t1 WHERE id2=54 AND j=0 AND k=1 GROUP BY t HAVING t=MAX(t);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-9393 Split Copy_field::get_copy_func() into virtual methods in Field
+--echo #
+
+CREATE TABLE t1 (a YEAR, b TIME, c YEAR);
+CREATE TABLE t2 (a YEAR);
+INSERT INTO t2 VALUES (0),(1999),(2000),(2030),(2050),(2070);
+INSERT INTO t1 (a,b,c) SELECT a,a,a FROM t2;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+ALTER TABLE t1 MODIFY c TIME;
+SELECT * FROM t1;
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # MDEV-10817 CAST(MAX(DATE'2001-01-01') AS TIME) returns a wrong result
+--echo #
+
+SELECT CAST(DATE'2001-01-01' AS TIME);
+SELECT CAST(MAX(DATE'2001-01-01') AS TIME);
+CREATE FUNCTION f1() RETURNS DATE RETURN DATE'2001-01-01';
+SELECT CAST(f1() AS TIME);
+DROP FUNCTION  f1;
+
+
+--echo #
+--echo # MDEV-21619 Server crash or assertion failures in my_datetime_to_str
+--echo #
+
+CREATE TABLE t1 (f TIME, KEY(f));
+INSERT INTO t1 VALUES ('10:10:10'),('20:20:20');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '23:59:59';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-11514 IN with a mixture of TIME and DATETIME returns a wrong result
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 00:00:00');
+SELECT TIME'10:20:30' IN (102030,TIME'10:20:31');
+SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32');
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('10:20:30'),('10:20:31'),('10:20:32');
+SELECT a FROM t1 WHERE a IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32') ORDER BY a;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # MDEV-15176 Storing DATETIME-alike VARCHAR data into TIME produces wrong results
+--echo #
+
+SET sql_mode='';
+CREATE OR REPLACE TABLE t0 (d VARCHAR(64));
+INSERT INTO t0 VALUES ('0000-00-00 10:20:30');
+INSERT INTO t0 VALUES ('0000-00-01 10:20:30');
+INSERT INTO t0 VALUES ('0000-01-00 10:20:30');
+INSERT INTO t0 VALUES ('0000-01-01 10:20:30');
+INSERT INTO t0 VALUES ('0001-00-00 10:20:30');
+INSERT INTO t0 VALUES ('0001-00-01 10:20:30');
+INSERT INTO t0 VALUES ('0001-01-00 10:20:30');
+INSERT INTO t0 VALUES ('0001-01-01 10:20:30');
+
+SET @@global.mysql56_temporal_format=false;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT d,d,d FROM t0;
+SELECT * FROM t1 ORDER BY d;
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT CONCAT(d,'x'),CONCAT(d,'x'),CONCAT(d,'x') FROM t0;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET @@global.mysql56_temporal_format=true;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT d,d,d FROM t0;
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (d VARCHAR(64), t0 TIME(0), t1 TIME(1));
+INSERT INTO t1 SELECT CONCAT(d,'x'),CONCAT(d,'x'),CONCAT(d,'x') FROM t0;
+SELECT * FROM t1 ORDER BY d;
+DROP TABLE t1;
+
+DROP TABLE t0;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-15287 Bad result for LEAST/GREATEST(datetime_alike_string, time)
+--echo #
+
+--vertical_results
+
+SELECT
+  GREATEST('2010-01-01 10:10:10',TIME('-20:20:20')) AS gt_minus20_implicit,
+  GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20')) AS gt_minis20_explicit,
+  GREATEST('2010-01-01 10:10:10',TIME('20:20:20')) AS gt_plus20_implicit,
+  GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20')) AS gt_plus20_explicit;
+SELECT
+  HOUR(GREATEST('2010-01-01 10:10:10',TIME('-20:20:20'))) AS gt_minus20_implicit,
+  HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20'))) AS gt_minis20_explicit,
+  HOUR(GREATEST('2010-01-01 10:10:10',TIME('20:20:20'))) AS gt_plus20_implicit,
+  HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20'))) AS gt_plus20_explicit;
+
+SELECT
+  LEAST('2010-01-01 10:10:10',TIME('-20:20:20')) AS lt_minus20_implicit,
+  LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20')) AS lt_minus20_explicit,
+  LEAST('2010-01-01 10:10:10',TIME('20:20:20')) AS lt_plus20_implicit,
+  LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20')) AS lt_plus20_explicit;
+SELECT
+  HOUR(LEAST('2010-01-01 10:10:10',TIME('-20:20:20'))) AS lt_minus20_implicit,
+  HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-20:20:20'))) AS lt_minus20_explicit,
+  HOUR(LEAST('2010-01-01 10:10:10',TIME('20:20:20'))) AS lt_plus20_implicit,
+  HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('20:20:20'))) AS lt_plus20_explicit;
+
+SELECT
+  GREATEST('2010-01-01 10:10:10',TIME('-200:20:20')) AS gt_minus200_implicit,
+  GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20')) AS gt_minus200_explictit,
+  GREATEST('2010-01-01 10:10:10',TIME('200:20:20')) AS gt_plus200_implicit,
+  GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20')) AS gt_plus200_explicit;
+SELECT
+  HOUR(GREATEST('2010-01-01 10:10:10',TIME('-200:20:20'))) AS gt_minus200_implicit,
+  HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20'))) AS gt_minus200_explictit,
+  HOUR(GREATEST('2010-01-01 10:10:10',TIME('200:20:20'))) AS gt_plus200_implicit,
+  HOUR(GREATEST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20'))) AS gt_plus200_explicit;
+
+SELECT
+  LEAST('2010-01-01 10:10:10',TIME('-200:20:20')) AS lt_minus200_implicit,
+  LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20')) AS lt_minus200_explictit,
+  LEAST('2010-01-01 10:10:10',TIME('200:20:20')) AS lt_plus200_implicit,
+  LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20')) AS lt_plus200_explicit;
+SELECT
+  HOUR(LEAST('2010-01-01 10:10:10',TIME('-200:20:20'))) AS lt_minus200_implicit,
+  HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('-200:20:20'))) AS lt_minus200_explictit,
+  HOUR(LEAST('2010-01-01 10:10:10',TIME('200:20:20'))) AS lt_plus200_implicit,
+  HOUR(LEAST(CAST('2010-01-01 10:10:10' AS TIME(6)),TIME('200:20:20'))) AS lt_plus200_explicit;
+
+--horizontal_results
+
+
+--echo #
+--echo # MDEV-15293 CAST(AS TIME) returns bad results for LAST_VALUE(),NAME_CONST(),SP variable
+--echo #
+
+SELECT CAST(DATE'2001-01-01' AS TIME);
+SELECT CAST(LAST_VALUE(DATE'2001-01-01') AS TIME);
+SELECT CAST(NAME_CONST('name',DATE'2001-01-01') AS TIME);
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a DATE DEFAULT '2001-01-01';
+  SELECT CAST(a AS TIME);
+END;
+$$
+DELIMITER ;$$
+
+CREATE OR REPLACE TABLE t1 (dt DATE,country VARCHAR(10), amount INT);
+INSERT INTO t1 VALUES ('2000-01-01','DE',102);
+SELECT
+  dt, country, amount,
+  FIRST_VALUE(dt) OVER () AS first,
+  MINUTE(FIRST_VALUE(dt) OVER ()) AS m_first,
+  LAST_VALUE(dt) OVER () AS last,
+  MINUTE(LAST_VALUE(dt) OVER ()) AS m_last
+FROM t1
+ORDER BY country, dt;
+SELECT
+  dt, country, amount,
+  FIRST_VALUE(dt) OVER () AS first,
+  CAST(FIRST_VALUE(dt) OVER () AS TIME) AS t_first,
+  LAST_VALUE(dt) OVER () AS last,
+  CAST(LAST_VALUE(dt) OVER () AS TIME) AS t_last
+FROM t1
+ORDER BY country, dt;
+DROP TABLE t1;
+
+
+--echo #
+--echo #  MDEV-15310 Range optimizer does not work well for "WHERE temporal_column NOT IN (const_list)"
+--echo #
+
+--echo #
+--echo # TIME(0), positive within 24 hour
+--echo #
+
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:01', 'no');
+INSERT INTO t1 VALUES ('23:00:02', 'no');
+INSERT INTO t1 VALUES ('23:00:03', 'yes');
+INSERT INTO t1 VALUES ('23:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
+SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
+DROP TABLE t1;
+
+--echo #
+--echo # TIME(0), negative
+--echo #
+
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:01', 'no');
+INSERT INTO t1 VALUES ('-23:00:02', 'no');
+INSERT INTO t1 VALUES ('-23:00:03', 'yes');
+INSERT INTO t1 VALUES ('-23:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-23:00:01','-23:00:02');
+SELECT * FROM t1 WHERE a NOT IN ('-23:00:01','-23:00:02');
+DROP TABLE t1;
+
+--echo #
+--echo # TIME(0), positive ouside 24 hours
+--echo #
+
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:01', 'no');
+INSERT INTO t1 VALUES ('24:00:02', 'no');
+INSERT INTO t1 VALUES ('24:00:03', 'yes');
+INSERT INTO t1 VALUES ('24:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
+SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
+DROP TABLE t1;
+
+--echo #
+--echo # TIME(0), negative, ouside 24 hours
+--echo #
+
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:01', 'no');
+INSERT INTO t1 VALUES ('-24:00:02', 'no');
+INSERT INTO t1 VALUES ('-24:00:03', 'yes');
+INSERT INTO t1 VALUES ('-24:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-24:00:01','-24:00:02');
+SELECT * FROM t1 WHERE a NOT IN ('-24:00:01','-24:00:02');
+DROP TABLE t1;
+
+--echo #
+--echo # TIME(0), positive, huge
+--echo #
+
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:01', 'no');
+INSERT INTO t1 VALUES ('838:00:02', 'no');
+INSERT INTO t1 VALUES ('838:00:03', 'yes');
+INSERT INTO t1 VALUES ('838:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
+SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
+DROP TABLE t1;
+
+--echo #
+--echo # TIME(0), negative, huge
+--echo #
+
+CREATE TABLE t1 (a TIME, filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:01', 'no');
+INSERT INTO t1 VALUES ('-838:00:02', 'no');
+INSERT INTO t1 VALUES ('-838:00:03', 'yes');
+INSERT INTO t1 VALUES ('-838:00:04', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-838:00:01','-838:00:02');
+SELECT * FROM t1 WHERE a NOT IN ('-838:00:01','-838:00:02');
+DROP TABLE t1;
+
+--echo #
+--echo # TIME(1), positive within 24 hours
+--echo #
+
+CREATE TABLE t1 (a TIME(1), filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('23:00:02.1', 'no');
+INSERT INTO t1 VALUES ('23:00:03.1', 'yes');
+INSERT INTO t1 VALUES ('23:00:04.1', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
+SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
+DROP TABLE t1;
+
+--echo #
+--echo # TIME(1), negative within 24 hours
+--echo #
+
+CREATE TABLE t1 (a TIME(1), filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:02.1', 'no');
+INSERT INTO t1 VALUES ('-23:00:03.1', 'yes');
+INSERT INTO t1 VALUES ('-23:00:04.1', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-23:00:01.1','-23:00:02.1');
+SELECT * FROM t1 WHERE a NOT IN ('-23:00:01.1','-23:00:02.1');
+DROP TABLE t1;
+
+--echo #
+--echo # TIME(1), positive, huge
+--echo #
+
+CREATE TABLE t1 (a TIME(1), filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('838:00:02.1', 'no');
+INSERT INTO t1 VALUES ('838:00:03.1', 'yes');
+INSERT INTO t1 VALUES ('838:00:04.1', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
+SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
+DROP TABLE t1;
+
+--echo #
+--echo # TIME(1), negative, huge
+--echo #
+
+CREATE TABLE t1 (a TIME(1), filler CHAR(200), KEY(a));
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:01.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:02.1', 'no');
+INSERT INTO t1 VALUES ('-838:00:03.1', 'yes');
+INSERT INTO t1 VALUES ('-838:00:04.1', 'yes');
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-838:00:01.1','-838:00:02.1');
+SELECT * FROM t1 WHERE a NOT IN ('-838:00:01.1','-838:00:02.1');
+DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-11362 True condition elimination does not work for DECIMAL and temporal dynamic SQL parameters
+--echo #
+
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES (1),(2),(3);
+--echo # Equal values
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(TIME'10:20:30',a)<=>COALESCE(TIME'10:20:30',a);
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(?,a)' USING TIME'10:20:30',TIME'10:20:30';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(TIME''10:20:30'',a)<=>COALESCE(?,a)' USING TIME'10:20:30';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(TIME''10:20:30'',a)' USING TIME'10:20:30';
+--echo # Not equal values
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(TIME'10:20:30',a)<=>COALESCE(TIME'10:20:31',a);
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(?,a)' USING TIME'10:20:30',TIME'10:20:31';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(TIME''10:20:30'',a)<=>COALESCE(?,a)' USING TIME'10:20:31';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(TIME''10:20:30'',a)' USING TIME'10:20:31';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16426 Optimizer erroneously treats equal constants of different formats as same
+--echo #
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01'),('00:00:02');
+
+--echo Equal values
+SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME'00:00:00.0',a))<=>LENGTH(COALESCE(TIME'00:00:00.0',a));
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME'00:00:00.0',a))<=>LENGTH(COALESCE(TIME'00:00:00.0',a));
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME''00:00:00.0'',a))<=>LENGTH(COALESCE(?,a))' USING TIME'00:00:00.0';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME''00:00:00.0'',a))<=>LENGTH(COALESCE(?,a))' USING TIME'00:00:00.0';
+
+--echo Values with different formats
+SELECT LENGTH(COALESCE(TIME'00:00:00.0',a)),LENGTH(COALESCE(TIME'00:00:00.00',a)) FROM t1;
+SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME'00:00:00.0',a))<=>LENGTH(COALESCE(TIME'00:00:00.00',a));
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME'00:00:00.0',a))<=>LENGTH(COALESCE(TIME'00:00:00.00',a));
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME''00:00:00.0'',a))<=>LENGTH(COALESCE(?,a))' USING TIME'00:00:00.00';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME''00:00:00.0'',a))<=>LENGTH(COALESCE(?,a))' USING TIME'00:00:00.00';
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16971 Assertion `is_valid_value_slow()' failed in Time::adjust_time_range_or_invalidate
+--echo #
+SET sql_mode='';
+CREATE TABLE t1 (d1 date, t1 time, KEY t1 (t1));
+INSERT INTO t1 VALUES ('1982-12-19','08:16:31'),('1981-04-19','21:52:59'),('1971-06-09','07:15:44'),('2007-08-15','03:55:02'),('1993-06-05','04:17:51'),('2034-07-01','17:31:12'),('1998-08-24','08:09:27'),('1991-01-15','01:14:07'),('2001-02-25','10:41:28'),('1974-06-24','10:21:58'),('1977-04-21','16:38:05'),('1981-12-03','01:24:42'),('1972-06-15','20:19:16'),('1989-08-10','08:53:47'),('2018-05-19','15:06:49'),('1984-01-12','15:56:11'),('2013-01-23','04:16:16'),('2000-06-10','02:06:44'),('1995-01-03','04:51:38');
+CREATE TABLE t2 (d1 date );
+INSERT INTO t2 VALUES ('2018-06-01'),('1979-10-25'),('1974-08-22'),('1980-06-17');
+SELECT * FROM (t1 JOIN t2 ON (t2.d1 = t1.t1))  WHERE (t1.d1 > 70 );
+UPDATE (t1 JOIN t2 ON (t2.d1 = t1.t1)) SET t1.d1 = '2018-07-07' WHERE (t1.d1 > 70 );
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-17219 Assertion `!t->fraction_remainder(decimals())' failed in Field_time::store_TIME_with_warning
+--echo #
+SET optimizer_use_condition_selectivity=3;
+CREATE TABLE t1 (it TIME NOT NULL);
+INSERT INTO t1 VALUES ('07:25:13'),('05:15:55'),('09:58:01'),('04:23:57'),('19:37:28'),('01:38:05'),('20:50:52');
+SELECT 1 FROM t1 WHERE it < -7487797330456870912;
+DROP TABLE t1;
+SET optimizer_use_condition_selectivity=DEFAULT;
+
+--echo #
+--echo # MDEV-17417 TIME(99991231235959) returns 838:59:59 instead of 23:59:58
+--echo #
+SELECT TIME(99991231235957), TIME(99991231235958), TIME(99991231235959);
+
+--echo #
+--echo # MDEV-17634 Regression: TIME(0)=TIME('z') returns NULL vs 1
+--echo #
+SELECT
+  TIMESTAMP(0)=TIMESTAMP('z') AS ts,
+  DATE(0)=DATE('z') AS d,
+  TIME(0)=TIME('z') AS t;
+
+SELECT
+  TIMESTAMP(0)=TIMESTAMP('') AS ts,
+  DATE(0)=DATE('') AS d,
+  TIME(0)=TIME('') AS t;
+
+
+--echo #
+--echo # MDEV-17563 Different results using table or view when comparing values of time type
+--echo #
+
+CREATE TABLE t1 (pk int, x1 time, x2 varchar(1));
+INSERT INTO t1 VALUES (17,'09:16:37','k'),(70,'19:44:22','k');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT pk FROM t1 WHERE x1 >x2;
+SELECT pk FROM v1 WHERE x1 >x2;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (pk int, x1 time, x2 varchar(1));
+INSERT INTO t1 VALUES (17,'09:16:37',''),(70,'19:44:22','k');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT pk FROM t1 WHERE x1 >x2;
+SELECT pk FROM v1 WHERE x1 >x2;
+DROP VIEW IF EXISTS v1;
+DROP TABLE IF EXISTS t1;
+
+
+--echo #
+--echo # MDEV-17625 Different warnings when comparing a garbage to DATETIME vs TIME
+--echo #
+
+SELECT TIMESTAMP(0)='z', DATE(0)='z', TIME(0)='z';
+
+
+--echo #
+--echo # MDEV-17319 Assertion `ts_type != MYSQL_TIMESTAMP_TIME' failed upon inserting into TIME field
+--echo #
+
+CREATE TABLE t1 (t TIME);
+SET SESSION SQL_MODE='TRADITIONAL';
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES ('0000-00-00 00:00:00'),('0000-00-00 00:00:00');
+SET sql_mode=DEFAULT;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18070 Assertion `nanoseconds <= 1000000000' failed in Temporal::add_nanoseconds_ssff with TIME_ROUND_FRACTIONAL
+--echo #
+
+CREATE TABLE t1 (t TIME);
+SET SQL_MODE= 'TIME_ROUND_FRACTIONAL';
+INSERT INTO t1 VALUES (3e19);
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-18876 Assertion `is_valid_time_slow()' failed in Time::valid_MYSQL_TIME_to_valid_value
+--echo #
+
+CREATE TABLE t1 (f INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT f FROM t1 ORDER BY 1 && ( '1972-11-06 16:58:58' BETWEEN CONVERT( 0, TIME ) AND '20:31:05' );
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(32));
+INSERT INTO t1 VALUES ('1972-11-06 16:58:58');
+SELECT * FROM t1 WHERE a < TIME'20:31:05';
+SELECT a < TIME'20:31:05' FROM t1;
+DROP TABLE t1;
+
+SELECT '1972-11-06 16:58:58' < TIME'20:31:05';
+
+--echo #
+--echo # MDEV-23525 Wrong result of MIN(time_expr) and MAX(time_expr) with GROUP BY
+--echo #
+
+SET timestamp=UNIX_TIMESTAMP('2020-08-21 18:19:20');
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  SELECT MIN(t), MAX(t) FROM t1;
+  SELECT i, MIN(t), MAX(t) FROM t1 GROUP BY i;
+  SELECT i, MIN(COALESCE(t)), MAX(COALESCE(t)) FROM t1 GROUP BY i;
+  SELECT i, MIN(t+INTERVAL 1 SECOND), MAX(t+INTERVAL 1 SECOND) FROM t1 GROUP BY i;
+  SELECT i, MIN(TIME'10:20:30'+INTERVAL 1 SECOND) FROM t1 GROUP BY i;
+  SELECT i, MIN(CURRENT_TIME), MAX(CURRENT_TIME) FROM t1 GROUP BY i;
+  SELECT
+    i,
+    MIN((SELECT MAX(CURRENT_TIME) FROM t1)),
+    MAX((SELECT MAX(CURRENT_TIME) FROM t1))
+  FROM t1 GROUP BY i;
+  SELECT
+    i,
+    MIN(NAME_CONST('name',TIME'10:20:30')),
+    MAX(NAME_CONST('name',TIME'10:20:30'))
+  FROM t1 GROUP BY i;
+  EXECUTE IMMEDIATE "SELECT i, MIN(?),MAX(?) FROM t1 GROUP BY i"
+                    USING TIME'10:20:30', TIME'10:20:30';
+END;
+$$
+DELIMITER ;$$
+
+CREATE TABLE t1 (i INT, t TIME);
+INSERT INTO t1 VALUES (1,'10:20:30');
+INSERT INTO t1 VALUES (1,'100:20:20');
+CALL p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i INT, t TIME(3));
+INSERT INTO t1 VALUES (1,'10:20:30.123');
+INSERT INTO t1 VALUES (1,'100:20:20.123');
+CALL p1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i INT, t TIME(6));
+INSERT INTO t1 VALUES (1,'10:20:30.123456');
+INSERT INTO t1 VALUES (1,'100:20:20.123456');
+CALL p1;
+DROP TABLE t1;
+
+SET @@global.mysql56_temporal_format=false;
+CREATE TABLE t1 (i INT, t TIME(6));
+INSERT INTO t1 VALUES (1,'10:20:30.123456');
+INSERT INTO t1 VALUES (1,'100:20:20.123456');
+CALL p1;
+DROP TABLE t1;
+SET @@global.mysql56_temporal_format=default;
+
+DROP PROCEDURE p1;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

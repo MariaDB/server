@@ -1,0 +1,32 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-13534 InnoDB STATS_PERSISTENT fails to ignore
+--echo # garbage delete-mark flag on node pointer pages
+--echo #
+
+CREATE TABLE t(a INT UNSIGNED PRIMARY KEY)
+ENGINE=InnoDB STATS_PERSISTENT=1 STATS_SAMPLE_PAGES=1;
+
+BEGIN;
+# Create an index tree of height 3.
+# This is adapted from innodb.innodb_bug14676111.
+
+SET @save_debug = @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+
+INSERT t VALUES(1),(5);
+DELETE FROM t;
+INSERT t VALUES(4);
+DELETE FROM t;
+INSERT t VALUES(3);
+DELETE FROM t;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @save_debug;
+
+connect(con1, localhost, root,,);
+ANALYZE TABLE t;
+disconnect con1;
+
+connection default;
+DROP TABLE t;

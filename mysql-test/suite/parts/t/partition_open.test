@@ -1,0 +1,24 @@
+#
+# MDEV-11084 Select statement with partition selection against MyISAM table opens all partitions.
+#
+--source include/have_partition.inc
+
+let $datadir=`select @@datadir`;
+
+# Table declared as having 2 partitions
+# create table t1 (x int)  egine=myisam
+#    partition by range columns (x)
+#      ( partition p0 values less than (100), partition p1 values less than (1000));
+#
+# But we copy only second partition. So the 'p0' can't be opened.
+
+copy_file std_data/mdev11084.frm $datadir/test/t1.frm;
+copy_file std_data/mdev11084.par $datadir/test/t1.par;
+copy_file std_data/mdev11084.part1.MYD $datadir/test/t1#P#p1.MYD;
+copy_file std_data/mdev11084.part1.MYI $datadir/test/t1#P#p1.MYI;
+select * from t1 partition (p1);
+--replace_result $datadir ./
+--error ER_FILE_NOT_FOUND
+select * from t1 partition (p0);
+--replace_result $datadir ./
+drop table t1;

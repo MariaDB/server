@@ -1,0 +1,40 @@
+create sequence s1 cache 2 engine=innodb;
+# restart: --innodb-read-only
+connection default;
+show global variables like 'innodb_read_only';
+Variable_name	Value
+innodb_read_only	ON
+use test;
+set session binlog_format= row;
+###########################################
+read_only create error.
+###########################################
+show global variables like 'innodb_read_only';
+Variable_name	Value
+innodb_read_only	ON
+use test;
+create sequence s2 cache 5 engine=innodb;
+ERROR HY000: Can't create table `test`.`s2` (errno: 165 "Table is read only")
+###########################################
+read_only query error.
+###########################################
+select next value for s1;
+ERROR HY000: Table 's1' is read only
+select next value for s1;
+ERROR HY000: Table 's1' is read only
+select next value for s1;
+ERROR HY000: Table 's1' is read only
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	2	0	0
+# restart
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	2	0	0
+select next value for s1;
+next value for s1
+1
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+3	1	9223372036854775806	1	1	2	0	0
+drop sequence s1;

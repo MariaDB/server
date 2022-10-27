@@ -1,0 +1,21 @@
+drop table if exists diaries;
+create table diaries (
+id int primary key auto_increment,
+body text,
+fulltext index body_index (body)
+comment 'tokenizer "TokenBigramSplitSymbolAlphaDigit"'
+) comment = 'engine "innodb"' default charset utf8;
+insert into diaries (body) values ("will start Groonga!");
+insert into diaries (body) values ("starting Groonga...");
+insert into diaries (body) values ("started Groonga.");
+select * from diaries;
+id	body
+1	will start Groonga!
+2	starting Groonga...
+3	started Groonga.
+select * from diaries where match(body) against("+start" in boolean mode) order by id;
+id	body
+1	will start Groonga!
+2	starting Groonga...
+3	started Groonga.
+drop table diaries;

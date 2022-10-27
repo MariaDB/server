@@ -1,0 +1,63 @@
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--disable_query_log
+SET @create_var1 = "";
+--let $count = 1017
+while ($count)
+{
+  --eval SET @create_var1 = CONCAT(@create_var1, "f", $count, " VARCHAR(3) DEFAULT 'ABC', ")
+  --dec $count
+}
+
+--let $create_var = `SELECT @create_var1`
+--eval CREATE TABLE t1 ($create_var PRIMARY KEY (f1, f1017)) ENGINE=InnoDB;
+--enable_query_log
+
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+
+--connection node_2
+SELECT f1 = 'ABC', f1017 = 'ABC' FROM t1;
+UPDATE t1 SET f1 = 'XYZ', f1017 = 'XYZ' ;
+
+--connection node_1
+SELECT f1 = 'XYZ', f1017 = 'XYZ' FROM t1 WHERE f1 = 'XYZ' AND f1017 = 'XYZ';
+
+
+# Deadlock
+
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'KLM' WHERE f1 = 'XYZ' AND f1017 = 'XYZ';
+
+--connection node_2
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'CDE' WHERE f1 = 'XYZ' AND f1017 = 'XYZ';
+COMMIT;
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+COMMIT;
+ROLLBACK;
+
+--connection node_2
+ROLLBACK;
+
+# Rollback
+
+--connection node_1
+START TRANSACTION;
+INSERT INTO t1 (f1, f1017) VALUES ('BCE','BCE');
+INSERT INTO t1 (f1, f1017) VALUES ('CED','CED');
+INSERT INTO t1 (f1, f1017) VALUES ('EDF','EDF');
+INSERT INTO t1 (f1, f1017) VALUES ('FED','FED');
+ROLLBACK;
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+
+DROP TABLE t1;

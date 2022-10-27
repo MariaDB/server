@@ -1,0 +1,20 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1(c1 CHAR(10) CHARACTER SET utf16 DEFAULT 'ola');
+INSERT INTO t1 VALUES ('abc');
+INSERT INTO t1 VALUES ();
+SELECT c1, hex(c1) from t1;
+c1	abc
+hex(c1)	006100620063
+c1	ola
+hex(c1)	006F006C0061
+connection slave;
+SELECT c1, hex(c1) FROM t1;
+c1	abc
+hex(c1)	006100620063
+c1	ola
+hex(c1)	006F006C0061
+include/diff_tables.inc [master:t1,slave:t1]
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

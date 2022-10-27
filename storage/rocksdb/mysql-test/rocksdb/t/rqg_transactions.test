@@ -1,0 +1,14 @@
+--source include/have_rocksdb.inc
+# Don't run the RQG tests with --rpc_protocol because the connections and
+# queries will be coming from Perl where we don't have any ability to
+# specify the query attributes needed for the RPC protocol.
+--source include/not_rpc_protocol.inc
+
+call mtr.add_suppression("Deadlock found when trying to get lock");
+
+# RQG's transactions test
+let $TESTDIR = transactions;
+let $GRAMMAR_FILES = transactions.yy repeatable_read.yy transaction_durability.yy transactions-flat.yy combinations.yy repeatable_read.yy transaction_durability.yy transactions-flat.yy;
+let $DATA_FILE = transactions.zz;
+
+--source rqg.inc

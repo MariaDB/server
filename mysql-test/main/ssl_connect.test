@@ -1,0 +1,18 @@
+
+-- source include/have_ssl_communication.inc
+
+# Repeat connect/disconnect
+
+let $i=100;
+disable_connect_log;
+while ($i)
+{
+  connect (test_con1,localhost,root,,,,,SSL);
+  disconnect test_con1;
+  dec $i;
+}
+enable_connect_log;
+echo completed;
+
+##  This test file is for testing encrypted communication only, not other
+##  encryption routines that the SSL library happens to provide!

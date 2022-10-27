@@ -1,0 +1,195 @@
+# Crash recovery tests for FULLTEXT INDEX.
+# Note: These tests used to be part of a larger test, innodb_fts_misc_debug
+# or innodb_fts.misc_debug. The part of the test that actually needs debug
+# instrumentation been moved to innodb_fts.misc_debug.
+
+--source include/have_innodb.inc
+# The embedded server tests do not support restarting.
+--source include/not_embedded.inc
+--source include/maybe_debug.inc
+
+FLUSH TABLES;
+# Following are test for crash recovery on FTS index, the first scenario
+# is for bug Bug #14586855 INNODB: FAILING ASSERTION: (DICT_INDEX_GET_N_UNIQUE(
+# PLAN->INDEX) <= PLAN->N_EXAC
+
+# Scenario 1: Hidden FTS_DOC_ID column, and FTS index dropped
+# Create FTS table
+CREATE TABLE articles (
+        id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+        title VARCHAR(200),
+        body TEXT,
+        FULLTEXT (title,body)
+        ) ENGINE=InnoDB;
+
+# Drop the FTS index before more insertion. The FTS_DOC_ID should
+# be kept
+DROP INDEX title ON articles;
+
+# Insert six rows
+INSERT INTO articles (title,body) VALUES
+        ('MySQL Tutorial','DBMS stands for DataBase ...')  ,
+        ('How To Use MySQL Well','After you went through a ...'),
+        ('Optimizing MySQL','In this tutorial we will show ...'),
+        ('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+        ('MySQL vs. YourSQL','In the following database comparison ...'),
+        ('MySQL Security','When configured properly, MySQL ...');
+
+BEGIN;
+
+INSERT INTO articles (title,body) VALUES
+        ('MySQL Tutorial','DBMS stands for DataBase ...');
+
+--echo # Make durable the AUTO_INCREMENT in the above incomplete transaction.
+--connect (flush_redo_log,localhost,root,,)
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+BEGIN;
+DELETE FROM articles LIMIT 1;
+ROLLBACK;
+--disconnect flush_redo_log
+--connection default
+
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+
+# This insert will re-initialize the Doc ID counter, it should not crash
+INSERT INTO articles (title,body) VALUES
+        ('MySQL Tutorial','DBMS stands for DataBase ...');
+
+# Recreate fulltext index to see if everything is OK
+CREATE FULLTEXT INDEX idx ON articles (title,body);
+
+# Should return 3 rows
+SELECT * FROM articles
+        WHERE MATCH (title,body)
+        AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+
+# Scenario 2: Hidden FTS_DOC_ID column, with FTS index
+# Now let's do more insertion and test a crash with FTS on
+INSERT INTO articles (title,body) VALUES
+        ('MySQL Tutorial','DBMS stands for DataBase ...')  ,
+        ('How To Use MySQL Well','After you went through a ...'),
+        ('Optimizing MySQL','In this tutorial we will show ...'),
+        ('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+        ('MySQL vs. YourSQL','In the following database comparison ...'),
+        ('MySQL Security','When configured properly, MySQL ...');
+
+connect(dml, localhost, root,,);
+BEGIN;
+
+INSERT INTO articles (title,body) VALUES
+        ('MySQL Tutorial','DBMS stands for DataBase ...');
+connection default;
+
+--echo # Make durable the AUTO_INCREMENT in the above incomplete transaction.
+--connect (flush_redo_log,localhost,root,,)
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+BEGIN;
+DELETE FROM articles LIMIT 1;
+ROLLBACK;
+--disconnect flush_redo_log
+--connection default
+
+--source include/restart_mysqld.inc
+
+disconnect dml;
+
+# This insert will re-initialize the Doc ID counter, it should not crash
+INSERT INTO articles (title,body) VALUES
+        ('MySQL Tutorial','DBMS stands for DataBase ...');
+
+# Should return 6 rows
+SELECT * FROM articles
+        WHERE MATCH (title,body)
+        AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+
+DROP TABLE articles;
+
+# Scenario 3: explicit FTS_DOC_ID column with FTS index 
+# Now let's test user defined FTS_DOC_ID
+
+CREATE TABLE articles (
+	id int PRIMARY KEY,
+        FTS_DOC_ID BIGINT UNSIGNED NOT NULL,
+        title VARCHAR(200),
+        body TEXT
+        ) ENGINE=InnoDB;
+
+CREATE FULLTEXT INDEX idx1 on articles (title, body);
+
+# Note the FTS_DOC_ID is not fully ordered with primary index
+INSERT INTO articles VALUES
+        (1, 10, 'MySQL Tutorial','DBMS stands for DataBase ...')  ,
+        (2, 1, 'How To Use MySQL Well','After you went through a ...'),
+        (3, 2, 'Optimizing MySQL','In this tutorial we will show ...'),
+        (4, 11, '1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
+        (5, 6, 'MySQL vs. YourSQL','In the following database comparison ...'),
+        (7, 4, 'MySQL Security','When configured properly, MySQL ...');
+
+connect(dml, localhost, root,,);
+BEGIN;
+
+# Below we do not depend on the durability of the AUTO_INCREMENT sequence,
+# so we can skip the above flush_redo_log trick.
+INSERT INTO articles VALUES
+        (100, 200, 'MySQL Tutorial','DBMS stands for DataBase ...');
+
+connect(dml2, localhost, root,,);
+
+--echo #
+--echo # MDEV-19073 FTS row mismatch after crash recovery
+--echo #
+
+CREATE TABLE mdev19073(id SERIAL, title VARCHAR(200), body TEXT,
+                       FULLTEXT(title,body)) ENGINE=InnoDB;
+INSERT INTO mdev19073 (title, body) VALUES
+	('MySQL Tutorial', 'DBMS stands for Database...');
+CREATE FULLTEXT INDEX idx ON mdev19073(title, body);
+CREATE TABLE mdev19073_2 LIKE mdev19073;
+if ($have_debug)
+{
+--disable_query_log
+SET @saved_dbug = @@debug_dbug;
+SET DEBUG_DBUG = '+d,fts_instrument_sync_debug';
+--enable_query_log
+}
+INSERT INTO mdev19073_2 (title, body) VALUES
+	('MySQL Tutorial', 'DBMS stands for Database...');
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_DBUG = @saved_dbug;
+--enable_query_log
+}
+
+INSERT INTO mdev19073 (title, body) VALUES
+	('MariaDB Tutorial', 'DB means Database ...');
+INSERT INTO mdev19073_2 (title, body) VALUES
+	('MariaDB Tutorial', 'DB means Database ...');
+
+# Should return 2 rows
+SELECT * FROM mdev19073 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+SELECT * FROM mdev19073_2 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+
+connection default;
+--source include/restart_mysqld.inc
+disconnect dml;
+disconnect dml2;
+
+# This would re-initialize the FTS index and do the re-tokenization
+# of above records
+INSERT INTO articles VALUES         (8, 12, 'MySQL Tutorial','DBMS stands for DataBase ...');
+
+SELECT * FROM articles WHERE MATCH (title, body)
+        AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
+
+DROP TABLE articles;
+
+# Should return 2 rows
+SELECT * FROM mdev19073 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+SELECT * FROM mdev19073_2 WHERE MATCH (title, body)
+AGAINST ('Database' IN NATURAL LANGUAGE MODE);
+DROP TABLE mdev19073, mdev19073_2;

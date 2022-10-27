@@ -1,0 +1,110 @@
+include/master-slave.inc
+[connection master]
+connection master;
+drop table if exists t1;
+connection master;
+create table t1 (id int primary key, value int);
+insert into t1 values (1,1), (2,2), (3,3);
+begin;
+insert into t1 values (11, 1);
+savepoint a;
+insert into t1 values (12, 1);
+rollback to savepoint a;
+ERROR HY000: MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows.
+commit;
+ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+commit;
+select * from t1;
+id	value
+1	1
+2	2
+3	3
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1;
+id	value
+1	1
+2	2
+3	3
+connection master;
+begin;
+insert into t1 values (21, 1);
+savepoint a;
+insert into t1 values (22, 1);
+rollback to savepoint a;
+ERROR HY000: MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows.
+insert into t1 values (23, 1);
+ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+commit;
+ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+commit;
+select * from t1;
+id	value
+1	1
+2	2
+3	3
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1;
+id	value
+1	1
+2	2
+3	3
+connection master;
+begin;
+insert into t1 values (31, 1);
+savepoint a;
+insert into t1 values (32, 1);
+savepoint b;
+insert into t1 values (33, 1);
+rollback to savepoint a;
+ERROR HY000: MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows.
+insert into t1 values (34, 1);
+ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+rollback;
+select * from t1;
+id	value
+1	1
+2	2
+3	3
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1;
+id	value
+1	1
+2	2
+3	3
+connection master;
+SET autocommit=off;
+select * from t1;
+id	value
+1	1
+2	2
+3	3
+SAVEPOINT A;
+select * from t1;
+id	value
+1	1
+2	2
+3	3
+SAVEPOINT A;
+insert into t1 values (35, 35);
+ROLLBACK TO SAVEPOINT A;
+ERROR HY000: MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows.
+START TRANSACTION;
+ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+select * from t1;
+id	value
+1	1
+2	2
+3	3
+include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1;
+id	value
+1	1
+2	2
+3	3
+connection master;
+drop table t1;
+include/rpl_end.inc

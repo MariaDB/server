@@ -1,0 +1,45 @@
+#
+# wsrep_slave_uk_checks
+#
+# save the initial value
+SET @wsrep_slave_uk_checks_global_saved = @@global.wsrep_slave_uk_checks;
+# default
+SELECT @@global.wsrep_slave_uk_checks;
+@@global.wsrep_slave_uk_checks
+0
+
+# scope
+SELECT @@session.wsrep_slave_uk_checks;
+ERROR HY000: Variable 'wsrep_slave_UK_checks' is a GLOBAL variable
+SET @@global.wsrep_slave_uk_checks=OFF;
+SELECT @@global.wsrep_slave_uk_checks;
+@@global.wsrep_slave_uk_checks
+0
+SET @@global.wsrep_slave_uk_checks=ON;
+SELECT @@global.wsrep_slave_uk_checks;
+@@global.wsrep_slave_uk_checks
+1
+
+# valid values
+SET @@global.wsrep_slave_uk_checks='OFF';
+SELECT @@global.wsrep_slave_uk_checks;
+@@global.wsrep_slave_uk_checks
+0
+SET @@global.wsrep_slave_uk_checks=ON;
+SELECT @@global.wsrep_slave_uk_checks;
+@@global.wsrep_slave_uk_checks
+1
+SET @@global.wsrep_slave_uk_checks=default;
+SELECT @@global.wsrep_slave_uk_checks;
+@@global.wsrep_slave_uk_checks
+0
+
+# invalid values
+SET @@global.wsrep_slave_uk_checks=NULL;
+ERROR 42000: Variable 'wsrep_slave_UK_checks' can't be set to the value of 'NULL'
+SET @@global.wsrep_slave_uk_checks='junk';
+ERROR 42000: Variable 'wsrep_slave_UK_checks' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_slave_uk_checks = @wsrep_slave_uk_checks_global_saved;
+# End of test

@@ -1,0 +1,25 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+create table t1 (id int primary key, value int) engine=rocksdb;
+insert into t1 values (1,1);
+
+SET session transaction isolation level read uncommitted;
+begin;
+--error ER_ISOLATION_MODE_NOT_SUPPORTED
+insert into t1 values (2,1);
+--error ER_ISOLATION_MODE_NOT_SUPPORTED
+select * from t1 where id=1;
+rollback;
+
+SET session transaction isolation level serializable;
+begin;
+--error ER_ISOLATION_MODE_NOT_SUPPORTED
+insert into t1 values (2,1);
+--error ER_ISOLATION_MODE_NOT_SUPPORTED
+select * from t1 where id=1;
+rollback;
+
+DROP TABLE t1;

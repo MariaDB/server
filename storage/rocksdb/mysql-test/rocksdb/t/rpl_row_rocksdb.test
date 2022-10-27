@@ -1,0 +1,48 @@
+--source include/have_rocksdb.inc
+
+source include/master-slave.inc;
+source include/have_binlog_format_row.inc;
+
+connection master;
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+connection master;
+
+select @@binlog_format;
+create table t1 (pk int primary key) engine=rocksdb;
+insert into t1 values (1),(2),(3);
+
+--source include/sync_slave_sql_with_master.inc
+connection slave;
+
+select * from t1;
+
+connection master;
+drop table t1;
+
+--echo #
+--echo # Issue #18: slave crash on update with row based binary logging
+--echo #
+create table t1 (id int primary key, value int, value2 int, index(value)) engine=rocksdb; 
+insert into t1 values (1,1,1); 
+insert into t1 values (2,1,1); 
+insert into t1 values (3,1,1); 
+insert into t1 values (4,1,1); 
+insert into t1 values (5,1,1); 
+update t1 set value2=100 where id=1;
+update t1 set value2=200 where id=2;
+update t1 set value2=300 where id=3;
+
+--source include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1 where id=1;
+select * from t1 where id=2;
+select * from t1 where id=3;
+
+connection master;
+drop table t1;
+
+--source include/rpl_end.inc
+

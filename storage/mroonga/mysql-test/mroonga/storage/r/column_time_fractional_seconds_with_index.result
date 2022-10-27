@@ -1,0 +1,30 @@
+DROP TABLE IF EXISTS running_records;
+CREATE TABLE running_records (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+average TIME(6),
+max TIME(6),
+KEY (average)
+) DEFAULT CHARSET UTF8;
+INSERT INTO running_records (title, average, max)
+VALUES ("normal condition", "01:00:00.000001", "01:05:00.000001");
+INSERT INTO running_records (title, average, max)
+VALUES ("bad condition", "12:23:34.123456", "838:59:58.999999");
+INSERT INTO running_records (title, average, max)
+VALUES ("record failure", "-838:59:59.000000", "-838:59:59.000000");
+SELECT * FROM running_records;
+id	title	average	max
+1	normal condition	01:00:00.000001	01:05:00.000001
+2	bad condition	12:23:34.123456	838:59:58.999999
+3	record failure	-838:59:59.000000	-838:59:59.000000
+SELECT * FROM running_records
+WHERE average BETWEEN "00:59:59.999999" AND "100:10:10.101010";
+id	title	average	max
+1	normal condition	01:00:00.000001	01:05:00.000001
+2	bad condition	12:23:34.123456	838:59:58.999999
+SELECT * FROM running_records
+WHERE average BETWEEN "-838:59:59.000000" AND "01:00:00.000001";
+id	title	average	max
+3	record failure	-838:59:59.000000	-838:59:59.000000
+1	normal condition	01:00:00.000001	01:05:00.000001
+DROP TABLE running_records;

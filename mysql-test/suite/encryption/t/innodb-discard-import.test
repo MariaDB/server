@@ -1,0 +1,121 @@
+-- source include/have_innodb.inc
+-- source include/innodb_page_size_small.inc
+-- source include/have_file_key_management_plugin.inc
+
+#
+# MDEV-8770: Incorrect error message when importing page compressed tablespace
+#
+
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
+
+let $innodb_compression_algo = `SELECT @@innodb_compression_algorithm`;
+SET GLOBAL innodb_compression_algorithm = 1;
+
+--let $MYSQLD_TMPDIR = `SELECT @@tmpdir`
+--let $MYSQLD_DATADIR = `SELECT @@datadir`
+--let SEARCH_RANGE = 10000000
+--let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd
+--let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd
+--let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd
+--let t4_IBD = $MYSQLD_DATADIR/test/t4.ibd
+
+create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=4;
+show warnings;
+create table t2(c1 bigint not null, b char(200))  engine=innodb page_compressed=1 encrypted=yes encryption_key_id=4;
+show warnings;
+let $kbs= `select floor(@@global.innodb_page_size/1024)`;
+--replace_regex / key_block_size=\d+//i
+eval create table t3(c1 bigint not null, b char(200))  engine=innodb row_format=compressed encrypted=yes encryption_key_id=4 key_block_size=$kbs;
+show warnings;
+create table t4(c1 bigint not null, b char(200))  engine=innodb page_compressed=1;
+show warnings;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into t1 values(current_num, repeat('foobar',30));
+    insert into t2 values(current_num, repeat('barfoo',30));
+    insert into t3 values(current_num, repeat('tmpres',30));
+    insert into t4 values(current_num, repeat('mysql',30));
+   set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(2000);
+commit;
+set autocommit=1;
+
+select count(*) from t1;
+select count(*) from t2;
+select count(*) from t3;
+select count(*) from t4;
+
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+FLUSH TABLE t1,t2,t3,t4 FOR EXPORT;
+--echo # List before copying files
+--list_files $MYSQLD_DATADIR/test
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1","t2","t3","t4");
+EOF
+--list_files $MYSQLD_DATADIR/test
+
+UNLOCK TABLES;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t2 DISCARD TABLESPACE;
+ALTER TABLE t3 DISCARD TABLESPACE;
+ALTER TABLE t4 DISCARD TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1","t2","t3","t4");
+ib_restore_tablespaces("test", "t1","t2","t3","t4");
+EOF
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) FROM t1;
+ALTER TABLE t2 IMPORT TABLESPACE;
+SHOW CREATE TABLE t2;
+SELECT COUNT(*) FROM t2;
+ALTER TABLE t3 IMPORT TABLESPACE;
+--replace_regex / key_block_size=\d+//i
+SHOW CREATE TABLE t3;
+SELECT COUNT(*) FROM t3;
+ALTER TABLE t4 IMPORT TABLESPACE;
+SHOW CREATE TABLE t4;
+SELECT COUNT(*) FROM t4;
+
+--echo # tables should be still either encrypted and/or compressed
+--let SEARCH_PATTERN=foobar
+--echo # t1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$t1_IBD
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=barfoo
+--echo # t2 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$t2_IBD
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=tmpres
+--echo # t3 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$t3_IBD
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=mysql
+--echo # t4 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$t4_IBD
+-- source include/search_pattern_in_file.inc
+
+DROP PROCEDURE innodb_insert_proc;
+DROP TABLE t1,t2,t3,t4;
+
+# reset system
+--disable_query_log
+eval SET GLOBAL innodb_compression_algorithm = $innodb_compression_algo;
+--enable_query_log

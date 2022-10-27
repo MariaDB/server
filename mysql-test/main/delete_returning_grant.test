@@ -1,0 +1,82 @@
+#
+#  Tests for DELETE FROM <table> ... RETURNING <expr>,...
+# 
+--source include/not_embedded.inc
+
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
+
+CREATE TABLE t1 (a int(11), b varchar(32));
+INSERT INTO t1 VALUES (7,'ggggggg'),(1,'a'),(3,'ccc'),(4,'dddd'),(1,'A'),
+     (2,'BB'),(4,'DDDD'),(5,'EEEEE'),(7,'GGGGGGG'),(2,'bb');
+CREATE VIEW v1 AS SELECT a, UPPER(b) FROM t1;
+
+# DELETE FROM <table> ... RETURNING ... with checking privileges
+
+connect (root,localhost,root,,test);
+connection root;
+--disable_warnings
+CREATE DATABASE mysqltest;
+--enable_warnings
+
+CREATE TABLE mysqltest.t1 SELECT * FROM t1;
+GRANT DELETE ON mysqltest.* TO mysqltest_1@localhost;  
+
+GRANT SELECT(b) ON mysqltest.t1 TO mysqltest_1@localhost;
+
+connect (user1,localhost,mysqltest_1,,test);
+
+connection user1;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM mysqltest.t1 WHERE a=2 RETURNING b;
+
+DELETE FROM  mysqltest.t1 RETURNING b;
+
+connection root;
+SELECT * FROM mysqltest.t1;
+INSERT INTO mysqltest.t1 SELECT * FROM t1;
+
+GRANT SELECT(a) ON mysqltest.t1 TO mysqltest_1@localhost;
+
+DELETE FROM mysqltest.t1 WHERE a=2 RETURNING b;
+
+SELECT * FROM mysqltest.t1;
+INSERT INTO mysqltest.t1 SELECT * FROM t1;
+
+connection root;
+CREATE VIEW mysqltest.v1(a) AS SELECT a FROM mysqltest.t1;
+GRANT SELECT, INSERT ON mysqltest.t1 TO mysqltest_1@localhost;
+
+connection user1;  
+ 
+DELETE FROM mysqltest.v1;
+SELECT * FROM mysqltest.t1;
+
+INSERT INTO mysqltest.t1 SELECT * FROM t1;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM mysqltest.v1 RETURNING a;
+
+connection root;
+GRANT SELECT ON mysqltest.* TO mysqltest_1@localhost;
+
+connection user1;
+DELETE FROM mysqltest.v1 RETURNING a;
+SELECT * FROM mysqltest.t1;
+
+INSERT INTO mysqltest.t1 SELECT * FROM t1;
+
+connection root;
+--disable_warnings
+DROP DATABASE mysqltest;
+--enable_warnings
+
+disconnect user1;
+DROP USER mysqltest_1@localhost;
+
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1;
+
+set GLOBAL sql_mode=default;

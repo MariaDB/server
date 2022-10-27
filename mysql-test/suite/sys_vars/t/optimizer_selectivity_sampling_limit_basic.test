@@ -1,0 +1,154 @@
+
+--source include/load_sysvars.inc
+
+#################################################################
+#      START OF optimizer_selectivity_sampling_limit TESTS       # 
+#################################################################
+
+
+#############################################################
+#                 Save initial value                        #
+#############################################################
+
+SET @start_global_value = @@global.optimizer_selectivity_sampling_limit;
+SELECT @start_global_value;
+SET @start_session_value = @@session.optimizer_selectivity_sampling_limit;
+SELECT @start_session_value;
+
+
+--echo '#--------------------FN_DYNVARS_115_01-------------------------#'
+#########################################################################
+#     Display the DEFAULT value of optimizer_selectivity_sampling_limit  #
+#########################################################################
+
+SET @@global.optimizer_selectivity_sampling_limit = DEFAULT;
+SELECT @@global.optimizer_selectivity_sampling_limit;
+
+SET @@session.optimizer_selectivity_sampling_limit = DEFAULT;
+SELECT @@session.optimizer_selectivity_sampling_limit;
+
+
+--echo '#--------------------FN_DYNVARS_115_02-------------------------#'
+#########################################################################
+#     Check the DEFAULT value of optimizer_selectivity_sampling_limit    #
+#########################################################################
+
+SET @@global.optimizer_selectivity_sampling_limit = DEFAULT;
+SELECT @@global.optimizer_selectivity_sampling_limit = 100;
+
+SET @@session.optimizer_selectivity_sampling_limit = DEFAULT;
+SELECT @@session.optimizer_selectivity_sampling_limit = 100;
+
+
+--echo '#--------------------FN_DYNVARS_115_03-------------------------#'
+#############################################################################################
+# Change the value of optimizer_selectivity_sampling_limit to a valid value for GLOBAL Scope #
+#############################################################################################
+
+SELECT @@global.optimizer_selectivity_sampling_limit;
+SET @@global.optimizer_selectivity_sampling_limit = 9;
+SELECT @@global.optimizer_selectivity_sampling_limit;
+SET @@global.optimizer_selectivity_sampling_limit = 10;
+SELECT @@global.optimizer_selectivity_sampling_limit;
+SET @@global.optimizer_selectivity_sampling_limit = 11;
+SELECT @@global.optimizer_selectivity_sampling_limit;
+SET @@global.optimizer_selectivity_sampling_limit = 7777;
+SELECT @@global.optimizer_selectivity_sampling_limit;
+SET @@global.optimizer_selectivity_sampling_limit = 4294967294;
+SELECT @@global.optimizer_selectivity_sampling_limit;
+SET @@global.optimizer_selectivity_sampling_limit = 4294967295;
+SELECT @@global.optimizer_selectivity_sampling_limit;
+SET @@global.optimizer_selectivity_sampling_limit = 4294967296;
+SELECT @@global.optimizer_selectivity_sampling_limit;
+
+
+--echo '#--------------------FN_DYNVARS_115_04-------------------------#'
+#############################################################################################
+# Change the value of optimizer_selectivity_sampling_limit to a valid value for SESSION Scope#
+#############################################################################################
+ 
+SELECT @@session.optimizer_selectivity_sampling_limit;
+SET @@session.optimizer_selectivity_sampling_limit = 9;
+SELECT @@session.optimizer_selectivity_sampling_limit;
+SET @@session.optimizer_selectivity_sampling_limit = 10;
+SELECT @@session.optimizer_selectivity_sampling_limit;
+SET @@session.optimizer_selectivity_sampling_limit = 11;
+SELECT @@session.optimizer_selectivity_sampling_limit;
+SET @@session.optimizer_selectivity_sampling_limit = 7777;
+SELECT @@session.optimizer_selectivity_sampling_limit;
+SET @@session.optimizer_selectivity_sampling_limit = 4294967294;
+SELECT @@session.optimizer_selectivity_sampling_limit;
+SET @@session.optimizer_selectivity_sampling_limit = 4294967295;
+SELECT @@session.optimizer_selectivity_sampling_limit;
+SET @@session.optimizer_selectivity_sampling_limit = 4294967296;
+SELECT @@session.optimizer_selectivity_sampling_limit;
+
+
+--echo '#------------------FN_DYNVARS_115_05-----------------------#'
+###############################################################################
+# Change the value of optimizer_selectivity_sampling_limit to an invalid value #
+##############################################################################
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.optimizer_selectivity_sampling_limit = ON;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.optimizer_selectivity_sampling_limit = OFF;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@session.optimizer_selectivity_sampling_limit = 65530.34;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@session.optimizer_selectivity_sampling_limit = test;
+
+--echo '#------------------FN_DYNVARS_115_06-----------------------#'
+####################################################################
+#   Check if the value in GLOBAL Table matches value in variable   #
+####################################################################
+
+
+SELECT @@global.optimizer_selectivity_sampling_limit = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='optimizer_selectivity_sampling_limit';
+
+--echo '#------------------FN_DYNVARS_115_07-----------------------#'
+####################################################################
+#  Check if the value in SESSION Table matches value in variable   #
+####################################################################
+
+SELECT @@session.optimizer_selectivity_sampling_limit = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES 
+WHERE VARIABLE_NAME='optimizer_selectivity_sampling_limit';
+
+
+--echo '#---------------------FN_DYNVARS_115_08----------------------#'
+###############################################################################
+#  Check if global and session variable are independent of each other         #
+###############################################################################
+
+SET @@optimizer_selectivity_sampling_limit = 10;
+SET @@global.optimizer_selectivity_sampling_limit = 30;
+SELECT @@optimizer_selectivity_sampling_limit = @@global.optimizer_selectivity_sampling_limit;
+
+
+--echo '#---------------------FN_DYNVARS_115_09----------------------#'
+###############################################################################
+#    Check if accessing variable with SESSION,LOCAL and without SCOPE points  #
+#    to same session variable                                                 #
+###############################################################################
+
+SET @@optimizer_selectivity_sampling_limit = 20;
+SELECT @@optimizer_selectivity_sampling_limit = @@local.optimizer_selectivity_sampling_limit;
+SELECT @@local.optimizer_selectivity_sampling_limit = @@session.optimizer_selectivity_sampling_limit;
+
+
+####################################
+#     Restore initial value        #
+####################################
+
+SET @@global.optimizer_selectivity_sampling_limit = @start_global_value;
+SELECT @@global.optimizer_selectivity_sampling_limit;
+SET @@session.optimizer_selectivity_sampling_limit = @start_session_value;
+SELECT @@session.optimizer_selectivity_sampling_limit;
+
+########################################################################
+#                END OF optimizer_selectivity_sampling_limit TESTS     #
+########################################################################
+

@@ -1,0 +1,12 @@
+################################################################################
+# Check file include/rpl_implicit_commit_binlog.test
+################################################################################
+--source include/have_udf.inc
+--source include/have_binlog_format_statement.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--let $engine=Innodb
+set session storage_engine=innodb;
+--source include/rpl_implicit_commit_binlog.test
+--source include/rpl_end.inc

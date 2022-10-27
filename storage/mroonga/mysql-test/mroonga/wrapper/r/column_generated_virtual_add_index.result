@@ -1,0 +1,19 @@
+DROP TABLE IF EXISTS logs;
+CREATE TABLE logs (
+id INT PRIMARY KEY,
+record JSON,
+level VARCHAR(255) GENERATED ALWAYS AS
+(json_unquote(json_extract(`record`, '$.level'))) VIRTUAL
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4 COMMENT = 'ENGINE "InnoDB"';
+INSERT INTO logs(id, record)
+VALUES (1, '{"level": "info", "message": "start server"}');
+ALTER TABLE logs ADD INDEX (level);
+INSERT INTO logs(id, record)
+VALUES (2, '{"level": "info", "message": "start server"}');
+INSERT INTO logs(id, record)
+VALUES (3, '{"level": "warn", "message": "abort server"}');
+SELECT * FROM logs WHERE level = 'info';
+id	record	level
+1	{"level": "info", "message": "start server"}	info
+2	{"level": "info", "message": "start server"}	info
+DROP TABLE logs;

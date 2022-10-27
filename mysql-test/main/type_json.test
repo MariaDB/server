@@ -1,0 +1,66 @@
+#
+# MDEV-9144 JSON data type
+#
+
+create or replace table t1(a json);
+show create table t1;
+
+--error ER_PARSE_ERROR
+create or replace table t1(a json character set utf8);
+
+create or replace table t1(a json default '{a:1}');
+show create table t1;
+
+create or replace table t1(a json not null check (json_valid(a)));
+show create table t1;
+insert t1 values ('[]');
+--error ER_CONSTRAINT_FAILED
+insert t1 values ('a');
+
+create or replace table t1(a json not null);
+show create table t1;
+insert t1 values ('[]');
+--error ER_CONSTRAINT_FAILED
+insert t1 values ('a');
+
+set timestamp=unix_timestamp('2010:11:12 13:14:15');
+create or replace table t1(a json default(json_object('now', now())));
+show create table t1;
+insert t1 values ();
+select * from t1;
+drop table t1;
+
+create table t1 (t json) as select json_quote('foo') as t;
+create table t2 (a json) as select json_quote('foo') as t;
+create table t3 like t1;
+select * from t1;
+show create table t1;
+show create table t2;
+show create table t3;
+drop table t1,t2,t3;
+
+create table t1 (t json check (length(t) > 0));
+show create table t1;
+drop table t1;
+
+create table t1 (t text) engine=myisam;
+insert into t1 values ("{}"),("");
+--error ER_CONSTRAINT_FAILED
+create table t2 (t json) select t from t1;
+--error ER_NO_SUCH_TABLE
+select * from t2;
+drop table t1;
+
+create or replace table t1(a json default(json_object('now', 1)) check (json_valid(a)));
+insert into t1 values ();
+insert into t1 values ("{}");
+--error ER_CONSTRAINT_FAILED
+insert into t1 values ("xxx");
+select * from t1;
+show create table t1;
+drop table t1;
+
+--error ER_PARSE_ERROR
+select cast('{a:1}' as text);
+--error ER_PARSE_ERROR
+select cast('{a:1}' as json);

@@ -1,0 +1,12 @@
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--enable_connect_log
+
+create role r1;
+set role r1;
+grant select on db.* to current_role;
+revoke all privileges, grant option from current_role;
+drop role r1;
+
+--source include/rpl_end.inc

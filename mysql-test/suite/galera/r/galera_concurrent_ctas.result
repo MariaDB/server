@@ -1,0 +1,5 @@
+connection node_2;
+connection node_1;
+disconnect node_2;
+disconnect node_1;
+# End of test

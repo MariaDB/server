@@ -1,0 +1,469 @@
+use INFORMATION_SCHEMA;
+show tables;
+Tables_in_information_schema
+ALL_PLUGINS
+APPLICABLE_ROLES
+CHARACTER_SETS
+CHECK_CONSTRAINTS
+CLIENT_STATISTICS
+COLLATIONS
+COLLATION_CHARACTER_SET_APPLICABILITY
+COLUMNS
+COLUMN_PRIVILEGES
+ENABLED_ROLES
+ENGINES
+EVENTS
+FILES
+GEOMETRY_COLUMNS
+GLOBAL_STATUS
+GLOBAL_VARIABLES
+INDEX_STATISTICS
+INNODB_BUFFER_PAGE
+INNODB_BUFFER_PAGE_LRU
+INNODB_BUFFER_POOL_STATS
+INNODB_CMP
+INNODB_CMPMEM
+INNODB_CMPMEM_RESET
+INNODB_CMP_PER_INDEX
+INNODB_CMP_RESET
+INNODB_LOCKS
+INNODB_LOCK_WAITS
+INNODB_METRICS
+INNODB_MUTEXES
+INNODB_SYS_COLUMNS
+INNODB_SYS_FIELDS
+INNODB_SYS_FOREIGN
+INNODB_SYS_FOREIGN_COLS
+INNODB_SYS_INDEXES
+INNODB_SYS_TABLES
+INNODB_SYS_TABLESTATS
+INNODB_SYS_VIRTUAL
+INNODB_TABLESPACES_ENCRYPTION
+INNODB_TABLESPACES_SCRUBBING
+INNODB_TRX
+KEY_CACHES
+KEY_COLUMN_USAGE
+OPTIMIZER_TRACE
+PARAMETERS
+PARTITIONS
+PLUGINS
+PROCESSLIST
+PROFILING
+REFERENTIAL_CONSTRAINTS
+ROUTINES
+SCHEMATA
+SCHEMA_PRIVILEGES
+SESSION_STATUS
+SESSION_VARIABLES
+SPATIAL_REF_SYS
+STATISTICS
+SYSTEM_VARIABLES
+TABLES
+TABLESPACES
+TABLE_CONSTRAINTS
+TABLE_PRIVILEGES
+TABLE_STATISTICS
+TRIGGERS
+USER_PRIVILEGES
+USER_STATISTICS
+VIEWS
+SELECT t.table_name, c1.column_name
+FROM information_schema.tables t
+INNER JOIN
+information_schema.columns c1
+ON t.table_schema = c1.table_schema AND
+t.table_name = c1.table_name
+WHERE t.table_schema = 'information_schema' AND
+c1.ordinal_position =
+( SELECT COALESCE(MIN(c2.ordinal_position),1)
+FROM information_schema.columns c2
+WHERE c2.table_schema = t.table_schema AND
+c2.table_name = t.table_name AND
+c2.column_name LIKE '%SCHEMA%'
+        ) order by t.table_name;
+table_name	column_name
+ALL_PLUGINS	PLUGIN_NAME
+APPLICABLE_ROLES	GRANTEE
+CHARACTER_SETS	CHARACTER_SET_NAME
+CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA
+CLIENT_STATISTICS	CLIENT
+COLLATIONS	COLLATION_NAME
+COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME
+COLUMNS	TABLE_SCHEMA
+COLUMN_PRIVILEGES	TABLE_SCHEMA
+ENABLED_ROLES	ROLE_NAME
+ENGINES	ENGINE
+EVENTS	EVENT_SCHEMA
+FILES	TABLE_SCHEMA
+GEOMETRY_COLUMNS	F_TABLE_SCHEMA
+GLOBAL_STATUS	VARIABLE_NAME
+GLOBAL_VARIABLES	VARIABLE_NAME
+INDEX_STATISTICS	TABLE_SCHEMA
+INNODB_BUFFER_PAGE	POOL_ID
+INNODB_BUFFER_PAGE_LRU	POOL_ID
+INNODB_BUFFER_POOL_STATS	POOL_ID
+INNODB_CMP	page_size
+INNODB_CMPMEM	page_size
+INNODB_CMPMEM_RESET	page_size
+INNODB_CMP_PER_INDEX	database_name
+INNODB_CMP_RESET	page_size
+INNODB_LOCKS	lock_id
+INNODB_LOCK_WAITS	requesting_trx_id
+INNODB_METRICS	NAME
+INNODB_MUTEXES	NAME
+INNODB_SYS_COLUMNS	TABLE_ID
+INNODB_SYS_FIELDS	INDEX_ID
+INNODB_SYS_FOREIGN	ID
+INNODB_SYS_FOREIGN_COLS	ID
+INNODB_SYS_INDEXES	INDEX_ID
+INNODB_SYS_TABLES	TABLE_ID
+INNODB_SYS_TABLESTATS	TABLE_ID
+INNODB_SYS_VIRTUAL	TABLE_ID
+INNODB_TABLESPACES_ENCRYPTION	SPACE
+INNODB_TABLESPACES_SCRUBBING	SPACE
+INNODB_TRX	trx_id
+KEY_CACHES	KEY_CACHE_NAME
+KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
+OPTIMIZER_TRACE	QUERY
+PARAMETERS	SPECIFIC_SCHEMA
+PARTITIONS	TABLE_SCHEMA
+PLUGINS	PLUGIN_NAME
+PROCESSLIST	ID
+PROFILING	QUERY_ID
+REFERENTIAL_CONSTRAINTS	CONSTRAINT_SCHEMA
+ROUTINES	ROUTINE_SCHEMA
+SCHEMATA	SCHEMA_NAME
+SCHEMA_PRIVILEGES	TABLE_SCHEMA
+SESSION_STATUS	VARIABLE_NAME
+SESSION_VARIABLES	VARIABLE_NAME
+SPATIAL_REF_SYS	SRID
+STATISTICS	TABLE_SCHEMA
+SYSTEM_VARIABLES	VARIABLE_NAME
+TABLES	TABLE_SCHEMA
+TABLESPACES	TABLESPACE_NAME
+TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
+TABLE_PRIVILEGES	TABLE_SCHEMA
+TABLE_STATISTICS	TABLE_SCHEMA
+TRIGGERS	TRIGGER_SCHEMA
+USER_PRIVILEGES	GRANTEE
+USER_STATISTICS	USER
+VIEWS	TABLE_SCHEMA
+SELECT t.table_name, c1.column_name
+FROM information_schema.tables t
+INNER JOIN
+information_schema.columns c1
+ON t.table_schema = c1.table_schema AND
+t.table_name = c1.table_name
+WHERE t.table_schema = 'information_schema' AND
+c1.ordinal_position =
+( SELECT COALESCE(MIN(c2.ordinal_position),1)
+FROM information_schema.columns c2
+WHERE c2.table_schema = 'information_schema' AND
+c2.table_name = t.table_name AND
+c2.column_name LIKE '%SCHEMA%'
+        ) order by t.table_name;
+table_name	column_name
+ALL_PLUGINS	PLUGIN_NAME
+APPLICABLE_ROLES	GRANTEE
+CHARACTER_SETS	CHARACTER_SET_NAME
+CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA
+CLIENT_STATISTICS	CLIENT
+COLLATIONS	COLLATION_NAME
+COLLATION_CHARACTER_SET_APPLICABILITY	COLLATION_NAME
+COLUMNS	TABLE_SCHEMA
+COLUMN_PRIVILEGES	TABLE_SCHEMA
+ENABLED_ROLES	ROLE_NAME
+ENGINES	ENGINE
+EVENTS	EVENT_SCHEMA
+FILES	TABLE_SCHEMA
+GEOMETRY_COLUMNS	F_TABLE_SCHEMA
+GLOBAL_STATUS	VARIABLE_NAME
+GLOBAL_VARIABLES	VARIABLE_NAME
+INDEX_STATISTICS	TABLE_SCHEMA
+INNODB_BUFFER_PAGE	POOL_ID
+INNODB_BUFFER_PAGE_LRU	POOL_ID
+INNODB_BUFFER_POOL_STATS	POOL_ID
+INNODB_CMP	page_size
+INNODB_CMPMEM	page_size
+INNODB_CMPMEM_RESET	page_size
+INNODB_CMP_PER_INDEX	database_name
+INNODB_CMP_RESET	page_size
+INNODB_LOCKS	lock_id
+INNODB_LOCK_WAITS	requesting_trx_id
+INNODB_METRICS	NAME
+INNODB_MUTEXES	NAME
+INNODB_SYS_COLUMNS	TABLE_ID
+INNODB_SYS_FIELDS	INDEX_ID
+INNODB_SYS_FOREIGN	ID
+INNODB_SYS_FOREIGN_COLS	ID
+INNODB_SYS_INDEXES	INDEX_ID
+INNODB_SYS_TABLES	TABLE_ID
+INNODB_SYS_TABLESTATS	TABLE_ID
+INNODB_SYS_VIRTUAL	TABLE_ID
+INNODB_TABLESPACES_ENCRYPTION	SPACE
+INNODB_TABLESPACES_SCRUBBING	SPACE
+INNODB_TRX	trx_id
+KEY_CACHES	KEY_CACHE_NAME
+KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
+OPTIMIZER_TRACE	QUERY
+PARAMETERS	SPECIFIC_SCHEMA
+PARTITIONS	TABLE_SCHEMA
+PLUGINS	PLUGIN_NAME
+PROCESSLIST	ID
+PROFILING	QUERY_ID
+REFERENTIAL_CONSTRAINTS	CONSTRAINT_SCHEMA
+ROUTINES	ROUTINE_SCHEMA
+SCHEMATA	SCHEMA_NAME
+SCHEMA_PRIVILEGES	TABLE_SCHEMA
+SESSION_STATUS	VARIABLE_NAME
+SESSION_VARIABLES	VARIABLE_NAME
+SPATIAL_REF_SYS	SRID
+STATISTICS	TABLE_SCHEMA
+SYSTEM_VARIABLES	VARIABLE_NAME
+TABLES	TABLE_SCHEMA
+TABLESPACES	TABLESPACE_NAME
+TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
+TABLE_PRIVILEGES	TABLE_SCHEMA
+TABLE_STATISTICS	TABLE_SCHEMA
+TRIGGERS	TRIGGER_SCHEMA
+USER_PRIVILEGES	GRANTEE
+USER_STATISTICS	USER
+VIEWS	TABLE_SCHEMA
+select 1 as "must be 1" from information_schema.tables  where "ACCOUNTS"=
+(select cast(table_name as char)  from information_schema.tables
+order by table_name limit 1) limit 1;
+must be 1
+1
+select t.table_name, group_concat(t.table_schema, '.', t.table_name),
+count(*) as num1
+from information_schema.tables t
+inner join information_schema.columns c1
+on t.table_schema = c1.table_schema AND t.table_name = c1.table_name
+where t.table_schema = 'information_schema' and
+c1.ordinal_position =
+(select isnull(c2.column_type) -
+isnull(group_concat(c2.table_schema, '.', c2.table_name)) +
+count(*) as num
+from information_schema.columns c2 where
+c2.table_schema='information_schema' and
+(c2.column_type = 'varchar(7)' or c2.column_type = 'varchar(20)')
+group by c2.column_type order by num limit 1)
+group by t.table_name order by num1, t.table_name;
+table_name	group_concat(t.table_schema, '.', t.table_name)	num1
+ALL_PLUGINS	information_schema.ALL_PLUGINS	1
+APPLICABLE_ROLES	information_schema.APPLICABLE_ROLES	1
+CHARACTER_SETS	information_schema.CHARACTER_SETS	1
+CHECK_CONSTRAINTS	information_schema.CHECK_CONSTRAINTS	1
+CLIENT_STATISTICS	information_schema.CLIENT_STATISTICS	1
+COLLATIONS	information_schema.COLLATIONS	1
+COLLATION_CHARACTER_SET_APPLICABILITY	information_schema.COLLATION_CHARACTER_SET_APPLICABILITY	1
+COLUMNS	information_schema.COLUMNS	1
+COLUMN_PRIVILEGES	information_schema.COLUMN_PRIVILEGES	1
+ENGINES	information_schema.ENGINES	1
+EVENTS	information_schema.EVENTS	1
+FILES	information_schema.FILES	1
+GEOMETRY_COLUMNS	information_schema.GEOMETRY_COLUMNS	1
+GLOBAL_STATUS	information_schema.GLOBAL_STATUS	1
+GLOBAL_VARIABLES	information_schema.GLOBAL_VARIABLES	1
+INDEX_STATISTICS	information_schema.INDEX_STATISTICS	1
+INNODB_BUFFER_PAGE	information_schema.INNODB_BUFFER_PAGE	1
+INNODB_BUFFER_PAGE_LRU	information_schema.INNODB_BUFFER_PAGE_LRU	1
+INNODB_BUFFER_POOL_STATS	information_schema.INNODB_BUFFER_POOL_STATS	1
+INNODB_CMP	information_schema.INNODB_CMP	1
+INNODB_CMPMEM	information_schema.INNODB_CMPMEM	1
+INNODB_CMPMEM_RESET	information_schema.INNODB_CMPMEM_RESET	1
+INNODB_CMP_PER_INDEX	information_schema.INNODB_CMP_PER_INDEX	1
+INNODB_CMP_RESET	information_schema.INNODB_CMP_RESET	1
+INNODB_LOCKS	information_schema.INNODB_LOCKS	1
+INNODB_LOCK_WAITS	information_schema.INNODB_LOCK_WAITS	1
+INNODB_METRICS	information_schema.INNODB_METRICS	1
+INNODB_MUTEXES	information_schema.INNODB_MUTEXES	1
+INNODB_SYS_COLUMNS	information_schema.INNODB_SYS_COLUMNS	1
+INNODB_SYS_FIELDS	information_schema.INNODB_SYS_FIELDS	1
+INNODB_SYS_FOREIGN	information_schema.INNODB_SYS_FOREIGN	1
+INNODB_SYS_FOREIGN_COLS	information_schema.INNODB_SYS_FOREIGN_COLS	1
+INNODB_SYS_INDEXES	information_schema.INNODB_SYS_INDEXES	1
+INNODB_SYS_TABLES	information_schema.INNODB_SYS_TABLES	1
+INNODB_SYS_TABLESTATS	information_schema.INNODB_SYS_TABLESTATS	1
+INNODB_SYS_VIRTUAL	information_schema.INNODB_SYS_VIRTUAL	1
+INNODB_TABLESPACES_ENCRYPTION	information_schema.INNODB_TABLESPACES_ENCRYPTION	1
+INNODB_TABLESPACES_SCRUBBING	information_schema.INNODB_TABLESPACES_SCRUBBING	1
+INNODB_TRX	information_schema.INNODB_TRX	1
+KEY_CACHES	information_schema.KEY_CACHES	1
+KEY_COLUMN_USAGE	information_schema.KEY_COLUMN_USAGE	1
+OPTIMIZER_TRACE	information_schema.OPTIMIZER_TRACE	1
+PARAMETERS	information_schema.PARAMETERS	1
+PARTITIONS	information_schema.PARTITIONS	1
+PLUGINS	information_schema.PLUGINS	1
+PROCESSLIST	information_schema.PROCESSLIST	1
+PROFILING	information_schema.PROFILING	1
+REFERENTIAL_CONSTRAINTS	information_schema.REFERENTIAL_CONSTRAINTS	1
+ROUTINES	information_schema.ROUTINES	1
+SCHEMATA	information_schema.SCHEMATA	1
+SCHEMA_PRIVILEGES	information_schema.SCHEMA_PRIVILEGES	1
+SESSION_STATUS	information_schema.SESSION_STATUS	1
+SESSION_VARIABLES	information_schema.SESSION_VARIABLES	1
+SPATIAL_REF_SYS	information_schema.SPATIAL_REF_SYS	1
+STATISTICS	information_schema.STATISTICS	1
+SYSTEM_VARIABLES	information_schema.SYSTEM_VARIABLES	1
+TABLES	information_schema.TABLES	1
+TABLESPACES	information_schema.TABLESPACES	1
+TABLE_CONSTRAINTS	information_schema.TABLE_CONSTRAINTS	1
+TABLE_PRIVILEGES	information_schema.TABLE_PRIVILEGES	1
+TABLE_STATISTICS	information_schema.TABLE_STATISTICS	1
+TRIGGERS	information_schema.TRIGGERS	1
+USER_PRIVILEGES	information_schema.USER_PRIVILEGES	1
+USER_STATISTICS	information_schema.USER_STATISTICS	1
+VIEWS	information_schema.VIEWS	1
++---------------------------------------+
++---------------------------------------+
++---------------------------------------+
+Database: information_schema
+|                Tables                 |
+| ALL_PLUGINS                           |
+| APPLICABLE_ROLES                      |
+| CHARACTER_SETS                        |
+| CHECK_CONSTRAINTS                     |
+| CLIENT_STATISTICS                     |
+| COLLATIONS                            |
+| COLLATION_CHARACTER_SET_APPLICABILITY |
+| COLUMNS                               |
+| COLUMN_PRIVILEGES                     |
+| ENABLED_ROLES                         |
+| ENGINES                               |
+| EVENTS                                |
+| FILES                                 |
+| GEOMETRY_COLUMNS                      |
+| GLOBAL_STATUS                         |
+| GLOBAL_VARIABLES                      |
+| INDEX_STATISTICS                      |
+| INNODB_BUFFER_PAGE                    |
+| INNODB_BUFFER_PAGE_LRU                |
+| INNODB_BUFFER_POOL_STATS              |
+| INNODB_CMP                            |
+| INNODB_CMPMEM                         |
+| INNODB_CMPMEM_RESET                   |
+| INNODB_CMP_PER_INDEX                  |
+| INNODB_CMP_RESET                      |
+| INNODB_LOCKS                          |
+| INNODB_LOCK_WAITS                     |
+| INNODB_METRICS                        |
+| INNODB_MUTEXES                        |
+| INNODB_SYS_COLUMNS                    |
+| INNODB_SYS_FIELDS                     |
+| INNODB_SYS_FOREIGN                    |
+| INNODB_SYS_FOREIGN_COLS               |
+| INNODB_SYS_INDEXES                    |
+| INNODB_SYS_TABLES                     |
+| INNODB_SYS_TABLESTATS                 |
+| INNODB_SYS_VIRTUAL                    |
+| INNODB_TABLESPACES_ENCRYPTION         |
+| INNODB_TABLESPACES_SCRUBBING          |
+| INNODB_TRX                            |
+| KEY_CACHES                            |
+| KEY_COLUMN_USAGE                      |
+| OPTIMIZER_TRACE                       |
+| PARAMETERS                            |
+| PARTITIONS                            |
+| PLUGINS                               |
+| PROCESSLIST                           |
+| PROFILING                             |
+| REFERENTIAL_CONSTRAINTS               |
+| ROUTINES                              |
+| SCHEMATA                              |
+| SCHEMA_PRIVILEGES                     |
+| SESSION_STATUS                        |
+| SESSION_VARIABLES                     |
+| SPATIAL_REF_SYS                       |
+| STATISTICS                            |
+| SYSTEM_VARIABLES                      |
+| TABLES                                |
+| TABLESPACES                           |
+| TABLE_CONSTRAINTS                     |
+| TABLE_PRIVILEGES                      |
+| TABLE_STATISTICS                      |
+| TRIGGERS                              |
+| USER_PRIVILEGES                       |
+| USER_STATISTICS                       |
+| VIEWS                                 |
++---------------------------------------+
++---------------------------------------+
++---------------------------------------+
+Database: INFORMATION_SCHEMA
+|                Tables                 |
+| ALL_PLUGINS                           |
+| APPLICABLE_ROLES                      |
+| CHARACTER_SETS                        |
+| CHECK_CONSTRAINTS                     |
+| CLIENT_STATISTICS                     |
+| COLLATIONS                            |
+| COLLATION_CHARACTER_SET_APPLICABILITY |
+| COLUMNS                               |
+| COLUMN_PRIVILEGES                     |
+| ENABLED_ROLES                         |
+| ENGINES                               |
+| EVENTS                                |
+| FILES                                 |
+| GEOMETRY_COLUMNS                      |
+| GLOBAL_STATUS                         |
+| GLOBAL_VARIABLES                      |
+| INDEX_STATISTICS                      |
+| INNODB_BUFFER_PAGE                    |
+| INNODB_BUFFER_PAGE_LRU                |
+| INNODB_BUFFER_POOL_STATS              |
+| INNODB_CMP                            |
+| INNODB_CMPMEM                         |
+| INNODB_CMPMEM_RESET                   |
+| INNODB_CMP_PER_INDEX                  |
+| INNODB_CMP_RESET                      |
+| INNODB_LOCKS                          |
+| INNODB_LOCK_WAITS                     |
+| INNODB_METRICS                        |
+| INNODB_MUTEXES                        |
+| INNODB_SYS_COLUMNS                    |
+| INNODB_SYS_FIELDS                     |
+| INNODB_SYS_FOREIGN                    |
+| INNODB_SYS_FOREIGN_COLS               |
+| INNODB_SYS_INDEXES                    |
+| INNODB_SYS_TABLES                     |
+| INNODB_SYS_TABLESTATS                 |
+| INNODB_SYS_VIRTUAL                    |
+| INNODB_TABLESPACES_ENCRYPTION         |
+| INNODB_TABLESPACES_SCRUBBING          |
+| INNODB_TRX                            |
+| KEY_CACHES                            |
+| KEY_COLUMN_USAGE                      |
+| OPTIMIZER_TRACE                       |
+| PARAMETERS                            |
+| PARTITIONS                            |
+| PLUGINS                               |
+| PROCESSLIST                           |
+| PROFILING                             |
+| REFERENTIAL_CONSTRAINTS               |
+| ROUTINES                              |
+| SCHEMATA                              |
+| SCHEMA_PRIVILEGES                     |
+| SESSION_STATUS                        |
+| SESSION_VARIABLES                     |
+| SPATIAL_REF_SYS                       |
+| STATISTICS                            |
+| SYSTEM_VARIABLES                      |
+| TABLES                                |
+| TABLESPACES                           |
+| TABLE_CONSTRAINTS                     |
+| TABLE_PRIVILEGES                      |
+| TABLE_STATISTICS                      |
+| TRIGGERS                              |
+| USER_PRIVILEGES                       |
+| USER_STATISTICS                       |
+| VIEWS                                 |
++--------------------+
++--------------------+
++--------------------+
+Wildcard: inf_rmation_schema
+|     Databases      |
+| information_schema |
+SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
+table_schema	count(*)
+information_schema	66
+mysql	31

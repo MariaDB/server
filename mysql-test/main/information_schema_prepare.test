@@ -1,0 +1,7 @@
+#
+# MDEV-15907 ASAN heap-use-after-free in strnmov / .. / fill_effective_table_privileges on concurrent GRANT and CREATE VIEW
+#
+PREPARE stmt2 FROM "CREATE VIEW v AS SELECT * FROM INFORMATION_SCHEMA.TABLES";
+FLUSH PRIVILEGES;
+EXECUTE stmt2;
+DROP VIEW v;

@@ -1,0 +1,36 @@
+create sequence s1;
+create view v1 as select * from s1;
+create view v2 as select next value for s1;
+select * from v1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+select * from v2;
+next value for s1
+1
+select * from v2;
+next value for s1
+2
+select next value for v1;
+ERROR 42S02: 'test.v1' is not a SEQUENCE
+drop sequence s1;
+drop view v1,v2;
+#
+# MDEV 13020 Server crashes in Item_func_nextval::val_int upon
+# selecting NEXT or PREVIOUS VALUE for a view
+#
+CREATE OR REPLACE VIEW v1 AS SELECT 1 AS f;
+SELECT NEXT VALUE FOR v1;
+ERROR 42S02: 'test.v1' is not a SEQUENCE
+SELECT PREVIOUS VALUE FOR v1;
+ERROR 42S02: 'test.v1' is not a SEQUENCE
+drop view v1;
+#
+# MDEV 17978 Server crashes in mysqld_show_create_get_fields
+# upon SHOW CREATE SEQUENCE on a broken view
+#
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+DROP TABLE t1;
+SHOW CREATE SEQUENCE v1;
+ERROR 42S02: 'test.v1' is not a SEQUENCE
+DROP VIEW v1;

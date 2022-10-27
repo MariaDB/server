@@ -1,0 +1,65 @@
+create table t1(a integer) engine=innodb;
+ERROR 42000: This table type requires a primary key
+show warnings;
+Level	Code	Message
+Error	1173	This table type requires a primary key
+create table t1(a integer unique key) engine=innodb;
+ERROR 42000: This table type requires a primary key
+show warnings;
+Level	Code	Message
+Error	1173	This table type requires a primary key
+create table t1(a integer not null, b integer,
+unique key(a,b)) engine=innodb;
+ERROR 42000: This table type requires a primary key
+show warnings;
+Level	Code	Message
+Error	1173	This table type requires a primary key
+create table t1(a integer not null primary key) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+show warnings;
+Level	Code	Message
+drop table t1;
+create table t1(a integer not null unique key) engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  UNIQUE KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+show warnings;
+Level	Code	Message
+drop table t1;
+set global innodb_force_primary_key = 0;
+create table t1(a integer) engine=innodb;
+show warnings;
+Level	Code	Message
+insert into t1 values (1),(2),(3);
+set global innodb_force_primary_key = 1;
+select * from t1;
+a
+1
+2
+3
+create table t2(a integer) engine=innodb;
+ERROR 42000: This table type requires a primary key
+show warnings;
+Level	Code	Message
+Error	1173	This table type requires a primary key
+drop table t1;
+create table t1 (i int not null, key(i)) engine=innodb;
+ERROR 42000: This table type requires a primary key
+create table t1 (i int not null, unique key(i)) engine=innodb;
+show warnings;
+Level	Code	Message
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) NOT NULL,
+  UNIQUE KEY `i` (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop table t1;

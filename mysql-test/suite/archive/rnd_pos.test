@@ -1,0 +1,31 @@
+#
+# MDEV-14500 Support engines without rnd_pos
+#
+source include/have_archive.inc;
+source include/have_sequence.inc;
+source include/have_partition.inc;
+
+create table t1(c1 int not null, c2 double not null, c3 char(255) not null) engine=archive;
+insert t1 select seq, seq+0.7, concat('row with c1 = ', seq) from seq_1_to_10;
+explain partitions select c1,c3 from t1 order by c2;
+set max_length_for_sort_data = 4;
+explain partitions select c1,c3 from t1 order by c2;
+flush status;
+select c1,c3 from t1 order by c2;
+set max_length_for_sort_data = default;
+--disable_ps_protocol
+show status where variable_name like '%tmp%' and value != 0;
+--enable_ps_protocol
+
+alter table t1 partition by hash (c1) partitions 3;
+explain partitions select c1,c3 from t1 order by c2;
+set max_length_for_sort_data = 4;
+explain partitions select c1,c3 from t1 order by c2;
+flush status;
+select c1,c3 from t1 order by c2;
+set max_length_for_sort_data = default;
+--disable_ps_protocol
+show status where variable_name like '%tmp%' and value != 0;
+--enable_ps_protocol
+
+drop table t1;

@@ -1,0 +1,17 @@
+--source include/not_embedded.inc
+
+# Most things with gtid_binlog_state requires binlog enabled, and so is
+# tested in rpl suite.
+
+SELECT @@GLOBAL.gtid_slave_pos;
+
+--error ER_GLOBAL_VARIABLE
+SET gtid_binlog_state= '';
+--error ER_GLOBAL_VARIABLE
+SET SESSION gtid_binlog_state= '';
+
+--error ER_NO_DEFAULT
+SET GLOBAL gtid_binlog_state= DEFAULT;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.gtid_binlog_state;

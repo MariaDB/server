@@ -1,0 +1,10 @@
+#
+# MDEV-15551 Server hangs or assertion `strcmp(share->unique_file_name,filename) || share->last_version' fails in test_if_reopen or unexpected ER_LOCK_DEADLOCK
+#
+--source include/have_partition.inc
+create table t1 (i int) engine=myisam partition by hash(i) partitions 2 ;
+lock table t1 write;
+truncate table t1;
+desc t1;
+drop table t1;
+

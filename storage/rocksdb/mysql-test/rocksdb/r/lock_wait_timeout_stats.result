@@ -1,0 +1,35 @@
+create table t (a int primary key) engine=rocksdb;
+begin;
+insert into t values (0);
+set @@rocksdb_lock_wait_timeout=1;
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+ROW_LOCK_WAIT_TIMEOUTS
+0
+begin;
+set @@rocksdb_lock_wait_timeout=1;
+begin;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_row_lock_wait_timeouts';
+insert into t values(0);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t.PRIMARY
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+ROW_LOCK_WAIT_TIMEOUTS
+1
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+ROW_LOCK_WAIT_TIMEOUTS
+1
+select case when variable_value-@a = 1 then 'true' else 'false' end as waits from information_schema.global_status where variable_name='rocksdb_row_lock_wait_timeouts';
+waits
+true
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_row_lock_wait_timeouts';
+insert into t values(0);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction: Timeout on index: test.t.PRIMARY
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+ROW_LOCK_WAIT_TIMEOUTS
+2
+select ROW_LOCK_WAIT_TIMEOUTS from information_schema.table_statistics where table_name="t";
+ROW_LOCK_WAIT_TIMEOUTS
+2
+select case when variable_value-@a = 1 then 'true' else 'false' end as waits from information_schema.global_status where variable_name='rocksdb_row_lock_wait_timeouts';
+waits
+true
+drop table t;

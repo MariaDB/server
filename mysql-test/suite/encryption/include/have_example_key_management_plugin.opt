@@ -1,0 +1,2 @@
+--plugin-load-add=$EXAMPLE_KEY_MANAGEMENT_SO
+--loose-example-key-management

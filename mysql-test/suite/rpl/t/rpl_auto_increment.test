@@ -1,0 +1,7 @@
+#####################################
+# Wrapper for rpl_auto_increment.test#
+#####################################
+-- source include/have_innodb.inc
+let $engine_type=innodb;
+let $engine_type2=myisam;
+-- source include/rpl_auto_increment.test

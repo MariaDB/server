@@ -1,0 +1,22 @@
+--source include/have_innodb.inc
+
+SET @start_innodb_defragment_n_pages = @@global.innodb_defragment_n_pages;
+SELECT @start_innodb_defragment_n_pages;
+
+SELECT COUNT(@@global.innodb_defragment_n_pages);
+
+SET @@global.innodb_defragment_n_pages = 1;
+SELECT @@global.innodb_defragment_n_pages;
+
+SET @@global.innodb_defragment_n_pages = 2;
+SELECT @@global.innodb_defragment_n_pages;
+
+SET @@global.innodb_defragment_n_pages = 32;
+SELECT @@global.innodb_defragment_n_pages;
+
+SET @@global.innodb_defragment_n_pages = 64;
+SELECT @@global.innodb_defragment_n_pages;
+
+SET @@global.innodb_defragment_n_pages = @start_innodb_defragment_n_pages;
+
+

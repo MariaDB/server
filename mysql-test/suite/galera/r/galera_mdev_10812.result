@@ -1,0 +1,18 @@
+connection node_2;
+connection node_1;
+#
+# MDEV-10812: On COM_STMT_CLOSE/COM_QUIT, when wsrep_conflict_state
+# is ABORTED, it causes wrong response to be sent to the client
+#
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+CREATE TABLE t1(a INT PRIMARY KEY);
+INSERT INTO t1 VALUES(1),(2),(3);
+START TRANSACTION ;
+UPDATE t1 SET a=a+100;
+connection node_2;
+UPDATE t1 SET a=a+100;
+connection node_1a;
+disconnect node_1a;
+connection node_2;
+DROP TABLE t1;

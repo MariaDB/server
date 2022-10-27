@@ -1,0 +1,49 @@
+set @mroonga_log_level_backup=@@mroonga_log_level;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	NOTICE
+set global mroonga_log_level=NONE;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	NONE
+set global mroonga_log_level=EMERG;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	EMERG
+set global mroonga_log_level=ALERT;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	ALERT
+set global mroonga_log_level=CRIT;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	CRIT
+set global mroonga_log_level=ERROR;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	ERROR
+set global mroonga_log_level=WARNING;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	WARNING
+set global mroonga_log_level=NOTICE;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	NOTICE
+set global mroonga_log_level=INFO;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	INFO
+set global mroonga_log_level=DEBUG;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	DEBUG
+set global mroonga_log_level=DUMP;
+show global variables like 'mroonga_log_level';
+Variable_name	Value
+mroonga_log_level	DUMP
+set global mroonga_log_level=dummy;
+ERROR 42000: Variable 'mroonga_log_level' can't be set to the value of 'dummy'
+set session mroonga_log_level=NOTICE;
+ERROR HY000: Variable 'mroonga_log_level' is a GLOBAL variable and should be set with SET GLOBAL
+set global mroonga_log_level=@mroonga_log_level_backup;

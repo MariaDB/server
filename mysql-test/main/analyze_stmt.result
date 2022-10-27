@@ -1,0 +1,337 @@
+set join_cache_level=2;
+drop table if exists t0,t1,t2,t3;
+create table t0 (a int) engine=myisam;
+INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int) engine=myisam;
+INSERT INTO t1 select * from t0;
+# Try a few basic selects to see that r_rows and r_filtered columns work
+analyze select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	100.00	
+analyze select * from t1 where a<5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	50.00	Using where
+analyze select * from t1 where a>100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	0.00	Using where
+# ANALYZE DELETE will delete rows:
+analyze delete from t1 where a in (2,3,4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	30.00	Using where
+select * from t1;
+a
+0
+1
+5
+6
+7
+8
+9
+drop table t1;
+# ANALYZE UPDATE will make updates:
+create table t1(a int, b int);
+insert into t1 select a,a from t0;
+analyze update t1 set b=100+b where a in (6,7,8);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	30.00	Using where
+select * from t1;
+a	b
+0	0
+1	1
+2	2
+3	3
+4	4
+5	5
+6	106
+7	107
+8	108
+9	9
+drop table t1;
+# Check that UNION works
+create table t1(a int, b int);
+insert into t1 select a,a from t0;
+analyze (select * from t1 A where a<5) union (select * from t1 B where a in (5,6));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	50.00	Using where
+2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	20.00	Using where
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	7.00	NULL	NULL	
+analyze (select * from t1 A where a<5) union (select * from t1 B where a in (1,2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	50.00	Using where
+2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	20.00	Using where
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	5.00	NULL	NULL	
+drop table t1;
+drop table t0;
+# 
+# Try a subquery.
+# 
+create table t0 (a int, b int);
+insert into t0 values
+(0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+# See .test file for the right values of r_rows and r_filtered.
+analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	3.00	100.00	33.33	Using where
+# Try a subquery that is never executed
+analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1 where t1.a > 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	0.00	Using where
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	NULL	100.00	NULL	Using where
+drop table t0, t1;
+#
+# Tests for join buffering
+#
+create table t0 (a int, b int);
+insert into t0 values
+(0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+create table t1 like t0;
+insert into t1 select * from t0;
+explain select * from t0, t1 where t0.a<5 and t1.a<5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+# These should have filtered=50
+analyze select * from t0, t1 where t0.a<5 and t1.a<5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	50.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	50.00	Using where; Using join buffer (flat, BNL join)
+explain select * from t0, t1 where t0.a<5 and t1.b=t0.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+# Now, t1 should have filtered=10
+analyze select * from t0, t1 where t0.a<5 and t1.b=t0.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	50.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	10.00	Using where; Using join buffer (flat, BNL join)
+explain select * from t0, t1 where t0.a<5 and t1.a<5 and t1.b=t0.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+# Now, t1 should have filtered=10
+analyze select * from t0, t1 where t0.a<5 and t1.a<5 and t1.b=t0.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	50.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	10.00	Using where; Using join buffer (flat, BNL join)
+# TODO: Check what is counted for "range checked for each record".
+#
+# Test for joins
+#
+create table t2 (key1 int, key2x int, col1 int, key(key1), key(key2x));
+insert into t2 select A.a + 10 *B.a +100 * C.a, 
+(A.a + 10 *B.a +100 * C.a)*2,
+A.a + 10 *B.a +100 * C.a 
+from t0 A, t0 B, t0 C;
+# This always has matches, filtered=100%.
+analyze select * from t1,t2 where t2.key1=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	100.00	Using where
+1	SIMPLE	t2	ref	key1	key1	5	test.t1.a	1	1.00	100.00	100.00	
+# This shows r_rows=0. It is actually 0.5 (should r_rows be changed to double?)
+analyze select * from t1,t2 where t2.key2x=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	100.00	Using where
+1	SIMPLE	t2	ref	key2x	key2x	5	test.t1.a	1	0.50	100.00	100.00	
+select * from t1,t2 where t2.key2x=t1.a;
+a	b	key1	key2x	col1
+0	0	0	0	0
+2	2	1	2	1
+4	4	2	4	2
+6	6	3	6	3
+8	8	4	8	4
+# This has t2.filtered=40% (there are 5 values: {0,1,2,3,4}. two of them have mod=0)
+analyze select * from t1,t2 where t2.key2x=t1.a and mod(t2.col1,4)=0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	100.00	Using where
+1	SIMPLE	t2	ref	key2x	key2x	5	test.t1.a	1	0.50	100.00	40.00	Using where
+drop table t0,t1,t2;
+#
+# Check non-merged derived tables
+#
+create table t0 (a int, b int);
+insert into t0 values
+(0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+update t0 set b=b/3;
+analyze select * from (select count(*),max(a),b from t0 group by b) T;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	4.00	100.00	100.00	
+2	DERIVED	t0	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	100.00	Using temporary; Using filesort
+drop table t0;
+#
+# Check ORDER/GROUP BY
+#
+create table t0 (a int, b int);
+insert into t0 values
+(0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+analyze select count(*),max(a),b from t0 where a<7 group by b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	70.00	Using where; Using temporary; Using filesort
+drop table t0;
+#
+# Check multi-table UPDATE/DELETE.
+#
+create table t0 (a int, b int);
+create table t1 (a int, b int);
+insert into t0 values (0,0),(2,2),(4,4),     (8,8);
+insert into t1 values (0,0),(2,2),      (6,6);
+analyze select * from t0,t1 where t0.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	16.67	Using where; Using join buffer (flat, BNL join)
+analyze update t0,t1 set t1.b=5555 where t0.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	16.67	Using where
+select * from t1;
+a	b
+0	5555
+2	5555
+6	6
+analyze delete t1 from t1, t0 where t0.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	3.00	100.00	100.00	
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	16.67	Using where
+select * from t1;
+a	b
+6	6
+drop table t0, t1;
+#
+# MDEV-6393: ANALYZE SELECT crashes in Explain_query::print_explain with a non-existing column
+#
+create table t1 (i int);
+insert into t1 values (1),(2);
+analyze select a from t1;
+ERROR 42S22: Unknown column 'a' in 'field list'
+analyze delete from t1 where a=2;
+ERROR 42S22: Unknown column 'a' in 'where clause'
+analyze update t1 set a=2;
+ERROR 42S22: Unknown column 'a' in 'field list'
+create table t2 like t1;
+insert into t2 select * from t1;
+analyze update t2,t1 set t2.i=5 where t2.a=t1.a;
+ERROR 42S22: Unknown column 't2.a' in 'where clause'
+analyze delete t1 from t2,t1 where t2.a=t1.a;
+ERROR 42S22: Unknown column 't2.a' in 'where clause'
+drop table t1, t2;
+#
+# MDEV-6395: ANALYZE UPDATE/DELETE with impossible where does not produce any output
+#
+create table t1 (a int, b int, key(a));
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+analyze delete from t1 where 1 > 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+analyze delete from t1 where a > 30 and a < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+analyze update t1 set b=12345 where 1 > 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+analyze update t1 set b=12345 where a > 30 and a < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+drop table t1;
+#
+# MDEV-6398: ANALYZE UPDATE does not populate r_rows
+#
+create table t1 (i int);
+insert into t1 values (1),(2),(3),(4);
+analyze update t1 set i=8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	100.00	
+drop table t1;
+#
+# Check ANALYZE SELECT INTO
+#
+create table t1 (i int);
+insert into t1 values (1);
+analyze select * into @var from t1 ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	NULL	100.00	NULL	
+drop table t1;
+#
+# MDEV-6394: ANALYZE DELETE .. RETURNING fails with ERROR 2027 Malformed packet
+#
+create table t1 (i int);
+analyze delete from t1 returning *;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	0	0.00	100.00	100.00	
+drop table t1;
+#
+# MDEV-6396: ANALYZE INSERT/REPLACE is accepted, but does not produce a plan
+#
+create table t1 (a int primary key, b int);
+analyze insert into t1 values (1,1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL	100.00	100.00	NULL
+select * from t1;
+a	b
+1	1
+analyze replace t1 values (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL	100.00	100.00	NULL
+select * from t1;
+a	b
+1	2
+drop table t1;
+#
+# MDEV-6400 "ANALYZE SELECT ... INTO @var" doesn't set @var
+#
+create table t1(a int);
+insert into t1 values (1),(2);
+analyze select a into @var from t1 where a <2 ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	50.00	Using where
+analyze select a into @var from t1 ;
+ERROR 42000: Result consisted of more than one row
+analyze insert into t1 select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	100.00	100.00	Using temporary
+analyze select * into outfile '../../tmp/data1.tmp' from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	4.00	100.00	100.00	
+drop table t1;
+#
+# MDEV-7024: Assertion `! is_set()' failed in 
+# Diagnostics_area::set_eof_status on executing ANALYZE SELECT via PS
+#
+create table t1(a int);
+prepare stmt from "analyze select * from t1";
+execute stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+drop table t1;
+#
+# MDEV-7674: ANALYZE shows r_rows=0
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (a int, key(a));
+insert into t2 values (0),(1);
+analyze select * from t1 straight_join t2 force index(a) where t2.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	100.00	Using where
+1	SIMPLE	t2	ref	a	a	5	test.t1.a	2	0.20	100.00	100.00	Using index
+drop table t1,t2;
+#
+# MDEV-8063: Unconditional ANALYZE DELETE does not delete rows
+#
+create table t1 (i int);
+insert into t1 values (1),(2);
+analyze delete from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	2	NULL	NULL	NULL	Deleting all rows
+select * from t1;
+i
+insert into t1 values (1),(2);
+explain delete from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	2	Deleting all rows
+select * from t1;
+i
+1
+2
+drop table t1;

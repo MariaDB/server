@@ -1,0 +1,42 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_slave_fk_checks
+--echo #
+
+--echo # save the initial value
+SET @wsrep_slave_fk_checks_global_saved = @@global.wsrep_slave_fk_checks;
+
+--echo # default
+SELECT @@global.wsrep_slave_fk_checks;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_slave_fk_checks;
+SET @@global.wsrep_slave_fk_checks=OFF;
+SELECT @@global.wsrep_slave_fk_checks;
+SET @@global.wsrep_slave_fk_checks=ON;
+SELECT @@global.wsrep_slave_fk_checks;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_slave_fk_checks='OFF';
+SELECT @@global.wsrep_slave_fk_checks;
+SET @@global.wsrep_slave_fk_checks=ON;
+SELECT @@global.wsrep_slave_fk_checks;
+SET @@global.wsrep_slave_fk_checks=default;
+SELECT @@global.wsrep_slave_fk_checks;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_slave_fk_checks=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_slave_fk_checks='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_slave_fk_checks = @wsrep_slave_fk_checks_global_saved;
+
+--echo # End of test

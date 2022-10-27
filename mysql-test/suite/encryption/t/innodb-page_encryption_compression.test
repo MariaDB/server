@@ -1,0 +1,73 @@
+-- source include/have_innodb.inc
+-- source include/not_embedded.inc
+-- source include/have_file_key_management_plugin.inc
+
+let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
+
+# zlib
+set global innodb_compression_algorithm = 1;
+
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb page_compressed=1;
+show warnings;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1 page_compressed=1;
+show warnings;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes encryption_key_id=2 page_compressed=1;
+show warnings;
+
+show create table innodb_normal;
+show create table innodb_compact;
+show create table innodb_dynamic;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into innodb_normal values(current_num, substring(MD5(RAND()), -128));
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+begin;
+call innodb_insert_proc(2000);
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+commit;
+
+FLUSH TABLES innodb_compact FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
+
+--let $restart_parameters=--innodb-encrypt-tables=OFF
+--source include/restart_mysqld.inc
+
+# zlib
+set global innodb_compression_algorithm = 1;
+
+alter table innodb_normal engine=innodb page_compressed=DEFAULT;
+show create table innodb_normal;
+alter table innodb_compact engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT page_compressed=DEFAULT;
+show create table innodb_compact;
+alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT page_compressed=DEFAULT;
+show create table innodb_dynamic;
+
+FLUSH TABLES innodb_normal FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
+
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_PAGE_DECOMPRESSED';
+
+drop procedure innodb_insert_proc;
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_dynamic;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
+--enable_query_log

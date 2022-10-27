@@ -1,0 +1,1 @@
+$TOKUDB_OPT $TOKUDB_LOAD_ADD --loose-tokudb-check-jemalloc=0 --loose-tokudb-cache-size=512M --loose-tokudb-block-size=1M

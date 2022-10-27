@@ -1,0 +1,24 @@
+DROP TABLE IF EXISTS diaries;
+SET GLOBAL mroonga_match_escalation_threshold = -1;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+tags TEXT,
+FULLTEXT INDEX tags_index (tags) COMMENT 'tokenizer "TokenDelimit"'
+) DEFAULT CHARSET=UTF8;
+INSERT INTO diaries (title, tags) VALUES ("Hello Groonga!", "groonga install");
+INSERT INTO diaries (title, tags) VALUES ("Hello Mroonga!", "mroonga install");
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("+install" IN BOOLEAN MODE);
+id	title	tags
+1	Hello Groonga!	groonga install
+2	Hello Mroonga!	mroonga install
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("+gr" IN BOOLEAN MODE);
+id	title	tags
+SET GLOBAL mroonga_match_escalation_threshold = 0;
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("+gr" IN BOOLEAN MODE);
+id	title	tags
+SET mroonga_match_escalation_threshold = 0;
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("+gr" IN BOOLEAN MODE);
+id	title	tags
+1	Hello Groonga!	groonga install
+DROP TABLE diaries;

@@ -1,0 +1,39 @@
+call mtr.add_suppression("Can't init tc log");
+call mtr.add_suppression("Found 1 prepared transactions!");
+call mtr.add_suppression("Aborting");
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+FLUSH TABLES;
+connect  con1,localhost,root,,;
+set debug_sync='ha_commit_trans_after_prepare WAIT_FOR go';
+INSERT INTO t1 VALUES (1);;
+connection default;
+# Prove that no COMMIT or ROLLBACK occurred yet.
+SELECT * FROM t1;
+i
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t1;
+i
+1
+# Kill the server
+FOUND 1 /was in the XA prepared state/ in mysqld.1.err
+FOUND 1 /Found 1 prepared transactions!/ in mysqld.1.err
+NOT FOUND /\[ERROR\] Can\'t init tc log/ in mysqld.1.err
+FOUND 2 /was in the XA prepared state/ in mysqld.1.err
+FOUND 1 /Found 1 prepared transactions!/ in mysqld.1.err
+FOUND 1 /\[ERROR\] Can\'t init tc log/ in mysqld.1.err
+FOUND 1 /Please restart mysqld without --tc-heuristic-recover/ in mysqld.1.err
+FOUND 3 /was in the XA prepared state/ in mysqld.1.err
+FOUND 1 /Found 1 prepared transactions!/ in mysqld.1.err
+FOUND 2 /\[ERROR\] Can\'t init tc log/ in mysqld.1.err
+FOUND 2 /Please restart mysqld without --tc-heuristic-recover/ in mysqld.1.err
+# restart
+FOUND 3 /was in the XA prepared state/ in mysqld.1.err
+FOUND 1 /Found 1 prepared transactions!/ in mysqld.1.err
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SELECT * FROM t1;
+i
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t1;
+i
+DROP TABLE t1;

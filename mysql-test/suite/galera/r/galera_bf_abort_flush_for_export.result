@@ -1,0 +1,20 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
+SET AUTOCOMMIT=OFF;
+FLUSH TABLES t1 FOR EXPORT;
+connection node_1;
+INSERT INTO t1 VALUES (2);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+UNLOCK TABLES;
+COMMIT;
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_sync_wait = 15;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+wsrep_local_aborts_increment
+1
+DROP TABLE t1;

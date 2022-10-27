@@ -1,0 +1,80 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+CREATE TABLE dir1 (
+  spath VARCHAR(256) NOT NULL flag=1,
+  fname VARCHAR(256) NOT NULL,
+  ftype CHAR(4) NOT NULL,
+  size DOUBLE(12,0) NOT NULL flag=5
+) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*vec*';
+
+
+CREATE TABLE t1
+(
+  a INT NOT NULL,
+  b CHAR(10) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1vec';
+SHOW CREATE TABLE t1;
+# Testing SELECT on empty file
+--replace_regex /Open.rb. error 2 on .*\/test\/t1vec/Open(rb) error 2 on DATADIR\/test\/t1vec/
+SELECT * FROM t1;
+INSERT INTO t1 VALUES (0,'test01'), (1,'test01'), (2,'test02'), (3,'test03');
+SELECT * FROM t1;
+SELECT a FROM t1;
+SELECT b FROM t1;
+--replace_result $MYSQLD_DATADIR DATADIR/
+SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1vec1
+--remove_file $MYSQLD_DATADIR/test/t1vec2
+
+
+CREATE TABLE t1
+(
+  a INT NOT NULL,
+  b CHAR(10) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1vec' MAX_ROWS=10;
+SHOW CREATE TABLE t1;
+# Testing SELECTs on empty file
+--replace_regex /Open.rb. error 2 on .*\/test\/t1vec/Open(rb) error 2 on DATADIR\/test\/t1vec/
+SELECT * FROM t1;
+--replace_regex /Open.rb. error 2 on .*\/test\/t1vec/Open(rb) error 2 on DATADIR\/test\/t1vec/
+SELECT a FROM t1;
+--replace_regex /Open.rb. error 2 on .*\/test\/t1vec/Open(rb) error 2 on DATADIR\/test\/t1vec/
+SELECT b FROM t1;
+INSERT INTO t1 VALUES (0,'test01'), (1,'test01'), (2,'test02'), (3,'test03');
+SELECT * FROM t1;
+SELECT a FROM t1;
+SELECT b FROM t1;
+--replace_result $MYSQLD_DATADIR DATADIR/
+SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
+--echo #
+--echo # Testing READONLY
+--echo #
+ALTER TABLE t1 READONLY=yes;
+SHOW CREATE TABLE t1;
+--error ER_OPEN_AS_READONLY
+INSERT INTO t1 VALUES (4,'test04');
+--error ER_GET_ERRMSG
+UPDATE t1 SET b='test04' WHERE a=3;
+--error ER_GET_ERRMSG
+DELETE FROM t1 WHERE a=3;
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t1;
+ALTER TABLE t1 READONLY=no;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (4,'test04');
+UPDATE t1 SET b='test04a' WHERE a=4;
+DELETE FROM t1 WHERE a=0;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1vec
+--remove_file $MYSQLD_DATADIR/test/t1vec.blk
+
+
+--echo #
+--echo # Clean up
+--echo #
+DROP TABLE dir1;

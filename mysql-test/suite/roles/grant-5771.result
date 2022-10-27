@@ -1,0 +1,36 @@
+create database mysqltest1;
+create database mysqltest2;
+create user foo@localhost;
+create role r1, r2;
+grant all on mysqltest1.* to r1;
+grant all on mysqltest2.* to r2;
+grant r1 to r2;
+grant r2 to foo@localhost;
+connect  foo,localhost,foo,,;
+select current_user;
+current_user
+foo@localhost
+show tables in mysqltest1;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'mysqltest1'
+show tables in mysqltest2;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'mysqltest2'
+set role r2;
+show tables in mysqltest1;
+Tables_in_mysqltest1
+show tables in mysqltest2;
+Tables_in_mysqltest2
+show grants;
+Grants for foo@localhost
+GRANT `r2` TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT `r1` TO `r2`
+GRANT USAGE ON *.* TO `r2`
+GRANT ALL PRIVILEGES ON `mysqltest2`.* TO `r2`
+GRANT USAGE ON *.* TO `r1`
+GRANT ALL PRIVILEGES ON `mysqltest1`.* TO `r1`
+connection default;
+drop user foo@localhost;
+drop role r1;
+drop role r2;
+drop database mysqltest1;
+drop database mysqltest2;

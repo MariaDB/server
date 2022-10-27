@@ -1,0 +1,35 @@
+#
+# MDEV-9737 Duplicate error in replication with slave triggers and auto increment
+#
+source include/master-slave.inc;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+
+
+create table t1(id int auto_increment primary key);
+create table t2(id int auto_increment primary key);
+
+sync_slave_with_master;
+create table slave_only(id int auto_increment primary key);
+insert into slave_only values(NULL);
+create trigger t1i after insert on t1 for each row insert into slave_only values(NULL);
+
+stop slave;
+set global replicate_ignore_table="test.t2";
+start slave;
+
+connection master;
+insert into t2 values(NULL);
+insert into t1 values(NULL);
+
+sync_slave_with_master;
+
+drop table t1, t2, slave_only;
+stop slave;
+set global replicate_ignore_table="";
+start slave;
+
+connection master;
+drop table t1, t2;
+
+source include/rpl_end.inc;
+

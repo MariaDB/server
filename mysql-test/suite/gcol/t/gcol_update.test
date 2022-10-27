@@ -1,0 +1,67 @@
+--source include/have_innodb.inc
+
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
+connect (purge_control,localhost,root);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+
+# Index on virtual column
+
+create table t1(f1 int not null, f2 blob not null, f3 blob not null,
+		vchar char(2) as (substr(f3,2,2)) virtual,
+		primary key(f1, f3(5)), index(vchar))engine=innodb;
+
+insert into t1(f1,f2,f3) values(1, repeat('a',8000), repeat('b', 9000));
+
+update t1 set f1=5 where f1=1;
+delete from t1 where f1=5;
+
+connection purge_control;
+COMMIT;
+--source ../../innodb/include/wait_all_purged.inc
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
+drop table t1;
+
+# Index on virtual column and blob
+
+create table t1(f1 int not null, f2 blob not null, f3 blob not null,
+		vchar char(2) as (substr(f3,2,2)) virtual,
+		primary key(f1, f3(5)), index(vchar, f3(2)))engine=innodb;
+
+insert into t1(f1,f2,f3) values(1, repeat('a',8000), repeat('b', 9000));
+
+update t1 set f1=5 where f1=1;
+delete from t1 where f1=5;
+
+connection purge_control;
+COMMIT;
+--source ../../innodb/include/wait_all_purged.inc
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+drop table t1;
+
+# Index on virtual column of blob type
+
+create table t1(f1 int not null, f2 blob not null, f3 blob not null,
+		vchar blob as (f3) virtual,
+		primary key(f1, f3(5)), index(vchar(3)))engine=innodb;
+
+insert into t1(f1,f2,f3) values(1, repeat('a',8000), repeat('b', 9000));
+
+update t1 set f1=5 where f1=1;
+delete from t1 where f1=5;
+
+connection purge_control;
+COMMIT;
+--source ../../innodb/include/wait_all_purged.inc
+disconnect purge_control;
+
+connection default;
+drop table t1;
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

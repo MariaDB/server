@@ -1,0 +1,213 @@
+drop table if exists t1,t2;
+drop view if exists v1;
+drop procedure if exists p1;
+CREATE TABLE t1 (a int, b varchar(32));
+INSERT INTO t1 VALUES
+(7,'ggggggg'), (1,'a'), (3,'ccc'),
+(4,'dddd'), (1,'A'), (2,'BB'), (4,'DDDD'),
+(5,'EEEEE'), (7,'GGGGGGG'), (2,'bb');
+CREATE TABLE t1c SELECT * FROM t1;
+CREATE TABLE t2 (c int);
+INSERT INTO t2 VALUES 
+(4), (5), (7), (1);
+CREATE TABLE t2c SELECT * FROM t2;
+CREATE VIEW v1 AS SELECT a, UPPER(b) FROM t1;
+DELETE FROM t1 WHERE a=2 RETURNING * ;
+a	b
+2	BB
+2	bb
+SELECT * FROM t1;
+a	b
+7	ggggggg
+1	a
+3	ccc
+4	dddd
+1	A
+4	DDDD
+5	EEEEE
+7	GGGGGGG
+INSERT INTO t1 VALUES (2,'BB'), (2,'bb');
+DELETE FROM t1 WHERE a=2 RETURNING b;
+b
+bb
+BB
+SELECT * FROM t1;
+a	b
+7	ggggggg
+1	a
+3	ccc
+4	dddd
+1	A
+4	DDDD
+5	EEEEE
+7	GGGGGGG
+DELETE FROM t1 WHERE a=2 RETURNING c;
+ERROR 42S22: Unknown column 'c' in 'field list'
+INSERT INTO t1 VALUES (2,'BB'), (2,'bb');
+DELETE FROM t1 WHERE a=2 RETURNING a, UPPER(b);
+a	UPPER(b)
+2	BB
+2	BB
+SELECT * FROM t1;
+a	b
+7	ggggggg
+1	a
+3	ccc
+4	dddd
+1	A
+4	DDDD
+5	EEEEE
+7	GGGGGGG
+INSERT INTO t1 VALUES (2,'BB'), (2,'bb');
+DELETE FROM t1 WHERE a=6 RETURNING b;
+b
+SELECT * FROM t1;
+a	b
+7	ggggggg
+1	a
+3	ccc
+4	dddd
+1	A
+2	bb
+4	DDDD
+5	EEEEE
+7	GGGGGGG
+2	BB
+DELETE FROM t1 WHERE a=2 RETURNING MAX(b);
+ERROR HY000: Invalid use of group function
+DELETE FROM t1 WHERE a < 5 RETURNING a, (SELECT MIN(c) FROM t2 WHERE c=a+1);
+a	(SELECT MIN(c) FROM t2 WHERE c=a+1)
+1	NULL
+3	4
+4	5
+1	NULL
+2	NULL
+4	5
+2	NULL
+SELECT * FROM t1;
+a	b
+7	ggggggg
+5	EEEEE
+7	GGGGGGG
+DELETE FROM t1;
+INSERT INTO t1 SELECT * FROM t1c;
+DELETE FROM t2 WHERE c < 5 
+RETURNING (SELECT GROUP_CONCAT(b) FROM t1 GROUP BY a HAVING a=c);
+(SELECT GROUP_CONCAT(b) FROM t1 GROUP BY a HAVING a=c)
+dddd,DDDD
+a,A
+SELECT * FROM t2;
+c
+5
+7
+DELETE FROM t2;
+INSERT INTO t2 SELECT * FROM t2c;
+CREATE FUNCTION f(arg INT) RETURNS TEXT
+BEGIN
+RETURN (SELECT GROUP_CONCAT(b) FROM t1 WHERE a=arg);
+END|
+DELETE FROM t2 WHERE c < 5 RETURNING f(c);
+f(c)
+dddd,DDDD
+a,A
+SELECT * FROM t2;
+c
+5
+7
+DELETE FROM t2;
+INSERT INTO t2 SELECT * FROM t2c;
+DROP FUNCTION f;
+DELETE FROM v1 WHERE a < 5 RETURNING * ;
+a	UPPER(b)
+1	A
+3	CCC
+4	DDDD
+1	A
+2	BB
+4	DDDD
+2	BB
+SELECT * FROM t1;
+a	b
+7	ggggggg
+5	EEEEE
+7	GGGGGGG
+DELETE FROM t1;
+INSERT INTO t1 SELECT * FROM t1c;
+CREATE VIEW v11(a,c) AS SELECT a, COUNT(b) FROM t1 GROUP BY a;
+DELETE FROM v11 WHERE a < 5 RETURNING * ;
+ERROR HY000: The target table v11 of the DELETE is not updatable
+DROP VIEW v11;
+PREPARE stmt FROM 
+"DELETE FROM t1 WHERE a=2 ORDER BY b LIMIT 1 RETURNING a, UPPER(b)";
+EXECUTE stmt;
+a	UPPER(b)
+2	BB
+SELECT * FROM t1;
+a	b
+7	ggggggg
+1	a
+3	ccc
+4	dddd
+1	A
+4	DDDD
+5	EEEEE
+7	GGGGGGG
+2	bb
+EXECUTE stmt;
+a	UPPER(b)
+2	BB
+SELECT * FROM t1;
+a	b
+7	ggggggg
+1	a
+3	ccc
+4	dddd
+1	A
+4	DDDD
+5	EEEEE
+7	GGGGGGG
+DEALLOCATE PREPARE stmt;
+DROP VIEW v1;
+DROP TABLE t1,t2;
+DROP TABLE t1c,t2c;
+#
+# Bug mdev-4918: DELETE ... RETURNING subquery with more than 1 row
+#
+CREATE TABLE t1 (i1 int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (i2 int);
+INSERT INTO t2 VALUES (1),(2);
+DELETE FROM t1 ORDER BY i1 RETURNING ( SELECT i2 FROM t2 );
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1,t2;
+#
+# MDEV-4919: Packets out of order on a SELECT after calling a procedure with DELETE .. RETURNING
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE PROCEDURE p1 (a INT) 
+BEGIN
+DELETE FROM t1 WHERE i = a RETURNING *;
+INSERT INTO t1 VALUES (a);
+END |
+CALL p1(1);
+i
+1
+SELECT * FROM t1;
+i
+1
+2
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-13776: DELETE ... RETURNING with sql_mode='ONLY_FULL_GROUP_BY'
+#
+set @sql_mode_save= @@sql_mode;
+set sql_mode='ONLY_FULL_GROUP_BY';
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUE(1),(2),(3);
+DELETE FROM t1 WHERE id > 2 RETURNING *;
+id
+3
+set sql_mode=@sql_mode_save;
+DROP TABLE t1;

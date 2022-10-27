@@ -1,0 +1,157 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
+
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
+
+CREATE TABLE employee
+(
+serialno CHAR(5) NOT NULL,
+name VARCHAR(12) NOT NULL FLAG=6,
+sex TINYINT(1) NOT NULL,
+title VARCHAR(15) NOT NULL FLAG=20,
+manager CHAR(5) NOT NULL,
+department CHAR(4) NOT NULL FLAG=41,
+secretary CHAR(5) NOT NULL FLAG=46,
+salary DOUBLE(8,2) NOT NULL FLAG=52
+) ENGINE=connect TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
+SELECT * FROM employee;
+
+DELIMITER //;
+CREATE PROCEDURE test.tst_up() DETERMINISTIC
+BEGIN
+SELECT * FROM t1;
+UPDATE t1 SET salary = salary + 1, title = 'RESEARCH' WHERE title = 'SCIENTIST';
+UPDATE t1 SET salary = salary + 1, title = 'TECHNICIAN' WHERE title = 'ENGINEER';
+UPDATE t1 SET title = 'PUPPET' WHERE name = 'TONGHO';
+UPDATE t1 SET salary = 0. WHERE title = 'XXX';
+SELECT * FROM t1;
+DELETE FROM t1 WHERE title = 'SECRETARY';
+DELETE FROM t1 WHERE title = 'DIRECTOR';
+DELETE FROM t1 WHERE title = 'TYPIST';
+SELECT * FROM t1;
+DELETE FROM t1 LIMIT 3;
+INSERT INTO t1(serialno, name, title, salary) VALUES('66666','NEWMAN','ENGINEER',10000.80);
+SELECT * FROM t1;
+DROP TABLE t1;
+END//
+DELIMITER ;//
+
+--echo #
+--echo # Testing DOS table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing DOS table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect mapped=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing FIX table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing FIX table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix mapped=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing FIX table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix huge=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing CSV table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=csv AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing CSV table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=csv mapped=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing DBF table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=dbf AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing DBF table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=dbf mapped=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing BIN table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing BIN table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin mapped=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing BIN table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin huge=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing VEC table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec MAX_ROWS=30 AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing VEC table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec mapped=yes MAX_ROWS=30 AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing VEC table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec huge=yes MAX_ROWS=30 AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing INI table changes
+--echo #
+CREATE TABLE t1
+(
+serialno CHAR(5) NOT NULL FLAG=1,
+name VARCHAR(12) NOT NULL,
+sex TINYINT(1),
+title VARCHAR(15) NOT NULL,
+manager CHAR(5),
+department CHAR(4),
+secretary CHAR(5),
+salary DOUBLE(8,2) NOT NULL
+) ENGINE=connect TABLE_TYPE=ini;
+INSERT INTO t1 SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing XML table changes (must be in a separate test)
+--echo #
+#CREATE TABLE t1 ENGINE=connect TABLE_TYPE=xml option_list='rownode=dd' AS SELECT * FROM employee;
+#CALL test.tst_up();
+
+DROP PROCEDURE test.tst_up;
+DROP TABLE employee;
+
+SET sql_mode = DEFAULT;
+
+--remove_file $MYSQLD_DATADIR/test/employee.dat

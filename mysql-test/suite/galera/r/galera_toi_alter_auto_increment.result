@@ -1,0 +1,58 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+connection node_2;
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+ALTER TABLE t1 AUTO_INCREMENT = 1000;
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+connection node_1;
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+SELECT MIN(f1) >= 1000, COUNT(*) = 20, COUNT(DISTINCT f1) = 20 FROM t1 WHERE f1 >= 1000;
+MIN(f1) >= 1000	COUNT(*) = 20	COUNT(DISTINCT f1) = 20
+1	1	1
+connection node_2;
+SELECT MIN(f1) >= 1000, COUNT(*) = 20, COUNT(DISTINCT f1) = 20 FROM t1 WHERE f1 >= 1000;
+MIN(f1) >= 1000	COUNT(*) = 20	COUNT(DISTINCT f1) = 20
+1	1	1
+connection node_1;
+ALTER TABLE t1 AUTO_INCREMENT = 5;
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+connection node_2;
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+SELECT MIN(f1) >= 1000, COUNT(*) = 40, COUNT(DISTINCT f1) = 40 FROM t1 WHERE f1 >= 1000;
+MIN(f1) >= 1000	COUNT(*) = 40	COUNT(DISTINCT f1) = 40
+1	1	1
+connection node_1;
+SELECT MIN(f1) >= 1000, COUNT(*) = 40, COUNT(DISTINCT f1) = 40 FROM t1 WHERE f1 >= 1000;
+MIN(f1) >= 1000	COUNT(*) = 40	COUNT(DISTINCT f1) = 40
+1	1	1
+DROP TABLE t1;
+connection node_1;
+SET GLOBAL wsrep_auto_increment_control = OFF;
+SET GLOBAL auto_increment_increment = 1;
+SET GLOBAL auto_increment_offset = 1;
+connection node_2;
+SET GLOBAL wsrep_auto_increment_control = OFF;
+SET GLOBAL auto_increment_increment = 1;
+SET GLOBAL auto_increment_offset = 1;
+connection node_1a;
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+connection node_2a;
+ALTER TABLE t1 AUTO_INCREMENT=100;
+connection node_1a;
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+connection node_2a;
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+SELECT MIN(f1) = 100, MAX(f1) = 119, COUNT(f1) = 20, COUNT(DISTINCT f1) = 20 FROM t1;
+MIN(f1) = 100	MAX(f1) = 119	COUNT(f1) = 20	COUNT(DISTINCT f1) = 20
+1	1	1	1
+connection node_1a;
+SELECT MIN(f1) = 100, MAX(f1) = 119, COUNT(f1) = 20, COUNT(DISTINCT f1) = 20 FROM t1;
+MIN(f1) = 100	MAX(f1) = 119	COUNT(f1) = 20	COUNT(DISTINCT f1) = 20
+1	1	1	1
+DROP TABLE t1;
+DROP TABLE ten;

@@ -1,0 +1,4 @@
+-- source include/master-slave.inc
+let $engine_type=myisam;
+-- source include/rpl_delete_no_where.test
+--source include/rpl_end.inc

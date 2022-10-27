@@ -1,0 +1,109 @@
+############# mysql-test\t\thread_cache_size_func.test ##########################
+#                                                                               #
+# Variable Name: thread_cache_size                                              #
+# Scope: SESSION                                                                #
+# Access Type: Dynamic                                                          #
+# Data Type: Enumeration                                                        #
+# Default Value: 0                                                              #
+# Values:      0-16384                                                          #
+#                                                                               #
+#                                                                               #
+# Creation Date: 2008-03-02                                                     #
+# Author:  Sharique Abdullah                                                    #
+#                                                                               #
+# Modified: HHunger 2008-08-27 Reduced test to needed function and inserted     #
+#                              wait-loops                                       #
+#                                                                               #
+# Description: Test Cases of Dynamic System Variable "thread_cache_size"        #
+#              that checks behavior of this variable in the following ways      #
+#              * Functionality based on different values                        #
+#                                                                               #
+# Reference:                                                                    #
+#   http://dev.mysql.com/doc/refman/5.1/en/server-system-variables.html         #
+#                                                                               #
+#################################################################################
+
+#
+# Setup
+#
+
+
+--source include/one_thread_per_connection.inc
+SET @global_thread_cache_size = @@GLOBAL.thread_cache_size;
+
+FLUSH STATUS;
+
+-- ECHO '# Test1#'
+SET @@GLOBAL.thread_cache_size=3;
+SHOW STATUS LIKE 'Threads_cached';
+--echo 0 Expected
+
+##################################
+# Make 4 connections             #
+##################################
+
+CONNECT (conn1,localhost,root,,);
+CONNECT (conn2,localhost,root,,);
+CONNECT (conn3,localhost,root,,);
+CONNECT (conn4,localhost,root,,);
+
+CONNECTION default;
+
+# Wait until all connections done
+let $wait_condition= SELECT COUNT(*)= 5 FROM INFORMATION_SCHEMA.PROCESSLIST;
+--source include/wait_condition.inc
+
+SHOW STATUS LIKE 'Threads_cached';
+--echo 0 Expected
+
+####################################
+#Disconnecting all the connections #
+####################################
+
+DISCONNECT conn1;
+DISCONNECT conn2;
+DISCONNECT conn3;
+DISCONNECT conn4;
+
+#
+# Checking the status
+#
+
+# Wait until all disconnects ready
+let $wait_condition= SELECT COUNT(*)= 1 FROM INFORMATION_SCHEMA.PROCESSLIST;
+--source include/wait_condition.inc
+
+# Wait until thread cache becomes 3
+let $wait_condition= SELECT variable_value = 3 FROM INFORMATION_SCHEMA.global_status where variable_name="Threads_cached";
+--source include/wait_condition.inc
+
+#
+# Decreasing cache size to 1
+#
+SET @@GLOBAL.thread_cache_size= 1;
+
+CONNECT (conn1,localhost,root,,);
+CONNECT (conn2,localhost,root,,);
+
+CONNECTION default;
+
+# Wait until all connects ready
+let $wait_condition= SELECT COUNT(*)= 3 FROM INFORMATION_SCHEMA.PROCESSLIST;
+--source include/wait_condition.inc
+
+DISCONNECT conn1;
+DISCONNECT conn2;
+
+# Wait until all disconnects ready
+let $wait_condition= SELECT COUNT(*)= 1 FROM INFORMATION_SCHEMA.PROCESSLIST;
+--source include/wait_condition.inc
+
+# Wait until thread cache becomes 1
+let $wait_condition= SELECT variable_value = 1 FROM INFORMATION_SCHEMA.global_status where variable_name="Threads_cached";
+--source include/wait_condition.inc
+
+#
+# Cleanup
+#
+
+SET @@GLOBAL.thread_cache_size = @global_thread_cache_size;

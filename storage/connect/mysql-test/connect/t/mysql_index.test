@@ -1,0 +1,145 @@
+-- source include/not_embedded.inc
+
+#
+# TODO: consider a possibility to run this test
+# against some remote MySQL server
+#
+
+let $PORT= `select @@port`;
+
+--disable_query_log
+--replace_result $PORT PORT
+--error 0,ER_UNKNOWN_ERROR
+--eval CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='tx1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+if (!`SELECT count(*) FROM INFORMATION_SCHEMA.TABLES
+  WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1'
+  AND ENGINE='CONNECT'
+  AND CREATE_OPTIONS LIKE '%`table_type`=MySQL%'`)
+{
+  Skip Need MySQL support;
+}
+DROP TABLE t1;
+--enable_query_log
+
+--echo #
+--echo # Make remote table
+--echo #
+CREATE TABLE t1 (
+  id int(11) NOT NULL,
+  msg char(100) DEFAULT NULL,
+  PRIMARY KEY (id)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES(1,'Un'),(3,'Trois'),(5,'Cinq');
+INSERT INTO t1 VALUES(2,'Two'),(4,'Four'),(6,'Six');
+SELECT * FROM t1;
+
+--echo #
+--echo # Make local MYSQL table with indexed id column
+--echo #
+CREATE TABLE t2 (
+  id int(11) NOT NULL,
+  msg char(100) DEFAULT NULL,
+  PRIMARY KEY (id)
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 TABLE_TYPE=MYSQL TABNAME=t1;
+
+--echo #
+--echo # Testing SELECT, etc.
+--echo #
+SELECT * FROM t2;
+SELECT * FROM t2 WHERE id = 3;
+SELECT * FROM t2 WHERE id IN (2,4);
+SELECT * FROM t2 WHERE id IN (2,4) AND msg = 'Two';
+SELECT * FROM t2 WHERE id > 4;
+SELECT * FROM t2 WHERE id >= 3;
+SELECT * FROM t2 WHERE id < 3;
+SELECT * FROM t2 WHERE id < 2 OR id > 4;
+SELECT * FROM t2 WHERE id <= 3;
+SELECT * FROM t2 WHERE id BETWEEN 3 AND 5;
+SELECT * FROM t2 WHERE id > 2 AND id < 6;
+SELECT * FROM t2 ORDER BY id;
+UPDATE t2 SET msg = 'Five' WHERE id = 5;
+SELECT * FROM t2;
+DELETE FROM t2 WHERE id = 4;
+SELECT * FROM t2;
+
+DROP TABLE t2;
+DROP TABLE t1;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file $MTR_SUITE_DIR/std_data/emp.txt $MYSQLD_DATADIR/test/emp.txt
+
+--echo #
+--echo # Make local FIX table with indices matricule and nom/prenom
+--echo #
+CREATE TABLE t1
+(
+  matricule INT(4) KEY NOT NULL field_format='Z',
+  nom       VARCHAR(16) NOT NULL,
+  prenom    VARCHAR(20) NOT NULL,
+  sexe      SMALLINT(1) NOT NULL COMMENT 'sexe 1:M 2:F',
+  aanais    INT(4) NOT NULL,
+  mmnais    INT(2) NOT NULL,
+  ddentree  DATE NOT NULL date_format='YYYYMM',
+  ddnom     DATE NOT NULL date_format='YYYYMM',
+  brut      INT(5) NOT NULL,
+  net       DOUBLE(8,2) NOT NULL,
+  service   INT(2) NOT NULL,
+  sitmat    CHAR(1) NOT NULL,
+  formation CHAR(5) NOT NULL,
+  INDEX NP(nom,prenom)
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
+
+--echo #
+--echo # Make MYSQL table with same indices
+--echo #
+CREATE TABLE t2
+(
+  matricule INT(4) KEY NOT NULL,
+  nom       VARCHAR(16) NOT NULL,
+  prenom    VARCHAR(20) NOT NULL,
+  sexe      SMALLINT(1) NOT NULL,
+  aanais    INT(4) NOT NULL,
+  mmnais    INT(2) NOT NULL,
+  ddentree  DATE NOT NULL date_format='YYYYMM',
+  ddnom     DATE NOT NULL date_format='YYYYMM',
+  brut      INT(5) NOT NULL,
+  net       DOUBLE(8,2) NOT NULL,
+  service   INT(2) NOT NULL,
+  sitmat    CHAR(1) NOT NULL,
+  formation CHAR(5) NOT NULL,
+  INDEX NP(nom,prenom)
+) ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTIOn='mysql://root@localhost/test/t1';
+SELECT * FROM t2 limit 10;
+SELECT matricule, nom, prenom FROM t2 WHERE nom IN ('FOCH','MOGADOR');
+--sorted_result
+explain SELECT matricule, nom, prenom FROM t2 WHERE nom IN ('FOCH','MOGADOR');
+SELECT matricule, nom, prenom FROM t2 WHERE nom = 'FOCH' OR nom = 'MOGADOR';
+--sorted_result
+SELECT matricule, nom, prenom FROM t2 WHERE nom < 'ADDAX';
+--sorted_result
+SELECT matricule, nom, prenom FROM t2 WHERE nom <= 'ABEL';
+--sorted_result
+SELECT matricule, nom, prenom FROM t2 WHERE nom > 'YVON';
+--sorted_result
+SELECT matricule, nom, prenom FROM t2 WHERE nom >= 'YVON';
+--sorted_result
+SELECT matricule, nom, prenom FROM t2 WHERE nom <= 'ABEL' OR nom > 'YVON';
+--sorted_result
+SELECT matricule, nom, prenom FROM t2 WHERE nom > 'HELEN' AND nom < 'HEROS';
+--sorted_result
+SELECT matricule, nom, prenom FROM t2 WHERE nom BETWEEN 'HELEN' AND 'HEROS';
+--sorted_result
+SELECT matricule, nom, prenom FROM t2 WHERE nom BETWEEN 'HELEN' AND 'HEROS' AND prenom = 'PHILIPPE';
+--sorted_result
+SELECT matricule, nom, prenom FROM t2 ORDER BY nom LIMIT 10;
+--sorted_result
+SELECT a.nom, a.prenom, b.nom FROM t1 a STRAIGHT_JOIN t2 b ON a.prenom = b.prenom WHERE a.nom = 'FOCH' AND a.nom != b.nom;
+
+DROP TABLE t2;
+DROP TABLE t1;
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/emp.txt
+--remove_file $MYSQLD_DATADIR/test/emp.fnx

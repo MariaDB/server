@@ -1,0 +1,18 @@
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # MDEV-7798: mysql.server init script can't stop mysqld when WSREP is
+--echo # turned off
+--echo #
+
+SELECT @@GLOBAL.WSREP_ON;
+SET GLOBAL WSREP_ON= 0;
+
+--echo Restart the node.
+--source include/restart_mysqld.inc
+
+SELECT @@GLOBAL.WSREP_ON;
+
+--echo # End of test.

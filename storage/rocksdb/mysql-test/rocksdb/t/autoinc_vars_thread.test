@@ -1,0 +1,65 @@
+--source include/have_rocksdb.inc
+--source include/have_debug_sync.inc
+
+--echo #---------------------------
+--echo # two threads inserting simultaneously with increment > 1
+--echo # Issue #390
+--echo #---------------------------
+
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+
+# Set up connections
+connect (con1, localhost, root,,);
+SET auto_increment_increment = 2;
+SET auto_increment_offset = 1;
+# Insert one row to set up the conditions that caused the original failure
+INSERT INTO t1 VALUES(NULL);
+
+connect (con2, localhost, root,,);
+SET auto_increment_increment = 2;
+SET auto_increment_offset = 1;
+
+connect (con3, localhost, root,,);
+
+# Start each thread on an insert that will block waiting for a signal
+connection con1;
+SET debug_sync='rocksdb.autoinc_vars2 SIGNAL go2';
+SET debug_sync='rocksdb.autoinc_vars SIGNAL parked1 WAIT_FOR go1';
+send INSERT INTO t1 VALUES(NULL);
+
+connection default;
+SET debug_sync='now WAIT_FOR parked1';
+
+connection con2;
+SET debug_sync='rocksdb.autoinc_vars SIGNAL parked2 WAIT_FOR go2';
+send INSERT INTO t1 VALUES(NULL);
+
+# Wait for both threads to be at debug_sync point
+connection default;
+SET debug_sync='now WAIT_FOR parked2';
+
+
+# Signal both threads to continue
+# (In MariaDB, we signal one of them which continues and signals the other)
+send SET debug_sync='now SIGNAL go1';
+connection con3;
+# MariaDB: do nothing here
+
+connection default;
+reap;
+
+connection con1;
+reap;
+
+connection con2;
+reap;
+
+connection default;
+SET debug_sync='RESET';
+
+disconnect con1;
+disconnect con2;
+
+SELECT * FROM t1;
+DROP TABLE t1;
+

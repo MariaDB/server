@@ -1,0 +1,29 @@
+--source include/have_rocksdb.inc
+
+--eval SET @start_value = @@global.ROCKSDB_CREATE_CHECKPOINT
+
+# Test using tmp/abc
+--replace_result $MYSQL_TMP_DIR TMP
+--eval SET @@global.ROCKSDB_CREATE_CHECKPOINT = '$MYSQL_TMP_DIR/abc'
+--eval SELECT @@global.ROCKSDB_CREATE_CHECKPOINT
+--eval SET @@global.ROCKSDB_CREATE_CHECKPOINT = DEFAULT
+
+# Test using tmp/def
+--replace_result $MYSQL_TMP_DIR TMP
+--eval SET @@global.ROCKSDB_CREATE_CHECKPOINT = '$MYSQL_TMP_DIR/def'
+--eval SELECT @@global.ROCKSDB_CREATE_CHECKPOINT
+--eval SET @@global.ROCKSDB_CREATE_CHECKPOINT = DEFAULT
+
+# Should fail because it is not a session
+--Error ER_GLOBAL_VARIABLE
+--eval SET @@session.ROCKSDB_CREATE_CHECKPOINT = 444
+
+# Set back to original value
+# validate that DEFAULT causes failure in creating checkpoint since
+# DEFAULT == ''
+--error ER_GET_ERRMSG 
+--eval SET @@global.ROCKSDB_CREATE_CHECKPOINT = @start_value
+
+# clean up
+--exec rm -r $MYSQL_TMP_DIR/abc
+--exec rm -r $MYSQL_TMP_DIR/def

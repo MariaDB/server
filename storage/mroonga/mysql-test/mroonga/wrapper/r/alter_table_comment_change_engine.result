@@ -1,0 +1,27 @@
+DROP TABLE IF EXISTS memos;
+SET NAMES utf8;
+CREATE TABLE memos (
+id INT AUTO_INCREMENT PRIMARY KEY,
+title VARCHAR(64),
+content TEXT,
+FULLTEXT INDEX(content)
+) DEFAULT CHARSET=utf8 COMMENT='engine "InnoDB"';
+INSERT INTO memos (title, content) VALUES ("Hello", "I start to write memos!");
+INSERT INTO memos (title, content) VALUES ("groonga", "I start to use groonga!");
+INSERT INTO memos (title, content) VALUES ("mroonga", "I use mroonga too!");
+ALTER TABLE memos COMMENT='engine "MyISAM"';
+SELECT table_name, table_comment
+FROM information_schema.tables
+WHERE table_name = 'memos';
+table_name	table_comment
+memos	engine "MyISAM"
+SELECT * FROM memos;
+id	title	content
+1	Hello	I start to write memos!
+2	groonga	I start to use groonga!
+3	mroonga	I use mroonga too!
+SELECT * FROM memos WHERE MATCH(content) AGAINST("start" IN BOOLEAN MODE);
+id	title	content
+1	Hello	I start to write memos!
+2	groonga	I start to use groonga!
+DROP TABLE memos;

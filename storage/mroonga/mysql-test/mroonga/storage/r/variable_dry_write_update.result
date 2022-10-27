@@ -1,0 +1,18 @@
+drop table if exists diaries;
+create table diaries (
+id int primary key auto_increment,
+body text,
+fulltext index body_index (body)
+) default charset utf8;
+insert into diaries (body) values ("will start groonga!");
+set mroonga_dry_write=true;
+update diaries set body = "starting groonga..." where id = 1;
+select * from diaries;
+id	body
+1	will start groonga!
+set mroonga_dry_write=false;
+update diaries set body = "starting groonga..." where id = 1;
+select * from diaries;
+id	body
+1	starting groonga...
+drop table diaries;

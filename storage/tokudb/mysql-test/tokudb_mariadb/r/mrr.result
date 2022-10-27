@@ -1,0 +1,132 @@
+drop table if exists t1,t2,t3;
+#
+# MDEV-5976: TokuDB: Wrong query result using mrr=on
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t2 (
+task_id int(10) unsigned NOT NULL AUTO_INCREMENT,
+`type` tinyint(3) DEFAULT NULL,
+filler1 varchar(256),
+filler2 varchar(256),
+PRIMARY KEY (`task_id`),
+KEY `ymtasks_type` (`type`)
+) ENGINE=TokuDB AUTO_INCREMENT=3 DEFAULT CHARSET=latin1 `COMPRESSION`=TOKUDB_LZMA;
+INSERT INTO t2 VALUES 
+(1,1,'filler-data1','filler-data2'),
+(2,1,'filler-data1','filler-data2');
+CREATE TABLE t3 (
+`task_id` int(10) unsigned NOT NULL DEFAULT '0',
+`field` varchar(256) NOT NULL DEFAULT '',
+`value` varchar(4096) DEFAULT NULL,
+KEY `ymtasksoptions_task` (`task_id`),
+KEY `ymtasksoptions_field` (`field`)
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `COMPRESSION`=TOKUDB_LZMA;
+INSERT INTO t3
+select 1, 
+concat('field-data-', A.a*10 + B.a), 
+concat('field-data-', A.a*10 + B.a)
+from t1 A, t1 B 
+where 
+A.a*10 + B.a < 38;
+explain
+SELECT t3.task_id, t3.field  FROM
+t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	PRIMARY,ymtasks_type	ymtasks_type	2	NULL	2	Using where; Using index
+1	SIMPLE	t3	ref	ymtasksoptions_task	ymtasksoptions_task	4	test.t2.task_id	1	
+SELECT t3.task_id, t3.field  FROM
+t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
+task_id	field
+1	field-data-0
+1	field-data-10
+1	field-data-20
+1	field-data-30
+1	field-data-1
+1	field-data-11
+1	field-data-21
+1	field-data-31
+1	field-data-2
+1	field-data-12
+1	field-data-22
+1	field-data-32
+1	field-data-3
+1	field-data-13
+1	field-data-23
+1	field-data-33
+1	field-data-4
+1	field-data-14
+1	field-data-24
+1	field-data-34
+1	field-data-5
+1	field-data-15
+1	field-data-25
+1	field-data-35
+1	field-data-6
+1	field-data-16
+1	field-data-26
+1	field-data-36
+1	field-data-7
+1	field-data-17
+1	field-data-27
+1	field-data-37
+1	field-data-8
+1	field-data-18
+1	field-data-28
+1	field-data-9
+1	field-data-19
+1	field-data-29
+set @tmp5976_jcl=@@join_cache_level;
+set @tmp5976_os=@@optimizer_switch;
+set join_cache_level= 6;
+set optimizer_switch='mrr=on,mrr_sort_keys=on';
+explain
+SELECT t3.task_id, t3.field  FROM
+t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	PRIMARY,ymtasks_type	ymtasks_type	2	NULL	2	Using where; Using index
+1	SIMPLE	t3	ref	ymtasksoptions_task	ymtasksoptions_task	4	test.t2.task_id	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+SELECT t3.task_id, t3.field  FROM
+t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
+task_id	field
+1	field-data-0
+1	field-data-10
+1	field-data-20
+1	field-data-30
+1	field-data-1
+1	field-data-11
+1	field-data-21
+1	field-data-31
+1	field-data-2
+1	field-data-12
+1	field-data-22
+1	field-data-32
+1	field-data-3
+1	field-data-13
+1	field-data-23
+1	field-data-33
+1	field-data-4
+1	field-data-14
+1	field-data-24
+1	field-data-34
+1	field-data-5
+1	field-data-15
+1	field-data-25
+1	field-data-35
+1	field-data-6
+1	field-data-16
+1	field-data-26
+1	field-data-36
+1	field-data-7
+1	field-data-17
+1	field-data-27
+1	field-data-37
+1	field-data-8
+1	field-data-18
+1	field-data-28
+1	field-data-9
+1	field-data-19
+1	field-data-29
+drop table t1,t2,t3;
+set join_cache_level=@tmp5976_jcl;
+set optimizer_switch=@tmp5976_os;

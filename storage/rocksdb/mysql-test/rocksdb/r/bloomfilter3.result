@@ -1,0 +1,143 @@
+# restart
+CREATE TABLE `linktable` (
+`id1` bigint(20) unsigned NOT NULL DEFAULT '0',
+`id1_type` int(10) unsigned NOT NULL DEFAULT '0',
+`id2` bigint(20) unsigned NOT NULL DEFAULT '0',
+`id2_type` int(10) unsigned NOT NULL DEFAULT '0',
+`link_type` bigint(20) unsigned NOT NULL DEFAULT '0',
+`visibility` tinyint(3) NOT NULL DEFAULT '0',
+`data` varchar(255) NOT NULL DEFAULT '',
+`time` bigint(20) unsigned NOT NULL DEFAULT '0',
+`version` int(11) unsigned NOT NULL DEFAULT '0',
+PRIMARY KEY (link_type, `id1`,`id2`) COMMENT 'cf_link_pk',
+KEY `id1_type` (`id1`,`link_type`,`visibility`,`time`,`version`,`data`) COMMENT 'rev:cf_link_id1_type',
+KEY `id1_type2` (`id1`,`link_type`,`time`,`version`,`data`,`visibility`) COMMENT 'rev:cf_link_id1_type2',
+KEY `id1_type3` (`id1`,`visibility`,`time`,`version`,`data`,`link_type`) COMMENT 'rev:cf_link_id1_type3'
+) ENGINE=RocksDB DEFAULT COLLATE=latin1_bin;
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type`)  where id1 = 100 and link_type = 1 and time >= 0 and time <= 9223372036854775807 and visibility = 1 order by time desc;
+id1	id2	link_type	visibility	data	time	version
+100	100	1	1	100	100	100
+select case when variable_value-@c > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+case when variable_value-@c > 0 then 'true' else 'false' end
+true
+# MariaDB: we don't have optimizer_force_index_for_range, but we can use EITS
+#          to get the query plan we want.
+set @tmp_use_stat_tables= @@use_stat_tables;
+set use_stat_tables='preferably';
+analyze table linktable persistent for all;
+Table	Op	Msg_type	Msg_text
+test.linktable	analyze	status	Engine-independent statistics collected
+test.linktable	analyze	status	OK
+flush tables;
+explain select * from linktable;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	linktable	ALL	NULL	NULL	NULL	NULL	10000	
+# This must use range(id1_type2), key_len=24
+explain
+select id1, id2, link_type, visibility, data, time, version from linktable
+FORCE INDEX(`id1_type2`)  where id1 = 100 and link_type = 1 and time >= 0 and time <= 9223372036854775807 order by time desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	linktable	range	id1_type2	id1_type2	24	NULL	1000	Using where; Using index
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type2`)  where id1 = 100 and link_type = 1 and time >= 0 and time <= 9223372036854775807 order by time desc;
+id1	id2	link_type	visibility	data	time	version
+100	100	1	1	100	100	100
+select case when variable_value-@c > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+case when variable_value-@c > 0 then 'true' else 'false' end
+true
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type3`)  where id1 = 100 and time >= 0 and time <= 9223372036854775807 and visibility = 1 order by time desc;
+id1	id2	link_type	visibility	data	time	version
+100	100	1	1	100	100	100
+select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+case when variable_value-@c = 0 then 'true' else 'false' end
+true
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type`)  where id1 = 100 and link_type = 1 and visibility = 1 and time >= 0 order by time desc;
+id1	id2	link_type	visibility	data	time	version
+100	100	1	1	100	100	100
+select case when variable_value-@c > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+case when variable_value-@c > 0 then 'true' else 'false' end
+true
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type2`)  where id1 = 100 and link_type = 1 and time >= 0 order by time desc;
+id1	id2	link_type	visibility	data	time	version
+100	100	1	1	100	100	100
+select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+case when variable_value-@c = 0 then 'true' else 'false' end
+true
+## HA_READ_PREFIX_LAST
+# BF len 20
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type`)  where id1 = 100 and link_type = 1 and visibility = 1 order by time desc;
+id1	id2	link_type	visibility	data	time	version
+100	100	1	1	100	100	100
+select case when variable_value-@c > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+case when variable_value-@c > 0 then 'true' else 'false' end
+true
+# BF len 19
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type2`)  where id1 = 100 and link_type = 1 order by time desc;
+id1	id2	link_type	visibility	data	time	version
+100	100	1	1	100	100	100
+select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+case when variable_value-@c = 0 then 'true' else 'false' end
+true
+# BF len 12
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+select id1, id2, link_type, visibility, data, time, version from linktable FORCE INDEX(`id1_type3`)  where id1 = 100 and visibility = 1 order by time desc;
+id1	id2	link_type	visibility	data	time	version
+100	100	1	1	100	100	100
+select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+case when variable_value-@c = 0 then 'true' else 'false' end
+true
+DROP TABLE linktable;
+# restart
+#
+# bloom filter prefix is 20 byte
+#  Create a key which is longer than that, so that we see that  
+#       eq_cond_len= slice.size() - 1;
+#  doesnt work.
+#
+#   indexnr   4
+#   kp0     + 4 =  8
+#   kp1     + 8 = 16
+#   kp2     + 8 = 24    24>20 byte length prefix
+#   kp3     + 8 = 28
+create table t1 (
+pk int primary key,
+kp0 int not null,
+kp1 bigint not null,
+kp2 bigint not null,
+kp3 bigint not null,
+key kp12(kp0, kp1, kp2, kp3) comment 'rev:x1'
+) engine=rocksdb;
+insert into t1 values (1, 1,1,         1,1);
+insert into t1 values (10,1,1,0x12FFFFFFFFFF,1);
+insert into t1 values (11,1,1,0x12FFFFFFFFFF,1);
+insert into t1 values (20,2,2,0x12FFFFFFFFFF,1);
+insert into t1 values (21,2,2,0x12FFFFFFFFFF,1);
+# restart
+explain 
+select * from t1 where kp0=1 and kp1=1 and kp2=0x12FFFFFFFFFF order by kp3 desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	kp12	kp12	20	const,const,const	#	Using where; Using index
+show status like '%rocksdb_bloom_filter_prefix%';
+Variable_name	Value
+Rocksdb_bloom_filter_prefix_checked	0
+Rocksdb_bloom_filter_prefix_useful	0
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+select * from t1 where kp0=1 and kp1=1 and kp2=0x12FFFFFFFFFF order by kp3 desc;
+pk	kp0	kp1	kp2	kp3
+11	1	1	20890720927743	1
+10	1	1	20890720927743	1
+show status like '%rocksdb_bloom_filter_prefix%';
+Variable_name	Value
+Rocksdb_bloom_filter_prefix_checked	0
+Rocksdb_bloom_filter_prefix_useful	0
+# The following MUST show TRUE:
+select case when variable_value-@c = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+case when variable_value-@c = 0 then 'true' else 'false' end
+true
+drop table t1;

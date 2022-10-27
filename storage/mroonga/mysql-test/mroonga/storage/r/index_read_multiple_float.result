@@ -1,0 +1,38 @@
+DROP TABLE IF EXISTS ids;
+CREATE TABLE ids (
+id FLOAT,
+value FLOAT,
+KEY (id, value)
+);
+INSERT INTO ids VALUES ( -1.1,  16.16);
+INSERT INTO ids VALUES ( -2.2,   8.8);
+INSERT INTO ids VALUES ( -4.4,   4.4);
+INSERT INTO ids VALUES ( -8.8,   2.2);
+INSERT INTO ids VALUES (-16.6,   1.1);
+INSERT INTO ids VALUES ( 16.6,  -1.1);
+INSERT INTO ids VALUES (  8.8,  -2.2);
+INSERT INTO ids VALUES (  4.4,  -4.4);
+INSERT INTO ids VALUES (  2.2,  -8.8);
+INSERT INTO ids VALUES (  1.1, -16.16);
+SELECT * FROM ids;
+id	value
+-16.6	1.1
+-8.8	2.2
+-4.4	4.4
+-2.2	8.8
+-1.1	16.16
+1.1	-16.16
+2.2	-8.8
+4.4	-4.4
+8.8	-2.2
+16.6	-1.1
+SELECT * FROM ids WHERE id BETWEEN -4.5 AND 8.9;
+id	value
+-4.4	4.4
+-2.2	8.8
+-1.1	16.16
+1.1	-16.16
+2.2	-8.8
+4.4	-4.4
+8.8	-2.2
+DROP TABLE ids;

@@ -1,0 +1,18 @@
+#
+# Testing features not specific to any TABLE_TYPE
+#
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=NON_EXISTING;
+ERROR HY000: Unsupported table type NON_EXISTING
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=FIX;
+Warnings:
+Warning	1105	No file name. Table will use t1.fix
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+a
+10
+ALTER TABLE t1 TABLE_TYPE=NON_EXISTING;
+ERROR HY000: Unsupported table type NON_EXISTING
+SELECT * FROM t1;
+a
+10
+DROP TABLE t1;

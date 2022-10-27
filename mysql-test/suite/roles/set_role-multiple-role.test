@@ -1,0 +1,102 @@
+source include/not_embedded.inc;
+
+#create a user with no privileges
+create user 'test_user'@'localhost';
+
+create role r_sel;
+create role r_ins;
+create role r_upd;
+create role r_del;
+create role r_crt;
+create role r_drp;
+create role r_rld;
+
+grant select on *.* to r_sel;
+grant insert on *.* to r_ins;
+grant update on *.* to r_upd;
+grant delete on *.* to r_del;
+grant create on *.* to r_crt;
+grant drop   on *.* to r_drp;
+grant reload on *.* to r_rld;
+
+#####################################
+#set up roles mapping
+#####################################
+grant r_sel to test_user@localhost;
+grant r_ins to test_user@localhost;
+grant r_upd to test_user@localhost;
+grant r_del to test_user@localhost;
+grant r_crt to test_user@localhost;
+grant r_drp to test_user@localhost;
+grant r_rld to test_user@localhost;
+flush privileges;
+
+change_user 'test_user';
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+--sorted_result
+show grants;
+select current_user(), current_role();
+set role r_sel;
+select current_user(), current_role();
+--sorted_result
+show grants;
+--sorted_result
+select * from mysql.roles_mapping;
+
+set role r_ins;
+select current_user(), current_role();
+--sorted_result
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_rld', 'N');
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+flush privileges;
+set role r_rld;
+select current_user(), current_role();
+flush privileges;
+set role r_sel;
+select current_user(), current_role();
+flush privileges;
+set role none;
+select current_user(), current_role();
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+flush privileges;
+
+set role r_ins;
+select current_user(), current_role();
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_upd', 'N');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_del', 'N');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_crt', 'N');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_drp', 'N');
+insert into mysql.roles_mapping values ('', 'r_del', 'r_ins', 'N');
+set role r_rld;
+select current_user(), current_role();
+flush privileges;
+set role r_sel;
+select current_user(), current_role();
+update mysql.roles_mapping set Role='r_ins' where Role='r_ins_wrong';
+flush privileges;
+set role r_sel;
+select current_user(), current_role();
+
+create table mysql.random_test_table (id INT);
+insert into mysql.random_test_table values (1);
+--sorted_result
+select * from mysql.random_test_table;
+delete from mysql.roles_mapping where Role='r_ins';
+flush privileges;
+set role r_sel;
+select current_user(), current_role();
+--error ER_TABLEACCESS_DENIED_ERROR
+insert into mysql.random_test_table values (1);
+drop table mysql.random_test_table;
+
+change_user 'root';
+delete from mysql.user where user like 'r\_%';
+delete from mysql.roles_mapping where Role like 'r\_%';
+flush privileges;
+drop user 'test_user'@'localhost';

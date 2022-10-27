@@ -1,0 +1,30 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test a local transaction being aborted by a slave one while it is running a SLEEP()
+#
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+SET AUTOCOMMIT=OFF;
+--let $wsrep_local_bf_aborts_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+INSERT INTO t1 VALUES (1);
+--send SELECT SLEEP(1000);
+
+--connection node_1
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+--reap
+
+--let $wsrep_local_bf_aborts_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+
+# Check that wsrep_local_bf_aborts has been incremented by exactly 1
+--disable_query_log
+--eval SELECT $wsrep_local_bf_aborts_after - $wsrep_local_bf_aborts_before = 1 AS wsrep_local_aborts_increment;
+--enable_query_log
+
+DROP TABLE t1;

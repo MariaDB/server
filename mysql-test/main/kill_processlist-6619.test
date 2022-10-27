@@ -1,0 +1,35 @@
+#
+# MDEV-6619 SHOW PROCESSLIST returns empty result set after KILL QUERY
+#
+--source include/not_embedded.inc
+--source include/have_debug_sync.inc
+
+--connect (con1,localhost,root,,)
+--let $con_id = `SELECT CONNECTION_ID()`
+--replace_result Execute Query
+--replace_column 1 # 3 # 6 # 7 #
+SHOW PROCESSLIST;
+SET DEBUG_SYNC='before_execute_sql_command SIGNAL ready WAIT_FOR go';
+send SHOW PROCESSLIST;
+--connection default
+# We must wait for the SHOW PROCESSLIST query to have started before sending
+# the kill. Otherwise, the KILL may be lost since it is reset at the start of
+# query execution.
+SET DEBUG_SYNC='now WAIT_FOR ready';
+--replace_result $con_id con_id
+eval KILL QUERY $con_id;
+SET DEBUG_SYNC='now SIGNAL go';
+--connection con1
+--error ER_QUERY_INTERRUPTED
+reap;
+SET DEBUG_SYNC='reset';
+
+# Wait until default connection has reset query string
+let $wait_condition=
+  SELECT COUNT(*) = 1 from information_schema.processlist
+  WHERE info is NULL;
+--source include/wait_condition.inc
+
+--replace_result Execute Query
+--replace_column 1 # 3 # 6 # 7 #
+SHOW PROCESSLIST;

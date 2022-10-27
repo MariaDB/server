@@ -1,0 +1,295 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10598 sql_mode=ORACLE: Variable declarations can go after cursor declarations
+--echo #
+
+--echo #
+--echo # Variable after cursor declaration
+--echo #
+
+CREATE TABLE t1 (a INT);
+insert into t1 values (1);
+insert into t1 values (2);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR c IS SELECT a FROM t1;
+  var1 varchar(10);
+BEGIN
+  OPEN c;
+  fetch c into var1;
+  SELECT c%ROWCOUNT,var1;
+  close c;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+drop table t1;
+
+--echo #
+--echo # Variable after condition declaration
+--echo #
+
+CREATE TABLE t1 (col1 INT);
+insert into t1 values (1);
+create unique index t1_col1 on t1 (col1);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  dup_key CONDITION FOR SQLSTATE '23000';
+  var1 varchar(40);
+  CONTINUE HANDLER FOR dup_key
+  BEGIN
+    var1:='duplicate key in index';
+  END;
+BEGIN
+  var1:='';
+  insert into t1 values (1);
+  select var1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+drop table t1;
+
+--echo #
+--echo # Condition after cursor declaration
+--echo #
+
+CREATE TABLE t1 (col1 INT);
+insert into t1 values (1);
+create unique index t1_col1 on t1 (col1);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  var1 varchar(40);
+  var2 integer;
+  CURSOR c IS SELECT col1 FROM t1;
+  dup_key CONDITION FOR SQLSTATE '23000';
+  CONTINUE HANDLER FOR dup_key
+  BEGIN
+    var1:='duplicate key in index';
+  END;
+BEGIN
+  var1:='';
+  insert into t1 values (1);
+  SELECT var1;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+drop table t1;
+
+--echo #
+--echo # Cursor after handler declaration
+--echo #
+
+CREATE TABLE t1 (col1 INT);
+insert into t1 values (1);
+create unique index t1_col1 on t1 (col1);
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1
+AS
+  var1 varchar(40);
+  var2 integer;
+  dup_key CONDITION FOR SQLSTATE '23000';
+  CONTINUE HANDLER FOR dup_key
+  BEGIN
+    var1:='duplicate key in index';
+  END;
+  CURSOR c IS SELECT col1 FROM t1;
+BEGIN
+  var1:='';
+  insert into t1 values (1);
+  SELECT var1;
+END;
+$$
+DELIMITER ;$$
+drop table t1;
+
+--echo #
+--echo # Condition after handler declaration
+--echo #
+
+CREATE TABLE t1 (col1 INT);
+insert into t1 values (1);
+create unique index t1_col1 on t1 (col1);
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1
+AS
+  var1 varchar(40);
+  var2 integer;
+  dup_key CONDITION FOR SQLSTATE '23000';
+  CURSOR c IS SELECT col1 FROM t1;
+  CONTINUE HANDLER FOR dup_key
+  BEGIN
+    var1:='duplicate key in index';
+  END;
+  divide_by_zero CONDITION FOR SQLSTATE '22012';
+BEGIN
+  var1:='';
+  insert into t1 values (1);
+  SELECT var1;
+END;
+$$
+DELIMITER ;$$
+drop table t1;
+
+--echo #
+--echo # Variable after handler declaration
+--echo #
+
+CREATE TABLE t1 (col1 INT);
+insert into t1 values (1);
+create unique index t1_col1 on t1 (col1);
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1
+AS
+  var1 varchar(40);
+  var2 integer;
+  dup_key CONDITION FOR SQLSTATE '23000';
+  CURSOR c IS SELECT col1 FROM t1;
+  CONTINUE HANDLER FOR dup_key
+  BEGIN
+    var1:='duplicate key in index';
+  END;
+  divide_by_zero CONDITION FOR SQLSTATE '22012';
+BEGIN
+  var1:='';
+  insert into t1 values (1);
+  SELECT var1;
+END;
+$$
+DELIMITER ;$$
+drop table t1;
+
+--echo #
+--echo # Variable after cursor (inner block)
+--echo #
+
+CREATE TABLE t1 (col1 INT);
+insert into t1 values (1);
+insert into t1 values (2);
+create unique index t1_col1 on t1 (col1);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR c IS SELECT col1 FROM t1;
+  var1 varchar(40);
+BEGIN
+  OPEN c;
+  begin
+    declare
+      CURSOR c IS SELECT col1 FROM t1 where col1=2;
+      var2 integer;
+      dup_key CONDITION FOR SQLSTATE '23000';
+      CONTINUE HANDLER FOR dup_key
+      BEGIN
+        var1:='duplicate key in index';
+      END;
+    begin
+      OPEN c;
+      fetch c into var1;
+      SELECT 'inner cursor',var1;
+      insert into t1 values (2);
+      close c;
+    end;
+  end;
+  SELECT var1;
+  fetch c into var1;
+  SELECT c%ROWCOUNT,var1;
+  begin
+    insert into t1 values (2);
+  exception when 1062 then
+    begin
+      SELECT 'dup key caugth';
+    end;
+  end;
+  close c;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+drop table t1;
+
+--echo #
+--echo # Cursor declaration and row type declaration in same block
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+insert into t1 values(1,'a');
+delimiter $$;
+CREATE PROCEDURE p1()
+AS
+  CURSOR cur1 IS SELECT a FROM t1;
+  rec1 cur1%ROWTYPE;
+BEGIN
+  rec1.a:= 10;
+END;
+$$
+delimiter ;$$
+call p1;
+DROP PROCEDURE p1;
+drop table t1;
+
+
+--echo #
+--echo # Recursive cursor and cursor%ROWTYPE declarations in the same block
+--echo #
+
+delimiter $$;
+CREATE PROCEDURE p1
+AS
+  a INT:=10;
+  b VARCHAR(10):='b0';
+  c DOUBLE:=0.1;
+  CURSOR cur1 IS SELECT a, b, c;
+  rec1 cur1%ROWTYPE;
+  CURSOR cur2 IS SELECT rec1.a + 1 "a", rec1.b||'0' AS b, rec1.c AS c;
+  rec2 cur2%ROWTYPE;
+BEGIN
+  OPEN cur1;
+  FETCH cur1 INTO rec1;
+  CLOSE cur1;
+  SELECT rec1.a;
+  OPEN cur2;
+  FETCH cur2 INTO rec2;
+  CLOSE cur2;
+  SELECT rec2.a;
+  CREATE TABLE t2 AS SELECT rec2.a AS a, rec2.b AS b, rec2.c AS c;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12916 Wrong column data type for an INT field of a cursor-anchored ROW variable
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a INT DEFAULT 10;
+  CURSOR cur1 IS SELECT a;
+  rec1 cur1%ROWTYPE;
+BEGIN
+  CREATE TABLE t1 AS SELECT rec1.a;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;

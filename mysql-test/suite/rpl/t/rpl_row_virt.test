@@ -1,0 +1,27 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--source include/have_innodb.inc
+connection master;
+
+create table t1 (
+  id int auto_increment,
+  data varchar(32),
+  virt tinyint as (1),
+  primary key (id),
+  key virt (virt)
+) engine=innodb default charset=utf8mb4;
+
+insert into t1 (data) values ('broken');
+
+update t1 set data='more broken';
+
+--sync_slave_with_master
+
+select * from t1;
+
+--connection master
+drop table t1;
+
+--sync_slave_with_master
+
+--source include/rpl_end.inc

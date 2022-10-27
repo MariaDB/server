@@ -1,0 +1,45 @@
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-7793 - Race condition between XA COMMIT/ROLLBACK and disconnect
+--echo #
+--echo # Note that this test is meaningful only with valgrind.
+let $op= XA COMMIT 'xatest';
+let $i= 2;
+while ($i)
+{
+  connect con1, localhost, root;
+  connect con2, localhost, root;
+
+  connection con1;
+  XA START 'xatest';
+  XA END 'xatest';
+  XA PREPARE 'xatest';
+
+  connection con2;
+  SET debug_sync='xa_after_search SIGNAL parked WAIT_FOR go';
+  send_eval $op;
+
+  connection default;
+  SET debug_sync='now WAIT_FOR parked';
+  disconnect con1;
+  disable_query_log;
+  echo # Waiting for thread to get deleted;
+  while (`SELECT count(*)!=2 FROM INFORMATION_SCHEMA.PROCESSLIST`)
+  {
+    real_sleep 0.1;
+  }
+  enable_query_log;
+  SET debug_sync='now SIGNAL go';
+
+  connection con2;
+  --error ER_XAER_NOTA
+  reap;
+  disconnect con2;
+
+  connection default;
+  SET debug_sync='RESET';
+
+  let $op= XA ROLLBACK 'xatest';
+  dec $i;
+}

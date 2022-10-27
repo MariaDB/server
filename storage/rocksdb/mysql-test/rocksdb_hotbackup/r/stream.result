@@ -1,0 +1,20 @@
+include/rpl_init.inc [topology=none]
+include/rpl_default_connections.inc
+create database db1;
+create table db1.t1 (
+`id` int(10) not null auto_increment,
+`k` int(10),
+`data` varchar(2048),
+primary key (`id`),
+key (`k`)
+) engine=rocksdb;
+include/rpl_stop_server.inc [server_number=2]
+myrocks_hotbackup copy phase
+myrocks_hotbackup move-back phase
+include/rpl_start_server.inc [server_number=2]
+select count(*) from db1.t1;
+count(*)
+250000
+drop database db1;
+drop database db1;
+include/rpl_end.inc

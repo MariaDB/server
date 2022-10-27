@@ -1,0 +1,48 @@
+SELECT @@GLOBAL.innodb_encrypt_log;
+@@GLOBAL.innodb_encrypt_log
+0
+0 Expected
+SET @@GLOBAL.innodb_encrypt_log=1;
+ERROR HY000: Variable 'innodb_encrypt_log' is a read only variable
+Expected error 'Read only variable'
+SELECT @@GLOBAL.innodb_encrypt_log;
+@@GLOBAL.innodb_encrypt_log
+0
+0 Expected
+SELECT IF(@@GLOBAL.innodb_encrypt_log, 'ON', 'OFF') = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='innodb_encrypt_log';
+IF(@@GLOBAL.innodb_encrypt_log, 'ON', 'OFF') = VARIABLE_VALUE
+1
+1 Expected
+SELECT @@GLOBAL.innodb_encrypt_log;
+@@GLOBAL.innodb_encrypt_log
+0
+0 Expected
+SELECT VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='innodb_encrypt_log';
+VARIABLE_VALUE
+OFF
+0 Expected
+SELECT @@innodb_encrypt_log = @@GLOBAL.innodb_encrypt_log;
+@@innodb_encrypt_log = @@GLOBAL.innodb_encrypt_log
+1
+1 Expected
+SELECT @@innodb_encrypt_log;
+@@innodb_encrypt_log
+0
+0 Expected
+SELECT COUNT(@@local.innodb_encrypt_log);
+ERROR HY000: Variable 'innodb_encrypt_log' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT COUNT(@@SESSION.innodb_encrypt_log);
+ERROR HY000: Variable 'innodb_encrypt_log' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT @@GLOBAL.innodb_encrypt_log;
+@@GLOBAL.innodb_encrypt_log
+0
+0 Expected
+SELECT innodb_encrypt_log;
+ERROR 42S22: Unknown column 'innodb_encrypt_log' in 'field list'
+Expected error 'Unknown column in field list'

@@ -1,0 +1,113 @@
+--- instant_alter.result
++++ instant_alter,64k.result
+@@ -2,7 +2,7 @@
+ # MDEV-11369: Instant ADD COLUMN for InnoDB
+ #
+ CREATE TABLE t(a INT UNIQUE)ENGINE=InnoDB ROW_FORMAT=COMPACT;
+-ALTER TABLE t ADD e INT, ROW_FORMAT=COMPRESSED;
++ALTER TABLE t ADD e INT, ROW_FORMAT=DYNAMIC;
+ INSERT INTO t SET a=1;
+ SET @old_instant=
+ (SELECT variable_value FROM information_schema.global_status
+@@ -33,17 +33,17 @@
+   `c` int(11) NOT NULL,
+   `d` int(11) NOT NULL,
+   UNIQUE KEY `a` (`a`)
+-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
++) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+ SELECT variable_value-@old_instant instants
+ FROM information_schema.global_status
+ WHERE variable_name = 'innodb_instant_alter_column';
+ instants
+-0
++1
+ SELECT variable_value-@old_instant instants
+ FROM information_schema.global_status
+ WHERE variable_name = 'innodb_instant_alter_column';
+ instants
+-0
++1
+ DROP TABLE t;
+ connect analyze, localhost, root;
+ connection default;
+@@ -374,7 +374,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+@@ -397,7 +397,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++3
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -410,7 +410,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ InnoDB		0 transactions not purged
+ DROP TABLE t1,t2,t3,big;
+@@ -734,7 +734,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+@@ -757,7 +757,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++3
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -770,7 +770,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ InnoDB		0 transactions not purged
+ DROP TABLE t1,t2,t3,big;
+@@ -1094,7 +1094,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ ALTER TABLE big ADD COLUMN
+ (d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+@@ -1117,7 +1117,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-7
++3
+ connection default;
+ ROLLBACK;
+ CHECKSUM TABLE big;
+@@ -1130,7 +1130,7 @@
+ SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+ WHERE name = 'test/big';
+ clust_index_size
+-3
++1
+ connection default;
+ InnoDB		0 transactions not purged
+ DROP TABLE t1,t2,t3,big;

@@ -1,0 +1,136 @@
+--source include/not_embedded.inc
+#
+# test mysqld in bootstrap mode
+#
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+# Add the datadir to the bootstrap command
+let $MYSQLD_DATADIR= `select @@datadir`;
+let $MYSQLD_BOOTSTRAP_CMD= $MYSQLD_BOOTSTRAP_CMD --datadir=$MYSQLD_DATADIR --default-storage-engine=MyISAM --loose-skip-innodb --plugin-maturity=unknown;
+#
+# Check that --bootstrap reads from stdin
+#
+--write_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql
+use test;
+CREATE TABLE t1(a int);
+EOF
+--source include/kill_mysqld.inc
+--exec $MYSQLD_BOOTSTRAP_CMD < $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--source include/start_mysqld.inc
+drop table t1;
+remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql;
+#
+# Check that --bootstrap of file with SQL error returns error
+#
+--write_file $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql
+use test;
+CREATE TABLE t1;
+EOF
+--source include/kill_mysqld.inc
+--error 1
+--exec $MYSQLD_BOOTSTRAP_CMD  < $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+# Table t1 should not exists
+--source include/start_mysqld.inc
+--error 1051
+drop table t1;
+remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql;
+
+#
+# Bootstrap with a large thd->net.max_packet
+#
+--disable_query_log
+create table t1 select 2 as a, concat(repeat('MySQL', @@max_allowed_packet/10), ';') as b;
+eval select * into outfile '$MYSQLTEST_VARDIR/tmp/long_query.sql' from t1;
+--enable_query_log
+--source include/kill_mysqld.inc
+--error 1
+--exec $MYSQLD_BOOTSTRAP_CMD < $MYSQLTEST_VARDIR/tmp/long_query.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+remove_file $MYSQLTEST_VARDIR/tmp/long_query.sql;
+--source include/start_mysqld.inc
+drop table t1;
+
+--echo End of 5.1 tests
+
+--echo #
+--echo # Bug #11766306: 59393: HAVE_INNODB=YES WHEN MYSQLD 
+--echo #  STARTED WITH --SKIP-INNODB
+--echo #
+
+# need the --skip-innodb option present for the test to succeed
+SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
+ and SUPPORT='YES';
+
+--source include/kill_mysqld.inc
+#
+# MDEV-13063 Server crashes in intern_plugin_lock or assertion `plugin_ptr->ref_count == 1' fails in plugin_init
+#
+--error 1
+--exec $MYSQLD_BOOTSTRAP_CMD --myisam_recover_options=NONE
+
+#
+# MDEV-19349 mysql_install_db: segfault at tmp_file_prefix check
+#
+--write_file $MYSQLTEST_VARDIR/tmp/1
+use test;
+EOF
+--exec $MYSQLD_BOOTSTRAP_CMD < $MYSQLTEST_VARDIR/tmp/1 >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/1
+
+--source include/start_mysqld.inc
+--echo End of 5.5 tests
+
+--source include/not_windows_embedded.inc
+--source include/have_example_plugin.inc
+#
+# Check that --bootstrap can install and uninstall plugins
+#
+let $PLUGIN_DIR=`select @@plugin_dir`;
+--source include/kill_mysqld.inc
+--write_file $MYSQLTEST_VARDIR/tmp/install_plugin.sql
+install soname 'ha_example';
+uninstall plugin unusable;
+EOF
+--exec $MYSQLD_BOOTSTRAP_CMD --plugin-dir=$PLUGIN_DIR  < $MYSQLTEST_VARDIR/tmp/install_plugin.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/install_plugin.sql
+
+#
+# Check that installed plugins are *not* automatically loaded in --bootstrap
+#
+--write_file $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql
+SET SQL_MODE="";
+use test;
+create table t1(a int) engine=example charset=latin1;
+EOF
+--exec $MYSQLD_BOOTSTRAP_CMD --plugin-dir=$PLUGIN_DIR < $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql
+--source include/start_mysqld.inc
+flush tables;
+show create table t1;
+drop table t1;
+--replace_result .dll .so
+select * from mysql.plugin;
+truncate table mysql.plugin;
+
+
+#
+# MDEV-9969 mysql_install_db error processing ignore_db_dirs.
+#
+--write_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+use test;
+EOF
+--source include/kill_mysqld.inc
+--exec $MYSQLD_BOOTSTRAP_CMD --ignore-db-dirs='some_dir' --ignore-db-dirs='some_dir' < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+
+#
+# MDEV-13397 MariaDB upgrade fail when using default_time_zone
+#
+--write_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+use test;
+EOF
+--exec $MYSQLD_BOOTSTRAP_CMD --default-time-zone=Europe/Moscow < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+
+--source include/start_mysqld.inc

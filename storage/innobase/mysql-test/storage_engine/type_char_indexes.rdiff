@@ -1,0 +1,11 @@
+--- suite/storage_engine/type_char_indexes.result	2014-10-12 14:22:11.000000000 +0400
++++ suite/storage_engine/type_char_indexes.reject	2014-10-12 14:23:28.000000000 +0400
+@@ -137,7 +137,7 @@
+ r3a
+ EXPLAIN SELECT c,c20,v16,v128 FROM t1 WHERE v16 = 'varchar1a' OR v16 = 'varchar3a' ORDER BY v16;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-#	#	#	range	#	v16	#	#	#	#
++#	#	#	ALL	#	NULL	#	#	#	#
+ SELECT c,c20,v16,v128 FROM t1 WHERE v16 = 'varchar1a' OR v16 = 'varchar3a' ORDER BY v16;
+ c	c20	v16	v128
+ a	char1	varchar1a	varchar1b

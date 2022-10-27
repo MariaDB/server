@@ -1,0 +1,165 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE connect;
+connection slave;
+CREATE DATABASE connect;
+connection default;
+#
+# Checking thread TBL tables
+#
+CREATE TABLE t1 (a int, b char(10));
+INSERT INTO t1 VALUES (0,'test00'),(1,'test01'),(2,'test02'),(3,'test03');
+SELECT * FROM t1;
+a	b
+0	test00
+1	test01
+2	test02
+3	test03
+connection master;
+CREATE TABLE rt2 (a int, b char(10));
+INSERT INTO rt2 VALUES (4,'test04'),(5,'test05'),(6,'test06'),(7,'test07');
+SELECT * FROM rt2;
+a	b
+4	test04
+5	test05
+6	test06
+7	test07
+connection slave;
+USE test;
+CREATE TABLE rt3 (a int, b char(10));
+INSERT INTO rt3 VALUES (8,'test08'),(9,'test09'),(10,'test10'),(11,'test11');
+SELECT * FROM rt3;
+a	b
+8	test08
+9	test09
+10	test10
+11	test11
+CREATE TABLE rt4 (a int, b char(10));
+INSERT INTO rt4 VALUES (12,'test12'),(13,'test13'),(14,'test14'),(15,'test15');
+SELECT * FROM rt4;
+a	b
+12	test12
+13	test13
+14	test14
+15	test15
+CREATE TABLE rt5 (a int, b char(10));
+INSERT INTO rt5 VALUES (16,'test16'),(17,'test17'),(18,'test18'),(19,'test19');
+SELECT * FROM rt5;
+a	b
+16	test16
+17	test17
+18	test18
+19	test19
+connection default;
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:MASTER_PORT/test/rt2';
+SELECT * FROM t2;
+a	b
+4	test04
+5	test05
+6	test06
+7	test07
+CREATE TABLE t3 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/rt3';
+SELECT * FROM t3;
+a	b
+8	test08
+9	test09
+10	test10
+11	test11
+CREATE TABLE t4 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/rt4';
+SELECT * FROM t4;
+a	b
+12	test12
+13	test13
+14	test14
+15	test15
+CREATE TABLE t5 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/rt5';
+SELECT * FROM t5;
+a	b
+16	test16
+17	test17
+18	test18
+19	test19
+CREATE TABLE total (a int, b char(10))
+ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2,t3,t4,t5'
+OPTION_LIST='thread=yes,port=PORT';
+set connect_xtrace=96;
+SELECT * FROM total order by a desc;
+a	b
+19	test19
+18	test18
+17	test17
+16	test16
+15	test15
+14	test14
+13	test13
+12	test12
+11	test11
+10	test10
+9	test09
+8	test08
+7	test07
+6	test06
+5	test05
+4	test04
+3	test03
+2	test02
+1	test01
+0	test00
+set connect_xtrace=0;
+connection master;
+DROP TABLE rt2;
+connection slave;
+DROP TABLE rt3,rt4,rt5;
+connection default;
+DROP TABLE t1,t2,t3,t4,t5,total;
+#
+# Old thread TBL tables test modified
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v' OPTION_LIST='port=MASTER_PORT';
+SELECT * FROM t1;
+v
+11
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v' OPTION_LIST='port=SLAVE_PORT';
+SELECT * FROM t2;
+v
+22
+CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=PORT';;
+set connect_xtrace=96;
+SELECT * FROM total order by v desc;
+v
+22
+11
+set connect_xtrace=0;
+DROP TABLE t1,t2,total;
+#
+# Old thread TBL tables test not modified (suppressed until MDEV-10179 is fixed)
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 11 as v';
+SELECT * FROM t1;
+v
+11
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL SRCDEF='select 22 as v';
+SELECT * FROM t2;
+v
+22
+CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=PORT';;
+set connect_xtrace=96;
+SELECT * FROM total order by v desc;
+v
+22
+11
+set connect_xtrace=0;
+DROP TABLE total;
+DROP TABLE t1;
+DROP TABLE t2;
+connection master;
+DROP TABLE IF EXISTS connect.t1;
+DROP DATABASE IF EXISTS connect;
+connection slave;
+DROP TABLE IF EXISTS connect.t1;
+DROP DATABASE IF EXISTS connect;

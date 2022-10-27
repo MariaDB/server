@@ -1,0 +1,59 @@
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+DROP TABLE IF EXISTS t3;
+DROP TABLE IF EXISTS t4;
+DROP TABLE IF EXISTS t5;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+primary key (a,b) comment 'cf1',
+key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+CREATE TABLE t2 (
+a int not null,
+b int not null,
+primary key (a,b) comment 'cf1',
+key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+CREATE TABLE t3 (
+a int not null,
+b int not null,
+primary key (a,b) comment 'cf1',
+key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+CREATE TABLE t4 (
+a int not null,
+b int not null,
+primary key (a,b) comment 'cf1',
+key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+DELETE FROM t1;
+DELETE FROM t2;
+DELETE FROM t3;
+DELETE FROM t4;
+CREATE TABLE t5 (
+a int not null,
+b int not null,
+primary key (a,b) comment 'cf1',
+key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+DELETE FROM t5;
+SET GLOBAL ROCKSDB_CREATE_CHECKPOINT = '[CHECKPOINT]';
+CURRENT
+SET GLOBAL ROCKSDB_CREATE_CHECKPOINT = '[CHECKPOINT]';
+CURRENT
+truncate table t1;
+optimize table t1;
+truncate table t2;
+optimize table t2;
+truncate table t3;
+optimize table t3;
+truncate table t4;
+optimize table t4;
+truncate table t5;
+optimize table t5;
+drop table if exists t1;
+drop table if exists t2;
+drop table if exists t3;
+drop table if exists t4;
+drop table if exists t5;

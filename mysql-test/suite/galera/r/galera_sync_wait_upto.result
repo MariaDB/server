@@ -1,0 +1,43 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SELECT WSREP_SYNC_WAIT_UPTO_GTID(NULL);
+ERROR HY000: Incorrect arguments to wsrep_sync_wait_upto_gtid
+SELECT WSREP_SYNC_WAIT_UPTO_GTID('a');
+ERROR HY000: Incorrect arguments to wsrep_sync_wait_upto_gtid
+SELECT WSREP_SYNC_WAIT_UPTO_GTID(2);
+ERROR HY000: Incorrect arguments to wsrep_sync_wait_upto_gtid
+WSREP_SYNC_WAIT_UPTO
+1
+WSREP_SYNC_WAIT_UPTO
+1
+WSREP_SYNC_WAIT_UPTO
+1
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection node_2;
+SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
+connection node_1;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+SET SESSION wsrep_sync_wait = 0;
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+connection node_2;
+WSREP_SYNC_WAIT_UPTO
+1
+gtid_current = gtid_first
+1
+SET GLOBAL DEBUG_DBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+WSREP_SYNC_WAIT_UPTO
+1
+seqno_current = seqno_second
+1
+SET DEBUG_SYNC = "RESET";
+connection node_1;
+DROP TABLE t1;

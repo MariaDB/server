@@ -1,0 +1,10 @@
+CREATE TABLE t(i INT) ENGINE ROCKSDB;
+INSERT INTO t VALUES(1);
+# xtrabackup backup
+INSERT INTO t VALUES(2);
+# xtrabackup prepare
+# restart
+SELECT * FROM t;
+i
+1
+DROP TABLE t;

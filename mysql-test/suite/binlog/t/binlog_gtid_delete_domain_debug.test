@@ -1,0 +1,11 @@
+# Check "internal" error branches of
+#  FLUSH BINARY LOGS DELETE_DOMAIN_ID = (...)
+# handler.
+--source include/have_debug.inc
+--source include/have_binlog_format_mixed.inc
+
+SET @@SESSION.debug_dbug='+d,inject_binlog_delete_domain_init_error';
+--error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (99);
+
+SHOW WARNINGS;

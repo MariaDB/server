@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+# Uninstall Mroonga
+mysql --defaults-file=/etc/mysql/debian.cnf < /usr/share/mysql/mroonga/uninstall.sql || true
+# Always exit with success instead of leaving dpkg in a broken state
+
+
+#DEBHELPER#

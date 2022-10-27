@@ -1,0 +1,93 @@
+#
+# MW-292 Reset timestamp after transaction replay
+#
+# We force transaction replay to happen and then we check that NOW() is not stuck in time.
+# As a bonus we also check that RAND() continues to return random values after replay
+#
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
+CREATE TABLE rand_table (f1 FLOAT);
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (2, 'a');
+
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
+
+# Block the applier on node #1 and issue a conflicting update on node #2
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait=0;
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# Block the commit, send the COMMIT and wait until it gets blocked
+
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+--send COMMIT
+
+--connection node_1a
+
+--let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# Let the conflicting UPDATE proceed and wait until it hits abort_trx_end.
+# The victim transaction still sits in commit_monitor_master_sync_point.
+
+--let $galera_sync_point = abort_trx_end
+--source include/galera_set_sync_point.inc
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+--let $galera_sync_point = abort_trx_end commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+
+# Let the transactions proceed
+--source include/galera_clear_sync_point.inc
+--let $galera_sync_point = abort_trx_end
+--source include/galera_signal_sync_point.inc
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_signal_sync_point.inc
+
+# Commit succeeds
+--connection node_1
+--reap
+
+# Confirm that NOW() is not stuck in time relative to SYSDATE();
+--sleep 3
+SELECT TIMEDIFF(SYSDATE(), NOW()) < 2;
+
+INSERT INTO rand_table VALUES (RAND()),(RAND()),(RAND()),(RAND()),(RAND());
+INSERT INTO rand_table VALUES (RAND()),(RAND()),(RAND()),(RAND()),(RAND());
+
+SELECT COUNT(DISTINCT f1) = 10 FROM rand_table;
+
+# wsrep_local_replays has increased by 1
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 1 AS wsrep_local_replays;
+--enable_query_log
+
+--connection node_2
+DROP TABLE t1;
+DROP TABLE rand_table;

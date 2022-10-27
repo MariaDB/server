@@ -1,0 +1,160 @@
+SET sql_mode=IF(@@version LIKE '%MariaDB%', 'TIME_ROUND_FRACTIONAL', '');
+SET @default_sql_mode=@@sql_mode;
+
+--echo #
+--echo # TIMESTAMP: SET
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP(3) NULL DEFAULT NULL, b TIMESTAMP(4) NULL DEFAULT NULL);
+INSERT INTO t1 VALUES(NULL,'2000-12-31 23:59:59.9999');
+UPDATE t1 SET a=b;
+SELECT a FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIMESTAMP(3) NULL DEFAULT NULL, b VARCHAR(64));
+INSERT INTO t1 VALUES(NULL,'2000-12-31 23:59:59.9999');
+INSERT INTO t1 VALUES(NULL,'2000-12-31 23:59:59.9999999');
+UPDATE t1 SET a=b;
+SELECT a FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIMESTAMP(3) NULL DEFAULT NULL, b DECIMAL(38,10));
+INSERT INTO t1 VALUES(NULL,20001231235959.9999);
+INSERT INTO t1 VALUES(NULL,20001231235959.9999999);
+UPDATE t1 SET a=b;
+SELECT a FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # TIMESTAMP: ALTER
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP(4) NULL DEFAULT NULL);
+INSERT INTO t1 VALUES('2000-12-31 23:59:59.9999');
+ALTER TABLE t1 MODIFY a TIMESTAMP(3) NULL DEFAULT NULL;
+SELECT a FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT INTO t1 VALUES('2000-12-31 23:59:59.9999');
+INSERT INTO t1 VALUES('2000-12-31 23:59:59.9999999');
+ALTER TABLE t1 MODIFY a TIMESTAMP(3) NULL DEFAULT NULL;
+SELECT a FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DECIMAL(38,10));
+INSERT INTO t1 VALUES(20001231235959.9999);
+INSERT INTO t1 VALUES(20001231235959.9999999);
+ALTER TABLE t1 MODIFY a TIMESTAMP(3) NULL DEFAULT NULL;
+SELECT a FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Corner case:
+--echo # ALTER TIMESTAMP to a shorter TIMESTAMP
+--echo # All values round, maximum possible value truncates.
+--echo #
+
+SET time_zone='+00:00';
+CREATE TABLE t1 (ID INT, a TIMESTAMP(6), comment VARCHAR(64));
+INSERT INTO t1 VALUES (0, '2038-01-18 23:59:59.999999', 'Should round');
+INSERT INTO t1 VALUES (1, '2038-01-19 03:14:06.999999', 'Should round');
+INSERT INTO t1 VALUES (2, '2038-01-19 03:14:07.999999', 'Should truncate');
+ALTER TABLE t1 MODIFY a TIMESTAMP(5);
+SELECT * FROM t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # NOW
+--echo #
+
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2010-12-31 23:59:59.999999');
+CREATE OR REPLACE TABLE t1 (id SERIAL, a TIMESTAMP(4));
+INSERT INTO t1 (a) VALUES (now(6));
+INSERT INTO t1 (a) VALUES (CURRENT_TIMESTAMP(6));
+INSERT INTO t1 (a) VALUES (CURRENT_TIME(6));
+SELECT * FROM t1;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # DATETIME to TIMESTAMP conversion with DST change
+--echo #
+
+--disable_warnings
+SET sql_mode=IF(@@version LIKE '%MariaDB%',
+               'STRICT_ALL_TABLES,TIME_ROUND_FRACTIONAL',
+               'STRICT_ALL_TABLES');
+--enable_warnings
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('2010-03-28 01:59:59.0' /* Winter time */); 
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES ('2010-03-28 01:59:59.9' /* Rounds to the DST gap */);
+SELECT * FROM t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+--disable_warnings
+SET sql_mode=@default_sql_mode;
+--enable_warnings
+
+SET sql_mode=IF(@@version LIKE '%MariaDB%','TIME_ROUND_FRACTIONAL','');
+SET time_zone='Europe/Moscow';
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('2010-03-28 01:59:59.0' /* Winter time */);
+INSERT INTO t1 VALUES ('2010-03-28 01:59:59.9' /* Rounds to the DST gap, then gets fixed to the first second of the summer time */);
+SELECT a, UNIX_TIMESTAMP(a) FROM t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+--disable_warnings
+SET sql_mode=@default_sql_mode;
+--enable_warnings
+
+
+--echo #
+--echo # Comparing non-temporal to TIMESTAMP
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(64));
+INSERT t1 VALUES ('2001-01-01 23:59:59.9999999');
+CREATE TABLE t2 (a TIMESTAMP);
+INSERT INTO t2 VALUES ('2001-01-02 00:00:00');
+SELECT * FROM t1,t2 WHERE t1.a=t2.a;
+SELECT * FROM t1,t2 WHERE CONCAT(t1.a)=t2.a;
+SELECT * FROM t1,t2 WHERE COALESCE(t1.a)=t2.a;
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a DECIMAL(32,7));
+INSERT t1 VALUES (20010101235959.9999999);
+CREATE TABLE t2 (a TIMESTAMP);
+INSERT INTO t2 VALUES ('2001-01-02 00:00:00');
+SELECT * FROM t1,t2 WHERE t1.a=t2.a;
+SELECT * FROM t1,t2 WHERE COALESCE(t1.a)=t2.a;
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # MDEV-13995 MAX(timestamp) returns a wrong result near DST change
+--echo #
+--echo # Test Field_timestamp::store_native()
+--echo #
+
+SET sql_mode=@default_sql_mode;
+SET time_zone='+00:00';
+CREATE TABLE t1 (ts0 TIMESTAMP, ts1 TIMESTAMP(1));
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30', '2001-01-01 10:20:30.9');
+SELECT * FROM t1;
+--echo # This should round
+UPDATE t1 SET ts0=COALESCE(ts1);
+SELECT * FROM t1;
+--echo # Corner case
+UPDATE t1 SET ts1=FROM_UNIXTIME(2147483647.9);
+UPDATE t1 SET ts0=COALESCE(ts1);
+SELECT * FROM t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;

@@ -1,0 +1,209 @@
+############# mysql-test\t\max_sort_length_func.test ###########################
+#                                                                              #
+# Variable Name: sql_warnings                                                  #
+# Scope: SESSION                                                               #
+# Access Type: Dynamic                                                         #
+# Data Type: NUMERIC                                                           #
+# Default Value: 1024                                                          #
+# Values:      4-8388608                                                       #
+#                                                                              #
+#                                                                              #
+# Creation Date: 2008-03-02                                                    #
+# Author:  Sharique Abdullah                                                   #
+#                                                                              #
+# Description: Test Cases of Dynamic System Variable max_sort_length           #
+#              that checks behavior of this variable in the following ways     #
+#              * Functionality based on different values                       #
+#                                                                              #
+# Reference:                                                                   #
+#   http://dev.mysql.com/doc/refman/5.1/en/server-system-variables.html        #
+#                                                                              #
+################################################################################
+
+#
+# Setup
+#
+
+SET @start_value= @@global.max_sort_length;
+
+#########################
+#   Creating new table  #
+#########################
+
+--echo ** creating tables **
+CREATE TABLE t (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT);
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, c BLOB);
+CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT);
+
+--echo '#--------------------FN_DYNVARS_098_01-------------------------#'
+##########################################################
+#    Test behavior of variable on new connection # 01    #
+##########################################################
+
+connect (test_con1,localhost,root,,);
+
+# Setting global value of variable and inserting data in table
+--echo ** Setting value to 70 and inserting data **
+SET @@global.max_sort_length = 70;
+SELECT @@global.max_sort_length;
+INSERT INTO t set c = repeat('x',69);
+INSERT INTO t set c = concat(repeat('x',68),'r','x');
+INSERT INTO t set c = concat(repeat('x',68),'s','y');
+INSERT INTO t set c = concat(repeat('x',68),'g','w');
+SELECT c from t ORDER BY c, id;
+--echo ** Results should be sorted **
+
+# Setting session value of variable and inserting data in table
+SET @@session.max_sort_length = 69;
+SELECT @@session.max_sort_length;
+INSERT INTO t set c = repeat('x',69);
+INSERT INTO t set c = concat(repeat('x',68),'r','x');
+INSERT INTO t set c = concat(repeat('x',68),'s','y');
+INSERT INTO t set c = concat(repeat('x',68),'g','w');
+SELECT c from t ORDER BY c, id;
+--echo ** Results should be sorted **
+
+--echo '#--------------------FN_DYNVARS_098_02-------------------------#'
+##########################################################
+#    Test behavior of variable on new connection # 02    #
+##########################################################
+
+connect (test_con2,localhost,root,,);
+
+## Setting global value of variable and inserting data in table
+SET @@global.max_sort_length = 70;
+SELECT @@global.max_sort_length;
+INSERT INTO t set c = repeat('x',69);
+INSERT INTO t set c = concat(repeat('x',68),'r','x');
+INSERT INTO t set c = concat(repeat('x',68),'s','y');
+INSERT INTO t set c = concat(repeat('x',68),'g','w');
+SELECT c from t ORDER BY c, id;
+
+--echo ** Results should be sorted **
+
+# Setting session value of variable and inserting data in table
+SET @@session.max_sort_length = 64;
+SELECT @@session.max_sort_length;
+INSERT INTO t set c = repeat('x',69);
+INSERT INTO t set c = concat(repeat('x',68),'r','x');
+INSERT INTO t set c = concat(repeat('x',68),'s','y');
+INSERT INTO t set c = concat(repeat('x',68),'g','w');
+SELECT c from t ORDER BY c, id;
+
+--echo ** Results should not be sorted **
+
+--echo '#--------------------FN_DYNVARS_098_03-------------------------#'
+#########################################################
+#Check if sorting is applied with the max_sort_length=64#
+#########################################################
+
+###########################################
+#   Setting new value for max_sort_length #
+###########################################
+
+SET max_sort_length=64;
+
+###################################
+#   Inserting values in  table t  #
+###################################
+
+INSERT INTO t set c = repeat('x',69);
+INSERT INTO t set c = concat(repeat('x',68),'r','x');
+INSERT INTO t set c = concat(repeat('x',68),'s','y');
+INSERT INTO t set c = concat(repeat('x',68),'g','w');
+
+SELECT c from t ORDER BY c, id;
+--echo ** Results should not be sorted **
+
+RESET QUERY CACHE;
+
+--echo '#--------------------FN_DYNVARS_098_04-------------------------#'
+#########################################################
+#Check if sorting is applied with the max_sort_length=69#
+#########################################################
+
+SET max_sort_length=69;
+SELECT c from t ORDER BY c, id;
+--echo ** Results should be sorted **
+
+--echo '#--------------------FN_DYNVARS_098_05-------------------------#'
+#########################################################
+#Check if sorting is applied with the max_sort_length=70#
+#########################################################
+
+SET max_sort_length=70;
+SELECT c from t ORDER BY c, id;
+--echo ** Results should be sorted **
+
+--echo '#--------------------FN_DYNVARS_098_06-------------------------#'
+##############################################################
+#Check if sorting is applied with the max_sort_length=Default#
+##############################################################
+
+SET max_sort_length=default;
+SELECT @@max_sort_length;
+SELECT c from t ORDER BY c, id;
+--echo ** Results should be sorted **
+
+--echo '#--------------------FN_DYNVARS_098_07-------------------------#'
+###########################################
+#Check if sorting is applied on BLOB type #
+###########################################
+--echo Testing type BLOB
+# Setting global value of variable and inserting data in table
+SET @@max_sort_length = 70;
+SELECT @@max_sort_length;
+INSERT INTO t1 set c = repeat('x',69);
+INSERT INTO t1 set c = concat(repeat('x',68),'r','x');
+INSERT INTO t1 set c = concat(repeat('x',68),'s','y');
+INSERT INTO t1 set c = concat(repeat('x',68),'g','w');
+SELECT c from t1 ORDER BY c, id DESC;
+--echo ** Results should be sorted **
+
+# Setting session value of variable and inserting data in table
+SET @@session.max_sort_length = 64;
+SELECT @@session.max_sort_length;
+INSERT INTO t1 set c = repeat('x',69);
+INSERT INTO t1 set c = concat(repeat('x',68),'r','x');
+INSERT INTO t1 set c = concat(repeat('x',68),'s','y');
+INSERT INTO t1 set c = concat(repeat('x',68),'g','w');
+SELECT c from t1 ORDER BY c, id;
+--echo ** Results should not be sorted **
+
+--echo '#--------------------FN_DYNVARS_098_08-------------------------#'
+###########################################
+#Check if sorting is applied on CHAR type #
+###########################################
+--echo Testing type CHAR
+# Setting global value of variable and inserting data in table
+SET @@global.max_sort_length = 70;
+SELECT @@global.max_sort_length;
+INSERT INTO t2 set c = repeat('x',69);
+INSERT INTO t2 set c = concat(repeat('x',68),'r','x');
+INSERT INTO t2 set c = concat(repeat('x',68),'s','y');
+INSERT INTO t2 set c = concat(repeat('x',68),'g','w');
+SELECT c from t2 ORDER BY c, id;
+--echo ** Results should not be sorted **
+
+# Setting session value of variable and inserting data in table
+SET @@session.max_sort_length = 64;
+SELECT @@session.max_sort_length;
+INSERT INTO t2 set c = repeat('x',69);
+INSERT INTO t2 set c = concat(repeat('x',68),'r','x');
+INSERT INTO t2 set c = concat(repeat('x',68),'s','y');
+INSERT INTO t2 set c = concat(repeat('x',68),'g','w');
+SELECT c from t2 ORDER BY c, id;
+--echo ** Results should not be sorted **
+
+#
+# Cleanup
+#
+
+connection default;
+
+disconnect test_con1;
+disconnect test_con2;
+
+DROP TABLE t, t1, t2;
+
+SET @@global.max_sort_length= @start_value;

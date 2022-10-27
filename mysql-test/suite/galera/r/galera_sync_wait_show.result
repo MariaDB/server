@@ -1,0 +1,56 @@
+connection node_2;
+connection node_1;
+connection node_2;
+SET SESSION wsrep_sync_wait = 8;
+connection node_1;
+CREATE DATABASE db1;
+connection node_2;
+SHOW CREATE DATABASE db1;
+Database	Create Database
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET latin1 */
+DROP DATABASE db1;
+connection node_1;
+CREATE PROCEDURE p1 () SELECT 1 FROM DUAL;
+connection node_2;
+SHOW CREATE PROCEDURE p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+SELECT 1 FROM DUAL	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP PROCEDURE p1;
+connection node_1;
+CREATE PROCEDURE p1 () SELECT 1 FROM DUAL;
+connection node_2;
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	stmt 0 "SELECT 1 FROM DUAL"
+DROP PROCEDURE p1;
+connection node_1;
+CREATE FUNCTION f1 () RETURNS INTEGER RETURN 123;
+connection node_2;
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+RETURN 123	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP FUNCTION f1;
+connection node_1;
+CREATE FUNCTION f1 () RETURNS INTEGER RETURN 123;
+connection node_2;
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	freturn int 123
+DROP FUNCTION f1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.f1 = 'a';
+connection node_2;
+SHOW CREATE TRIGGER tr1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+tr1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.f1 = 'a'	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+DROP TABLE t1;
+connection node_1;
+CREATE EVENT event1 ON SCHEDULE AT '2038-01-01 23:59:59' DO SELECT 1;
+connection node_2;
+SHOW CREATE EVENT event1;
+Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
+event1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	SYSTEM	CREATE DEFINER=`root`@`localhost` EVENT `event1` ON SCHEDULE AT '2038-01-01 23:59:59' ON COMPLETION NOT PRESERVE DISABLE ON SLAVE DO SELECT 1	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP EVENT event1;

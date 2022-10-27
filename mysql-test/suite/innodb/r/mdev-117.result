@@ -1,0 +1,18 @@
+SET GLOBAL innodb_lock_wait_timeout=3;
+CREATE TABLE t1 (col_int_key INT, KEY (col_int_key)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (6);
+connect  con1,localhost,root,,test;
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+SET AUTOCOMMIT=OFF;
+SELECT col_int_key FROM t1;
+col_int_key
+6
+connection default;
+DELETE IGNORE FROM t1;;
+connection con1;
+DELETE FROM t1 WHERE col_int_key IN (1, 40000000);
+connection default;
+disconnect con1;
+drop table t1;
+SET GLOBAL innodb_lock_wait_timeout=default;
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");

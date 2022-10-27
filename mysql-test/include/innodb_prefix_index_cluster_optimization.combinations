@@ -1,0 +1,5 @@
+[covering]
+innodb_prefix_index_cluster_optimization=on
+
+[unoptimized]
+innodb_prefix_index_cluster_optimization=off

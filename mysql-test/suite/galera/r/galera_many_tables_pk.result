@@ -1,0 +1,31 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+SELECT COUNT(*) = 100 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't%';
+COUNT(*) = 100
+1
+connection node_1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+COMMIT;
+connection node_2;
+CREATE TABLE sum_table (f1 INTEGER);
+SELECT SUM(f1) = 100 FROM sum_table;
+SUM(f1) = 100
+1
+connection node_1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+connection node_2;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t100 SET f1 = 3;
+connection node_1;
+COMMIT;
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+include/diff_servers.inc [servers=1 2]
+DROP SCHEMA test;
+CREATE SCHEMA test;

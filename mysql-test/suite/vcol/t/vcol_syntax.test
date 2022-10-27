@@ -1,0 +1,83 @@
+#
+# test syntax
+#
+set @OLD_SQL_MODE=@@SESSION.SQL_MODE;
+create table t1 (a int, b int generated always  as (a+1));
+show create table t1;
+drop table t1;
+create table t1 (a int, b int as (a+1) virtual);
+show create table t1;
+drop table t1;
+create table t1 (a int, b int generated always  as (a+1) persistent);
+show create table t1;
+drop table t1;
+
+set session sql_mode='ORACLE';
+create table t1 (a int, b int as (a+1));
+show create table t1;
+drop table t1;
+create table t1 (a int, b int generated always as (a+1) virtual);
+show create table t1;
+drop table t1;
+create table t1 (a int, b int as (a+1) persistent);
+show create table t1;
+drop table t1;
+set session sql_mode=@OLD_SQL_MODE;
+
+--echo #
+--echo # MDEV-25091 CREATE TABLE: field references qualified by a wrong table name succeed
+--echo #
+create table t2 (x int);
+
+--error ER_BAD_FIELD_ERROR
+create table t1 (x int, y int generated always as (t2.x));
+--error ER_BAD_FIELD_ERROR
+create table t1 (x int, y int check (y > t2.x));
+--error ER_BAD_FIELD_ERROR
+create table t1 (x int, y int default t2.x);
+--error ER_BAD_FIELD_ERROR
+create table t1 (x int, check (t2.x > 0));
+
+create table t1 (x int);
+--error ER_BAD_FIELD_ERROR
+alter table t1 add column y int generated always as (t2.x);
+--error ER_BAD_FIELD_ERROR
+alter table t1 add column y int check (z > t2.x);
+--error ER_BAD_FIELD_ERROR
+alter table t1 add column y int default t2.x;
+--error ER_BAD_FIELD_ERROR
+alter table t1 add constraint check (t2.x > 0);
+
+create or replace table t1 (x int, y int generated always as (t1.x));
+create or replace table t1 (x int, y int check (y > t1.x));
+create or replace table t1 (x int, y int default t1.x);
+create or replace table t1 (x int, check (t1.x > 0));
+
+create or replace table t1 (x int, y int generated always as (test.t1.x));
+create or replace table t1 (x int, y int check (y > test.t1.x));
+create or replace table t1 (x int, y int default test.t1.x);
+create or replace table t1 (x int, check (test.t1.x > 0));
+
+drop tables t1, t2;
+
+--error ER_BAD_FIELD_ERROR
+create table t1 (x int, y int generated always as (test2.t1.x));
+--error ER_BAD_FIELD_ERROR
+create table t1 (x int, y int check (y > test2.t1.x));
+--error ER_BAD_FIELD_ERROR
+create table t1 (x int, y int default test2.t1.x);
+--error ER_BAD_FIELD_ERROR
+create table t1 (x int, check (test2.t1.x > 0));
+
+--echo #
+--echo # MDEV-25672 table alias from previous statement interferes later commands
+--echo #
+create table t1 (a int, v_a int generated always as (a));
+update t1 as x set a = 1;
+alter table t1 force;
+drop table t1;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

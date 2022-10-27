@@ -1,0 +1,60 @@
+include/master-slave.inc
+[connection master]
+connection master;
+# Test if support 'flush error logs' statement.
+flush error logs;
+# Make sure binary logs was not be flushed
+# after execute 'flush error logs' statement.
+connection slave;
+# Make sure relay logs was not be flushed 
+# after execute 'flush error logs' statement.
+connection master;
+# Test if support 'flush relay logs' statement.
+flush relay logs;
+connection slave;
+# Check the 'slave-relay-bin.000003' file is not created
+# after executed 'flush relay logs' statement.
+connection master;
+# Make sure binary logs was not be flushed
+# after execute 'flush relay logs' statement.
+# Test if support 'flush slow logs' statement.
+flush slow logs;
+# Make sure binary logs was not be flushed
+# after execute 'flush slow logs' statement.
+# Test if support 'flush general logs' statement.
+flush general logs;
+# Make sure binary logs was not be flushed
+# after execute 'flush general logs' statement.
+# Test if support 'flush engine logs' statement.
+flush engine logs;
+# Make sure binary logs was not be flushed
+# after execute 'flush engine logs' statement.
+# Make sure the 'master-bin.000002' file does not
+# exist before execute 'flush binary logs' statement.
+# Test if support 'flush binary logs' statement.
+flush binary logs;
+# Check the 'master-bin.000002' file is created
+# after executed 'flush binary logs' statement.
+connection slave;
+# Make sure the 'slave-relay-bin.000005' file does not exist
+# exist before execute 'flush error logs, relay logs' statement.
+connection master;
+# Test if support to combine all kinds of logs into one statement.
+flush error logs, relay logs;
+# Make sure binary logs was not be flushed
+# after execute 'flush error logs, relay logs' statement.
+connection slave;
+# Check the 'slave-relay-bin.000004' file is created after
+# execute 'flush error logs, relay logs' statement.
+# Make sure the 'slave-relay-bin.000005' and 'slave-relay-bin.000006'
+# files do not exist before execute 'flush error logs, relay logs'
+# statement.
+connection master;
+# Test if 'flush logs' statement works fine and flush all the logs.
+flush logs;
+# Check 'master-bin.000003' is created
+# after execute 'flush logs' statement.
+connection slave;
+# Check the 'slave-relay-bin.000005' and 'slave-relay-bin.000006'
+# files are created after execute 'flush logs' statement.
+include/rpl_end.inc

@@ -1,0 +1,150 @@
+SET @old_max_binlog_size= @@global.max_binlog_size;
+SET GLOBAL max_binlog_size= 4096;
+SET @old_innodb_flush_log_at_trx_commit= @@global.innodb_flush_log_at_trx_commit;
+SET GLOBAL innodb_flush_log_at_trx_commit= 1;
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+CREATE TABLE t2 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Myisam;
+*** Test that RESET MASTER waits for pending commit checkpoints to complete.
+connect con1,localhost,root,,;
+SET DEBUG_SYNC= "commit_after_group_release_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+INSERT INTO t1 VALUES (1, REPEAT("x", 4100));
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+INSERT INTO t2 VALUES (1, REPEAT("x", 4100));
+INSERT INTO t2 VALUES (2, REPEAT("x", 4100));
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000004	#	Gtid_list	#	#	[#-#-#]
+master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000001
+SET DEBUG_SYNC= "execute_command_after_close_tables SIGNAL reset_master_done";
+RESET MASTER;
+connect con2,localhost,root,,;
+This will timeout, as RESET MASTER is blocked
+SET DEBUG_SYNC= "now WAIT_FOR reset_master_done TIMEOUT 1";
+Warnings:
+Warning	1639	debug sync point wait timed out
+SET DEBUG_SYNC= "now SIGNAL con1_go";
+connection con1;
+connection default;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000001	#	Gtid_list	#	#	[]
+master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+*** Test that binlog N is active, and commit checkpoint for (N-1) is
+*** done while there is still a pending commit checkpoint for (N-2).
+connection con1;
+SET DEBUG_SYNC= "commit_after_group_release_commit_ordered SIGNAL con1_ready WAIT_FOR con1_continue";
+INSERT INTO t1 VALUES (20, REPEAT("x", 4100));
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+connection con2;
+SET DEBUG_SYNC= "commit_after_group_release_commit_ordered SIGNAL con2_ready WAIT_FOR con2_continue";
+INSERT INTO t1 VALUES (21, REPEAT("x", 4100));
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con2_ready";
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000001	#	Gtid_list	#	#	[]
+master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (20, REPEAT("x", 4100))
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Rotate	#	#	master-bin.000002;pos=POS
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000002	#	Gtid_list	#	#	[#-#-#]
+master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (21, REPEAT("x", 4100))
+master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Xid	#	#	COMMIT /* XID */
+master-bin.000002	#	Rotate	#	#	master-bin.000003;pos=POS
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000003	#	Gtid_list	#	#	[#-#-#]
+master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000001
+SET DEBUG_SYNC= "RESET";
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,binlog_background_checkpoint_processed";
+SET DEBUG_SYNC= "now SIGNAL con2_continue";
+connection con2;
+connection default;
+con1 is still pending, no new binlog checkpoint should have been logged.
+SET DEBUG_SYNC= "now WAIT_FOR binlog_background_checkpoint_processed";
+SET GLOBAL debug_dbug= @old_dbug;
+SET DEBUG_SYNC= "RESET";
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000003	#	Gtid_list	#	#	[#-#-#]
+master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000001
+SET DEBUG_SYNC= "now SIGNAL con1_continue";
+connection con1;
+connection default;
+No commit checkpoints are pending, a new binlog checkpoint should have been logged.
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000003	#	Gtid_list	#	#	[#-#-#]
+master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000003
+*** MDEV-4322: Broken XID counting during binlog rotation ***
+connection default;
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,inject_binlog_background_thread_before_mark_xid_done";
+FLUSH LOGS;
+INSERT INTO t1 VALUES (30, REPEAT("x", 4100));
+SET DEBUG_SYNC= "now WAIT_FOR injected_binlog_background_thread";
+SET GLOBAL debug_dbug= @old_dbug;
+INSERT INTO t1 VALUES (31, REPEAT("x", 4100));
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+master-bin.000006	#
+SET debug_sync = 'reset';
+*** MDEV-7402: 'reset master' hangs, waits for signalled COND_xid_list ***
+connect con3,localhost,root,,;
+SET debug_sync="reset_logs_after_set_reset_master_pending SIGNAL reset_master_ready WAIT_FOR reset_master_cont";
+RESET MASTER;
+connection default;
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,inject_binlog_background_thread_before_mark_xid_done";
+SET debug_sync="now WAIT_FOR reset_master_ready";
+RESET MASTER;
+SET debug_sync="now WAIT_FOR injected_binlog_background_thread";
+SET GLOBAL debug_dbug=@old_dbug;
+SET debug_sync="now SIGNAL reset_master_cont";
+connection con3;
+connection default;
+SET debug_sync = 'reset';
+DROP TABLE t1, t2;
+SET GLOBAL max_binlog_size= @old_max_binlog_size;
+SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;
+SET debug_sync = 'reset';

@@ -1,0 +1,32 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE = InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1),(2),(3);
+connection node_1;
+connection node_2;
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+connection node_2;
+# restart
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+INSERT INTO t1 VALUES (1),(2),(3);
+connection node_1;
+SELECT COUNT(*) = 3 FROM t1;
+COUNT(*) = 3
+1
+DROP TABLE t1;
+connection node_2;
+CALL mtr.add_suppression("WSREP: Failed to replicate rollback fragment for ");

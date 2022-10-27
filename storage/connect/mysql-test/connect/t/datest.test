@@ -1,0 +1,28 @@
+--echo #
+--echo # Testing out of range dates as (var)char
+--echo #
+CREATE TABLE t1 (
+id INT NOT NULL,
+dat CHAR(10) NOT NULL,
+tim CHAR(8) DEFAULT '09:35:08',
+datim CHAR(19) DEFAULT '1789-08-10 14:20:30')
+ENGINE=CONNECT TABLE_TYPE=FIX;
+INSERT INTO t1(id,dat) VALUES(1,'1515-04-01'),(2,'2014-07-26'),(3,'2118-11-02');
+SELECT * FROM t1;
+SELECT id, DATE(datim) FROM t1 LIMIT 1;
+SELECT id, DAYNAME(dat) FROM t1;
+SELECT id, DAYNAME(datim) FROM t1 LIMIT 1;
+SELECT id, TIME(tim) FROM t1 LIMIT 1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing use of dates in where clause (MDEV-8926)
+--echo #
+CREATE TABLE t1 (col1 DATE) ENGINE=CONNECT TABLE_TYPE=CSV;
+INSERT INTO t1 VALUES('2015-01-01'),('2015-02-01'),('2015-03-01'),('2015-04-01');
+SELECT * FROM t1 WHERE col1 = '2015-02-01';
+SELECT * FROM t1 WHERE col1 > '2015-02-01';
+SELECT * FROM t1 WHERE col1 >= '2015-02-01';
+SELECT * FROM t1 WHERE col1 < '2015-02-01';
+SELECT * FROM t1 WHERE col1 <= '2015-02-01';
+DROP TABLE t1;

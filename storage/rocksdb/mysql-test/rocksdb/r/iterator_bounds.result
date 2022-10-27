@@ -1,0 +1,15 @@
+create table t (i int primary key) engine=rocksdb;
+drop table t;
+create table t (i int primary key, j int, key(j) comment 'rev:bf5_2') engine=rocksdb;
+select RIGHT(HEX(index_number), 2) from information_schema.rocksdb_ddl where table_name = 't';
+RIGHT(HEX(index_number), 2)
+FE
+FF
+insert into t values (1, 1);
+select j from t order by j asc;
+j
+1
+select j from t order by j desc;
+j
+1
+drop table t;

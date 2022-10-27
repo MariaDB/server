@@ -1,0 +1,23 @@
+connection node_2;
+connection node_1;
+CALL mtr.add_suppression("WSREP: .*conflict state . after post commit .*");
+CREATE TABLE t1 (f1 INTEGER, f2 CHAR(20) DEFAULT 'abc') ENGINE=InnoDB;
+INSERT INTO t1 (f1) VALUES (1),(65535);
+CREATE PROCEDURE proc_insert ()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SET SESSION wsrep_sync_wait = 0;
+WHILE 1 DO
+INSERT INTO t1 (f1) VALUES (FLOOR( 1 + RAND( ) * 65535 ));
+SELECT SLEEP(0.1);
+END WHILE;
+END|
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1b;
+connection node_1;
+connection node_1b;
+connection node_1;
+DROP PROCEDURE proc_insert;
+DROP TABLE t1;
+CALL mtr.add_suppression("conflict state 3 after post commit");
+set global innodb_status_output=Default;

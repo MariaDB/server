@@ -1,0 +1,61 @@
+source suite/versioning/engines.inc;
+source suite/versioning/common.inc;
+
+--echo # DELETE
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create table t (
+    s date, e date,
+    row_start $sys_datatype_expl as row start invisible,
+    row_end $sys_datatype_expl as row end invisible,
+    period for apptime(s, e),
+    period for system_time (row_start, row_end)) with system versioning;
+insert into t values('1999-01-01', '2018-12-12'),
+                    ('1999-01-01', '1999-12-12');
+
+select row_start into @ins_time from t limit 1;
+select * from t order by s, e;
+
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+       from t for system_time all
+       order by s, e, row_start;
+
+--echo # same for trigger case
+delete from t;
+delete history from t;
+insert into t values('1999-01-01', '2018-12-12'),
+                    ('1999-01-01', '1999-12-12');
+--let $trig_table=t
+--source suite/period/create_triggers.inc
+
+select row_start into @ins_time from t limit 1;
+select * from t order by s, e;
+
+delete from t for portion of apptime from '2000-01-01' to '2018-01-01';
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+       from t for system_time all
+       order by s, e, row_start;
+select * from log_tbl order by id;
+
+--echo # UPDATE
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t (x int, s date, e date,
+    row_start $sys_datatype_expl as row start invisible,
+    row_end $sys_datatype_expl as row end invisible,
+    period for apptime(s, e),
+    period for system_time(row_start, row_end)) with system versioning;
+insert into t values(1, '1999-01-01', '2018-12-12'),
+                    (2, '1999-01-01', '1999-12-12');
+
+select row_start into @ins_time from t limit 1;
+--sorted_result
+select * from t;
+
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
+select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
+       from t for system_time all
+       order by x, s, e, row_start;
+
+drop table t,log_tbl;
+drop procedure log;
+source suite/versioning/common_finish.inc;

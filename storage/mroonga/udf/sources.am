@@ -1,0 +1,9 @@
+libmrn_udf_la_SOURCES =				\
+	mrn_udf_last_insert_grn_id.cpp		\
+	mrn_udf_snippet.cpp			\
+	mrn_udf_snippet_html.cpp		\
+	mrn_udf_command.cpp			\
+	mrn_udf_escape.cpp			\
+	mrn_udf_normalize.cpp			\
+	mrn_udf_highlight_html.cpp		\
+	mrn_udf_query_expand.cpp

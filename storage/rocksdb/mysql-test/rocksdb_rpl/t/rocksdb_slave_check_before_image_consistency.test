@@ -1,0 +1,22 @@
+source include/master-slave.inc;
+source include/have_binlog_format_row.inc;
+
+call mtr.add_suppression("Error_code: 1032");
+
+let $engine= rocksdb;
+
+source extra/rpl_tests/rpl_slave_check_before_image_consistency.inc;
+
+# check detection with HASH_SCAN enabled
+connection slave;
+source include/stop_slave.inc;
+set @@global.slave_rows_search_algorithms = 'INDEX_SCAN,TABLE_SCAN,HASH_SCAN';
+source include/start_slave.inc;
+source extra/rpl_tests/rpl_slave_check_before_image_consistency.inc;
+
+# cleanup
+source include/stop_slave.inc;
+set @@global.slave_rows_search_algorithms = DEFAULT;
+source include/start_slave.inc;
+
+source include/rpl_end.inc;

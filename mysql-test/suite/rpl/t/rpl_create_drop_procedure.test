@@ -1,0 +1,81 @@
+--source include/master-slave.inc
+
+connection master;
+CREATE TABLE t1 (id INT);
+DELIMITER $$;
+CREATE PROCEDURE proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+DELIMITER ;$$
+CALL proc1(@cnt);
+SELECT @cnt;
+INSERT INTO t1 VALUES (1), (2), (3);
+CALL proc1(@cnt);
+SELECT @cnt;
+
+--echo # Syncing with slave
+sync_slave_with_master;
+
+CALL proc1(@cnt);
+SELECT @cnt;
+
+connection master;
+DELIMITER $$;
+--error ER_SP_ALREADY_EXISTS
+CREATE PROCEDURE proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+
+CREATE PROCEDURE IF NOT EXISTS proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+
+--error ER_WRONG_USAGE
+CREATE OR REPLACE PROCEDURE IF NOT EXISTS proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+
+CREATE OR REPLACE PROCEDURE proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+DELIMITER ;$$
+
+--echo # Syncing with slave
+sync_slave_with_master;
+
+CALL proc1(@cnt);
+SELECT @cnt;
+
+connection master;
+DROP PROCEDURE proc1;
+DELIMITER $$;
+CREATE PROCEDURE IF NOT EXISTS proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+DELIMITER ;$$
+INSERT INTO t1 VALUES (1), (2), (3);
+CALL proc1(@cnt);
+SELECT @cnt;
+
+--echo # Syncing with slave
+sync_slave_with_master;
+
+CALL proc1(@cnt);
+SELECT @cnt;
+
+connection master;
+DROP PROCEDURE proc1;
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE proc1 (OUT cnt INT) BEGIN SELECT COUNT(*) INTO cnt FROM t1; END$$
+DELIMITER ;$$
+INSERT INTO t1 VALUES (1), (2), (3);
+CALL proc1(@cnt);
+SELECT @cnt;
+
+--echo # Syncing with slave
+sync_slave_with_master;
+
+CALL proc1(@cnt);
+SELECT @cnt;
+
+connection master;
+DROP TABLE IF EXISTS t1;
+DROP PROCEDURE proc1;
+
+DROP PROCEDURE IF EXISTS proc2;
+
+--echo # Syncing with slave
+sync_slave_with_master;
+
+--error ER_SP_DOES_NOT_EXIST
+DROP PROCEDURE proc1;
+
+--source include/rpl_end.inc

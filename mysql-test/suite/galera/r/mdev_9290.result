@@ -1,0 +1,21 @@
+connection node_2;
+connection node_1;
+#
+# MDEV-9290 : InnoDB: Assertion failure in file trx0sys.cc line 353
+# InnoDB: Failing assertion: xid_seqno > trx_sys_cur_xid_seqno
+#
+connection node_1;
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+connection node_2;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+COMMIT;
+connection node_1;
+SELECT * FROM t1;
+i
+1
+2
+DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

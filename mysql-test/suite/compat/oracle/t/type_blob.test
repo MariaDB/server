@@ -1,0 +1,17 @@
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a BLOB);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20263 sql_mode=ORACLE: BLOB(65535) should not translate to LONGBLOB
+--echo #
+
+CREATE TABLE t1 (
+  c1 BLOB(100),
+  c2 BLOB(65535),
+  c3 BLOB(16777215),
+  c4 BLOB(16777216)
+);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

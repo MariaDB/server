@@ -1,0 +1,43 @@
+# Copyright(C) 2017 Naoya Murakami <naoya@createfield.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/have_innodb.inc
+--source ../../include/mroonga/have_version_5_7_or_later.inc
+--source ../../include/mroonga/skip_mariadb_10_1_or_earlier.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS logs;
+--enable_warnings
+
+CREATE TABLE logs (
+  id INT PRIMARY KEY,
+  record JSON,
+  message VARCHAR(255) GENERATED ALWAYS AS (json_extract(`record`, '$.message')) STORED,
+  FULLTEXT INDEX(message) comment 'tokenizer "TokenBigramSplitSymbolAlphaDigit"'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4 COMMENT = 'ENGINE "InnoDB"';
+
+INSERT INTO logs(id, record) VALUES (1, '{"level": "info", "message": "start"}');
+INSERT INTO logs(id, record) VALUES (2, '{"level": "info", "message": "restart"}');
+INSERT INTO logs(id, record) VALUES (3, '{"level": "warn", "message": "abort"}');
+
+DELETE FROM logs WHERE id = 1;
+
+SELECT * FROM logs WHERE MATCH(message) AGAINST("ar" IN BOOLEAN MODE);
+
+DROP TABLE logs;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

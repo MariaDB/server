@@ -1,0 +1,776 @@
+#
+# test of problem with date fields
+#
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+create table t1 (a char(16), b date, c datetime);
+insert into t1 SET a='test 2000-01-01', b='2000-01-01', c='2000-01-01';
+select * from t1 where c = '2000-01-01';
+select * from t1 where b = '2000-01-01';
+drop table t1;
+
+#
+# problem with date conversions
+#
+
+CREATE TABLE t1 (name char(6),cdate date);
+INSERT INTO t1 VALUES ('name1','1998-01-01');
+INSERT INTO t1 VALUES ('name2','1998-01-01');
+INSERT INTO t1 VALUES ('name1','1998-01-02');
+INSERT INTO t1 VALUES ('name2','1998-01-02');
+CREATE TABLE t2 (cdate date, note char(6));
+INSERT INTO t2 VALUES ('1998-01-01','note01');
+INSERT INTO t2 VALUES ('1998-01-02','note02');
+select name,t1.cdate,note from t1,t2 where t1.cdate=t2.cdate and t1.cdate='1998-01-01';
+drop table t1,t2;
+
+# MariaDB lp:993103. WHERE LAST_DAY(zero_date) IS NULL does not evaluate to TRUE.
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1 WHERE LAST_DAY('0000-00-00 00:00:00') IS NULL;
+DROP TABLE t1;
+
+#
+# Date and BETWEEN
+#
+
+CREATE TABLE t1 ( datum DATE );
+INSERT INTO t1 VALUES ( "2000-1-1" );
+INSERT INTO t1 VALUES ( "2000-1-2" );
+INSERT INTO t1 VALUES ( "2000-1-3" );
+INSERT INTO t1 VALUES ( "2000-1-4" );
+INSERT INTO t1 VALUES ( "2000-1-5" );
+SELECT * FROM t1 WHERE datum BETWEEN cast("2000-1-2" as date) AND cast("2000-1-4" as date);
+SELECT * FROM t1 WHERE datum BETWEEN cast("2000-1-2" as date) AND datum - INTERVAL 100 DAY;
+DROP TABLE t1;
+
+#
+# test of max(date) and having
+#
+
+CREATE TABLE t1 (
+  user_id char(10),
+  summa int(11),
+  rdate date
+);
+INSERT INTO t1 VALUES ('aaa',100,'1998-01-01');
+INSERT INTO t1 VALUES ('aaa',200,'1998-01-03');
+INSERT INTO t1 VALUES ('bbb',50,'1998-01-02');
+INSERT INTO t1 VALUES ('bbb',200,'1998-01-04');
+select max(rdate) as s from t1 where rdate < '1998-01-03' having s> "1998-01-01";
+select max(rdate) as s from t1 having s="1998-01-04";
+select max(rdate+0) as s from t1 having s="19980104";
+drop table t1;
+
+#
+# Test of date and not null
+#
+
+create table t1 (date date);
+insert into t1 values ("2000-08-10"),("2000-08-11");
+select date_add(date,INTERVAL 1 DAY),date_add(date,INTERVAL 1 SECOND) from t1;
+drop table t1;
+
+#
+# Test problem with DATE_FORMAT
+#
+
+CREATE TABLE t1(AFIELD INT);
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t2(GMT  VARCHAR(32));
+INSERT INTO t2 VALUES('GMT-0800');
+SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+FROM t1, t2 GROUP BY t1.AFIELD;
+INSERT INTO t1 VALUES(1);
+SELECT DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT)),
+       DATE_FORMAT("2002-03-06 10:11:12", CONCAT('%a, %d %M %Y %H:%i:%s ', t2.GMT))
+FROM t1,t2 GROUP BY t1.AFIELD;
+drop table t1,t2;
+
+#
+# Multiple SELECT DATE_FORMAT gave incorrect results (Bug #4036)
+#
+
+CREATE TABLE t1 (f1 time default NULL, f2 time default NULL);
+INSERT INTO t1 (f1, f2) VALUES ('09:00', '12:00');
+SELECT DATE_FORMAT(f1, "%l.%i %p") , DATE_FORMAT(f2, "%l.%i %p") FROM t1;
+DROP TABLE t1;
+
+#
+# Bug#4937: different date -> string conversion when using SELECT ... UNION
+# and INSERT ... SELECT ... UNION
+#
+
+CREATE TABLE t1 (f1 DATE);
+CREATE TABLE t2 (f2 VARCHAR(8));
+CREATE TABLE t3 (f2 CHAR(8));
+
+INSERT INTO t1 VALUES ('1978-11-26');
+INSERT INTO t2 SELECT f1+0 FROM t1;
+INSERT INTO t2 SELECT f1+0 FROM t1 UNION SELECT f1+0 FROM t1;
+INSERT INTO t3 SELECT f1+0 FROM t1;
+INSERT INTO t3 SELECT f1+0 FROM t1 UNION SELECT f1+0 FROM t1;
+SELECT * FROM t2;
+SELECT * FROM t3;
+
+DROP TABLE t1, t2, t3;
+
+# Test that setting YEAR to invalid string results in default value, not
+# 2000. (Bug #6067)
+CREATE TABLE t1 (y YEAR);
+INSERT IGNORE INTO t1 VALUES ('abc');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Bug#21677: Wrong result when comparing a DATE and a DATETIME in BETWEEN
+#
+create table t1(start_date date, end_date date);
+insert into t1 values ('2000-01-01','2000-01-02');
+select 1 from t1 where cast('2000-01-01 12:01:01' as datetime) between start_date and end_date;
+drop table t1;
+# End of 4.1 tests
+
+#
+# Bug #23093: Implicit conversion of 9912101 to date does not match
+# cast(9912101 as date)
+#
+select @d:=1111;
+select year(@d), month(@d), day(@d), cast(@d as date);
+select @d:=011111;
+select year(@d), month(@d), day(@d), cast(@d as date);
+select @d:=1311;
+select year(@d), month(@d), day(@d), cast(@d as date);
+create table t1 (d  date , dt datetime , ts timestamp);
+insert ignore into t1 values (9912101,9912101,9912101);
+insert into t1 values (11111,11111,11111);
+select * from t1;
+drop table t1;
+
+#
+# Bug#30942: select str_to_date from derived table returns varying results
+#
+CREATE TABLE t1 (
+  a INT
+);
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (NULL);
+
+SELECT str_to_date( '', a ) FROM t1;
+DROP TABLE t1;
+
+
+#
+# Bug#31221: Optimizer incorrectly identifies impossible WHERE clause
+#
+
+CREATE TABLE t1 (a DATE, b INT, PRIMARY KEY (a,b));
+
+SET timestamp=UNIX_TIMESTAMP('2016-07-21 14:48:18');
+INSERT INTO t1 VALUES (DATE(NOW()), 1);
+SELECT COUNT(*) FROM t1 WHERE a = NOW();
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a = NOW();
+INSERT INTO t1 VALUES (DATE(NOW()), 2);
+SELECT COUNT(*) FROM t1 WHERE a = NOW();
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a = NOW();
+SELECT COUNT(*) FROM t1 WHERE a = NOW() AND b = 1;
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a = NOW() AND b = 1;
+ALTER TABLE t1 DROP PRIMARY KEY;
+SELECT COUNT(*) FROM t1 WHERE a = NOW();
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a = NOW();
+SET timestamp=DEFAULT;
+
+DROP TABLE t1;
+
+#
+# Bug#28687: Search fails on '0000-00-00' date after sql_mode change
+#
+
+CREATE TABLE t1 (a DATE);
+CREATE TABLE t2 (a DATE);
+CREATE INDEX i ON t1 (a);
+INSERT INTO t1 VALUES ('0000-00-00'),('0000-00-00');
+INSERT INTO t2 VALUES ('0000-00-00'),('0000-00-00');
+SELECT * FROM t1 WHERE a = '0000-00-00';
+SELECT * FROM t2 WHERE a = '0000-00-00';
+SET SQL_MODE=TRADITIONAL;
+EXPLAIN SELECT * FROM t1 WHERE a = '0000-00-00';
+SELECT * FROM t1 WHERE a = '0000-00-00';
+SELECT * FROM t2 WHERE a = '0000-00-00';
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES ('0000-00-00');
+SET SQL_MODE=DEFAULT;
+DROP TABLE t1,t2;
+
+#
+# Bug #31928: Search fails on '1000-00-00' date after sql_mode change
+#
+
+CREATE TABLE t1 (a DATE);
+CREATE TABLE t2 (a DATE);
+CREATE INDEX i ON t1 (a);
+INSERT INTO t1 VALUES ('1000-00-00'),('1000-00-00');
+INSERT INTO t2 VALUES ('1000-00-00'),('1000-00-00');
+SELECT * FROM t1 WHERE a = '1000-00-00';
+SELECT * FROM t2 WHERE a = '1000-00-00';
+SET SQL_MODE=TRADITIONAL;
+EXPLAIN SELECT * FROM t1 WHERE a = '1000-00-00';
+SELECT * FROM t1 WHERE a = '1000-00-00';
+SELECT * FROM t2 WHERE a = '1000-00-00';
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES ('1000-00-00');
+SET SQL_MODE=DEFAULT;
+DROP TABLE t1,t2;
+
+#
+# Bug #31990: MINUTE() and SECOND() return bogus results when used on a DATE
+#
+
+CREATE TABLE t1 SELECT curdate() AS f1;
+SELECT hour(f1), minute(f1), second(f1) FROM t1;
+DROP TABLE t1;
+
+--echo End of 5.0 tests
+
+#
+# Bug#32021: Using Date 000-00-01 in WHERE causes wrong result
+#
+create table t1 (a date, primary key (a))engine=memory;
+insert into t1 values ('0000-01-01'), ('0000-00-01'), ('0001-01-01');
+select * from t1 where a between '0000-00-01' and '0000-00-02';
+drop table t1;
+
+--echo #
+--echo # Bug#50918: Date columns treated differently in Views than in Base
+--echo # Tables
+--echo #
+CREATE TABLE t1 ( the_date DATE, the_time TIME );
+INSERT INTO t1 VALUES ( '2010-01-01', '01:01:01' );
+
+SELECT * FROM t1 t11 JOIN t1 t12 ON addtime( t11.the_date, t11.the_time ) = 
+                                    addtime( t12.the_date, t12.the_time );
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 JOIN v1 ON addtime( t1.the_date, t1.the_time ) = 
+                            addtime( v1.the_date, v1.the_time );
+
+SELECT * FROM t1 JOIN v1 ON addtime( t1.the_date, t1.the_time ) = 
+                            addtime( cast(v1.the_date AS DATETIME), v1.the_time );
+
+DROP TABLE t1;
+DROP VIEW v1;
+
+--echo #
+--echo # Bug#59685 crash in String::length with date types
+--echo #
+
+CREATE TABLE t1(a DATE, b YEAR, KEY(a));
+INSERT INTO t1 VALUES ('2011-01-01',2011);
+
+SELECT b = (SELECT CONVERT(a, DATE) FROM t1 GROUP BY a) FROM t1;
+SELECT b = CONVERT((SELECT CONVERT(a, DATE) FROM t1 GROUP BY a), DATE) FROM t1;
+
+DROP TABLE t1;
+
+--echo End of 5.1 tests
+
+#
+# lp:737496 Field_temporal::store_TIME_with_warning() in 5.1-micro
+#
+create table t1 (f1 date, key (f1));
+insert ignore t1 values ('2010-10-10 15:foobar');
+drop table t1;
+
+--echo #
+--echo # MDEV-4634 Crash in CONVERT_TZ
+--echo #
+SELECT CONVERT_TZ(GREATEST(DATE('2021-00-00'),DATE('2022-00-00')),'+00:00','+7:5');
+
+--echo #
+--echo # MDEV-4804 Date comparing false result 
+--echo #
+SET @h0="20111107";
+SET @h1="0";
+SET @@timestamp=UNIX_TIMESTAMP('2013-08-19 20:30:00');
+SELECT
+  COALESCE(DATE(@h0),DATE("1901-01-01")) AS h0d,
+  COALESCE(DATE(@h1),DATE(NOW())) AS h1d,
+  COALESCE(DATE(@h0),DATE("1901-01-01"))>COALESCE(DATE(@h1),DATE(NOW())) AS compare_h0_gt_h1;
+SELECT
+  DATE('20011107'),
+  DATE('0'),
+  COALESCE(DATE('0'),CURRENT_DATE) AS d1,
+  DATE('20011107')>COALESCE(DATE('0'),CURRENT_DATE) AS cmp;
+SELECT
+  DATE('20011107'),
+  DATE('0'),
+  IFNULL(DATE('0'),CURRENT_DATE) AS d1,
+  DATE('20011107')>IFNULL(DATE('0'),CURRENT_DATE) AS cmp;
+
+--echo #
+--echo # MDEV-5041 Inserting a TIME with hour>24 into a DATETIME column produces a wrong value
+--echo #
+SELECT CAST(TIME('-800:20:30') AS DATE);
+SELECT CAST(TIME('800:20:30') AS DATE);
+SELECT CAST(TIME('33 08:20:30') AS DATE);
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES (TIME('800:20:30'));
+INSERT INTO t1 VALUES (TIME('33 08:20:30'));
+SET SQL_MODE=NO_ZERO_IN_DATE;
+INSERT INTO t1 VALUES (TIME('48:20:30'));
+SET SQL_MODE=DEFAULT;
+SELECT * FROM t1;
+DROP TABLE t1;
+DELIMITER |;
+CREATE PROCEDURE test5041()
+BEGIN
+  DECLARE t TIME;
+  DECLARE d DATE;
+  SET t= TIME('800:00:00');
+  SET d= t;
+  SELECT d;
+END;|
+DELIMITER ;|
+call test5041();
+drop procedure test5041;
+
+SET @@timestamp=DEFAULT;
+--echo #
+--echo # End of 5.3 tests
+--echo #
+
+--echo #
+--echo # Bug #33629: last_day function can return null, but has 'not null'
+--echo #             flag set for result
+--echo #
+
+SELECT 1 FROM (SELECT LAST_DAY('0')) a;
+SELECT 1 FROM (SELECT MAKEDATE(2011,0)) a;
+
+CREATE TABLE t1 AS
+  SELECT LAST_DAY('1970-01-01') AS f1,
+         MAKEDATE(1970, 1)      AS f2;
+DESCRIBE t1;
+DROP TABLE t1;
+
+--echo #
+
+--echo #
+--echo # Bug#57278: Crash on min/max + with date out of range.
+--echo #
+set @a=(select min(makedate('111','1'))) ;
+select @a;
+--echo #
+
+--echo #
+--echo # BUG LP:1008487 virtual bool Item_cache::is_expensive(): Assertion `example' failed
+--echo #
+SET TIMESTAMP=UNIX_TIMESTAMP('2017-01-03 00:00:00');
+create table t1(a date,key(a));
+insert into t1 values ('2012-01-01'),('2012-02-02');
+explain
+select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
+select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
+SET TIMESTAMP=UNIX_TIMESTAMP('2012-01-03 00:00:01');
+explain
+select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
+select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
+drop table t1;
+SET TIMESTAMP=DEFAULT;
+
+--echo #
+--echo # MDEV-9521 Least function returns 0000-00-00 for null date columns instead of null
+--echo # MDEV-9972 Least function retuns date in date time format
+--echo #
+CREATE TABLE t1 (
+  id BIGINT NOT NULL,
+  date_debut DATE NOT NULL,
+  date_fin DATE DEFAULT NULL);
+CREATE TABLE t2(
+  id BIGINT NOT NULL,
+  date_debut DATE NOT NULL,
+  date_fin DATE DEFAULT NULL);
+INSERT INTO t1 VALUES (1,'2016-01-01','2016-01-31');
+INSERT INTO t1 VALUES (2,'2016-02-01',null);
+INSERT INTO t1 VALUES (3,'2016-03-01','2016-03-31');
+INSERT INTO t1 VALUES (4,'2016-04-01',null);
+
+INSERT INTO t2 VALUES (1,'2016-01-01','2016-01-31');
+INSERT INTO t2 VALUES (2,'2016-02-01','2016-01-28');
+INSERT INTO t2 VALUES (3,'2016-03-01',null);
+INSERT INTO t2 VALUES (4,'2016-04-01',null);
+SELECT t1.id,
+ GREATEST(t2.date_debut, t1.date_debut) AS date_debut,
+ LEAST(IFNULL(t2.date_fin, IFNULL(t1.date_fin, NULL)),
+       IFNULL(t1.date_fin, IFNULL(t2.date_fin, NULL))) AS date_fin
+FROM t1 LEFT JOIN t2 ON (t1.id=t2.id);
+DROP TABLE t1,t2;
+SELECT
+  LEAST(COALESCE(DATE(NULL), DATE(NULL)), COALESCE(DATE(NULL), DATE(NULL))) AS d0,
+  LEAST(IFNULL(DATE(NULL), DATE(NULL)), IFNULL(DATE(NULL), DATE(NULL))) AS d1;
+
+--echo #
+--echo # MDEV-9511 Valgrind warnings 'Invalid read' in Field_newdate::cmp and Field_newdate::val_str
+--echo #
+CREATE TABLE t1 (f1 DATE, f2 VARCHAR(1));
+INSERT INTO t1 VALUES ('2003-04-27','a'),('1900-01-01','a');
+SELECT GROUP_CONCAT(f2, IF(f1, f2, f1), f1 ORDER BY 2,1,3) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+let type=DATE;
+let defval='0000-00-00';
+--source include/type_temporal_zero_default.inc
+
+--echo #
+--echo # MDEV-8722 The patch for MDEV-8688 disabled equal field propagation for temporal column and BETWEEN and IN
+--echo #
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='2001-01-01' AND a BETWEEN '2001-01-01' AND '2001-01-02';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='2001-01-01' AND a IN ('2001-01-01','2001-01-02');
+DROP TABLE t1;
+
+--echo #
+--echo #     MDEV-8699 Wrong result for SELECT..WHERE HEX(date_column)!='323030312D30312D3031' AND date_column='2001-01-01x'
+--echo #
+# Trailing garbage in string literals
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1 WHERE a='2001-01-01x';
+SELECT * FROM t1 WHERE HEX(a)!='323030312D30312D3031';
+SELECT * FROM t1 WHERE HEX(a)!='323030312D30312D3031' AND a='2001-01-01x';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE HEX(a)!='323030312D30312D3031' AND a='2001-01-01x';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE HEX(a)!=CONCAT('xx',RAND()) AND a='2001-01-01x';
+DROP TABLE t1;
+
+# Leading spaces in string literals
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1 WHERE LENGTH(a)=11;
+SELECT * FROM t1 WHERE LENGTH(a)=11 AND a=' 2001-01-01';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=11 AND a=' 2001-01-01';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=11+RAND() AND a=' 2001-01-01';
+# This should not propagate
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=11+RAND() AND a=' garbage ';
+DROP TABLE t1;
+
+# Numeric format in string literals
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-01');
+SELECT * FROM t1 WHERE LENGTH(a)=8;
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='20010101';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='20010101';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=8+RAND() AND a='20010101';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8706 Wrong result for SELECT..WHERE time_column=TIMESTAMP'2015-08-30 00:00:00' AND time_column='00:00:00'
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2015-08-30 10:20:30');
+
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2015-08-30'),('2015-08-31');
+SELECT * FROM t1 WHERE a=TIME'00:00:00';
+SELECT * FROM t1 WHERE LENGTH(a)=10;
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a=TIME'00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a=TIME'00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'00:00:00';
+DROP TABLE t1;
+
+# Special case: zero TIME part after conversion to DATETIME
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2015-08-30'),('2015-08-31');
+SELECT * FROM t1 WHERE a=TIME'24:00:00';
+SELECT * FROM t1 WHERE LENGTH(a)=10;
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a=TIME'24:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a=TIME'24:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'24:00:00';
+DROP TABLE t1;
+
+--echo # In this example '00:00:00' is not recognized as TIME'00:00:00'
+--echo # and is treated as DATE'0000-00-00'.
+--echo # This may change after MDEV-8322 Distinguish between time and date strings more carefully 
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2015-08-30'),('2015-08-31');
+SELECT * FROM t1 WHERE a='00:00:00';
+SELECT * FROM t1 WHERE LENGTH(a)=10;
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a='00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='00:00:00';
+DROP TABLE t1;
+
+# DATETIME native literal
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2015-08-30'),('2015-08-31');
+SELECT * FROM t1 WHERE a=TIMESTAMP'2015-08-30 00:00:00';
+SELECT * FROM t1 WHERE LENGTH(a)=10;
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a=TIMESTAMP'2015-08-30 00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a=TIMESTAMP'2015-08-30 00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2015-08-30 00:00:00';
+DROP TABLE t1;
+
+# DATETIME native literal with non-zero time
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2015-08-30'),('2015-08-31');
+SELECT * FROM t1 WHERE a=TIMESTAMP'2015-08-30 00:00:00.1';
+SELECT * FROM t1 WHERE LENGTH(a)=10;
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a=TIMESTAMP'2015-08-30 00:00:00.1';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a=TIMESTAMP'2015-08-30 00:00:00.1';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2015-08-30 00:00:00.1';
+DROP TABLE t1;
+
+# DATETIME-alike string literal
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2015-08-30'),('2015-08-31');
+SELECT * FROM t1 WHERE a='2015-08-30 00:00:00';
+SELECT * FROM t1 WHERE LENGTH(a)=10;
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a='2015-08-30 00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=10 AND a='2015-08-30 00:00:00';
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='2015-08-30 00:00:00';
+DROP TABLE t1;
+
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # MDEV-8795 Equal expression propagation does not work for temporal literals
+--echo #
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(a)=DATE'2001-01-01' AND COALESCE(a)>=DATE'2001-01-01';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8658 DATE(zerofill_column) and DATE(COALESCE(zerofill_column)) return different results
+--echo #
+CREATE TABLE t1 (a INT(6) ZEROFILL, b DECIMAL(6) ZEROFILL, c DOUBLE(6,0) ZEROFILL);
+INSERT INTO t1 VALUES (1,1,1);
+INSERT INTO t1 VALUES (10101,10101,10101);
+SELECT DATE(a), DATE(b), DATE(c) FROM t1;
+SELECT DATE(COALESCE(a)), DATE(COALESCE(b)), DATE(COALESCE(c)) FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT(6), b DECIMAL(6), c DOUBLE(6,0));
+INSERT INTO t1 VALUES (1,1,1);
+INSERT INTO t1 VALUES (10101,10101,10101);
+SELECT DATE(a), DATE(b), DATE(c) FROM t1;
+SELECT DATE(COALESCE(a)), DATE(COALESCE(b)), DATE(COALESCE(c)) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14221 Assertion `0' failed in Item::field_type_for_temporal_comparison
+--echo #
+
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1985-05-13'),('1989-12-24');
+SELECT d, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP HAVING CASE d WHEN '2017-05-25' THEN 0 ELSE 1 END;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17299 Assertion `maybe_null' failed in make_sortkey
+--echo #
+
+CREATE TABLE t1 (pk int NOT NULL, d1 date, d2 date NOT NULL);
+INSERT INTO t1 values (1,'2018-06-22','2018-06-22'),(2,'2018-07-11','2018-07-11');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT group_concat(d1/(CASE 'b' WHEN 'j' THEN 'c' END))
+  FROM v1 GROUP BY greatest(pk, 0, d2);
+CREATE TABLE t2 AS SELECT greatest(pk, 0, d2) AS c1 FROM t1 LIMIT 0;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-19699 Server crashes in Item_null_result::field_type upon SELECT with ROLLUP on constant table
+--echo #
+
+CREATE TABLE t1 (d DATE) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('1999-11-04');
+SELECT d FROM t1 GROUP BY d WITH ROLLUP HAVING d > '1990-01-01';
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-20431 GREATEST(int_col,date_col) returns wrong results in a view
+--echo #
+
+CREATE TABLE t1 (pk INT NOT NULL, d DATE NOT NULL);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'2018-06-22'),(2,'2018-07-11');
+SELECT GREATEST(pk, d) FROM t1;
+SELECT GREATEST(pk, d) FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-21619 Server crash or assertion failures in my_datetime_to_str
+--echo #
+
+CREATE  TABLE t1 (f DATE, KEY(f));
+INSERT INTO t1 VALUES ('2020-01-01'),('2020-01-02');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '2012-12-12';
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12721 Wrong execution plan for WHERE (date_field <=> timestamp_expr AND TRUE)
+--echo #
+CREATE TABLE t1(a DATE,KEY(a));
+INSERT INTO t1 VALUES ('2012-01-01'),('2012-02-02');
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP'2001-01-01 00:00:01' AND TRUE;
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP('2001-01-01', '00:00:01') AND TRUE;
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP'2001-01-01 00:00:00' AND TRUE;
+EXPLAIN SELECT 1 FROM t1 WHERE t1.a <=> TIMESTAMP('2001-01-01', '00:00:00') AND TRUE;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-11362 True condition elimination does not work for DECIMAL and temporal dynamic SQL parameters
+--echo #
+
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02'),('2001-01-03');
+--echo # Equal values
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE'2001:01:01',a)<=>COALESCE(DATE'2001-01-01',a);
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(?,a)' USING DATE'2001-01-01',DATE'2001-01-01';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE''2001-01-01'',a)<=>COALESCE(?,a)' USING DATE'2001-01-01';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(DATE''2001-01-01'',a)' USING DATE'2001-01-01';
+
+--echo # Equal values but of different data types (should not propagate)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE'2001:01:01',a)<=>COALESCE(TIMESTAMP'2001-01-01 00:00:00',a);
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(?,a)' USING DATE'2001-01-01',TIMESTAMP'2001-01-01 00:00:00';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE''2001-01-01'',a)<=>COALESCE(?,a)' USING TIMESTAMP'2001-01-01 00:00:00';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(DATE''2001-01-01'',a)' USING TIMESTAMP'2001-01-01 00:00:00';
+
+--echo # Not equal values
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE'2001-01-01',a)<=>COALESCE(DATE'2001-01-02',a);
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(?,a)' USING DATE'2001-01-01',DATE'2001-01-02';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE''2001-01-01'',a)<=>COALESCE(?,a)' USING DATE'2001-01-02';
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(DATE''2001-01-01'',a)' USING DATE'2001-01-02';
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15406 NO_ZERO_IN_DATE erroneously affects how CAST(AS DATE) warns about fractional digit truncation
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (a DATE);
+SELECT CAST(20061108.01 AS DATE);
+INSERT INTO t1 VALUES (20061108.01);
+DROP TABLE t1;
+
+SET sql_mode=NO_ZERO_IN_DATE;
+SELECT CAST(20061108.01 AS DATE);
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES (20061108.01);
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # MDEV-17216 Assertion `!dt->fraction_remainder(decimals())' failed in Field_temporal_with_date::store_TIME_with_warning
+--echo #
+SET sql_mode='';
+CREATE TABLE t1 (i1 date );
+CREATE TABLE t2 (i2 int unsigned );
+INSERT INTO t2 VALUES (0);
+INSERT INTO t1 SELECT * FROM t2;
+DROP TABLE t1,t2;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # MDEV-19301 Assertion `!is_valid_datetime() || fraction_remainder(((item->decimals) < (6) ? (item->decimals) : (6))) == 0' failed in Datetime_truncation_not_needed::Datetime_truncation_not_needed
+--echo #
+
+SELECT NULLIF(CAST(1012.5 AS DATE), 1);
+SELECT CAST(1012.5 AS DATE) * 1.0;
+
+--echo #
+--echo # MDEV-23351 Rounding functions return wrong data types for DATE input
+--echo #
+
+CREATE TABLE t1 (a date);
+CREATE TABLE t2 AS SELECT FLOOR(a), CEIL(a),ROUND(a),TRUNCATE(a,0) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2,t1;
+
+--echo #
+--echo # MDEV-23388 Assertion `args[0]->decimals == 0' failed in Item_func_round::fix_arg_int
+--echo #
+
+SELECT ROUND(GREATEST('1', CAST('2020-12-12' AS DATE)));
+
+--disable_ps_protocol
+--enable_metadata
+SELECT GREATEST('1', CAST('2020-12-12' AS DATE));
+--disable_metadata
+--enable_ps_protocol
+
+CREATE TABLE t1 (c_date DATE NOT NULL, c_int INT NOT NULL);
+CREATE TABLE t2 AS SELECT
+  GREATEST(c_date,c_date),
+  GREATEST(c_date,c_int),
+  GREATEST(c_int,c_date)
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

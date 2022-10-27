@@ -1,0 +1,106 @@
+create or replace table t1 (
+x int,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
+create or replace table tf engine=FEDERATED connection='mysql://root@127.0.0.1:MASTER_MYPORT/test/t1';
+show create table tf;
+Table	Create Table
+tf	CREATE TABLE `tf` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` SYS_TYPE INVISIBLE DEFAULT '1971-01-01 00:00:00.000000',
+  `row_end` SYS_TYPE INVISIBLE DEFAULT '1971-01-01 00:00:00.000000'
+) ENGINE=FEDERATED DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:MASTER_MYPORT/test/t1'
+# INSERT
+insert into t1 values (1);
+select * from tf;
+x
+1
+insert into tf (x) values (2);
+select * from t1;
+x
+1
+2
+select * from tf;
+x
+1
+2
+# UPDATE
+update tf set x= x + 2;
+select *, check_row(row_start, row_end) from t1 for system_time all
+order by x;
+x	check_row(row_start, row_end)
+1	HISTORICAL ROW
+2	HISTORICAL ROW
+3	CURRENT ROW
+4	CURRENT ROW
+# DELETE
+delete from tf;
+select *, check_row(row_start, row_end) from t1 for system_time all
+order by x;
+x	check_row(row_start, row_end)
+1	HISTORICAL ROW
+2	HISTORICAL ROW
+3	HISTORICAL ROW
+4	HISTORICAL ROW
+select * from tf;
+x
+# MDEV-15966: Behavior for TRUNCATE versioned table is not documented
+# and not covered by tests
+# As of standard, TRUNCATE on versioned tables is forbidden
+truncate tf;
+ERROR HY000: Got error 10000 'Error on remote system: 4137: System-versioned tables do not support TRUNCATE TABLE' from FEDERATED
+delete history from t1;
+select * from t1 for system_time all;
+x
+# REPLACE
+create or replace table t2 (
+id int primary key, y int,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
+create or replace table t2f engine=FEDERATED connection='mysql://root@127.0.0.1:MASTER_MYPORT/test/t2';
+insert t2f (id, y) values (1, 2);
+replace t2f (id, y) values (1, 3);
+select *, check_row(row_start, row_end) from t2 for system_time all
+order by y;
+id	y	check_row(row_start, row_end)
+1	2	HISTORICAL ROW
+1	3	CURRENT ROW
+# VIEW
+create or replace view vt1 as select * from tf;
+insert into vt1 values (3);
+update vt1 set x= x + 1;
+select *, check_row(row_start, row_end) from t1 for system_time all
+order by x;
+x	check_row(row_start, row_end)
+3	HISTORICAL ROW
+4	CURRENT ROW
+delete from vt1;
+select *, check_row(row_start, row_end) from t1 for system_time all
+order by x;
+x	check_row(row_start, row_end)
+3	HISTORICAL ROW
+4	HISTORICAL ROW
+# multi-UPDATE
+delete from t1;
+delete history from t1;
+delete from t2;
+delete history from t2;
+insert into t1 values (1);
+insert into t2 values (2, 2);
+update tf, t2f set tf.x= 11, t2f.y= 22;
+select *, check_row(row_start, row_end) from t1 for system_time all
+order by x;
+x	check_row(row_start, row_end)
+1	HISTORICAL ROW
+11	CURRENT ROW
+select *, check_row(row_start, row_end) from t2 for system_time all
+order by y;
+id	y	check_row(row_start, row_end)
+2	2	HISTORICAL ROW
+2	22	CURRENT ROW
+drop view vt1;
+drop tables t1, t2, t2f, tf;

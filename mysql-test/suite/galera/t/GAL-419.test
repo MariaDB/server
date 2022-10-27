@@ -1,0 +1,38 @@
+#
+# GAL-419 safe_to_bootstrap: boostrap using wsrep_cluster_address=gcomm:// not prevented
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+
+call mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node.*");
+call mtr.add_suppression("Aborting");
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+--source include/kill_galera.inc
+
+--sleep 2
+
+# Node #1 has wsrep_cluster_address=gcomm:// in my.cnf, so should fail to bootstrap
+
+--error 1
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf | grep 'This node is not safe to bootstrap the cluster'
+
+# Unless we remove grastate.dat
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+
+--connection node_1
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+--connection node_2
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc

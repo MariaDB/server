@@ -1,0 +1,203 @@
+create table t1 (a int check (a>0));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL CHECK (`a` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (1);
+insert into t1 values (0);
+ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+drop table t1;
+create table t1 (a int, b int, check (a>b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`a` > `b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (1,0);
+insert into t1 values (0,1);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;
+create table t1 (a int ,b int, constraint abc check (a>b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `abc` CHECK (`a` > `b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (1,0);
+insert into t1 values (0,1);
+ERROR 23000: CONSTRAINT `abc` failed for `test`.`t1`
+drop table t1;
+create table t1 (a int null);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (1),(NULL);
+drop table t1;
+create table t1 (a int null);
+alter table t1 add constraint constraint_1 unique (a);
+alter table t1 add constraint unique key_1(a);
+Warnings:
+Note	1831	Duplicate index `key_1`. This is deprecated and will be disallowed in a future release
+alter table t1 add constraint constraint_2 unique key_2(a);
+Warnings:
+Note	1831	Duplicate index `key_2`. This is deprecated and will be disallowed in a future release
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  UNIQUE KEY `constraint_1` (`a`),
+  UNIQUE KEY `key_1` (`a`),
+  UNIQUE KEY `key_2` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+drop table if exists t_illegal;
+create table t_illegal (a int, b int, check a>b);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'a>b)' at line 1
+create table t_illegal (a int, b int, constraint abc check a>b);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'a>b)' at line 1
+create table t_illegal (a int, b int, constraint abc);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+drop table if exists t_11714;
+create table t_11714(a int, b int);
+alter table t_11714 add constraint cons1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+drop table t_11714;
+CREATE TABLE t_illegal (col_1 INT CHECK something (whatever));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'something (whatever))' at line 1
+CREATE TABLE t_illegal (col_1 INT CHECK something);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'something)' at line 1
+CREATE TABLE long_enough_name (
+pk int(11) NOT NULL,
+f1 int(11) DEFAULT NULL,
+f2 int(11) NOT NULL,
+f3 int(11) DEFAULT NULL,
+f4 timestamp NOT NULL DEFAULT current_timestamp(),
+f5 varchar(32) COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+f6 smallint(6) NOT NULL DEFAULT 1,
+f7 int(11) DEFAULT NULL,
+PRIMARY KEY (pk),
+KEY idx1 (f7),
+KEY idx2 (f1),
+KEY idx3 (f2),
+KEY idx4 (f3),
+CONSTRAINT constr CHECK (f6 >= 0)
+);
+SELECT * FROM long_enough_name AS tbl;
+pk	f1	f2	f3	f4	f5	f6	f7
+SHOW CREATE TABLE long_enough_name;
+Table	Create Table
+long_enough_name	CREATE TABLE `long_enough_name` (
+  `pk` int(11) NOT NULL,
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) NOT NULL,
+  `f3` int(11) DEFAULT NULL,
+  `f4` timestamp NOT NULL DEFAULT current_timestamp(),
+  `f5` varchar(32) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+  `f6` smallint(6) NOT NULL DEFAULT 1,
+  `f7` int(11) DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `idx1` (`f7`),
+  KEY `idx2` (`f1`),
+  KEY `idx3` (`f2`),
+  KEY `idx4` (`f3`),
+  CONSTRAINT `constr` CHECK (`f6` >= 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE long_enough_name;
+CREATE TABLE test.t(t int COMMENT 't_comment' CHECK(t>0));
+SHOW CREATE TABLE test.t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL COMMENT 't_comment' CHECK (`t` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP table test.t;
+SET @OLD_SQL_MODE=@@SQL_MODE;
+SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
+CREATE TABLE test.t (f int foo=bar check(f>0));
+Warnings:
+Warning	1911	Unknown option 'foo'
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `f` int(11) DEFAULT NULL `foo`=bar CHECK (`f` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP table test.t;
+SET @@SQL_MODE=@OLD_SQL_MODE;
+#
+# MDEV-16932 - ASAN heap-use-after-free in my_charlen_utf8 /
+# my_well_formed_char_length_utf8 on 2nd execution of SP with
+# ALTER trying to add bad CHECK
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE sp() ALTER TABLE t1 ADD CONSTRAINT CHECK (b > 0);
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'CHECK'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'CHECK'
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'CHECK'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 add column b int;
+CALL sp;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`b` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL sp;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`b` > 0),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`b` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE sp;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE sp() ALTER TABLE t1 ADD CONSTRAINT CHECK (b > 0);
+CALL sp;
+ERROR 42S22: Unknown column 'b' in 'CHECK'
+alter table t1 add column b int, add constraint check (b < 10);
+CALL sp;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`b` < 10),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`b` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE sp;
+DROP TABLE t1;
+# End of 10.2 tests
+create table t1 (a int check (a>10)) select 100 as 'a';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL CHECK (`a` > 10)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a text default(length(now())) check (length(a) > 1));
+insert into t1 values ();
+insert into t1 values ("ccc");
+insert into t1 values ("");
+ERROR 23000: CONSTRAINT `t1.a` failed for `test`.`t1`
+select * from t1;
+a
+19
+ccc
+drop table t1;

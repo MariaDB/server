@@ -1,0 +1,100 @@
+SET GLOBAL debug="d,crash_apply_cb_before_append_frag";
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE = InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+COMMIT;
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SET GLOBAL debug = '';
+SET GLOBAL debug="d,crash_apply_cb_after_append_frag";
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (f1 VARCHAR(10)) ENGINE = InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+INSERT INTO t1 VALUES ('secondary'),('secondary'),('secondary'),('secondary'),('secondary');
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) = 0
+1
+SELECT COUNT(DISTINCT node_uuid) = 1 FROM mysql.wsrep_streaming_log;
+COUNT(DISTINCT node_uuid) = 1
+1
+COMMIT;
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) > 0 FROM t1 WHERE f1 = 'primary';
+COUNT(*) > 0
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 'secondary';
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+SET GLOBAL debug = '';
+CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member");
+DROP TABLE t1;

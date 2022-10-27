@@ -1,0 +1,30 @@
+#
+# MDEV-15333 MariaDB (still) slow start
+#
+# FIXME: Unlike MySQL, maybe MariaDB should not read the .ibd files
+# of tables with .isl file or DATA DIRECTORY attribute.
+# FIXME: This is much more noisy than MariaDB 10.1!
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Tablespace flags are invalid in datafile: .*test.t[rcd]\\.ibd");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Operating system error number .* in a file operation\\.");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: The error means the system cannot find the path specified\\.");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them\\.");
+call mtr.add_suppression("\\[Warning\\] InnoDB: Ignoring tablespace for `test`\\.`td` because it could not be opened\\.");
+CREATE TABLE tr(a INT)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+CREATE TABLE tc(a INT)ENGINE=InnoDB ROW_FORMAT=COMPACT
+PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=9;
+CREATE TABLE td(a INT)ENGINE=InnoDB ROW_FORMAT=DYNAMIC
+STATS_PERSISTENT=0 DATA DIRECTORY='MYSQL_TMP_DIR';
+# restart: --skip-innodb-buffer-pool-load-at-startup
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+COUNT(*)
+1
+# restart
+SELECT * FROM tr;
+a
+SELECT * FROM tc;
+a
+SELECT * FROM td;
+a
+DROP TABLE tr,tc,td;

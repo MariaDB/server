@@ -1,0 +1,3127 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10914 ROW data type for stored routine variables
+#
+#
+# ROW of ROWs is not supported yet
+#
+CREATE PROCEDURE p1()
+AS
+a ROW(a ROW(a INT));
+BEGIN
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROW(a INT));
+BEGIN
+END' at line 3
+#
+# Returning the entire ROW parameter from a function
+#
+CREATE FUNCTION f1(a ROW(a INT, b INT)) RETURN INT
+AS
+BEGIN
+RETURN a;
+END;
+$$
+SELECT f1(ROW(10,20));
+ERROR 21000: Operand should contain 1 column(s)
+DROP FUNCTION f1;
+#
+# ROW as an SP parameter
+#
+CREATE FUNCTION f1(a ROW(a INT,b INT)) RETURN INT
+AS
+BEGIN
+RETURN a.b;
+END;
+$$
+CREATE PROCEDURE p1()
+AS
+a ROW(a INT,b INT):=(11,21);
+BEGIN
+SELECT f1(a);
+END;
+$$
+SELECT f1(ROW(10,20));
+f1(ROW(10,20))
+20
+SELECT f1(10);
+ERROR 21000: Operand should contain 2 column(s)
+SELECT f1(ROW(10,20,30));
+ERROR 21000: Operand should contain 2 column(s)
+CALL p1();
+f1(a)
+21
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+CREATE PROCEDURE p1(a ROW(a INT,b INT))
+AS
+BEGIN
+SELECT a.a, a.b;
+END;
+$$
+CALL p1(ROW(10,20));
+a.a	a.b
+10	20
+CALL p1(10);
+ERROR 21000: Operand should contain 2 column(s)
+CALL p1(ROW(10,20,30));
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+#
+# ROW as an SP OUT parameter
+#
+CREATE PROCEDURE p1(a OUT ROW(a INT,b INT))
+AS
+BEGIN
+a.a:=10;
+a.b:=20;
+END;
+$$
+CREATE PROCEDURE p2
+AS
+a ROW(a INT,b INT):=(11,21);
+BEGIN
+CALL p1(a);
+SELECT a.a,a.b;
+END;
+$$
+CALL p2();
+a.a	a.b
+10	20
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# ROW as an SP return value is not supported yet
+#
+CREATE FUNCTION p1() RETURN ROW(a INT)
+AS
+BEGIN
+RETURN NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ROW(a INT)
+AS
+BEGIN
+RETURN NULL;
+END' at line 1
+#
+# Diplicate row field
+#
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT, a DOUBLE);
+BEGIN
+SELECT a.a;
+END;
+$$
+ERROR 42S21: Duplicate column name 'a'
+#
+# Bad scalar default value
+#
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT, b DOUBLE):= 1;
+BEGIN
+SELECT a.a;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+#
+# Bad ROW default value with a wrong number of fields
+#
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT, b DOUBLE):= ROW(1,2,3);
+BEGIN
+SELECT a.a;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+#
+# Scalar variable vs table alias cause no ambiguity
+#
+CREATE PROCEDURE p1()
+AS
+a INT;
+BEGIN
+-- a.x is a table column here (not a row variable field)
+SELECT a.x FROM a;
+SELECT a.x FROM t1 a;
+END;
+$$
+DROP PROCEDURE p1;
+#
+# Using the entire ROW variable in select list
+#
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT);
+BEGIN
+SELECT a;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT,b INT);
+BEGIN
+SELECT a;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+#
+# Using the entire ROW variable in functions
+#
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT);
+BEGIN
+SELECT COALESCE(a);
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT,b INT);
+BEGIN
+SELECT COALESCE(a);
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT);
+BEGIN
+SELECT a+1;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT,b INT);
+BEGIN
+SELECT a+1;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+#
+# Comparing the entire ROW to a scalar value
+#
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT,b INT);
+BEGIN
+SELECT a=1;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types row and int for operation '='
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT,b INT);
+BEGIN
+SELECT 1=a;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal parameter data types int and row for operation '='
+DROP PROCEDURE p1;
+#
+# Passing the entire ROW to a stored function
+#
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+BEGIN
+RETURN a;
+END;
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT,b INT);
+BEGIN
+SELECT f1(a);
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+BEGIN
+RETURN a;
+END;
+CREATE PROCEDURE p1()
+AS
+a ROW (a INT);
+BEGIN
+SELECT f1(a);
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+#
+# Assigning a scalar value to a ROW variable with 1 column
+#
+CREATE OR REPLACE PROCEDURE p1
+AS
+rec ROW(a INT);
+BEGIN
+rec:=1;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+#
+# Assigning a scalar value to a ROW variable with 2 columns
+#
+CREATE OR REPLACE PROCEDURE p1
+AS
+rec ROW(a INT,b INT);
+BEGIN
+rec:=1;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+#
+# Assigning a ROW value to a ROW variable with different number of columns
+#
+CREATE OR REPLACE PROCEDURE p1
+AS
+rec ROW(a INT,b INT);
+BEGIN
+rec:=ROW(1,2,3);
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+#
+# Returning the entire ROW from a function is not supported yet
+# This syntax would be needed: SELECT f1().x FROM DUAL;
+#
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+rec ROW(a INT);
+BEGIN
+RETURN rec;
+END;
+$$
+SELECT f1(10);
+ERROR 21000: Operand should contain 1 column(s)
+DROP FUNCTION f1;
+#
+# Using the entire ROW in SELECT..CREATE
+#
+CREATE PROCEDURE p1
+AS
+rec ROW(a INT,b INT);
+BEGIN
+CREATE TABLE t1 AS SELECT rec;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 1 column(s)
+DROP PROCEDURE p1;
+#
+# Using the entire ROW in LIMIT
+#
+CREATE PROCEDURE p1()
+AS
+rec ROW(a INT);
+BEGIN
+rec.a:= '10';
+SELECT * FROM t1 LIMIT rec;
+END;
+$$
+ERROR HY000: A variable of a non-integer based type in LIMIT clause
+#
+# Setting ROW fields using a SET command
+#
+CREATE OR REPLACE PROCEDURE p1
+AS
+rec ROW(a INT,b DOUBLE,c VARCHAR(10));
+a INT;
+BEGIN
+SET @a= 10, rec.a=10, rec.b=20, rec.c= 'test', a= 5;
+SELECT rec.a, rec.b, rec.c, a;
+END;
+$$
+CALL p1();
+rec.a	rec.b	rec.c	a
+10	20	test	5
+DROP PROCEDURE p1;
+#
+# Assigning a ROW variable from a ROW value
+#
+CREATE PROCEDURE p1
+AS
+rec ROW(a INT,b INT);
+BEGIN
+rec:=ROW(1,2);
+SELECT rec.a, rec.b;
+END;
+$$
+CALL p1();
+rec.a	rec.b
+1	2
+DROP PROCEDURE p1;
+#
+# Assigning a ROW variable from another ROW value
+#
+CREATE PROCEDURE p1
+AS
+rec1 ROW(a INT,b INT);
+rec2 ROW(a INT,b INT);
+BEGIN
+rec1:=ROW(1,2);
+rec2:=rec1;
+SELECT rec2.a, rec2.b;
+END;
+$$
+CALL p1();
+rec2.a	rec2.b
+1	2
+DROP PROCEDURE p1;
+#
+# Comparing a ROW variable to a ROW() function
+#
+CREATE OR REPLACE PROCEDURE p1
+AS
+rec ROW(a INT,b INT);
+BEGIN
+rec.a:= 1;
+rec.b:= 2;
+SELECT rec=(0,0), rec=ROW(0,0), (0,0)=rec, ROW(0,0)=rec;
+SELECT rec=(1,2), rec=ROW(1,2), (1,2)=rec, ROW(1,2)=rec;
+SELECT rec=(NULL,0), rec=ROW(NULL,0);
+SELECT rec=(NULL,2), rec=ROW(NULL,2);
+SELECT rec<>(0,0), rec<>ROW(0,0);
+SELECT rec<>(1,2), rec<>ROW(1,2);
+SELECT rec<>(NULL,0), rec<>ROW(NULL,0);
+SELECT rec<>(NULL,2), rec<>ROW(NULL,2);
+SELECT rec IN ((0,0)), rec IN (ROW(0,0));
+SELECT rec IN ((1,2)), rec IN (ROW(1,2));
+SELECT rec IN ((0,NULL),(1,2));
+SELECT rec NOT IN ((0,NULL),(1,1));
+SELECT rec NOT IN ((1,NULL),(1,1));
+END;
+$$
+CALL p1();
+rec=(0,0)	rec=ROW(0,0)	(0,0)=rec	ROW(0,0)=rec
+0	0	0	0
+rec=(1,2)	rec=ROW(1,2)	(1,2)=rec	ROW(1,2)=rec
+1	1	1	1
+rec=(NULL,0)	rec=ROW(NULL,0)
+0	0
+rec=(NULL,2)	rec=ROW(NULL,2)
+NULL	NULL
+rec<>(0,0)	rec<>ROW(0,0)
+1	1
+rec<>(1,2)	rec<>ROW(1,2)
+0	0
+rec<>(NULL,0)	rec<>ROW(NULL,0)
+1	1
+rec<>(NULL,2)	rec<>ROW(NULL,2)
+NULL	NULL
+rec IN ((0,0))	rec IN (ROW(0,0))
+0	0
+rec IN ((1,2))	rec IN (ROW(1,2))
+1	1
+rec IN ((0,NULL),(1,2))
+1
+rec NOT IN ((0,NULL),(1,1))
+1
+rec NOT IN ((1,NULL),(1,1))
+NULL
+DROP PROCEDURE p1;
+#
+# Comparing a ROW variable to another ROW variable
+#
+CREATE OR REPLACE PROCEDURE p1
+AS
+rec1,rec2,rec3 ROW(a INT,b INT);
+BEGIN
+rec1.a:= 1;
+rec1.b:= 2;
+rec2.a:= 11;
+rec2.b:= 12;
+rec3.a:= 11;
+rec3.b:= 12;
+SELECT rec1=rec2, rec2=rec1, rec2=rec3, rec3=rec2;
+END;
+$$
+CALL p1();
+rec1=rec2	rec2=rec1	rec2=rec3	rec3=rec2
+0	0	1	1
+DROP PROCEDURE p1;
+#
+# Referencing a non-existing row variable
+#
+CREATE PROCEDURE p1()
+AS
+BEGIN
+SET a.b=1;
+END;
+$$
+ERROR HY000: Unknown structured system variable or ROW routine variable 'a'
+CREATE PROCEDURE p1()
+AS
+BEGIN
+a.b:=1;
+END;
+$$
+ERROR HY000: Unknown structured system variable or ROW routine variable 'a'
+#
+# Referencing a non-existing row field
+#
+CREATE PROCEDURE p1()
+AS
+a ROW(a INT,b INT);
+BEGIN
+SELECT a.c FROM t1;
+END;
+$$
+ERROR HY000: Row variable 'a' does not have a field 'c'
+#
+# ROW and scalar variables with the same name shadowing each other
+#
+CREATE PROCEDURE p1()
+AS
+a ROW(a INT);
+BEGIN
+a.a:=100;
+DECLARE
+a INT:= 200;
+BEGIN
+SELECT a;
+DECLARE
+a ROW(a INT);
+BEGIN
+a.a:=300;
+SELECT a.a;
+END;
+SELECT a;
+END;
+SELECT a.a;
+END;
+$$
+CALL p1();
+a
+200
+a.a
+300
+a
+200
+a.a
+100
+DROP PROCEDURE p1;
+#
+# ROW with good default values
+#
+CREATE PROCEDURE p1()
+AS
+a ROW(a INT,b INT):= (10,20);
+b ROW(a INT,b INT):= (11,21);
+c ROW(a INT,b INT):= a;
+BEGIN
+SELECT a.a, a.b, b.a, b.b, c.a, c.b FROM DUAL;
+END;
+$$
+CALL p1;
+a.a	a.b	b.a	b.b	c.a	c.b
+10	20	11	21	10	20
+DROP PROCEDURE p1;
+#
+# ROW in WHERE clause
+#
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (10,20);
+CREATE PROCEDURE p1()
+AS
+rec ROW(a INT,b INT):=ROW(10,20);
+BEGIN
+SELECT * FROM t1 WHERE rec=ROW(a,b);
+SELECT * FROM t1 WHERE ROW(a,b)=rec;
+SELECT * FROM t1 WHERE rec=ROW(10,20);
+SELECT * FROM t1 WHERE ROW(10,20)=rec;
+END;
+$$
+CALL p1();
+a	b
+10	20
+a	b
+10	20
+a	b
+10	20
+a	b
+10	20
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# ROW fields in WHERE clause
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+AS
+rec ROW(a INT);
+BEGIN
+rec.a:= 10;
+SELECT * FROM t1 WHERE a=rec.a;
+END;
+$$
+CALL p1();
+a
+10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# ROW fields in HAVING clause
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+AS
+rec ROW(a INT);
+BEGIN
+rec.a:= 10;
+SELECT * FROM t1 HAVING a=rec.a;
+SELECT * FROM t1 HAVING MIN(a)=rec.a;
+END;
+$$
+CALL p1();
+a
+10
+a
+10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# ROW fields in LIMIT clause
+#
+CREATE TABLE t1 (a INT);
+SELECT 1 FROM t1 LIMIT t1.a;
+ERROR 42000: Undeclared variable: t1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+AS
+rec ROW(a INT);
+BEGIN
+rec.a:= 10;
+SELECT * FROM t1 LIMIT rec.a;
+END;
+$$
+CALL p1();
+a
+10
+20
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+rec ROW(a VARCHAR(10));
+BEGIN
+rec.a:= '10';
+SELECT * FROM t1 LIMIT rec.a;
+END;
+$$
+ERROR HY000: A variable of a non-integer based type in LIMIT clause
+#
+# ROW fields in select list
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+AS
+t1 ROW(a INT);
+BEGIN
+t1.a:= 10;
+SELECT t1.a, 'This is the variable t1.a value, rather than the column t1.a' AS comm FROM t1;
+SELECT t1.a, t2.a, t1.a+t2.a FROM t1 t2;
+END;
+$$
+CALL p1();
+t1.a	comm
+10	This is the variable t1.a value, rather than the column t1.a
+10	This is the variable t1.a value, rather than the column t1.a
+t1.a	a	t1.a+t2.a
+10	10	20
+10	20	30
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# ROW fields as insert values
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+rec ROW(a INT, b VARCHAR(10));
+BEGIN
+rec.a:= 10;
+rec.b:= 'test';
+INSERT INTO t1 VALUES (rec.a, rec.b);
+END;
+$$
+CALL p1();
+SELECT * FROM t1;
+a	b
+10	test
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# ROW fields as SP out parameters
+#
+CREATE PROCEDURE p1(a OUT INT, b OUT VARCHAR)
+AS
+BEGIN
+a:= 10;
+b:= 'test';
+END;
+$$
+CREATE PROCEDURE p2
+AS
+rec ROW(a INT, b VARCHAR(10));
+BEGIN
+CALL p1(rec.a, rec.b);
+SELECT rec.a, rec.b;
+END;
+$$
+CALL p2;
+rec.a	rec.b
+10	test
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+#
+# ROW fields as dynamic SQL out parameters
+#
+CREATE PROCEDURE p1(a OUT INT, b OUT VARCHAR)
+AS
+BEGIN
+a:= 20;
+b:= 'test-dynamic-sql';
+END;
+$$
+CREATE PROCEDURE p2
+AS
+rec ROW(a INT, b VARCHAR(30));
+BEGIN
+EXECUTE IMMEDIATE 'CALL p1(?,?)' USING rec.a, rec.b;
+SELECT rec.a, rec.b;
+END;
+$$
+CALL p2;
+rec.a	rec.b
+20	test-dynamic-sql
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+#
+# ROW fields as SELECT..INTO targets
+#
+CREATE PROCEDURE p1
+AS
+rec ROW(a INT, b VARCHAR(10));
+BEGIN
+SELECT 10,'test' INTO rec.a,rec.b;
+SELECT rec.a, rec.b;
+END;
+$$
+CALL p1;
+rec.a	rec.b
+10	test
+DROP PROCEDURE p1;
+#
+# Implicit default NULL handling
+#
+CREATE PROCEDURE p1
+AS
+rec ROW(a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,0), e TIME, f DATETIME);
+BEGIN
+SELECT rec.a, rec.b, rec.c, rec.d, rec.e, rec.f FROM DUAL;
+END;
+$$
+CALL p1();
+rec.a	rec.b	rec.c	rec.d	rec.e	rec.f
+NULL	NULL	NULL	NULL	NULL	NULL
+DROP PROCEDURE p1;
+#
+# NULL handling
+#
+CREATE PROCEDURE p1
+AS
+rec1 ROW(a INT, b VARCHAR(10)):=(NULL,NULL);
+rec2 ROW(a INT, b VARCHAR(10)):=rec1;
+BEGIN
+SELECT rec1.a, rec1.b, rec2.a, rec2.b;
+rec1:= (10,20);
+rec2:= rec1;
+SELECT rec1.a, rec1.b, rec2.a, rec2.b;
+rec1:= (NULL,20);
+rec2:= rec1;
+SELECT rec1.a, rec1.b, rec2.a, rec2.b;
+rec1:= (10,NULL);
+rec2:= rec1;
+SELECT rec1.a, rec1.b, rec2.a, rec2.b;
+rec1:= (NULL,NULL);
+rec2:= rec1;
+SELECT rec1.a, rec1.b, rec2.a, rec2.b;
+END;
+$$
+CALL p1;
+rec1.a	rec1.b	rec2.a	rec2.b
+NULL	NULL	NULL	NULL
+rec1.a	rec1.b	rec2.a	rec2.b
+10	20	10	20
+rec1.a	rec1.b	rec2.a	rec2.b
+NULL	20	NULL	20
+rec1.a	rec1.b	rec2.a	rec2.b
+10	NULL	10	NULL
+rec1.a	rec1.b	rec2.a	rec2.b
+NULL	NULL	NULL	NULL
+DROP PROCEDURE p1;
+#
+# Testing multiple ROW variable declarations
+# This makes sure that fill_field_definitions() is called only once
+# per a ROW field, so create length is not converted to internal length
+# multiple times.
+#
+CREATE PROCEDURE p1
+AS
+rec1, rec2, rec3 ROW(a VARCHAR(10) CHARACTER SET utf8);
+BEGIN
+CREATE TABLE t1 AS SELECT rec1.a, rec2.a, rec3.a;
+END;
+$$
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "rec1.a" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
+  "rec2.a" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
+  "rec3.a" varchar(10) CHARACTER SET utf8 DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# INT
+#
+CREATE PROCEDURE p1() AS var INT; rec ROW(var INT); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(1); rec ROW(var INT(1)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(2); rec ROW(var INT(2)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(3); rec ROW(var INT(3)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(4); rec ROW(var INT(4)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(5); rec ROW(var INT(5)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(6); rec ROW(var INT(6)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(7); rec ROW(var INT(7)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(8); rec ROW(var INT(8)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(9); rec ROW(var INT(9)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(10); rec ROW(var INT(10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(11); rec ROW(var INT(11)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(11) DEFAULT NULL,
+  "rec.var" int(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(12); rec ROW(var INT(12)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(12) DEFAULT NULL,
+  "rec.var" int(12) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(13); rec ROW(var INT(13)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(13) DEFAULT NULL,
+  "rec.var" int(13) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(14); rec ROW(var INT(14)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(14) DEFAULT NULL,
+  "rec.var" int(14) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(20); rec ROW(var INT(20)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(20) DEFAULT NULL,
+  "rec.var" int(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var INT(21); rec ROW(var INT(21)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" int(21) DEFAULT NULL,
+  "rec.var" int(21) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# TINYINT
+#
+CREATE PROCEDURE p1() AS var TINYINT; rec ROW(var TINYINT); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(4) DEFAULT NULL,
+  "rec.var" tinyint(4) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(1); rec ROW(var TINYINT(1)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(4) DEFAULT NULL,
+  "rec.var" tinyint(4) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(2); rec ROW(var TINYINT(2)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(4) DEFAULT NULL,
+  "rec.var" tinyint(4) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(3); rec ROW(var TINYINT(3)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(4) DEFAULT NULL,
+  "rec.var" tinyint(4) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(4); rec ROW(var TINYINT(4)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(4) DEFAULT NULL,
+  "rec.var" tinyint(4) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(5); rec ROW(var TINYINT(5)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(5) DEFAULT NULL,
+  "rec.var" tinyint(5) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(6); rec ROW(var TINYINT(6)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(6) DEFAULT NULL,
+  "rec.var" tinyint(6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(7); rec ROW(var TINYINT(7)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(7) DEFAULT NULL,
+  "rec.var" tinyint(7) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(8); rec ROW(var TINYINT(8)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(8) DEFAULT NULL,
+  "rec.var" tinyint(8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(9); rec ROW(var TINYINT(9)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(9) DEFAULT NULL,
+  "rec.var" tinyint(9) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(10); rec ROW(var TINYINT(10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(10) DEFAULT NULL,
+  "rec.var" tinyint(10) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(11); rec ROW(var TINYINT(11)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(11) DEFAULT NULL,
+  "rec.var" tinyint(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(12); rec ROW(var TINYINT(12)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(12) DEFAULT NULL,
+  "rec.var" tinyint(12) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(13); rec ROW(var TINYINT(13)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(13) DEFAULT NULL,
+  "rec.var" tinyint(13) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(14); rec ROW(var TINYINT(14)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(14) DEFAULT NULL,
+  "rec.var" tinyint(14) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(20); rec ROW(var TINYINT(20)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(20) DEFAULT NULL,
+  "rec.var" tinyint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYINT(21); rec ROW(var TINYINT(21)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinyint(21) DEFAULT NULL,
+  "rec.var" tinyint(21) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# SMALLINT
+#
+CREATE PROCEDURE p1() AS var SMALLINT; rec ROW(var SMALLINT); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(1); rec ROW(var SMALLINT(1)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(2); rec ROW(var SMALLINT(2)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(3); rec ROW(var SMALLINT(3)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(4); rec ROW(var SMALLINT(4)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(5); rec ROW(var SMALLINT(5)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(6); rec ROW(var SMALLINT(6)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(6) DEFAULT NULL,
+  "rec.var" smallint(6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(7); rec ROW(var SMALLINT(7)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(7) DEFAULT NULL,
+  "rec.var" smallint(7) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(8); rec ROW(var SMALLINT(8)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(8) DEFAULT NULL,
+  "rec.var" smallint(8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(9); rec ROW(var SMALLINT(9)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(9) DEFAULT NULL,
+  "rec.var" smallint(9) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(10); rec ROW(var SMALLINT(10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(10) DEFAULT NULL,
+  "rec.var" smallint(10) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(11); rec ROW(var SMALLINT(11)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(11) DEFAULT NULL,
+  "rec.var" smallint(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(12); rec ROW(var SMALLINT(12)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(12) DEFAULT NULL,
+  "rec.var" smallint(12) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(13); rec ROW(var SMALLINT(13)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(13) DEFAULT NULL,
+  "rec.var" smallint(13) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(14); rec ROW(var SMALLINT(14)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(14) DEFAULT NULL,
+  "rec.var" smallint(14) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(20); rec ROW(var SMALLINT(20)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(20) DEFAULT NULL,
+  "rec.var" smallint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var SMALLINT(21); rec ROW(var SMALLINT(21)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" smallint(21) DEFAULT NULL,
+  "rec.var" smallint(21) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# MEDIUMINT
+#
+CREATE PROCEDURE p1() AS var MEDIUMINT; rec ROW(var MEDIUMINT); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(1); rec ROW(var MEDIUMINT(1)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(8) DEFAULT NULL,
+  "rec.var" mediumint(8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(2); rec ROW(var MEDIUMINT(2)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(8) DEFAULT NULL,
+  "rec.var" mediumint(8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(3); rec ROW(var MEDIUMINT(3)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(8) DEFAULT NULL,
+  "rec.var" mediumint(8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(4); rec ROW(var MEDIUMINT(4)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(8) DEFAULT NULL,
+  "rec.var" mediumint(8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(5); rec ROW(var MEDIUMINT(5)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(8) DEFAULT NULL,
+  "rec.var" mediumint(8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(6); rec ROW(var MEDIUMINT(6)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(8) DEFAULT NULL,
+  "rec.var" mediumint(8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(7); rec ROW(var MEDIUMINT(7)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(8) DEFAULT NULL,
+  "rec.var" mediumint(8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(8); rec ROW(var MEDIUMINT(8)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(8) DEFAULT NULL,
+  "rec.var" mediumint(8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(9); rec ROW(var MEDIUMINT(9)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(9) DEFAULT NULL,
+  "rec.var" mediumint(9) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(10); rec ROW(var MEDIUMINT(10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(10) DEFAULT NULL,
+  "rec.var" mediumint(10) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(11); rec ROW(var MEDIUMINT(11)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(11) DEFAULT NULL,
+  "rec.var" mediumint(11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(12); rec ROW(var MEDIUMINT(12)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(12) DEFAULT NULL,
+  "rec.var" mediumint(12) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(13); rec ROW(var MEDIUMINT(13)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(13) DEFAULT NULL,
+  "rec.var" mediumint(13) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(14); rec ROW(var MEDIUMINT(14)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(14) DEFAULT NULL,
+  "rec.var" mediumint(14) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(20); rec ROW(var MEDIUMINT(20)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(20) DEFAULT NULL,
+  "rec.var" mediumint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMINT(21); rec ROW(var MEDIUMINT(21)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumint(21) DEFAULT NULL,
+  "rec.var" mediumint(21) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# BIGINT
+#
+CREATE PROCEDURE p1() AS var BIGINT; rec ROW(var BIGINT); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(1); rec ROW(var BIGINT(1)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(2); rec ROW(var BIGINT(2)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(3); rec ROW(var BIGINT(3)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(4); rec ROW(var BIGINT(4)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(5); rec ROW(var BIGINT(5)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(6); rec ROW(var BIGINT(6)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(7); rec ROW(var BIGINT(7)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(8); rec ROW(var BIGINT(8)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(9); rec ROW(var BIGINT(9)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(10); rec ROW(var BIGINT(10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(11); rec ROW(var BIGINT(11)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(12); rec ROW(var BIGINT(12)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(13); rec ROW(var BIGINT(13)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(14); rec ROW(var BIGINT(14)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(20); rec ROW(var BIGINT(20)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(20) DEFAULT NULL,
+  "rec.var" bigint(20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BIGINT(21); rec ROW(var BIGINT(21)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" bigint(21) DEFAULT NULL,
+  "rec.var" bigint(21) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# DOUBLE
+#
+CREATE PROCEDURE p1() AS var DOUBLE; rec ROW(var DOUBLE); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double DEFAULT NULL,
+  "rec.var" double DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,1); rec ROW(var DOUBLE(30,1)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,1) DEFAULT NULL,
+  "rec.var" double(30,1) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,2); rec ROW(var DOUBLE(30,2)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,2) DEFAULT NULL,
+  "rec.var" double(30,2) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,3); rec ROW(var DOUBLE(30,3)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,3) DEFAULT NULL,
+  "rec.var" double(30,3) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,4); rec ROW(var DOUBLE(30,4)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,4) DEFAULT NULL,
+  "rec.var" double(30,4) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,5); rec ROW(var DOUBLE(30,5)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,5) DEFAULT NULL,
+  "rec.var" double(30,5) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,6); rec ROW(var DOUBLE(30,6)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,6) DEFAULT NULL,
+  "rec.var" double(30,6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,7); rec ROW(var DOUBLE(30,7)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,7) DEFAULT NULL,
+  "rec.var" double(30,7) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,8); rec ROW(var DOUBLE(30,8)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,8) DEFAULT NULL,
+  "rec.var" double(30,8) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,9); rec ROW(var DOUBLE(30,9)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,9) DEFAULT NULL,
+  "rec.var" double(30,9) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,10); rec ROW(var DOUBLE(30,10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,10) DEFAULT NULL,
+  "rec.var" double(30,10) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,11); rec ROW(var DOUBLE(30,11)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,11) DEFAULT NULL,
+  "rec.var" double(30,11) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,12); rec ROW(var DOUBLE(30,12)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,12) DEFAULT NULL,
+  "rec.var" double(30,12) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,13); rec ROW(var DOUBLE(30,13)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,13) DEFAULT NULL,
+  "rec.var" double(30,13) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,14); rec ROW(var DOUBLE(30,14)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,14) DEFAULT NULL,
+  "rec.var" double(30,14) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,20); rec ROW(var DOUBLE(30,20)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,20) DEFAULT NULL,
+  "rec.var" double(30,20) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DOUBLE(30,21); rec ROW(var DOUBLE(30,21)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" double(30,21) DEFAULT NULL,
+  "rec.var" double(30,21) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# VARCHAR
+#
+CREATE PROCEDURE p1() AS var CHAR; rec ROW(var CHAR); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" char(1) DEFAULT NULL,
+  "rec.var" char(1) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BINARY; rec ROW(var BINARY); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" binary(1) DEFAULT NULL,
+  "rec.var" binary(1) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var CHAR(1); rec ROW(var CHAR(1)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" char(1) DEFAULT NULL,
+  "rec.var" char(1) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var CHAR(10); rec ROW(var CHAR(10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" char(10) DEFAULT NULL,
+  "rec.var" char(10) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var NCHAR(10); rec ROW(var NCHAR(10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" char(10) CHARACTER SET utf8 DEFAULT NULL,
+  "rec.var" char(10) CHARACTER SET utf8 DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var BINARY(10); rec ROW(var BINARY(10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" binary(10) DEFAULT NULL,
+  "rec.var" binary(10) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var VARBINARY(10); rec ROW(var VARBINARY(10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" varbinary(10) DEFAULT NULL,
+  "rec.var" varbinary(10) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var VARCHAR(10); rec ROW(var VARCHAR(10)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" varchar(10) DEFAULT NULL,
+  "rec.var" varchar(10) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var VARCHAR(10) CHARACTER SET utf8; rec ROW(var VARCHAR(10) CHARACTER SET utf8); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
+  "rec.var" varchar(10) CHARACTER SET utf8 DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_bin; rec ROW(var VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_bin); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" varchar(10) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  "rec.var" varchar(10) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# TIME
+#
+CREATE PROCEDURE p1() AS var TIME; rec ROW(var TIME); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" time DEFAULT NULL,
+  "rec.var" time DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TIME(1); rec ROW(var TIME(1)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" time(1) DEFAULT NULL,
+  "rec.var" time(1) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TIME(2); rec ROW(var TIME(2)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" time(2) DEFAULT NULL,
+  "rec.var" time(2) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TIME(3); rec ROW(var TIME(3)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" time(3) DEFAULT NULL,
+  "rec.var" time(3) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TIME(4); rec ROW(var TIME(4)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" time(4) DEFAULT NULL,
+  "rec.var" time(4) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TIME(5); rec ROW(var TIME(5)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" time(5) DEFAULT NULL,
+  "rec.var" time(5) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TIME(6); rec ROW(var TIME(6)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" time(6) DEFAULT NULL,
+  "rec.var" time(6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# DATETIME
+#
+CREATE PROCEDURE p1() AS var DATETIME; rec ROW(var DATETIME); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" datetime DEFAULT NULL,
+  "rec.var" datetime DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DATETIME(1); rec ROW(var DATETIME(1)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" datetime(1) DEFAULT NULL,
+  "rec.var" datetime(1) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DATETIME(2); rec ROW(var DATETIME(2)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" datetime(2) DEFAULT NULL,
+  "rec.var" datetime(2) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DATETIME(3); rec ROW(var DATETIME(3)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" datetime(3) DEFAULT NULL,
+  "rec.var" datetime(3) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DATETIME(4); rec ROW(var DATETIME(4)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" datetime(4) DEFAULT NULL,
+  "rec.var" datetime(4) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DATETIME(5); rec ROW(var DATETIME(5)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" datetime(5) DEFAULT NULL,
+  "rec.var" datetime(5) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var DATETIME(6); rec ROW(var DATETIME(6)); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" datetime(6) DEFAULT NULL,
+  "rec.var" datetime(6) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# LOB
+#
+CREATE PROCEDURE p1() AS var TEXT; rec ROW(var TEXT); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" text DEFAULT NULL,
+  "rec.var" text DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYTEXT; rec ROW(var TINYTEXT); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinytext DEFAULT NULL,
+  "rec.var" tinytext DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMTEXT; rec ROW(var MEDIUMTEXT); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumtext DEFAULT NULL,
+  "rec.var" mediumtext DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var LONGTEXT; rec ROW(var LONGTEXT); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" longtext DEFAULT NULL,
+  "rec.var" longtext DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TEXT CHARACTER SET utf8; rec ROW(var TEXT CHARACTER SET utf8); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" text CHARACTER SET utf8 DEFAULT NULL,
+  "rec.var" text CHARACTER SET utf8 DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var TINYTEXT CHARACTER SET utf8; rec ROW(var TINYTEXT CHARACTER SET utf8); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" tinytext CHARACTER SET utf8 DEFAULT NULL,
+  "rec.var" tinytext CHARACTER SET utf8 DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var MEDIUMTEXT CHARACTER SET utf8; rec ROW(var MEDIUMTEXT CHARACTER SET utf8); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" mediumtext CHARACTER SET utf8 DEFAULT NULL,
+  "rec.var" mediumtext CHARACTER SET utf8 DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS var LONGTEXT CHARACTER SET utf8; rec ROW(var LONGTEXT CHARACTER SET utf8); BEGIN CREATE TABLE t1 AS SELECT var,rec.var FROM DUAL;END;
+CALL p1();
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "var" longtext CHARACTER SET utf8 DEFAULT NULL,
+  "rec.var" longtext CHARACTER SET utf8 DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# End of MDEV-10914 ROW data type for stored routine variables
+#
+#
+# MDEV-12133 sql_mode=ORACLE: table%ROWTYPE in variable declarations
+#
+#
+# Referring to a table in a non-existing database
+#
+CREATE PROCEDURE p1()
+AS
+rec test2.t1%ROWTYPE;
+BEGIN
+NULL;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test2.t1' doesn't exist
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+ERROR 42S02: Table 'test2.t1' doesn't exist
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Referring to a table in the current database
+#
+CREATE PROCEDURE p1()
+AS
+rec t1%ROWTYPE;
+BEGIN
+CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "rec.a" int(11) DEFAULT NULL,
+  "rec.b" varchar(10) DEFAULT NULL,
+  "rec.c" double DEFAULT NULL,
+  "rec.d" decimal(10,0) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Referring to a table in an explicitly specified database
+#
+CREATE PROCEDURE p1()
+AS
+rec test.t1%ROWTYPE;
+BEGIN
+CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "rec.a" int(11) DEFAULT NULL,
+  "rec.b" varchar(10) DEFAULT NULL,
+  "rec.c" double DEFAULT NULL,
+  "rec.d" decimal(10,0) DEFAULT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Referring to a view in the current database
+#
+CREATE PROCEDURE p1()
+AS
+rec v1%ROWTYPE;
+BEGIN
+CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test.v1' doesn't exist
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CREATE VIEW v1 AS SELECT * FROM t1;
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "rec.a" int(11) DEFAULT NULL,
+  "rec.b" varchar(10) DEFAULT NULL,
+  "rec.c" double DEFAULT NULL,
+  "rec.d" decimal(10,0) DEFAULT NULL
+)
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Referring to a view in an explicitly specified database
+#
+CREATE PROCEDURE p1()
+AS
+rec test.v1%ROWTYPE;
+BEGIN
+CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test.v1' doesn't exist
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CREATE VIEW v1 AS SELECT * FROM t1;
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "rec.a" int(11) DEFAULT NULL,
+  "rec.b" varchar(10) DEFAULT NULL,
+  "rec.c" double DEFAULT NULL,
+  "rec.d" decimal(10,0) DEFAULT NULL
+)
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Checking that all table%ROWTYPE fields are NULL by default
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE;
+BEGIN
+SELECT rec1.a, rec1.b, rec1.c, rec1.d;
+END;
+$$
+CALL p1();
+rec1.a	rec1.b	rec1.c	rec1.d
+NULL	NULL	NULL	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# A table%ROWTYPE variable with a ROW expression as a default
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE DEFAULT ROW(10,'bbb');
+BEGIN
+SELECT rec1.a, rec1.b;
+END;
+$$
+CALL p1();
+rec1.a	rec1.b
+10	bbb
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# A table%ROWTYPE variable with an incompatible ROW expression as a default
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE DEFAULT ROW(10,'bbb','ccc');
+BEGIN
+SELECT rec1.a, rec1.b;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# A table%ROWTYPE variable with a ROW variable as a default
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+rec1 ROW(a INT, b VARCHAR(10)):= ROW(10,'bbb');
+rec2 t1%ROWTYPE DEFAULT rec1;
+BEGIN
+SELECT rec2.a, rec2.b;
+END;
+$$
+CALL p1();
+rec2.a	rec2.b
+10	bbb
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# A ROW variable using a table%ROWTYPE variable as a default
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE := ROW(10,'bbb');
+rec2 ROW(a INT, b VARCHAR(10)):= rec1;
+BEGIN
+SELECT rec2.a, rec2.b;
+END;
+$$
+CALL p1();
+rec2.a	rec2.b
+10	bbb
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Assigning table%ROWTYPE variables with a different column count
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE);
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE;
+rec2 t2%ROWTYPE;
+BEGIN
+rec2:=rec1;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE;
+rec2 t2%ROWTYPE;
+BEGIN
+rec1:=rec2;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 3 column(s)
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Assigning compatible table%ROWTYPE variables (equal number of fields)
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (x INT, y VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE;
+rec2 t2%ROWTYPE;
+BEGIN
+rec1.a:= 10;
+rec1.b:= 'bbb';
+rec2:=rec1;
+SELECT rec2.x, rec2.y;
+END;
+$$
+CALL p1();
+rec2.x	rec2.y
+10	bbb
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Assigning between incompatible table%ROWTYPE and explicit ROW variables
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE;
+rec2 ROW(x INT,y INT,z INT);
+BEGIN
+rec2.x:= 10;
+rec2.y:= 20;
+rec2.z:= 30;
+rec1:= rec2;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Assigning between compatible table%ROWTYPE and explicit ROW variables
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE;
+rec2 ROW(x INT,y INT);
+BEGIN
+rec2.x:= 10;
+rec2.y:= 20;
+rec1:= rec2;
+SELECT rec1.a, rec1.b;
+rec1.a:= 11;
+rec1.b:= 21;
+rec2:= rec1;
+SELECT rec2.x, rec2.y;
+END;
+$$
+CALL p1();
+rec1.a	rec1.b
+10	20
+rec2.x	rec2.y
+11	21
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Assigning table%ROWTYPE from a ROW expression
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE;
+BEGIN
+rec1:= ROW(10,20);
+SELECT rec1.a, rec1.b;
+END;
+$$
+CALL p1();
+rec1.a	rec1.b
+10	20
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Fetching a cursor into a table%ROWTYPE variable with a wrong field count
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+CREATE PROCEDURE p1()
+AS
+rec2 t2%ROWTYPE;
+CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+OPEN cur1;
+FETCH cur1 INTO rec2;
+CLOSE cur1;
+END;
+$$
+CALL p1();
+ERROR HY000: Incorrect number of FETCH variables
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Fetching a cursor into a table%ROWTYPE variable
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+INSERT INTO t1 VALUES (20,'bb2',222.222e2, 12.32);
+INSERT INTO t1 VALUES (30,'bb3',333.333e2, 12.33);
+CREATE PROCEDURE p1()
+AS
+rec t1%ROWTYPE;
+CURSOR cur IS SELECT * FROM t1;
+BEGIN
+OPEN cur;
+LOOP
+FETCH cur INTO rec;
+EXIT WHEN cur%NOTFOUND;
+SELECT rec.a, rec.b, rec.c, rec.d;
+INSERT INTO t2 VALUES (rec.a, rec.b, rec.c, rec.d);
+END LOOP;
+CLOSE cur;
+END;
+$$
+CALL p1();
+rec.a	rec.b	rec.c	rec.d
+10	bb1	11111.1	12.31
+rec.a	rec.b	rec.c	rec.d
+20	bb2	22222.2	12.32
+rec.a	rec.b	rec.c	rec.d
+30	bb3	33333.3	12.33
+SELECT * FROM t2;
+a	b	c	d
+10	bb1	11111.1	12.31
+20	bb2	22222.2	12.32
+30	bb3	33333.3	12.33
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Fetching a cursor into a table%ROWTYPE variable with different column names
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (x INT, y VARCHAR(10));
+INSERT INTO t1 VALUES (10,'bbb');
+CREATE PROCEDURE p1()
+AS
+rec2 t2%ROWTYPE;
+CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+OPEN cur1;
+FETCH cur1 INTO rec2;
+SELECT rec2.x, rec2.y;
+CLOSE cur1;
+END;
+$$
+CALL p1();
+rec2.x	rec2.y
+10	bbb
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Fetching a cursor into a table%ROWTYPE variable, with truncation
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t1 VALUES (10,'11x');
+CREATE PROCEDURE p1()
+AS
+rec2 t2%ROWTYPE;
+CURSOR cur1 IS SELECT * FROM t1;
+BEGIN
+OPEN cur1;
+FETCH cur1 INTO rec2;
+SELECT rec2.a, rec2.b;
+CLOSE cur1;
+END;
+$$
+CALL p1();
+rec2.a	rec2.b
+10	11
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# table%ROWTYPE variables are not allowed in LIMIT
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE:=(1,2);
+BEGIN
+SELECT * FROM t1 LIMIT rec1.a;
+END;
+$$
+ERROR HY000: A variable of a non-integer based type in LIMIT clause
+DROP TABLE t1;
+#
+# table%ROWTYPE variable fields as OUT parameters
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1(a OUT INT,b OUT VARCHAR(10))
+AS
+BEGIN
+a:=10;
+b:='bb';
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+rec1 t1%ROWTYPE;
+BEGIN
+CALL p1(rec1.a, rec1.b);
+SELECT rec1.a, rec1.b;
+END;
+$$
+CALL p2();
+rec1.a	rec1.b
+10	bb
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Passing the entire table%ROWTYPE variable
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1(a ROW(a INT, b VARCHAR(10)))
+AS
+BEGIN
+SELECT a.a, a.b;
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+rec1 t1%ROWTYPE:= ROW(10,'bb');
+BEGIN
+CALL p1(rec1);
+END;
+$$
+CALL p2();
+a.a	a.b
+10	bb
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Passing the entire table%ROWTYPE variable as an OUT parameter
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1(a OUT ROW(a INT, b VARCHAR(10)))
+AS
+BEGIN
+a:= ROW(10,'bb');
+END;
+$$
+CREATE PROCEDURE p2()
+AS
+rec1 t1%ROWTYPE;
+BEGIN
+CALL p1(rec1);
+SELECT rec1.a, rec1.b;
+END;
+$$
+CALL p2();
+rec1.a	rec1.b
+10	bb
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Assigning a table%ROWTYPE field to an OUT parameter
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1 (res IN OUT INTEGER)
+AS
+rec1 t1%ROWTYPE:=ROW(10,'b0');
+BEGIN
+res:=rec1.a;
+END;
+$$
+CALL p1(@res);
+SELECT @res;
+@res
+10
+SET @res=NULL;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing Item_splocal_row_field_by_name::print
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1
+AS
+rec t1%ROWTYPE:=ROW(10,'bb');
+BEGIN
+EXPLAIN EXTENDED SELECT rec.a, rec.b;
+END;
+$$
+CALL p1();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select rec.a@0["a"] AS "rec.a",rec.b@0["b"] AS "rec.b"
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Non-existing field
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1
+AS
+rec t1%ROWTYPE;
+BEGIN
+SELECT rec.c;
+END;
+$$
+CALL p1();
+ERROR HY000: Row variable 'rec' does not have a field 'c'
+ALTER TABLE t1 ADD c INT;
+CALL p1();
+rec.c
+NULL
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing that field names are case insensitive
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1
+AS
+rec t1%ROWTYPE:=ROW(10,'bb');
+BEGIN
+SELECT rec.A, rec.B;
+END;
+$$
+CALL p1();
+rec.A	rec.B
+10	bb
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing that table%ROWTYPE uses temporary tables vs shadowed real tables
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TEMPORARY TABLE t1 (x INT, y VARCHAR(10));
+CREATE PROCEDURE p1
+AS
+rec t1%ROWTYPE:=ROW(10,'bb');
+BEGIN
+SELECT rec.A, rec.B;
+END;
+$$
+CALL p1();
+ERROR HY000: Row variable 'rec' does not have a field 'A'
+DROP TEMPORARY TABLE t1;
+CALL p1();
+rec.A	rec.B
+10	bb
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing that the structure of table%ROWTYPE variables is determined at the very beginning and is not changed after ALTER
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1 AS
+BEGIN
+ALTER TABLE t1 ADD c INT;
+DECLARE
+rec t1%ROWTYPE; -- this will not have column "c"
+  BEGIN
+rec.c:=10;
+END;
+END;
+$$
+CALL p1();
+ERROR HY000: Row variable 'rec' does not have a field 'c'
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# MDEV-12291 Allow ROW variables as SELECT INTO targets
+#
+# ROW variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1 AS
+rec1 ROW(a INT, b VARCHAR(32), c DOUBLE);
+BEGIN
+SELECT * FROM t1 INTO rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# Multiple ROW variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1 AS
+rec1 ROW(a INT, b VARCHAR(32));
+BEGIN
+SELECT * FROM t1 INTO rec1, rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# ROW variables working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1 AS
+rec1 ROW(a INT, b VARCHAR(32));
+BEGIN
+SELECT * FROM t1 INTO rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+rec1.a	rec1.b
+10	b10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# table%ROWTYPE variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1 AS
+rec1 t1%ROWTYPE;
+BEGIN
+SELECT 10,'a','b' FROM t1 INTO rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# Multiple table%ROWTYPE variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1 AS
+rec1 t1%ROWTYPE;
+BEGIN
+SELECT 10,'a' FROM t1 INTO rec1, rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# table%ROWTYPE working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1 AS
+rec1 t1%ROWTYPE;
+BEGIN
+SELECT * FROM t1 INTO rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+rec1.a	rec1.b
+10	b10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# cursor%ROWTYPE variable with a wrong column count
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1 AS
+CURSOR cur1 IS SELECT 10, 'b0', 'c0';
+rec1 cur1%ROWTYPE;
+BEGIN
+SELECT * FROM t1 INTO rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# Multiple cursor%ROWTYPE variables
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1 AS
+CURSOR cur1 IS SELECT * FROM t1;
+rec1 cur1%ROWTYPE;
+BEGIN
+SELECT * FROM t1 INTO rec1, rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# cursor%ROWTYPE working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1 AS
+CURSOR cur1 IS SELECT * FROM t1;
+rec1 cur1%ROWTYPE;
+BEGIN
+SELECT * FROM t1 INTO rec1;
+SELECT rec1.a, rec1.b;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+rec1.a	rec1.b
+10	b10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# MDEV-12347 Valgrind reports invalid read errors in Item_field_row::element_index_by_name
+#
+CREATE TABLE t1 (a INT, b ENUM('b0','b1','b12','b3'));
+CREATE PROCEDURE p1 AS
+BEGIN
+DECLARE
+rec t1%ROWTYPE;
+BEGIN
+rec.b:='b0';
+SELECT rec.b;
+END;
+END;
+$$
+CALL p1();
+rec.b
+b0
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT, b SET('b0','b1','b12','b3'));
+CREATE PROCEDURE p1 AS
+BEGIN
+DECLARE
+rec t1%ROWTYPE;
+BEGIN
+rec.b:='b0';
+SELECT rec.b;
+END;
+END;
+$$
+CALL p1();
+rec.b
+b0
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# MDEV-13273 Confusion between table alias and ROW type variable
+#
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+CREATE PROCEDURE p1
+AS
+a INT;
+b INT;
+BEGIN
+-- a.c1 is a table column
+SELECT a.c1 INTO b
+FROM t1 a
+WHERE a.c2 = 0;
+SELECT b;
+END;
+$$
+CALL p1;
+b
+0
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+CREATE PROCEDURE p1
+AS
+a ROW (c1 INT, c2 INT) := ROW(101,102);
+b INT;
+BEGIN
+-- a.c1 is a ROW variable field
+SELECT a.c1 INTO b
+FROM t1 a
+WHERE a.c2 = 102;
+SELECT b;
+END;
+$$
+CALL p1;
+b
+101
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+CREATE PROCEDURE p1
+AS
+a t1%ROWTYPE := ROW (10,20);
+b INT;
+BEGIN
+-- a.c1 is a ROW variable field
+SELECT a.c1 INTO b
+FROM t1 a
+WHERE a.c2 = 20;
+SELECT b;
+END;
+$$
+CALL p1;
+b
+10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT, c2 INT);
+INSERT INTO t1 VALUES (0,0);
+CREATE PROCEDURE p1
+AS
+CURSOR cur1 IS SELECT * FROM t1;
+a cur1%ROWTYPE := ROW (10,20);
+b INT;
+BEGIN
+-- a.c1 is a ROW variable field
+SELECT a.c1 INTO b
+FROM t1 a
+WHERE a.c2 = 20;
+SELECT b;
+END;
+$$
+CALL p1;
+b
+10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-13527 Crash when EXPLAIN SELECT .. INTO row_sp_variable.field
+#
+DECLARE
+a ROW(a INT);
+BEGIN
+EXPLAIN SELECT 1 INTO a.a;
+END;
+$$
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+#
+# MDEV-14139 Anchored data types for variables
+#
+DECLARE
+row1 ROW(int11 INT,text1 TEXT);
+a_row1 row1%TYPE;
+aa_row1 a_row1%TYPE;
+BEGIN
+CREATE TABLE t1 AS SELECT a_row1.int11 AS int11, a_row1.text1 AS text1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT aa_row1.int11 AS int11, aa_row1.text1 AS text1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "int11" int(11) DEFAULT NULL,
+  "text1" text DEFAULT NULL
+)
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "int11" int(11) DEFAULT NULL,
+  "text1" text DEFAULT NULL
+)

@@ -1,0 +1,193 @@
+include/rpl_init.inc [topology=1->2]
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= current_pos;
+include/start_slave.inc
+connection server_1;
+CREATE TABLE t1 (a INT);
+FLUSH LOGS;
+connection server_2;
+connection server_1;
+SET gtid_domain_id=10;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+SET gtid_seq_no=100;
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+connection server_2;
+include/stop_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+connection server_1;
+include/kill_binlog_dump_threads.inc
+INSERT INTO t1 VALUES (10);
+SET @old_debug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
+SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
+connection server_2;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+10
+include/stop_slave.inc
+TRUNCATE t1;
+RESET MASTER;
+SET GLOBAL gtid_slave_pos= "";
+connection server_1;
+SET GLOBAL debug_dbug= @old_debug;
+TRUNCATE t1;
+RESET MASTER;
+SET gtid_domain_id=10;
+SET gtid_seq_no=50;
+INSERT INTO t1 VALUES (1);
+SET gtid_domain_id=11;
+INSERT INTO t1 VALUES (11);
+SET gtid_domain_id=10;
+SET gtid_seq_no=100;
+INSERT INTO t1 VALUES (2);
+SET gtid_domain_id=11;
+INSERT INTO t1 VALUES (12);
+SET gtid_domain_id=10;
+INSERT INTO t1 VALUES (3);
+SET gtid_domain_id=11;
+SET gtid_seq_no=200;
+INSERT INTO t1 VALUES (13);
+connection server_2;
+START SLAVE UNTIL master_gtid_pos="10-1-50,11-1-200";
+include/wait_for_slave_to_stop.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+11
+12
+13
+connection server_1;
+include/kill_binlog_dump_threads.inc
+INSERT INTO t1 VALUES (20);
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
+SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
+connection server_2;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+11
+12
+13
+20
+include/stop_slave.inc
+TRUNCATE t1;
+RESET MASTER;
+SET GLOBAL gtid_slave_pos= "";
+connection server_1;
+SET GLOBAL debug_dbug= @old_debug;
+TRUNCATE t1;
+RESET MASTER;
+include/kill_binlog_dump_threads.inc
+SET gtid_domain_id= 9;
+SET gtid_seq_no= 50;
+INSERT INTO t1 VALUES (1);
+SET gtid_domain_id= 10;
+INSERT INTO t1 VALUES (11);
+SET gtid_domain_id= 9;
+INSERT INTO t1 VALUES (2);
+SET gtid_domain_id= 10;
+SET gtid_seq_no= 100;
+INSERT INTO t1 VALUES (12);
+SET gtid_domain_id= 9;
+INSERT INTO t1 VALUES (3);
+SET gtid_domain_id= 10;
+SET gtid_seq_no= 200;
+INSERT INTO t1 VALUES (13);
+SET gtid_domain_id= 10;
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
+SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
+connection server_2;
+START SLAVE UNTIL master_gtid_pos="9-1-50,10-1-200";
+include/wait_for_slave_to_stop.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+11
+12
+13
+connection server_1;
+SET GLOBAL debug_dbug= @old_debug;
+INSERT INTO t1 VALUES (20);
+connection server_2;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+11
+12
+13
+20
+*** Test when slave IO thread needs to reconnect in the middle of an event group. ***
+connection server_2;
+include/stop_slave.inc
+TRUNCATE t1;
+RESET MASTER;
+SET GLOBAL gtid_slave_pos= "";
+connection server_1;
+SET GLOBAL debug_dbug= @old_debug;
+TRUNCATE t1;
+RESET MASTER;
+include/kill_binlog_dump_threads.inc
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
+SET GLOBAL debug_dbug="+d,binlog_force_reconnect_after_22_events";
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+BEGIN;
+INSERT INTO t2 VALUES (10);
+INSERT INTO t2 VALUES (11);
+COMMIT;
+BEGIN;
+INSERT INTO t2 VALUES (20);
+INSERT INTO t2 VALUES (21);
+INSERT INTO t2 VALUES (22);
+INSERT INTO t2 VALUES (23);
+INSERT INTO t2 VALUES (24);
+INSERT INTO t2 VALUES (25);
+INSERT INTO t2 VALUES (26);
+INSERT INTO t2 VALUES (27);
+INSERT INTO t2 VALUES (28);
+INSERT INTO t2 VALUES (29);
+COMMIT;
+connection server_2;
+include/start_slave.inc
+SELECT * FROM t2 ORDER BY a;
+a
+1
+10
+11
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+connection server_1;
+SET GLOBAL debug_dbug= @old_debug;
+connection server_1;
+DROP TABLE t1, t2;
+include/rpl_end.inc

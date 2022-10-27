@@ -1,0 +1,35 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connect node_1_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_3;
+SET GLOBAL wsrep_slave_threads = 2;
+connection node_1_ctrl;
+SET SESSION wsrep_sync_wait=0;
+connection node_1;
+SET DEBUG_SYNC = 'wsrep_before_certification SIGNAL before_cert WAIT_FOR continue';
+UPDATE t1 SET f1 = f1 + 10;;
+connection node_1_ctrl;
+SET DEBUG_SYNC = 'now WAIT_FOR before_cert';
+SET GLOBAL debug_dbug = '+d,sync.wsrep_retry_autocommit';
+connection node_2;
+UPDATE t1 SET f1 = f1 + 100;;
+connection node_1_ctrl;
+SET DEBUG_SYNC = 'now WAIT_FOR wsrep_retry_autocommit_reached';
+SET GLOBAL debug_dbug = NULL;
+SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue';
+connection node_1;
+connection node_2;
+connection node_3;
+SELECT f1 = 111 FROM t1;
+f1 = 111
+1
+SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%committed%';
+COUNT(*) IN (1, 2)
+1
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+DROP TABLE t1;
+connection node_1;
+SET DEBUG_SYNC= 'RESET';

@@ -1,0 +1,54 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+
+create table t1
+( 
+  pk1 int not null,
+  pk2 int not null,
+  key1 int not null,
+  key2 int not null,
+  key (key1),
+  key (key2),
+  primary key (pk1, pk2)
+)engine=Innodb;
+
+--disable_query_log
+let $1=1000;
+while ($1)
+{
+  eval insert into t1 values (1+$1/10,$1 mod 100,$1,$1/100);
+  dec $1;
+}
+--enable_query_log
+analyze table t1;
+
+set optimizer_trace="enabled=on";
+set @tmp_index_merge_ror_cpk=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
+explain select * from t1 where pk1 != 0  and key1 = 1;
+select * from information_schema.OPTIMIZER_TRACE;
+drop table t1;
+set @@optimizer_switch= @tmp_index_merge_ror_cpk;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;
+
+--echo #
+--echo # MDEV-18962: ASAN heap-buffer-overflow in Single_line_formatting_helper::on_add_str with optimizer trace
+--echo #
+
+CREATE TABLE t1 (a date not null, b time, key(a), key(b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('1991-09-09','00:00:00'),('2032-08-24','02:22:24');
+SET SESSION optimizer_trace = 'enabled=on';
+SELECT * FROM t1 WHERE b IS NULL AND a = '2000-01-01';
+DROP TABLE t1;
+
+set optimizer_trace="enabled=off";

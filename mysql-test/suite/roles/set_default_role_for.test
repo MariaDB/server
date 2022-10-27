@@ -1,0 +1,84 @@
+source include/not_embedded.inc;
+
+# This test checks setting a default role to a different user;
+
+
+create user user_a@localhost;
+create user user_b@localhost;
+
+create role role_a;
+create role role_b;
+
+grant role_a to user_a@localhost;
+grant role_b to user_b@localhost;
+
+grant role_a to user_a@localhost;
+grant select on *.* to role_a;
+
+grant role_b to user_b@localhost;
+grant insert, update on *.* to role_b;
+
+change_user 'user_a';
+
+# A user should not be a able to set a default role for someone else,
+# if he hasn't got write access to the database.
+--error ER_DBACCESS_DENIED_ERROR
+set default role role_a for user_b@localhost;
+
+# Should have the same effect as set default role role_a.
+set default role role_a for user_a@localhost;
+
+change_user 'root';
+
+# Not even a 'root' user should be able to set an invalid role for a user.
+--error ER_INVALID_ROLE
+set default role invalid_role for user_a@localhost;
+
+--error ER_INVALID_ROLE
+set default role role_b for user_a@localhost;
+
+# Make sure we can set a default role for a different user than the one that
+# is actually running the command.
+set default role role_b for user_b@localhost;
+
+change_user 'user_a';
+
+show grants;
+--sorted_result
+select user, host, default_role from mysql.user where user like 'user_%';
+
+set default role NONE for current_user;
+--sorted_result
+select user, host, default_role from mysql.user where user like 'user_%';
+
+set default role current_role for current_user;
+--sorted_result
+select user, host, default_role from mysql.user where user like 'user_%';
+
+# Make sure we can't set a default role not granted to us, using current_user
+--error ER_INVALID_ROLE
+set default role role_b for current_user;
+
+change_user 'user_b';
+
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user where user like 'user_%';
+
+# Since we have update privileges on the mysql.user table, we should
+# be able to set a default role for a different user.
+set default role NONE for user_a@localhost;
+
+change_user 'user_a';
+
+# There is no default role set any more.
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user where user like 'user_%';
+
+change_user 'root';
+
+drop role role_a;
+drop role role_b;
+drop user user_a@localhost;
+drop user user_b@localhost;

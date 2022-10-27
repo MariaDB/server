@@ -1,0 +1,2 @@
+create server '' foreign data wrapper w2 options (host '127.0.0.1');
+drop server '';

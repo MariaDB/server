@@ -1,0 +1,101 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+# Copyright(C) 2011-2015 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+create table t1 (c1 int primary key, c2 text, fulltext index ft (c2)) COMMENT = 'engine "myisam"';
+insert into t1 values (1, "hoge hoge");
+insert into t1 values (2, "fuga fuga");
+insert into t1 values (3, "moge moge");
+select * from t1;
+flush tables;
+select * from t1;
+drop table t1;
+
+create table t1 (c1 int primary key, c2 int, c3 text, fulltext index ft(c3)) COMMENT = 'engine "myisam"';
+insert into t1 values(1,10,"aa ii uu ee oo");
+insert into t1 values(2,20,"ka ki ku ke ko");
+insert into t1 values(3,30,"sa si su se so");
+insert into t1 values(4,40,"ta ti tu te to");
+insert into t1 values(5,50,"aa ii uu ee oo");
+select * from t1;
+select * from t1 where match(c3) against("su") order by c1;
+select * from t1 where match(c3) against("ii") order by c1;
+select * from t1 where match(c3) against("+su" in boolean mode) order by c1;
+select * from t1 where match(c3) against("+ii" in boolean mode) order by c1;
+drop table t1;
+
+set names utf8;
+create table t1 (c1 int primary key, c2 varchar(255), c3 text, fulltext index(c2), fulltext index(c3)) default charset utf8 COMMENT = 'engine "myisam"';
+insert into t1 values(1, "明日の富士山の天気について","あああああああ");
+insert into t1 values(2, "いいいいい","明日の富士山の天気は分かりません");
+insert into t1 values(3, "dummy", "dummy");
+select * from t1;
+select * from t1 where match(c2) against("富士山") order by c1;
+select * from t1 where match(c3) against("富士山") order by c1;
+drop table t1;
+
+create table t1 (c1 int primary key, c2 varchar(100), fulltext index(c2)) default charset utf8 COMMENT = 'engine "myisam"';
+create table t2 (c1 int primary key, c2 text, fulltext index(c2)) default charset utf8 COMMENT = 'engine "myisam"';
+insert into t1 values (1, "aa ii uu ee oo");
+insert into t1 values (2, "ka ki ku ke ko");
+insert into t1 values (3, "aa ii ii ii oo");
+insert into t1 values (4, "sa si su se so");
+insert into t1 values (5, "ta ti ii ii to");
+insert into t2 (c1,c2) select c1,c2 from t1;
+select * from t1;
+select * from t2;
+select * from t1 where c1=3;
+select * from t2 where c1=3;
+select * from t1 where c1>3 order by c1 desc;
+select * from t2 where c1>3 order by c1 asc;
+select * from t1 where c2>"s" order by c2 desc;
+select * from t2 where c2>"s" order by c1 asc;
+select *,match(c2) against("ii") from t1 where match(c2) against("ii") order by match(c2) against("ii") desc;
+select *,match(c2) against("ii") from t2 where match(c2) against("ii") order by match(c2) against("ii") asc;
+select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
+select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
+drop table t1,t2;
+
+# for "not match against"
+create table t1 (c1 int primary key, c2 int, c3 text, fulltext index ft(c3)) COMMENT = 'engine "myisam"';
+insert into t1 values(1,10,"aa ii uu ee oo");
+insert into t1 values(2,10,"ka ki ku ke ko");
+insert into t1 values(3,10,"aa ii uu ee oo");
+insert into t1 values(4,10,"ka ki ku ke ko");
+insert into t1 values(5,20,"aa ii uu ee oo");
+insert into t1 values(6,20,"ka ki ku ke ko");
+insert into t1 values(7,20,"aa ii uu ee oo");
+insert into t1 values(8,20,"ka ki ku ke ko");
+select * from t1;
+select *,match(c3) against("uu") from t1 where match(c3) against("uu") order by c1;
+select * from t1 where not match(c3) against("uu");
+select *,match(c3) against("dummy") from t1 where match(c3) against("dummy");
+select * from t1 where not match(c3) against("dummy");
+select * from t1 where c1 = 4 and not match(c3) against("uu");
+select * from t1 where c1 <= 4 and not match(c3) against("uu");
+select * from t1 where c1 > 4 and not match(c3) against("uu");
+select * from t1 where c2 = 10 and not match(c3) against("uu");
+select * from t1 where c2 >= 15 and not match(c3) against("uu");
+select * from t1 where c2 < 15 and not match(c3) against("uu");
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

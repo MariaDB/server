@@ -1,0 +1,21 @@
+call mtr.add_suppression("InnoDB: New log files created");
+CREATE TABLE t(a varchar(40) PRIMARY KEY, b varchar(40), c varchar(40), d varchar(40), index(b,c,d)) ENGINE INNODB;
+# Create full backup , modify table, then create incremental/differential backup
+BEGIN;
+INSERT INTO t select uuid(), uuid(), uuid(), uuid() from seq_1_to_100000;
+COMMIT;
+SELECT count(*) FROM t;
+count(*)
+100000
+FOUND 1 /Checksum mismatch in datafile/ in backup.log
+# Prepare full backup, apply incremental one
+# Restore and check results
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+# restart
+SELECT count(*) FROM t;
+count(*)
+100000
+DROP TABLE t;

@@ -1,0 +1,5 @@
+set global innodb_ft_result_cache_limit=5000000000;
+select @@innodb_ft_result_cache_limit;
+@@innodb_ft_result_cache_limit
+5000000000
+set global innodb_ft_result_cache_limit=2000000000;

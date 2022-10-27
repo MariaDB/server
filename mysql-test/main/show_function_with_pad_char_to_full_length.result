@@ -1,0 +1,24 @@
+create function f() returns int return 1;
+show function status;
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+T	f	T	T	T	T	T	T	T	T	T
+set sql_mode = 'PAD_CHAR_TO_FULL_LENGTH';
+show function status;
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+T	f	T	T	T	T	T	T	T	T	T
+drop function f;
+select @@sql_mode;
+@@sql_mode
+PAD_CHAR_TO_FULL_LENGTH
+create function f() returns int return 1;
+select ROUTINE_NAME from information_schema.ROUTINES where ROUTINE_NAME='f';
+ROUTINE_NAME
+f
+set sql_mode = 'PAD_CHAR_TO_FULL_LENGTH';
+select ROUTINE_NAME from information_schema.ROUTINES where ROUTINE_NAME='f';
+ROUTINE_NAME
+f
+drop function f;
+select @@sql_mode;
+@@sql_mode
+PAD_CHAR_TO_FULL_LENGTH

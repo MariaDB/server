@@ -1,0 +1,16 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+sync_binlog=0
+binlog_format=row
+rocksdb_read_free_rpl=PK_SK
+slave-exec-mode=strict
+rocksdb_perf_context_level=3
+
+[mysqld.2]
+sync_binlog=0
+binlog_format=row
+rocksdb_read_free_rpl=PK_SK
+slave-exec-mode=strict
+rocksdb_default_cf_options=write_buffer_size=16k;target_file_size_base=16k
+rocksdb_perf_context_level=3

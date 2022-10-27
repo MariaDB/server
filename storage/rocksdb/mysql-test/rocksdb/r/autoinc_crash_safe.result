@@ -1,0 +1,132 @@
+include/master-slave.inc
+[connection master]
+create table t (i int primary key auto_increment) engine=rocksdb;
+#
+# Testing concurrent transactions.
+#
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connection con1;
+begin;
+insert into t values ();
+connection con2;
+begin;
+insert into t values ();
+connection con3;
+begin;
+insert into t values ();
+connection con1;
+insert into t values ();
+connection con2;
+insert into t values ();
+connection con3;
+insert into t values ();
+connection con2;
+commit;
+connection con3;
+rollback;
+connection con1;
+commit;
+delete from t;
+# Master value before restart
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	7
+# Slave value before restart
+connection slave;
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	6
+connection slave;
+include/stop_slave.inc
+include/rpl_restart_server.inc [server_number=1]
+connection default;
+# Master value after restart
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	6
+include/rpl_restart_server.inc [server_number=2]
+connection slave;
+include/start_slave.inc
+# Slave value after restart
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	6
+disconnect con1;
+disconnect con2;
+disconnect con3;
+#
+# Testing interaction of merge markers with various DDL statements.
+#
+connection slave;
+include/stop_slave.inc
+connection default;
+# Drop and add primary key.
+alter table t modify i int;
+alter table t drop primary key;
+alter table t add primary key (i);
+alter table t modify i int auto_increment;
+include/rpl_restart_server.inc [server_number=1]
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	6
+# Remove auto_increment property.
+alter table t modify i int;
+include/rpl_restart_server.inc [server_number=1]
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	NULL
+# Add auto_increment property.
+insert into t values (123);
+alter table t modify i int auto_increment;
+include/rpl_restart_server.inc [server_number=1]
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	124
+# Add column j.
+alter table t add column j int;
+include/rpl_restart_server.inc [server_number=1]
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	124
+# Rename tables.
+rename table t to t2;
+rename table t2 to t;
+include/rpl_restart_server.inc [server_number=1]
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	124
+# Change auto_increment property
+alter table t auto_increment = 1000;
+include/rpl_restart_server.inc [server_number=1]
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	1000
+alter table t auto_increment = 1;
+include/rpl_restart_server.inc [server_number=1]
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	124
+alter table t drop primary key, add key (i), auto_increment = 1;
+include/rpl_restart_server.inc [server_number=1]
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	124
+alter table t add key (j), auto_increment = 1;
+include/rpl_restart_server.inc [server_number=1]
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	124
+alter table t modify i int;
+alter table t add column (k int auto_increment), add key(k), auto_increment=15;
+include/rpl_restart_server.inc [server_number=1]
+select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment
+test	t	16
+# Drop table.
+drop table t;
+include/rpl_restart_server.inc [server_number=1]
+connection slave;
+include/start_slave.inc
+include/rpl_end.inc

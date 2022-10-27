@@ -1,0 +1,20 @@
+create table t1(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c)) engine='tokudb';
+set session tokudb_backup_dir='/aint/no/way/this/exists/here';
+ERROR 42000: Variable 'tokudb_backup_dir' can't be set to the value of '/aint/no/way/this/exists/here'
+select @@session.tokudb_backup_last_error;
+@@session.tokudb_backup_last_error
+2
+select @@session.tokudb_backup_last_error_string;
+@@session.tokudb_backup_last_error_string
+Could not get real path for /aint/no/way/this/exists/here
+set session tokudb_backup_last_error_string='this should not crash the server';
+select @@session.tokudb_backup_last_error_string;
+@@session.tokudb_backup_last_error_string
+this should not crash the server
+set session tokudb_backup_dir='/aint/no/way/this/exists/here';
+ERROR 42000: Variable 'tokudb_backup_dir' can't be set to the value of '/aint/no/way/this/exists/here'
+select @@session.tokudb_backup_last_error_string;
+@@session.tokudb_backup_last_error_string
+Could not get real path for /aint/no/way/this/exists/here
+set session tokudb_backup_last_error_string = @old_backup_last_error_string;
+drop table t1;

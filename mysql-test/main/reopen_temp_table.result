@@ -1,0 +1,245 @@
+#
+# MDEV-5535: Cannot reopen temporary table
+#
+DROP DATABASE IF EXISTS temp_db;
+CREATE DATABASE temp_db;
+USE temp_db;
+#
+# Reopen temporary table
+#
+CREATE TEMPORARY TABLE t1(i int)ENGINE=INNODB;
+INSERT INTO t1 VALUES(1), (2);
+SELECT * FROM t1 a, t1 b;
+i	i
+1	1
+2	1
+1	2
+2	2
+DROP TABLE t1;
+#
+# CREATE & Stored routines
+#
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DROP TEMPORARY TABLE t1;
+RETURN 1;
+END|
+CREATE TEMPORARY TABLE t1 AS SELECT f1();
+ERROR 42S02: Unknown table 'temp_db.t1'
+DROP FUNCTION f1;
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+CREATE TEMPORARY TABLE t2(i INT);
+INSERT INTO t2 VALUES(1), (2);
+RETURN 1;
+END|
+CREATE TEMPORARY TABLE t2 AS SELECT f2();
+ERROR 42S01: Table 't2' already exists
+SELECT * FROM t2;
+i
+1
+2
+DROP TABLE t2;
+DROP FUNCTION f2;
+CREATE TEMPORARY TABLE t3 AS SELECT 1 AS a;
+CREATE PROCEDURE p1()
+BEGIN
+DROP TEMPORARY TABLE t3;
+end|
+CREATE FUNCTION f3() RETURNS INT
+BEGIN
+CALL p1();
+RETURN 1;
+END|
+PREPARE STMT FROM "SELECT f3() AS my_Column, a FROM t3";
+EXECUTE STMT;
+ERROR HY000: Can't reopen table: 't3'
+DROP TABLE t3;
+DROP FUNCTION f3;
+DROP PROCEDURE p1;
+CREATE TEMPORARY TABLE t4 (i INT);
+INSERT INTO t4 VALUES(1), (2);
+CREATE FUNCTION f4() RETURNS INT
+BEGIN
+DROP TEMPORARY TABLE t4;
+RETURN 1;
+END|
+SELECT f4() FROM t4;
+ERROR HY000: Can't reopen table: 't4'
+SELECT * FROM t4;
+i
+1
+2
+DROP TABLE t4;
+DROP FUNCTION f4;
+CREATE TEMPORARY TABLE t5 AS SELECT 1 AS a;
+CREATE PROCEDURE p2()
+BEGIN
+DROP TEMPORARY TABLE t5;
+END|
+CREATE FUNCTION f5() RETURNS INT
+BEGIN
+CALL p2();
+RETURN 1;
+END|
+SELECT f5() AS my_column, a FROM t5;
+ERROR HY000: Can't reopen table: 't5'
+DROP TABLE t5;
+DROP FUNCTION f5;
+DROP PROCEDURE p2;
+#
+# CTAS
+#
+CREATE TABLE t1(i INT);
+INSERT INTO t1 VALUES(1), (2);
+CREATE TEMPORARY TABLE t1
+SELECT temp_1.i a, temp_2.i b FROM t1 AS temp_1, t1 AS temp_2;
+SELECT * FROM t1;
+a	b
+1	1
+2	1
+1	2
+2	2
+DROP TABLE t1;
+SELECT * FROM t1;
+i
+1
+2
+DROP TABLE t1;
+#
+# HANDLER
+#
+CREATE TABLE t1 (a INT, KEY a(a));
+INSERT INTO t1 (a) VALUES (1), (2), (3), (4), (5);
+CREATE TABLE t2 (a INT, KEY a (a)) SELECT * FROM t1;
+CREATE TEMPORARY TABLE t3 (a INT, KEY a (a)) SELECT * FROM t2;
+HANDLER t3 OPEN;
+SELECT * FROM t1;
+a
+1
+2
+3
+4
+5
+LOCK TABLE t1 READ;
+HANDLER t3 OPEN;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+HANDLER t3 OPEN;
+ERROR 42000: Not unique table/alias: 't3'
+HANDLER t3 READ NEXT;
+a
+1
+HANDLER t3 OPEN AS t3_1;
+HANDLER t3_1 READ NEXT;
+a
+1
+HANDLER t3_1 READ NEXT;
+a
+2
+HANDLER t3 CLOSE;
+HANDLER t3_1 CLOSE;
+DROP TEMPORARY TABLE t3;
+DROP TABLE t1, t2;
+#
+# INSERT-SELECT
+#
+CREATE TEMPORARY TABLE t4 (a INT) ENGINE=MYISAM;
+INSERT INTO t4 VALUES(1), (2);
+INSERT INTO t4 SELECT * FROM t4;
+SELECT COUNT(*) FROM t4;
+COUNT(*)
+4
+DROP TABLE t4;
+CREATE TABLE t5 (a INT) ENGINE=INNODB;
+CREATE TEMPORARY TABLE t6 (a INT) ENGINE=INNODB;
+INSERT INTO t5 VALUES(1), (2);
+INSERT INTO t6 SELECT * FROM t5;
+INSERT INTO t6 SELECT * FROM t6;
+INSERT INTO t5 SELECT * FROM t6;
+SELECT COUNT(*)=6 FROM t5;
+COUNT(*)=6
+1
+SELECT COUNT(*)=4 FROM t6;
+COUNT(*)=4
+1
+DROP TABLE t5, t6;
+#
+# MDEV-10216: Assertion `strcmp(share->unique_file_name,filename) ||
+# share->last_version' failed in myisam/mi_open.c:67: test_if_reopen
+#
+CREATE TEMPORARY TABLE t7 (i INT) ENGINE=MYISAM;
+INSERT INTO t7 VALUES(1);
+ALTER TABLE t7 RENAME TO t;
+SELECT * FROM t a, t b;
+i	i
+1	1
+DROP TABLE t;
+CREATE TEMPORARY TABLE t7 (i INT) ENGINE=ARIA;
+INSERT INTO t7 VALUES(1);
+ALTER TABLE t7 RENAME TO t;
+SELECT * FROM t a, t b;
+i	i
+1	1
+DROP TABLE t;
+CREATE TEMPORARY TABLE t8 (i INT) ENGINE=ARIA;
+ALTER TABLE t8 rename to t;
+SELECT (SELECT 1 FROM t a1, t a2 ) AS f1, ( SELECT 2 FROM t a3 ) AS f2 FROM DUAL;
+f1	f2
+NULL	NULL
+DROP TABLE t;
+# Cleanup
+DROP DATABASE temp_db;
+USE test;
+create temporary table t1 (f char(255), b int, index(b)) engine=MyISAM;
+replace into t1 values (null,1),(null,2);
+alter table t1 add fulltext key(f);
+alter table t1 change if exists a b int, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1;
+f	b
+NULL	1
+NULL	2
+drop table t1;
+create temporary table t1 (f char(255), b int, index(b)) engine=aria transactional=1;
+replace into t1 values (null,1),(null,2);
+alter table t1 add fulltext key(f);
+alter table t1 change if exists a b int, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1;
+f	b
+NULL	1
+NULL	2
+drop table t1;
+create temporary table t1 (f char(255), b int, index(b)) engine=aria transactional=0 row_format=page;
+replace into t1 values (null,1),(null,2);
+alter table t1 add fulltext key(f);
+alter table t1 change if exists a b int, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1;
+f	b
+NULL	1
+NULL	2
+drop table t1;
+create temporary table t1 (f char(255), b int, index(b)) engine=aria transactional=0 row_format=dynamic;
+replace into t1 values (null,1),(null,2);
+alter table t1 add fulltext key(f);
+alter table t1 change if exists a b int, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1;
+f	b
+NULL	1
+NULL	2
+drop table t1;

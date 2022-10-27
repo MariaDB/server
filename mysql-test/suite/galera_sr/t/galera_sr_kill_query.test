@@ -1,0 +1,59 @@
+--source include/galera_cluster.inc
+
+#
+# Test KILL QUERY on a statement that has already replicated some data via SR
+#
+
+SET SESSION wsrep_trx_fragment_size = 1;
+
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+--let $connection_id = `SELECT CONNECTION_ID()`
+--send INSERT INTO t1 SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5, ten AS a6;
+
+# Wait for some SR to arrive on the slave.
+--connection node_2
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT TABLE_ROWS > 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--connection node_1
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--echo Killing query ...
+--disable_query_log
+--eval KILL QUERY $connection_id
+--enable_query_log
+
+--connection node_1
+--error ER_QUERY_INTERRUPTED
+--reap
+
+# Confirm that the kill caused the updates made so far to be removed
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1
+--source include/wait_condition.inc
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+
+# Confirm that the transaction can be reissued in its entirety on the slave without a conflict
+
+INSERT INTO t1 SELECT 1 FROM ten AS t1, ten AS t2, ten AS t3;
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+
+--connection node_1
+SET GLOBAL wsrep_sync_wait=15;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM t1;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+SELECT COUNT(*) AS EXPECT_1000 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+DROP TABLE t1;
+DROP TABLE ten;

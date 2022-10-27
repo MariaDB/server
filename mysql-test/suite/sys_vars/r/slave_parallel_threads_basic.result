@@ -1,0 +1,22 @@
+SET @save_slave_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SELECT IF(COUNT(*) < 20, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+IF(COUNT(*) < 20, "OK", CONCAT("Found too many system user processes: ", COUNT(*)))
+OK
+SELECT @@GLOBAL.slave_parallel_threads as 'must be 20 because of .cnf';
+must be 20 because of .cnf
+20
+SELECT @@SESSION.slave_parallel_threads  as 'no session var';
+ERROR HY000: Variable 'slave_parallel_threads' is a GLOBAL variable
+SET GLOBAL slave_parallel_threads= 0;
+SET GLOBAL slave_parallel_threads= DEFAULT;
+SELECT @@GLOBAL.slave_parallel_threads as 'must be 0 because of default';
+must be 0 because of default
+0
+SET GLOBAL slave_parallel_threads= 10;
+SELECT @@GLOBAL.slave_parallel_threads;
+@@GLOBAL.slave_parallel_threads
+10
+SELECT IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*)))
+OK
+SET GLOBAL slave_parallel_threads = @save_slave_parallel_threads;

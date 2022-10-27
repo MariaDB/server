@@ -1,0 +1,419 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET @@session.gtid_domain_id= 1;
+SELECT @@session.gtid_domain_id;
+@@session.gtid_domain_id
+1
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1;
+i
+1
+connection slave;
+connection slave;
+call mtr.add_suppression("Slave I/O: Relay log write failure: could not queue event from master.*");
+# Case 0 : Start slave with IGNORE_DOMAIN_IDS=(), then restart
+#          replication with IGNORE_DOMAIN_IDS=() after IO thread is
+#          killed due to DBUG_EXECUTE_IF("+d,kill_slave_io_before_commit").
+SELECT * FROM t1;
+i
+1
+include/stop_slave.inc
+DO_DOMAIN_IDS (BEFORE)     : 
+IGNORE_DOMAIN_IDS (BEFORE) : 
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+DO_DOMAIN_IDS (AFTER)     : 
+IGNORE_DOMAIN_IDS (AFTER) : 
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET @@global.debug_dbug="d,kill_slave_io_before_commit";
+connection master;
+START TRANSACTION;
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(3);
+COMMIT;
+SELECT * FROM t1;
+i
+1
+2
+3
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1595]
+SELECT * FROM t1;
+i
+1
+SET @@global.debug_dbug=@saved_dbug;
+START SLAVE io_thread;
+include/wait_for_slave_io_to_start.inc
+SELECT * FROM t1;
+i
+1
+2
+3
+# Case 1 : Start slave with IGNORE_DOMAIN_IDS=(1), then restart
+#          replication with IGNORE_DOMAIN_IDS=(1) after IO thread is
+#          killed due to DBUG_EXECUTE_IF("+d,kill_slave_io_before_commit").
+include/stop_slave.inc
+DO_DOMAIN_IDS (BEFORE)     : 
+IGNORE_DOMAIN_IDS (BEFORE) : 
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+DO_DOMAIN_IDS (AFTER)     : 
+IGNORE_DOMAIN_IDS (AFTER) : 1
+SET @@global.debug_dbug="d,kill_slave_io_before_commit";
+connection master;
+START TRANSACTION;
+INSERT INTO t1 VALUES(4);
+INSERT INTO t1 VALUES(5);
+COMMIT;
+SELECT * FROM t1;
+i
+1
+2
+3
+4
+5
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1595]
+SELECT * FROM t1;
+i
+1
+2
+3
+SET @@global.debug_dbug=@saved_dbug;
+START SLAVE io_thread;
+include/wait_for_slave_io_to_start.inc
+SELECT * FROM t1;
+i
+1
+2
+3
+# Case 2 : Start slave with IGNORE_DOMAIN_IDS=(), then restart
+#          replication with IGNORE_DOMAIN_IDS=(1) after IO thread is
+#          killed due to DBUG_EXECUTE_IF("+d,kill_slave_io_before_commit").
+include/stop_slave.inc
+DO_DOMAIN_IDS (BEFORE)     : 
+IGNORE_DOMAIN_IDS (BEFORE) : 1
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+DO_DOMAIN_IDS (AFTER)     : 
+IGNORE_DOMAIN_IDS (AFTER) : 
+SET @@global.debug_dbug="d,kill_slave_io_before_commit";
+connection master;
+START TRANSACTION;
+INSERT INTO t1 VALUES(6);
+INSERT INTO t1 VALUES(7);
+COMMIT;
+START TRANSACTION;
+INSERT INTO t1 VALUES(8);
+INSERT INTO t1 VALUES(9);
+COMMIT;
+SET @@session.gtid_domain_id= 2;
+START TRANSACTION;
+INSERT INTO t1 VALUES(10);
+INSERT INTO t1 VALUES(11);
+COMMIT;
+SELECT * FROM t1;
+i
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1595]
+SELECT * FROM t1;
+i
+1
+2
+3
+SET @@global.debug_dbug=@saved_dbug;
+include/stop_slave.inc
+DO_DOMAIN_IDS (BEFORE)     : 
+IGNORE_DOMAIN_IDS (BEFORE) : 
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+DO_DOMAIN_IDS (AFTER)     : 
+IGNORE_DOMAIN_IDS (AFTER) : 1
+SELECT * FROM t1;
+i
+1
+2
+3
+10
+11
+# Case 3 : Start slave with IGNORE_DOMAIN_IDS=(1), then restart
+#          replication with IGNORE_DOMAIN_IDS=() after IO thread is
+#          killed due to DBUG_EXECUTE_IF("+d,kill_slave_io_before_commit").
+include/stop_slave.inc
+DO_DOMAIN_IDS (BEFORE)     : 
+IGNORE_DOMAIN_IDS (BEFORE) : 1
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+DO_DOMAIN_IDS (AFTER)     : 
+IGNORE_DOMAIN_IDS (AFTER) : 1
+SET @@global.debug_dbug="d,kill_slave_io_before_commit";
+connection master;
+SET @@session.gtid_domain_id= 1;
+START TRANSACTION;
+INSERT INTO t1 VALUES(12);
+INSERT INTO t1 VALUES(13);
+COMMIT;
+START TRANSACTION;
+INSERT INTO t1 VALUES(14);
+INSERT INTO t1 VALUES(15);
+COMMIT;
+SET @@session.gtid_domain_id= 2;
+START TRANSACTION;
+INSERT INTO t1 VALUES(16);
+INSERT INTO t1 VALUES(17);
+COMMIT;
+SELECT * FROM t1;
+i
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1595]
+SELECT * FROM t1;
+i
+1
+2
+3
+10
+11
+SET @@global.debug_dbug=@saved_dbug;
+include/stop_slave.inc
+DO_DOMAIN_IDS (BEFORE)     : 
+IGNORE_DOMAIN_IDS (BEFORE) : 1
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+DO_DOMAIN_IDS (AFTER)     : 
+IGNORE_DOMAIN_IDS (AFTER) : 
+SELECT * FROM t1;
+i
+1
+2
+3
+10
+11
+14
+15
+16
+17
+# Case 4 : Start slave with IGNORE_DOMAIN_IDS=(1), then restart
+#          replication with IGNORE_DOMAIN_IDS=() after IO thread is
+#          killed due to DBUG_EXECUTE_IF("+d,kill_slave_io_after_2_events").
+include/stop_slave.inc
+DO_DOMAIN_IDS (BEFORE)     : 
+IGNORE_DOMAIN_IDS (BEFORE) : 
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+DO_DOMAIN_IDS (AFTER)     : 
+IGNORE_DOMAIN_IDS (AFTER) : 1
+SET @@global.debug_dbug="d,kill_slave_io_after_2_events";
+connection master;
+SET @@session.gtid_domain_id= 1;
+START TRANSACTION;
+INSERT INTO t1 VALUES(18);
+INSERT INTO t1 VALUES(19);
+COMMIT;
+START TRANSACTION;
+INSERT INTO t1 VALUES(20);
+INSERT INTO t1 VALUES(21);
+COMMIT;
+SET @@session.gtid_domain_id= 2;
+START TRANSACTION;
+INSERT INTO t1 VALUES(22);
+INSERT INTO t1 VALUES(23);
+COMMIT;
+SELECT * FROM t1;
+i
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1595]
+SELECT * FROM t1;
+i
+1
+2
+3
+10
+11
+14
+15
+16
+17
+SET @@global.debug_dbug=@saved_dbug;
+include/stop_slave.inc
+DO_DOMAIN_IDS (BEFORE)     : 
+IGNORE_DOMAIN_IDS (BEFORE) : 1
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+DO_DOMAIN_IDS (AFTER)     : 
+IGNORE_DOMAIN_IDS (AFTER) : 
+SELECT * FROM t1;
+i
+1
+2
+3
+10
+11
+14
+15
+16
+17
+20
+21
+22
+23
+# Case 5 : Start slave with IGNORE_DOMAIN_IDS=(), then restart
+#          replication with IGNORE_DOMAIN_IDS=(1) after IO thread is
+#          killed due to DBUG_EXECUTE_IF("+d,kill_slave_io_after_2_events").
+include/stop_slave.inc
+DO_DOMAIN_IDS (BEFORE)     : 
+IGNORE_DOMAIN_IDS (BEFORE) : 
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+DO_DOMAIN_IDS (AFTER)     : 
+IGNORE_DOMAIN_IDS (AFTER) : 
+SET @@global.debug_dbug="d,kill_slave_io_after_2_events";
+connection master;
+SET @@session.gtid_domain_id= 1;
+START TRANSACTION;
+INSERT INTO t1 VALUES(24);
+INSERT INTO t1 VALUES(25);
+COMMIT;
+START TRANSACTION;
+INSERT INTO t1 VALUES(26);
+INSERT INTO t1 VALUES(27);
+COMMIT;
+SET @@session.gtid_domain_id= 2;
+START TRANSACTION;
+INSERT INTO t1 VALUES(28);
+INSERT INTO t1 VALUES(29);
+COMMIT;
+SELECT * FROM t1;
+i
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1595]
+SELECT * FROM t1;
+i
+1
+2
+3
+10
+11
+14
+15
+16
+17
+20
+21
+22
+23
+SET @@global.debug_dbug=@saved_dbug;
+include/stop_slave.inc
+DO_DOMAIN_IDS (BEFORE)     : 
+IGNORE_DOMAIN_IDS (BEFORE) : 
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
+include/start_slave.inc
+DO_DOMAIN_IDS (AFTER)     : 
+IGNORE_DOMAIN_IDS (AFTER) : 1
+SELECT * FROM t1;
+i
+1
+2
+3
+10
+11
+14
+15
+16
+17
+20
+21
+22
+23
+28
+29
+connection master;
+DROP TABLE t1;
+connection slave;
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
+include/start_slave.inc
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+include/rpl_end.inc

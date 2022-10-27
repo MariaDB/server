@@ -1,0 +1,66 @@
+# MDEV-14721 Big transaction events get lost on semisync master when
+# replicate_events_marked_for_skip=FILTER_ON_MASTER
+#
+# When events of a big transaction are binlogged offsetting over 2GB from
+# the beginning of the log the semisync master's dump thread
+# lost such events.
+# The test verifies the fixes' correctness simulating the 2GB offset.
+
+source include/not_embedded.inc;
+source include/have_innodb.inc;
+source include/have_debug.inc;
+source include/master-slave.inc;
+
+--connection master
+# Suppress warnings that might be generated during the test
+call mtr.add_suppression("Timeout waiting for reply of binlog");
+
+--let $sav_enabled_master=`SELECT @@GLOBAL.rpl_semi_sync_master_enabled`
+--let $sav_timeout_master=`SELECT @@GLOBAL.rpl_semi_sync_master_timeout`
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+SET @@GLOBAL.rpl_semi_sync_master_timeout=100;
+
+--connection slave
+--let $sav_skip_marked_slave=`SELECT @@GLOBAL.replicate_events_marked_for_skip`
+--let $sav_enabled_slave=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled`
+source include/stop_slave.inc;
+SET @@GLOBAL.replicate_events_marked_for_skip=FILTER_ON_MASTER;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled = 1;
+source include/start_slave.inc;
+
+--connection master
+CREATE TABLE t1 (a INT) ENGINE=innodb;
+
+# Make the following events as if they offset over 2GB from the beginning of binlog
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug="d,dbug_master_binlog_over_2GB";
+SET @@SESSION.skip_replication=1;
+INSERT INTO t1 SET a=1;
+SET @@SESSION.skip_replication=0;
+INSERT INTO t1 SET a=0;
+SET @@GLOBAL.debug_dbug="";
+
+# The current binlog is inconsistent so let's rotate it away
+# to clean up simulation results.
+FLUSH LOGS;
+
+--sync_slave_with_master
+
+#
+# Clean up
+#
+--connection master
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+--eval SET @@GLOBAL.rpl_semi_sync_master_timeout = $sav_timeout_master
+--eval SET @@GLOBAL.rpl_semi_sync_master_enabled = $sav_enabled_master
+
+--connection master
+DROP TABLE t1;
+
+--sync_slave_with_master
+source include/stop_slave.inc;
+--eval SET @@GLOBAL.rpl_semi_sync_slave_enabled = $sav_enabled_slave
+--eval SET @@GLOBAL.replicate_events_marked_for_skip = $sav_skip_marked_slave
+
+source include/start_slave.inc;
+--source include/rpl_end.inc

@@ -1,0 +1,443 @@
+set @old_concurrent_insert= @@global.concurrent_insert;
+set @@global.concurrent_insert= 0;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL LOG_OUTPUT = 'FILE';
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection default;
+flush status;
+show status like 'Table_lock%';
+Variable_name	Value
+Table_locks_immediate	0
+Table_locks_waited	0
+select * from information_schema.session_status where variable_name like 'Table_lock%';
+VARIABLE_NAME	VARIABLE_VALUE
+TABLE_LOCKS_IMMEDIATE	0
+TABLE_LOCKS_WAITED	0
+set sql_log_bin=0;
+set @old_general_log = @@global.general_log;
+set global general_log = 'OFF';
+drop table if exists t1;
+create table t1(n int) engine=myisam;
+insert into t1 values(1);
+select get_lock('mysqltest_lock', 100);
+get_lock('mysqltest_lock', 100)
+1
+connection con2;
+# Sending:
+update t1 set n = get_lock('mysqltest_lock', 100);
+connection con1;
+# Wait for the first UPDATE to get blocked.
+# Sending:
+update t1 set n = 3;
+connection default;
+# wait for the second UPDATE to get blocked
+select release_lock('mysqltest_lock');
+release_lock('mysqltest_lock')
+1
+connection con2;
+# Reaping first UPDATE
+select release_lock('mysqltest_lock');
+release_lock('mysqltest_lock')
+1
+connection con1;
+# Reaping second UPDATE
+show status like 'Table_locks_waited';
+Variable_name	Value
+Table_locks_waited	1
+connection default;
+drop table t1;
+set global general_log = @old_general_log;
+disconnect con2;
+disconnect con1;
+select 1;
+1
+1
+show status like 'last_query_cost';
+Variable_name	Value
+Last_query_cost	0.000000
+create table t1 (a int);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+select * from t1 where a=6;
+a
+6
+6
+6
+6
+6
+show status like 'last_query_cost';
+Variable_name	Value
+Last_query_cost	12.084449
+show status like 'last_query_cost';
+Variable_name	Value
+Last_query_cost	12.084449
+select 1;
+1
+1
+show status like 'last_query_cost';
+Variable_name	Value
+Last_query_cost	0.000000
+drop table t1;
+FLUSH STATUS;
+SHOW STATUS LIKE 'max_used_connections';
+Variable_name	Value
+Max_used_connections	1
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections';
+VARIABLE_NAME	VARIABLE_VALUE
+MAX_USED_CONNECTIONS	1
+SET @save_thread_cache_size=@@thread_cache_size;
+SET GLOBAL thread_cache_size=3;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+disconnect con2;
+SHOW STATUS LIKE 'max_used_connections';
+Variable_name	Value
+Max_used_connections	3
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections';
+VARIABLE_NAME	VARIABLE_VALUE
+MAX_USED_CONNECTIONS	3
+FLUSH STATUS;
+SHOW STATUS LIKE 'max_used_connections';
+Variable_name	Value
+Max_used_connections	2
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections';
+VARIABLE_NAME	VARIABLE_VALUE
+MAX_USED_CONNECTIONS	2
+connect  con2,localhost,root,,;
+SHOW STATUS LIKE 'max_used_connections';
+Variable_name	Value
+Max_used_connections	3
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections';
+VARIABLE_NAME	VARIABLE_VALUE
+MAX_USED_CONNECTIONS	3
+connect  con3,localhost,root,,;
+SHOW STATUS LIKE 'max_used_connections';
+Variable_name	Value
+Max_used_connections	4
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME LIKE 'max_used_connections';
+VARIABLE_NAME	VARIABLE_VALUE
+MAX_USED_CONNECTIONS	4
+connection default;
+SET GLOBAL thread_cache_size=@save_thread_cache_size;
+disconnect con3;
+disconnect con2;
+disconnect con1;
+CREATE TABLE t1 ( a INT );
+INSERT INTO t1 VALUES (1), (2);
+SELECT a FROM t1 LIMIT 1;
+a
+1
+SHOW SESSION STATUS LIKE 'Last_query_cost';
+Variable_name	Value
+Last_query_cost	2.402418
+EXPLAIN SELECT a FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+SHOW SESSION STATUS LIKE 'Last_query_cost';
+Variable_name	Value
+Last_query_cost	2.402418
+SELECT a FROM t1 UNION SELECT a FROM t1 ORDER BY a;
+a
+1
+2
+SHOW SESSION STATUS LIKE 'Last_query_cost';
+Variable_name	Value
+Last_query_cost	0.000000
+EXPLAIN SELECT a FROM t1 UNION SELECT a FROM t1 ORDER BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	Using filesort
+SHOW SESSION STATUS LIKE 'Last_query_cost';
+Variable_name	Value
+Last_query_cost	0.000000
+SELECT a IN (SELECT a FROM t1) FROM t1 LIMIT 1;
+a IN (SELECT a FROM t1)
+1
+SHOW SESSION STATUS LIKE 'Last_query_cost';
+Variable_name	Value
+Last_query_cost	0.000000
+SELECT (SELECT a FROM t1 LIMIT 1) x FROM t1 LIMIT 1;
+x
+1
+SHOW SESSION STATUS LIKE 'Last_query_cost';
+Variable_name	Value
+Last_query_cost	0.000000
+SELECT * FROM t1 a, t1 b LIMIT 1;
+a	a
+1	1
+SHOW SESSION STATUS LIKE 'Last_query_cost';
+Variable_name	Value
+Last_query_cost	5.205836
+DROP TABLE t1;
+connect  con1,localhost,root,,;
+show status like 'com_show_status';
+Variable_name	Value
+Com_show_status	3
+show status like 'hand%write%';
+Variable_name	Value
+Handler_tmp_write	0
+Handler_write	0
+show status like '%tmp%';
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	0
+Handler_tmp_delete	0
+Handler_tmp_update	0
+Handler_tmp_write	0
+Rows_tmp_read	5
+show status like 'hand%write%';
+Variable_name	Value
+Handler_tmp_write	0
+Handler_write	0
+show status like '%tmp%';
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_files	0
+Created_tmp_tables	0
+Handler_tmp_delete	0
+Handler_tmp_update	0
+Handler_tmp_write	0
+Rows_tmp_read	14
+show status like 'com_show_status';
+Variable_name	Value
+Com_show_status	8
+rnd_diff	tmp_table_diff
+30	8
+disconnect con1;
+connection default;
+flush status;
+show status like 'Com%function';
+Variable_name	Value
+Com_alter_function	0
+Com_create_function	0
+Com_drop_function	0
+create function f1 (x INTEGER) returns integer
+begin
+declare ret integer;
+set ret = x * 10;
+return ret;
+end //
+drop function f1;
+show status like 'Com%function';
+Variable_name	Value
+Com_alter_function	0
+Com_create_function	1
+Com_drop_function	1
+connect  root, localhost, root,,test;
+connection root;
+create database db37908;
+create table db37908.t1(f1 int);
+insert into db37908.t1 values(1);
+create user mysqltest_1@localhost;
+grant usage,execute on test.* to mysqltest_1@localhost;
+create procedure proc37908() begin select 1; end |
+create function func37908() returns int sql security invoker
+return (select * from db37908.t1 limit 1)|
+connect  user1,localhost,mysqltest_1,,test;
+connection user1;
+select * from db37908.t1;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 't1'
+show status where variable_name ='uptime' and 2 in (select * from db37908.t1);
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 't1'
+show procedure status where name ='proc37908' and 1 in (select f1 from db37908.t1);
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 't1'
+show function status where name ='func37908' and 1 in (select func37908());
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for table 't1'
+connection default;
+disconnect user1;
+disconnect root;
+drop database db37908;
+drop procedure proc37908;
+drop function func37908;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM mysqltest_1@localhost;
+DROP USER mysqltest_1@localhost;
+connect  con1,localhost,root,,;
+connection con1;
+DROP PROCEDURE IF EXISTS p1;
+DROP FUNCTION IF EXISTS f1;
+CREATE FUNCTION f1() RETURNS INTEGER
+BEGIN
+DECLARE foo INTEGER;
+DECLARE bar INTEGER;
+SET foo=1;
+SET bar=2;
+RETURN foo;
+END $$
+CREATE PROCEDURE p1()
+BEGIN
+SELECT 1;
+END $$
+SELECT f1();
+f1()
+1
+CALL p1();
+1
+1
+SELECT 9;
+9
+9
+disconnect con1;
+connection default;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+flush status;
+create table t1 (a int not null auto_increment primary key, g int, b blob);
+insert into t1 (g,b) values (1,'a'), (2, 'b'), (3, 'b'), (1, 'c');
+select * from t1;
+a	g	b
+1	1	a
+2	2	b
+3	3	b
+4	1	c
+select b, count(*) from t1 group by b;
+b	count(*)
+a	1
+b	2
+c	1
+select g, count(*) from t1 group by g;
+g	count(*)
+1	2
+2	1
+3	1
+show status like 'Row%';
+Variable_name	Value
+Rows_read	12
+Rows_sent	10
+Rows_tmp_read	14
+show status like 'Handler%';
+Variable_name	Value
+Handler_commit	0
+Handler_delete	0
+Handler_discover	0
+Handler_external_lock	0
+Handler_icp_attempts	0
+Handler_icp_match	0
+Handler_mrr_init	0
+Handler_mrr_key_refills	0
+Handler_mrr_rowid_refills	0
+Handler_prepare	0
+Handler_read_first	0
+Handler_read_key	9
+Handler_read_last	0
+Handler_read_next	0
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	7
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	23
+Handler_rollback	0
+Handler_savepoint	0
+Handler_savepoint_rollback	0
+Handler_tmp_delete	0
+Handler_tmp_update	2
+Handler_tmp_write	7
+Handler_update	0
+Handler_write	4
+show status like '%tmp%';
+Variable_name	Value
+Created_tmp_disk_tables	1
+Created_tmp_files	0
+Created_tmp_tables	2
+Handler_tmp_delete	0
+Handler_tmp_update	2
+Handler_tmp_write	7
+Rows_tmp_read	44
+drop table t1;
+CREATE TABLE t1 (i int(11) DEFAULT NULL, KEY i (i) ) ENGINE=MyISAM;
+insert into t1 values (1),(2),(3),(4),(5);
+flush status;
+select * from t1 where i=5 union select * from t1 where i=5;
+i
+5
+show status like "handler%";
+Variable_name	Value
+Handler_commit	0
+Handler_delete	0
+Handler_discover	0
+Handler_external_lock	0
+Handler_icp_attempts	0
+Handler_icp_match	0
+Handler_mrr_init	0
+Handler_mrr_key_refills	0
+Handler_mrr_rowid_refills	0
+Handler_prepare	0
+Handler_read_first	0
+Handler_read_key	2
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	1
+Handler_read_rnd_next	2
+Handler_rollback	0
+Handler_savepoint	0
+Handler_savepoint_rollback	0
+Handler_tmp_delete	0
+Handler_tmp_update	0
+Handler_tmp_write	2
+Handler_update	0
+Handler_write	0
+drop table t1;
+#
+# MDEV-11153 - Introduce status variables for table cache monitoring and
+#              tuning
+#
+SET @old_table_open_cache= @@table_open_cache;
+SET @@global.table_open_cache=10;
+FLUSH TABLES;
+FLUSH STATUS;
+SHOW STATUS LIKE 'Table_open_cache%';
+Variable_name	Value
+Table_open_cache_active_instances	1
+Table_open_cache_hits	0
+Table_open_cache_misses	0
+Table_open_cache_overflows	0
+SHOW STATUS LIKE 'Table_open_cache%';
+Variable_name	Value
+Table_open_cache_active_instances	1
+Table_open_cache_hits	72
+Table_open_cache_misses	18
+Table_open_cache_overflows	8
+FLUSH TABLES;
+FLUSH STATUS;
+SET @@global.table_open_cache= @old_table_open_cache;
+#
+# MDEV-14505 - Threads_running becomes scalability bottleneck
+#
+# Session status for Threads_running is currently always 1.
+SHOW STATUS LIKE 'Threads_running';
+Variable_name	Value
+Threads_running	1
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='THREADS_RUNNING';
+VARIABLE_VALUE
+1
+FLUSH STATUS;
+SHOW STATUS LIKE 'Threads_running';
+Variable_name	Value
+Threads_running	1
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='THREADS_RUNNING';
+VARIABLE_VALUE
+1
+#
+# MDEV-15915 Add Feature_json status variable.
+#
+SHOW STATUS LIKE 'Feature_json';
+Variable_name	Value
+Feature_json	0
+select json_valid('123');
+json_valid('123')
+1
+SHOW STATUS LIKE 'Feature_json';
+Variable_name	Value
+Feature_json	1
+connection default;
+set @@global.concurrent_insert= @old_concurrent_insert;
+SET GLOBAL log_output = @old_log_output;

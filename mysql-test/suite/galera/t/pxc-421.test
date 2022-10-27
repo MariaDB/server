@@ -1,0 +1,67 @@
+#
+# PXC-421: Test deadlock involving updates of 
+# wsrep_provider, wsrep_cluster_address and wsrep_slave_threads.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+--let $wsrep_slave_1 = `SELECT @@wsrep_slave_threads`
+set GLOBAL wsrep_slave_threads=26;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 (f1) SELECT * from t1 as x1;
+
+--connection node_2
+--let $wsrep_slave_2 = `SELECT @@wsrep_slave_threads`
+set GLOBAL wsrep_slave_threads=16;
+--let $wsrep_provider_orig = `SELECT @@wsrep_provider`
+--let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
+
+SET GLOBAL wsrep_provider='none';
+INSERT INTO t1 VALUES (2);
+
+--connection node_1
+INSERT INTO t1 VALUES (3);
+
+--connection node_2
+--disable_query_log
+--eval SET GLOBAL wsrep_provider = '$wsrep_provider_orig';
+--eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig';
+--enable_query_log
+
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (4);
+set GLOBAL wsrep_slave_threads=5;
+
+# Node #2 has all the inserts
+SELECT COUNT(*) = 5 FROM t1;
+
+--connection node_1
+set GLOBAL wsrep_slave_threads=12;
+# Node #1 is missing the insert made while Node #2 was not replicated
+SELECT COUNT(*) = 4 FROM t1;
+INSERT INTO t1 VALUES (100), (101), (102);
+
+--connection node_2
+set GLOBAL wsrep_slave_threads=5;
+INSERT INTO t1 (f1) SELECT * from t1 as x1;
+show global variables like 'wsrep_slave_threads';
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_2
+SELECT COUNT(*) FROM t1;
+
+--connection node_1
+SELECT COUNT(*) FROM t1;
+show global variables like 'wsrep_slave_threads';
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_1
+DROP TABLE t1;
+
+--source include/auto_increment_offset_restore.inc
+

@@ -1,0 +1,40 @@
+--disable_warnings
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+call mtr.add_suppression("graph_base is open on delete");
+
+# Create the backing store
+CREATE TABLE graph_base (
+    from_id INT UNSIGNED NOT NULL,
+    to_id INT UNSIGNED NOT NULL,
+    PRIMARY KEY (from_id,to_id),
+    INDEX (to_id)
+  ) ENGINE=MyISAM;
+
+
+CREATE TABLE graph (
+    latch   VARCHAR(32) NULL,
+    origid  BIGINT    UNSIGNED NULL,
+    destid  BIGINT    UNSIGNED NULL,
+    weight  DOUBLE    NULL,
+    seq     BIGINT    UNSIGNED NULL,
+    linkid  BIGINT    UNSIGNED NULL,
+    KEY (latch, origid, destid) USING HASH,
+    KEY (latch, destid, origid) USING HASH
+  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+
+
+INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
+SELECT * FROM graph;
+DROP TABLE graph_base;
+FLUSH TABLES;  # <-- without this, we still had it open so never see error...
+--error S42S02
+SELECT * FROM graph;
+DROP TABLE graph;
+
+# gdb script:
+# bre ha_oqgraph::rnd_init
+# ignore 1 1
+# run

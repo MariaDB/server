@@ -1,0 +1,102 @@
+source include/not_embedded.inc;
+
+create user foo@localhost;
+grant create user on *.* to foo@localhost;
+
+########################################
+# syntax tests
+########################################
+
+create role role1;
+create role role2 with admin current_user;
+--error ER_MALFORMED_DEFINER
+create role role3 with admin current_role;
+create role role3 with admin role1;
+create role role4 with admin root@localhost;
+
+# privilege checks, one needs SUPER to specify an arbitrary admin
+connect (c1, localhost, foo,,);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+create role role5 with admin root@localhost;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+create role role5 with admin role3;
+create role role5 with admin foo@localhost;
+
+connection default;
+# non-existing admin. works. warning. error in the log on acl_load.
+call mtr.add_suppression("Invalid roles_mapping table entry user:'foo@bar', rolename:'role6'");
+create role role6 with admin foo@bar;
+
+--error ER_PARSE_ERROR
+create user bar with admin current_user;
+
+grant role1 to foo@localhost with admin option;
+grant role2 to foo@localhost;
+grant role2 to role1;
+grant role4 to role3 with admin option;
+--error ER_PARSE_ERROR
+grant select on *.* to foo@localhost with admin option;
+
+--sorted_result
+show grants for foo@localhost;
+--sorted_result
+show grants for role1;
+--sorted_result
+show grants for role4;
+--sorted_result
+select * from mysql.roles_mapping;
+flush privileges;
+--sorted_result
+show grants for foo@localhost;
+--sorted_result
+show grants for role1;
+--sorted_result
+show grants for role4;
+--sorted_result
+select * from information_schema.applicable_roles;
+
+grant role2 to role1 with admin option;
+revoke role1 from foo@localhost;
+revoke admin option for role4 from role3;
+revoke admin option for role2 from foo@localhost;
+revoke admin option for role1 from root@localhost;
+
+--sorted_result
+show grants for foo@localhost;
+--sorted_result
+show grants for role1;
+--sorted_result
+show grants for role4;
+--sorted_result
+select * from mysql.roles_mapping;
+flush privileges;
+--sorted_result
+show grants for foo@localhost;
+--sorted_result
+show grants for role1;
+--sorted_result
+show grants for role4;
+--sorted_result
+select * from information_schema.applicable_roles;
+
+# Now, root@localhost don't have admin option for role1:
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant role1 to role4;
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant role1 to role4 with admin option;
+# but role3 is grantable
+grant role3 to role2;
+revoke role3 from role2;
+
+# now, a diamond
+grant role4 to role2 with admin option;
+revoke role2 from current_user;
+revoke role4 from current_user;
+grant role4 to current_user;
+
+
+########################################
+# cleanup
+########################################
+drop role role1, role2, role3, role4, role5, role6;
+drop user foo@localhost;

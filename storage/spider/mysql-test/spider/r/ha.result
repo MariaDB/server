@@ -1,0 +1,266 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+connection child2_3;
+DROP DATABASE IF EXISTS auto_test_remote3;
+CREATE DATABASE auto_test_remote3;
+USE auto_test_remote3;
+connection child3_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child3_2;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child3_3;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+
+create table test
+connection master_1;
+DROP TABLE IF EXISTS ta_l;
+CREATE TABLE ta_l (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_HA_2_1
+INSERT INTO ta_l (a, b, c) VALUES
+(1, 'a', '2008-08-01 10:21:39'),
+(2, 'b', '2000-01-01 00:00:00'),
+(3, 'e', '2007-06-04 20:03:11'),
+(4, 'd', '2003-11-30 05:01:03'),
+(5, 'c', '2001-12-31 23:59:59');
+
+select test
+connection master_1;
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
+1	a	2008-08-01 10:21:39
+2	b	2000-01-01 00:00:00
+3	e	2007-06-04 20:03:11
+4	d	2003-11-30 05:01:03
+5	c	2001-12-31 23:59:59
+
+fail-over test
+connection master_1;
+SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
+Variable_name	Value
+Spider_mon_table_cache_version	0
+Spider_mon_table_cache_version_req	1
+INSERT INTO ta_l (a, b, c) VALUES
+(6, 'e', '2011-05-05 20:04:05');
+ERROR HY000: Table 'auto_test_remote2.ta_r3' get a problem
+SELECT db_name, table_name, link_id, link_status FROM mysql.spider_tables
+ORDER BY db_name, table_name, link_id;
+db_name	table_name	link_id	link_status
+auto_test_local	ta_l	0	1
+auto_test_local	ta_l	1	3
+SELECT db_name, table_name, link_id FROM mysql.spider_link_failed_log;
+db_name	table_name	link_id
+auto_test_local	ta_l	1
+SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
+Variable_name	Value
+Spider_mon_table_cache_version	1
+Spider_mon_table_cache_version_req	1
+INSERT INTO ta_l (a, b, c) VALUES
+(6, 'e', '2011-05-05 20:04:05');
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
+1	a	2008-08-01 10:21:39
+2	b	2000-01-01 00:00:00
+3	e	2007-06-04 20:03:11
+4	d	2003-11-30 05:01:03
+5	c	2001-12-31 23:59:59
+6	e	2011-05-05 20:04:05
+
+recovery test
+connection master_1;
+ALTER TABLE ta_l
+CONNECTION='host "localhost", user "root", password "",
+  msi "5", mkd "2",
+  database "auto_test_remote auto_test_remote2", lst "0 2"';
+SELECT db_name, table_name, link_id, link_status FROM mysql.spider_tables
+ORDER BY db_name, table_name, link_id;
+db_name	table_name	link_id	link_status
+auto_test_local	ta_l	0	1
+auto_test_local	ta_l	1	2
+SELECT spider_copy_tables('ta_l', '0', '1');
+spider_copy_tables('ta_l', '0', '1')
+1
+connection master_1;
+ALTER TABLE ta_l
+CONNECTION='host "localhost", user "root", password "",
+  msi "5", mkd "2",
+  database "auto_test_remote auto_test_remote2", lst "0 1"';
+SELECT db_name, table_name, link_id, link_status FROM mysql.spider_tables
+ORDER BY db_name, table_name, link_id;
+db_name	table_name	link_id	link_status
+auto_test_local	ta_l	0	1
+auto_test_local	ta_l	1	1
+INSERT INTO ta_l (a, b, c) VALUES
+(8, 'g', '2011-05-05 21:33:30');
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
+1	a	2008-08-01 10:21:39
+2	b	2000-01-01 00:00:00
+3	e	2007-06-04 20:03:11
+4	d	2003-11-30 05:01:03
+5	c	2001-12-31 23:59:59
+6	e	2011-05-05 20:04:05
+8	g	2011-05-05 21:33:30
+DROP TABLE ta_l;
+connection master_1;
+SELECT spider_flush_table_mon_cache();
+spider_flush_table_mon_cache()
+1
+
+active standby test
+create table test
+connection master_1;
+DROP TABLE IF EXISTS ta_l;
+CREATE TABLE ta_l (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_HA_AS_2_1
+INSERT INTO ta_l (a, b, c) VALUES
+(1, 'a', '2008-08-01 10:21:39'),
+(2, 'b', '2000-01-01 00:00:00'),
+(3, 'e', '2007-06-04 20:03:11'),
+(4, 'd', '2003-11-30 05:01:03'),
+(5, 'c', '2001-12-31 23:59:59');
+
+select test
+connection master_1;
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
+1	a	2008-08-01 10:21:39
+2	b	2000-01-01 00:00:00
+3	e	2007-06-04 20:03:11
+4	d	2003-11-30 05:01:03
+5	c	2001-12-31 23:59:59
+
+fail-over test
+connection master_1;
+SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
+Variable_name	Value
+Spider_mon_table_cache_version	1
+Spider_mon_table_cache_version_req	2
+INSERT INTO ta_l (a, b, c) VALUES
+(6, 'e', '2011-05-05 20:04:05');
+ERROR HY000: Table 'auto_test_remote.ta_r' get a problem
+SELECT db_name, table_name, link_id, link_status FROM mysql.spider_tables
+ORDER BY db_name, table_name, link_id;
+db_name	table_name	link_id	link_status
+auto_test_local	ta_l	0	3
+auto_test_local	ta_l	1	1
+SELECT db_name, table_name, link_id FROM mysql.spider_link_failed_log;
+db_name	table_name	link_id
+auto_test_local	ta_l	1
+auto_test_local	ta_l	0
+SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
+Variable_name	Value
+Spider_mon_table_cache_version	2
+Spider_mon_table_cache_version_req	2
+INSERT INTO ta_l (a, b, c) VALUES
+(6, 'e', '2011-05-05 20:04:05');
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
+6	e	2011-05-05 20:04:05
+
+recovery test
+connection master_1;
+ALTER TABLE ta_l
+CONNECTION='host "localhost", user "root", password "",
+  msi "5", mkd "2", alc "1",
+  database "auto_test_remote auto_test_remote2", lst "1 0"';
+SELECT db_name, table_name, link_id, link_status FROM mysql.spider_tables
+ORDER BY db_name, table_name, link_id;
+db_name	table_name	link_id	link_status
+auto_test_local	ta_l	0	1
+auto_test_local	ta_l	1	1
+INSERT INTO ta_l (a, b, c) VALUES
+(8, 'g', '2011-05-05 21:33:30');
+SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
+a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
+8	g	2011-05-05 21:33:30
+DROP TABLE ta_l;
+connection master_1;
+SELECT spider_flush_table_mon_cache();
+spider_flush_table_mon_cache()
+1
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+connection child2_3;
+DROP DATABASE IF EXISTS auto_test_remote3;
+connection child3_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child3_2;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child3_3;
+DROP DATABASE IF EXISTS auto_test_local;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

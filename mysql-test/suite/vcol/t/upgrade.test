@@ -1,0 +1,28 @@
+#
+# MDEV-12936 upgrade to 10.2.6 failed upon tables with virtual columns
+#
+let $datadir=`select @@datadir`;
+copy_file std_data/vcol_autoinc.frm $datadir/test/vcol_autoinc.frm;
+copy_file std_data/vcol_autoinc.MYD $datadir/test/vcol_autoinc.MYD;
+copy_file std_data/vcol_autoinc.MYI $datadir/test/vcol_autoinc.MYI;
+check table vcol_autoinc for upgrade;
+show create table vcol_autoinc;
+select * from vcol_autoinc;
+insert vcol_autoinc (pk) values (1);
+select * from vcol_autoinc;
+drop table vcol_autoinc;
+
+#
+# MDEV-17909 Problem by MariaDB Update 10.1.32 -> 10.2.19 (Incorrect information in file: .frm)
+#
+source include/have_partition.inc;
+copy_file std_data/mdev17909#P#p20181029.MYD $datadir/test/t1#P#p20181029.MYD;
+copy_file std_data/mdev17909#P#p20181029.MYI $datadir/test/t1#P#p20181029.MYI;
+copy_file std_data/mdev17909#P#p20181128.MYD $datadir/test/t1#P#p20181128.MYD;
+copy_file std_data/mdev17909#P#p20181128.MYI $datadir/test/t1#P#p20181128.MYI;
+copy_file std_data/mdev17909.frm $datadir/test/t1.frm;
+copy_file std_data/mdev17909.par $datadir/test/t1.par;
+check table t1  for upgrade;
+flush tables;
+show create table t1;
+drop table t1;

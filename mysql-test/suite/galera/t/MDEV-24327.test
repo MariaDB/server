@@ -1,0 +1,87 @@
+#
+# MDEV-24327 wsrep XID checkpointing order violation with log_slave_updates=OFF
+#
+# Here we have configure two node cluster with --log-bin=ON and --log-slave_-updates=OFF
+#
+# a transaction in node executes so far that it has replicated and reached
+# commit phase, We have sync point before entering commit order monitor and
+# the transaction is parked there
+#
+# Then another transaction is executed in node 2, it replicates and commits in node 2
+# and is received and applied in node 1. After applying it will remain waiting for
+# commit order monitor, as it has later seqno than the first transaction in node 1.
+#
+# control connection in node 1 waits to see the 
+# 
+# With the buggy version of MDEV-24327, the applier has however, already synced the
+# wsrep XID checkpoint
+#
+#
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+INSERT INTO t1 VALUES (1, 'f');
+INSERT INTO t1 VALUES (2, 'g');
+
+--connection node_1
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+
+UPDATE t1 SET f2 = '1' WHERE f1 = 1;
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait=0;
+--connection node_1a
+--let $expected_wsrep_received = `SELECT VARIABLE_VALUE+1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_received'`
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# Block the commit, send the COMMIT and wait until it gets blocked
+
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+--send COMMIT
+
+--connection node_1a
+
+# wait for the commit to block in sync point
+
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+#
+# replicate non conflicting transaction from node 2
+# it will get later seqno and should sync XID checkpoint after transaction in node 1
+#
+--connection node_2
+UPDATE t1 SET f2 = '2' WHERE f1 = 2;
+
+#
+# wait until update from node 2 has been committed
+# if XID checkpointing order was violated, node 1 would crash for assert
+#
+
+--connection node_1a
+--let $wait_condition = SELECT VARIABLE_VALUE = $expected_wsrep_received FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_received'
+--source include/wait_condition.inc
+
+--let $galera_sync_point = commit_monitor_master_enter_sync
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--connection node_1
+--reap
+SELECT * FROM t1;
+--echo "node 1 is complete now"
+
+
+--connection node_2
+DROP TABLE t1;

@@ -1,0 +1,83 @@
+#
+# Test Galera as a slave to a MySQL master
+#
+# The galera/galera_2node_slave.cnf describes the setup of the nodes
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+# As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
+# we open the node_3 connection here
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--enable_query_log
+START SLAVE;
+
+--connection node_3
+
+##
+## Verify the correct operation of the auto-increment when
+## the binlog format set to the 'STATEMENT' on the master node:
+##
+
+SET SESSION binlog_format='STATEMENT';
+
+CREATE TABLE t1 (
+     i int(11) NOT NULL AUTO_INCREMENT,
+     c char(32) DEFAULT 'dummy_text',
+     PRIMARY KEY (i)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
+insert into t1(i) values(null);
+
+select * from t1;
+
+insert into t1(i) values(null), (null), (null);
+
+select * from t1;
+
+SET SESSION auto_increment_increment=7;
+insert into t1(i) values(null), (null), (null);
+
+SET SESSION auto_increment_offset=5;
+insert into t1(i) values(null), (null), (null);
+
+select * from t1;
+
+show variables like 'binlog_format';
+show variables like 'auto_increment_increment';
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 10 FROM t1;
+--source include/wait_condition.inc
+
+select * from t1;
+
+show variables like 'binlog_format';
+show variables like 'auto_increment_increment';
+
+--connection node_1
+select * from t1;
+
+show variables like 'binlog_format';
+show variables like 'auto_increment_increment';
+
+--connection node_3
+DROP TABLE t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+STOP SLAVE;
+RESET SLAVE ALL;
+
+--connection node_3
+RESET MASTER;

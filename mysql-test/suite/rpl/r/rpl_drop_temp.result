@@ -1,0 +1,65 @@
+include/master-slave.inc
+[connection master]
+create database if not exists mysqltest;
+connect  con_temp,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connection con_temp;
+use mysqltest;
+create temporary table mysqltest.t1 (n int)ENGINE=MyISAM;
+create temporary table mysqltest.t2 (n int)ENGINE=MyISAM;
+disconnect con_temp;
+connection master;
+connection slave;
+connection slave;
+show status like 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	0
+connection master;
+drop database mysqltest;
+connection slave;
+connection master;
+DROP TEMPORARY TABLE IF EXISTS tmp1;
+Warnings:
+Note	1051	Unknown table 'test.tmp1'
+CREATE TEMPORARY TABLE t1 ( a int );
+DROP TEMPORARY TABLE t1, t2;
+ERROR 42S02: Unknown table 'test.t2'
+DROP TEMPORARY TABLE tmp2;
+ERROR 42S02: Unknown table 'test.tmp2'
+connection slave;
+connection slave;
+stop slave;
+connection master;
+CREATE TEMPORARY TABLE tmp3 (a int);
+DROP TEMPORARY TABLE tmp3;
+connection slave;
+SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1;
+START SLAVE;
+connection master;
+connection slave;
+include/rpl_reset.inc
+connection master;
+CREATE TABLE t1 ( i INT );
+connection slave;
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	0
+connect con1,localhost,root,,;
+CREATE TEMPORARY TABLE ttmp1 ( i INT );
+SET SESSION binlog_format=ROW;
+disconnect con1;
+connection master;
+connection slave;
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	0
+connection master;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 ( i INT )
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TEMPORARY TABLE ttmp1 ( i INT )
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP /*!40005 TEMPORARY */ TABLE IF EXISTS `ttmp1`
+DROP TABLE t1;
+include/rpl_end.inc

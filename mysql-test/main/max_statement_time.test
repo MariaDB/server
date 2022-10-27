@@ -1,0 +1,236 @@
+#
+# Test behavior of MAX_STATEMENT_TIME.
+# We can't do this under valgrind as valgrind interferes with thread scheduling
+#
+
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_valgrind.inc
+
+--echo
+--echo # Test the MAX_STATEMENT_TIME option.
+--echo
+
+SET @@MAX_STATEMENT_TIME=2;
+select @@max_statement_time;
+SELECT SLEEP(1);
+SELECT SLEEP(3);
+SET @@MAX_STATEMENT_TIME=0;
+SELECT SLEEP(1);
+SHOW STATUS LIKE "max_statement_time_exceeded";
+
+CREATE TABLE t1 (a INT, b VARCHAR(300)) engine=myisam;
+
+INSERT INTO t1 VALUES (1, 'string');
+
+--disable_result_log
+--disable_query_log
+
+SET @@MAX_STATEMENT_TIME=2;
+
+SET @@MAX_STATEMENT_TIME=0.1;
+WHILE (! $mysql_errno)
+{
+  SET @@MAX_STATEMENT_TIME=0;
+  INSERT INTO t1 SELECT * FROM t1;
+  SET @@MAX_STATEMENT_TIME=0.1;
+  --error 0,ER_STATEMENT_TIMEOUT
+  SELECT COUNT(*) FROM t1 WHERE b LIKE '%z%';
+}
+SET @@MAX_STATEMENT_TIME=0;
+
+--enable_query_log
+--enable_result_log
+
+eval SELECT $mysql_errno;
+
+--echo
+--echo # Test the MAX_STATEMENT_TIME option with SF (should have no effect).
+--echo
+
+DELIMITER |;
+
+CREATE PROCEDURE p1()
+BEGIN
+  declare tmp int;
+  SET @@MAX_STATEMENT_TIME=0.0001;
+  SELECT COUNT(*) INTO tmp FROM t1 WHERE b LIKE '%z%';
+  SET @@MAX_STATEMENT_TIME=0;
+END|
+
+CREATE PROCEDURE p2()
+BEGIN
+  SET @@MAX_STATEMENT_TIME=5;
+END|
+
+DELIMITER ;|
+
+SELECT @@MAX_STATEMENT_TIME;
+CALL p1();
+CALL p2();
+SELECT @@MAX_STATEMENT_TIME;
+SET @@MAX_STATEMENT_TIME=0;
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+
+--echo
+--echo # MAX_STATEMENT_TIME account resource
+--echo
+
+set statement sql_mode="" for
+GRANT USAGE ON *.* TO user1@localhost WITH MAX_STATEMENT_TIME 1.005;
+
+--echo # con1
+connect(con1,localhost,user1,,test,,);
+SELECT @@max_statement_time;
+disconnect con1;
+
+--echo # restart and reconnect
+connection default;
+source include/restart_mysqld.inc;
+
+set @global.userstat=1;
+connect(con1,localhost,user1,,test,,);
+SELECT @@global.max_statement_time,@@session.max_statement_time;
+select sleep(100);
+SHOW STATUS LIKE "max_statement_time_exceeded";
+disconnect con1;
+
+connection default;
+show grants for user1@localhost;
+--disable_parsing
+select max_user_timeouts from information_schema.user_statistics where user="user1";
+--enable_parsing
+
+set @global.userstat=0;
+DROP USER user1@localhost;
+
+--echo
+--echo # MAX_STATEMENT_TIME status variables.
+--echo
+
+flush status;
+
+SET @@max_statement_time=0;
+SELECT CONVERT(VARIABLE_VALUE, UNSIGNED) INTO @time_exceeded
+  FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+  WHERE VARIABLE_NAME = 'max_statement_time_exceeded';
+
+SET @@max_statement_time=0.5;
+SELECT SLEEP(2);
+SHOW STATUS LIKE '%timeout%';
+SET @@max_statement_time=0;
+
+--echo # Ensure that the counters for:
+--echo # - statements that exceeded their maximum execution time
+--echo # are incremented.
+
+SELECT 1 AS STATUS FROM INFORMATION_SCHEMA.GLOBAL_STATUS
+  WHERE VARIABLE_NAME = 'max_statement_time_exceeded'
+        AND CONVERT(VARIABLE_VALUE, UNSIGNED) > @time_exceeded;
+
+--echo
+--echo # Check that the appropriate error status is set.
+--echo
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+START TRANSACTION;
+SELECT * FROM t1 FOR UPDATE;
+
+connect (con1,localhost,root,,test,,);
+SET @@SESSION.max_statement_time = 0.5;
+--error ER_STATEMENT_TIMEOUT
+UPDATE t1 SET a = 2;
+SHOW WARNINGS;
+disconnect con1;
+
+connection default;
+ROLLBACK;
+DROP TABLE t1;
+
+--echo
+--echo # Test interaction with lock waits.
+--echo
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+connect (con1,localhost,root,,test,,);
+SET @@SESSION.max_statement_time= 0.5;
+
+connection default;
+LOCK TABLES t1 WRITE;
+
+connection con1;
+SELECT @@SESSION.max_statement_time;
+--error ER_STATEMENT_TIMEOUT
+LOCK TABLES t1 READ;
+
+connection default;
+UNLOCK TABLES;
+BEGIN;
+SELECT * FROM t1;
+
+connection con1;
+--error ER_STATEMENT_TIMEOUT
+ALTER TABLE t1 ADD COLUMN b INT;
+
+connection default;
+ROLLBACK;
+SELECT GET_LOCK('lock', 1);
+
+connection con1;
+SELECT GET_LOCK('lock', 1);
+
+disconnect con1;
+connection default;
+SELECT RELEASE_LOCK('lock');
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-7011:MAX_STATEMENT_TIME has no effect in a procedure after
+--echo # a previous successful statement
+--echo #
+create table t1 (i int);
+insert into t1 values (1),(2),(3),(4);
+insert into t1 select a.* from t1 a, t1 b, t1 c, t1 d, t1 e, t1 f, t1 g;
+delimiter |;
+create procedure pr()
+ begin
+   select 1;
+   select sql_no_cache * from t1 where i > 5;
+   select sql_no_cache * from t1 where i > 5;
+   select sleep(2);
+ end |
+delimiter ;|
+set max_statement_time = 0.001;
+--error ER_STATEMENT_TIMEOUT
+call pr();
+set max_statement_time = 0;
+drop procedure pr;
+delimiter |;
+create procedure pr()
+ begin
+   select sql_no_cache * from t1 where i > 5;
+   select sql_no_cache * from t1 where i > 5;
+   select sleep(2);
+ end |
+delimiter ;|
+set max_statement_time = 0.001;
+--error ER_STATEMENT_TIMEOUT
+call pr();
+set max_statement_time = 0;
+drop procedure pr;
+drop table t1;
+
+#
+# MDEV-16615 ASAN SEGV in handler::print_error or server crash after error upon CREATE TABLE
+#
+SET max_statement_time= 1;
+--error ER_STATEMENT_TIMEOUT
+CREATE TABLE t ENGINE=InnoDB SELECT * FROM seq_1_to_50000;

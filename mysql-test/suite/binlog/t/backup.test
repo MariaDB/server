@@ -1,0 +1,19 @@
+--source include/have_log_bin.inc
+--source include/have_binlog_format_mixed.inc
+
+--echo #
+--echo # Test BACKUP STAGES BLOCK_COMMIT with binary logging on
+--echo #
+
+SET BINLOG_FORMAT=MIXED;
+RESET MASTER;
+
+create table t1 (a int) engine=aria;
+insert into t1 values (1);
+
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+SELECT @@gtid_binlog_pos;
+BACKUP STAGE END;
+source include/show_binlog_events.inc;
+drop table t1;

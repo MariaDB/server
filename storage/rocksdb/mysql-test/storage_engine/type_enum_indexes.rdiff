@@ -1,0 +1,11 @@
+--- suite/storage_engine/type_enum_indexes.result	2017-03-12 04:38:50.000000000 +0200
++++ suite/storage_engine/type_enum_indexes.reject	2017-12-12 20:36:47.455331726 +0200
+@@ -30,7 +30,7 @@
+ t1	0	a_b	2	b	#	#	NULL	NULL	#	#		
+ EXPLAIN SELECT a FROM t1 WHERE b > 'test2' ORDER BY a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-#	#	#	#	#	a_b	#	#	#	#
++#	#	#	#	#	NULL	#	#	#	#
+ SELECT a FROM t1 WHERE b > 'test2' ORDER BY a;
+ a
+ Africa

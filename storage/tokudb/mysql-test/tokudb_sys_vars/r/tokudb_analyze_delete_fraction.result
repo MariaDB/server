@@ -1,0 +1,73 @@
+SET @orig_global = @@global.tokudb_analyze_delete_fraction;
+SELECT @orig_global;
+@orig_global
+1
+SET @orig_session = @@session.tokudb_analyze_delete_fraction;
+SELECT @orig_session;
+@orig_session
+1
+SET GLOBAL tokudb_analyze_delete_fraction = .5;
+SELECT @@global.tokudb_analyze_delete_fraction;
+@@global.tokudb_analyze_delete_fraction
+0.500000
+SET GLOBAL tokudb_analyze_delete_fraction = 0;
+SELECT @@global.tokudb_analyze_delete_fraction;
+@@global.tokudb_analyze_delete_fraction
+0.000000
+SET GLOBAL tokudb_analyze_delete_fraction = DEFAULT;
+SELECT @@global.tokudb_analyze_delete_fraction;
+@@global.tokudb_analyze_delete_fraction
+1.000000
+SET GLOBAL tokudb_analyze_delete_fraction = 'foobar';
+ERROR 42000: Incorrect argument type to variable 'tokudb_analyze_delete_fraction'
+SELECT @@global.tokudb_analyze_delete_fraction;
+@@global.tokudb_analyze_delete_fraction
+1.000000
+SET GLOBAL tokudb_analyze_delete_fraction = 3.75;
+Warnings:
+Warning	1292	Truncated incorrect tokudb_analyze_delete_fraction value: '3.75'
+SELECT @@global.tokudb_analyze_delete_fraction;
+@@global.tokudb_analyze_delete_fraction
+1.000000
+SET SESSION tokudb_analyze_delete_fraction = .5;
+SELECT @@session.tokudb_analyze_delete_fraction;
+@@session.tokudb_analyze_delete_fraction
+0.500000
+SET SESSION tokudb_analyze_delete_fraction = 0;
+SELECT @@session.tokudb_analyze_delete_fraction;
+@@session.tokudb_analyze_delete_fraction
+0.000000
+SET SESSION tokudb_analyze_delete_fraction = DEFAULT;
+SELECT @@session.tokudb_analyze_delete_fraction;
+@@session.tokudb_analyze_delete_fraction
+1.000000
+SET SESSION tokudb_analyze_delete_fraction = 'foobar';
+ERROR 42000: Incorrect argument type to variable 'tokudb_analyze_delete_fraction'
+SELECT @@session.tokudb_analyze_delete_fraction;
+@@session.tokudb_analyze_delete_fraction
+1.000000
+SET SESSION tokudb_analyze_delete_fraction = 3.75;
+Warnings:
+Warning	1292	Truncated incorrect tokudb_analyze_delete_fraction value: '3.75'
+SELECT @@session.tokudb_analyze_delete_fraction;
+@@session.tokudb_analyze_delete_fraction
+1.000000
+SET GLOBAL tokudb_analyze_delete_fraction = .2;
+SET SESSION tokudb_analyze_delete_fraction = .3;
+SELECT @@global.tokudb_analyze_delete_fraction;
+@@global.tokudb_analyze_delete_fraction
+0.200000
+SELECT @@session.tokudb_analyze_delete_fraction;
+@@session.tokudb_analyze_delete_fraction
+0.300000
+SHOW VARIABLES LIKE 'tokudb_analyze_delete_fraction';
+Variable_name	Value
+tokudb_analyze_delete_fraction	0.300000
+SET SESSION tokudb_analyze_delete_fraction = @orig_session;
+SELECT @@session.tokudb_analyze_delete_fraction;
+@@session.tokudb_analyze_delete_fraction
+1.000000
+SET GLOBAL tokudb_analyze_delete_fraction = @orig_global;
+SELECT @@global.tokudb_analyze_delete_fraction;
+@@global.tokudb_analyze_delete_fraction
+1.000000

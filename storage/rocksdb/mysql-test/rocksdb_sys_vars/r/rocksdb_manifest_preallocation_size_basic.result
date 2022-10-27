@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_MANIFEST_PREALLOCATION_SIZE;
+SELECT @start_global_value;
+@start_global_value
+4194304
+"Trying to set variable @@global.ROCKSDB_MANIFEST_PREALLOCATION_SIZE to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_MANIFEST_PREALLOCATION_SIZE   = 444;
+ERROR HY000: Variable 'rocksdb_manifest_preallocation_size' is a read only variable

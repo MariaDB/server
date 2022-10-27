@@ -1,0 +1,156 @@
+#
+# Test multirow insert rollback with streaming replication
+#
+
+--source include/galera_cluster.inc
+
+
+#
+# Case 1: multirow insert results full rollback if a fragment
+#         managed to replicate
+#
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY DEFAULT 0, f2 char(12));
+
+--connection node_1
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+# With fragment size 1 we expect full rollback
+# because a fragment is already replicated.
+# Therefore, expect ER_LOCK_DEADLOCK instead of ER_DUP_ENTRY
+--error ER_LOCK_DEADLOCK
+INSERT INTO t1 (f2) VALUES ('a'), ('b');
+COMMIT;
+
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Case 2: error on multirow insert results in empty commit
+#
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY DEFAULT 0, f2 char(12));
+
+--connection node_1
+SET SESSION wsrep_trx_fragment_size = 1000;
+START TRANSACTION;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (f2) VALUES ('a'), ('b');
+COMMIT;
+
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Case 3: error on multirow insert does not affect previous statements
+#
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY DEFAULT 0, f2 char(12));
+
+--connection node_1
+SET SESSION wsrep_trx_fragment_size = 1000;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (2, 'b');
+--error ER_DUP_ENTRY
+INSERT INTO t1 (f2) VALUES ('c'), ('d');
+COMMIT;
+
+--echo expect (1,'a'), (2, 'b')
+SELECT * FROM t1;
+
+--connection node_2
+--echo expect (1,'a'), (2, 'b')
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Case 4: error on autocommit multirow insert
+#
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY DEFAULT 0, f2 char(12));
+
+--connection node_1
+SET SESSION wsrep_trx_fragment_size = 1;
+
+--error ER_DUP_ENTRY
+INSERT INTO t1 (f2) VALUES ('a'), ('b');
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+ --connection node_1
+SET SESSION wsrep_trx_fragment_size = 1000;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (f2) VALUES ('a'), ('b');
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) AS expect_0 FROM t1;
+
+DROP TABLE t1;
+
+
+#
+# Case 5: FK constraint violation on multirow insert results
+#         full rollback if a fragment has already replicated
+#
+--connection node_1
+CREATE TABLE p(id int primary key, j int) ENGINE=InnoDB;
+CREATE TABLE c(id int primary key, fk1 int) ENGINE=InnoDB;
+ALTER TABLE c ADD FOREIGN KEY (fk1) references p(id);
+INSERT INTO p VALUES(1, 0);
+
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+INSERT INTO c VALUES (3,1);
+--error ER_LOCK_DEADLOCK
+INSERT INTO c VALUES (1,1), (2,2);
+COMMIT;
+
+SELECT * FROM p;
+SELECT * FROM c;
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
+
+
+#
+# Case 6: FK constraint violation on multirow insert results
+#         stmt rollback if no fragments have replicated
+#
+--connection node_1
+CREATE TABLE p(id int primary key, j int) ENGINE=InnoDB;
+CREATE TABLE c(id int primary key, fk1 int) ENGINE=InnoDB;
+ALTER TABLE c ADD FOREIGN KEY (fk1) references p(id);
+INSERT INTO p VALUES(1, 0);
+
+SET SESSION wsrep_trx_fragment_size=1000;
+START TRANSACTION;
+INSERT INTO c VALUES (3,1);
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO c VALUES (1,1), (2,2);
+COMMIT;
+
+SELECT * FROM p;
+SELECT * FROM c;
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;

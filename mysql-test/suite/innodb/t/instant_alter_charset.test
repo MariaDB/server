@@ -1,0 +1,859 @@
+--source include/innodb_row_format.inc
+
+--let $row_format= `SELECT @@GLOBAL.innodb_default_row_format`
+set names utf8;
+
+create table no_rebuild (
+  a char(150) charset utf8mb3 collate utf8mb3_general_ci
+) engine=innodb;
+create table rebuild (
+  a varchar(150) charset ascii
+) engine=innodb;
+
+set @id = (select table_id from information_schema.innodb_sys_tables
+  where name = 'test/no_rebuild');
+select name, prtype, len from information_schema.innodb_sys_columns
+  where table_id = @id;
+select c.prtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+  where t.name = 'test/rebuild' and c.name = 'a';
+alter table no_rebuild
+  change a a char(150) charset utf8mb3 collate utf8mb3_spanish_ci,
+  algorithm=inplace;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table rebuild
+  change a a varchar(150) charset latin1 not null default 'asdf',
+  algorithm=inplace;
+alter table rebuild
+  change a a varchar(150) charset latin1 not null default 'asdf',
+  algorithm=copy;
+select name, prtype, len from information_schema.innodb_sys_columns
+  where table_id = @id;
+select c.prtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+  where t.name = 'test/rebuild' and c.name = 'a';
+
+drop table no_rebuild, rebuild;
+
+create table supported_types (
+  id int primary key auto_increment,
+  a varchar(150) charset ascii,
+  b text(150) charset ascii,
+  c text charset ascii,
+  d tinytext charset ascii,
+  e mediumtext charset ascii,
+  f longtext charset ascii
+) engine=innodb;
+
+alter table supported_types
+  convert to charset ascii collate ascii_bin,
+  algorithm=instant;
+
+drop table supported_types;
+
+create table various_cases (
+  a char(150) charset ascii,
+  b varchar(150) as (a) virtual,
+  c char(150) as (a) persistent
+) engine=innodb;
+
+alter table various_cases
+  change a a char(150) charset ascii collate ascii_bin,
+  algorithm=inplace;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table various_cases
+  change a a varchar(222),
+  algorithm=inplace;
+
+alter table various_cases
+  change b b varchar(150) as (a) virtual,
+  algorithm=inplace;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table various_cases
+  change c c char(150) as (a) persistent,
+  algorithm=inplace;
+
+# Can not grow storage in bytes from CHAR
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table various_cases
+  modify a char(150) charset utf8mb4,
+  algorithm=instant;
+
+drop table various_cases;
+
+
+create table all_texts (
+  a tinytext charset ascii,
+  b text charset ascii,
+  c mediumtext charset ascii,
+  d longtext charset ascii,
+  footer int
+) engine=innodb;
+
+alter table all_texts
+  convert to charset ascii collate ascii_bin,
+  algorithm=instant;
+
+drop table all_texts;
+
+
+create table all_binaries (
+  a tinyblob,
+  b blob,
+  c mediumblob,
+  d longblob,
+  e varbinary(150),
+  f binary(150)
+) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_binaries modify a tinytext, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_binaries modify b text, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_binaries modify c mediumtext, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_binaries modify d longtext, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_binaries modify e varchar(150), algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_binaries modify f char(150), algorithm=instant;
+
+drop table all_binaries;
+
+create table all_strings (
+  a tinytext,
+  b text,
+  c mediumtext,
+  d longtext,
+  e varchar(150),
+  f char(150)
+) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify a tinyblob, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify b blob, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify c mediumblob, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify d longblob, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify e varbinary(150), algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify f binary(150), algorithm=instant;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify a tinytext charset binary, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify b text charset binary, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify c mediumtext charset binary, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify d longtext charset binary, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify e varchar(150) charset binary, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table all_strings modify f char(150) charset binary, algorithm=instant;
+
+drop table all_strings;
+
+create table key_part_change (
+  a char(150) charset ascii,
+  b char(150) charset ascii,
+  c char(150) charset ascii,
+  unique key ab (a,b)
+) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table key_part_change
+  modify a char(150) charset utf8mb4,
+  drop index ab,
+  add unique key ab(a,c),
+  algorithm=instant;
+
+drop table key_part_change;
+
+create table key_part_change_and_rename (
+  a char(100) charset ascii,
+  b char(100) charset ascii,
+  unique key ab (a,b)
+) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table key_part_change_and_rename
+  change a b char(100) charset utf8mb4,
+  change b a char(100) charset utf8mb4,
+  drop index ab,
+  add unique key ab(a,b),
+  algorithm=instant;
+
+drop table key_part_change_and_rename;
+
+create table enum_and_set (
+  a enum('one', 'two') charset utf8mb3,
+  b set('three', 'four') charset utf8mb3
+) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table enum_and_set
+  modify a enum('one', 'two') charset utf8mb4,
+  algorithm=instant;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table enum_and_set
+  modify b enum('three', 'four') charset utf8mb4,
+  algorithm=instant;
+
+drop table enum_and_set;
+
+create table compressed (
+  a varchar(255) compressed charset utf8mb3
+) engine=innodb;
+
+insert into compressed values ('AAA'), ('bbb'), ('CCC');
+
+alter table compressed
+  modify a varchar(255) compressed charset utf8mb4,
+  algorithm=instant;
+
+select * from compressed;
+check table compresed;
+
+drop table compressed;
+
+create table key_part_bug (
+  id int primary key auto_increment,
+  a varchar(150) charset utf8mb3 unique key
+) engine=innodb;
+
+alter table key_part_bug
+  modify a varchar(150) charset utf8mb4,
+  algorithm=instant;
+
+drop table key_part_bug;
+
+
+create table latin1_swedish_special_case (
+  copy1 varchar(150) charset ascii collate ascii_general_ci,
+  copy2 char(150) charset ascii collate ascii_general_ci,
+  instant1 varchar(150) charset ascii collate ascii_general_ci,
+  instant2 char(150) charset ascii collate ascii_general_ci
+) engine=innodb;
+
+select c.name, c.prtype, c.mtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+  where t.name = 'test/latin1_swedish_special_case';
+alter table latin1_swedish_special_case
+  modify copy1 varchar(150) charset latin1 collate latin1_swedish_ci,
+  modify copy2 char(150) charset latin1 collate latin1_swedish_ci,
+  algorithm=copy;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table latin1_swedish_special_case
+  modify instant1 varchar(150) charset latin1 collate latin1_swedish_ci,
+  modify instant2 char(150) charset latin1 collate latin1_swedish_ci,
+  algorithm=instant;
+alter table latin1_swedish_special_case
+  modify instant1 varchar(150) charset latin1 collate latin1_swedish_ci,
+  modify instant2 char(150) charset latin1 collate latin1_swedish_ci,
+  algorithm=copy;
+select c.name, c.prtype, c.mtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+  where t.name = 'test/latin1_swedish_special_case';
+alter table latin1_swedish_special_case
+  modify copy1 varchar(150) charset latin1 collate latin1_general_ci,
+  modify copy2 char(150) charset latin1 collate latin1_general_ci,
+  algorithm=copy;
+alter table latin1_swedish_special_case
+  modify instant1 varchar(150) charset latin1 collate latin1_general_ci,
+  modify instant2 char(150) charset latin1 collate latin1_general_ci,
+  algorithm=instant;
+select c.name, c.prtype, c.mtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+  where t.name = 'test/latin1_swedish_special_case';
+
+drop table latin1_swedish_special_case;
+
+create table regression (a varchar(100) charset utf8mb3 primary key, b int) engine=innodb;
+alter table regression convert to character set utf8mb4;
+drop table regression;
+
+# ROW_FORMAT=DYNAMIC limitation:
+# size in bytes cannot be increased from less of equal that 255 to more than 255
+create table boundary_255 (
+  a varchar(50) charset ascii,
+  b varchar(200) charset ascii,
+  c varchar(300) charset ascii
+) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table boundary_255
+  modify a varchar(50) charset utf8mb3,
+  algorithm=instant;
+alter table boundary_255
+  modify a varchar(50) charset utf8mb3,
+  algorithm=copy;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table boundary_255
+  modify b varchar(200) charset utf8mb3,
+  algorithm=instant;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table boundary_255
+  modify c varchar(300) charset utf8mb3,
+  algorithm=instant;
+
+drop table boundary_255;
+
+create table boundary_255 (
+  a varchar(70) charset utf8mb3
+) engine=innodb;
+
+if ($row_format == 'redundant') {
+alter table boundary_255
+  modify a varchar(70) charset utf8mb4,
+  algorithm=instant;
+}
+if ($row_format != 'redundant') {
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table boundary_255
+  modify a varchar(70) charset utf8mb4,
+  algorithm=instant;
+}
+
+drop table boundary_255;
+
+
+create table t (
+  a char(10) collate utf8mb3_general_ci,
+  b char(70) collate utf8mb3_general_ci,
+  c char(100) collate utf8mb3_general_ci,
+
+  aa char(10) collate utf8mb3_general_ci unique,
+  bb char(70) collate utf8mb3_general_ci unique,
+  cc char(100) collate utf8mb3_general_ci unique,
+
+  d char(10) collate utf8mb3_general_ci,
+  dd char(10) collate utf8mb3_general_ci unique
+) engine=innodb;
+insert into t values
+  (repeat('a', 10), repeat('a', 70), repeat('a', 100),
+   repeat('a', 10), repeat('a', 70), repeat('a', 100),
+   repeat('a', 10), repeat('a', 10)
+);
+if ($row_format != 'redundant') {
+alter table t modify a char(10) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+alter table t modify b char(70) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+alter table t modify c char(100) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+
+alter table t modify aa char(10) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+alter table t modify bb char(70) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+alter table t modify cc char(100) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+
+alter table t modify d char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify dd char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+}
+if ($row_format == 'redundant') {
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a char(10) collate utf8mb4_general_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify b char(70) collate utf8mb4_general_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify c char(100) collate utf8mb4_general_ci, algorithm=instant;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify aa char(10) collate utf8mb4_general_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify bb char(70) collate utf8mb4_general_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify cc char(100) collate utf8mb4_general_ci, algorithm=instant;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify d char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify dd char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+}
+select * from t;
+drop table t;
+
+
+create table fully_compatible (
+  id int auto_increment unique key,
+  from_charset char(255),
+  from_collate char(255),
+  to_charset char(255),
+  to_collate char(255)
+);
+
+insert into fully_compatible (from_charset, from_collate, to_charset, to_collate) values
+  ('utf8mb3', 'utf8mb3_general_ci',           'utf8mb4', 'utf8mb4_general_ci'),
+  ('utf8mb3', 'utf8mb3_bin',                  'utf8mb4', 'utf8mb4_bin'),
+  ('utf8mb3', 'utf8mb3_unicode_ci',           'utf8mb4', 'utf8mb4_unicode_ci'),
+  ('utf8mb3', 'utf8mb3_icelandic_ci',         'utf8mb4', 'utf8mb4_icelandic_ci'),
+  ('utf8mb3', 'utf8mb3_latvian_ci',           'utf8mb4', 'utf8mb4_latvian_ci'),
+  ('utf8mb3', 'utf8mb3_romanian_ci',          'utf8mb4', 'utf8mb4_romanian_ci'),
+  ('utf8mb3', 'utf8mb3_slovenian_ci',         'utf8mb4', 'utf8mb4_slovenian_ci'),
+  ('utf8mb3', 'utf8mb3_polish_ci',            'utf8mb4', 'utf8mb4_polish_ci'),
+  ('utf8mb3', 'utf8mb3_estonian_ci',          'utf8mb4', 'utf8mb4_estonian_ci'),
+  ('utf8mb3', 'utf8mb3_spanish_ci',           'utf8mb4', 'utf8mb4_spanish_ci'),
+  ('utf8mb3', 'utf8mb3_swedish_ci',           'utf8mb4', 'utf8mb4_swedish_ci'),
+  ('utf8mb3', 'utf8mb3_turkish_ci',           'utf8mb4', 'utf8mb4_turkish_ci'),
+  ('utf8mb3', 'utf8mb3_czech_ci',             'utf8mb4', 'utf8mb4_czech_ci'),
+  ('utf8mb3', 'utf8mb3_danish_ci',            'utf8mb4', 'utf8mb4_danish_ci'),
+  ('utf8mb3', 'utf8mb3_lithuanian_ci',        'utf8mb4', 'utf8mb4_lithuanian_ci'),
+  ('utf8mb3', 'utf8mb3_slovak_ci',            'utf8mb4', 'utf8mb4_slovak_ci'),
+  ('utf8mb3', 'utf8mb3_spanish2_ci',          'utf8mb4', 'utf8mb4_spanish2_ci'),
+  ('utf8mb3', 'utf8mb3_roman_ci',             'utf8mb4', 'utf8mb4_roman_ci'),
+  ('utf8mb3', 'utf8mb3_persian_ci',           'utf8mb4', 'utf8mb4_persian_ci'),
+  ('utf8mb3', 'utf8mb3_esperanto_ci',         'utf8mb4', 'utf8mb4_esperanto_ci'),
+  ('utf8mb3', 'utf8mb3_hungarian_ci',         'utf8mb4', 'utf8mb4_hungarian_ci'),
+  ('utf8mb3', 'utf8mb3_sinhala_ci',           'utf8mb4', 'utf8mb4_sinhala_ci'),
+  ('utf8mb3', 'utf8mb3_german2_ci',           'utf8mb4', 'utf8mb4_german2_ci'),
+  ('utf8mb3', 'utf8mb3_croatian_mysql561_ci', 'utf8mb4', 'utf8mb4_croatian_mysql561_ci'),
+  ('utf8mb3', 'utf8mb3_unicode_520_ci',       'utf8mb4', 'utf8mb4_unicode_520_ci'),
+  ('utf8mb3', 'utf8mb3_vietnamese_ci',        'utf8mb4', 'utf8mb4_vietnamese_ci'),
+  ('utf8mb3', 'utf8mb3_croatian_ci',          'utf8mb4', 'utf8mb4_croatian_ci'),
+  ('utf8mb3', 'utf8mb3_myanmar_ci',           'utf8mb4', 'utf8mb4_myanmar_ci'),
+  ('utf8mb3', 'utf8mb3_thai_520_w2',          'utf8mb4', 'utf8mb4_thai_520_w2'),
+  ('utf8mb3', 'utf8mb3_general_nopad_ci',     'utf8mb4', 'utf8mb4_general_nopad_ci'),
+  ('utf8mb3', 'utf8mb3_nopad_bin',            'utf8mb4', 'utf8mb4_nopad_bin'),
+  ('utf8mb3', 'utf8mb3_unicode_nopad_ci',     'utf8mb4', 'utf8mb4_unicode_nopad_ci'),
+  ('utf8mb3', 'utf8mb3_unicode_520_nopad_ci', 'utf8mb4', 'utf8mb4_unicode_520_nopad_ci')
+;
+
+let $data_size = `select count(*) from fully_compatible`;
+let $counter = 1;
+
+while ($counter <= $data_size) {
+  let $from_charset = `select from_charset from fully_compatible where id = $counter`;
+  let $from_collate = `select from_collate from fully_compatible where id = $counter`;
+  let $to_charset = `select to_charset from fully_compatible where id = $counter`;
+  let $to_collate = `select to_collate from fully_compatible where id = $counter`;
+
+  eval create table tmp (
+    a varchar(50) charset $from_charset collate $from_collate,
+    b varchar(50) charset $from_charset collate $from_collate primary key
+  ) engine=innodb;
+
+  insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+
+  eval alter table tmp
+    change a a varchar(50) charset $to_charset collate $to_collate,
+    modify b varchar(50) charset $to_charset collate $to_collate,
+    algorithm=instant;
+
+  check table tmp;
+
+  drop table tmp;
+
+  inc $counter;
+}
+
+drop table fully_compatible;
+
+
+create table compatible_without_index (
+  id int auto_increment unique key,
+  from_charset char(255),
+  from_collate char(255),
+  to_charset char(255),
+  to_collate char(255)
+);
+
+insert into compatible_without_index (from_charset, from_collate, to_charset, to_collate) values
+
+  ('utf8mb3', 'utf8mb3_general_ci',       'utf8mb4', 'utf8mb4_vietnamese_ci'),
+  ('utf8mb3', 'utf8mb3_bin',              'utf8mb4', 'utf8mb4_vietnamese_ci'),
+  ('utf8mb3', 'utf8mb3_general_nopad_ci', 'utf8mb4', 'utf8mb4_vietnamese_ci'),
+  ('utf8mb3', 'utf8mb3_nopad_bin',        'utf8mb4', 'utf8mb4_vietnamese_ci'),
+
+  ('ascii',   'ascii_general_ci',      'ascii',   'ascii_bin'),
+  ('utf8mb3', 'utf8mb3_roman_ci',      'utf8mb3', 'utf8mb3_lithuanian_ci'),
+  ('utf8mb4', 'utf8mb4_thai_520_w2',   'utf8mb4', 'utf8mb4_persian_ci'),
+  ('utf8mb3', 'utf8mb3_myanmar_ci',    'utf8mb4', 'utf8mb4_german2_ci'),
+  ('utf8mb3', 'utf8mb3_general_ci',    'utf8mb3', 'utf8mb3_unicode_ci'),
+  ('latin1',  'latin1_general_cs',     'latin1',  'latin1_general_ci'),
+
+  ('utf16',   'utf16_general_ci',      'utf16',   'utf16_german2_ci')
+;
+
+let $data_size = `select count(*) from compatible_without_index`;
+let $counter = 1;
+
+while ($counter <= $data_size) {
+  let $from_charset = `select from_charset from compatible_without_index where id = $counter`;
+  let $from_collate = `select from_collate from compatible_without_index where id = $counter`;
+  let $to_charset = `select to_charset from compatible_without_index where id = $counter`;
+  let $to_collate = `select to_collate from compatible_without_index where id = $counter`;
+
+  eval create table tmp (
+    a varchar(50) charset $from_charset collate $from_collate,
+    b varchar(50) charset $from_charset collate $from_collate unique key,
+    c varchar(50) charset $from_charset collate $from_collate primary key
+  ) engine=innodb;
+
+  eval alter table tmp
+    change a a varchar(50) charset $to_charset collate $to_collate,
+    algorithm=instant;
+
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+  eval alter table tmp
+    modify b varchar(50) charset $to_charset collate $to_collate,
+    algorithm=instant;
+
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+  eval alter table tmp
+    modify c varchar(50) charset $to_charset collate $to_collate,
+    algorithm=instant;
+
+  drop table tmp;
+
+  inc $counter;
+}
+
+drop table compatible_without_index;
+
+
+create table fully_incompatible (
+  id int auto_increment unique key,
+  from_charset char(255),
+  from_collate char(255),
+  to_charset char(255),
+  to_collate char(255)
+);
+
+insert into fully_incompatible (from_charset, from_collate, to_charset, to_collate) values
+  ('ascii', 'ascii_general_ci',       'utf8mb3', 'utf8mb3_general_ci'),
+  ('ascii', 'ascii_general_ci',       'utf8mb4', 'utf8mb4_general_ci'),
+  ('ascii', 'ascii_general_ci',       'latin1', 'latin1_general_ci'),
+  ('ascii', 'ascii_bin',              'latin1', 'latin1_bin'),
+  ('ascii', 'ascii_nopad_bin',        'latin1', 'latin1_nopad_bin'),
+  ('ascii', 'ascii_general_ci',       'latin2', 'latin2_general_ci'),
+  ('ascii', 'ascii_general_ci',       'latin7', 'latin7_general_ci'),
+  ('ascii', 'ascii_bin',              'koi8u',  'koi8u_bin'),
+  ('ascii', 'ascii_bin',              'ujis',   'ujis_bin'),
+  ('ascii', 'ascii_bin',              'big5',   'big5_bin'),
+  ('ascii', 'ascii_bin',              'gbk',    'gbk_bin'),
+
+  ('ascii', 'ascii_general_ci',       'utf8mb3', 'utf8mb3_swedish_ci'),
+  ('ascii', 'ascii_bin',              'latin1', 'latin1_swedish_ci'),
+  ('ascii', 'ascii_general_nopad_ci', 'latin1', 'latin1_swedish_ci'),
+  ('ascii', 'ascii_nopad_bin',        'latin1', 'latin1_swedish_ci'),
+
+  ('ascii', 'ascii_general_ci',       'koi8u', 'koi8u_bin'),
+  ('ascii', 'ascii_general_nopad_ci', 'koi8u', 'koi8u_bin'),
+  ('ascii', 'ascii_nopad_bin',        'koi8u', 'koi8u_bin'),
+
+  ('ascii', 'ascii_general_ci',       'latin1', 'latin1_swedish_ci'),
+  ('ascii', 'ascii_bin',              'utf8mb3', 'utf8mb3_swedish_ci'),
+  ('ascii', 'ascii_general_nopad_ci', 'utf8mb3', 'utf8mb3_swedish_ci'),
+  ('ascii', 'ascii_nopad_bin',        'utf8mb3', 'utf8mb3_swedish_ci'),
+
+  ('ascii', 'ascii_general_ci',       'utf8mb4', 'utf8mb4_danish_ci'),
+  ('ascii', 'ascii_bin',              'utf8mb4', 'utf8mb4_danish_ci'),
+  ('ascii', 'ascii_general_nopad_ci', 'utf8mb4', 'utf8mb4_danish_ci'),
+  ('ascii', 'ascii_nopad_bin',        'utf8mb4', 'utf8mb4_danish_ci'),
+
+  ('ascii', 'ascii_general_ci',     'gbk',  'gbk_chinese_ci'),
+  ('ascii', 'ascii_general_ci',     'gbk',  'gbk_chinese_nopad_ci'),
+
+  ('ascii', 'ascii_general_ci',      'ujis',    'ujis_japanese_ci'),
+  ('ascii', 'ascii_general_ci',      'big5',    'big5_chinese_ci'),
+  ('ascii', 'ascii_general_ci',      'latin2',  'latin2_croatian_ci'),
+  ('ascii', 'ascii_general_ci',      'latin7',  'latin7_estonian_cs'),
+
+  ('ucs2',  'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
+  ('ucs2',  'ucs2_unicode_ci',       'utf16',   'utf16_unicode_ci'),
+  ('ucs2',  'ucs2_icelandic_ci',     'utf16',   'utf16_icelandic_ci'),
+  ('ucs2',  'ucs2_latvian_ci',       'utf16',   'utf16_latvian_ci'),
+  ('ucs2',  'ucs2_romanian_ci',      'utf16',   'utf16_romanian_ci'),
+  ('ucs2',  'ucs2_slovenian_ci',     'utf16',   'utf16_slovenian_ci'),
+  ('ucs2',  'ucs2_polish_ci',        'utf16',   'utf16_polish_ci'),
+  ('ucs2',  'ucs2_estonian_ci',      'utf16',   'utf16_estonian_ci'),
+  ('ucs2',  'ucs2_spanish_ci',       'utf16',   'utf16_spanish_ci'),
+  ('ucs2',  'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
+  ('ucs2',  'ucs2_myanmar_ci',          'utf16', 'utf16_thai_520_w2'),
+  ('ucs2',  'ucs2_general_ci',          'utf16', 'utf16_unicode_nopad_ci'),
+  ('ucs2',  'ucs2_general_mysql500_ci', 'utf16', 'utf16_spanish2_ci'),
+
+  ('utf8mb4', 'utf8mb4_general_ci', 'utf8mb3', 'utf8mb3_general_ci'),
+  ('utf8mb4', 'utf8mb4_general_ci', 'ascii', 'ascii_general_ci'),
+  ('utf8mb3', 'utf8mb3_general_ci', 'ascii', 'ascii_general_ci'),
+  ('utf8mb3', 'utf8mb3_general_ci', 'latin1', 'latin1_general_ci'),
+  ('utf16', 'utf16_general_ci', 'utf32', 'utf32_general_ci'),
+  ('latin1', 'latin1_general_ci',   'ascii', 'ascii_general_ci'),
+  ('ascii', 'ascii_general_ci',     'swe7', 'swe7_swedish_ci'),
+  ('eucjpms', 'eucjpms_japanese_nopad_ci', 'geostd8', 'geostd8_general_ci'),
+  ('latin1', 'latin1_general_ci',   'utf16', 'utf16_general_ci')
+;
+
+let $data_size = `select count(*) from fully_incompatible`;
+let $counter = 1;
+
+while ($counter <= $data_size) {
+  let $from_charset = `select from_charset from fully_incompatible where id = $counter`;
+  let $from_collate = `select from_collate from fully_incompatible where id = $counter`;
+  let $to_charset = `select to_charset from fully_incompatible where id = $counter`;
+  let $to_collate = `select to_collate from fully_incompatible where id = $counter`;
+
+  eval create table tmp (
+    a varchar(150) charset $from_charset collate $from_collate,
+    b text(150) charset $from_charset collate $from_collate,
+    unique key b_idx (b(150))
+  ) engine=innodb;
+
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+  eval alter table tmp
+    change a a varchar(150) charset $to_charset collate $to_collate,
+    algorithm=instant;
+
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+  eval alter table tmp
+    modify b text charset $to_charset collate $to_collate,
+    algorithm=instant;
+
+  drop table tmp;
+
+  inc $counter;
+}
+
+drop table fully_incompatible;
+
+--echo #
+--echo # MDEV-19284 INSTANT ALTER with ucs2-to-utf16 conversion produces bad data
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ucs2, PRIMARY KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('a'),(0xD800);
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+ALTER TABLE t1 ALGORITHM=COPY, MODIFY a VARCHAR(10) CHARACTER SET utf16;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ALGORITHM=INSTANT, MODIFY a VARCHAR(10) CHARACTER SET utf16;
+--enable_info ONCE
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET utf16;
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19285 INSTANT ALTER from ascii_general_ci to latin1_general_ci produces currupt data
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii COLLATE ascii_general_ci, PRIMARY KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('a'),(0xC0),('b');
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+ALTER TABLE t1 ALGORITHM=COPY, MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_general_ci;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ALGORITHM=INSTANT, MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_general_ci;
+--enable_info ONCE
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_general_ci;
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+
+
+--echo #
+--echo # MDEV-19524 Server crashes in Bitmap<64u>::is_clear_all / Field_longstr::csinfo_change_allows_instant_alter
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(1), UNIQUE(a)) ENGINE=InnoDB;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY a INT, ADD b INT, ADD UNIQUE (b), ALGORITHM=INSTANT;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-17301 Change of COLLATE unnecessarily requires ALGORITHM=COPY
+--echo #
+
+create table t (
+  a char(10) collate latin1_general_ci primary key,
+  b char(10) collate latin1_general_ci,
+  c char(10) collate latin1_general_ci,
+  unique key b_key(b)
+) engine=innodb;
+
+insert into t values
+  ('aaa', 'aaa', 'aaa'), ('ccc', 'ccc', 'ccc'), ('bbb', 'bbb', 'bbb');
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a char(10) collate latin1_general_cs, algorithm=inplace;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify b char(10) collate latin1_general_cs, algorithm=instant;
+alter table t modify b char(10) collate latin1_general_cs, algorithm=nocopy;
+check table t;
+
+alter table t modify c char(10) collate latin1_general_cs, algorithm=instant;
+check table t;
+
+drop table t;
+
+create table t (
+  a varchar(10) collate latin1_general_ci primary key,
+  b varchar(10) collate latin1_general_ci,
+  c varchar(10) collate latin1_general_ci,
+  unique key b_key(b)
+) engine=innodb;
+
+insert into t values
+  ('aaa', 'aaa', 'aaa'), ('ccc', 'ccc', 'ccc'), ('bbb', 'bbb', 'bbb');
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify a varchar(10) collate latin1_general_cs, algorithm=inplace;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t modify b varchar(10) collate latin1_general_cs, algorithm=instant;
+alter table t modify b varchar(10) collate latin1_general_cs, algorithm=nocopy;
+check table t;
+
+alter table t modify c varchar(10) collate latin1_general_cs, algorithm=instant;
+check table t;
+
+drop table t;
+
+--echo #
+--echo # MDEV-20726: InnoDB: Assertion failure in file data0type.cc line 67
+--echo #
+
+CREATE TABLE t (
+  id int(10) unsigned NOT NULL PRIMARY KEY,
+  a text CHARSET utf8mb3,
+  KEY a_idx(a(1))
+) ENGINE=InnoDB;
+
+INSERT INTO t VALUES (1, 'something in the air');
+ALTER TABLE t MODIFY a text CHARSET utf8mb4;
+
+DROP TABLE t;
+
+
+--echo #
+--echo # MDEV-22899: Assertion `field->col->is_binary() || field->prefix_len % field->col->mbmaxlen == 0' failed in dict_index_add_to_cache
+--echo #
+
+CREATE TABLE t1 (
+  a text CHARACTER SET utf8 DEFAULT NULL,
+  KEY a_key (a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a text CHARACTER SET utf8 DEFAULT NULL,
+  b int,
+  KEY a_key (b, a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a char(200) CHARACTER SET utf8 DEFAULT NULL,
+  KEY a_key (a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a char(200) CHARACTER SET utf8 DEFAULT NULL,
+  b int,
+  KEY a_key (b, a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a varchar(200) CHARACTER SET utf8 DEFAULT NULL,
+  KEY a_key (a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a varchar(200) CHARACTER SET utf8 DEFAULT NULL,
+  b int,
+  KEY a_key (b, a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a varchar(2000) CHARACTER SET utf8 DEFAULT NULL,
+  KEY a_key (a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a varchar(2000) CHARACTER SET utf8 DEFAULT NULL,
+  b int,
+  KEY a_key (b, a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23245 Still getting assertion failure in file data0type.cc line 67
+--echo #
+
+CREATE TABLE Foo
+(
+    Bar char(2) CHARACTER SET utf8,
+    KEY Bar (Bar(1))
+) ENGINE = InnoDB;
+ALTER TABLE Foo MODIFY Bar char(2) CHARACTER SET utf8mb4;
+INSERT INTO Foo VALUES ('a');
+DROP TABLE Foo;
+
+CREATE TABLE Foo
+(
+    Bar varchar(2) CHARACTER SET utf8,
+    KEY Bar (Bar(1))
+) ENGINE = InnoDB;
+ALTER TABLE Foo MODIFY Bar varchar(2) CHARACTER SET utf8mb4;
+INSERT INTO Foo VALUES ('a');
+DROP TABLE Foo;
+
+CREATE TABLE Foo
+(
+    Bar text CHARACTER SET utf8,
+    KEY Bar (Bar(1))
+) ENGINE = InnoDB;
+ALTER TABLE Foo MODIFY Bar text CHARACTER SET utf8mb4;
+INSERT INTO Foo VALUES ('a');
+DROP TABLE Foo;
+
+CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci,
+PRIMARY KEY (a(1)))
+ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 MODIFY a VARCHAR(2)
+CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ('a');
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-22775 [HY000][1553] Changing name of primary key column with foreign key constraint fails.
+--echo #
+
+create table t1 (id int primary key) engine=innodb default charset=utf8;
+create table t2 (input_id int primary key, id int not null,
+    key a (id),
+    constraint a foreign key (id) references t1  (id)
+)engine=innodb default charset=utf8;
+alter table t1 change id id2 int;
+drop table t2;
+drop table t1;

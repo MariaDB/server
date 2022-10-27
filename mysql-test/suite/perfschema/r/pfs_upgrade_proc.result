@@ -1,0 +1,9 @@
+"Testing mysql_upgrade with PROCEDURE performance_schema.user_proc"
+create procedure test.user_proc()
+select "Not supposed to be here";
+update mysql.proc set db='performance_schema' where name='user_proc';
+select name from mysql.proc where db='performance_schema';
+name
+user_proc
+update mysql.proc set db='test' where name='user_proc';
+drop procedure test.user_proc;

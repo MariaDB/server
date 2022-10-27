@@ -1,0 +1,10 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+connection node_2;
+SET GLOBAL wsrep_on=OFF;
+DROP TABLE t1;

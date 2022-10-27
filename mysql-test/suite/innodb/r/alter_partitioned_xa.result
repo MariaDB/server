@@ -1,0 +1,18 @@
+#
+# MDEV-14693 XA: Assertion `!clust_index->online_log' failed
+# in rollback_inplace_alter_table
+#
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB PARTITION BY HASH(a) PARTITIONS 2;
+XA START 'xid';
+INSERT INTO t1 VALUES (1,10);
+CREATE DATABASE IF NOT EXISTS db;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+connect  con1,localhost,root,,test;
+SET innodb_lock_wait_timeout= 1, lock_wait_timeout= 2;
+ALTER TABLE t1 FORCE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+XA END 'xid';
+XA ROLLBACK 'xid';
+DROP TABLE t1;

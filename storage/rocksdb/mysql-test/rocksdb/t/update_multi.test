@@ -1,0 +1,15 @@
+--source include/have_rocksdb.inc
+
+# 
+# Multi-table UPDATE statements.
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2;
+--enable_warnings
+
+let $i= 0;
+while ($i < 10) {
+  --source update_multi_exec.inc
+  inc $i;
+}

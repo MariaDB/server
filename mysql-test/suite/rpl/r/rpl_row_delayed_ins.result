@@ -1,0 +1,22 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1(a int not null primary key) engine=myisam;
+insert delayed into t1 values (1);
+insert delayed into t1 values (2);
+insert delayed into t1 values (3);
+flush tables t1;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+connection master;
+drop table t1;
+include/rpl_end.inc

@@ -1,0 +1,54 @@
+# set global
+--source include/have_maria.inc
+
+SET @start_global_value = @@global.aria_recover_options;
+set @@global.aria_recover_options=default;
+
+#
+# exists as global only
+#
+select @@global.aria_recover_options;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.aria_recover_options;
+show global variables like 'aria_recover_options';
+show session variables like 'aria_recover_options';
+select * from information_schema.global_variables where variable_name='aria_recover_options';
+select * from information_schema.session_variables where variable_name='aria_recover_options';
+
+#
+# show that it's writable
+#
+set global aria_recover_options=1;
+select @@global.aria_recover_options;
+--error ER_GLOBAL_VARIABLE
+set session aria_recover_options=1;
+
+#
+# valid values
+#
+set global aria_recover_options=normal;
+select @@global.aria_recover_options;
+set global aria_recover_options=backup;
+select @@global.aria_recover_options;
+set global aria_recover_options='force';
+select @@global.aria_recover_options;
+set global aria_recover_options=off;
+select @@global.aria_recover_options;
+set global aria_recover_options='quick,force';
+select @@global.aria_recover_options;
+set global aria_recover_options=16;
+select @@global.aria_recover_options;
+
+#
+# incorrect types/values
+#
+--error ER_WRONG_TYPE_FOR_VAR
+set global aria_recover_options=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global aria_recover_options=1e1;
+--error ER_WRONG_VALUE_FOR_VAR
+set global aria_recover_options="foo";
+--error ER_WRONG_VALUE_FOR_VAR
+set global aria_recover_options=32;
+
+SET @@global.aria_recover_options = @start_global_value;

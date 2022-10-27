@@ -1,0 +1,50 @@
+--source include/have_tokudb.inc
+
+# Check the default value
+SET @orig_global = @@global.tokudb_auto_analyze;
+SELECT @orig_global;
+
+SET @orig_session = @@session.tokudb_auto_analyze;
+SELECT @orig_session;
+
+# Test global
+SET GLOBAL tokudb_auto_analyze = 10;
+SELECT @@global.tokudb_auto_analyze;
+
+SET GLOBAL tokudb_auto_analyze = 0;
+SELECT @@global.tokudb_auto_analyze;
+
+SET GLOBAL tokudb_auto_analyze = DEFAULT;
+SELECT @@global.tokudb_auto_analyze;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL tokudb_auto_analyze = 'foobar';
+SELECT @@global.tokudb_auto_analyze;
+
+# Test session
+SET SESSION tokudb_auto_analyze = 10;
+SELECT @@session.tokudb_auto_analyze;
+
+SET SESSION tokudb_auto_analyze = 0;
+SELECT @@session.tokudb_auto_analyze;
+
+SET SESSION tokudb_auto_analyze = DEFAULT;
+SELECT @@session.tokudb_auto_analyze;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET SESSION tokudb_auto_analyze = 'foobar';
+SELECT @@session.tokudb_auto_analyze;
+
+# both
+SET GLOBAL tokudb_auto_analyze = 12;
+SET SESSION tokudb_auto_analyze = 13;
+SELECT @@global.tokudb_auto_analyze;
+SELECT @@session.tokudb_auto_analyze;
+SHOW VARIABLES LIKE 'tokudb_auto_analyze';
+
+# Clean up
+SET SESSION tokudb_auto_analyze = @orig_session;
+SELECT @@session.tokudb_auto_analyze;
+
+SET GLOBAL tokudb_auto_analyze = @orig_global;
+SELECT @@global.tokudb_auto_analyze;

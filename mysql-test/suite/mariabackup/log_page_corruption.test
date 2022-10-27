@@ -1,0 +1,430 @@
+--source include/have_debug.inc
+
+--echo ########
+--echo # Test for generating "innodb_corrupted_pages" file during full and
+--echo # incremental backup, including DDL processing
+--echo ###
+--echo
+
+CREATE TABLE t1_corrupted(c INT) ENGINE INNODB;
+CREATE TABLE t2_corrupted(c INT) ENGINE INNODB;
+CREATE TABLE t3(c INT) ENGINE INNODB;
+CREATE TABLE t5_corrupted_to_rename(c INT) ENGINE INNODB;
+CREATE TABLE t6_corrupted_to_drop(c INT) ENGINE INNODB;
+CREATE TABLE t7_corrupted_to_alter(c INT) ENGINE INNODB;
+
+CREATE TABLE t1_inc_corrupted(c INT) ENGINE INNODB;
+CREATE TABLE t2_inc_corrupted(c INT) ENGINE INNODB;
+CREATE TABLE t3_inc(c INT) ENGINE INNODB;
+CREATE TABLE t5_inc_corrupted_to_rename(c INT) ENGINE INNODB;
+CREATE TABLE t6_inc_corrupted_to_drop(c INT) ENGINE INNODB;
+CREATE TABLE t7_inc_corrupted_to_alter(c INT) ENGINE INNODB;
+
+# Fill tables with several pages
+INSERT INTO t1_corrupted VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t2_corrupted VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t3 VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t5_corrupted_to_rename VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t6_corrupted_to_drop VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t7_corrupted_to_alter VALUES (3), (4), (5), (6), (7), (8), (9);
+
+--let MYSQLD_DATADIR=`select @@datadir`
+--let INNODB_PAGE_SIZE=`select @@innodb_page_size`
+
+--source include/shutdown_mysqld.inc
+--echo # Corrupt tables
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+my $schema = "$ENV{MYSQLD_DATADIR}/test";
+
+my $last_page_no = extend_space("$schema/t1_corrupted.ibd", 4);
+corrupt_space_page_id("$schema/t1_corrupted.ibd",
+  $last_page_no, $last_page_no + 2, $last_page_no + 3);
+
+$last_page_no = extend_space("$schema/t2_corrupted.ibd", 5);
+corrupt_space_page_id("$schema/t2_corrupted.ibd",
+  $last_page_no + 1, $last_page_no + 2, $last_page_no + 4);
+
+$last_page_no = extend_space("$schema/t5_corrupted_to_rename.ibd", 1);
+corrupt_space_page_id("$schema/t5_corrupted_to_rename.ibd", $last_page_no);
+
+$last_page_no = extend_space("$schema/t6_corrupted_to_drop.ibd", );
+corrupt_space_page_id("$schema/t6_corrupted_to_drop.ibd", $last_page_no);
+EOF
+--source include/start_mysqld.inc
+
+--let targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--let $backuplog=$MYSQLTEST_VARDIR/tmp/backup.log
+--let corrupted_pages_file = $targetdir/innodb_corrupted_pages
+--let corrupted_pages_file_filt = $MYSQLTEST_VARDIR/tmp/innodb_corrupted_pages_filt
+--let perl_result_file=$MYSQLTEST_VARDIR/tmp/perl_result
+
+--echo # Backup must  fail due to page corruption
+--disable_result_log
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir > $backuplog;
+--enable_result_log
+
+--let SEARCH_PATTERN=Database page corruption detected.*
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+--echo # "innodb_corrupted_pages" file must not exist
+--error 1
+--file_exists $corrupted_pages_file
+--rmdir $targetdir
+
+--let after_load_tablespaces=CREATE TABLE test.t4_corrupted_new ENGINE=INNODB SELECT UUID() from test.seq_1_to_10
+--let add_corrupted_page_for_test_t4_corrupted_new=1
+--let after_copy_test_t5_corrupted_to_rename=RENAME TABLE test.t5_corrupted_to_rename TO test.t5_corrupted_to_rename_renamed
+--let after_copy_test_t6_corrupted_to_drop=DROP TABLE test.t6_corrupted_to_drop
+--let after_copy_test_t7_corrupted_to_alter=ALTER TABLE test.t7_corrupted_to_alter ADD COLUMN (d INT)
+--let add_corrupted_page_for_test_t7_corrupted_to_alter=3
+
+--echo # Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --log-innodb-page-corruption --target-dir=$targetdir --dbug=+d,mariabackup_events,mariabackup_inject_code  > $backuplog
+--enable_result_log
+
+--let SEARCH_PATTERN=Database page corruption detected.*
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=completed OK!
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+
+--echo --- "innodb_corrupted_pages" file content: ---
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+print_corrupted_pages_file($ENV{corrupted_pages_file},
+  $ENV{corrupted_pages_file_filt});
+EOF
+--cat_file $corrupted_pages_file_filt
+--echo ------
+--let after_load_tablespaces=
+--let add_corrupted_page_for_test_t4_corrupted_new=
+--let after_copy_test_t5_corrupted_to_rename=
+--let after_copy_test_t6_corrupted_to_drop=
+--let after_copy_test_t7_corrupted_to_alter=
+--let add_corrupted_page_for_test_t7_corrupted_to_alter=
+# Fill tables for incremental backup with several pages
+INSERT INTO t1_inc_corrupted VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t2_inc_corrupted VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t3_inc VALUES (3), (4), (5), (6), (7), (8), (9);
+
+--source include/shutdown_mysqld.inc
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+my $schema="$ENV{MYSQLD_DATADIR}/test";
+
+open(my $fh, '>', $ENV{perl_result_file}) or die $!;
+
+my $last_page_no = extend_space("$schema/t1_inc_corrupted.ibd", 4);
+corrupt_space_page_id("$schema/t1_inc_corrupted.ibd",
+  $last_page_no, $last_page_no + 2, $last_page_no + 3);
+print $fh "$last_page_no\n";
+
+$last_page_no = extend_space("$schema/t2_inc_corrupted.ibd", 5);
+corrupt_space_page_id("$schema/t2_inc_corrupted.ibd",
+  $last_page_no + 1, $last_page_no + 2, $last_page_no + 4);
+print $fh "$last_page_no\n";
+
+$last_page_no = extend_space("$schema/t5_inc_corrupted_to_rename.ibd", 1);
+corrupt_space_page_id("$schema/t5_inc_corrupted_to_rename.ibd", $last_page_no);
+print $fh "$last_page_no\n";
+
+$last_page_no = extend_space("$schema/t6_inc_corrupted_to_drop.ibd", );
+corrupt_space_page_id("$schema/t6_inc_corrupted_to_drop.ibd", $last_page_no);
+
+close $fh;
+EOF
+--source include/start_mysqld.inc
+
+--let incdir=$MYSQLTEST_VARDIR/tmp/backup_inc
+
+--let after_load_tablespaces=CREATE TABLE test.t4_inc_corrupted_new ENGINE=INNODB SELECT UUID() from test.seq_1_to_10
+--let add_corrupted_page_for_test_t4_inc_corrupted_new=1
+--let after_copy_test_t5_inc_corrupted_to_rename=RENAME TABLE test.t5_inc_corrupted_to_rename TO test.t5_inc_corrupted_to_rename_renamed
+--let after_copy_test_t6_inc_corrupted_to_drop=DROP TABLE test.t6_inc_corrupted_to_drop
+--let after_copy_test_t7_inc_corrupted_to_alter=ALTER TABLE test.t7_inc_corrupted_to_alter ADD COLUMN (d INT)
+--let add_corrupted_page_for_test_t7_inc_corrupted_to_alter=3
+
+--echo # Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --log-innodb-page-corruption --target-dir=$incdir --incremental-basedir=$targetdir --dbug=+d,mariabackup_events,mariabackup_inject_code  > $backuplog
+--disable_result_log
+
+--let after_load_tablespaces=
+--let add_corrupted_page_for_test_t4_inc_corrupted_new=
+--let after_copy_test_t5_inc_corrupted_to_rename=
+--let after_copy_test_t6_inc_corrupted_to_drop=
+--let after_copy_test_t7_inc_corrupted_to_alter=
+--let add_corrupted_page_for_test_t7_inc_corrupted_to_alter=
+
+--let SEARCH_PATTERN=Database page corruption detected.*
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=completed OK!
+--source include/search_pattern_in_file.inc
+
+--let corrupted_pages_file = $incdir/innodb_corrupted_pages
+--echo --- "innodb_corrupted_pages" file content: ---
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+print_corrupted_pages_file($ENV{corrupted_pages_file},
+  $ENV{corrupted_pages_file_filt});
+EOF
+--cat_file $corrupted_pages_file_filt
+--echo ------
+
+--echo # Check if corrupted pages were copied to delta files, and non-corrupted pages are not copied.
+perl;
+use strict;
+use warnings;
+my $schema = "$ENV{incdir}/test";
+
+open(my $fh, '<', $ENV{perl_result_file}) or die $!;
+
+my $last_page_no = <$fh>;
+die_if_no_pages("$schema/t1_corrupted.ibd.delta",
+  $last_page_no, $last_page_no + 2, $last_page_no + 3);
+
+$last_page_no = <$fh>;
+die_if_no_pages("$schema/t2_corrupted.ibd.delta",
+  $last_page_no + 1, $last_page_no + 2, $last_page_no + 4);
+
+$last_page_no = <$fh>;
+die_if_no_pages("$schema/t5_corrupted_to_rename_renamed.ibd.delta",
+  $last_page_no);
+
+close $fh;
+
+die_if_not_empty("$schema/t3.ibd.delta");
+
+sub read_first_page_from_delta {
+  my $file_name = shift;
+  my $pages_count = shift;
+
+  open my $file, '<:raw', $file_name || die "Cannot open $file_name\n";
+  read $file, my $buffer, $pages_count*4 || die "Cannot read $file_name\n";
+  close $file;
+
+  return unpack("N[$pages_count]", $buffer);
+}
+
+sub die_if_no_pages {
+  my $file_name = shift;
+  my @check_pages = @_;
+  my @read_pages =
+    read_first_page_from_delta($file_name, scalar(@check_pages) + 1);
+  for (my $i = 1; $i < @check_pages + 1; ++$i) {
+    my $check_page_no = $check_pages[$i - 1];
+    die "Corrupted page $check_page_no was not copied to $file_name."
+      if ($i >= @read_pages ||  $read_pages[$i] != $check_page_no);
+  }
+}
+
+sub die_if_not_empty {
+  my $file_name = shift;
+  my ($magic, $full) = read_first_page_from_delta($file_name, 2);
+    die "Delta $file_name must be empty."
+      if ($full != 0xFFFFFFFF);
+}
+EOF
+--rmdir $incdir
+--rmdir $targetdir
+
+DROP TABLE t1_corrupted;
+DROP TABLE t2_corrupted;
+DROP TABLE t4_corrupted_new;
+DROP TABLE t5_corrupted_to_rename_renamed;
+DROP TABLE t7_corrupted_to_alter;
+DROP TABLE t1_inc_corrupted;
+DROP TABLE t2_inc_corrupted;
+DROP TABLE t4_inc_corrupted_new;
+DROP TABLE t5_inc_corrupted_to_rename_renamed;
+DROP TABLE t7_inc_corrupted_to_alter;
+
+--echo
+--echo ########
+--echo # Test for --prepare with "innodb_corrupted_pages" file
+--echo ###
+--echo
+
+--echo # Extend some tablespace and corrupt extended pages for full backup
+--source include/shutdown_mysqld.inc
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+my $schema="$ENV{MYSQLD_DATADIR}/test";
+my $last_page_no = extend_space("$schema/t3.ibd", 3);
+corrupt_space_page_id("$schema/t3.ibd", $last_page_no, $last_page_no + 2);
+open(my $fh, '>', $ENV{perl_result_file}) or die $!;
+print $fh "$last_page_no\n";
+close $fh;
+EOF
+--source include/start_mysqld.inc
+
+--echo # Full backup with --log-innodb-page-corruption
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --log-innodb-page-corruption --target-dir=$targetdir
+--enable_result_log
+--let corrupted_pages_file = $targetdir/innodb_corrupted_pages
+--echo --- "innodb_corrupted_pages" file content: ---
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+print_corrupted_pages_file($ENV{corrupted_pages_file},
+  $ENV{corrupted_pages_file_filt});
+EOF
+--cat_file $corrupted_pages_file_filt
+--echo ------
+
+--echo # Extend some tablespace and corrupt extended pages for incremental backup
+--source include/shutdown_mysqld.inc
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+my $schema="$ENV{MYSQLD_DATADIR}/test";
+my $last_page_no = extend_space("$schema/t3_inc.ibd", 3);
+corrupt_space_page_id("$schema/t3_inc.ibd", $last_page_no, $last_page_no + 2);
+open(my $fh, '>>', $ENV{perl_result_file}) or die $!;
+print $fh "$last_page_no";
+close $fh;
+EOF
+--source include/start_mysqld.inc
+
+--echo # Incremental backup --log-innodb-page-corruption
+--disable_result_log
+--exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --log-innodb-page-corruption --target-dir=$incdir --incremental-basedir=$targetdir --dbug=+d,mariabackup_events,mariabackup_inject_code  > $backuplog
+--disable_result_log
+--let corrupted_pages_file = $incdir/innodb_corrupted_pages
+--echo --- "innodb_corrupted_pages" file content: ---
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+print_corrupted_pages_file($ENV{corrupted_pages_file},
+  $ENV{corrupted_pages_file_filt});
+EOF
+--cat_file $corrupted_pages_file_filt
+--echo ------
+
+--let targetdir2=$targetdir-2
+--let incdir2=$incdir-2
+perl;
+use lib "lib";
+use My::Handles { suppress_init_messages => 1 };
+use My::File::Path;
+copytree($ENV{'targetdir'}, $ENV{'targetdir2'});
+copytree($ENV{'incdir'}, $ENV{'incdir2'});
+EOF
+
+--echo # Full backup prepare
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir > $backuplog;
+--enable_result_log
+
+--echo # "innodb_corrupted_pages" file must not exist after successful prepare
+--error 1
+--file_exists $targetdir/innodb_corrupted_pages
+--let SEARCH_PATTERN=was successfuly fixed.*
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+
+--echo # Check that fixed pages are zero-filled
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+open(my $fh, '<', $ENV{perl_result_file}) or die $!;
+my $last_page_no = <$fh>;
+close $fh;
+my $schema = "$ENV{targetdir}/test";
+die_if_page_is_not_zero("$schema/t3.ibd", $last_page_no, $last_page_no + 2);
+EOF
+
+--echo # Incremental backup prepare
+--disable_result_log
+exec $XTRABACKUP --prepare --target-dir=$targetdir --incremental-dir=$incdir > $backuplog;
+--enable_result_log
+
+--echo # "innodb_corrupted_pages" file must not exist after successful prepare
+--error 1
+--file_exists $targetdir/innodb_corrupted_pages
+--echo # do not remove "innodb_corrupted_pages" in incremental dir
+--file_exists $incdir/innodb_corrupted_pages
+--let SEARCH_PATTERN=was successfuly fixed.*
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+
+--echo # Check that fixed pages are zero-filled
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+open(my $fh, '<', $ENV{perl_result_file}) or die $!;
+my $last_page_no_full = <$fh>;
+my $last_page_no_inc = <$fh>;
+close $fh;
+my $schema = "$ENV{targetdir}/test";
+die_if_page_is_not_zero("$schema/t3.ibd",
+  $last_page_no_full, $last_page_no_full + 2);
+die_if_page_is_not_zero("$schema/t3_inc.ibd",
+  $last_page_no_inc, $last_page_no_inc + 2);
+EOF
+
+--source include/restart_and_restore.inc
+
+SELECT * FROM t3;
+SELECT * FROM t3_inc;
+
+--echo # Test the case when not all corrupted pages are fixed
+--echo
+--echo # Add some fake corrupted pages
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+append_corrupted_pages(
+  "$ENV{targetdir2}/innodb_corrupted_pages", 'test/t3', '3 4');
+append_corrupted_pages(
+  "$ENV{incdir2}/innodb_corrupted_pages", 'test/t3_inc', '4 5');
+EOF
+
+--echo # Full backup prepare
+--disable_result_log
+--error 1
+exec $XTRABACKUP  --prepare --target-dir=$targetdir2 > $backuplog;
+--enable_result_log
+
+--let SEARCH_PATTERN=Error: corrupted page.*
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+--let corrupted_pages_file = $targetdir2/innodb_corrupted_pages
+--echo --- "innodb_corrupted_pages" file content: ---
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+print_corrupted_pages_file($ENV{corrupted_pages_file},
+  $ENV{corrupted_pages_file_filt});
+EOF
+--cat_file $corrupted_pages_file_filt
+--echo ------
+
+--echo # Incremental backup prepare
+--disable_result_log
+--error 1
+exec $XTRABACKUP --prepare --target-dir=$targetdir2 --incremental-dir=$incdir2 > $backuplog;
+--enable_result_log
+
+--let SEARCH_PATTERN=Error: corrupted page.*
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+--let corrupted_pages_file = $targetdir2/innodb_corrupted_pages
+--echo --- "innodb_corrupted_pages" file content: ---
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
+print_corrupted_pages_file($ENV{corrupted_pages_file},
+  $ENV{corrupted_pages_file_filt});
+EOF
+--cat_file $corrupted_pages_file_filt
+--echo ------
+
+DROP TABLE t3;
+DROP TABLE t3_inc;
+--remove_file $backuplog
+--remove_file $perl_result_file
+--remove_file $corrupted_pages_file_filt
+--rmdir $targetdir
+--rmdir $targetdir2
+--rmdir $incdir
+--rmdir $incdir2

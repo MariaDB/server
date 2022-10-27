@@ -1,0 +1,92 @@
+# Not supported in embedded
+--source include/not_embedded.inc
+
+# This test case needs to crash the server. Needs a debug server.
+--source include/have_debug.inc
+
+# Don't test this under valgrind, memory leaks will occur.
+--source include/not_valgrind.inc
+
+# Avoid CrashReporter popup on Mac
+--source include/not_crashrep.inc
+
+--source include/innodb_page_size.inc
+
+--source include/have_debug_sync.inc
+
+call mtr.add_suppression("Cannot find index f2 in InnoDB index dictionary.");
+call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table .*");
+call mtr.add_suppression("Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB  .*");
+call mtr.add_suppression("InnoDB could not find key no 1 with name f2 from dict cache for table .*");
+
+
+--echo #
+--echo # Bug #18734396	INNODB IN-PLACE ALTER FAILURES BLOCK FUTURE ALTERS
+--echo #
+--echo # Temporary tablename will be unique. This makes sure that future
+--echo # in-place ALTERs of the same table will not be blocked due to
+--echo # temporary tablename.
+
+let datadir= `select @@datadir`;
+
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name=$MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+
+CREATE TABLE t1 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=innodb;
+SET debug_dbug='+d,innodb_alter_commit_crash_before_commit';
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+
+--error 2013
+ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
+
+remove_files_wildcard $datadir/test #sql-*.frm;
+
+--source include/start_mysqld.inc
+
+show create table t1;
+--echo # Consecutive Alter table does not create same temporary file name
+ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-22928 InnoDB fails to fetch index type
+--echo # 	when index mismatch
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+                index(f1), index(f2))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1), (2, 2);
+
+connect (con1,localhost,root,,test);
+SET DEBUG_SYNC="alter_table_inplace_after_commit SIGNAL default_signal WAIT_FOR default_done";
+--send
+ALTER TABLE t1 DROP INDEX f2, ALGORITHM=INPLACE;
+connection default;
+set DEBUG_SYNC="now WAIT_FOR default_signal";
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+disconnect con1;
+SHOW KEYS FROM t1;
+DROP TABLE t1;
+remove_files_wildcard $datadir/test #sql-*.frm;
+
+--echo #
+--echo # MDEV-25503 InnoDB hangs on startup during recovery
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
+connect (con1,localhost,root,,);
+BEGIN;
+DELETE FROM mysql.innodb_table_stats;
+
+connect (con2,localhost,root,,);
+SET DEBUG_SYNC='inplace_after_index_build SIGNAL blocked WAIT_FOR ever';
+send ALTER TABLE t1 FORCE;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR blocked';
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+SELECT * FROM t1;
+DROP TABLE t1;
+remove_files_wildcard $datadir/test #sql-*.frm;

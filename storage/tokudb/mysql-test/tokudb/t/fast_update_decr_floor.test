@@ -1,0 +1,61 @@
+--source ../include/fast_update_gen_header.inc
+
+--let GENERATED=$MYSQL_TMP_DIR/generated_fast_update_decr_floor.inc
+
+--perl
+  open(FILE, '>', "$ENV{GENERATED}") or die;
+  foreach my $t ('tinyint', 'smallint', 'mediumint', 'int', 'bigint') {
+    foreach my $u ('', 'unsigned') {
+      foreach my $n ('null', 'not null') {
+        test_int($t, $u, $n);
+      }
+    }
+  }
+  close FILE;
+
+  sub test_int {
+    my $t = shift;
+    my $u = shift;
+    my $n = shift;
+
+    print FILE "create table tt (\n";
+    print FILE "    id $t $u primary key,\n";
+    print FILE "    x $t $u $n\n";
+    print FILE ") engine = tokudb;\n";
+
+    print FILE "insert into tt values (1,4);\n";
+    print FILE "create table ti like tt;\n";
+    print FILE "alter table ti engine=innodb;\n";
+    print FILE "insert into ti select * from tt;\n";
+
+    if ($u eq 'unsigned') {
+      print FILE "update tt set x = if(x = 0, 0, x - 1) where id = 1;\n";
+      print FILE "update ti set x = if(x = 0, 0, x - 1) where id = 1;\n";
+
+      print FILE "update tt set x = if(x = 0, 0, x - 1) where id = 1;\n";
+      print FILE "update ti set x = if(x = 0, 0, x - 1) where id = 1;\n";
+
+      print FILE "update tt set x = if(x = 0, 0, x - 1) where id = 1;\n";
+      print FILE "update ti set x = if(x = 0, 0, x - 1) where id = 1;\n";
+
+      print FILE "update tt set x = if(x = 0, 0, x - 1) where id = 1;\n";
+      print FILE "update ti set x = if(x = 0, 0, x - 1) where id = 1;\n";
+
+      print FILE "# try to decrement when x=0\n";
+      print FILE "update tt set x = if(x = 0, 0, x - 1) where id = 1;\n";
+      print FILE "update ti set x = if(x = 0, 0, x - 1) where id = 1;\n";
+      print FILE '--let $diff_tables = test.tt, test.ti'."\n";
+      print FILE "--source include/diff_tables.inc\n";
+    }
+    else {
+      print FILE "--replace_regex /MariaDB/XYZ/ /MySQL/XYZ/\n";
+      print FILE "--error ER_UNSUPPORTED_EXTENSION\n";
+      print FILE "update tt set x = if(x = 0, 0, x - 1) where id = 1;\n";
+    }
+
+    print FILE "drop table tt, ti;\n";
+  }
+
+EOF
+
+--source ../include/fast_update_gen_footer_silent.inc

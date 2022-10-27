@@ -1,0 +1,31 @@
+include/rpl_init.inc [topology=1->2->3]
+connection server_1;
+CREATE DATABASE test_8428;
+USE test_8428;
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1), (2), (3), (4), (5);
+CREATE TABLE t2 AS SELECT * FROM t1;
+CREATE TABLE t3 ENGINE=MyISAM AS SELECT * FROM t1;
+connection server_2;
+SHOW TABLES IN test_8428;
+Tables_in_test_8428
+t1
+t2
+t3
+connection server_3;
+SHOW TABLES IN test_8428;
+Tables_in_test_8428
+t1
+t2
+t3
+SELECT * from test_8428.t1;
+i
+1
+2
+3
+4
+5
+connection server_1;
+DROP DATABASE test_8428;
+include/rpl_end.inc
+# End of test

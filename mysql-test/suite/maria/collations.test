@@ -1,0 +1,14 @@
+#
+# Test 2-byte collations
+#
+
+DROP TABLE IF EXISTS t1;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci, KEY(a)) ENGINE=ARIA;
+INSERT INTO t1 VALUES ('na'),('nj'),('nz'),('Z');
+explain SELECT a FROM t1 ORDER BY a;
+SELECT a FROM t1 ORDER BY a;
+ALTER TABLE t1 engine=myisam;
+explain SELECT a FROM t1 ORDER BY a;
+SELECT a FROM t1 ORDER BY a;
+drop table t1;

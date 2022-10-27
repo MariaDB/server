@@ -1,0 +1,70 @@
+##
+## This test tests parallel application of multiple auto-increment insert transactions
+##
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/big_test.inc
+--source include/force_restart.inc
+
+# Create a second connection to node1 so that we can run transactions concurrently
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+--connection node_1
+CREATE TABLE ten (f1 INTEGER) Engine=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoDB;
+
+--connection node_2
+set session wsrep_sync_wait=15;
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+
+SET GLOBAL wsrep_slave_threads = 4;
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--source include/wait_condition.inc
+
+--connection node_1
+--send INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+--connection node_1a
+--send INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+--connection node_2
+--send INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+--connection node_1
+--reap
+--let $wait_condition = select count(*)=30000 from t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(DISTINCT f1) FROM t1;
+
+--connection node_1a
+--reap
+--let $wait_condition = select count(*)=30000 from t1;
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(DISTINCT f1) FROM t1;
+
+--connection node_2
+--reap
+--disconnect node_1a
+
+--let $wait_condition = SELECT COUNT(*) = 30000 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_30000 FROM t1;
+SELECT COUNT(DISTINCT f1) AS  EXPECT_30000 FROM t1;
+
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;
+--enable_query_log
+
+--connection default
+DROP TABLE t1;
+DROP TABLE ten;
+

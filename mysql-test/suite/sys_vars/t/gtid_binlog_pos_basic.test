@@ -1,0 +1,15 @@
+--source include/not_embedded.inc
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL gtid_binlog_pos= '';
+SELECT variable_name FROM information_schema.global_variables
+ WHERE variable_name='gtid_binlog_pos';
+
+# The value of the variable depends on the binary log, this is tested extensively
+# elsewhere in rpl.rpl_gtid*.test
+--disable_result_log
+SELECT @@gtid_binlog_pos;
+--enable_result_log
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.gtid_binlog_pos;

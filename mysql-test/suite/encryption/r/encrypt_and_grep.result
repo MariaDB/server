@@ -1,0 +1,77 @@
+SET GLOBAL innodb_file_per_table = ON;
+create table t1 (a varchar(255)) engine=innodb encrypted=yes;
+create table t2 (a varchar(255)) engine=innodb;
+show warnings;
+Level	Code	Message
+create table t3 (a varchar(255)) engine=innodb encrypted=no;
+insert t1 values (repeat('foobarsecret', 12));
+insert t2 values (repeat('tempsecret', 12));
+insert t3 values (repeat('dummysecret', 12));
+# Wait max 10 min for key encryption threads to encrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+test/t3
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+mysql/transaction_registry
+test/t1
+test/t2
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobarsecret/ in t1.ibd
+# t2 ... on expecting NOT FOUND
+NOT FOUND /tempsecret/ in t2.ibd
+# t3 no  on expecting FOUND
+FOUND 12 /dummysecret/ in t3.ibd
+# ibdata1 expecting NOT FOUND
+NOT FOUND /foobarsecret/ in ibdata1
+# restart
+# Now turn off encryption and wait for threads to decrypt everything
+SET GLOBAL innodb_encrypt_tables = off;
+# Wait max 10 min for key encryption threads to decrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+mysql/transaction_registry
+test/t2
+test/t3
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+test/t1
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobarsecret/ in t1.ibd
+# t2 ... default expecting FOUND
+FOUND 12 /tempsecret/ in t2.ibd
+# t3 no  on expecting FOUND
+FOUND 12 /dummysecret/ in t3.ibd
+# ibdata1 expecting NOT FOUND
+NOT FOUND /foobarsecret/ in ibdata1
+# restart
+# Now turn on encryption and wait for threads to encrypt all spaces
+SET GLOBAL innodb_encrypt_tables = on;
+# Wait max 10 min for key encryption threads to encrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+test/t3
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+mysql/transaction_registry
+test/t1
+test/t2
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobarsecret/ in t1.ibd
+# t2 ... on expecting NOT FOUND
+NOT FOUND /tempsecret/ in t2.ibd
+# t3 no  on expecting FOUND
+FOUND 12 /dummysecret/ in t3.ibd
+# ibdata1 expecting NOT FOUND
+NOT FOUND /foobarsecret/ in ibdata1
+# restart
+drop table t1, t2, t3;

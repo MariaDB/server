@@ -1,0 +1,87 @@
+# ==== Purpose ====
+#
+# Test verifies that slave IO thread doesn't report an error, when slave fails
+# to send an acknowledgment to master with semi sync replication in use.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Have semi synchronous replication in use.
+#    1 - Enable a debug simulation point which simulates network flush failure
+#        at the time of slave reply operation.
+#    2 - Do some operation on master and wait for it to be replicated. Master
+#        will timeout waiting for reply from slave.
+#    3 - Check the slave error log for appropriate error message regarding
+#        net_flush operation failure.
+#    4 - Remove the debug simulation and do some more DML operations on master
+#        and wait for them to be replicated.
+#    5 - Slave will be able to replicate and data is consistent on both master
+#        and slave. Semi sync will be automatically turned on.
+#
+# ==== References ====
+#
+# MDEV-20217: Semi_sync: Last_IO_Error: Fatal error: Failed to run
+# 'after_queue_event' hook
+#
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+call mtr.add_suppression("Timeout waiting for reply of binlog*");
+--let $sav_timeout_master=`SELECT @@GLOBAL.rpl_semi_sync_master_timeout`
+set global rpl_semi_sync_master_enabled = ON;
+SET @@GLOBAL.rpl_semi_sync_master_timeout=100;
+create table t1 (i int);
+
+--connection slave
+set global rpl_semi_sync_slave_enabled = ON;
+CALL mtr.add_suppression("Semi-sync slave net_flush*");
+SET @save_debug= @@global.debug;
+SET GLOBAL debug_dbug="+d,semislave_failed_net_flush";
+--source include/start_slave.inc
+
+--connection master
+--sync_slave_with_master
+
+# Check error log for correct messages.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
+}
+--echo "Assert that the net_fulsh() reply failed is present in slave error log.
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=Semi-sync slave net_flush\(\) reply failed
+--source include/search_pattern_in_file.inc
+
+--echo "Assert that Slave IO thread is up and running."
+SHOW STATUS LIKE 'Slave_running';
+let $status= query_get_value("show slave status", Slave_IO_Running, 1);
+echo Slave_IO_Running= $status;
+
+--echo "Clear the network failure simulation."
+SET GLOBAL debug_dbug= @save_debug;
+
+--connection master
+insert into t1 values (10);
+--sync_slave_with_master
+
+--connection slave
+--echo # Compare the tables on master and slave.
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+
+--connection master
+drop table t1;
+--sync_slave_with_master
+set global rpl_semi_sync_slave_enabled = OFF;
+
+--connection master
+set global rpl_semi_sync_master_enabled = OFF;
+--eval SET @@GLOBAL.rpl_semi_sync_master_timeout = $sav_timeout_master
+--source include/rpl_end.inc

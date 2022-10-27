@@ -1,0 +1,11 @@
+18,21c18
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+< Warnings:
+< Warning	1265	Data truncated for column 'c2' at row 3
+---
+> ERROR 01000: Data truncated for column 'c2' at row 3
+24c21
+< 2	0
+---
+> 2	NULL

@@ -1,0 +1,13 @@
+--source include/have_wsrep.inc
+--source include/word_size.inc
+--let $datadir = `SELECT @@datadir`
+--let $hostname = `SELECT @@hostname`
+
+--replace_result $datadir DATADIR
+--let $hostname_regex=/^$hostname\$/HOSTNAME/
+--replace_regex $hostname_regex /wsrep_[0-9]{2}\.[0-9]{1,2}/wsrep_MAJVER.MINVER/
+--vertical_results
+select * from information_schema.system_variables
+  where variable_name like 'wsrep%'
+  order by variable_name;
+

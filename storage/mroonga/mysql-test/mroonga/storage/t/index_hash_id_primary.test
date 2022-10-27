@@ -1,0 +1,40 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+# Copyright(C) 2016-2017 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/skip_strict_sql_mode.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (_id int, a int, PRIMARY KEY (_id) USING HASH);
+
+--error ER_BAD_NULL_ERROR
+INSERT INTO t1 VALUES(null, 100);
+INSERT INTO t1 VALUES(1,100);
+INSERT INTO t1 VALUES(1,100);
+INSERT INTO t1 VALUES(1,100);
+INSERT INTO t1 VALUES(1,100);
+
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE _id = 2;
+SELECT * FROM t1 WHERE _id = 20;
+
+DROP TABLE t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

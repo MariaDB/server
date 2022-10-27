@@ -1,0 +1,122 @@
+
+let type=timestamp;
+--source include/type_hrtime.inc
+
+set time_zone='+03:00';
+set timestamp=unix_timestamp('2011-01-01 01:01:01') + 0.123456;
+
+create table t1 (a timestamp(5) DEFAULT CURRENT_TIMESTAMP);
+#
+# CREATE ... DEFAULT NOW(X)
+#
+
+insert t1 values ();
+select * from t1;
+drop table t1;
+
+#
+# MDEV-438 Microseconds: Precision is ignored in CURRENT_TIMESTAMP(N) when it is given as a default column value 
+#
+create or replace table t1 (a timestamp(5) default current_timestamp);
+show create table t1;
+create or replace table t1 (a timestamp(5) default current_timestamp());
+show create table t1;
+create or replace table t1 (a timestamp(5) default current_timestamp(2));
+show create table t1;
+insert t1 () values ();
+select * from t1;
+create or replace table t1 (a timestamp(5) default current_timestamp(5));
+show create table t1;
+create or replace table t1 (a timestamp(5) default current_timestamp(6));
+show create table t1;
+create or replace table t1 (a timestamp(5) on update current_timestamp);
+show create table t1;
+create or replace table t1 (a timestamp(5) on update current_timestamp());
+show create table t1;
+--error ER_INVALID_ON_UPDATE
+create or replace table t1 (a timestamp(5) on update current_timestamp(3));
+create or replace table t1 (a timestamp(5) on update current_timestamp(5));
+show create table t1;
+create or replace table t1 (a timestamp(5) on update current_timestamp(6));
+show create table t1;
+drop table t1;
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-20397 Support TIMESTAMP, DATETIME, TIME in ROUND() and TRUNCATE()
+--echo #
+
+--echo # ROUND(timestamp) and TRUNCATE(timestamp) currently return DATETIME.
+--echo # This may change in the future to return TIMESTAMP.
+
+CREATE TABLE t1 (a1 TIMESTAMP(6) NULL DEFAULT '2001-01-01 00:00:00', a2 TIMESTAMP(6) NOT NULL);
+CREATE TABLE t2 AS SELECT
+  ROUND(a1) AS r1,
+  ROUND(a2) AS r2,
+  TRUNCATE(a1,0) AS t1,
+  TRUNCATE(a2,0) AS t2
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+SET time_zone='+00:00';
+
+CREATE TABLE t1 (a TIMESTAMP(6));
+INSERT INTO t1 VALUES
+('1970-01-01 00:00:01.999999'),
+('2000-01-01 00:00:00.999999'),
+('2000-01-01 23:59:59.999999'),
+('2000-02-29 23:59:59.999999'),
+('2000-12-31 23:59:59.999999'),
+('2001-01-01 00:00:00.999999'),
+('2001-01-01 23:59:59.999999'),
+('2001-02-28 23:59:59.999999'),
+('2001-12-31 23:59:59.999999'),
+('2038-01-19 03:14:07.999999');
+
+SELECT a, TRUNCATE(a,0) FROM t1;
+SELECT a, TRUNCATE(a,1) FROM t1;
+SELECT a, TRUNCATE(a,2) FROM t1;
+SELECT a, TRUNCATE(a,3) FROM t1;
+SELECT a, TRUNCATE(a,4) FROM t1;
+SELECT a, TRUNCATE(a,5) FROM t1;
+SELECT a, TRUNCATE(a,6) FROM t1;
+SELECT a, TRUNCATE(a,7) FROM t1;
+SELECT a, TRUNCATE(a,-1) FROM t1;
+SELECT a, TRUNCATE(a,-6) FROM t1;
+
+SELECT a, ROUND(a) FROM t1;
+SELECT a, ROUND(a,0) FROM t1;
+SELECT a, ROUND(a,1) FROM t1;
+SELECT a, ROUND(a,2) FROM t1;
+SELECT a, ROUND(a,3) FROM t1;
+SELECT a, ROUND(a,4) FROM t1;
+SELECT a, ROUND(a,5) FROM t1;
+SELECT a, ROUND(a,6) FROM t1;
+SELECT a, ROUND(a,7) FROM t1;
+SELECT a, ROUND(a,-1) FROM t1;
+SELECT a, ROUND(a,-6) FROM t1;
+
+DROP TABLE t1;
+
+SET time_zone=DEFAULT;
+
+
+--echo #
+--echo # MDEV-23311 CEILING() and FLOOR() convert temporal input to numbers, unlike ROUND() and TRUNCATE()
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP NOT NULL);
+CREATE TABLE t2 AS SELECT FLOOR(a), CEILING(a) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

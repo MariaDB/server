@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS users;
+CREATE TABLE users (
+id int PRIMARY KEY,
+name varchar(100) NOT NULL,
+UNIQUE KEY name (name)
+) DEFAULT CHARSET=utf8;
+INSERT INTO users VALUES (1, "Alice");
+DELETE FROM users WHERE id = 1;
+INSERT INTO users VALUES (1, "Alice");
+SELECT * FROM users;
+id	name
+1	Alice
+DROP TABLE users;

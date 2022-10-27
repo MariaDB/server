@@ -1,0 +1,1489 @@
+SET sql_mode=ORACLE;
+#
+# Testing exceptions in the top-level blocks
+#
+# No HANDLER declarations, no exceptions
+CREATE FUNCTION f1 RETURN INT
+AS
+BEGIN
+RETURN 10;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	freturn int 10
+SELECT f1();
+f1()
+10
+DROP FUNCTION f1;
+# No HANDLER declarations, no code, no exceptions
+CREATE PROCEDURE p1 ()
+IS
+BEGIN
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump 2
+CALL p1;
+DROP PROCEDURE p1;
+# No HANDLER declarations, no code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+EXCEPTION
+WHEN 1002 THEN v:=225;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump 1
+1	hpush_jump 4 1 EXIT
+2	set v@0 225
+3	hreturn 0 4
+4	hpop 1
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+10
+DROP PROCEDURE p1;
+# No HANDLER declarations, some code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+v:=224;
+EXCEPTION
+WHEN 1002 THEN v:=225;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump 3
+1	set v@0 224
+2	jump 6
+3	hpush_jump 1 1 EXIT
+4	set v@0 225
+5	hreturn 0 6
+6	hpop 1
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+224
+DROP PROCEDURE p1;
+# Some HANDLER declarations, no code, no exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+EXIT HANDLER FOR 1000
+BEGIN
+v:=123;
+END;
+BEGIN
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	hpush_jump 3 1 EXIT
+1	set v@0 123
+2	hreturn 0 3
+3	hpop 1
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+10
+DROP PROCEDURE p1;
+# Some HANDLER declarations, no code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+EXIT HANDLER FOR 1000
+BEGIN
+v:=123;
+END;
+BEGIN
+EXCEPTION
+WHEN 1002 THEN v:=225;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	hpush_jump 3 1 EXIT
+1	set v@0 123
+2	hreturn 0 6
+3	hpush_jump 6 1 EXIT
+4	set v@0 225
+5	hreturn 0 6
+6	hpop 2
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+10
+DROP PROCEDURE p1;
+# Some HANDLER declarations, some code, no exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+EXIT HANDLER FOR 1000
+BEGIN
+v:=123;
+END;
+BEGIN
+v:=223;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	hpush_jump 3 1 EXIT
+1	set v@0 123
+2	hreturn 0 4
+3	set v@0 223
+4	hpop 1
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+223
+DROP PROCEDURE p1;
+# Some HANDLER declarations, some code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT VARCHAR2(20))
+IS
+EXIT HANDLER FOR 1000
+BEGIN
+v:=123;
+END;
+CONTINUE HANDLER FOR 1001
+BEGIN
+SET v=223;
+END;
+BEGIN
+v:= 1;
+EXCEPTION
+WHEN 1002 THEN SET v=225;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	hpush_jump 3 1 EXIT
+1	set v@0 123
+2	hreturn 0 12
+3	hpush_jump 8 1 CONTINUE
+4	set v@0 223
+5	hreturn 1
+6	set v@0 1
+7	jump 12
+8	hpush_jump 6 1 EXIT
+9	set v@0 225
+10	hreturn 0 12
+11	jump 6
+12	hpop 3
+DROP PROCEDURE p1;
+#
+# Testing EXCEPTIONS in internal blocks
+#
+# No HANDLER declarations, no code, no exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+v:=123;
+BEGIN
+END;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v@0 123
+1	jump 5
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+123
+DROP PROCEDURE p1;
+# No HANDLER declarations, no code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+v:=123;
+BEGIN
+EXCEPTION
+WHEN 20002 THEN v:=335;
+END;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v@0 123
+1	jump 2
+2	hpush_jump 5 1 EXIT
+3	set v@0 335
+4	hreturn 0 5
+5	hpop 1
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+123
+DROP PROCEDURE p1;
+# No HANDLER declarations, some code, no exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+v:=123;
+BEGIN
+v:=223;
+END;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v@0 123
+1	set v@0 223
+2	jump 6
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+223
+DROP PROCEDURE p1;
+# No HANDLER declarations, some code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+v:=123;
+BEGIN
+v:=223;
+EXCEPTION
+WHEN 20002 THEN v:=335;
+END;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v@0 123
+1	jump 4
+2	set v@0 223
+3	jump 7
+4	hpush_jump 2 1 EXIT
+5	set v@0 335
+6	hreturn 0 7
+7	hpop 1
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+223
+DROP PROCEDURE p1;
+# Some HANDLER declarations, no code, no exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+v:=123;
+DECLARE
+EXIT HANDLER FOR 1000
+BEGIN
+v:=323;
+END;
+BEGIN
+END;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v@0 123
+1	hpush_jump 4 1 EXIT
+2	set v@0 323
+3	hreturn 0 4
+4	hpop 1
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+123
+DROP PROCEDURE p1;
+# Some HANDLER declarations, no code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+v:=123;
+DECLARE
+EXIT HANDLER FOR 1000
+BEGIN
+v:=323;
+END;
+BEGIN
+EXCEPTION
+WHEN 20002 THEN v:=335;
+END;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v@0 123
+1	hpush_jump 4 1 EXIT
+2	set v@0 323
+3	hreturn 0 7
+4	hpush_jump 7 1 EXIT
+5	set v@0 335
+6	hreturn 0 7
+7	hpop 2
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+123
+DROP PROCEDURE p1;
+# Some HANDLER declarations, some code, no exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+v:=123;
+DECLARE
+EXIT HANDLER FOR 1000
+BEGIN
+v:=323;
+END;
+BEGIN
+v:= 324;
+END;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v@0 123
+1	hpush_jump 4 1 EXIT
+2	set v@0 323
+3	hreturn 0 5
+4	set v@0 324
+5	hpop 1
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+324
+DROP PROCEDURE p1;
+# Some HANDLER declarations, some code, some exceptions
+CREATE PROCEDURE p1 (v IN OUT INT)
+IS
+BEGIN
+v:=123;
+DECLARE
+EXIT HANDLER FOR 1000
+BEGIN
+v:=323;
+END;
+BEGIN
+v:= 324;
+EXCEPTION WHEN 2002 THEN v:= 325;
+END;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v@0 123
+1	hpush_jump 6 1 EXIT
+2	set v@0 323
+3	hreturn 0 9
+4	set v@0 324
+5	jump 9
+6	hpush_jump 4 1 EXIT
+7	set v@0 325
+8	hreturn 0 9
+9	hpop 2
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+@v
+324
+DROP PROCEDURE p1;
+#
+# Testing EXIT statement
+#
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+LOOP
+i:= i + 1;
+IF i >= 5 THEN
+EXIT;
+END IF;
+END LOOP;
+RETURN i;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set i@0 0
+1	set i@0 i@0 + 1
+2	jump_if_not 1(1) i@0 >= 5
+3	jump 4
+4	freturn int i@0
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+LOOP
+i:= i + 1;
+EXIT WHEN i >=5;
+END LOOP;
+RETURN i;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set i@0 0
+1	set i@0 i@0 + 1
+2	jump_if_not 1(0) i@0 >= 5
+3	jump 4
+4	freturn int i@0
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
+CREATE FUNCTION f1 RETURN INT
+IS
+i INT := 0;
+BEGIN
+LOOP
+BEGIN
+i:= i + 1;
+IF i >= 5 THEN
+EXIT;
+END IF;
+EXCEPTION
+WHEN OTHERS THEN i:= 1000;
+END;
+END LOOP;
+RETURN i;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set i@0 0
+1	jump 5
+2	set i@0 i@0 + 1
+3	jump_if_not 8(8) i@0 >= 5
+4	jump 10
+5	hpush_jump 2 1 EXIT
+6	set i@0 1000
+7	hreturn 0 8
+8	hpop 1
+9	jump 5
+10	freturn int i@0
+SELECT f1() FROM DUAL;
+f1()
+5
+DROP FUNCTION f1;
+CREATE PROCEDURE p1(a IN OUT INT)
+IS
+i INT := 0;
+BEGIN
+LOOP
+LOOP
+BEGIN
+i:= i + 1;
+IF i >=5 THEN
+EXIT;
+END IF;
+EXCEPTION
+WHEN OTHERS THEN a:=1000;
+END;
+END LOOP;
+i:= i + 100;
+EXIT;
+END LOOP;
+a:= i;
+EXCEPTION
+WHEN OTHERS THEN a:=11;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set i@1 0
+1	jump 14
+2	set i@1 i@1 + 1
+3	jump_if_not 8(8) i@1 >= 5
+4	jump 10
+5	hpush_jump 2 2 EXIT
+6	set a@0 1000
+7	hreturn 0 8
+8	hpop 1
+9	jump 5
+10	set i@1 i@1 + 100
+11	jump 12
+12	set a@0 i@1
+13	jump 17
+14	hpush_jump 5 2 EXIT
+15	set a@0 11
+16	hreturn 0 17
+17	hpop 1
+set @v= 10;
+CALL p1(@v);
+SELECT @v;
+@v
+105
+DROP PROCEDURE p1;
+# Testing RETURN in procedures
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+IF a < 10 THEN
+BEGIN
+a:= a + 1;
+RETURN;
+END;
+END IF;
+a:= 200;
+EXCEPTION
+WHEN OTHERS THEN
+BEGIN
+a:= 100;
+RETURN;
+END;
+END;
+/
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	jump 6
+1	jump_if_not 4(4) a@0 < 10
+2	set a@0 a@0 + 1
+3	preturn
+4	set a@0 200
+5	jump 9
+6	hpush_jump 1 1 EXIT
+7	set a@0 100
+8	preturn
+9	hpop 1
+DROP PROCEDURE p1;
+# Testing FOR loop statement
+CREATE FUNCTION f1 (a INT, b INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+FOR i IN 1 .. a
+LOOP
+total:= total + i;
+IF i = b THEN
+EXIT;
+END IF;
+END LOOP;
+RETURN total;
+END
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@2 0
+1	set i@3 1
+2	set [target_bound]@4 a@0
+3	jump_if_not 9(9) i@3 <= [target_bound]@4
+4	set total@2 total@2 + i@3
+5	jump_if_not 7(7) i@3 = b@1
+6	jump 9
+7	set i@3 i@3 + 1
+8	jump 3
+9	freturn int total@2
+SELECT f1(3, 100) FROM DUAL;
+f1(3, 100)
+6
+SELECT f1(3, 2) FROM DUAL;
+f1(3, 2)
+3
+DROP FUNCTION f1;
+CREATE FUNCTION f1 (a INT, b INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+FOR i IN REVERSE 1..a
+LOOP
+total:= total + i;
+IF i = b THEN
+EXIT;
+END IF;
+END LOOP;
+RETURN total;
+END
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@2 0
+1	set i@3 a@0
+2	set [target_bound]@4 1
+3	jump_if_not 9(9) i@3 >= [target_bound]@4
+4	set total@2 total@2 + i@3
+5	jump_if_not 7(7) i@3 = b@1
+6	jump 9
+7	set i@3 i@3 + -1
+8	jump 3
+9	freturn int total@2
+SELECT f1(3, 100) FROM DUAL;
+f1(3, 100)
+6
+SELECT f1(3, 2) FROM DUAL;
+f1(3, 2)
+5
+DROP FUNCTION f1;
+# Testing labeled FOR LOOP statement
+CREATE FUNCTION f1 (a INT, limita INT, b INT, limitb INT) RETURN INT
+AS
+total INT := 0;
+BEGIN
+<<la>>
+FOR ia IN 1 .. a
+LOOP
+total:= total + 1000;
+<<lb>>
+FOR ib IN 1 .. b
+LOOP
+total:= total + 1;
+EXIT lb WHEN ib = limitb;
+EXIT la WHEN ia = limita;
+END LOOP lb;
+END LOOP la;
+RETURN total;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@4 0
+1	set ia@5 1
+2	set [target_bound]@6 a@0
+3	jump_if_not 17(17) ia@5 <= [target_bound]@6
+4	set total@4 total@4 + 1000
+5	set ib@7 1
+6	set [target_bound]@8 b@2
+7	jump_if_not 15(15) ib@7 <= [target_bound]@8
+8	set total@4 total@4 + 1
+9	jump_if_not 11(0) ib@7 = limitb@3
+10	jump 15
+11	jump_if_not 13(0) ia@5 = limita@1
+12	jump 17
+13	set ib@7 ib@7 + 1
+14	jump 7
+15	set ia@5 ia@5 + 1
+16	jump 3
+17	freturn int total@4
+SELECT f1(2, 1, 2, 2) FROM DUAL;
+f1(2, 1, 2, 2)
+1001
+SELECT f1(2, 2, 2, 2) FROM DUAL;
+f1(2, 2, 2, 2)
+2003
+SELECT f1(2, 3, 2, 3) FROM DUAL;
+f1(2, 3, 2, 3)
+2004
+DROP FUNCTION f1;
+# Testing labeled ITERATE in a labeled FOR LOOP
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+BEGIN
+<<li>>
+FOR i IN 1 .. a
+LOOP
+total:= total + 1000;
+IF i = 5 THEN
+ITERATE li;
+END IF;
+total:= total + 1;
+END LOOP;
+RETURN total;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@1 0
+1	set i@2 1
+2	set [target_bound]@3 a@0
+3	jump_if_not 11(11) i@2 <= [target_bound]@3
+4	set total@1 total@1 + 1000
+5	jump_if_not 8(8) i@2 = 5
+6	set i@2 i@2 + 1
+7	jump 3
+8	set total@1 total@1 + 1
+9	set i@2 i@2 + 1
+10	jump 3
+11	freturn int total@1
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+f1(3)	f1(4)	f1(5)	f1(6)
+3003	4004	5004	6005
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+BEGIN
+<<li>>
+FOR i IN 1 .. a
+LOOP
+FOR j IN 1 .. 2
+LOOP
+total:= total + 1000;
+IF i = 5 THEN
+ITERATE li;
+END IF;
+total:= total + 1;
+END LOOP;
+END LOOP;
+RETURN total;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@1 0
+1	set i@2 1
+2	set [target_bound]@3 a@0
+3	jump_if_not 16(16) i@2 <= [target_bound]@3
+4	set j@4 1
+5	set [target_bound]@5 2
+6	jump_if_not 14(14) j@4 <= [target_bound]@5
+7	set total@1 total@1 + 1000
+8	jump_if_not 11(11) i@2 = 5
+9	set i@2 i@2 + 1
+10	jump 3
+11	set total@1 total@1 + 1
+12	set j@4 j@4 + 1
+13	jump 6
+14	set i@2 i@2 + 1
+15	jump 3
+16	freturn int total@1
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+f1(3)	f1(4)	f1(5)	f1(6)
+6006	8008	9008	11010
+DROP FUNCTION f1;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+BEGIN
+<<lj>>
+FOR j IN 1 .. 2
+LOOP
+<<li>>
+FOR i IN 1 .. a
+LOOP
+total:= total + 1000;
+IF i = 5 THEN
+ITERATE li;
+END IF;
+total:= total + 1;
+END LOOP;
+END LOOP;
+RETURN total;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@1 0
+1	set j@2 1
+2	set [target_bound]@3 2
+3	jump_if_not 16(16) j@2 <= [target_bound]@3
+4	set i@4 1
+5	set [target_bound]@5 a@0
+6	jump_if_not 14(14) i@4 <= [target_bound]@5
+7	set total@1 total@1 + 1000
+8	jump_if_not 11(11) i@4 = 5
+9	set i@4 i@4 + 1
+10	jump 6
+11	set total@1 total@1 + 1
+12	set i@4 i@4 + 1
+13	jump 6
+14	set j@2 j@2 + 1
+15	jump 3
+16	freturn int total@1
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+f1(3)	f1(4)	f1(5)	f1(6)
+6006	8008	10008	12010
+DROP FUNCTION f1;
+# Testing CONTINUE statement
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+total INT:= 0;
+BEGIN
+FOR i IN 1 .. a
+LOOP
+CONTINUE WHEN i=5;
+total:= total + 1;
+END LOOP;
+RETURN total;
+END;
+/
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set total@1 0
+1	set i@2 1
+2	set [target_bound]@3 a@0
+3	jump_if_not 10(10) i@2 <= [target_bound]@3
+4	jump_if_not 7(0) i@2 = 5
+5	set i@2 i@2 + 1
+6	jump 3
+7	set total@1 total@1 + 1
+8	set i@2 i@2 + 1
+9	jump 3
+10	freturn int total@1
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+f1(3)	f1(4)	f1(5)	f1(6)
+3	4	4	5
+DROP FUNCTION f1;
+#
+# Start of MDEV-10597 Cursors with parameters
+#
+CREATE PROCEDURE p1(arg_value_a VARCHAR, arg_value_b VARCHAR,
+arg_pattern_a VARCHAR, arg_pattern_b VARCHAR)
+AS
+v_a VARCHAR(10);
+v_b VARCHAR(20);
+CURSOR c (p_value_a VARCHAR,
+p_value_b VARCHAR,
+p_pattern_a VARCHAR,
+p_pattern_b VARCHAR,
+p_limit_a INT,
+p_limit_b INT,
+p_unused TEXT) IS
+(SELECT p_value_a, p_value_b FROM DUAL
+WHERE p_value_a LIKE p_pattern_a LIMIT p_limit_a)
+UNION
+(SELECT p_value_b, p_value_a FROM DUAL
+WHERE p_value_b LIKE p_pattern_b LIMIT p_limit_b);
+BEGIN
+OPEN c(arg_value_a, (SELECT arg_value_b),
+arg_pattern_a, arg_pattern_b, 100, 101, 'x');
+LOOP
+FETCH c INTO v_a, v_b;
+EXIT WHEN c%NOTFOUND;
+SELECT v_a, v_b;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1('aaa','bbb','aaa','bbb');
+v_a	v_b
+aaa	bbb
+v_a	v_b
+bbb	aaa
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set v_a@4 NULL
+1	set v_b@5 NULL
+2	cpush c@0
+3	set p_value_a@6 arg_value_a@0
+4	set p_value_b@7 (select arg_value_b@1)
+5	set p_pattern_a@8 arg_pattern_a@2
+6	set p_pattern_b@9 arg_pattern_b@3
+7	set p_limit_a@10 100
+8	set p_limit_b@11 101
+9	set p_unused@12 'x'
+10	copen c@0
+11	cfetch c@0 v_a@4 v_b@5
+12	jump_if_not 14(0) "c"%NOTFOUND
+13	jump 16
+14	stmt 0 "SELECT v_a, v_b"
+15	jump 11
+16	cclose c@0
+17	cpop 1
+DROP PROCEDURE p1;
+#
+# End of MDEV-10597 Cursors with parameters
+#
+#
+# MDEV-10914 ROW data type for stored routine variables
+#
+CREATE FUNCTION f1() RETURN INT
+AS
+a ROW(a INT, b INT);
+BEGIN
+a.b:= 200;
+RETURN a.b;
+END;
+$$
+SHOW FUNCTION CODE f1;
+Pos	Instruction
+0	set a@0 NULL
+1	set a.b@0[1] 200
+2	freturn int a.b@0[1]
+SELECT f1();
+f1()
+200
+DROP FUNCTION f1;
+CREATE PROCEDURE p1
+AS
+rec ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+BEGIN
+rec:= ROW(10,20.123456,30.123,'test');
+SELECT rec.a, rec.b, rec.c, rec.d;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set rec@0 NULL
+1	set rec@0 (10,20.123456,30.123,'test')
+2	stmt 0 "SELECT rec.a, rec.b, rec.c, rec.d"
+CALL p1;
+rec.a	rec.b	rec.c	rec.d
+10	20.123456	30.123	test
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+rec ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) :=
+ROW(10,20.123456,30.123,'test');
+BEGIN
+SELECT rec.a, rec.b, rec.c, rec.d;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set rec@0 (10,20.123456,30.123,'test')
+1	stmt 0 "SELECT rec.a, rec.b, rec.c, rec.d"
+CALL p1;
+rec.a	rec.b	rec.c	rec.d
+10	20.123456	30.123	test
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+rec1 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+rec2 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10));
+BEGIN
+rec1:= ROW(10,20.123456,30.123,'test');
+rec2:= rec1;
+SELECT rec2.a, rec2.b, rec2.c, rec2.d;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set rec1@0 NULL
+1	set rec2@1 NULL
+2	set rec1@0 (10,20.123456,30.123,'test')
+3	set rec2@1 rec1@0
+4	stmt 0 "SELECT rec2.a, rec2.b, rec2.c, rec2.d"
+CALL p1;
+rec2.a	rec2.b	rec2.c	rec2.d
+10	20.123456	30.123	test
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+rec1 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) :=
+ROW(10,20.123456,30.123,'test');
+rec2 ROW(a INT,b DOUBLE,c DECIMAL(10,3),d VARCHAR(10)) := rec1;
+BEGIN
+SELECT rec2.a, rec2.b, rec2.c, rec2.d;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set rec1@0 (10,20.123456,30.123,'test')
+1	set rec2@1 rec1@0
+2	stmt 0 "SELECT rec2.a, rec2.b, rec2.c, rec2.d"
+CALL p1;
+rec2.a	rec2.b	rec2.c	rec2.d
+10	20.123456	30.123	test
+DROP PROCEDURE p1;
+#
+# End of MDEV-10914 ROW data type for stored routine variables
+#
+#
+# MDEV-12133 sql_mode=ORACLE: table%ROWTYPE in variable declarations
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE PROCEDURE p1()
+AS
+rec1 t1%ROWTYPE;
+BEGIN
+rec1.a:= 10;
+rec1.b:= 'bbb';
+rec1.c:= 10e2;
+rec1.d:= 10.12;
+rec1.c:= rec1.d;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set rec1@0 NULL
+1	set rec1.a@0["a"] 10
+2	set rec1.b@0["b"] 'bbb'
+3	set rec1.c@0["c"] 10e2
+4	set rec1.d@0["d"] 10.12
+5	set rec1.c@0["c"] rec1.d@0["d"]
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-12011 sql_mode=ORACLE: cursor%ROWTYPE in variable declarations
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+AS
+CURSOR cur1 IS SELECT * FROM t1;
+CURSOR cur2 IS SELECT * FROM t1;
+BEGIN
+DECLARE
+rec1,rec2 cur1%ROWTYPE;
+rec3 cur2%ROWTYPE;
+BEGIN
+rec1.a:= 10;
+rec1.b:= 'bbb';
+END;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush cur1@0
+1	cpush cur2@1
+2	cursor_copy_struct cur1 rec1@0
+3	cursor_copy_struct cur1 rec2@1
+4	set rec1@0 NULL
+5	set rec2@1 NULL
+6	cursor_copy_struct cur2 rec3@2
+7	set rec3@2 NULL
+8	set rec1.a@0["a"] 10
+9	set rec1.b@0["b"] 'bbb'
+10	jump 11
+11	cpop 2
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-10581 sql_mode=ORACLE: Explicit cursor FOR LOOP
+#
+CREATE PROCEDURE p1
+AS
+CURSOR cur0 IS SELECT 10 AS a, 'b0' AS b;
+CURSOR cur1 IS SELECT 10 AS a, 'b0' AS b;
+CURSOR cur2 IS SELECT 10 AS a, 'b0' AS b;
+BEGIN
+FOR rec1 IN cur1
+LOOP
+SELECT rec1.a, rec1.b;
+rec1.a:= 11;
+rec1.b:= 'b1';
+SELECT rec1.a, rec1.b;
+END LOOP;
+FOR rec0 IN cur0
+LOOP
+rec0.a:= 10;
+rec0.b:='b0';
+END LOOP;
+FOR rec2 IN cur2
+LOOP
+rec2.a:= 10;
+rec2.b:='b0';
+END LOOP;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush cur0@0
+1	cpush cur1@1
+2	cpush cur2@2
+3	cursor_copy_struct cur1 rec1@0
+4	copen cur1@1
+5	cfetch cur1@1 rec1@0
+6	jump_if_not 13(13) "cur1"%FOUND
+7	stmt 0 "SELECT rec1.a, rec1.b"
+8	set rec1.a@0["a"] 11
+9	set rec1.b@0["b"] 'b1'
+10	stmt 0 "SELECT rec1.a, rec1.b"
+11	cfetch cur1@1 rec1@0
+12	jump 6
+13	cclose cur1@1
+14	cursor_copy_struct cur0 rec0@1
+15	copen cur0@0
+16	cfetch cur0@0 rec0@1
+17	jump_if_not 22(22) "cur0"%FOUND
+18	set rec0.a@1["a"] 10
+19	set rec0.b@1["b"] 'b0'
+20	cfetch cur0@0 rec0@1
+21	jump 17
+22	cclose cur0@0
+23	cursor_copy_struct cur2 rec2@2
+24	copen cur2@2
+25	cfetch cur2@2 rec2@2
+26	jump_if_not 31(31) "cur2"%FOUND
+27	set rec2.a@2["a"] 10
+28	set rec2.b@2["b"] 'b0'
+29	cfetch cur2@2 rec2@2
+30	jump 26
+31	cclose cur2@2
+32	cpop 3
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+CURSOR cur0 IS SELECT 10 AS a, 'b0' AS b;
+BEGIN
+FOR rec0 IN cur0
+LOOP
+DECLARE
+CURSOR cur1 IS SELECT 11 AS a, 'b1' AS b;
+BEGIN
+rec0.a:= 11;
+rec0.b:= 'b0';
+FOR rec1 IN cur1
+LOOP
+rec1.a:= 11;
+rec1.b:= 'b1';
+DECLARE
+CURSOR cur2 IS SELECT 12 AS a, 'b2' AS b;
+BEGIN
+FOR rec2 IN cur2
+LOOP
+rec2.a:=12;
+rec2.b:='b2';
+END LOOP;
+END;
+END LOOP;
+END;
+END LOOP;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush cur0@0
+1	cursor_copy_struct cur0 rec0@0
+2	copen cur0@0
+3	cfetch cur0@0 rec0@0
+4	jump_if_not 31(31) "cur0"%FOUND
+5	cpush cur1@1
+6	set rec0.a@0["a"] 11
+7	set rec0.b@0["b"] 'b0'
+8	cursor_copy_struct cur1 rec1@1
+9	copen cur1@1
+10	cfetch cur1@1 rec1@1
+11	jump_if_not 27(27) "cur1"%FOUND
+12	set rec1.a@1["a"] 11
+13	set rec1.b@1["b"] 'b1'
+14	cpush cur2@2
+15	cursor_copy_struct cur2 rec2@2
+16	copen cur2@2
+17	cfetch cur2@2 rec2@2
+18	jump_if_not 23(23) "cur2"%FOUND
+19	set rec2.a@2["a"] 12
+20	set rec2.b@2["b"] 'b2'
+21	cfetch cur2@2 rec2@2
+22	jump 18
+23	cclose cur2@2
+24	cpop 1
+25	cfetch cur1@1 rec1@1
+26	jump 11
+27	cclose cur1@1
+28	cpop 1
+29	cfetch cur0@0 rec0@0
+30	jump 4
+31	cclose cur0@0
+32	cpop 1
+DROP PROCEDURE p1;
+#
+# MDEV-12098 sql_mode=ORACLE: Implicit cursor FOR loop
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+FOR rec1 IN (SELECT 11 AS a, 'b1' AS b)
+LOOP
+SELECT rec1.a, rec1.b;
+rec1.a:= 11;
+rec1.b:= 'b1';
+SELECT rec1.a, rec1.b;
+END LOOP;
+FOR rec0 IN (SELECT 10 AS a, 'b0' AS b)
+LOOP
+rec0.a:= 10;
+rec0.b:='b0';
+END LOOP;
+FOR rec2 IN (SELECT 12 AS a, 'b2' AS b)
+LOOP
+rec2.a:= 10;
+rec2.b:='b0';
+END LOOP;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush [implicit_cursor]@0
+1	cursor_copy_struct [implicit_cursor] rec1@0
+2	copen [implicit_cursor]@0
+3	cfetch [implicit_cursor]@0 rec1@0
+4	jump_if_not 11(11) "[implicit_cursor]"%FOUND
+5	stmt 0 "SELECT rec1.a, rec1.b"
+6	set rec1.a@0["a"] 11
+7	set rec1.b@0["b"] 'b1'
+8	stmt 0 "SELECT rec1.a, rec1.b"
+9	cfetch [implicit_cursor]@0 rec1@0
+10	jump 4
+11	cpop 1
+12	cpush [implicit_cursor]@0
+13	cursor_copy_struct [implicit_cursor] rec0@1
+14	copen [implicit_cursor]@0
+15	cfetch [implicit_cursor]@0 rec0@1
+16	jump_if_not 21(21) "[implicit_cursor]"%FOUND
+17	set rec0.a@1["a"] 10
+18	set rec0.b@1["b"] 'b0'
+19	cfetch [implicit_cursor]@0 rec0@1
+20	jump 16
+21	cpop 1
+22	cpush [implicit_cursor]@0
+23	cursor_copy_struct [implicit_cursor] rec2@2
+24	copen [implicit_cursor]@0
+25	cfetch [implicit_cursor]@0 rec2@2
+26	jump_if_not 31(31) "[implicit_cursor]"%FOUND
+27	set rec2.a@2["a"] 10
+28	set rec2.b@2["b"] 'b0'
+29	cfetch [implicit_cursor]@0 rec2@2
+30	jump 26
+31	cpop 1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+BEGIN
+FOR rec0 IN (SELECT 10 AS a, 'b0' AS b)
+LOOP
+rec0.a:= 11;
+rec0.b:= 'b0';
+FOR rec1 IN (SELECT 11 AS a, 'b1' AS b)
+LOOP
+rec1.a:= 11;
+rec1.b:= 'b1';
+FOR rec2 IN (SELECT 12 AS a, 'b2' AS b)
+LOOP
+rec2.a:=12;
+rec2.b:='b2';
+END LOOP;
+END LOOP;
+END LOOP;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cpush [implicit_cursor]@0
+1	cursor_copy_struct [implicit_cursor] rec0@0
+2	copen [implicit_cursor]@0
+3	cfetch [implicit_cursor]@0 rec0@0
+4	jump_if_not 29(29) "[implicit_cursor]"%FOUND
+5	set rec0.a@0["a"] 11
+6	set rec0.b@0["b"] 'b0'
+7	cpush [implicit_cursor]@1
+8	cursor_copy_struct [implicit_cursor] rec1@1
+9	copen [implicit_cursor]@1
+10	cfetch [implicit_cursor]@1 rec1@1
+11	jump_if_not 26(26) "[implicit_cursor]"%FOUND
+12	set rec1.a@1["a"] 11
+13	set rec1.b@1["b"] 'b1'
+14	cpush [implicit_cursor]@2
+15	cursor_copy_struct [implicit_cursor] rec2@2
+16	copen [implicit_cursor]@2
+17	cfetch [implicit_cursor]@2 rec2@2
+18	jump_if_not 23(23) "[implicit_cursor]"%FOUND
+19	set rec2.a@2["a"] 12
+20	set rec2.b@2["b"] 'b2'
+21	cfetch [implicit_cursor]@2 rec2@2
+22	jump 18
+23	cpop 1
+24	cfetch [implicit_cursor]@1 rec1@1
+25	jump 11
+26	cpop 1
+27	cfetch [implicit_cursor]@0 rec0@0
+28	jump 4
+29	cpop 1
+DROP PROCEDURE p1;
+#
+# MDEV-10598 sql_mode=ORACLE: Variable declarations can go after cursor declarations
+#
+#
+# Cursor declaration and cursor%ROWTYPE declaration in the same block
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'a');
+CREATE PROCEDURE p1()
+AS
+CURSOR cur1 IS SELECT a FROM t1;
+rec1 cur1%ROWTYPE;
+BEGIN
+rec1.a:= 10;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	cursor_copy_struct cur1 rec1@0
+1	set rec1@0 NULL
+2	cpush cur1@0
+3	set rec1.a@0["a"] 10
+4	cpop 1
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Recursive cursor and cursor%ROWTYPE declarations in the same block
+#
+CREATE PROCEDURE p1
+AS
+a INT:=10;
+CURSOR cur1 IS SELECT a;
+rec1 cur1%ROWTYPE;
+CURSOR cur2 IS SELECT rec1.a + 1  "a";
+rec2 cur2%ROWTYPE;
+BEGIN
+OPEN cur1;
+FETCH cur1 INTO rec1;
+CLOSE cur1;
+SELECT rec1.a;
+open cur2;
+FETCH cur2 INTO rec2;
+CLOSE cur2;
+SELECT rec2.a;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set a@0 10
+1	cursor_copy_struct cur1 rec1@1
+2	set rec1@1 NULL
+3	cursor_copy_struct cur2 rec2@2
+4	set rec2@2 NULL
+5	cpush cur1@0
+6	cpush cur2@1
+7	copen cur1@0
+8	cfetch cur1@0 rec1@1
+9	cclose cur1@0
+10	stmt 0 "SELECT rec1.a"
+11	copen cur2@1
+12	cfetch cur2@1 rec2@2
+13	cclose cur2@1
+14	stmt 0 "SELECT rec2.a"
+15	cpop 2
+CALL p1();
+rec1.a
+10
+rec2.a
+11
+DROP PROCEDURE p1;
+#
+# MDEV-12441 Variables declared after cursors with parameters lose values
+#
+CREATE PROCEDURE p1() AS
+x0 INT:=100;
+CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+x1 INT:=101;
+BEGIN
+OPEN cur(10,11);
+CLOSE cur;
+SELECT x0, x1;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set x0@0 100
+1	set x1@3 101
+2	cpush cur@0
+3	set cp1@1 10
+4	set cp2@2 11
+5	copen cur@0
+6	cclose cur@0
+7	stmt 0 "SELECT x0, x1"
+8	cpop 1
+CALL p1();
+x0	x1
+100	101
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() AS
+x0 INT:=100;
+CURSOR cur0(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+x1 INT:=101;
+CURSOR cur1(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+x2 INT:=102;
+CURSOR cur2(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+x3 INT:=103;
+BEGIN
+OPEN cur0(0,1);
+CLOSE cur0;
+SELECT x0, x1, x2, x3;
+OPEN cur1(10,11);
+CLOSE cur1;
+SELECT x0, x1, x2, x3;
+OPEN cur2(20,21);
+CLOSE cur2;
+SELECT x0, x1, x2, x3;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set x0@0 100
+1	set x1@3 101
+2	set x2@6 102
+3	set x3@9 103
+4	cpush cur0@0
+5	cpush cur1@1
+6	cpush cur2@2
+7	set cp1@1 0
+8	set cp2@2 1
+9	copen cur0@0
+10	cclose cur0@0
+11	stmt 0 "SELECT x0, x1, x2, x3"
+12	set cp1@4 10
+13	set cp2@5 11
+14	copen cur1@1
+15	cclose cur1@1
+16	stmt 0 "SELECT x0, x1, x2, x3"
+17	set cp1@7 20
+18	set cp2@8 21
+19	copen cur2@2
+20	cclose cur2@2
+21	stmt 0 "SELECT x0, x1, x2, x3"
+22	cpop 3
+CALL p1();
+x0	x1	x2	x3
+100	101	102	103
+x0	x1	x2	x3
+100	101	102	103
+x0	x1	x2	x3
+100	101	102	103
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1() AS
+x0 INT:=100;
+CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+x1 t1.a%TYPE:=101;
+BEGIN
+OPEN cur(10,11);
+CLOSE cur;
+SELECT x0, x1;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set x0@0 100
+1	set x1@3 101
+2	cpush cur@0
+3	set cp1@1 10
+4	set cp2@2 11
+5	copen cur@0
+6	cclose cur@0
+7	stmt 0 "SELECT x0, x1"
+8	cpop 1
+CALL p1();
+x0	x1
+100	101
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE PROCEDURE p1() AS
+x0 INT:=100;
+CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+x1 ROW(a INT,b INT):=ROW(101,102);
+BEGIN
+OPEN cur(10,11);
+CLOSE cur;
+SELECT x0, x1.a, x1.b;
+END;
+$$
+SHOW PROCEDURE CODE p1;
+Pos	Instruction
+0	set x0@0 100
+1	set x1@3 (101,102)
+2	cpush cur@0
+3	set cp1@1 10
+4	set cp2@2 11
+5	copen cur@0
+6	cclose cur@0
+7	stmt 0 "SELECT x0, x1.a, x1.b"
+8	cpop 1
+CALL p1();
+x0	x1.a	x1.b
+100	101	102
+DROP PROCEDURE p1;

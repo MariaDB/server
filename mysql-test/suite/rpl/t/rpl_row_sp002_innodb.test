@@ -1,0 +1,3 @@
+-- source include/have_innodb.inc
+let $engine_type=INNODB;
+-- source include/rpl_row_sp002.test

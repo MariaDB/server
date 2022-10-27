@@ -1,0 +1,787 @@
+#
+# Test of cast function
+#
+
+# For TIME->DATETIME conversion
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
+
+select CAST(1-2 AS UNSIGNED);
+select CAST(CAST(1-2 AS UNSIGNED) AS SIGNED INTEGER);
+select CAST('10 ' as unsigned integer);
+select cast(-5 as unsigned) | 1, cast(-5 as unsigned) & -1;
+select cast(-5 as unsigned) -1, cast(-5 as unsigned) + 1;
+select ~5, cast(~5 as signed);
+explain extended select ~5, cast(~5 as signed);
+select cast(18446744073709551615 as signed);
+select cast(5 as unsigned) -6.0;
+select cast(NULL as signed), cast(1/0 as signed);
+select cast(1 as double(5,2));
+select cast("5.2222" as double(5,2));
+select cast(12.444 as double(5,2));
+select cast(cast(12.444 as decimal(10,3)) as double(5,2));
+select cast(null as double(5,2));
+select cast(12.444 as double);
+select cast(cast("20:01:01" as time) as datetime);
+select cast(cast("8:46:06.23434" AS time) as decimal(32,10));
+select cast(cast("2011-04-05 8:46:06.23434" AS datetime) as decimal(32,6));
+
+--echo #
+--echo # Check handling of cast with microseconds
+--echo #
+select cast(cast(20010203101112.121314 as double) as datetime);
+select cast(cast(010203101112.12 as double) as datetime);
+select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime);
+select cast(20010203101112.121314 as datetime);
+select cast(110203101112.121314 as datetime);
+select cast(cast(010203101112.12 as double) as datetime);
+
+select cast("2011-02-03 10:11:12.123456" as datetime);
+select cast("2011-02-03 10:11:12.123456" as datetime(0));
+select cast("2011-02-03 10:11:12.123456" as datetime(5));
+select cast("2011-02-03 10:11:12.123456" as datetime(6));
+select cast("2011-02-03 10:11:12" as datetime(6));
+select cast(cast(20010203101112.5 as double) as datetime(1));
+select cast(cast(010203101112.12 as double) as datetime(2));
+select cast(cast(20010203101112.121314 as decimal(32,6)) as datetime(6));
+select cast(20010203101112.121314 as datetime(6));
+select cast(110203101112.121314 as datetime(6));
+select cast(cast(010203101112.12 as double) as datetime(6));
+
+select cast("2011-02-03 10:11:12.123456" as time);
+select cast("2011-02-03 10:11:12.123456" as time(6));
+select cast("10:11:12.123456" as time);
+select cast("10:11:12.123456" as time(0));
+select cast("10:11:12.123456" as time(5));
+select cast("10:11:12.123456" as time(6));
+select cast("10:11:12" as time(6));
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time);
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime) as time(6));
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time);
+select cast(cast("2011-04-05 8:46:06.123456" AS datetime(6)) as time(6));
+
+#
+# Bug #28250: Run-Time Check Failure #3 - The variable 'value' is being used 
+# without being def
+# 
+# The following line causes Run-Time Check Failure on 
+# binaries built with Visual C++ 2005
+#
+select cast(NULL as unsigned), cast(1/0 as unsigned); 
+select cast("A" as binary) = "a", cast(BINARY "a" as CHAR) = "A";
+select cast("2001-1-1" as DATE), cast("2001-1-1" as DATETIME);
+select cast("1:2:3" as TIME);
+select CONVERT("2004-01-22 21:45:33",DATE);
+select 10+'10';
+select 10.0+'10';
+select 10E+0+'10';
+
+# The following cast creates warnings
+
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33" USING latin1);
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33",CHAR);
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33",CHAR(4));
+select CONVERT(TIMESTAMP "2004-01-22 21:45:33",BINARY(4));
+select CAST(TIMESTAMP "2004-01-22 21:45:33" AS BINARY(4));
+select CAST(0xb3 as signed);
+select CAST(0x8fffffffffffffff as signed);
+select CAST(0xffffffffffffffff as unsigned);
+select CAST(0xfffffffffffffffe as signed);
+select cast('-10a' as signed integer);
+select cast('a10' as unsigned integer);
+select 10+'a';
+select 10.0+cast('a' as decimal);
+select 10E+0+'a';
+select cast("a" as double(5,2));
+select cast(1000 as decimal(5,2));
+select cast(-1000 as decimal(5,2));
+select cast(1000 as double(5,2));
+select cast(-1000 as double(5,2));
+select cast(010203101112.121314 as datetime);
+select cast(120010203101112.121314 as datetime);
+select cast(cast(1.1 as decimal) as datetime);
+select cast(cast(-1.1 as decimal) as datetime);
+select cast('0' as date);
+select cast('' as date);
+select cast('0' as datetime);
+select cast('' as datetime);
+select cast('0' as time);
+select cast('' as time);
+select cast(NULL as DATE);
+select cast(NULL as DATETIME);
+select cast(NULL as TIME);
+select cast(NULL as BINARY);
+
+#
+# We have to disable warnings for these as the printed double value is
+# not portable
+#
+--disable_warnings
+select cast(cast(120010203101112.121314 as double) as datetime);
+select cast(cast(1.1 as double) as datetime);
+select cast(cast(-1.1 as double) as datetime);
+--enable_warnings
+
+
+#
+# Some EXPLAIN EXTENDED to ensure the print functions are correct
+#
+
+explain extended select cast(10 as double(5,2));
+explain extended select cast(10 as double);
+explain extended select cast(10 as decimal(5,2));
+
+# out-of-range cases
+select cast('18446744073709551616' as unsigned);
+select cast('18446744073709551616' as signed);
+select cast('9223372036854775809' as signed);
+select cast('-1' as unsigned);
+select cast('abc' as signed);
+select cast('1a' as signed);
+select cast('' as signed);
+
+--error ER_M_BIGGER_THAN_D
+select cast(1 as double(5,6));
+--error ER_M_BIGGER_THAN_D
+select cast(1 as decimal(5,6));
+--error ER_TOO_BIG_PRECISION
+select cast(1 as double(66,6));
+--error ER_TOO_BIG_PRECISION
+select cast(1 as decimal(66,6));
+--error ER_TOO_BIG_SCALE
+select cast(1 as decimal(64,63));
+--error ER_TOO_BIG_SCALE
+select cast(1 as double(64,63));
+
+
+#
+# Character set conversion
+#
+set names binary;
+select cast(_latin1'test' as char character set latin2);
+select cast(_koi8r'ÔÅÓÔ' as char character set cp1251);
+create table t1 select cast(_koi8r'ÔÅÓÔ' as char character set cp1251) as t;
+show create table t1;
+drop table t1;
+
+#
+# CAST to CHAR with/without length
+#
+select
+  cast(_latin1'ab'  AS char)    as c1,
+  cast(_latin1'a '  AS char)    as c2,
+  cast(_latin1'abc' AS char(2)) as c3,
+  cast(_latin1'a  ' AS char(2)) as c4,
+  hex(cast(_latin1'a'   AS char(2))) as c5;
+select cast(1000 as CHAR(3));
+
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+create table t1 select
+  cast(_latin1'ab'  AS char)    as c1,
+  cast(_latin1'a '  AS char)    as c2,
+  cast(_latin1'abc' AS char(2)) as c3,
+  cast(_latin1'a  ' AS char(2)) as c4,
+  cast(_latin1'a'   AS char(2)) as c5;
+select c1,c2,c3,c4,hex(c5) from t1;
+show create table t1;
+drop table t1;
+
+#
+# CAST to NCHAR with/without length
+#
+select
+  cast(_koi8r'ÆÇ'  AS nchar)    as c1,
+  cast(_koi8r'Æ '  AS nchar)    as c2,
+  cast(_koi8r'ÆÇÈ' AS nchar(2)) as c3,
+  cast(_koi8r'Æ  ' AS nchar(2)) as c4,
+  cast(_koi8r'Æ'   AS nchar(2)) as c5;
+
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+create table t1 select
+  cast(_koi8r'ÆÇ'  AS nchar)    as c1,
+  cast(_koi8r'Æ '  AS nchar)    as c2,
+  cast(_koi8r'ÆÇÈ' AS nchar(2)) as c3,
+  cast(_koi8r'Æ  ' AS nchar(2)) as c4,
+  cast(_koi8r'Æ'   AS nchar(2)) as c5;
+select * from t1;
+show create table t1;
+drop table t1;
+
+#
+# Bug 2202
+# CAST from BINARY to non-BINARY and from non-BINARY to BINARY
+#
+create table t1 (a binary(4), b char(4) character set koi8r);
+insert into t1 values (_binary'ÔÅÓÔ',_binary'ÔÅÓÔ');
+select a,b,cast(a as char character set cp1251),cast(b as binary) from t1;
+set names koi8r;
+select a,b,cast(a as char character set cp1251),cast(b as binary) from t1;
+set names cp1251;
+select a,b,cast(a as char character set cp1251),cast(b as binary) from t1;
+drop table t1;
+set names binary;
+
+#
+# The following should be fixed in 4.1
+#
+
+select cast("2001-1-1" as date) = "2001-01-01";
+select cast("2001-1-1" as datetime) = "2001-01-01 00:00:00";
+select cast("1:2:3" as TIME) = "1:02:03";
+
+#
+# Bug #5228 ORDER BY CAST(enumcol) sorts incorrectly under certain conditions
+#
+CREATE TABLE t1 (a enum ('aac','aab','aaa') not null);
+INSERT INTO t1 VALUES ('aaa'),('aab'),('aac');
+# these two should be in enum order
+SELECT a, CAST(a AS CHAR) FROM t1 ORDER BY CAST(a AS UNSIGNED) ;
+SELECT a, CAST(a AS CHAR(3)) FROM t1 ORDER BY CAST(a AS CHAR(2)), a;
+# these two should be in alphabetic order
+SELECT a, CAST(a AS UNSIGNED) FROM t1 ORDER BY CAST(a AS CHAR) ;
+SELECT a, CAST(a AS CHAR(2)) FROM t1 ORDER BY CAST(a AS CHAR(3)), a;
+DROP TABLE t1;
+
+#
+# Test for bug #6914 "Problems using time()/date() output in expressions".
+# When we are casting datetime value to DATE/TIME we should throw away
+# time/date parts (correspondingly).
+#
+select date_add(cast('2004-12-30 12:00:00' as date), interval 0 hour);
+select timediff(cast('2004-12-30 12:00:00' as time), '12:00:00');
+# Still we should not throw away "days" part of time value
+select timediff(cast('1 12:00:00' as time), '12:00:00');
+
+#
+# Bug #7036: Casting from string to unsigned would cap value of result at
+# maximum signed value instead of maximum unsigned value
+#
+select cast(18446744073709551615 as unsigned);
+select cast(18446744073709551615 as signed);
+select cast('18446744073709551615' as unsigned);
+select cast('18446744073709551615' as signed);
+select cast('9223372036854775807' as signed);
+
+select cast(concat('184467440','73709551615') as unsigned);
+select cast(concat('184467440','73709551615') as signed);
+
+select cast(repeat('1',20) as unsigned);
+select cast(repeat('1',20) as signed);
+
+#
+# Bug #13344: cast of large decimal to signed int not handled correctly
+#
+select cast(1.0e+300 as signed int);
+
+#
+# Test that we create the correct types with create ... select cast()
+#
+
+create table t1  select cast(1 as unsigned), cast(1 as signed), cast(1 as double(5,2)), cast(1 as decimal(5,3)), cast("A" as binary), cast("A" as char(100)), cast("2001-1-1" as DATE), cast("2001-1-1" as DATETIME), cast("1:2:3" as TIME);
+show create table t1;
+drop table t1;
+
+#
+# Bugs: #15098: CAST(column double TO signed int), wrong result
+#
+CREATE TABLE t1 (f1 double);
+INSERT INTO t1 SET f1 = -1.0e+30 ;
+INSERT INTO t1 SET f1 = +1.0e+30 ;
+SELECT f1 AS double_val, CAST(f1 AS SIGNED INT) AS cast_val FROM t1;
+DROP TABLE t1;					   
+
+#
+# Bug #23938: cast(NULL as DATE)
+#
+
+select isnull(date(NULL)), isnull(cast(NULL as DATE));
+
+#
+# Bug#23656: Wrong result of CAST from DATE to int
+#
+SELECT CAST(cast('01-01-01' as date) AS UNSIGNED);
+SELECT CAST(cast('01-01-01' as date) AS SIGNED);
+
+--echo End of 4.1 tests
+
+
+#decimal-related additions
+select cast('1.2' as decimal(3,2));
+select 1e18 * cast('1.2' as decimal(3,2));
+select cast(cast('1.2' as decimal(3,2)) as signed);
+set @v1=1e18;
+select cast(@v1 as decimal(22, 2));
+select cast(-1e18 as decimal(22,2));
+
+create table t1(s1 time);
+insert into t1 values ('11:11:11');
+select cast(s1 as decimal(7,2)) from t1;
+drop table t1;
+
+#
+# Test for bug #11283: field conversion from varchar, and text types to decimal
+#
+
+CREATE TABLE t1 (v varchar(10), tt tinytext, t text,
+                 mt mediumtext, lt longtext);
+INSERT INTO t1 VALUES ('1.01', '2.02', '3.03', '4.04', '5.05');
+
+SELECT CAST(v AS DECIMAL), CAST(tt AS DECIMAL), CAST(t AS DECIMAL),
+       CAST(mt AS DECIMAL), CAST(lt AS DECIMAL) from t1;
+
+DROP TABLE t1;
+
+#
+# Bug #10237 (CAST(NULL DECIMAL) crashes server)
+#
+select cast(NULL as decimal(6)) as t1;
+
+
+#
+# Bug #17903: cast to char results in binary
+#
+set names latin1;
+select hex(cast('a' as char(2) binary));
+select hex(cast('a' as binary(2)));
+select hex(cast('a' as char(2) binary));
+
+#
+# Bug#29898: Item_date_typecast::val_int doesn't reset the null_value flag.
+#
+CREATE TABLE t1 (d1 datetime);
+INSERT INTO t1(d1) VALUES ('2007-07-19 08:30:00'), (NULL),
+  ('2007-07-19 08:34:00'), (NULL), ('2007-07-19 08:36:00');
+SELECT cast(date(d1) as signed) FROM t1;
+drop table t1;
+
+#
+# Bug #31990: MINUTE() and SECOND() return bogus results when used on a DATE
+#
+
+# Show that HH:MM:SS of a DATE are 0, and that it's the same for columns
+# and typecasts (NULL in, NULL out).
+CREATE TABLE t1 (f1 DATE);
+INSERT INTO t1 VALUES ('2007-07-19'), (NULL);
+SELECT HOUR(f1),
+       MINUTE(f1),
+       SECOND(f1) FROM t1;
+SELECT HOUR(CAST('2007-07-19' AS DATE)),
+       MINUTE(CAST('2007-07-19' AS DATE)),
+       SECOND(CAST('2007-07-19' AS DATE));
+SELECT HOUR(CAST(NULL AS DATE)),
+       MINUTE(CAST(NULL AS DATE)),
+       SECOND(CAST(NULL AS DATE));
+SELECT HOUR(NULL),
+       MINUTE(NULL),
+       SECOND(NULL);
+DROP TABLE t1;
+
+--echo End of 5.0 tests
+
+--echo #
+--echo #  Bug #44766: valgrind error when using convert() in a subquery
+--echo #
+
+CREATE TABLE t1(a tinyint);
+INSERT INTO t1 VALUES (127);
+SELECT 1 FROM
+(
+ SELECT CONVERT(t2.a USING UTF8) FROM t1, t1 t2 LIMIT 1
+) AS s LIMIT 1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #11765023: 57934: DOS POSSIBLE SINCE BINARY CASTING 
+--echo #   DOESN'T ADHERE TO MAX_ALLOWED_PACKET
+
+set @save_max_allowed_packet=@@global.max_allowed_packet;
+SET @@GLOBAL.max_allowed_packet=2048;
+# reconnect to make the new max packet size take effect
+--connect (newconn, localhost, root,,)
+
+SELECT CONVERT('a', BINARY(2049));  
+SELECT CONVERT('a', CHAR(2049));  
+SELECT length(CONVERT(repeat('a',2048), CHAR(2049)));
+
+connection default;
+disconnect newconn;
+SET @@GLOBAL.max_allowed_packet=@save_max_allowed_packet;
+
+--echo #
+--echo # Bug#13519724 63793: CRASH IN DTCOLLATION::SET(DTCOLLATION &SET)
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(50));
+
+SELECT a FROM t1 
+WHERE CAST(a as BINARY)=x'62736D697468' 
+  AND CAST(a AS BINARY)=x'65736D697468';
+
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#13581962 HIGH MEMORY USAGE ATTEMPT, THEN CRASH WITH 
+--echo # LONGTEXT, UNION, USER VARIABLE
+--echo # Bug#14096619 UNABLE TO RESTORE DATABASE DUMP
+--echo #
+
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t1 AS SELECT CONCAT(CAST(REPEAT('9', 1000) AS SIGNED)),
+                          CONCAT(CAST(REPEAT('9', 1000) AS UNSIGNED));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo # End of test for Bug#13581962, Bug#14096619
+
+--echo End of 5.1 tests
+
+select cast("2101-00-01 02:03:04" as datetime);
+select cast(cast("2101-00-01 02:03:04" as datetime) as time);
+SELECT CAST(CAST('20:05:05' AS TIME) as date);
+set sql_mode= TRADITIONAL;
+select cast("2101-00-01 02:03:04" as datetime);
+select cast(cast("2101-00-01 02:03:04" as datetime) as time);
+SELECT CAST(CAST('20:05:05' AS TIME) as date);
+set sql_mode=DEFAULT;
+
+#
+# lp:737458 Casting dates and times into integers works differently
+# in 5.1-micro
+#
+create table t1 (f1 time, f2 date, f3 datetime);
+insert into t1 values ('11:22:33','2011-12-13','2011-12-13 11:22:33');
+select cast(f1 as unsigned), cast(f2 as unsigned), cast(f3 as unsigned) from t1;
+drop table t1;
+
+#
+# CAST(... AS DATE) and invalid dates
+#
+SELECT CAST(TIME('10:20:30') AS DATE) + INTERVAL 1 DAY;
+
+SET SQL_MODE=ALLOW_INVALID_DATES;
+SELECT DATE("foo");
+
+#
+# CAST and field definition using same fields in LEX
+#
+create table t1 (a int, b char(5) as (cast("a" as char(10) binary) + a) );
+show create table t1;
+drop table t1;
+
+#
+# CAST (... BINARY)
+#
+select collation(cast("a" as char(10) binary));
+select collation(cast("a" as char(10) charset utf8 binary));
+select collation(cast("a" as char(10) ascii binary));
+select collation(cast("a" as char(10) binary charset utf8));
+select collation(cast("a" as char(10) binary ascii));
+
+--echo #
+--echo # MDEV-11030 Assertion `precision > 0' failed in decimal_bin_size
+--echo #
+
+SELECT * FROM (SELECT IFNULL(CONVERT(NULL, UNSIGNED), NULL)) sq;
+
+CREATE TABLE t1 AS SELECT IFNULL(CONVERT(NULL, UNSIGNED), NULL);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT COALESCE(CONVERT(NULL, UNSIGNED), NULL);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT CASE WHEN TRUE THEN CONVERT(NULL, UNSIGNED) ELSE NULL END;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT IFNULL(CONVERT(NULL,SIGNED),CONVERT(NULL,UNSIGNED)) AS a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  -1,
+  CONVERT(NULL,SIGNED),
+  CONCAT(CONVERT(NULL,SIGNED)),
+  1,
+  CONVERT(NULL,UNSIGNED),
+  CONCAT(CONVERT(NULL,UNSIGNED));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  CONVERT('',SIGNED),
+  CONCAT(CONVERT('',SIGNED)),
+  CONVERT('',UNSIGNED),
+  CONCAT(CONVERT('',UNSIGNED));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-12849 Out-of-range errors when casting hex-hybrid to SIGNED and UNSIGNED
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+DELIMITER $$;
+CREATE PROCEDURE p1(hh TEXT)
+BEGIN
+  EXECUTE IMMEDIATE
+    CONCAT('CREATE OR REPLACE TABLE t1 AS SELECT CAST(0x', hh, ' AS UNSIGNED) AS c');
+  DESCRIBE t1;
+  SELECT c, LENGTH(c) FROM t1;
+  DROP TABLE t1;
+  EXECUTE IMMEDIATE
+    CONCAT('CREATE OR REPLACE TABLE t1 AS SELECT CAST(0x', hh, ' AS SIGNED) AS c');
+  DESCRIBE t1;
+  SELECT c, LENGTH(c) FROM t1;
+  DROP TABLE t1;
+  SELECT '' AS `------`;
+END
+$$
+DELIMITER ;$$
+CALL p1('FF');
+CALL p1('FFFF');
+CALL p1('FFFFFF');
+CALL p1('FFFFFFFF');
+CALL p1('FFFFFFFFFF');
+CALL p1('FFFFFFFFFFFF');
+CALL p1('FFFFFFFFFFFFFF');
+CALL p1('FFFFFFFFFFFFFFFF');
+CALL p1('FFFFFFFFFFFFFFFFFF');
+CALL p1('FFFFFFFFFFFFFFFFFFFF');
+
+CALL p1('8000000000000000');
+CALL p1('80000000000000FF');
+CALL p1('800000000000FFFF');
+CALL p1('8000000000FFFFFF');
+CALL p1('80000000FFFFFFFF');
+CALL p1('800000FFFFFFFFFF');
+CALL p1('8000FFFFFFFFFFFF');
+CALL p1('80FFFFFFFFFFFFFF');
+CALL p1('8FFFFFFFFFFFFFFF');
+
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # MDEV-12852 Out-of-range errors when CAST(1-2 AS UNSIGNED
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT
+  CAST(-1 AS UNSIGNED),
+  CAST(1-2 AS UNSIGNED);
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # MDEV-12853 Out-of-range errors when CAST('-1' AS UNSIGNED
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT CAST('-1' AS UNSIGNED);
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # MDEV-14376 Explicit CAST(CHAR(N)) erroneously escalates warnings to errors in STRICT_ALL_TABLES
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+SELECT CAST('xxx' AS CHAR(1));
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(1));
+INSERT INTO t1 VALUES (CAST('xxx' AS CHAR(1)));
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(3));
+INSERT INTO t1 VALUES ('xxx');
+UPDATE t1 SET a=CAST(a AS CHAR(1));
+DROP TABLE t1;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a VARCHAR(30) CHARACTER SET latin1;
+  SET a=CAST('xxx' AS CHAR(1));
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a VARCHAR(30) CHARACTER SET latin1;
+  SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a VARCHAR(30) CHARACTER SET latin1;
+  SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET utf8);
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a VARCHAR(30) CHARACTER SET utf8;
+  SET a=CAST('xxx' AS CHAR(1));
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a VARCHAR(30) CHARACTER SET utf8;
+  SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a VARCHAR(30) CHARACTER SET utf8;
+  SET a=CAST(_latin1'xxx' AS CHAR(1) CHARACTER SET utf8);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Conversion problems still escalate warnings to errors (without right truncation)
+
+DELIMITER $$;
+--error ER_CANNOT_CONVERT_CHARACTER
+BEGIN NOT ATOMIC
+  DECLARE a VARCHAR(30) CHARACTER SET utf8;
+  SET a=CAST(_utf8 0xD18F AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # Conversion problems still escalate warnings to errors (with right truncation)
+
+DELIMITER $$;
+--error ER_CANNOT_CONVERT_CHARACTER
+BEGIN NOT ATOMIC
+  DECLARE a VARCHAR(30) CHARACTER SET utf8;
+  SET a=CAST(_utf8 0xD18FD18F AS CHAR(1) CHARACTER SET latin1);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # CAST(number AS CHAR) escalates warnings to errors on truncation
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES (CAST(123 AS CHAR(1)));
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('1');
+--error ER_TRUNCATED_WRONG_VALUE
+UPDATE t1 SET a=CAST(123 AS CHAR(1));
+DROP TABLE t1;
+
+DELIMITER $$;
+--error ER_TRUNCATED_WRONG_VALUE
+BEGIN NOT ATOMIC
+  DECLARE a VARCHAR(10);
+  SET a=CAST(123 AS CHAR(1));
+END;
+$$
+DELIMITER ;$$
+
+
+--echo # CAST(temporal AS CHAR) escalates warnings to errors on truncation
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES (CAST(TIME'10:20:30' AS CHAR(1)));
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('1');
+--error ER_TRUNCATED_WRONG_VALUE
+UPDATE t1 SET a=CAST(TIME'10:20:30' AS CHAR(1));
+DROP TABLE t1;
+
+DELIMITER $$;
+--error ER_TRUNCATED_WRONG_VALUE
+BEGIN NOT ATOMIC
+  DECLARE a VARCHAR(10);
+  SET a=CAST(TIME'10:20:30' AS CHAR(1));
+END;
+$$
+DELIMITER ;$$
+
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-10307 CAST(11068046444225730969 AS SIGNED) does not return a warning
+--echo #
+
+SELECT CAST(11068046444225730969 AS SIGNED);
+
+--echo #
+--echo # MDEV-8919 Wrong result for CAST(9999999999999999999.0)
+--echo #
+
+SET sql_mode='';
+
+SELECT CAST(9999999999999999999e0 AS UNSIGNED);
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (9999999999999999999e0);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SELECT CAST(9999999999999999999.0 AS UNSIGNED);
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (9999999999999999999.0);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SELECT CAST(-1.0 AS UNSIGNED);
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-1.0);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SELECT CAST(-1e0 AS UNSIGNED);
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-1e0);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SELECT CAST(-1e308 AS UNSIGNED);
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (-1e308);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SELECT CAST(TIME'-00:00:01.123' AS UNSIGNED);
+CREATE TABLE t1 (a BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (TIME'-00:00:01.123');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DOUBLE UNSIGNED);
+INSERT INTO t1 VALUES (1.9e19);
+SELECT CAST(a AS SIGNED), CAST(MIN(a) AS SIGNED) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DECIMAL(30,1) UNSIGNED);
+INSERT INTO t1 VALUES (1e19);
+SELECT a, CAST(a AS SIGNED) FROM t1;
+DROP TABLE t1;
+
+SET sql_mode=DEFAULT;

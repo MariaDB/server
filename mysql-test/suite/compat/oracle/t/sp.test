@@ -1,0 +1,2416 @@
+--source include/default_charset.inc
+
+SET sql_mode=ORACLE;
+
+--echo # Testing routines with no parameters
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+AS
+BEGIN
+  RETURN 10;
+END;
+/
+DELIMITER ;/
+--vertical_results
+SHOW CREATE FUNCTION f1;
+--horizontal_results
+SELECT f1();
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  SET @a=10;
+END;
+/
+DELIMITER ;/
+--vertical_results
+SHOW CREATE PROCEDURE p1;
+--horizontal_results
+SET @a=0;
+CALL p1();
+SELECT @a;
+DROP PROCEDURE p1;
+
+--echo # Testing ":=" to set the default value of a variable
+DELIMITER /;
+CREATE FUNCTION f1 () RETURN NUMBER(10) AS
+  a NUMBER(10) := 10;
+BEGIN
+  DECLARE
+    b NUMBER(10) DEFAULT 3;
+  BEGIN
+    RETURN a+b;
+  END;
+END;
+/
+DELIMITER ;/
+SELECT f1();
+DROP FUNCTION f1;
+
+--echo # Testing labels
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT) RETURN CLOB AS
+BEGIN
+  <<label1>>
+  BEGIN
+    IF a = 1 THEN
+      LEAVE label1;
+    END IF;
+    RETURN 'IS NOT 1';
+  END label1;
+  RETURN 'IS 1';
+END;
+/
+DELIMITER ;/
+SELECT f1(1);
+SELECT f1(2);
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT) RETURN INT IS
+BEGIN
+  <<label1>>
+  LOOP
+    IF a = 2 THEN
+      LEAVE label1;
+    END IF;
+    SET a= a-1;
+  END LOOP;
+  RETURN a;
+END;
+/
+DELIMITER ;/
+SELECT f1(4);
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT) RETURN INT AS
+BEGIN
+  <<label1>>
+  WHILE a>0 LOOP
+    IF a = 2 THEN
+      LEAVE label1;
+    END IF;
+    SET a= a-1;
+  END LOOP label1;
+  RETURN a;
+END;
+/
+DELIMITER ;/
+SELECT f1(4);
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT) RETURN INT AS
+BEGIN
+  <<label1>>
+  REPEAT
+    IF a = 2 THEN
+      LEAVE label1;
+    END IF;
+    SET a= a-1;
+  UNTIL a=0 END REPEAT;
+  RETURN a;
+END;
+/
+DELIMITER ;/
+SELECT f1(4);
+DROP FUNCTION f1;
+
+--echo # Testing IN/OUT/INOUT
+
+DELIMITER /;
+CREATE PROCEDURE p1 (p1 IN VARCHAR2(10), p2 OUT VARCHAR2(10)) AS
+BEGIN
+  SET p1='p1new';
+  SET p2='p2new';
+END;
+/
+DELIMITER ;/
+SET @p1='p1', @p2='p2';
+CALL p1(@p1, @p2);
+SELECT @p1, @p2;
+DROP PROCEDURE p1;
+
+--echo # Testing Oracle-style assigment
+DELIMITER /;
+CREATE PROCEDURE p1 (p1 OUT VARCHAR2(10)) AS
+BEGIN
+  p1:= 'p1new';
+END;
+/
+DELIMITER ;/
+SET @p1='p1';
+CALL p1(@p1);
+SELECT @p1;
+DROP PROCEDURE p1;
+
+--echo # Testing that NULL is a valid statement
+DELIMITER /;
+CREATE PROCEDURE p1(a INT) AS
+BEGIN
+  NULL;
+END;
+/
+DELIMITER ;/
+DROP PROCEDURE p1;
+
+DELIMITER /;
+CREATE PROCEDURE p1(a INT) AS
+  a INT:=10;
+BEGIN
+  IF a=10 THEN NULL; ELSE NULL; END IF;
+END;
+/
+DELIMITER ;/
+DROP PROCEDURE p1;
+
+--echo # Keywords that are OK for table names, but not for SP variables
+CREATE TABLE function (function int);
+INSERT INTO function SET function=10;
+SELECT function.function FROM function;
+DROP TABLE function;
+
+--echo # Testing that (some) keyword_sp are allowed in Oracle-style assignments
+DELIMITER /;
+CREATE PROCEDURE p1 (action OUT INT) AS BEGIN action:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (clob OUT INT) AS BEGIN clob:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (enum OUT INT) AS BEGIN enum:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (via OUT INT) AS BEGIN via:=10; END;/
+DROP PROCEDURE p1/
+DELIMITER ;/
+
+--echo # Testing keyword_directly_assignable
+DELIMITER /;
+CREATE PROCEDURE p1 (ascii OUT INT) AS BEGIN ascii:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (backup OUT INT) AS BEGIN backup:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (binlog OUT INT) AS BEGIN binlog:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (byte OUT INT) AS BEGIN byte:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (cache OUT INT) AS BEGIN cache:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (checksum OUT INT) AS BEGIN checksum:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (checkpoint OUT INT) AS BEGIN checkpoint:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (column_add OUT INT) AS BEGIN column_add:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (column_check OUT INT) AS BEGIN column_check:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (column_create OUT INT) AS BEGIN column_create:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (column_delete OUT INT) AS BEGIN column_delete:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (column_get OUT INT) AS BEGIN column_get:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (deallocate OUT INT) AS BEGIN deallocate:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (examined OUT INT) AS BEGIN examined:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (execute OUT INT) AS BEGIN execute:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (flush OUT INT) AS BEGIN flush:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (format OUT INT) AS BEGIN format:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (get OUT INT) AS BEGIN get:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (help OUT INT) AS BEGIN help:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (host OUT INT) AS BEGIN host:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (install OUT INT) AS BEGIN install:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (option OUT INT) AS BEGIN option:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (options OUT INT) AS BEGIN options:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (owner OUT INT) AS BEGIN owner:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (parser OUT INT) AS BEGIN parser:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (port OUT INT) AS BEGIN port:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (prepare OUT INT) AS BEGIN prepare:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (remove OUT INT) AS BEGIN remove:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (reset OUT INT) AS BEGIN reset:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (restore OUT INT) AS BEGIN restore:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (security OUT INT) AS BEGIN security:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (server OUT INT) AS BEGIN server:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (signed OUT INT) AS BEGIN signed:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (socket OUT INT) AS BEGIN socket:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (slave OUT INT) AS BEGIN slave:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (slaves OUT INT) AS BEGIN slaves:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (soname OUT INT) AS BEGIN soname:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (start OUT INT) AS BEGIN start:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (stop OUT INT) AS BEGIN stop:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (stored OUT INT) AS BEGIN stored:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (unicode OUT INT) AS BEGIN unicode:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (uninstall OUT INT) AS BEGIN uninstall:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (upgrade OUT INT) AS BEGIN upgrade:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (wrapper OUT INT) AS BEGIN wrapper:=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (xa OUT INT) AS BEGIN xa:=10; END;/
+DROP PROCEDURE p1/
+DELIMITER ;/
+
+
+--echo # Testing that keyword_directly_not_assignable does not work in :=
+DELIMITER /;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 (commit OUT INT) AS BEGIN commit:=10; END;/
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 (rollback OUT INT) AS BEGIN rollback:=10; END;/
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 (shutdown OUT INT) AS BEGIN shutdown:=10; END;/
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1 (exception OUT INT) AS BEGIN exception:=10; END;/
+DELIMITER ;/
+
+
+--echo # Testing that keyword_directly_not_assignable works in SET statements.
+DELIMITER /;
+CREATE PROCEDURE p1 (contains OUT INT) AS BEGIN SET contains=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (language OUT INT) AS BEGIN SET language=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (no OUT INT) AS BEGIN SET no=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (charset OUT INT) AS BEGIN SET charset=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (do OUT INT) AS BEGIN SET do=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (repair OUT INT) AS BEGIN SET repair=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (handler OUT INT) AS BEGIN SET handler=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (open OUT INT) AS BEGIN SET open=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (close OUT INT) AS BEGIN SET close=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (savepoint OUT INT) AS BEGIN SET savepoint=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (truncate OUT INT) AS BEGIN SET truncate=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (begin OUT INT) AS BEGIN SET begin=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (end OUT INT) AS BEGIN SET end=10; END;/
+DROP PROCEDURE p1/
+CREATE PROCEDURE p1 (exception OUT INT) AS BEGIN SET exception=10; END;/
+DROP PROCEDURE p1/
+DELIMITER ;/
+
+--echo # Testing that keyword_directly_not_assignable works in table/column names
+CREATE TABLE contains (contains INT);
+DROP TABLE contains;
+CREATE TABLE language (language INT);
+DROP TABLE language;
+CREATE TABLE no (no INT);
+DROP TABLE no;
+CREATE TABLE charset (charset INT);
+DROP TABLE charset;
+CREATE TABLE do (do INT);
+DROP TABLE do;
+CREATE TABLE repair (repair INT);
+DROP TABLE repair;
+CREATE TABLE handler (handler INT);
+DROP TABLE handler;
+CREATE TABLE open (open INT);
+DROP TABLE open;
+CREATE TABLE close (close INT);
+DROP TABLE close;
+CREATE TABLE savepoint (savepoint INT);
+DROP TABLE savepoint;
+CREATE TABLE truncate (truncate INT);
+DROP TABLE truncate;
+CREATE TABLE begin (begin INT);
+DROP TABLE begin;
+CREATE TABLE end (end INT);
+DROP TABLE end;
+CREATE TABLE exception (exception INT);
+DROP TABLE exception;
+
+--echo # Testing ELSIF
+DELIMITER /;
+CREATE FUNCTION f1(a INT) RETURN CLOB
+AS
+BEGIN
+  IF a=1 THEN RETURN 'a is 1';
+  ELSIF a=2 THEN RETURN 'a is 2';
+  ELSE RETURN 'a is unknown';
+  END IF;
+END;
+/
+DELIMITER ;/
+SELECT f1(2) FROM DUAL;
+DROP FUNCTION f1;
+
+
+
+--echo # Testing top-level declarations
+DELIMITER /;
+CREATE PROCEDURE p1 (p1 OUT VARCHAR2(10))
+AS
+  p2 VARCHAR(10);
+BEGIN
+  p2:='p1new';
+  p1:=p2;
+END;
+/
+DELIMITER ;/
+SET @p1='p1';
+CALL p1(@p1);
+SELECT @p1;
+DROP PROCEDURE p1;
+
+DELIMITER /;
+CREATE FUNCTION f1 (p1 VARCHAR2(10)) RETURN VARCHAR(20)
+AS
+  p2 VARCHAR(10);
+BEGIN
+  p2:='new';
+  RETURN CONCAT(p1, p2);
+END;
+/
+DELIMITER ;/
+SET @p1='p1';
+SELECT f1(@p1);
+DROP FUNCTION f1;
+
+--echo # Testing non-top declarations
+
+DELIMITER /;
+CREATE PROCEDURE p1 (p1 OUT VARCHAR2(10))
+AS
+BEGIN
+  DECLARE
+    p2 VARCHAR(10);
+  BEGIN
+    p2:='p1new';
+    p1:=p2;
+  END;
+  DECLARE
+    t1 VARCHAR(10);
+    t2 VARCHAR(10);
+  BEGIN
+  END;
+END;
+/
+DELIMITER ;/
+SET @p1='p1';
+CALL p1(@p1);
+SELECT @p1;
+DROP PROCEDURE p1;
+
+DELIMITER /;
+CREATE FUNCTION f1 (p1 VARCHAR2(10)) RETURN VARCHAR(20)
+AS
+BEGIN
+  DECLARE
+    p2 VARCHAR(10);
+  BEGIN
+    p2:='new';
+    RETURN CONCAT(p1, p2);
+  END;
+  DECLARE
+    t1 VARCHAR(10);
+    t2 VARCHAR(10);
+  BEGIN
+  END;
+END;
+/
+DELIMITER ;/
+SET @p1='p1';
+SELECT f1(@p1);
+DROP FUNCTION f1;
+
+
+--echo # Testing exceptions
+
+CREATE TABLE t1 (c1 INT);
+
+DELIMITER /;
+
+CREATE PROCEDURE sp1 (p1 IN VARCHAR2(20), p2 OUT VARCHAR2(30))
+IS
+  v1 INT;
+BEGIN
+  SELECT c1 INTO v1 FROM t1;
+  p2 := p1;
+EXCEPTION
+  WHEN NOT FOUND THEN
+  BEGIN
+    p2 := 'def';
+  END;
+END;
+/
+
+DELIMITER ;/
+
+CALL sp1('abc', @a);
+SELECT @a;
+
+DROP PROCEDURE sp1;
+DROP TABLE t1;
+
+
+DELIMITER /;
+CREATE PROCEDURE sp1 (v IN OUT INT, error IN INT)
+IS
+BEGIN
+  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=error, MESSAGE_TEXT='User defined error!';
+  v:= 223;
+EXCEPTION
+  WHEN 30001 THEN
+  BEGIN
+    v:= 113;
+  END;
+END;
+/
+DELIMITER ;/
+SET @v=10;
+CALL sp1(@v, 30001);
+--error 30002
+CALL sp1(@v, 30002);
+SELECT @v;
+DROP PROCEDURE sp1;
+
+
+DELIMITER /;
+CREATE PROCEDURE sp1 (v IN OUT INT, error IN INT)
+IS
+BEGIN
+  BEGIN
+    BEGIN
+      SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=error, MESSAGE_TEXT='User defined error!';
+      v:= 223;
+    EXCEPTION
+      WHEN 30001 THEN
+      BEGIN
+        v:= 113;
+      END;
+    END;
+  END;
+END;
+/
+DELIMITER ;/
+SET @v=10;
+CALL sp1(@v, 30001);
+SELECT @v;
+SET @v=10;
+--error 30002
+CALL sp1(@v, 30002);
+SELECT @v;
+DROP PROCEDURE sp1;
+
+
+--echo #
+--echo # Testing EXIT statement
+--echo #
+
+DELIMITER /;
+--error ER_SP_LILABEL_MISMATCH
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  EXIT;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+--error ER_SP_LILABEL_MISMATCH
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  <<lable1>>
+  BEGIN
+    <<label2>>
+    LOOP
+      EXIT label1;
+    END LOOP;
+  END;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  LOOP
+    LOOP
+      i:= i + 1;
+      IF i >= 5 THEN
+        EXIT;
+      END IF;
+    END LOOP;
+    i:= i + 100;
+    EXIT;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  <<label1>>
+  LOOP
+    <<label2>>
+    LOOP
+      i:= i + 1;
+      IF i >= 5 THEN
+        EXIT label2;
+      END IF;
+    END LOOP;
+    i:= i + 100;
+    EXIT;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  <<label1>>
+  LOOP
+    <<label2>>
+    LOOP
+      i:= i + 1;
+      IF i >= 5 THEN
+        EXIT label1;
+      END IF;
+    END LOOP;
+    i:= i + 100;
+    EXIT;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  LOOP
+    i:= i + 1;
+    EXIT WHEN i >=5;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  <<label1>>
+  LOOP
+    <<label2>>
+    LOOP
+      i:= i + 1;
+      EXIT label2 WHEN i >= 5;
+    END LOOP;
+    i:= i + 100;
+    EXIT;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+IS
+  i INT := 0;
+BEGIN
+  <<label1>>
+  LOOP
+    <<label2>>
+    LOOP
+      i:= i + 1;
+      EXIT label1 WHEN i >= 5;
+    END LOOP;
+    i:= i + 100;
+    EXIT;
+  END LOOP;
+  RETURN i;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+--echo # Testing CURSOR declaration
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+AS
+  v_a INT:=10;
+  CURSOR c IS SELECT a FROM t1;
+BEGIN
+  OPEN c;
+  FETCH c INTO v_a;
+  CLOSE c;
+  RETURN v_a;
+EXCEPTION
+  WHEN OTHERS THEN RETURN -1;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo # Testing RETURN in procedures
+
+DELIMITER /;
+--error ER_SP_BADRETURN
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+  RETURN 10;
+END;
+/
+DELIMITER ;/
+
+DELIMITER /;
+--error ER_PARSE_ERROR
+CREATE FUNCTION f1 (a INT) RETURN INT
+AS
+BEGIN
+  RETURN;
+END;
+/
+DELIMITER ;/
+
+DELIMITER /;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+  IF a < 10 THEN
+  BEGIN
+    a:= a - 1;
+    RETURN;
+  END;
+  END IF;
+  a:= a + 1;
+EXCEPTION
+  WHEN OTHERS THEN RETURN;
+END;
+/
+DELIMITER ;/
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+SET @v=9;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+DELIMITER /;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+BEGIN
+  DROP TABLE t1_non_existent;
+EXCEPTION
+  WHEN OTHERS THEN
+  BEGIN
+    a:= 100;
+    RETURN;
+  END;
+END;
+/
+DELIMITER ;/
+SET @v=10;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+
+--echo # Testing WHILE loop
+
+DELIMITER /;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+  i INT:= 1;
+  j INT:= 3;
+BEGIN
+  WHILE i<=j
+  LOOP
+    a:= a + i;
+    i:= i + 1;
+  END LOOP;
+END;
+/
+DELIMITER ;/
+SET @v=0;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+DELIMITER /;
+CREATE PROCEDURE p1 (a IN OUT INT)
+AS
+  i INT:= 1;
+  j INT:= 3;
+BEGIN
+  <<label>>
+  WHILE i<=j
+  LOOP
+    a:= a + i;
+    i:= i + 1;
+  END LOOP label;
+END;
+/
+DELIMITER ;/
+SET @v=0;
+CALL p1(@v);
+SELECT @v;
+DROP PROCEDURE p1;
+
+
+--echo # Testing the FOR loop statement
+
+CREATE TABLE t1 (a INT);
+DELIMITER /;
+FOR i IN 1..3
+LOOP
+  INSERT INTO t1 VALUES (i);
+END LOOP;
+/
+DELIMITER ;/
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+DELIMITER /;
+--error ER_PARSE_ERROR
+CREATE FUNCTION f1 (lower_bound INT, upper_bound INT, lim INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  FOR i IN lower_bound . . upper_bound
+  LOOP
+    NULL
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+CREATE FUNCTION f1 (lower_bound INT, upper_bound INT, lim INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  FOR i IN lower_bound .. upper_bound
+  LOOP
+    total:= total + i;
+    IF i = lim THEN
+      EXIT;
+    END IF;
+     -- Bounds are calculated only once.
+     -- The below assignments have no effect on the loop condition
+    lower_bound:= 900;
+    upper_bound:= 1000;
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SELECT f1(1, 3, 100) FROM DUAL;
+SELECT f1(1, 3, 2) FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  FOR i IN 1 .. 5
+  LOOP
+    total:= total + 1000;
+    FOR j IN 1 .. 5
+    LOOP
+      total:= total + 1;
+      IF j = 3 THEN
+        EXIT; -- End the internal loop
+      END IF;
+    END LOOP;
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SELECT f1() FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT, b INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  FOR i IN REVERSE 1..a
+  LOOP
+    total:= total + i;
+    IF i = b THEN
+      EXIT;
+    END IF;
+  END LOOP;
+  RETURN total;
+END
+/
+DELIMITER ;/
+SELECT f1(3, 100) FROM DUAL;
+SELECT f1(3, 2) FROM DUAL;
+DROP FUNCTION f1;
+
+
+--echo # Testing labeled FOR LOOP statement
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT, limita INT, b INT, limitb INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  <<la>>
+  FOR ia IN 1 .. a
+  LOOP
+    total:= total + 1000;
+    <<lb>>
+    FOR ib IN 1 .. b
+    LOOP
+      total:= total + 1;
+      EXIT lb WHEN ib = limitb;
+      EXIT la WHEN ia = limita;
+    END LOOP lb;
+  END LOOP la;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SELECT f1(1, 1, 1, 1) FROM DUAL;
+SELECT f1(1, 2, 1, 2) FROM DUAL;
+SELECT f1(2, 1, 2, 1) FROM DUAL;
+SELECT f1(2, 1, 2, 2) FROM DUAL;
+SELECT f1(2, 2, 2, 2) FROM DUAL;
+SELECT f1(2, 3, 2, 3) FROM DUAL;
+DROP FUNCTION f1;
+
+
+--echo # Testing labeled ITERATE in a labeled FOR LOOP statement
+
+DELIMITER /;
+CREATE FUNCTION f1 (a INT, b INT, blim INT) RETURN INT
+AS
+  total INT := 0;
+BEGIN
+  <<la>>
+  FOR ia IN 1 .. a
+  LOOP
+    total:= total + 1000;
+    DECLARE
+      ib INT:= 1;
+    BEGIN
+      WHILE ib <= b
+      LOOP
+        IF ib > blim THEN
+          ITERATE la;
+        END IF;
+        ib:= ib + 1;
+        total:= total + 1;
+      END LOOP;
+    END;
+  END LOOP la;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SELECT f1(3,3,0), f1(3,3,1), f1(3,3,2), f1(3,3,3), f1(3,3,4) FROM DUAL;
+DROP FUNCTION f1;
+
+
+--echo # Testing CONTINUE statement
+
+DELIMITER /;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+  total INT:= 0;
+BEGIN
+  FOR i IN 1 .. a
+  LOOP
+    IF i=5 THEN
+      CONTINUE;
+    END IF;
+    total:= total + 1;
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+  total INT:= 0;
+BEGIN
+  <<lj>>
+  FOR j IN 1 .. 2
+  LOOP
+    FOR i IN 1 .. a
+    LOOP
+      IF i=5 THEN
+        CONTINUE lj;
+      END IF;
+      total:= total + 1;
+    END LOOP;
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SELECT f1(3), f1(4), f1(5) FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+  total INT:= 0;
+BEGIN
+  <<lj>>
+  FOR j IN 1 .. 2
+  LOOP
+    FOR i IN 1 .. a
+    LOOP
+      CONTINUE lj WHEN i=5;
+      total:= total + 1;
+    END LOOP;
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SELECT f1(3), f1(4), f1(5) FROM DUAL;
+DROP FUNCTION f1;
+
+
+DELIMITER /;
+CREATE FUNCTION f1(a INT) RETURN INT
+AS
+  total INT:= 0;
+  i INT:= 1;
+BEGIN
+  WHILE i <= a
+  LOOP
+    i:= i + 1;
+    IF i=6 THEN
+      CONTINUE;
+    END IF;
+    total:= total + 1;
+  END LOOP;
+  RETURN total;
+END;
+/
+DELIMITER ;/
+SELECT f1(3), f1(4), f1(5), f1(6) FROM DUAL;
+DROP FUNCTION f1;
+
+--echo #
+--echo # Testing behaviour of unknown identifiers in EXIT and CONTINUE statements
+--echo #
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1
+AS
+BEGIN
+  LOOP
+    EXIT WHEN unknown_ident IS NULL;
+  END LOOP;
+END$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1
+AS
+BEGIN
+  <<label>>
+  LOOP
+    EXIT label WHEN unknown_ident IS NULL;
+  END LOOP;
+END$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1
+AS
+BEGIN
+  LOOP
+    CONTINUE WHEN unknown_ident IS NULL;
+  END LOOP;
+END$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1
+AS
+BEGIN
+  <<label>>
+  LOOP
+    CONTINUE label WHEN unknown_ident IS NULL;
+  END LOOP;
+END$$
+DELIMITER ;$$
+
+--echo #
+--echo # MDEV-10583 sql_mode=ORACLE: SQL%ROWCOUNT
+--echo #
+
+EXPLAIN EXTENDED SELECT sql%rowcount;
+CREATE TABLE t1 AS SELECT SQL%ROWCOUNT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  UPDATE t1 SET a=30;
+  SELECT SQL%ROWCOUNT;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  UPDATE t1 SET a=30;
+  SELECT SQL%ROWCOUNT;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # DELETE
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  DELETE FROM t1;
+  SELECT SQL%ROWCOUNT;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  DELETE FROM t1;
+  SELECT SQL%ROWCOUNT;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # SELECT ... INTO var FROM ... - one row found
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  va INT;
+BEGIN
+  SELECT a INTO va FROM t1 LIMIT 1;
+  SELECT SQL%ROWCOUNT;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # SELECT ... INTO var FROM ... - no rows found
+--echo #
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  va INT;
+BEGIN
+  SELECT a INTO va FROM t1;
+  SELECT SQL%ROWCOUNT;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  va INT;
+BEGIN
+  SELECT a INTO va FROM t1;
+  SELECT SQL%ROWCOUNT;
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN SELECT SQL%ROWCOUNT||' (EXCEPTION)';
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # SELECT ... INTO var FROM ... - multiple rows found
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  va INT:=1;
+BEGIN
+  SELECT a INTO va FROM t1;
+  SELECT SQL%ROWCOUNT;
+EXCEPTION
+  WHEN TOO_MANY_ROWS THEN SELECT SQL%ROWCOUNT||' (EXCEPTION) va='||va;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+
+--echo #
+--echo # INSERT INTO t2 SELECT ...
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  INSERT INTO t2 SELECT * FROM t1;
+  SELECT SQL%ROWCOUNT;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of MDEV-10583 sql_mode=ORACLE: SQL%ROWCOUNT
+--echo #
+
+--echo #
+--echo # MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
+--echo #
+
+--echo #
+--echo # Missing table
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Missing column
+--echo #
+
+CREATE TABLE t1 (b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--error ER_BAD_FIELD_ERROR
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # One %TYPE variable
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE;
+BEGIN
+  a:= 123;
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Two %TYPE variables, with a truncation warning on assignment
+--echo #
+
+CREATE TABLE t1 (a TINYINT, b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE;
+  b t1.b%TYPE;
+BEGIN
+  a:= 200;
+  b:= 200;
+  SELECT a, b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # %TYPE variables for fields with various attributes
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+  a TINYINT NOT NULL,
+  b INT NOT NULL,
+  ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE(a)
+);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  id t1.id%TYPE;
+  a t1.a%TYPE;
+  b t1.b%TYPE;
+  ts t1.ts%TYPE;
+BEGIN
+  SELECT id, a, b, ts;
+  CREATE TABLE t2 AS SELECT id, a, b, ts;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # %TYPE + virtual columns
+--echo #
+
+#
+# TODO: Changing 'a + 10' to 'a mod 10' make it fail, because 
+# it's Item::print() returns 'a % 10' which makes grammar conflict
+# with cursor attributes
+
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  b VARCHAR(32),
+  c INT AS (a + 10) VIRTUAL,
+  d VARCHAR(5) AS (left(b,5)) PERSISTENT
+);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  c t1.c%TYPE;
+  d t1.d%TYPE;
+BEGIN
+  SELECT c, d;
+  CREATE TABLE t2 AS SELECT c, d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # %TYPE + the ZEROFILL attribute
+--echo #
+
+CREATE TABLE t1 (
+  dz DECIMAL(10,3) ZEROFILL
+);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  dzr t1.dz%TYPE := 10;
+  dzt DECIMAL(10,3) ZEROFILL := 10;
+BEGIN
+  SELECT dzr, dzt;
+  CREATE TABLE t2 AS SELECT dzr,dzt;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Temporary tables shadow real tables for %TYPE purposes
+--echo #
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('t1');
+CREATE TEMPORARY TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE:=11;
+BEGIN
+  CREATE TABLE t2 AS SELECT a;
+END;
+$$
+DELIMITER ;$$
+--echo #
+--echo # Should use INT(11) as %TYPE, as in the temporary table
+--echo #
+CALL p1();
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+SELECT * FROM t1;
+DROP TEMPORARY TABLE t1;
+SELECT * FROM t1;
+--echo #
+--echo # Should use VARCHAR(10) as %TYPE, as in the real table
+--echo #
+CALL p1();
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # t1.a%TYPE searches for "t1" in the current database
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10));
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE:=11;
+BEGIN
+  CREATE TABLE test.t2 AS SELECT a;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # This interprets t1.a%TYPE as VARCHAR(10), as in test.t1.a
+--echo #
+
+USE test;
+CALL test.p1();
+SHOW CREATE TABLE test.t2;
+DROP TABLE test.t2;
+
+--echo #
+--echo # This interprets t1.a%TYPE as INT, as in test1.t1.a
+--echo #
+
+USE test1;
+CALL test.p1();
+SHOW CREATE TABLE test.t2;
+DROP TABLE test.t2;
+
+--echo #
+--echo # Error if there is no an active database
+--echo #
+
+DROP DATABASE test1;
+--error ER_NO_DB_ERROR
+CALL test.p1();
+
+USE test;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A reference to a table in a non-existing database
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a test1.t1.a%TYPE;
+BEGIN
+  CREATE TABLE t1 AS SELECT a;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A reference to a table in a different database
+--echo #
+CREATE TABLE t1(a INT);
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a t1.a%TYPE;
+  b test1.t1.a%TYPE;
+BEGIN
+  CREATE TABLE t2 AS SELECT a,b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SHOW CREATE TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP DATABASE test1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Using a table before it appears in a %TYPE declaration + multiple %TYPE declarations
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 (a,b) VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+BEGIN
+  INSERT INTO t1 (a,b) VALUES (11, 'b11');
+  SELECT * FROM t1;
+  DECLARE
+    va t1.a%TYPE:= 30;
+    vb t1.b%TYPE:= 'b30';
+  BEGIN
+    INSERT INTO t1 (a,b) VALUES (12,'b12');
+    SELECT * FROM t1;
+    INSERT INTO t1 (a,b) VALUES (va, vb);
+    SELECT * FROM t1;
+  END;
+  DECLARE
+    va t1.a%TYPE:= 40;
+    vb t1.b%TYPE:= 'b40';
+  BEGIN
+   INSERT INTO t1 (a,b) VALUES (va,vb);
+   SELECT * FROM t1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # %TYPE variables + TABLE vs VIEW
+--echo #
+
+CREATE TABLE t1 (
+  bit6 BIT(6),
+  bit7 BIT(7),
+  bit8 BIT(8),
+  i1 TINYINT,
+  i2 SMALLINT,
+  i3 MEDIUMINT,
+  i4 INT,
+  i8 BIGINT,
+  ff FLOAT,
+  fd DOUBLE,
+  cc CHAR(10),
+  cv VARCHAR(10),
+  cvu VARCHAR(10) CHARACTER SET utf8,
+  t1 TINYTEXT,
+  t2 TEXT,
+  t3 MEDIUMTEXT,
+  t4 LONGTEXT,
+  enum1 ENUM('a','b','c'),
+  set1  SET('a','b','c'),
+  blob1 TINYBLOB,
+  blob2 BLOB,
+  blob3 MEDIUMBLOB,
+  blob4 LONGBLOB,
+  yy  YEAR,
+  dd  DATE,
+  tm0 TIME,
+  tm3 TIME(3),
+  tm6 TIME(6),
+  dt0 DATETIME,
+  dt3 DATETIME(3),
+  dt6 DATETIME(6),
+  ts0 TIMESTAMP,
+  ts3 TIMESTAMP(3),
+  ts6 TIMESTAMP(6),
+  dc100 DECIMAL(10,0),
+  dc103 DECIMAL(10,3),
+  dc209 DECIMAL(20,9)
+);
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(command enum('create','select'))
+AS
+  bit6  t1.bit6%TYPE := 0x30;
+  bit7  t1.bit7%TYPE := 0x41;
+  bit8  t1.bit8%TYPE := 0x7E;
+  i1  t1.i1%TYPE := 11;
+  i2  t1.i2%TYPE := 12;
+  i3  t1.i3%TYPE := 13;
+  i4  t1.i4%TYPE := 14;
+  i8  t1.i8%TYPE := 18;
+  ff  t1.ff%TYPE := 21;
+  fd  t1.fd%TYPE := 22;
+  cc  t1.cc%TYPE := 'char';
+  cv  t1.cv%TYPE := 'varchar';
+  cvu t1.cvu%TYPE := 'varcharu8';
+  t1  t1.t1%TYPE := 'text1';
+  t2  t1.t2%TYPE := 'text2';
+  t3  t1.t3%TYPE := 'text3';
+  t4  t1.t4%TYPE := 'text4';
+  enum1 t1.enum1%TYPE := 'b';
+  set1  t1.set1%TYPE  := 'a,c';
+  blob1 t1.blob1%TYPE := 'blob1';
+  blob2 t1.blob2%TYPE := 'blob2';
+  blob3 t1.blob3%TYPE := 'blob3';
+  blob4 t1.blob4%TYPE := 'blob4';
+  yy  t1.yy%TYPE := 2001;
+  dd  t1.dd%TYPE := '2001-01-01';
+  tm0 t1.tm0%TYPE := '00:00:01';
+  tm3 t1.tm3%TYPE := '00:00:03.333';
+  tm6 t1.tm6%TYPE := '00:00:06.666666';
+  dt0 t1.dt0%TYPE := '2001-01-01 00:00:01';
+  dt3 t1.dt3%TYPE := '2001-01-03 00:00:01.333';
+  dt6 t1.dt6%TYPE := '2001-01-06 00:00:01.666666';
+  ts0 t1.ts0%TYPE := '2002-01-01 00:00:01';
+  ts3 t1.ts3%TYPE := '2002-01-03 00:00:01.333';
+  ts6 t1.ts6%TYPE := '2002-01-06 00:00:01.666666';
+  dc100 t1.dc100%TYPE := 10;
+  dc103 t1.dc103%TYPE := 10.123;
+  dc209 t1.dc209%TYPE := 10.123456789;
+BEGIN
+  CASE
+  WHEN command='create' THEN
+    CREATE TABLE t2 AS SELECT
+      bit6, bit7, bit8,
+      i1,i2,i3,i4,i8,
+      ff,fd, dc100, dc103, dc209,
+      cc,cv,cvu,
+      t1,t2,t3,t4,
+      enum1, set1,
+      blob1, blob2, blob3, blob4,
+      dd, yy,
+      tm0, tm3, tm6,
+      dt0, dt3, dt6,
+      ts0, ts3, ts6;
+  WHEN command='select' THEN
+    SELECT
+      bit6, bit7, bit8,
+      i1,i2,i3,i4,i8,
+      ff,fd, dc100, dc103, dc209,
+      cc,cv,cvu,
+      t1,t2,t3,t4,
+      enum1, set1,
+      blob1, blob2, blob3, blob4,
+      dd, yy,
+      tm0, tm3, tm6,
+      dt0, dt3, dt6,
+      ts0, ts3, ts6;
+  END CASE;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # TABLE
+--echo #
+CALL p1('create');
+SHOW CREATE TABLE t2;
+--vertical_results
+SELECT * FROM t2;
+--horizontal_results
+DROP TABLE t2;
+
+--disable_ps_protocol
+--enable_metadata
+--vertical_results
+CALL p1('select');
+--horizontal_results
+--disable_metadata
+--enable_ps_protocol
+
+--echo #
+--echo # VIEW
+--echo #
+ALTER TABLE t1 RENAME t0;
+CREATE VIEW t1 AS SELECT * FROM t0;
+
+CALL p1('create');
+SHOW CREATE TABLE t2;
+--vertical_results
+SELECT * FROM t2;
+--horizontal_results
+DROP TABLE t2;
+
+--disable_ps_protocol
+--enable_metadata
+--vertical_results
+CALL p1('select');
+--horizontal_results
+--disable_metadata
+--enable_ps_protocol
+
+DROP VIEW t1;
+DROP TABLE t0;
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # VIEW with subqueries
+--echo #
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (10,1),(20,2),(30,3),(40,4);
+SELECT AVG(a) FROM t1;
+CREATE VIEW v1 AS SELECT a,1 as b FROM t1 WHERE a>(SELECT AVG(a) FROM t1) AND b>(SELECT 1);
+SELECT * FROM v1;
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a v1.a%TYPE := 10;
+  b v1.b%TYPE := 1;
+BEGIN
+  SELECT a,b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN INT
+AS
+  a v1.a%TYPE := 10;
+  b v1.b%TYPE := 1;
+BEGIN
+  RETURN a+b;
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # %TYPE variables + INFORMATION_SCHEMA
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  tables_table_name INFORMATION_SCHEMA.TABLES.TABLE_NAME%TYPE;
+  tables_table_rows INFORMATION_SCHEMA.TABLES.TABLE_ROWS%TYPE;
+  processlist_info INFORMATION_SCHEMA.PROCESSLIST.INFO%TYPE;
+  processlist_info_binary INFORMATION_SCHEMA.PROCESSLIST.INFO_BINARY%TYPE;
+BEGIN
+  CREATE TABLE t1 AS SELECT
+    tables_table_name,
+    tables_table_rows,
+    processlist_info,
+    processlist_info_binary;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # %TYPE + Table structure change
+--echo # Data type for both a0 and a1 is chosen in the very beginning
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a0 t1.a%TYPE;
+BEGIN
+  ALTER TABLE t1 MODIFY a VARCHAR(10); -- This does not affect a1
+  DECLARE
+    a1 t1.a%TYPE;
+  BEGIN
+    CREATE TABLE t2 AS SELECT a0, a1;
+    SHOW CREATE TABLE t2;
+    DROP TABLE t2;
+  END;
+END
+$$
+DELIMITER ;$$
+CREATE TABLE t1 (a INT);
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # %TYPE in parameters
+--echo #
+CREATE TABLE t1 (a VARCHAR(10));
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (b SMALLINT);
+DELIMITER $$;
+CREATE PROCEDURE p1(a t1.a%TYPE, b test1.t1.b%TYPE)
+AS
+BEGIN
+  CREATE TABLE t2 AS SELECT a, b;
+END;
+$$
+DELIMITER ;$$
+CALL p1('test', 123);
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE test1.t1;
+DROP DATABASE test1;
+DROP TABLE t1;
+
+--echo #
+--echo # %TYPE in a stored function variables and arguments
+--echo #
+
+CREATE TABLE t1 (a INT);
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE FUNCTION f1 (prm t1.a%TYPE) RETURN INT
+AS
+  a t1.a%TYPE:= prm;
+BEGIN
+  RETURN a;
+END;
+$$
+DELIMITER ;$$
+SELECT f1(20);
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # %TYPE in function RETURN clause is not supported yet
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION f1 RETURN t1.a%TYPE
+AS
+BEGIN
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # End of MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
+--echo #
+
+
+--echo #
+--echo # MDEV-12089 sql_mode=ORACLE: Understand optional routine name after the END keyword
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+  RETURN 10;
+END f1;
+$$
+DELIMITER ;$$
+DROP FUNCTION f1;
+
+DELIMITER $$;
+CREATE FUNCTION test.f1 RETURN INT AS
+BEGIN
+  RETURN 10;
+END test.f1;
+$$
+DELIMITER ;$$
+DROP FUNCTION f1;
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE FUNCTION test.f1 RETURN INT AS
+BEGIN
+  RETURN 10;
+END test2.f1;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE FUNCTION test.f1 RETURN INT AS
+BEGIN
+  RETURN 10;
+END test.f2;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+  RETURN 10;
+END test.f2;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE FUNCTION f1 RETURN INT AS
+BEGIN
+  RETURN 10;
+END test2.f1;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  NULL;
+END p1;
+$$
+DELIMITER ;$$
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE test.p1 AS
+BEGIN
+  NULL;
+END test.p1;
+$$
+DELIMITER ;$$
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE PROCEDURE test.p1 AS
+BEGIN
+  NULL;
+END test2.p1;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE PROCEDURE test.p1 AS
+BEGIN
+  NULL;
+END test.p2;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE PROCEDURE p1 AS
+BEGIN
+  NULL;
+END test.p2;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE PROCEDURE p1 AS
+BEGIN
+  NULL;
+END test2.p1;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # MDEV-12107 sql_mode=ORACLE: Inside routines the CALL keywoard is optional
+--echo #
+DELIMITER /;
+CREATE OR REPLACE PROCEDURE p1(a INT) AS
+BEGIN
+  SELECT 'This is p1' AS "comment";
+END;
+/
+CREATE OR REPLACE PROCEDURE p2 AS
+BEGIN
+  SELECT 'This is p2' AS "comment";
+END;
+/
+BEGIN
+  p1(10);
+  p2;
+  test.p1(10);
+  test.p2;
+END;
+/
+CREATE PROCEDURE p3 AS
+BEGIN
+  p1(10);
+  p2;
+  test.p1(10);
+  test.p2;
+END
+/
+DELIMITER ;/
+CALL p3;
+DROP PROCEDURE p3;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+SELECT SQL%ROWCOUNT;
+--enable_ps_protocol
+--disable_metadata
+
+--echo #
+--echo # MDEV-13686 EXCEPTION reserved keyword in SQL_MODE=oracle but not in Oracle itself
+--echo #
+CREATE TABLE t1 (c1 int);
+CREATE VIEW v1 AS SELECT c1 exception FROM t1;
+SELECT exception FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+
+--echo #
+--echo # MDEV-14139 Anchored data types for variables
+--echo #
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+BEGIN NOT ATOMIC
+  DECLARE a a%TYPE;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+DECLARE
+  int11 INT;
+  dec103 DECIMAL(10,3);
+  flt0 FLOAT;
+  dbl0 DOUBLE;
+  enum0 ENUM('a','b');
+  bit3 BIT(3);
+
+  varchar10 VARCHAR(10);
+  text1 TEXT;
+  tinytext1 TINYTEXT;
+  mediumtext1 MEDIUMTEXT;
+  longtext1 LONGTEXT;
+
+  time3 TIME(3);
+  datetime4 DATETIME(4);
+  timestamp5 TIMESTAMP(5);
+  date0 DATE;
+
+  a_int11 int11%TYPE;
+  a_dec103 dec103%TYPE;
+  a_flt0 flt0%TYPE;
+  a_dbl0 dbl0%TYPE;
+  a_bit3 bit3%TYPE;
+  a_enum0 enum0%TYPE;
+  a_varchar10 varchar10%TYPE;
+  a_text1 text1%TYPE;
+  a_tinytext1 tinytext1%TYPE;
+  a_mediumtext1 mediumtext1%TYPE;
+  a_longtext1 longtext1%TYPE;
+  a_time3 time3%TYPE;
+  a_datetime4 datetime4%TYPE;
+  a_timestamp5 timestamp5%TYPE;
+  a_date0 date0%TYPE;
+
+  aa_int11 a_int11%TYPE;
+  aa_dec103 a_dec103%TYPE;
+  aa_flt0 a_flt0%TYPE;
+  aa_dbl0 a_dbl0%TYPE;
+  aa_bit3 a_bit3%TYPE;
+  aa_enum0 a_enum0%TYPE;
+  aa_varchar10 a_varchar10%TYPE;
+  aa_text1 a_text1%TYPE;
+  aa_tinytext1 a_tinytext1%TYPE;
+  aa_mediumtext1 a_mediumtext1%TYPE;
+  aa_longtext1 a_longtext1%TYPE;
+  aa_time3 a_time3%TYPE;
+  aa_datetime4 a_datetime4%TYPE;
+  aa_timestamp5 a_timestamp5%TYPE;
+  aa_date0 a_date0%TYPE;
+BEGIN
+  CREATE TABLE t1 AS
+    SELECT a_int11,a_dec103,a_flt0,a_dbl0,a_bit3,
+           a_enum0,a_varchar10,
+           a_text1,a_tinytext1,a_mediumtext1,a_longtext1,
+           a_time3,a_datetime4,a_timestamp5,a_date0;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+
+  CREATE TABLE t1 AS
+    SELECT aa_int11,aa_dec103,aa_flt0,aa_dbl0,aa_bit3,
+           aa_enum0,aa_varchar10,
+           aa_text1,aa_tinytext1,aa_mediumtext1,aa_longtext1,
+           aa_time3,aa_datetime4,aa_timestamp5,aa_date0;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo #  MDEV-11160 "Incorrect column name" when "CREATE TABLE t1 AS SELECT spvar"
+--echo #
+
+
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (10);
+CREATE VIEW v1 AS SELECT x+1 AS a,x+1 AS b FROM t1;
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  a INT := 1;
+  b INT := 2;
+BEGIN
+  CREATE TABLE t2 AS SELECT a,b FROM v1;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-14228 MariaDB crashes with function
+--echo #
+
+CREATE TABLE t1 (c VARCHAR(16), KEY(c));
+INSERT INTO t1 VALUES ('foo');
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+  v VARCHAR2(16);
+BEGIN
+  FOR v IN (SELECT DISTINCT c FROM t1)
+  LOOP
+    IF (v = 'bar') THEN
+      SELECT 1 INTO @a;
+    END IF;
+  END LOOP;
+  RETURN 'qux';
+END $$
+DELIMITER  ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT f1();
+DROP FUNCTION f1;
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+  v t1%ROWTYPE;
+BEGIN
+  IF v = 'bar' THEN
+    NULL;
+  END IF;
+  RETURN 'qux';
+END $$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT f1();
+DROP FUNCTION f1;
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+  v ROW(a INT);
+BEGIN
+  IF v = 'bar' THEN
+    NULL;
+  END IF;
+  RETURN 'qux';
+END $$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT f1();
+DROP FUNCTION f1;
+
+DROP TABLE t1;
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+DECLARE
+  v ROW(a INT);
+BEGIN
+  SELECT v IN ('a','b');
+END $$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+DECLARE
+  v ROW(a INT);
+BEGIN
+  SELECT 'a' IN (v,'b');
+END $$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+DECLARE
+  v ROW(a INT);
+BEGIN
+  SELECT 'a' IN ('b',v);
+END $$
+DELIMITER ;$$
+
+--echo #
+--echo # MDEV-17253 Oracle compatibility: The REVERSE key word for FOR loop behaves incorrectly
+--echo #
+
+DELIMITER $$;
+DECLARE
+  totalprice DECIMAL(12,2):=NULL;
+  loop_start INTEGER := 1;
+BEGIN
+  FOR idx IN REVERSE loop_start..10 LOOP
+    SELECT idx;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  loop_start INTEGER := 1;
+BEGIN
+  FOR idx IN REVERSE 3..loop_start LOOP
+    SELECT idx;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  loop_start INTEGER := 1;
+BEGIN
+  FOR idx IN REVERSE loop_start..3 LOOP
+    SELECT idx;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-19637 Crash on an SP variable assignment to a wrong subselect
+--echo #
+
+DELIMITER $$;
+--error ER_CANT_USE_OPTION_HERE
+DECLARE
+  a INT;
+BEGIN
+  SET a=(SELECT 1 FROM DUAL UNION SELECT HIGH_PRIORITY 2 FROM DUAL);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

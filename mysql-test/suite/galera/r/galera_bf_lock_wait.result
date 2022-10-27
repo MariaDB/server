@@ -1,0 +1,46 @@
+connection node_2;
+connection node_1;
+connection node_2;
+call mtr.add_suppression("WSREP: Trying to continue unpaused monitor");
+connection node_1;
+call mtr.add_suppression("WSREP: Trying to continue unpaused monitor");
+CREATE TABLE t1 ENGINE=InnoDB select 1 as a, 1 as b union select 2, 2;
+ALTER TABLE t1 add primary key(a);
+CREATE PROCEDURE p1(repeat_count INT)
+BEGIN
+DECLARE current_num int;
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION rollback;
+SET current_num = 0;
+WHILE current_num < repeat_count DO
+start transaction;
+update t1 set b=connection_id() where a=1;
+commit;
+SET current_num = current_num + 1;
+END WHILE;
+END|
+connection node_2;
+connect node_1_p1, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait=0;
+call p1(1000);
+connect node_1_p2, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait=0;
+call p1(1000);
+connect node_2_p1, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+SET SESSION wsrep_sync_wait=0;
+call p1(1000);
+connect node_2_p2, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+SET SESSION wsrep_sync_wait=0;
+call p1(1000);
+connection node_1;
+checking error log for 'BF lock wait long' message for 10 times every 10 seconds ...
+connection node_1_p1;
+connection node_1_p2;
+connection node_2_p1;
+connection node_2_p2;
+connection node_1;
+drop table t1;
+drop procedure p1;
+disconnect node_1_p1;
+disconnect node_1_p2;
+disconnect node_2_p1;
+disconnect node_2_p2;

@@ -1,0 +1,25 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+connection slave;
+create table federated.t1 (a int, b int, unique key (a), key (b));
+connection master;
+create table t1 (a int, b int, unique key (a), key (b))
+engine=federated CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+insert into t1 values (3, 3), (7, 7);
+delete t1 from t1 where a = 3;
+select * from t1;
+a	b
+7	7
+drop table t1;
+connection slave;
+connection default;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

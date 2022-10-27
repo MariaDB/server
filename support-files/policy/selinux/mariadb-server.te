@@ -1,0 +1,99 @@
+# This SELinux type enforcement (.te) file has been copied under New BSD License
+# from Percona XtraDB Cluster, along with some additions.
+
+module mariadb-server 1.0;
+
+require {
+	type user_tmp_t;
+	#type kerberos_master_port_t;
+	type mysqld_safe_t;
+	type tmp_t;
+	type tmpfs_t;
+	type hostname_exec_t;
+	type ifconfig_exec_t;
+	type sysctl_net_t;
+	type proc_net_t;
+	type port_t;
+	type mysqld_t;
+	type var_lib_t;
+	type rsync_exec_t;
+	type bin_t;
+	type shell_exec_t;
+	type anon_inodefs_t;
+	type fixed_disk_device_t;
+	class lnk_file read;
+	class process { getattr signull };
+	class unix_stream_socket connectto;
+	class capability { sys_resource sys_nice };
+	class tcp_socket { name_bind name_connect };
+	class file { execute setattr read create getattr execute_no_trans write ioctl open append unlink };
+	class sock_file { create unlink getattr };
+	class blk_file { read write open };
+	class dir { write search getattr add_name read remove_name open };
+
+# MariaDB additions
+	type kerberos_port_t;
+	type tram_port_t;
+	type mysqld_port_t;
+	class udp_socket name_bind;
+	class process setpgid;
+	class netlink_tcpdiag_socket { create nlmsg_read };
+}
+
+
+#============= mysqld_safe_t ==============
+allow mysqld_safe_t mysqld_t:process signull;
+allow mysqld_safe_t self:capability { sys_resource sys_nice };
+allow mysqld_safe_t tmp_t:file { create read write open getattr unlink ioctl setattr };
+allow mysqld_safe_t tmp_t:dir { write remove_name add_name };
+allow mysqld_safe_t tmp_t:sock_file { getattr unlink };
+allow mysqld_safe_t user_tmp_t:sock_file { getattr unlink };
+allow mysqld_safe_t var_lib_t:dir { write add_name };
+allow mysqld_safe_t var_lib_t:file { write ioctl setattr create open getattr append unlink };
+
+#============= mysqld_t ==============
+allow mysqld_t anon_inodefs_t:file write;
+allow mysqld_t tmp_t:sock_file { create unlink };
+allow mysqld_t tmpfs_t:dir { write search read remove_name open add_name };
+allow mysqld_t tmpfs_t:file { write getattr read create unlink open };
+allow mysqld_t fixed_disk_device_t:blk_file { read write open };
+allow mysqld_t ifconfig_exec_t:file { read execute open execute_no_trans getattr };
+
+#This rule allows connecting on 4444/4567/4568
+#allow mysqld_t kerberos_master_port_t:tcp_socket { name_bind name_connect };
+
+allow mysqld_t mysqld_safe_t:dir { getattr search };
+allow mysqld_t mysqld_safe_t:file { read open };
+allow mysqld_t self:unix_stream_socket connectto;
+allow mysqld_t port_t:tcp_socket { name_bind name_connect };
+allow mysqld_t proc_net_t:file { read getattr open };
+allow mysqld_t sysctl_net_t:dir search;
+allow mysqld_t var_lib_t:file { getattr open append };
+allow mysqld_t var_lib_t:sock_file { create unlink getattr };
+allow mysqld_t rsync_exec_t:file { read getattr open execute execute_no_trans };
+allow mysqld_t self:process getattr;
+allow mysqld_t hostname_exec_t:file { read getattr execute open execute_no_trans };
+allow mysqld_t user_tmp_t:dir { write add_name };
+allow mysqld_t user_tmp_t:file create;
+allow mysqld_t bin_t:lnk_file read;
+allow mysqld_t tmp_t:file { append create read write open getattr unlink setattr };
+
+# Allows too much leeway - the mariabackup/wsrep rules in fc should fix it, but
+# keep for the moment.
+allow mysqld_t shell_exec_t:file { execute_no_trans getattr read execute open };
+allow mysqld_t bin_t:file { getattr read execute open execute_no_trans ioctl };
+
+# MariaDB additions
+allow mysqld_t self:process setpgid;
+# This rule allows port tcp/4444
+allow mysqld_t kerberos_port_t:tcp_socket { name_bind name_connect };
+# This rule allows port tcp/4567 (tram_port_t may not be available on
+# older versions)
+allow mysqld_t tram_port_t:tcp_socket name_bind;
+# This rule allows port udp/4567 (see README)
+allow mysqld_t mysqld_port_t:udp_socket name_bind;
+
+# Rules related to mariabackup
+allow mysqld_t self:netlink_tcpdiag_socket { create nlmsg_read };
+allow mysqld_t sysctl_net_t:file { read getattr open };
+

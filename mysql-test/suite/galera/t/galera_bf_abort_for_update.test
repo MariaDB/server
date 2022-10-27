@@ -1,0 +1,56 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test a local transaction being aborted by a slave one while it is running a SELECT FOR UPDATE
+#
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1, 10);
+
+# Test updating the PK
+
+--connection node_1
+--let $wsrep_local_bf_aborts_before = `SELECT variable_value FROM information_schema.global_status WHERE variable_name = 'wsrep_local_bf_aborts'`
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+
+--connection node_2
+UPDATE t1 SET f1 = 2;
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--let $wait_condition = SELECT COUNT(*) FROM t1 WHERE f1 = 2
+--source include/wait_condition.inc
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+--disable_query_log
+--eval SELECT variable_value - $wsrep_local_bf_aborts_before AS wsrep_local_bf_aborts_diff FROM information_schema.global_status WHERE variable_name = 'wsrep_local_bf_aborts'
+--enable_query_log
+
+# Test updating non-indexed column
+
+--connection node_1
+--let $wsrep_local_bf_aborts_before = `SELECT variable_value FROM information_schema.global_status WHERE variable_name = 'wsrep_local_bf_aborts'`
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+
+--connection node_2
+UPDATE t1 SET f2 = 20;
+
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) FROM t1 WHERE f2 = 20
+--source include/wait_condition.inc
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+--disable_query_log
+--eval SELECT variable_value - $wsrep_local_bf_aborts_before AS wsrep_local_bf_aborts_diff FROM information_schema.global_status WHERE variable_name = 'wsrep_local_bf_aborts'
+--enable_query_log
+
+DROP TABLE t1;

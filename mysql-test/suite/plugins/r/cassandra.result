@@ -1,0 +1,636 @@
+drop table if exists t0, t1;
+#
+# Check variables and status counters
+#
+show status like 'cassandra%';
+Variable_name	Value
+Cassandra_row_inserts	0
+Cassandra_row_insert_batches	0
+Cassandra_multiget_keys_scanned	0
+Cassandra_multiget_reads	0
+Cassandra_multiget_rows_read	0
+Cassandra_network_exceptions	0
+Cassandra_timeout_exceptions	0
+Cassandra_unavailable_exceptions	0
+show variables like 'cassandra%';
+Variable_name	Value
+cassandra_default_thrift_host	
+cassandra_failure_retries	3
+cassandra_insert_batch_size	100
+cassandra_multiget_batch_size	100
+cassandra_read_consistency	ONE
+cassandra_rnd_batch_size	10000
+cassandra_write_consistency	ONE
+#
+# Test various errors on table creation.
+#
+create table t1 (a int) engine=cassandra 
+thrift_host='localhost' keyspace='foo' column_family='colfam';
+ERROR 42000: This table type requires a primary key
+create table t1 (a int primary key, b int) engine=cassandra
+thrift_host='localhost' keyspace='foo' column_family='colfam';
+ERROR HY000: Unable to connect to foreign data source: Default TException. [Keyspace foo does not exist]
+create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
+thrift_host='127.0.0.2' keyspace='foo' column_family='colfam';
+ERROR HY000: Unable to connect to foreign data source: connect() failed: Connection refused [1]
+create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
+thrift_host='localhost' keyspace='no_such_keyspace' column_family='colfam';
+ERROR HY000: Unable to connect to foreign data source: Default TException. [Keyspace no_such_keyspace does not exist]
+create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
+thrift_host='localhost' keyspace='no_such_keyspace';
+ERROR HY000: Unable to connect to foreign data source: keyspace and column_family table options must be specified
+# Now, create a table for real and insert data
+create table t1 (pk varchar(36) primary key, data1 varchar(60), data2 bigint) engine=cassandra 
+thrift_host='localhost' keyspace='mariadbtest2' column_family='cf1';
+# Just in case there were left-overs from previous:
+delete from t1;
+select * from t1;
+pk	data1	data2
+insert into t1 values ('rowkey10', 'data1-value', 123456);
+insert into t1 values ('rowkey11', 'data1-value2', 34543);
+insert into t1 values ('rowkey12', 'data1-value3', 454);
+select * from t1;
+pk	data1	data2
+rowkey12	data1-value3	454
+rowkey10	data1-value	123456
+rowkey11	data1-value2	34543
+explain
+select * from t1 where pk='rowkey11';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	38	const	1	
+select * from t1 where pk='rowkey11';
+pk	data1	data2
+rowkey11	data1-value2	34543
+delete from t1 where pk='rowkey11';
+select * from t1;
+pk	data1	data2
+rowkey12	data1-value3	454
+rowkey10	data1-value	123456
+delete from t1;
+select * from t1;
+pk	data1	data2
+#
+# A query with filesort (check that table_flags() & HA_REC_NOT_IN_SEQ,
+#  also check ::rnd_pos()
+#
+insert into t1 values ('rowkey10', 'data1-value', 123456);
+insert into t1 values ('rowkey11', 'data1-value2', 34543);
+insert into t1 values ('rowkey12', 'data1-value3', 454);
+select * from t1 order by data2;
+pk	data1	data2
+rowkey12	data1-value3	454
+rowkey11	data1-value2	34543
+rowkey10	data1-value	123456
+delete from t1;
+drop table t1;
+#
+# MDEV-476: Cassandra: Server crashes in calculate_key_len on DELETE with ORDER BY
+#
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+INSERT INTO t1 VALUES (1,1),(2,2);
+DELETE FROM t1 ORDER BY a LIMIT 1;
+DROP TABLE t1;
+#
+# Batched INSERT
+#
+show variables like 'cassandra_insert_batch_size';
+Variable_name	Value
+cassandra_insert_batch_size	100
+show status like 'cassandra_row_insert%';
+Variable_name	Value
+Cassandra_row_inserts	8
+Cassandra_row_insert_batches	7
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+delete from t1;
+INSERT INTO t1 VALUES (1,1),(2,2);
+DELETE FROM t1 ORDER BY a LIMIT 1;
+DROP TABLE t1;
+show status like 'cassandra_row_insert%';
+Variable_name	Value
+Cassandra_row_inserts	10
+Cassandra_row_insert_batches	8
+# FLUSH STATUS doesn't work for our variables, just like with InnoDB.
+flush status;
+show status like 'cassandra_row_insert%';
+Variable_name	Value
+Cassandra_row_inserts	10
+Cassandra_row_insert_batches	8
+#
+# Batched Key Access
+#
+# Control variable (we are not yet able to make use of MRR's buffer)
+show variables like 'cassandra_multi%';
+Variable_name	Value
+cassandra_multiget_batch_size	100
+# MRR-related status variables:
+show status like 'cassandra_multi%';
+Variable_name	Value
+Cassandra_multiget_keys_scanned	0
+Cassandra_multiget_reads	0
+Cassandra_multiget_rows_read	0
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+delete from t1;
+INSERT INTO t1 VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+set @tmp_jcl=@@join_cache_level;
+set join_cache_level=8;
+explain select * from t1 A, t1 B where B.rowkey=A.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	B	eq_ref	PRIMARY	PRIMARY	8	test.A.a	1	Using join buffer (flat, BKAH join); multiget_slice
+select * from t1 A, t1 B where B.rowkey=A.a;
+rowkey	a	rowkey	a
+0	0	0	0
+1	1	1	1
+2	2	2	2
+3	3	3	3
+4	4	4	4
+5	5	5	5
+6	6	6	6
+7	7	7	7
+8	8	8	8
+9	9	9	9
+show status like 'cassandra_multi%';
+Variable_name	Value
+Cassandra_multiget_keys_scanned	10
+Cassandra_multiget_reads	1
+Cassandra_multiget_rows_read	10
+insert into t1 values(1, 8);
+insert into t1 values(3, 8);
+insert into t1 values(5, 8);
+insert into t1 values(7, 8);
+select * from t1 A, t1 B where B.rowkey=A.a;
+rowkey	a	rowkey	a
+0	0	0	0
+2	2	2	2
+4	4	4	4
+6	6	6	6
+1	8	8	8
+7	8	8	8
+8	8	8	8
+5	8	8	8
+3	8	8	8
+9	9	9	9
+show status like 'cassandra_multi%';
+Variable_name	Value
+Cassandra_multiget_keys_scanned	16
+Cassandra_multiget_reads	2
+Cassandra_multiget_rows_read	16
+delete from t1;
+drop table t1;
+#
+# MDEV-480: TRUNCATE TABLE on a Cassandra table does not remove rows
+#
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+INSERT INTO t1 VALUES (0,0),(1,1),(2,2);
+truncate table t1;
+select * from t1;
+rowkey	a
+drop table t1;
+#
+# MDEV-494, part #1: phantom row for big full-scan selects
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+insert into t1 select A.a + 10 * B.a + 100*C.a, 12345 from t0 A, t0 B, t0 C;
+select count(*) from t1;
+count(*)
+1000
+select count(*) from t1 where a=12345;
+count(*)
+1000
+delete from t1;
+drop table t1;
+drop table t0;
+# 32-bit INT type support
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, intcol INT) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf3';
+insert into t1 values (10,10);
+insert into t1 values (12,12);
+delete from t1;
+drop table t1;
+# 
+# Try accessing column family w/o explicitly defined columns
+#
+CREATE TABLE t1 (my_primary_key varchar(10) PRIMARY KEY) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf10';
+ERROR HY000: Internal error: target column family has no key_alias defined, PRIMARY KEY column must be named 'rowkey'
+CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf10';
+DROP TABLE t1;
+# 
+# Timestamp datatype support
+#
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol timestamp) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+delete from t2;
+insert into t2 values (1, '2012-08-29 01:23:45');
+select * from t2;
+rowkey	datecol
+1	2012-08-29 01:23:45
+delete from t2;
+# MDEV-498: Cassandra: Inserting a timestamp does not work on a 32-bit system
+INSERT INTO t2 VALUES (10,'2012-12-12 12:12:12');
+SELECT * FROM t2;
+rowkey	datecol
+10	2012-12-12 12:12:12
+delete from t2;
+#
+# (no MDEV#) Check that insert counters work correctly
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+set cassandra_insert_batch_size=10;
+insert into t2 select A.a+10*B.a, now() from t0 A, t0 B;
+inserts	insert_batches
+100	10
+set cassandra_insert_batch_size=1;
+insert into t2 select A.a+10*B.a+100, now() from t0 A, t0 B;
+inserts	insert_batches
+100	100
+delete from t2;
+drop table t2;
+drop table t0;
+# 
+# UUID datatype support
+#
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol char(36)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+delete from t2;
+insert into t2 values(1,'9b5658dc-f32f-11e1-94cd-f46d046e9f09');
+insert into t2 values(2,'not-an-uuid');
+ERROR 22003: Out of range value for column 'uuidcol' at row 1
+insert into t2 values(3,'9b5658dc-f32f-11e1=94cd-f46d046e9f09');
+ERROR 22003: Out of range value for column 'uuidcol' at row 1
+insert into t2 values(4,'9b5658dc-fzzf-11e1-94cd-f46d046e9f09');
+ERROR 22003: Out of range value for column 'uuidcol' at row 1
+insert into t2 values
+(5,'9b5658dc-f11f-11e1-94cd-f46d046e9f09'),
+(6,'9b5658dc-f11f011e1-94cd-f46d046e9f09');
+ERROR 22003: Out of range value for column 'uuidcol' at row 2
+select * from t2;
+rowkey	uuidcol
+1	9b5658dc-f32f-11e1-94cd-f46d046e9f09
+5	9b5658dc-f11f-11e1-94cd-f46d046e9f09
+delete from t2;
+drop table t2;
+CREATE TABLE t2 (rowkey char(36) PRIMARY KEY, col1 int) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf6';
+delete from t2;
+insert into t2 values('9b5658dc-f32f-11e1-94cd-f46d046e9f09', 1234);
+insert into t2 values('not-an-uuid', 563);
+ERROR 22003: Out of range value for column 'rowkey' at row 1
+select * from t2;
+rowkey	col1
+9b5658dc-f32f-11e1-94cd-f46d046e9f09	1234
+delete from t2;
+drop table t2;
+# 
+# boolean datatype support
+#
+CREATE TABLE t2 (rowkey int PRIMARY KEY, boolcol bool) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf7';
+insert into t2 values (0, 0);
+insert into t2 values (1, 1);
+select * from t2;
+rowkey	boolcol
+0	0
+1	1
+delete from t2;
+drop table t2;
+# 
+# Counter datatype support (read-only)
+#
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, countercol bigint) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf8';
+select * from t2;
+rowkey	countercol
+cnt1	1
+cnt2	100
+drop table t2;
+# 
+# Check that @@cassandra_default_thrift_host works
+#
+show variables like 'cassandra_default_thrift_host';
+Variable_name	Value
+cassandra_default_thrift_host	
+set @tmp=@@cassandra_default_thrift_host;
+set cassandra_default_thrift_host='localhost';
+ERROR HY000: Variable 'cassandra_default_thrift_host' is a GLOBAL variable and should be set with SET GLOBAL
+set global cassandra_default_thrift_host='localhost';
+# Try creating a table without specifying thrift_host:
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, countercol bigint) ENGINE=CASSANDRA
+keyspace='mariadbtest2' column_family = 'cf8';
+select * from t2;
+rowkey	countercol
+cnt1	1
+cnt2	100
+drop table t2;
+set global cassandra_default_thrift_host=@tmp;
+#
+# Consistency settings
+#
+show variables like 'cassandra_%consistency';
+Variable_name	Value
+cassandra_read_consistency	ONE
+cassandra_write_consistency	ONE
+set @tmp=@@cassandra_write_consistency;
+# Unfortunately, there is no easy way to check if setting have the effect..
+set cassandra_write_consistency='ONE';
+set cassandra_write_consistency='QUORUM';
+set cassandra_write_consistency='LOCAL_QUORUM';
+set cassandra_write_consistency='EACH_QUORUM';
+set cassandra_write_consistency='ALL';
+set cassandra_write_consistency='ANY';
+set cassandra_write_consistency='TWO';
+set cassandra_write_consistency='THREE';
+set cassandra_write_consistency=@tmp;
+#
+# varint datatype support
+#
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, varint_col varbinary(32)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf9';
+select rowkey, hex(varint_col) from t2;
+rowkey	hex(varint_col)
+val-01	01
+val-0x123456	123456
+val-0x12345678	12345678
+drop table t2;
+# now, let's check what happens when MariaDB's column is not wide enough:
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, varint_col varbinary(2)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf9';
+select rowkey, hex(varint_col) from t2;
+ERROR HY000: Internal error: Unable to convert value for field `varint_col` from Cassandra's data format. Source data is 4 bytes, 0x12345678
+drop table t2;
+#
+# Decimal datatype support
+#
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, decimal_col varbinary(32)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf11';
+select rowkey, hex(decimal_col) from t2;
+rowkey	hex(decimal_col)
+val_1.5	000000010F
+val_0.5	0000000105
+val_1234	0000000004D2
+drop table t2;
+#
+# Mapping TIMESTAMP -> int64
+#
+set @save_tz= @@time_zone;
+set time_zone='UTC';
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol timestamp) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+insert into t2 values (1, '2012-08-29 01:23:45');
+INSERT INTO t2 VALUES (10,'2012-08-29 01:23:46');
+drop table t2;
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol bigint) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+select * from t2;
+rowkey	datecol
+1	1346203425000
+10	1346203426000
+delete from t2;
+drop table t2;
+set time_zone=@save_tz;
+#
+# Check whether changing parameters with ALTER TABLE works.
+#
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, decimal_col varbinary(32)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf11';
+drop table t2;
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, decimal_col varbinary(32)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf11';
+alter table t2 column_family='cf12';
+Writes made during ALTER TABLE
+0
+drop table t2;
+#
+# UPDATE command support
+#
+create table t1 (pk varchar(36) primary key, data1 varchar(60), data2 bigint) engine=cassandra 
+thrift_host='localhost' keyspace='mariadbtest2' column_family='cf1';
+insert into t1 values ('rowkey10', 'data1-value', 123456);
+insert into t1 values ('rowkey11', 'data1-value2', 34543);
+insert into t1 values ('rowkey12', 'data1-value3', 454);
+select * from t1;
+pk	data1	data2
+rowkey12	data1-value3	454
+rowkey10	data1-value	123456
+rowkey11	data1-value2	34543
+update t1 set data1='updated-1' where pk='rowkey11';
+select * from t1;
+pk	data1	data2
+rowkey12	data1-value3	454
+rowkey10	data1-value	123456
+rowkey11	updated-1	34543
+update t1 set pk='new-rowkey12' where pk='rowkey12';
+select * from t1;
+pk	data1	data2
+rowkey10	data1-value	123456
+new-rowkey12	data1-value3	454
+rowkey11	updated-1	34543
+delete from t1;
+drop table t1;
+#
+# Dynamic columns support
+#
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol blob DYNAMIC_COLUMN_STORAGE=1) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+drop table t2;
+#error: dynamic column is not a blob
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol char(36) DYNAMIC_COLUMN_STORAGE=1) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+ERROR 42000: Incorrect column specifier for column 'uuidcol'
+#error: double dynamic column
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol blob DYNAMIC_COLUMN_STORAGE=1, textcol blob DYNAMIC_COLUMN_STORAGE=1) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+ERROR 42000: Incorrect column specifier for column 'textcol'
+#
+# Dynamic column read
+#
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol char(36)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+delete from t2;
+insert into t2 values(1,'9b5658dc-f32f-11e1-94cd-f46d046e9f09');
+insert into t2 values(2,'9b5658dc-f32f-11e1-94cd-f46d046e9f0a');
+drop table t2;
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+select rowkey, column_list(dyn), column_get(dyn, 'uuidcol' as char) from t2;
+rowkey	column_list(dyn)	column_get(dyn, 'uuidcol' as char)
+1	`uuidcol`	9b5658dc-f32f-11e1-94cd-f46d046e9f09
+2	`uuidcol`	9b5658dc-f32f-11e1-94cd-f46d046e9f0a
+drop table t2;
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol char(36)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+delete from t2;
+drop table t2;
+#
+# Dynamic column insert
+#
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+insert into t2 values (1, column_create("dyn1", 1, "dyn2", "two"));
+select rowkey, column_json(dyn) from t2;
+rowkey	column_json(dyn)
+1	{"dyn1":"1","dyn2":"two"}
+delete from t2;
+drop table t2;
+# bigint
+CREATE TABLE t1 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'a', 254324));
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'a', 2543));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"a":254324,"dyn1":"1","dyn2":"two"}
+2	{"a":2543,"dyn1":"1","dyn2":"two"}
+delete from t1;
+drop table t1;
+# int
+CREATE TABLE t1 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf3';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'intcol', 254324));
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'intcol', 2543));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"dyn1":"1","dyn2":"two","intcol":254324}
+2	{"dyn1":"1","dyn2":"two","intcol":2543}
+delete from t1;
+drop table t1;
+# timestamp
+CREATE TABLE t1 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'datecol', 254324));
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'datecol', 2543));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"dyn1":"1","dyn2":"two","datecol":254324}
+2	{"dyn1":"1","dyn2":"two","datecol":2543}
+delete from t1;
+drop table t1;
+# boolean
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf7';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'boolcol', 254324));
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'boolcol', 0));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"dyn1":"1","dyn2":"two","boolcol":1}
+2	{"dyn1":"1","dyn2":"two","boolcol":0}
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"dyn1":"1","dyn2":"two","boolcol":1}
+2	{"dyn1":"1","dyn2":"two","boolcol":0}
+update t1 set dyn=column_add(dyn, "dyn2", null, "dyn3", "3");
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"dyn1":"1","dyn3":"3","boolcol":1}
+2	{"dyn1":"1","dyn3":"3","boolcol":0}
+update t1 set dyn=column_add(dyn, "dyn1", null) where rowkey= 1;
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"dyn3":"3","boolcol":1}
+2	{"dyn1":"1","dyn3":"3","boolcol":0}
+update t1 set dyn=column_add(dyn, "dyn3", null, "a", "ddd");
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"a":"ddd","boolcol":1}
+2	{"a":"ddd","dyn1":"1","boolcol":0}
+update t1 set dyn=column_add(dyn, "12345678901234", "ddd");
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"a":"ddd","boolcol":1,"12345678901234":"ddd"}
+2	{"a":"ddd","dyn1":"1","boolcol":0,"12345678901234":"ddd"}
+update t1 set dyn=column_add(dyn, "12345678901234", null);
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"a":"ddd","boolcol":1}
+2	{"a":"ddd","dyn1":"1","boolcol":0}
+update t1 set dyn=column_add(dyn, 'boolcol', null) where rowkey= 2;
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"a":"ddd","boolcol":1}
+2	{"a":"ddd","dyn1":"1"}
+update t1 set rowkey= 3, dyn=column_add(dyn, "dyn1", null, 'boolcol', 0) where rowkey= 2;
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	{"a":"ddd","boolcol":1}
+3	{"a":"ddd","boolcol":0}
+delete from t1;
+drop table t1;
+CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd1';
+select * from t1;
+ERROR HY000: Internal error: Unable to convert value for field `dyn` from Cassandra's data format. Name length exceed limit of 16383: 'very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_v
+drop table t1;
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+DELETE FROM t1;
+insert into t1 values (1, column_create("dyn", 1));
+select rowkey, column_list(dyn) from t1;
+rowkey	column_list(dyn)
+1	`dyn`
+delete from t1;
+DROP TABLE t1;
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+insert into t1 values (1,'9b5658dc-f32f-11e1-94cd-f46d046e9f0a');
+ERROR HY000: Encountered illegal format of dynamic column string
+delete from t1;
+DROP TABLE t1;
+#
+# MDEV-565: Server crashes in ha_cassandra::write_row on
+# inserting NULL into a dynamic column
+#
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+insert into t1 values (1, NULL);
+delete from t1;
+DROP TABLE t1;
+#
+# strange side effect of Cassandra - remiving all columns of primary
+# key removes all row.
+#
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+INSERT INTO t1 VALUES(2,column_create("ab","ab"));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+2	{"ab":"ab"}
+UPDATE t1 set dyn=NULL;
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+INSERT INTO t1 VALUES(2,column_create("ab","ab"));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+2	{"ab":"ab"}
+UPDATE t1 set dyn="";
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+delete from t1;
+DROP TABLE t1;
+#
+# MDEV-4005 #Server crashes on creating a Cassandra table
+# with a mix of static and dynamic columns
+#
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1 (
+pk int primary key,
+col_int int,
+dyncol blob DYNAMIC_COLUMN_STORAGE=yes
+) ENGINE=cassandra keyspace='bug' thrift_host = '127.0.0.1' column_family='cf1';
+drop table t1;
+#
+# MDEV-4000: Mapping between Cassandra blob (BytesType) and MySQL BLOB does not work
+#
+create table t1 (rowkey int primary key, b blob ) ENGINE=CASSANDRA thrift_host = '127.0.0.1' `keyspace`='mariadbtest2' `column_family`='cf13';
+insert into t1 values (1, 'fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo-bar');
+insert into t1 values (2, 'qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq-baz');
+select * from t1;
+rowkey	b
+1	fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo-bar
+2	qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq-baz
+drop table t1;
+#
+# MDEV-4001: Cassandra: server crashes in ha_cassandra::end_bulk_insert on INSERT .. SELECT with a non-existing column
+#
+create table t1 (rowkey int primary key, a int)  ENGINE=cassandra thrift_host='127.0.0.1' keyspace='mariadbtest2' column_family='cf14';
+insert into t1 (a) select b from t1;
+ERROR 42S22: Unknown column 'b' in 'field list'
+drop table t1;

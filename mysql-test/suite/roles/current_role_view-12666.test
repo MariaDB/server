@@ -1,0 +1,102 @@
+#
+# MDEV-12666 CURRENT_ROLE() does not work in a view
+#
+--source include/not_embedded.inc
+
+CREATE USER has_role@'localhost';
+GRANT ALL PRIVILEGES ON *.* TO has_role@'localhost';
+
+CREATE ROLE test_role;
+GRANT test_role TO has_role@'localhost';
+
+CREATE USER no_role@'localhost';
+GRANT ALL PRIVILEGES ON *.* TO no_role@'localhost';
+
+CREATE TABLE view_role_test (
+        id int primary key,
+        role_name varchar(50)
+        );
+
+INSERT INTO view_role_test VALUES (1, 'test_role');
+
+--echo #
+--echo # Use the same logic for stored procedures.
+--echo #
+PREPARE prepared_no_current_role FROM "SELECT * from view_role_test WHERE role_name = CURRENT_ROLE()";
+
+--echo #
+--echo # Creating a view with no CURRENT_ROLE() set and one with CURRENT_ROLE()
+--echo # set. Both should produce the same SHOW CREATE VIEW output.
+--echo #
+CREATE
+DEFINER = no_role@localhost
+SQL SECURITY INVOKER
+VIEW v_view_role_test_no_current_role
+AS
+SELECT * FROM view_role_test WHERE role_name = CURRENT_ROLE();
+
+SHOW CREATE VIEW v_view_role_test_no_current_role;
+
+
+--echo #
+--echo # No values should be returned
+--echo #
+EXECUTE prepared_no_current_role;
+SELECT * FROM view_role_test WHERE role_name = CURRENT_ROLE();
+SELECT * FROM v_view_role_test_no_current_role;
+
+--echo #
+--echo # Now let's set the role. Create identical views as before. See if
+--echo # their behaviour is different. It should not be.
+--echo #
+SET ROLE test_role;
+
+SELECT CURRENT_USER();
+SELECT CURRENT_ROLE();
+
+--echo #
+--echo # Create the VIEW and prepared Statement with a CURRENT_ROLE() set.
+--echo #
+CREATE
+DEFINER = no_role@localhost
+SQL SECURITY INVOKER
+VIEW v_view_role_test_with_current_role
+AS
+SELECT * FROM view_role_test WHERE role_name = CURRENT_ROLE();
+
+PREPARE prepared_with_current_role FROM "SELECT * from view_role_test WHERE role_name = CURRENT_ROLE()";
+
+SHOW CREATE VIEW v_view_role_test_with_current_role;
+
+
+--echo #
+--echo # Values should be returned for all select statements as we do have
+--echo # a CURRENT_ROLE() active;
+--echo #
+EXECUTE prepared_no_current_role;
+EXECUTE prepared_with_current_role;
+SELECT * FROM view_role_test WHERE role_name = CURRENT_ROLE();
+SELECT * FROM v_view_role_test_no_current_role;
+SELECT * FROM v_view_role_test_with_current_role;
+
+SET ROLE NONE;
+--echo #
+--echo # No values should be returned for all select statements as we do not have
+--echo # a CURRENT_ROLE() active;
+--echo #
+EXECUTE prepared_no_current_role;
+EXECUTE prepared_with_current_role;
+SELECT * FROM view_role_test WHERE role_name = CURRENT_ROLE();
+SELECT * FROM v_view_role_test_no_current_role;
+SELECT * FROM v_view_role_test_with_current_role;
+
+
+DROP USER has_role@'localhost';
+DROP USER no_role@'localhost';
+DROP ROLE test_role;
+
+DROP table view_role_test;
+DROP VIEW v_view_role_test_no_current_role;
+DROP VIEW v_view_role_test_with_current_role;
+DROP PREPARE prepared_no_current_role;
+DROP PREPARE prepared_with_current_role;

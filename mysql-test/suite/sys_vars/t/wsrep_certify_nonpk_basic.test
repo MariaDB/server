@@ -1,0 +1,42 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_certify_nonpk
+--echo #
+
+--echo # save the initial value
+SET @wsrep_certify_nonpk_global_saved = @@global.wsrep_certify_nonpk;
+
+--echo # default
+SELECT @@global.wsrep_certify_nonpk;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_certify_nonpk;
+SET @@global.wsrep_certify_nonpk=OFF;
+SELECT @@global.wsrep_certify_nonpk;
+SET @@global.wsrep_certify_nonpk=ON;
+SELECT @@global.wsrep_certify_nonpk;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_certify_nonpk='OFF';
+SELECT @@global.wsrep_certify_nonpk;
+SET @@global.wsrep_certify_nonpk=ON;
+SELECT @@global.wsrep_certify_nonpk;
+SET @@global.wsrep_certify_nonpk=default;
+SELECT @@global.wsrep_certify_nonpk;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_certify_nonpk=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_certify_nonpk='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_certify_nonpk = @wsrep_certify_nonpk_global_saved;
+
+--echo # End of test

@@ -1,0 +1,83 @@
+skip Background Job Manager not supported in MariaDB;
+# Test the auto analyze on lots of tables
+-- source include/have_tokudb.inc
+
+-- disable_query_log
+let $max = 200;
+
+SET @orig_auto_analyze = @@session.tokudb_auto_analyze;
+SET @orig_in_background = @@session.tokudb_analyze_in_background;
+SET @orig_mode = @@session.tokudb_analyze_mode;
+SET @orig_throttle = @@session.tokudb_analyze_throttle;
+SET @orig_time = @@session.tokudb_analyze_time;
+
+SET SESSION tokudb_auto_analyze = 1;
+SET SESSION tokudb_analyze_in_background = 0;
+SET SESSION tokudb_analyze_mode = TOKUDB_ANALYZE_STANDARD;
+SET SESSION tokudb_analyze_throttle = 0;
+SET SESSION tokudb_analyze_time = 0;
+
+let $i = $max;
+while ($i > 0) {
+    eval CREATE TABLE ar_$i (a INT, b INT, PRIMARY KEY (a), KEY bkey (b)) ENGINE=TOKUDB;
+    dec $i;
+}
+
+# check that the one row insertion triggered auto analyze within the calling
+# client context, the cardinality should go from NULL to 1
+let $i = $max;
+while ($i > 0) {
+    eval INSERT INTO ar_$i VALUES (0, 0);
+    dec $i;
+}
+-- enable_query_log
+let $i = $max;
+while ($i > 0) {
+    eval SHOW INDEX FROM ar_$i;
+    dec $i;
+}
+
+
+-- disable_query_log
+# check that lots of background analysis get scheduled and run
+# cleanly and serially in the background
+SET SESSION tokudb_auto_analyze = 1;
+SET SESSION tokudb_analyze_in_background = 1;
+SET SESSION tokudb_analyze_mode = TOKUDB_ANALYZE_STANDARD;
+SET SESSION tokudb_analyze_throttle = 0;
+SET SESSION tokudb_analyze_time = 0;
+
+let $i = $max;
+while ($i > 0) {
+    eval INSERT INTO ar_$i VALUES (1, 1), (2, 1), (3, 2), (4, 2);
+    dec $i;
+}
+
+let $i = $max;
+while ($i > 0) {
+    eval INSERT INTO ar_$i VALUES (5, 3), (6, 3), (7, 4), (8, 4);
+    dec $i;
+}
+
+# would be too long to wait for stats to become up to date here and
+# checking is quite non-deterministic, InnoDB test does same thing
+
+# dropping tables should cancel any running background jobs
+let $i = $max;
+while ($i > 0) {
+    eval DROP TABLE ar_$i;
+    dec $i;
+}
+
+# wait for the bjm queue to empty
+-- disable_query_log
+let $wait_condition=select count(*)=0 from information_schema.tokudb_background_job_status;
+-- source include/wait_condition.inc
+
+SET SESSION tokudb_auto_analyze = @orig_auto_analyze;
+SET SESSION tokudb_analyze_in_background = @orig_in_background;
+SET SESSION tokudb_analyze_mode = @orig_mode;
+SET SESSION tokudb_analyze_throttle = @orig_throttle;
+SET SESSION tokudb_analyze_time = @orig_time;
+
+-- enable_query_log

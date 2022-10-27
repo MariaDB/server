@@ -1,0 +1,82 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (id1 BIGINT, id2 BIGINT, id3 BIGINT, id4 BIGINT, PRIMARY KEY (id1, id2, id3, id4) comment 'cf1') ENGINE=rocksdb collate latin1_bin;
+set global rocksdb_force_flush_memtable_now = 1;
+
+Original Prefix Extractor:
+
+SELECT * FROM information_schema.rocksdb_cf_options WHERE option_type like '%prefix_extractor%';
+CF_NAME	OPTION_TYPE	VALUE
+__system__	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+cf1	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+default	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2=1 AND id3=1;
+COUNT(*)
+1
+select variable_value-@u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+variable_value-@u
+1
+
+Prefix Extractor (after override_cf_options set, should not be changed):
+
+SELECT * FROM information_schema.rocksdb_cf_options WHERE option_type like '%prefix_extractor%';
+CF_NAME	OPTION_TYPE	VALUE
+__system__	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+cf1	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+default	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+SET @@global.rocksdb_update_cf_options = 'cf1={prefix_extractor=capped:26};';
+
+Changed Prefix Extractor (after update_cf_options set, without restart):
+
+SELECT * FROM information_schema.rocksdb_cf_options WHERE option_type like '%prefix_extractor%';
+CF_NAME	OPTION_TYPE	VALUE
+__system__	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+cf1	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.26
+default	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+SET @@global.rocksdb_update_cf_options = 'cf2={prefix_extractor=capped:28};';
+SELECT * FROM information_schema.rocksdb_cf_options WHERE option_type like '%prefix_extractor%';
+CF_NAME	OPTION_TYPE	VALUE
+__system__	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+cf1	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.26
+cf2	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.28
+default	PREFIX_EXTRACTOR	rocksdb.CappedPrefix.24
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2=1 AND id3=1;
+COUNT(*)
+1
+select variable_value-@u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+variable_value-@u
+0
+set global rocksdb_force_flush_memtable_now = 1;
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2=1 AND id3=1;
+COUNT(*)
+1
+select variable_value-@u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+variable_value-@u
+1
+SELECT COUNT(*) FROM information_schema.rocksdb_index_file_map WHERE COLUMN_FAMILY != 1;
+COUNT(*)
+2
+UPDATE t1 SET id1=1,id2 = 30,id3 = 30 WHERE id4 >= 0 AND id4 <=10;
+set global rocksdb_force_flush_memtable_now = 1;
+SELECT COUNT(*) FROM information_schema.rocksdb_index_file_map WHERE COLUMN_FAMILY != 1;
+COUNT(*)
+3
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2=1 AND id3=1;
+COUNT(*)
+0
+select variable_value-@u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+variable_value-@u
+2
+SET @@global.rocksdb_update_cf_options = '';
+set global rocksdb_compact_cf='cf1';
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2=30 AND id3=30;
+COUNT(*)
+11
+select variable_value-@u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_checked';
+variable_value-@u
+1
+DROP TABLE t1;

@@ -1,0 +1,58 @@
+--source include/not_embedded.inc
+
+create user foo;
+select * from mysql.user where user = 'foo';
+drop user foo;
+
+create user foo identified by 'password';
+select * from mysql.user where user = 'foo';
+drop user foo;
+
+create user foo identified by 'password' require SSL;
+select * from mysql.user where user = 'foo';
+drop user foo;
+
+create user foo identified by 'password' require X509;
+select * from mysql.user where user = 'foo';
+drop user foo;
+
+create user foo identified by 'password' require CIPHER 'cipher';
+select * from mysql.user where user = 'foo';
+drop user foo;
+
+create user foo identified by 'password' require ISSUER 'issuer';
+select * from mysql.user where user = 'foo';
+drop user foo;
+
+create user foo identified by 'password' require SUBJECT 'subject';
+select * from mysql.user where user = 'foo';
+drop user foo;
+
+create user foo identified by 'password' require CIPHER 'cipher'
+                                                   SUBJECT 'subject';
+select * from mysql.user where user = 'foo';
+drop user foo;
+
+create user foo identified by 'password' require CIPHER 'cipher' 
+                                                   AND SUBJECT 'subject'
+                                                   AND ISSUER 'issuer';
+select * from mysql.user where user = 'foo';
+drop user foo;
+
+create user foo, foo2 identified by 'password' require CIPHER 'cipher' 
+                                                   AND SUBJECT 'subject'
+                                                   AND ISSUER 'issuer';
+select * from mysql.user where user like 'foo';
+
+--echo #--warning ER_USER_CREATE_EXISTS
+create user if not exists foo, foo2 identified by 'password2'
+    require CIPHER 'cipher2' AND SUBJECT 'subject2' AND ISSUER 'issuer2';
+select * from mysql.user where user like 'foo';
+drop user foo, foo2;
+
+create user foo with MAX_QUERIES_PER_HOUR 10
+                     MAX_UPDATES_PER_HOUR 20
+                     MAX_CONNECTIONS_PER_HOUR 30
+                     MAX_USER_CONNECTIONS 40;
+select * from mysql.user where user like 'foo';
+drop user foo;

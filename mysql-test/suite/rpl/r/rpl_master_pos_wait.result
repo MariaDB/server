@@ -1,0 +1,62 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+select master_pos_wait('master-bin.999999',0,2);
+master_pos_wait('master-bin.999999',0,2)
+-1
+explain extended select master_pos_wait('master-bin.999999',0,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select master_pos_wait('master-bin.999999',0,2) AS `master_pos_wait('master-bin.999999',0,2)`
+select master_pos_wait('master-bin.999999',0);
+connection slave1;
+stop slave sql_thread;
+include/wait_for_slave_sql_to_stop.inc
+connection slave;
+master_pos_wait('master-bin.999999',0)
+NULL
+connection master;
+"*** must be empty ***"
+show slave status;
+"*** must be NULL ***"
+select master_pos_wait('foo', 98);
+master_pos_wait('foo', 98)
+NULL
+*** MDEV-7130: MASTER_POS_WAIT(log_name,log_pos,timeout,"connection_name") hangs, does not respect the timeout ***
+connection slave;
+include/stop_slave.inc
+reset slave all;
+change master 'my_slave' to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+set default_master_connection = 'my_slave';
+include/start_slave.inc
+# Call without connection name -- works (expected -1)
+select master_pos_wait('master-bin.000001',1000000,1);
+master_pos_wait('master-bin.000001',1000000,1)
+-1
+set default_master_connection = '';
+# Call for non-existing anonymous connection -- works (expected NULL)
+select master_pos_wait('master-bin.000001',1000000,1);
+master_pos_wait('master-bin.000001',1000000,1)
+NULL
+# Call with a valid connection name -- hangs before MDEV-7130 fix (expected -1)
+select master_pos_wait('master-bin.000001',1000000,1,"my_slave");
+master_pos_wait('master-bin.000001',1000000,1,"my_slave")
+-1
+STOP SLAVE 'my_slave';
+RESET SLAVE 'my_slave' ALL;
+change master to master_port=MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-13965 Parameter data type control for Item_longlong_func
+#
+SELECT MASTER_POS_WAIT('x',1,ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'master_pos_wait'
+SELECT MASTER_POS_WAIT('x',1,1,ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'master_pos_wait'
+#
+# End of 10.3 tests
+#
+include/rpl_end.inc

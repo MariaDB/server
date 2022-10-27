@@ -1,0 +1,54 @@
+connection node_2;
+connection node_1;
+connection node_2;
+CREATE TABLE t1(a int not null primary key auto_increment,b int) engine=InnoDB;
+insert into t1 values (NULL,1);
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+truncate t1;
+insert into t1 values (1,0);
+begin;
+update t1 set b=2 where a=1;
+connection node_2;
+set session wsrep_sync_wait=0;
+connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2b;
+SET GLOBAL debug_dbug = "d,sync.before_wsrep_thd_abort";
+connection node_1;
+select * from t1;
+a	b
+1	0
+update t1 set b= 1 where a=1;
+connection node_2b;
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.before_wsrep_thd_abort_reached";
+connection node_2;
+SET DEBUG_SYNC= 'before_awake_no_mutex SIGNAL awake_reached WAIT_FOR continue_kill';
+connection node_2b;
+SET DEBUG_SYNC='now WAIT_FOR awake_reached';
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.before_wsrep_thd_abort";
+SET DEBUG_SYNC = "now SIGNAL continue_kill";
+connection node_2;
+connection node_2a;
+select * from t1;
+connection node_2;
+SET DEBUG_SYNC = "RESET";
+drop table t1;
+disconnect node_2a;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+CREATE TABLE t1 (i int primary key);
+SET DEBUG_SYNC = "before_wsrep_ordered_commit SIGNAL bwoc_reached WAIT_FOR bwoc_continue";
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SET DEBUG_SYNC = "now WAIT_FOR bwoc_reached";
+SET DEBUG_SYNC = "now SIGNAL bwoc_continue";
+SET DEBUG_SYNC='RESET';
+connection node_2a;
+connection node_2;
+select * from t1;
+i
+1
+disconnect node_2a;
+connection node_1;
+drop table t1;

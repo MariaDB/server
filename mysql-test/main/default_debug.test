@@ -1,0 +1,22 @@
+#
+# Race condition in DEFAULT() with expressions
+#
+
+source include/have_debug_sync.inc;
+
+create table t1 (a int, b int default (a+1));
+insert t1 values (1,10), (2,20), (3,30);
+connect (con1, localhost, root);
+select a,b,default(b) from t1;
+set debug_sync='after_Item_default_value_calculate WAIT_FOR go';
+send select a,b,default(b) from t1;
+connection default;
+let $wait_condition=select count(*) from information_schema.processlist where state like 'debug sync%';
+source include/wait_condition.inc;
+set debug_sync='ha_write_row_start SIGNAL go';
+insert t1 values (100,default(b));
+connection con1;
+reap;
+connection default;
+drop table t1;
+set debug_sync='RESET';

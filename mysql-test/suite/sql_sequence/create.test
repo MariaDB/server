@@ -1,0 +1,517 @@
+#
+# Test create options with sequences
+#
+--source include/have_innodb.inc
+--source include/have_archive.inc
+
+drop table if exists t1;
+
+#
+# Check some sample engines
+#
+
+create or replace sequence t1 engine=myisam;
+show create sequence t1;
+show create table t1;
+select * from t1;
+create or replace sequence t1 engine=innodb;
+show create sequence t1;
+show create table t1;
+select * from t1;
+create or replace sequence t1 engine=maria;
+show create sequence t1;
+show create table t1;
+select * from t1;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create or replace sequence t1 engine=archive;
+#
+# The following error should be fixed. We shouldn't delete old table on errors
+#
+--error ER_NO_SUCH_TABLE
+show create table t1;
+
+
+# Check start values
+create or replace sequence t1 start with 10;
+show create sequence t1;
+select * from t1;
+create or replace sequence t1 minvalue=11;
+show create sequence t1;
+select * from t1;
+create or replace sequence t1 maxvalue=13 increment by -1;
+show create sequence t1;
+select * from t1;
+
+create or replace sequence t1 increment by -1 cache 100;
+show create sequence t1;
+select * from t1;
+create or replace sequence t1 cycle;
+show create sequence t1;
+select * from t1;
+create or replace sequence t1 nocycle;
+show create sequence t1;
+select * from t1;
+show create sequence t1;
+create or replace sequence t1 cycle minvalue= 14;
+show create sequence t1;
+select * from t1;
+create or replace sequence t1 cycle increment by -1;
+show create sequence t1;
+
+drop sequence t1;
+create sequence if not exists t1;
+create sequence if not exists t1 start with 10;
+select * from t1;
+show create sequence t1;
+
+create or replace sequence t1 start with 10 minvalue=10 maxvalue=11 nocache cycle;
+show create sequence t1;
+select * from t1;
+create or replace sequence t1 start with 10 minvalue=-10 maxvalue=11 cache=10 cycle increment by 10;
+show create sequence t1;
+select * from t1;
+
+# NO MINVALUE, NO MAXVALUE
+create or replace sequence t1 start with 10 NO MAXVALUE NO MINVALUE;
+
+# Some edge cases
+create or replace sequence t1 start with 10 maxvalue 10;
+create or replace sequence t1 start with 10 minvalue 10;
+create or replace sequence t1 start with 10 minvalue 10 maxvalue 11 cycle;
+create or replace sequence t1 start with 10 maxvalue=9223372036854775806;
+create or replace sequence t1 start with 10 minvalue=-9223372036854775807;
+drop sequence if exists t1;
+
+create sequence t1 increment by 0;
+show create sequence t1;
+select * from t1;
+drop sequence t1;
+
+#
+# Wrong usage and arguments to create sequence
+#
+
+create table t1 (a int);
+--error ER_NOT_SEQUENCE
+show create sequence t1;
+--error ER_NOT_SEQUENCE2
+drop sequence t1;
+drop sequence if exists t1;
+
+--error ER_SEQUENCE_INVALID_DATA
+create sequence t1 start with 10 maxvalue=9;
+--error ER_SEQUENCE_INVALID_DATA
+create sequence t1 minvalue= 100 maxvalue=10;
+--error ER_SEQUENCE_INVALID_DATA
+create sequence t1 start with 9 minvalue=10;
+--error ER_PARSE_ERROR
+create or replace sequence t1 maxvalue=13, increment by -1;
+--error ER_PARSE_ERROR
+create or replace sequence t1 start with= 10 maxvalue=13;
+--error ER_PARSE_ERROR
+create or replace sequence t1 maxvalue=13, increment= -1;
+--error ER_PARSE_ERROR
+create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
+--error ER_PARSE_ERROR
+create or replace sequence t1 start with 10 min_value=1 NO MINVALUE;
+--error ER_SEQUENCE_INVALID_DATA
+create sequence t1 start with 10 maxvalue=9223372036854775807;
+--error ER_PARSE_ERROR
+create sequence t1 start with 10 minvalue=-9223372036854775808;
+--error ER_PARSE_ERROR
+create sequence t1 RESTART WITH 10;
+
+# This should probably give an error
+create or replace sequence t1 start with 10 NO MINVALUE minvalue=1;
+drop sequence t1;
+
+#
+# Test with LIST COLUMNS as first command
+#
+create sequence t1;
+show fields from t1;
+flush tables;
+show fields from t1;
+create or replace sequence t1 engine=aria;
+show fields from t1;
+show fields from t1;
+flush tables;
+
+#
+# Test with other create options
+#
+
+create or replace sequence t1 comment= "test 1";
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 comment= "test 2" min_rows=1 max_rows=2;
+show create sequence t1;
+show create table t1;
+create or replace sequence t1 start=1 increment= 2;
+create or replace sequence t1 start 1 increment 2;
+create or replace sequence t1 cache +1;
+drop sequence t1;
+
+#
+# test with create table
+#
+
+CREATE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) sequence=1;
+
+show create sequence t1;
+show create table t1;
+drop sequence t1;
+
+# Wrong column name
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE OR REPLACE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count_not_exists` bigint(21) NOT NULL
+) sequence=1;
+
+# Wrong type
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE OR REPLACE TABLE t1 (
+  `next_not_cached_value` int(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) sequence=1;
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE OR REPLACE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle` bigint(21) unsigned NOT NULL, /* error */
+  `cycle_count` bigint(21) NOT NULL
+) sequence=1;
+
+
+# Missing NOT NULL
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE OR REPLACE TABLE t1 (
+  `next_not_cached_value` bigint(21), /* error */
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) sequence=1;
+
+# Extra field
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE OR REPLACE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL,
+  extra_field bigint(21)
+) sequence=1;
+
+# Wrong field order
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE OR REPLACE TABLE t1 (
+  `minimum_value` bigint(21) NOT NULL,
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) sequence=1;
+
+# key
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE OR REPLACE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL,
+  key key1 (next_not_cached_value)
+) sequence=1;
+
+# Check constraint
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL,
+  CHECK (start_value < minimum_value)
+) sequence=1;
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL CHECK (start_value < minimum_value),
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) NOT NULL
+) sequence=1;
+
+
+# Virtual field
+
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+CREATE TABLE t1 (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL,
+  `increment` bigint(21) NOT NULL,
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL,
+  `cycle_count` bigint(21) generated always as (1) virtual
+) sequence=1;
+
+drop sequence if exists t1;
+
+#
+# DROP SEQUENCE
+#
+
+create sequence t1;
+create sequence t2;
+create table t3 (a int) engine=myisam;
+select table_catalog, table_schema, table_name, table_type from information_schema.tables where table_catalog="test";
+
+CREATE SEQUENCE s1;
+drop sequence s1;
+
+drop sequence if exists t1,t2,t3,t4;
+drop table if exists t1,t2,t3;
+
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+CREATE SEQUENCE s1;
+drop table t1,t2,s1;
+
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+CREATE SEQUENCE s1;
+drop table if exists t1,t2,s1,s2;
+
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+CREATE SEQUENCE s1;
+--error ER_UNKNOWN_SEQUENCES
+drop sequence t1,t2,s1,s2;
+drop table if exists t1,t2;
+
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+CREATE SEQUENCE s1;
+drop sequence if exists t1,t2,s1,s2;
+drop table if exists t1,t2;
+
+CREATE TEMPORARY SEQUENCE s1;
+DROP SEQUENCE s1;
+--error ER_UNKNOWN_SEQUENCES
+DROP TEMPORARY SEQUENCE s1;
+
+CREATE TEMPORARY SEQUENCE s1;
+CREATE SEQUENCE s2;
+CREATE TEMPORARY TABLE t1 (a int);
+CREATE TABLE t2 (a int);
+--error ER_UNKNOWN_SEQUENCES
+DROP TEMPORARY SEQUENCE t1,t2,s1,s2;
+--error ER_UNKNOWN_SEQUENCES
+DROP TEMPORARY SEQUENCE s1;
+DROP TEMPORARY TABLE t1;
+--error ER_BAD_TABLE_ERROR
+DROP TABLE t1,t2,s1,s2;
+
+create view v1 as (select 1);
+CREATE SEQUENCE s1;
+--error ER_IT_IS_A_VIEW
+DROP SEQUENCE s1,v1;
+drop view v1;
+
+#
+# CREATE TEMPORARY SEQUENCE
+#
+
+CREATE TEMPORARY SEQUENCE t1;
+select next value for t1;
+drop temporary table t1;
+--error ER_NO_SUCH_TABLE
+select previous value for t1;
+CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10;
+select next value for t1;
+select previous value for t1;
+CREATE TEMPORARY SEQUENCE t1 start with 100 minvalue 100 maxvalue 200 increment by 1 cache 10;
+select previous value for t1;
+select next value for t1;
+select previous value for t1;
+drop temporary sequence t1;
+select previous value for t1;
+drop sequence t1;
+
+CREATE TEMPORARY SEQUENCE t1 engine=innodb;
+select next value for t1;
+drop temporary table t1;
+--error ER_NO_SUCH_TABLE
+select previous value for t1;
+CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10 engine=innodb;
+select next value for t1;
+select previous value for t1;
+CREATE TEMPORARY SEQUENCE t1 start with 100 minvalue 100 maxvalue 200 increment by 1 cache 10 engine=innodb;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+select previous value for t1;
+select next value for t1;
+select previous value for t1;
+drop temporary sequence t1;
+select previous value for t1;
+drop sequence t1;
+
+#
+# Check that we can't create anything with the sequence engine
+#
+
+--error ER_UNKNOWN_STORAGE_ENGINE
+create table t1 (a int) engine=sql_sequence;
+
+--echo #
+--echo # MDEV-13711 assertion on CREATE LIKE fix
+--echo #
+
+create sequence s;
+create table t like s;
+show create table t;
+show create sequence t;
+drop tables t, s;
+
+--echo #
+--echo # MDEV-13714 SEQUENCE option fix
+--echo #
+
+create or replace table s (
+  `next_value` bigint(21) not null,
+  `min_value` bigint(21) not null,
+  `max_value` bigint(21) not null,
+  `start` bigint(21) not null,
+  `increment` bigint(21) not null,
+  `cache` bigint(21) not null,
+  `cycle` tinyint(1) unsigned not null,
+  `round` bigint(21) not null)
+sequence=0;
+
+create or replace table s2 (
+  `next_value` bigint(21) not null,
+  `min_value` bigint(21) not null,
+  `max_value` bigint(21) not null,
+  `start` bigint(21) not null,
+  `increment` bigint(21) not null,
+  `cache` bigint(21) not null,
+  `cycle` tinyint(1) unsigned not null,
+  `round` bigint(21) not null)
+sequence=default;
+
+show create table s;
+show create table s2;
+--error ER_NOT_SEQUENCE
+show create sequence s;
+--error ER_NOT_SEQUENCE
+show create sequence s2;
+drop table s,s2;
+
+--echo #
+--echo # MDEV-13721 Assertion is_lock_owner() failed in mysql_rm_table_no_locks
+--echo #
+
+create or replace sequence s;
+create temporary table s (i int);
+drop sequence s;
+show create table s;
+drop table s;
+
+create or replace sequence s;
+create temporary sequence s;
+show create table s;
+drop sequence s;
+show create table s;
+drop table s;
+
+create or replace sequence s;
+create temporary sequence s;
+drop temporary sequence s;
+show create table s;
+drop table s;
+
+create temporary sequence s;
+drop temporary table s;
+create temporary table s (i int);
+--error ER_NOT_SEQUENCE2
+drop temporary sequence s;
+drop table s;
+
+--echo #
+--echo # MDEV-15115 Assertion failure in CREATE SEQUENCE...ROW_FORMAT=REDUNDANT
+--echo #
+CREATE SEQUENCE seq1 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+
+--replace_column 1 # 5 #
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME='test/seq1';
+
+DROP SEQUENCE seq1;
+CREATE TEMPORARY SEQUENCE seq1 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+DROP TEMPORARY SEQUENCE seq1;
+
+--echo #
+--echo # MDEV-17503 CREATE SEQUENCE failed with innodb_force_primary_key =1
+--echo #
+
+set global innodb_force_primary_key =1;
+CREATE SEQUENCE s1 START WITH 100 INCREMENT BY 10 ENGINE=innodb;
+set global innodb_force_primary_key=default;
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+ALTER TABLE s1 ADD PRIMARY KEY (next_not_cached_value);
+DROP SEQUENCE s1;

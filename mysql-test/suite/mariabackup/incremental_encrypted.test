@@ -1,0 +1,43 @@
+--source include/innodb_page_size.inc
+
+if (!$EXAMPLE_KEY_MANAGEMENT_SO)
+{
+  --skip needs example_key_management plugin
+}
+call mtr.add_suppression("InnoDB: New log files created");
+
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
+
+
+CREATE TABLE t(i INT) ENGINE INNODB ENCRYPTED=YES;
+INSERT INTO t VALUES(1);
+
+
+echo # Create full backup , modify table, then create incremental/differential backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+INSERT INTO t VALUES(2);
+SELECT * FROM t;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf   --backup --target-dir=$incremental_dir --incremental-basedir=$basedir;
+echo # Prepare full backup, apply incremental one;
+exec $XTRABACKUP --prepare --target-dir=$basedir;
+exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir;
+
+echo # Restore and check results;
+let $targetdir=$basedir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+SELECT * FROM t;
+DROP TABLE t;
+
+# Cleanup
+rmdir $basedir;
+rmdir $incremental_dir;

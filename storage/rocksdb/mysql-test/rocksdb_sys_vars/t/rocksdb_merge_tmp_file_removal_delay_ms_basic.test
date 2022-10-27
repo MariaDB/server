@@ -1,0 +1,49 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(0);
+
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+INSERT INTO invalid_values VALUES('\'bbb\'');
+INSERT INTO invalid_values VALUES('on');
+
+--let $sys_var=ROCKSDB_MERGE_TMP_FILE_REMOVAL_DELAY_MS
+--let $read_only=0
+--let $session=1
+--source ../include/rocksdb_sys_var.inc
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;
+
+set session rocksdb_merge_buf_size=250;
+set session rocksdb_merge_combine_read_size=1000;
+set session rocksdb_merge_tmp_file_removal_delay_ms=1000;
+
+CREATE TABLE t1 (i INT, j INT, PRIMARY KEY (i)) ENGINE = ROCKSDB;
+
+--disable_query_log
+let $max = 100;
+let $i = 1;
+while ($i <= $max) {
+  let $insert = INSERT INTO t1 VALUES ($i, FLOOR(RAND() * 100));
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+
+let $start= `SELECT UNIX_TIMESTAMP()`;
+# this should take a lot longer than normal because each deleted merge file
+# will sleep for 1 secs. There should be about 13 buffers.
+# So it should take at least 13 secs
+ALTER TABLE t1 ADD INDEX kj(j), ALGORITHM=INPLACE;
+let $stop_exec= `SELECT UNIX_TIMESTAMP()`;
+
+let $time_diff= `SELECT ($stop_exec - $start)`;
+let $assert_text= Alter should have taken at least 10 seconds;
+let $assert_cond= $time_diff >= 10;
+source include/assert.inc;
+
+DROP TABLE t1;
+

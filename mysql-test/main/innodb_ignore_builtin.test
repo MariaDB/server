@@ -1,0 +1,6 @@
+#
+# Bug #42610:  Dynamic plugin broken in 5.1.31
+#
+show variables like 'ignore_builtin_innodb';
+select PLUGIN_NAME from information_schema.plugins
+where PLUGIN_NAME = "InnoDb" and PLUGIN_LIBRARY IS NULL;

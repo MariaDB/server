@@ -1,0 +1,36 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_replicate_myisam
+--echo #
+
+--echo # save the initial value
+SET @wsrep_replicate_myisam_global_saved = @@global.wsrep_replicate_myisam;
+
+--echo # default
+SELECT @@global.wsrep_replicate_myisam;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_replicate_myisam;
+
+--echo
+--echo # scope and valid values
+#--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+#TODO: check if it is expected for variable to be dynamic?
+SET @@global.wsrep_replicate_myisam=OFF;
+SELECT @@global.wsrep_replicate_myisam;
+#--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_replicate_myisam=ON;
+SELECT @@global.wsrep_replicate_myisam;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_replicate_myisam=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_replicate_myisam='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_replicate_myisam = @wsrep_replicate_myisam_global_saved;
+
+--echo # End of test

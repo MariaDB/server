@@ -1,0 +1,50 @@
+== Summary ==
+This directory contains RocksDB-based Storage Engine (RDBSE) for MySQL,
+also known as "MyRocks".
+
+== Resources ==
+https://github.com/facebook/mysql-5.6/wiki/Getting-Started-with-MyRocks
+https://www.facebook.com/groups/MyRocks/
+
+== Coding Conventions ==
+The baseline for MyRocks coding conventions for the code in storage/rocksdb/
+is based on the default clang format with a few minor changes.  The file
+storage/rocksdb/.clang-format describes conventions and can be integrated
+with Vim or Emacs as described here:
+http://releases.llvm.org/3.6.0/tools/clang/docs/ClangFormat.html#vim-integration
+
+All code outside of storage/rocksdb/ should conform to the MySQL coding
+conventions:
+http://dev.mysql.com/doc/internals/en/coding-guidelines.html.
+
+Several refinements:
+  0. There is an umbrella C++ namespace named "myrocks" for all MyRocks code.
+  1. We introduced "RDB" as the super-short abbreviation for "RocksDB". We will
+     use it as a name prefix, with different capitalization (see below), to ease
+     up code navigation with ctags and grep.
+     N.B. For ease of matching, we'll keep the variables and functions dealing
+          with sysvars as close as possible to the outside visible names of
+          sysvars, which start with "rocksdb_" prefix, the outward storage
+          engine name.
+  2. The names for classes, interfaces, and C++ structures (which act as
+     classes), start with prefix "Rdb_".
+     NB: For historical reasons, we'll keep the "ha_<storage_engine_name>" class
+         name for ha_rocksdb class, which is an exception to the rule.
+  3. The names for global objects and functions start with prefix "rdb_".
+  4. The names for macros and constants start with prefix "RDB_".
+  5. Regular class member names start with "m_".
+  6. Static class member names start with "s_".
+  7. Given the 80 character per line limit, we'll not always use full English
+     words in names, when a well known or easily recognizable abbreviation
+     exists (like "tx" for "transaction" or "param" for "parameter" etc).
+  8. When needing to disambiguate, we use different suffixes for that, like
+     "_arg" for a function argument/parameter, "_arr" for a C style array, and
+     "_vect" for a std::vector etc.
+
+== Running Tests ==
+To run tests from rocksdb, rocksdb_rpl or other rocksdb_* packages, use the
+following parameters:
+  --default-storage-engine=rocksdb
+  --skip-innodb
+  --default-tmp-storage-engine=MyISAM
+  --rocksdb

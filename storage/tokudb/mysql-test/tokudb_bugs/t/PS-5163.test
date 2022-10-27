@@ -1,0 +1,11 @@
+--source include/have_tokudb.inc
+
+CREATE TABLE t1(c1 INT default 0,c2 INT,c3 CHAR(10),c4 CHAR(10),c5 CHAR(10),PRIMARY KEY(c1),INDEX(c3,c4(1),c5(1)),INDEX(c2)) ENGINE=TokuDB;
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES(),(),(),(),();
+
+# 8.0 asserts here down in data dictionary because ha_tokudb::ds_mrr did not
+# properly call ds_mrr.init(this, table)
+UPDATE t1 SET c1=1 WHERE c1=1 OR c2=1;
+
+DROP TABLE t1;

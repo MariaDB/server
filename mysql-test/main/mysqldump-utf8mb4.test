@@ -1,0 +1,50 @@
+--source include/have_utf8mb4.inc
+--source include/not_embedded.inc
+--source include/default_charset.inc
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # MDEV-8765 mysqldump silently corrupts 4-byte UTF-8 data
+--echo #
+
+CREATE TABLE t1 (
+  point VARCHAR(10) PRIMARY KEY,
+  data VARCHAR(10),
+  comment VARCHAR(64)
+) CHARACTER SET utf8mb4;
+INSERT INTO t1 VALUES ('01f300', UNHEX('f09f8c80'), 'U+1F300 CYCLONE');
+
+--echo ----
+--echo Testing XML format output
+--echo ----
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments -X test t1
+
+
+--echo ----
+--echo Testing text format output
+--echo ----
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments test t1
+DROP TABLE t1;
+
+
+--echo ----
+--echo Testing text format dump/restore
+--echo ----
+
+--let $file = $MYSQLTEST_VARDIR/tmp/mysqldump-utf8mb4.sql
+
+CREATE TABLE t1 (
+  point VARCHAR(10) PRIMARY KEY,
+  data VARCHAR(10),
+  comment VARCHAR(64)
+) CHARACTER SET utf8mb4;
+INSERT INTO t1 VALUES ('01f300', UNHEX('f09f8c80'), 'U+1F300 CYCLONE');
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 test t1  > $file
+DROP TABLE t1;
+--exec $MYSQL test  < $file
+SELECT * FROM t1;
+DROP TABLE t1;

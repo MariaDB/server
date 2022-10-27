@@ -1,0 +1,488 @@
+set @prior_lock_wait_timeout = @@rocksdb_lock_wait_timeout;
+set @prior_deadlock_detect = @@rocksdb_deadlock_detect;
+set @prior_max_latest_deadlocks = @@rocksdb_max_latest_deadlocks;
+set global rocksdb_deadlock_detect = on;
+set global rocksdb_lock_wait_timeout = 10000;
+# Clears deadlock buffer of any prior deadlocks.
+set global rocksdb_max_latest_deadlocks = 0;
+set global rocksdb_max_latest_deadlocks = @prior_max_latest_deadlocks;
+create table t (i int primary key) engine=rocksdb;
+insert into t values (1), (2), (3);
+show engine rocksdb transaction status;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+Deadlock #1
+begin;
+select * from t where i=1 for update;
+i
+1
+begin;
+select * from t where i=2 for update;
+i
+2
+select * from t where i=2 for update;
+select * from t where i=1 for update;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+i
+2
+rollback;
+show engine rocksdb transaction status;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+
+--------TXN_ID GOT DEADLOCK---------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+Deadlock #2
+begin;
+select * from t where i=1 for update;
+i
+1
+begin;
+select * from t where i=2 for update;
+i
+2
+select * from t where i=2 for update;
+select * from t where i=1 for update;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+i
+2
+rollback;
+show engine rocksdb transaction status;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+
+--------TXN_ID GOT DEADLOCK---------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+
+--------TXN_ID GOT DEADLOCK---------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+set global rocksdb_max_latest_deadlocks = 10;
+Deadlock #3
+begin;
+select * from t where i=1 for update;
+i
+1
+begin;
+select * from t where i=2 for update;
+i
+2
+select * from t where i=2 for update;
+select * from t where i=1 for update;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+i
+2
+rollback;
+show engine rocksdb transaction status;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+
+--------TXN_ID GOT DEADLOCK---------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+
+--------TXN_ID GOT DEADLOCK---------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+
+--------TXN_ID GOT DEADLOCK---------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+set global rocksdb_max_latest_deadlocks = 1;
+show engine rocksdb transaction status;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+
+--------TXN_ID GOT DEADLOCK---------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+set rocksdb_deadlock_detect_depth = 2;
+Deadlock #4
+begin;
+select * from t where i=1 for update;
+i
+1
+begin;
+select * from t where i=2 for update;
+i
+2
+begin;
+select * from t where i=3 for update;
+i
+3
+select * from t where i=2 for update;
+select * from t where i=3 for update;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_row_lock_deadlocks';
+select * from t where i=1 for update;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+select case when variable_value-@a = 1 then 'true' else 'false' end as deadlocks from information_schema.global_status where variable_name='rocksdb_row_lock_deadlocks';
+deadlocks
+true
+rollback;
+i
+3
+rollback;
+i
+2
+rollback;
+set global rocksdb_max_latest_deadlocks = 5;
+show engine rocksdb transaction status;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+
+-------DEADLOCK EXCEEDED MAX DEPTH-------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+Deadlock #5
+begin;
+select * from t where i=1 for update;
+i
+1
+begin;
+select * from t where i=2 for update;
+i
+2
+begin;
+select * from t where i=3 lock in share mode;
+i
+3
+select * from t where i=100 for update;
+i
+select * from t where i=101 for update;
+i
+select * from t where i=2 for update;
+select * from t where i=3 lock in share mode;
+i
+3
+select * from t where i=200 for update;
+i
+select * from t where i=201 for update;
+i
+select * from t where i=1 lock in share mode;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+i
+2
+rollback;
+rollback;
+show engine rocksdb transaction status;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: SHARED
+INDEX NAME: PRIMARY
+TABLE NAME: test.t
+
+--------TXN_ID GOT DEADLOCK---------
+
+-------DEADLOCK EXCEEDED MAX DEPTH-------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+Deadlock #6
+create table t1 (id int primary key, value int) engine=rocksdb;
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+begin;
+update t1 set value=value+100 where id=1;
+update t1 set value=value+100 where id=2;
+begin;
+update t1 set value=value+200 where id=3;
+update t1 set value=value+100 where id=3;
+update t1 set value=value+200 where id=1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+select * from t1;
+id	value
+1	101
+2	102
+3	103
+4	4
+5	5
+drop table t1;
+set global rocksdb_lock_wait_timeout = @prior_lock_wait_timeout;
+set global rocksdb_deadlock_detect = @prior_deadlock_detect;
+drop table t;
+show engine rocksdb transaction status;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: NOT FOUND; IDX_ID
+TABLE NAME: NOT FOUND; IDX_ID
+---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: NOT FOUND; IDX_ID
+TABLE NAME: NOT FOUND; IDX_ID
+
+--------TXN_ID GOT DEADLOCK---------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: NOT FOUND; IDX_ID
+TABLE NAME: NOT FOUND; IDX_ID
+---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: SHARED
+INDEX NAME: NOT FOUND; IDX_ID
+TABLE NAME: NOT FOUND; IDX_ID
+
+--------TXN_ID GOT DEADLOCK---------
+
+-------DEADLOCK EXCEEDED MAX DEPTH-------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+
+set global rocksdb_max_latest_deadlocks = 0;
+# Clears deadlock buffer of any existent deadlocks.
+set global rocksdb_max_latest_deadlocks = @prior_max_latest_deadlocks;
+show engine rocksdb transaction status;
+Type	Name	Status
+rocksdb		
+============================================================
+TIMESTAMP ROCKSDB TRANSACTION MONITOR OUTPUT
+============================================================
+---------
+SNAPSHOTS
+---------
+LIST OF SNAPSHOTS FOR EACH SESSION:
+----------LATEST DETECTED DEADLOCKS----------
+-----------------------------------------
+END OF ROCKSDB TRANSACTION MONITOR OUTPUT
+=========================================
+

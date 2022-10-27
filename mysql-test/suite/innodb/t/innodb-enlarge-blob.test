@@ -1,0 +1,29 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-13227: Assertion failure len < 16384 in file rem0rec.cc line 1285
+# Crashes with innodb_page_size=64K. Does not crash at <= 32K.
+#
+CREATE TABLE t1 (a LONGTEXT) ENGINE=INNODB ROW_FORMAT=REDUNDANT;
+SHOW WARNINGS;
+INSERT INTO t1 SET a=CONCAT('A', SPACE(8000), 'B');
+INSERT INTO t1 SELECT a FROM t1;
+UPDATE t1 SET a=CONCAT(a, RAND(), a);
+UPDATE t1 SET a=CONCAT(a, RAND(), a);
+# random data no output we are only interested if fails
+--disable_result_log
+SELECT * from t1;
+--enable_result_log
+DROP TABLE t1;
+
+CREATE TABLE t1 (a LONGTEXT) ENGINE=INNODB ROW_FORMAT=DYNAMIC;
+SHOW WARNINGS;
+INSERT INTO t1 SET a=CONCAT('A', SPACE(8000), 'B');
+INSERT INTO t1 SELECT a FROM t1;
+UPDATE t1 SET a=CONCAT(a, RAND(), a);
+UPDATE t1 SET a=CONCAT(a, RAND(), a);
+# random data no output we are only interested if fails
+--disable_result_log
+SELECT * from t1;
+--enable_result_log
+DROP TABLE t1;

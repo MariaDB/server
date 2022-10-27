@@ -1,0 +1,446 @@
+SET global secure_auth=0;
+connect  con1,localhost,root,,mysql;
+show tables;
+Tables_in_mysql
+column_stats
+columns_priv
+db
+event
+func
+general_log
+global_priv
+gtid_slave_pos
+help_category
+help_keyword
+help_relation
+help_topic
+index_stats
+innodb_index_stats
+innodb_table_stats
+plugin
+proc
+procs_priv
+proxies_priv
+roles_mapping
+servers
+slow_log
+table_stats
+tables_priv
+time_zone
+time_zone_leap_second
+time_zone_name
+time_zone_transition
+time_zone_transition_type
+transaction_registry
+user
+connect  con2,localhost,root,,test;
+show tables;
+Tables_in_test
+connect(localhost,root,z,test2,MASTER_PORT,MASTER_SOCKET);
+connect  fail_con,localhost,root,z,test2;
+ERROR 28000: Access denied for user 'root'@'localhost' (using password: YES)
+connect(localhost,root,z,test,MASTER_PORT,MASTER_SOCKET);
+connect  fail_con,localhost,root,z,;
+ERROR 28000: Access denied for user 'root'@'localhost' (using password: YES)
+connection default;
+disconnect con1;
+disconnect con2;
+grant ALL on *.* to test@localhost identified by "gambling";
+grant ALL on *.* to test@127.0.0.1 identified by "gambling";
+connect  con3,localhost,test,gambling,mysql;
+show tables;
+Tables_in_mysql
+column_stats
+columns_priv
+db
+event
+func
+general_log
+global_priv
+gtid_slave_pos
+help_category
+help_keyword
+help_relation
+help_topic
+index_stats
+innodb_index_stats
+innodb_table_stats
+plugin
+proc
+procs_priv
+proxies_priv
+roles_mapping
+servers
+slow_log
+table_stats
+tables_priv
+time_zone
+time_zone_leap_second
+time_zone_name
+time_zone_transition
+time_zone_transition_type
+transaction_registry
+user
+connect  con4,localhost,test,gambling,test;
+show tables;
+Tables_in_test
+connection default;
+disconnect con3;
+disconnect con4;
+connect(localhost,test,,test2,MASTER_PORT,MASTER_SOCKET);
+connect  fail_con,localhost,test,,test2;
+ERROR 28000: Access denied for user 'test'@'localhost' (using password: NO)
+connect(localhost,test,,"",MASTER_PORT,MASTER_SOCKET);
+connect  fail_con,localhost,test,,'""';
+ERROR 28000: Access denied for user 'test'@'localhost' (using password: NO)
+connect(localhost,test,zorro,test2,MASTER_PORT,MASTER_SOCKET);
+connect  fail_con,localhost,test,zorro,test2;
+ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
+connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
+connect  fail_con,localhost,test,zorro,;
+ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
+# switching from mysql.global_priv to mysql.user
+update mysql.user set plugin="", authentication_string="", password=old_password("gambling2") where user=_binary"test";
+flush privileges;
+show grants for test@localhost;
+Grants for test@localhost
+GRANT ALL PRIVILEGES ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
+update mysql.user set plugin='mysql_old_password' where user='test';
+flush privileges;
+show grants for test@localhost;
+Grants for test@localhost
+GRANT ALL PRIVILEGES ON *.* TO `test`@`localhost` IDENTIFIED BY PASSWORD '2f27438961437573'
+connect  con10,localhost,test,gambling2,;
+connect  con5,localhost,test,gambling2,mysql;
+set password="";
+set password='gambling3';
+ERROR HY000: Password hash should be a 41-digit hexadecimal number
+set password=old_password('gambling3');
+show tables;
+Tables_in_mysql
+column_stats
+columns_priv
+db
+event
+func
+general_log
+global_priv_bak
+gtid_slave_pos
+help_category
+help_keyword
+help_relation
+help_topic
+index_stats
+innodb_index_stats
+innodb_table_stats
+plugin
+proc
+procs_priv
+proxies_priv
+roles_mapping
+servers
+slow_log
+table_stats
+tables_priv
+time_zone
+time_zone_leap_second
+time_zone_name
+time_zone_transition
+time_zone_transition_type
+transaction_registry
+user
+user_bak
+connect  con6,localhost,test,gambling3,test;
+show tables;
+Tables_in_test
+connection default;
+disconnect con10;
+disconnect con5;
+disconnect con6;
+connect(localhost,test,,test2,MASTER_PORT,MASTER_SOCKET);
+connect  fail_con,localhost,test,,test2;
+ERROR 28000: Access denied for user 'test'@'localhost' (using password: NO)
+connect(localhost,test,,test,MASTER_PORT,MASTER_SOCKET);
+connect  fail_con,localhost,test,,;
+ERROR 28000: Access denied for user 'test'@'localhost' (using password: NO)
+connect(localhost,test,zorro,test2,MASTER_PORT,MASTER_SOCKET);
+connect  fail_con,localhost,test,zorro,test2;
+ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
+connect(localhost,test,zorro,test,MASTER_PORT,MASTER_SOCKET);
+connect  fail_con,localhost,test,zorro,;
+ERROR 28000: Access denied for user 'test'@'localhost' (using password: YES)
+# switching back from mysql.user to mysql.global_priv
+delete from mysql.user where user=_binary"test";
+connect  con7,localhost,root,,test;
+create table t1 (id integer not null auto_increment primary key);
+create temporary table t2(id integer not null auto_increment primary key);
+set @id := 1;
+delete from t1 where id like @id;
+connection default;
+disconnect con7;
+drop table t1;
+# ------------------------------------------------------------------
+# -- End of 4.1 tests
+# ------------------------------------------------------------------
+
+# -- Bug#33507: Event scheduler creates more threads than max_connections
+# -- which results in user lockout.
+
+CREATE USER mysqltest_u1@localhost;
+GRANT USAGE ON *.* TO mysqltest_u1@localhost;
+
+SET GLOBAL max_connections = 10;
+SET GLOBAL event_scheduler = ON;
+connect  tmp_con1,localhost,mysqltest_u1,,;
+connect  tmp_con2,localhost,mysqltest_u1,,;
+connect  tmp_con3,localhost,mysqltest_u1,,;
+connect  tmp_con4,localhost,mysqltest_u1,,;
+connect  tmp_con5,localhost,mysqltest_u1,,;
+connect  tmp_con6,localhost,mysqltest_u1,,;
+connect  tmp_con7,localhost,mysqltest_u1,,;
+connection default;
+
+# -- Waiting for Event Scheduler to start...
+
+# -- Disconnecting default connection...
+disconnect default;
+
+# -- Check that we allow exactly three user connections, no matter how
+# -- many threads are running.
+
+# -- Connecting (1)...
+# -- Establishing connection 'con_1' (user: mysqltest_u1)...
+# -- Connection 'con_1' has been established.
+
+# -- Connecting (2)...
+# -- Establishing connection 'con_2' (user: mysqltest_u1)...
+# -- Connection 'con_2' has been established.
+
+# -- Connecting (3)...
+# -- Establishing connection 'con_3' (user: mysqltest_u1)...
+# -- Connection 'con_3' has been established.
+
+# -- Connecting (4) [should fail]...
+# -- Establishing connection 'con_4' (user: mysqltest_u1)...
+# -- Error: can not establish connection 'con_4'.
+
+# -- Check that we allow one extra SUPER-user connection.
+
+# -- Connecting super (1)...
+# -- Establishing connection 'con_super_1' (user: root)...
+# -- Connection 'con_super_1' has been established.
+
+# -- Connecting super (2) [should fail]...
+# -- Establishing connection 'con_super_2' (user: root)...
+# -- Error: can not establish connection 'con_super_2'.
+
+# -- Ensure that we have Event Scheduler thread, 3 ordinary user
+# -- connections and one extra super-user connection.
+SELECT user FROM information_schema.processlist ORDER BY id;
+user
+event_scheduler
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+root
+
+# -- Resetting variables...
+SET GLOBAL max_connections = #max_connections#;
+
+# -- Stopping Event Scheduler...
+SET GLOBAL event_scheduler = OFF;
+
+# -- Waiting for Event Scheduler to stop...
+
+# -- That's it. Closing connections...
+disconnect con_1;
+disconnect con_2;
+disconnect con_3;
+disconnect con_super_1;
+disconnect tmp_con1;
+disconnect tmp_con2;
+disconnect tmp_con3;
+disconnect tmp_con4;
+disconnect tmp_con5;
+disconnect tmp_con6;
+disconnect tmp_con7;
+
+# -- Restoring default connection...
+connect  default,localhost,root,,test;
+
+# -- Waiting for connections to close...
+
+DROP USER mysqltest_u1@localhost;
+
+# -- End of Bug#33507.
+
+# -- Bug#35074: max_used_connections is not correct.
+
+FLUSH STATUS;
+
+SHOW STATUS LIKE 'max_used_connections';
+Variable_name	Value
+Max_used_connections	1
+
+# -- Starting Event Scheduler...
+SET GLOBAL event_scheduler = ON;
+# -- Waiting for Event Scheduler to start...
+
+# -- Opening a new connection to check max_used_connections...
+connect  con_1,localhost,root;
+
+# -- Check that max_used_connections hasn't changed.
+SHOW STATUS LIKE 'max_used_connections';
+Variable_name	Value
+Max_used_connections	2
+
+# -- Closing new connection...
+disconnect con_1;
+connection default;
+
+# -- Stopping Event Scheduler...
+SET GLOBAL event_scheduler = OFF;
+# -- Waiting for Event Scheduler to stop...
+
+# -- End of Bug#35074.
+
+connect extracon,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,;
+SELECT 'Connection on extra port ok';
+Connection on extra port ok
+Connection on extra port ok
+connect extracon2,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,;
+SELECT 'Connection on extra port 2 ok';
+Connection on extra port 2 ok
+Connection on extra port 2 ok
+# -- Success: more than --extra-max-connections + 1 normal connections not possible
+#
+# -- Bug#49752: 2469.126.2 unintentionally breaks authentication
+#               against MySQL 5.1 server
+#
+GRANT ALL ON test.* TO 'O1234567890123456789012345678901234567890123456789012345678901234567890123456789'@'localhost' IDENTIFIED BY 'test123';
+FLUSH PRIVILEGES;
+connect  con1,localhost,O1234567890123456789012345678901234567890123456789012345678901234567890123456789x,test123,test;
+disconnect con1;
+connection default;
+DROP USER 'O1234567890123456789012345678901234567890123456789012345678901234567890123456789'@'localhost';
+FLUSH PRIVILEGES;
+#
+# -- End of Bug#49752
+#
+# ------------------------------------------------------------------
+# -- End of 5.1 tests
+# ------------------------------------------------------------------
+disconnect extracon;
+disconnect extracon2;
+connection default;
+CREATE USER mysqltest_up1 IDENTIFIED VIA mysql_native_password using '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB';
+CREATE USER mysqltest_up2 IDENTIFIED VIA mysql_old_password using '09301740536db389';
+connect(localhost,mysqltest_up1,foo,test,MASTER_PORT,MASTER_SOCKET);
+connect pcon1,localhost,mysqltest_up1,foo,,$MASTER_MYPORT,;
+ERROR 28000: Access denied for user 'mysqltest_up1'@'localhost' (using password: YES)
+connect pcon2,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,;
+select user(), current_user();
+user()	current_user()
+mysqltest_up1@localhost	mysqltest_up1@%
+disconnect pcon2;
+connect(localhost,mysqltest_up2,newpw,test,MASTER_PORT,MASTER_SOCKET);
+connect pcon3,localhost,mysqltest_up2,newpw,,$MASTER_MYPORT,;
+ERROR 28000: Access denied for user 'mysqltest_up2'@'localhost' (using password: YES)
+connect pcon4,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,;
+select user(), current_user();
+user()	current_user()
+mysqltest_up2@localhost	mysqltest_up2@%
+disconnect pcon4;
+connect(localhost,mysqltest_nouser,newpw,test,MASTER_PORT,MASTER_SOCKET);
+connect pcon5,localhost,mysqltest_nouser,newpw,,$MASTER_MYPORT,;
+ERROR 28000: Access denied for user 'mysqltest_nouser'@'localhost' (using password: YES)
+connect(localhost,mysqltest_nouser,,test,MASTER_PORT,MASTER_SOCKET);
+connect pcon5,localhost,mysqltest_nouser,,,$MASTER_MYPORT,;
+ERROR 28000: Access denied for user 'mysqltest_nouser'@'localhost' (using password: NO)
+connection default;
+# switching from mysql.global_priv to mysql.user
+update mysql.user set plugin='mysql_native_password' where user = 'mysqltest_up1';
+update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
+select user, password, plugin, authentication_string from mysql.user
+where user like 'mysqltest_up_';
+user	password	plugin	authentication_string
+mysqltest_up1	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB	mysql_native_password	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB
+mysqltest_up2	09301740536db389	mysql_old_password	09301740536db389
+flush privileges;
+connect pcon6,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,;
+select user(), current_user();
+user()	current_user()
+mysqltest_up1@localhost	mysqltest_up1@%
+disconnect pcon6;
+connect pcon7,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,;
+select user(), current_user();
+user()	current_user()
+mysqltest_up2@localhost	mysqltest_up2@%
+disconnect pcon7;
+connection default;
+# switching back from mysql.user to mysql.global_priv
+DROP USER mysqltest_up1@'%';
+DROP USER mysqltest_up2@'%';
+#
+# BUG#1010351: New "via" keyword in 5.2+ can't be used as identifier anymore
+#
+create table t1 (via int);
+alter table t1 add key(via);
+drop table t1;
+create table t1 (col1 int);
+alter table t1 add via int not null;
+drop table t1;
+create procedure p1(x int)
+foo: loop
+if x = 0 then
+leave foo;
+end if;
+select 'test';
+set x = x-1;
+end loop foo|
+call p1(2);
+test
+test
+test
+test
+drop procedure p1;
+SET global secure_auth=default;
+#
+# MDEV-19282: Log more specific warning with log_warnings=2 if
+# connection is aborted prior to authentication
+# MDEV-19277: Add status variable that gets incremented if
+# connection is aborted prior to authentication
+#
+flush status;
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+Variable_name	Value
+Aborted_connects	0
+Aborted_connects_preauth	0
+SET GLOBAL log_warnings=2;
+NOT FOUND /This connection closed normally without authentication/ in mysqld.1.err
+# let tcp to detect disconnect
+select sleep(1);
+sleep(1)
+0
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+Variable_name	Value
+Aborted_connects	1
+Aborted_connects_preauth	1
+FOUND 1 /This connection closed normally without authentication/ in mysqld.1.err
+SET @save_connect_timeout= @@connect_timeout;
+SET GLOBAL connect_timeout=2;
+SHOW GLOBAL STATUS LIKE 'Aborted_connects%';
+Variable_name	Value
+Aborted_connects	2
+Aborted_connects_preauth	2
+FOUND 2 /This connection closed normally without authentication/ in mysqld.1.err
+SET GLOBAL log_warnings=default;
+SET GLOBAL connect_timeout= @save_connect_timeout;
+# End of 10.4 tests

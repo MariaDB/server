@@ -1,0 +1,597 @@
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+a int, 
+b int, 
+key (a)
+);
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+#
+# Try an UPDATE that uses filesort:
+#
+explain 
+update t2 set b=b+1 order by b limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
+explain format=json
+update t2 set b=b+1 order by b limit 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "table": {
+        "update": 1,
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 10000
+      }
+    }
+  }
+}
+analyze format=json
+update t2 set b=b+1 order by b limit 5;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "filesort": {
+      "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
+      "r_limit": 5,
+      "r_used_priority_queue": true,
+      "r_output_rows": 6,
+      "table": {
+        "update": 1,
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 10000,
+        "r_rows": 10000,
+        "r_filtered": 100,
+        "r_total_time_ms": "REPLACED"
+      }
+    }
+  }
+}
+#
+# Try an UPDATE that uses buffering:
+#
+explain
+update t2 set a=a+1 where a<10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	a	a	5	NULL	9	Using where; Using buffer
+explain format=json
+update t2 set a=a+1 where a<10;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "buffer": {
+      "table": {
+        "update": 1,
+        "table_name": "t2",
+        "access_type": "range",
+        "possible_keys": ["a"],
+        "key": "a",
+        "key_length": "5",
+        "used_key_parts": ["a"],
+        "rows": 9,
+        "attached_condition": "t2.a < 10"
+      }
+    }
+  }
+}
+analyze format=json
+update t2 set a=a+1 where a<10;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "buffer": {
+      "table": {
+        "update": 1,
+        "table_name": "t2",
+        "access_type": "range",
+        "possible_keys": ["a"],
+        "key": "a",
+        "key_length": "5",
+        "used_key_parts": ["a"],
+        "rows": 9,
+        "r_rows": 10,
+        "r_filtered": 100,
+        "r_total_time_ms": "REPLACED",
+        "attached_condition": "t2.a < 10"
+      }
+    }
+  }
+}
+#
+# Try a DELETE that uses filesort:
+#
+explain 
+delete from t2 order by b limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
+explain format=json
+delete from t2 order by b limit 5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "table": {
+        "delete": 1,
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 10000
+      }
+    }
+  }
+}
+analyze format=json
+delete from t2 order by b limit 5;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "filesort": {
+      "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
+      "r_used_priority_queue": false,
+      "r_output_rows": 10000,
+      "r_buffer_size": "REPLACED",
+      "table": {
+        "delete": 1,
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 10000,
+        "r_rows": 10000,
+        "r_filtered": 100,
+        "r_total_time_ms": "REPLACED"
+      }
+    }
+  }
+}
+#
+# Try a SELECT with QEP in form: filesort { tmp_table { join } } 
+#
+explain
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ref	a	a	5	test.t0.a	1	
+explain format=json
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "sort_key": "t2.b",
+      "temporary_table": {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "t0.a is not null"
+        },
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t0.a"],
+          "rows": 1,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+analyze format=json
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "filesort": {
+      "sort_key": "t2.b",
+      "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
+      "r_limit": 4,
+      "r_used_priority_queue": true,
+      "r_output_rows": 4,
+      "temporary_table": {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "t0.a is not null"
+        },
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t0.a"],
+          "r_loops": 10,
+          "rows": 1,
+          "r_rows": 0.4,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+#
+# Try a SELECT with QEP in form: join { filesort { table0 }, table2 }
+#
+explain
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where; Using filesort
+1	SIMPLE	t2	ref	a	a	5	test.t0.a	1	
+explain format=json
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "t0.a",
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "t0.a is not null"
+        }
+      }
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t0.a"],
+      "rows": 1,
+      "filtered": 100
+    }
+  }
+}
+analyze format=json 
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "read_sorted_file": {
+      "r_rows": 10,
+      "filesort": {
+        "sort_key": "t0.a",
+        "r_loops": 1,
+        "r_total_time_ms": "REPLACED",
+        "r_used_priority_queue": false,
+        "r_output_rows": 10,
+        "r_buffer_size": "REPLACED",
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "attached_condition": "t0.a is not null"
+        }
+      }
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t0.a"],
+      "r_loops": 10,
+      "rows": 1,
+      "r_rows": 0.4,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    }
+  }
+}
+drop table t2;
+create table t2 (
+a int,
+b int,
+c int
+);
+insert into t2 
+select 
+a.a+10*b.a+100*c.a, 
+b.a+10*c.a, 
+c.a
+from t0 a, t0 b, t0 c;
+analyze format=json 
+select MAX(b) from t2 where mod(a,2)=0 group by c;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "filesort": {
+      "sort_key": "t2.c",
+      "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
+      "r_used_priority_queue": false,
+      "r_output_rows": 10,
+      "r_buffer_size": "REPLACED",
+      "temporary_table": {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 1000,
+          "r_rows": 1000,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 50,
+          "attached_condition": "t2.a MOD 2 = 0"
+        }
+      }
+    }
+  }
+}
+drop table t2;
+#
+#  MDEV-8282: crash in filesort() with simple ordered delete
+#
+create table t3(a int) engine=innodb;
+delete from t3 order by a;
+# EXPLAIN thinks it will use delete_all_rows():
+explain
+delete from t3 order by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	1	Deleting all rows
+# ANALYZE shows that delete_all_rows() didn't work and we deleted rows
+# one-by-one:
+analyze
+delete from t3 order by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	0.00	100.00	100.00	Using filesort
+drop table t3;
+#
+# A test for duplicate_removal()
+#
+create table t3 (a int, b int);
+insert into t3 select a, 123 from t0;
+analyze format=json
+select distinct max(t3.b) Q from t0, t3 where t0.a=t3.a group by t0.a order by null;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "duplicate_removal": {
+      "temporary_table": {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 10,
+          "r_rows": 10,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        },
+        "block-nl-join": {
+          "table": {
+            "table_name": "t3",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "rows": 10,
+            "r_rows": 10,
+            "r_total_time_ms": "REPLACED",
+            "filtered": 100,
+            "r_filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "65",
+          "join_type": "BNL",
+          "attached_condition": "t3.a = t0.a",
+          "r_filtered": 10
+        }
+      }
+    }
+  }
+}
+#
+# A query with two filesort calls:
+#   - first is needed to do group-by-group grouping to calculate COUNT(DISTINCT)
+#   - the second is need to produce ORDER BY.
+# (see MDEV-7836 for description of the query plan)
+create table t5 (a int , b int) ;
+create table t6 like t5 ;
+create table t7 like t5 ;
+insert into t5 values (0, 100), (1, 2), (1, 3), (2, 2), (2, 7),
+(2, -1), (3, 10);
+insert into t6 values (0, 0), (1, 1), (2, 1), (3, 1), (4, 1);
+insert into t7 values (3, 3), (2, 2), (1, 1);
+# TODO: This ANALYZE output doesn't make it clear what is used for what.
+analyze format=json
+select count(distinct t5.b) as sum from t5, t6
+where t5.a=t6.a and t6.b > 0 and t5.a <= 5
+group by t5.a order by sum limit 1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "filesort": {
+      "sort_key": "count(distinct t5.b)",
+      "r_loops": 1,
+      "r_total_time_ms": "REPLACED",
+      "r_limit": 1,
+      "r_used_priority_queue": true,
+      "r_output_rows": 2,
+      "temporary_table": {
+        "filesort": {
+          "sort_key": "t5.a",
+          "r_loops": 1,
+          "r_total_time_ms": "REPLACED",
+          "r_used_priority_queue": false,
+          "r_output_rows": 6,
+          "r_buffer_size": "REPLACED",
+          "temporary_table": {
+            "table": {
+              "table_name": "t6",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 5,
+              "r_rows": 5,
+              "r_total_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 80,
+              "attached_condition": "t6.b > 0 and t6.a <= 5"
+            },
+            "block-nl-join": {
+              "table": {
+                "table_name": "t5",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "rows": 7,
+                "r_rows": 7,
+                "r_total_time_ms": "REPLACED",
+                "filtered": 100,
+                "r_filtered": 100
+              },
+              "buffer_type": "flat",
+              "buffer_size": "119",
+              "join_type": "BNL",
+              "attached_condition": "t5.a = t6.a",
+              "r_filtered": 21.429
+            }
+          }
+        }
+      }
+    }
+  }
+}
+explain format=json
+select count(distinct t5.b) as sum from t5, t6
+where t5.a=t6.a and t6.b > 0 and t5.a <= 5
+group by t5.a order by sum limit 1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "sort_key": "count(distinct t5.b)",
+      "temporary_table": {
+        "filesort": {
+          "sort_key": "t5.a",
+          "temporary_table": {
+            "table": {
+              "table_name": "t6",
+              "access_type": "ALL",
+              "rows": 5,
+              "filtered": 100,
+              "attached_condition": "t6.b > 0 and t6.a <= 5"
+            },
+            "block-nl-join": {
+              "table": {
+                "table_name": "t5",
+                "access_type": "ALL",
+                "rows": 7,
+                "filtered": 100
+              },
+              "buffer_type": "flat",
+              "buffer_size": "119",
+              "join_type": "BNL",
+              "attached_condition": "t5.a = t6.a"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+drop table t5,t6,t7;
+drop table t3;
+# 
+# Tabular ANALYZE must get its data from execution tracker (and not from
+#   the query plan)
+# 
+CREATE TABLE t2(
+col1 int, 
+col2 int, 
+UNIQUE INDEX idx (col1, col2)) engine=myisam;
+INSERT INTO t2(col1, col2) VALUES
+(1,20),(2,19),(3,18),(4,17),(5,16),(6,15),(7,14),(8,13),(9,12),(10,11),
+(11,10),(12,9),(13,8),(14,7),(15,6),(16,5),(17,4),(18,3),(19,2),(20,1);
+flush status;
+explain
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	NULL	idx	5	NULL	7	Using index for group-by
+analyze
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t2	range	NULL	idx	5	NULL	7	20.00	100.00	100.00	Using index for group-by
+analyze format=json
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t2",
+      "access_type": "range",
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["col1"],
+      "r_loops": 1,
+      "rows": 7,
+      "r_rows": 20,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100,
+      "using_index_for_group_by": true
+    }
+  }
+}
+drop table t2;
+drop table t0,t1;

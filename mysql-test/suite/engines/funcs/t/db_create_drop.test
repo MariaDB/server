@@ -1,0 +1,20 @@
+--disable_warnings
+DROP DATABASE IF EXISTS d1;
+--enable_warnings
+CREATE DATABASE d1;
+--sorted_result
+SHOW DATABASES;
+SHOW DATABASES LIKE 'd%';
+--sorted_result
+SHOW DATABASES LIKE '%';
+USE d1;
+DROP DATABASE d1;
+CREATE SCHEMA d1;
+--sorted_result
+SHOW SCHEMAS;
+SHOW SCHEMAS LIKE 'd%';
+--sorted_result
+SHOW SCHEMAS LIKE '%';
+USE d1;
+DROP SCHEMA d1;
+

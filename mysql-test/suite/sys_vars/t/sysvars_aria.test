@@ -1,0 +1,8 @@
+--source include/have_aria.inc
+--source include/have_aria_used_for_temp_tables.inc
+--source include/word_size.inc
+
+--vertical_results
+select VARIABLE_NAME, SESSION_VALUE, DEFAULT_VALUE, VARIABLE_SCOPE, VARIABLE_TYPE, VARIABLE_COMMENT, NUMERIC_MIN_VALUE, NUMERIC_MAX_VALUE, NUMERIC_BLOCK_SIZE, ENUM_VALUE_LIST, READ_ONLY, COMMAND_LINE_ARGUMENT from information_schema.system_variables
+  where variable_name like 'aria%'
+  order by variable_name;

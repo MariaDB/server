@@ -1,0 +1,116 @@
+select 1+2/*hello*/+3;
+1+2/*hello*/+3
+6
+select 1 /* long
+multi line comment */;
+1
+1
+;
+ERROR 42000: Query was empty
+select 1 /*!32301 +1 */;
+1  +1
+2
+select 1 /*!952301 +1 */;
+1
+1
+select 1--1;
+1--1
+2
+select 1 --2
++1;
+1 --2
++1
+4
+select 1 # The rest of the row will be ignored
+;
+1
+1
+/* line with only comment */;
+select 1 /*M! +1 */;
+1  +1
+2
+select 1 /*M!50000 +1 */;
+1  +1
+2
+select 1 /*M!50300 +1 */;
+1  +1
+2
+select 2 /*M!99999 +1 */;
+2  +1
+3
+select 2 /*M!100000 +1 */;
+2  +1
+3
+select 2 /*M!999999 +1 */;
+2
+2
+select 2 /*M!0000 +1 */;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '0000 +1 */' at line 1
+#
+# Testing that MySQL versions >= 5.7.x and < 10.0.0 are ignored (MDEV-5009)
+#
+SELECT 1 /*!50699 +1*/;
+1  +1
+2
+SELECT 1 /*!50700 +1*/;
+1
+1
+SELECT 1 /*!50999 +1*/;
+1
+1
+SELECT 1 /*!99999 +1*/;
+1
+1
+SELECT 1 /*!100000 +1*/;
+1  +1
+2
+SELECT 1 /*!110000 +1*/;
+1
+1
+#
+# Tesing that versions >= 5.7.x and < 10.0.0 are not ignored 
+# when used with the MariaDB executable comment syntax.
+#
+SELECT 1 /*M!50699 +1*/;
+1  +1
+2
+SELECT 1 /*M!50700 +1*/;
+1  +1
+2
+SELECT 1 /*M!50999 +1*/;
+1  +1
+2
+SELECT 1 /*M!99999 +1*/;
+1  +1
+2
+SELECT 1 /*M!100000 +1*/;
+1  +1
+2
+SELECT 1 /*M!110000 +1*/;
+1
+1
+select 1/*!2*/;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2*/' at line 1
+select 1/*!0000002*/;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2*/' at line 1
+select 1/*!999992*/;
+1
+1
+select 1 + /*!00000 2 */ + 3 /*!999999 noise*/ + 4;
+1 +  2  + 3  + 4
+10
+drop table if exists table_28779;
+create table table_28779 (a int);
+prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*' AND b = 'bar';";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '/*' AND b = 'bar'' at line 1
+prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*' AND b = 'bar';*";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '/*' AND b = 'bar';*' at line 1
+prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*! AND 2=2;";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*! AND 2=2;*";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '*' at line 1
+prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*!998765' AND b = 'bar';";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '/*!998765' AND b = 'bar'' at line 1
+prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*!998765' AND b = 'bar';*";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '/*!998765' AND b = 'bar';*' at line 1
+drop table table_28779;

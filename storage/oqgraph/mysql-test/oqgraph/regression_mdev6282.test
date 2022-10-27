@@ -1,0 +1,47 @@
+--connect (con1,localhost,root,,test)
+
+  CREATE TABLE `db_history` (
+    `version` VARCHAR(10) NOT NULL,
+    `updateJSON` MEDIUMTEXT,
+    `prevVersion` VARCHAR(10) NOT NULL,
+    `nodeID` BIGINT(20) UNSIGNED NOT NULL DEFAULT '0',
+    `prevNodeID` BIGINT(20) UNSIGNED NOT NULL DEFAULT '0',
+    PRIMARY KEY (`prevNodeID`,`nodeID`),
+    KEY `version` (`version`) USING BTREE,
+    KEY `prevVersion` (`prevVersion`) USING BTREE,
+    KEY `nodeID` (`nodeID`) 
+  ) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+  INSERT INTO `db_history` VALUES 
+    ('0.0.1','{}','0.0.0',1,0),
+    ('0.0.2','{\"data\":{\"add\":{},\"update\":{},\"delete\":{}}}','0.0.1',2,1),
+    ('0.0.3','{\"data\":{\"add\":{},\"update\":{},\"delete\":{}}}','0.0.2',3,2);
+	
+  CREATE TABLE IF NOT EXISTS version_history (
+    latch VARCHAR(32) NULL,
+    origid BIGINT UNSIGNED NULL,
+    destid BIGINT UNSIGNED NULL,
+    weight DOUBLE NULL,
+    seq BIGINT UNSIGNED NULL,
+    linkid BIGINT UNSIGNED NULL,
+    KEY (latch, origid, destid) USING HASH,
+    KEY (latch, destid, origid) USING HASH 
+  ) ENGINE=OQGRAPH DATA_TABLE='db_history' ORIGID='prevNodeID' DESTID='nodeID';
+
+  SELECT `db`.`version`, `db`.`nodeID` 
+  FROM `version_history` AS `v` INNER JOIN `db_history` AS `db` ON `db`.`nodeID` = `v`.`linkid` 
+  WHERE `latch` = 'breadth_first' AND `origid` = '1' ORDER BY `weight` DESC LIMIT 1;
+--disconnect con1
+
+--connect (con2,localhost,root,,test)
+  SELECT `db`.`version`, `db`.`nodeID` 
+  FROM `version_history` AS `v` INNER JOIN `db_history` AS `db` ON `db`.`nodeID` = `v`.`linkid` 
+  WHERE `latch` = 'breadth_first' AND `origid` = '1' ORDER BY `weight` DESC LIMIT 1;
+--disconnect con2
+
+--connect (con3,localhost,root,,test)
+DROP TABLE version_history;
+DROP TABLE db_history;
+--disconnect con3
+
+

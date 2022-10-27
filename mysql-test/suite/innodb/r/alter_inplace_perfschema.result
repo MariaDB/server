@@ -1,0 +1,21 @@
+select count_star into @init_count from performance_schema.events_waits_summary_global_by_event_name WHERE event_name LIKE '%wait%io%file%innodb%innodb_temp_file%';
+connect  ddl, localhost, root,,;
+update performance_schema.setup_instruments set enabled='yes';
+update performance_schema.setup_consumers set enabled='yes';
+CREATE TABLE t1 (a serial, b varchar(255)) ENGINE=InnoDB;
+BEGIN;
+COMMIT;
+SET DEBUG_SYNC = 'row_log_apply_before SIGNAL go WAIT_FOR gone';
+ALTER TABLE t1 ADD INDEX(b), ALGORITHM=INPLACE;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR go';
+select count_star into @final_count from performance_schema.events_waits_summary_global_by_event_name WHERE event_name LIKE '%wait%io%file%innodb%innodb_temp_file%';
+SELECT @final_count - @init_count;
+@final_count - @init_count
+11
+SET DEBUG_SYNC = 'now SIGNAL gone';
+connection ddl;
+disconnect ddl;
+connection default;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;

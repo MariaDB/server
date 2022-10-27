@@ -1,0 +1,16 @@
+--source include/have_rocksdb.inc
+
+################################################################################
+# Test the --skip-empty-trans option for mysqlbinlog with rocksdb
+################################################################################
+--disable_warnings
+--source include/have_gtid.inc
+--enable_warnings
+
+reset master;
+set timestamp=1000000000;
+let $storage_engine=rocksdb;
+
+# Test row based replication
+set SESSION binlog_format = 'ROW';
+--source include/mysqlbinlog_gtid_skip_empty_trans_input.inc

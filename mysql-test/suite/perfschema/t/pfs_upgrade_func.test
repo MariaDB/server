@@ -1,0 +1,24 @@
+# Tests for PERFORMANCE_SCHEMA
+# Make sure mysql_upgrade does not destroy data in a 'performance_schema'
+# database.
+# 
+
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+--source include/have_innodb.inc
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+--echo "Testing mysql_upgrade with FUNCTION performance_schema.user_func"
+
+create function test.user_func() returns integer
+  return 0;
+
+update mysql.proc set db='performance_schema' where name='user_func';
+
+--source suite/perfschema/include/upgrade_check.inc
+
+select name from mysql.proc where db='performance_schema';
+
+update mysql.proc set db='test' where name='user_func';
+drop function test.user_func;

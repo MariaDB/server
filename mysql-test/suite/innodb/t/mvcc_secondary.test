@@ -1,0 +1,26 @@
+--source include/innodb_page_size_small.inc
+
+--echo #
+--echo # MDEV-25459 MVCC read from index on CHAR or VARCHAR wrongly omits rows
+--echo #
+
+CREATE TABLE t1 (
+  pk int PRIMARY KEY, c varchar(255) UNIQUE,
+  d char(255), e varchar(255), f char(255), g char(255)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARACTER SET ucs2;
+
+INSERT INTO t1 VALUES
+(1,REPEAT('c',248),REPEAT('a',106),REPEAT('b',220),REPEAT('x',14),'');
+
+BEGIN;
+UPDATE t1 SET c=REPEAT('d',170);
+
+connect (con1,localhost,root,,);
+SELECT pk FROM t1 FORCE INDEX (c);
+connection default;
+COMMIT;
+connection con1;
+SELECT pk FROM t1 FORCE INDEX (c);
+disconnect con1;
+connection default;
+DROP TABLE t1;

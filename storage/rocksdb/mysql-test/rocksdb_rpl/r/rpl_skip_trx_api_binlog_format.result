@@ -1,0 +1,27 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+call mtr.add_suppression("Master's binlog format is not ROW but rpl_skip_tx_api is enabled on the slave");
+set global rpl_skip_tx_api=ON;
+set global rocksdb_unsafe_for_binlog=1;
+create table t1(a int);
+set session binlog_format=STATEMENT;
+insert into t1 values(1);
+include/wait_for_slave_sql_error.inc [errno=1756]
+Last_SQL_Error = 'Master's binlog format is not ROW but rpl_skip_tx_api is enabled on the slave, this should only be used when master's binlog format is ROW.'
+"Table after error"
+select * from t1;
+a
+set global rpl_skip_tx_api=OFF;
+include/start_slave.inc
+include/sync_slave_sql_with_master.inc
+"Table after error fixed"
+select * from t1;
+a
+1
+drop table t1;
+set global rocksdb_unsafe_for_binlog=0;
+set global rpl_skip_tx_api=0;
+include/rpl_end.inc

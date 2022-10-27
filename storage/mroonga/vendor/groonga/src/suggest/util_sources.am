@@ -1,0 +1,3 @@
+libutil_la_SOURCES =				\
+	util.c					\
+	util.h

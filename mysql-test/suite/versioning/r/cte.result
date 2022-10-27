@@ -1,0 +1,314 @@
+set time_zone="+00:00";
+set default_storage_engine=innodb;
+create or replace table dept (
+dept_id int(10) primary key,
+name varchar(100)
+) with system versioning;
+create or replace table emp (
+emp_id int(10) primary key,
+dept_id int(10) not null,
+name varchar(100) not null,
+mgr int(10),
+salary int(10) not null,
+constraint `dept-emp-fk`
+    foreign key (dept_id) references dept (dept_id)
+on delete cascade
+on update restrict,
+constraint `mgr-fk`
+    foreign key (mgr) references emp (emp_id)
+on delete restrict
+on update restrict
+) with system versioning;
+insert into dept (dept_id, name) values (10, "accounting");
+insert into emp (emp_id, name, salary, dept_id, mgr) values
+(1, "bill", 1000, 10, null),
+(20, "john", 500, 10, 1),
+(30, "jane", 750, 10,1 );
+select row_start into @ts_1 from emp where name="jane";
+update emp set mgr=30 where name ="john";
+explain extended
+with ancestors as (
+select e.emp_id, e.name, e.mgr, e.salary from emp as e where name = 'bill'
+    union
+select e.emp_id, e.name, e.mgr, e.salary from emp as e
+) select * from ancestors for system_time as of @ts_1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	100.00	
+2	DERIVED	e	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+3	UNION	e	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with ancestors as (/* select#2 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts_1` `e` where `test`.`e`.`name` = 'bill' and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1` union /* select#3 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts_1` `e` where `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1`)/* select#1 */ select `ancestors`.`emp_id` AS `emp_id`,`ancestors`.`name` AS `name`,`ancestors`.`mgr` AS `mgr`,`ancestors`.`salary` AS `salary` from `ancestors`
+select row_start into @ts_2 from emp where name="john";
+explain extended /* All report to 'Bill' */
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp for system_time as of timestamp @ts_1 as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp for system_time as of timestamp @ts_1 as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	e	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+3	RECURSIVE UNION	e	ALL	mgr-fk	NULL	NULL	NULL	4	100.00	Using where
+3	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.e.mgr	2	100.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with recursive ancestors as (/* select#2 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts_1` `e` where `test`.`e`.`name` = 'bill' and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1` union /* select#3 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts_1` `e` join `ancestors` `a` where `a`.`emp_id` = `test`.`e`.`mgr` and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1`)/* select#1 */ select `ancestors`.`emp_id` AS `emp_id`,`ancestors`.`name` AS `name`,`ancestors`.`mgr` AS `mgr`,`ancestors`.`salary` AS `salary` from `ancestors`
+/* All report to 'Bill' */
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp for system_time as of timestamp @ts_1 as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp for system_time as of timestamp @ts_1 as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors;
+emp_id	name	mgr	salary
+1	bill	NULL	1000
+20	john	1	500
+30	jane	1	750
+explain extended with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of timestamp @ts_1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	e	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+3	RECURSIVE UNION	e	ALL	mgr-fk	NULL	NULL	NULL	4	100.00	Using where
+3	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.e.mgr	2	100.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with recursive ancestors as (/* select#2 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts_1` `e` where `test`.`e`.`name` = 'bill' and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1` union /* select#3 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts_1` `e` join `ancestors` `a` where `a`.`emp_id` = `test`.`e`.`mgr` and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1`)/* select#1 */ select `ancestors`.`emp_id` AS `emp_id`,`ancestors`.`name` AS `name`,`ancestors`.`mgr` AS `mgr`,`ancestors`.`salary` AS `salary` from `ancestors`
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of timestamp @ts_1;
+emp_id	name	mgr	salary
+1	bill	NULL	1000
+20	john	1	500
+30	jane	1	750
+explain extended with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select name from emp where emp_id in (select emp_id from ancestors for system_time as of timestamp @ts_1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	emp	ALL	PRIMARY	NULL	NULL	NULL	4	100.00	Using where
+1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+4	MATERIALIZED	<derived2>	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	e	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+3	RECURSIVE UNION	e	ALL	mgr-fk	NULL	NULL	NULL	4	100.00	Using where
+3	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.e.mgr	2	100.00	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with recursive ancestors as (/* select#2 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts_1` `e` where `test`.`e`.`name` = 'bill' and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1` union /* select#3 */ select `test`.`e`.`emp_id` AS `emp_id`,`test`.`e`.`name` AS `name`,`test`.`e`.`mgr` AS `mgr`,`test`.`e`.`salary` AS `salary` from `test`.`emp` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts_1` `e` join `ancestors` `a` where `a`.`emp_id` = `test`.`e`.`mgr` and `test`.`e`.`row_end` > @`ts_1` and `test`.`e`.`row_start` <= @`ts_1`)/* select#1 */ select `test`.`emp`.`name` AS `name` from `test`.`emp` semi join (`ancestors`) where `test`.`emp`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select name from emp where emp_id in (select emp_id from ancestors for system_time as of timestamp @ts_1);
+name
+bill
+john
+jane
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of @ts_2,
+ancestors for system_time as of @ts_2 a2;
+emp_id	name	mgr	salary	emp_id	name	mgr	salary
+1	bill	NULL	1000	1	bill	NULL	1000
+30	jane	1	750	1	bill	NULL	1000
+20	john	30	500	1	bill	NULL	1000
+1	bill	NULL	1000	30	jane	1	750
+30	jane	1	750	30	jane	1	750
+20	john	30	500	30	jane	1	750
+1	bill	NULL	1000	20	john	30	500
+30	jane	1	750	20	john	30	500
+20	john	30	500	20	john	30	500
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of @ts_2,
+ancestors for system_time as of now() a2;
+ERROR HY000: Conflicting FOR SYSTEM_TIME clauses in WITH RECURSIVE
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors,
+ancestors for system_time as of @ts_2 a2;
+ERROR HY000: Conflicting FOR SYSTEM_TIME clauses in WITH RECURSIVE
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of @ts_2,
+ancestors a2;
+ERROR HY000: Conflicting FOR SYSTEM_TIME clauses in WITH RECURSIVE
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e
+where name = 'bill'
+  union
+select e.emp_id, e.name, e.mgr, e.salary
+from emp as e,
+ancestors as a
+where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of @ts_2
+where emp_id in (select * from ancestors);
+ERROR HY000: Conflicting FOR SYSTEM_TIME clauses in WITH RECURSIVE
+# SYSTEM_TIME to internal recursive instance is prohibited
+with recursive cte as
+(
+select * from emp
+union all
+select * from cte for system_time as of @ts_1
+)
+select * from cte;
+ERROR HY000: Table `cte` is not system-versioned
+create or replace table emp ( emp_id int, name varchar(127), mgr int) with system versioning;
+create or replace table addr ( emp_id int, address varchar(100)) with system versioning;
+insert emp values (1, 'bill', 0), (2, 'bill', 1), (3, 'kate', 1);
+insert addr values (1, 'Moscow'), (2, 'New York'), (3, 'London');
+set @ts=now(6);
+delete from emp;
+delete from addr;
+with recursive
+ancestors
+as
+(
+select e.emp_id, e.name, e.mgr
+from emp for system_time as of timestamp @ts as e
+where name = 'bill'
+  union
+select ee.emp_id, ee.name, ee.mgr
+from emp for system_time as of timestamp @ts as ee, ancestors as a
+where ee.mgr = a.emp_id
+)
+select * from ancestors;
+emp_id	name	mgr
+1	bill	0
+2	bill	1
+3	kate	1
+insert emp values (4, 'john', 1);
+insert addr values (4, 'Paris');
+with ancestors as (select * from emp natural join addr) select * from ancestors;
+emp_id	name	mgr	address
+4	john	1	Paris
+with ancestors as (select * from emp natural join addr) select * from ancestors for system_time all;
+emp_id	name	mgr	address
+1	bill	0	Moscow
+2	bill	1	New York
+3	kate	1	London
+4	john	1	Paris
+with ancestors as (select * from (select * from emp natural join addr) for system_time all as t) select * from ancestors;
+emp_id	name	mgr	address
+1	bill	0	Moscow
+2	bill	1	New York
+3	kate	1	London
+4	john	1	Paris
+select * from (select * from emp natural join addr) for system_time all as t;
+emp_id	name	mgr	address
+1	bill	0	Moscow
+2	bill	1	New York
+3	kate	1	London
+4	john	1	Paris
+drop table emp;
+drop table dept;
+drop table addr;

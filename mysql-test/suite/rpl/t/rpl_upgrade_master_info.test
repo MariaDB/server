@@ -1,0 +1,168 @@
+--source include/master-slave.inc
+
+--echo *** MDEV-9383: Server fails to read master.info after upgrade 10.0 -> 10.1 ***
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=CURRENT_POS;
+--let $datadir= `SELECT @@datadir`
+
+--let $rpl_server_number= 2
+--source include/rpl_stop_server.inc
+
+--remove_file $datadir/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad_master.info $datadir/master.info
+
+--let $rpl_server_number= 2
+--source include/rpl_start_server.inc
+
+--source include/wait_until_connected_again.inc
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+--source include/save_master_gtid.inc
+
+--connection slave
+# Fix the port after we replaced master.info.
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
+SELECT * FROM t1;
+
+--source include/stop_slave.inc
+
+--let $rpl_server_number= 2
+--source include/rpl_stop_server.inc
+
+--remove_file $datadir/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad2_master.info $datadir/master.info
+
+--let $rpl_server_number= 2
+--source include/rpl_start_server.inc
+
+--source include/wait_until_connected_again.inc
+
+--connection master
+INSERT INTO t1 VALUES (2);
+--source include/save_master_gtid.inc
+
+--connection slave
+# Fix the port after we replaced master.info.
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
+SELECT * FROM t1 ORDER BY a;
+
+--source include/stop_slave.inc
+
+--let $rpl_server_number= 2
+--source include/rpl_stop_server.inc
+
+--remove_file $datadir/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad3_master.info $datadir/master.info
+
+--let $rpl_server_number= 2
+--source include/rpl_start_server.inc
+
+--source include/wait_until_connected_again.inc
+
+--connection master
+INSERT INTO t1 VALUES (3);
+--source include/save_master_gtid.inc
+
+--connection slave
+# Fix the port after we replaced master.info.
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
+SELECT * FROM t1 ORDER BY a;
+
+--source include/stop_slave.inc
+
+--let $rpl_server_number= 2
+--source include/rpl_stop_server.inc
+
+--remove_file $datadir/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad4_master.info $datadir/master.info
+
+--let $rpl_server_number= 2
+--source include/rpl_start_server.inc
+
+--source include/wait_until_connected_again.inc
+
+--connection master
+INSERT INTO t1 VALUES (4);
+--source include/save_master_gtid.inc
+
+--connection slave
+# Fix the port after we replaced master.info.
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
+SELECT * FROM t1 ORDER BY a;
+
+--source include/stop_slave.inc
+
+--let $rpl_server_number= 2
+--source include/rpl_stop_server.inc
+
+--remove_file $datadir/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad5_master.info $datadir/master.info
+
+--let $rpl_server_number= 2
+--source include/rpl_start_server.inc
+
+--source include/wait_until_connected_again.inc
+
+--connection master
+INSERT INTO t1 VALUES (5);
+--source include/save_master_gtid.inc
+
+--connection slave
+# Fix the port after we replaced master.info.
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+FLUSH NO_WRITE_TO_BINLOG TABLES;
+SELECT * FROM t1 ORDER BY a;
+
+--source include/stop_slave.inc
+
+--let $rpl_server_number= 2
+--source include/rpl_stop_server.inc
+
+--remove_file $datadir/master.info
+--copy_file $MYSQL_TEST_DIR/std_data/bad6_master.info $datadir/master.info
+
+--let $rpl_server_number= 2
+--source include/rpl_start_server.inc
+
+--source include/wait_until_connected_again.inc
+
+--connection master
+INSERT INTO t1 VALUES (6);
+--source include/save_master_gtid.inc
+
+--connection slave
+# Fix the port after we replaced master.info.
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+
+# Cleanup
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc

@@ -1,0 +1,91 @@
+set session debug_dbug= "+d,myrocks_enable_unknown_collation_index_only_scans";
+create table t (id int not null auto_increment primary key,
+c varchar(8) CHARACTER SET utf8 COLLATE utf8_general_ci,
+key sk (c));
+insert into t (c) values ('☀'), ('ß');
+explain select c from t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	sk	27	NULL	#	Using index
+select c from t;
+c
+ß
+☀
+drop table t;
+set session debug_dbug= "-d,myrocks_enable_unknown_collation_index_only_scans";
+create table t (id int not null auto_increment,
+c1 varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+c2 char(1) CHARACTER SET latin1 COLLATE latin1_general_ci,
+primary key (id),
+key sk1 (c1),
+key sk2 (c2));
+explain select hex(c1) from t order by c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	sk1	4	NULL	#	Using index
+explain select hex(c1) from t IGNORE INDEX (sk1) order by c1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	#	Using filesort
+explain select hex(c2) from t order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	sk2	2	NULL	#	Using index
+explain select hex(c2) from t IGNORE INDEX (sk1) order by c2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	sk2	2	NULL	#	Using index
+truncate t;
+insert into t (c1, c2) values ('Asdf    ', 'Asdf    ');
+Warnings:
+Warning	1265	Data truncated for column 'c1' at row 1
+Warning	1265	Data truncated for column 'c2' at row 1
+select char_length(c1), char_length(c2), c1, c2 from t;
+char_length(c1)	char_length(c2)	c1	c2
+1	1	A	A
+drop table t;
+create table t (id int not null auto_increment,
+c2 char(255) CHARACTER SET latin1 COLLATE latin1_general_ci,
+primary key (id),
+unique key sk2 (c2));
+insert into t (c2) values ('Asdf');
+insert into t (c2) values ('asdf ');
+ERROR 23000: Duplicate entry 'asdf' for key 'sk2'
+drop table t;
+create table t (id int not null auto_increment,
+c1 varchar(256) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+primary key (id),
+unique key sk1 (c1));
+insert into t (c1) values ('Asdf');
+insert into t (c1) values ('asdf ');
+ERROR 23000: Duplicate entry 'asdf ' for key 'sk1'
+insert into t (c1) values ('asdf');
+ERROR 23000: Duplicate entry 'asdf' for key 'sk1'
+drop table t;
+create table t (id int not null auto_increment,
+c1 varchar(256) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+primary key (id),
+unique key sk1 (c1(1)));
+insert into t (c1) values ('Asdf');
+insert into t (c1) values ('bbbb ');
+insert into t (c1) values ('a    ');
+ERROR 23000: Duplicate entry 'a' for key 'sk1'
+explain select c1 from t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	#	
+select c1 from t;
+c1
+Asdf
+bbbb 
+drop table t;
+set session rocksdb_verify_row_debug_checksums = on;
+create table t (id int primary key, email varchar(100), KEY email_i (email(30))) engine=rocksdb default charset=latin1;
+insert into t values (1, '                                  a');
+explain select 'email_i' as index_name, count(*) AS count from t force index(email_i);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	#	
+select 'email_i' as index_name, count(*) AS count from t force index(email_i);
+index_name	count
+email_i	1
+drop table t;
+create table t (id int primary key, email varchar(767), KEY email_i (email)) engine=rocksdb default charset=latin1;
+insert into t values (1, REPEAT('a', 700));
+select 'email_i' as index_name, count(*) AS count from t force index(email_i);
+index_name	count
+email_i	1
+drop table t;

@@ -1,0 +1,289 @@
+CREATE DATABASE mysqltest_innodb_zip;
+USE mysqltest_innodb_zip;
+SELECT table_name, row_format, data_length, index_length
+FROM information_schema.tables
+WHERE table_schema='mysqltest_innodb_zip';
+table_name	row_format	data_length	index_length
+SET @save_innodb_stats_on_metadata=@@global.innodb_stats_on_metadata;
+set session innodb_strict_mode=0;
+set global innodb_file_per_table=off;
+SET @@global.innodb_stats_on_metadata=ON;
+create table t0(a int primary key) engine=innodb row_format=compressed;
+Warnings:
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+create table t00(a int primary key) engine=innodb
+key_block_size=4 row_format=compressed;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+create table t1(a int primary key) engine=innodb row_format=dynamic;
+create table t2(a int primary key) engine=innodb row_format=redundant;
+create table t3(a int primary key) engine=innodb row_format=compact;
+create table t4(a int primary key) engine=innodb key_block_size=9;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=9.
+create table t5(a int primary key) engine=innodb
+key_block_size=1 row_format=redundant;
+Warnings:
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1.
+set global innodb_file_per_table=on;
+create table t6(a int primary key) engine=innodb
+key_block_size=1 row_format=redundant;
+Warnings:
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
+create table t7(a int primary key) engine=innodb
+key_block_size=1 row_format=redundant;
+Warnings:
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
+create table t8(a int primary key) engine=innodb
+key_block_size=1 row_format=fixed;
+Warnings:
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
+Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
+create table t9(a int primary key) engine=innodb
+key_block_size=1 row_format=compact;
+Warnings:
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
+create table t10(a int primary key) engine=innodb
+key_block_size=1 row_format=dynamic;
+Warnings:
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=1 unless ROW_FORMAT=COMPRESSED.
+create table t11(a int primary key) engine=innodb
+key_block_size=1 row_format=compressed;
+create table t12(a int primary key) engine=innodb
+key_block_size=1;
+create table t13(a int primary key) engine=innodb
+row_format=compressed;
+create table t14(a int primary key) engine=innodb key_block_size=9;
+Warnings:
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=9.
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+table_schema	table_name	row_format	data_length	index_length
+mysqltest_innodb_zip	t0	Dynamic	{valid}	0
+mysqltest_innodb_zip	t00	Dynamic	{valid}	0
+mysqltest_innodb_zip	t1	Dynamic	{valid}	0
+mysqltest_innodb_zip	t10	Dynamic	{valid}	0
+mysqltest_innodb_zip	t11	Compressed	1024	0
+mysqltest_innodb_zip	t12	Compressed	1024	0
+mysqltest_innodb_zip	t13	Compressed	{valid}	0
+mysqltest_innodb_zip	t14	Dynamic	{valid}	0
+mysqltest_innodb_zip	t2	Redundant	{valid}	0
+mysqltest_innodb_zip	t3	Compact	{valid}	0
+mysqltest_innodb_zip	t4	Dynamic	{valid}	0
+mysqltest_innodb_zip	t5	Redundant	{valid}	0
+mysqltest_innodb_zip	t6	Redundant	{valid}	0
+mysqltest_innodb_zip	t7	Redundant	{valid}	0
+mysqltest_innodb_zip	t8	Dynamic	{valid}	0
+mysqltest_innodb_zip	t9	Compact	{valid}	0
+drop table t0,t00,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14;
+alter table t1 key_block_size=0;
+alter table t1 row_format=dynamic;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+table_schema	table_name	row_format	data_length	index_length
+mysqltest_innodb_zip	t1	Dynamic	{valid}	0
+alter table t1 row_format=compact;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+table_schema	table_name	row_format	data_length	index_length
+mysqltest_innodb_zip	t1	Compact	{valid}	0
+alter table t1 row_format=redundant;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+table_schema	table_name	row_format	data_length	index_length
+mysqltest_innodb_zip	t1	Redundant	{valid}	0
+drop table t1;
+create table t1(a int not null, b text, index(b(10))) engine=innodb
+key_block_size=1;
+create table t2(b text)engine=innodb;
+insert into t2 values(concat('1abcdefghijklmnopqrstuvwxyz', repeat('A',5000)));
+insert into t1 select 1, b from t2;
+commit;
+connect  a,localhost,root,,mysqltest_innodb_zip;
+connect  b,localhost,root,,mysqltest_innodb_zip;
+connection a;
+begin;
+update t1 set b=repeat('B',100);
+connection b;
+select a,left(b,40) from t1 natural join t2;
+a	left(b,40)
+1	1abcdefghijklmnopqrstuvwxyzAAAAAAAAAAAAA
+connection a;
+rollback;
+connection b;
+select a,left(b,40) from t1 natural join t2;
+a	left(b,40)
+1	1abcdefghijklmnopqrstuvwxyzAAAAAAAAAAAAA
+connection default;
+disconnect a;
+disconnect b;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+mysqltest_innodb_zip.t1	analyze	status	Engine-independent statistics collected
+mysqltest_innodb_zip.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+mysqltest_innodb_zip.t1	analyze	status	OK
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+mysqltest_innodb_zip.t2	analyze	status	Engine-independent statistics collected
+mysqltest_innodb_zip.t2	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+mysqltest_innodb_zip.t2	analyze	status	OK
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+table_schema	table_name	row_format	data_length	index_length
+mysqltest_innodb_zip	t1	Compressed	2048	1024
+mysqltest_innodb_zip	t2	Dynamic	{valid}	0
+drop table t1,t2;
+create table t1( c1 int not null, c2 blob, c3 blob, c4 blob,
+primary key(c1, c2(22), c3(22)))
+engine = innodb row_format = dynamic;
+begin;
+insert into t1 values(1, repeat('A', 20000), repeat('B', 20000),
+repeat('C', 20000));
+update t1 set c3 = repeat('D', 20000) where c1 = 1;
+commit;
+select count(*) from t1 where c2 = repeat('A', 20000);
+count(*)
+1
+select count(*) from t1 where c3 = repeat('D', 20000);
+count(*)
+1
+select count(*) from t1 where c4 = repeat('C', 20000);
+count(*)
+1
+update t1 set c3 = repeat('E', 20000) where c1 = 1;
+drop table t1;
+set global innodb_file_per_table = on;
+set innodb_strict_mode = off;
+create table t1 (id int primary key) engine = innodb key_block_size = 0;
+drop table t1;
+set innodb_strict_mode = on;
+create table t1 (id int primary key) engine = innodb key_block_size = 0;
+create table t2 (id int primary key) engine = innodb key_block_size = 9;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: invalid KEY_BLOCK_SIZE = 9. Valid values are [1, 2, 4, 8, 16]
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table t3 (id int primary key) engine = innodb key_block_size = 1;
+create table t4 (id int primary key) engine = innodb key_block_size = 2;
+create table t5 (id int primary key) engine = innodb key_block_size = 4;
+create table t8 (id int primary key) engine = innodb row_format = compressed;
+create table t9 (id int primary key) engine = innodb row_format = dynamic;
+create table t10(id int primary key) engine = innodb row_format = compact;
+create table t11(id int primary key) engine = innodb row_format = redundant;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+table_schema	table_name	row_format	data_length	index_length
+mysqltest_innodb_zip	t1	Dynamic	{valid}	0
+mysqltest_innodb_zip	t10	Compact	{valid}	0
+mysqltest_innodb_zip	t11	Redundant	{valid}	0
+mysqltest_innodb_zip	t3	Compressed	1024	0
+mysqltest_innodb_zip	t4	Compressed	{valid}	0
+mysqltest_innodb_zip	t5	Compressed	{valid}	0
+mysqltest_innodb_zip	t8	Compressed	{valid}	0
+mysqltest_innodb_zip	t9	Dynamic	{valid}	0
+drop table t1, t3, t4, t5, t8, t9, t10, t11;
+create table t1 (id int primary key) engine = innodb
+key_block_size = 4 row_format = compressed;
+create table t2 (id int primary key) engine = innodb
+key_block_size = 4 row_format = redundant;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = REDUNDANT with KEY_BLOCK_SIZE.
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table t3 (id int primary key) engine = innodb
+key_block_size = 4 row_format = compact;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t3` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = COMPACT with KEY_BLOCK_SIZE.
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t3` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table t4 (id int primary key) engine = innodb
+key_block_size = 4 row_format = dynamic;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t4` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t4` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table t5 (id int primary key) engine = innodb
+key_block_size = 4 row_format = default;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+table_schema	table_name	row_format	data_length	index_length
+mysqltest_innodb_zip	t1	Compressed	4096	0
+mysqltest_innodb_zip	t5	Compressed	4096	0
+drop table t1, t5;
+create table t1 (id int primary key) engine = innodb
+key_block_size = 9 row_format = redundant;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t1` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: invalid KEY_BLOCK_SIZE = 9. Valid values are [1, 2, 4, 8, 16]
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = REDUNDANT with KEY_BLOCK_SIZE.
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table t2 (id int primary key) engine = innodb
+key_block_size = 9 row_format = compact;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: invalid KEY_BLOCK_SIZE = 9. Valid values are [1, 2, 4, 8, 16]
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = COMPACT with KEY_BLOCK_SIZE.
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table t2 (id int primary key) engine = innodb
+key_block_size = 9 row_format = dynamic;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: invalid KEY_BLOCK_SIZE = 9. Valid values are [1, 2, 4, 8, 16]
+Warning	1478	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+table_schema	table_name	row_format	data_length	index_length
+set global innodb_file_per_table = off;
+create table t1 (id int primary key) engine = innodb key_block_size = 1;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t1` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table t2 (id int primary key) engine = innodb key_block_size = 2;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table t3 (id int primary key) engine = innodb key_block_size = 4;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t3` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: KEY_BLOCK_SIZE requires innodb_file_per_table.
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t3` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table t6 (id int primary key) engine = innodb row_format = compressed;
+ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t6` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
+Error	1005	Can't create table `mysqltest_innodb_zip`.`t6` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table t7 (id int primary key) engine = innodb row_format = dynamic;
+show warnings;
+Level	Code	Message
+create table t8 (id int primary key) engine = innodb row_format = compact;
+create table t9 (id int primary key) engine = innodb row_format = redundant;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+table_schema	table_name	row_format	data_length	index_length
+mysqltest_innodb_zip	t7	Dynamic	{valid}	0
+mysqltest_innodb_zip	t8	Compact	{valid}	0
+mysqltest_innodb_zip	t9	Redundant	{valid}	0
+drop table t7, t8, t9;
+DROP DATABASE mysqltest_innodb_zip;

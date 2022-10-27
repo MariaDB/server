@@ -1,0 +1,28 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES utf8;
+CREATE TABLE diaries (
+id int PRIMARY KEY,
+title varchar(255),
+created_at datetime,
+KEY title_and_created_at_index (title, created_at)
+) COMMENT='ENGINE "InnoDB"' DEFAULT CHARSET=utf8;
+ALTER TABLE diaries DISABLE KEYS;
+INSERT INTO diaries VALUES (1, "Hello", "2012-04-30 20:00:00");
+INSERT INTO diaries VALUES (2, "天気" , "2012-04-30 23:00:00");
+INSERT INTO diaries VALUES (3, "富士山", "2012-04-30 19:00:00");
+SELECT *
+FROM diaries
+FORCE INDEX (title_and_created_at_index)
+WHERE title = "天気" AND
+created_at = "2012-04-30 23:00:00";
+id	title	created_at
+2	天気	2012-04-30 23:00:00
+ALTER TABLE diaries ENABLE KEYS;
+SELECT *
+FROM diaries
+FORCE INDEX (title_and_created_at_index)
+WHERE title = "天気" AND
+created_at = "2012-04-30 23:00:00";
+id	title	created_at
+2	天気	2012-04-30 23:00:00
+DROP TABLE diaries;

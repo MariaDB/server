@@ -1,0 +1,6 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+
+--let pk_cf=cf1
+
+--source ../include/bulk_load_unsorted.inc

@@ -1,0 +1,45 @@
+include/master-slave.inc
+[connection master]
+connection master;
+set sql_mode="";
+delete from mysql.user where user=_binary'rpl_ignore_grant';
+delete from mysql.db where user=_binary'rpl_ignore_grant';
+flush privileges;
+connection slave;
+set sql_mode="";
+delete from mysql.user where user=_binary'rpl_ignore_grant';
+delete from mysql.db where user=_binary'rpl_ignore_grant';
+flush privileges;
+connection master;
+grant select on *.* to rpl_ignore_grant@localhost;
+grant drop on test.* to rpl_ignore_grant@localhost;
+show grants for rpl_ignore_grant@localhost;
+Grants for rpl_ignore_grant@localhost
+GRANT SELECT ON *.* TO `rpl_ignore_grant`@`localhost`
+GRANT DROP ON `test`.* TO `rpl_ignore_grant`@`localhost`
+connection slave;
+show grants for rpl_ignore_grant@localhost;
+ERROR 42000: There is no such grant defined for user 'rpl_ignore_grant' on host 'localhost'
+select count(*) from mysql.user where user=_binary'rpl_ignore_grant';
+count(*)
+0
+select count(*) from mysql.db where user=_binary'rpl_ignore_grant';
+count(*)
+0
+grant select on *.* to rpl_ignore_grant@localhost;
+connection master;
+set password for rpl_ignore_grant@localhost=password("does it work?");
+connection slave;
+select password<>_binary'' from mysql.user where user=_binary'rpl_ignore_grant';
+password<>_binary''
+0
+connection master;
+delete from mysql.user where user=_binary'rpl_ignore_grant';
+delete from mysql.db where user=_binary'rpl_ignore_grant';
+flush privileges;
+connection slave;
+delete from mysql.user where user=_binary'rpl_ignore_grant';
+delete from mysql.db where user=_binary'rpl_ignore_grant';
+flush privileges;
+connection master;
+include/rpl_end.inc

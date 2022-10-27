@@ -1,0 +1,26 @@
+include/master-slave.inc
+[connection master]
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 char(255) DEFAULT NULL, KEY c1 (c1)) DEFAULT CHARSET=utf32;
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
+SET SQL_LOG_BIN=1;
+connection slave;
+SET @saved_slave_type_conversions= @@global.slave_type_conversions;
+include/stop_slave.inc
+SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
+include/start_slave.inc
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 ( c1 varchar(255) DEFAULT NULL, KEY c1 (c1)) DEFAULT CHARSET=utf32;
+Warnings:
+Note	1071	Specified key was too long; max key length is 1000 bytes
+SET SQL_LOG_BIN=1;
+connection master;
+INSERT INTO t1(c1) VALUES ('insert into t1');
+DROP TABLE t1;
+connection slave;
+SET GLOBAL SLAVE_TYPE_CONVERSIONS= @saved_slave_type_conversions;
+include/stop_slave.inc
+include/start_slave.inc
+connection master;
+include/rpl_end.inc

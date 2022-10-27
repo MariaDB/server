@@ -1,0 +1,239 @@
+include/master-slave.inc
+[connection master]
+*** Test that we check against incorrect table definition for mysql.gtid_slave_pos ***
+connection master;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+connection slave;
+connection slave;
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos CHANGE seq_no seq_no VARCHAR(20);
+START SLAVE;
+connection master;
+INSERT INTO t1 VALUES (1);
+connection slave;
+CALL mtr.add_suppression("Slave: Failed to open mysql.gtid_slave_pos");
+include/wait_for_slave_sql_error.inc [errno=1944]
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos CHANGE seq_no seq_no BIGINT UNSIGNED NOT NULL;
+ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
+ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (sub_id, domain_id);
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1944]
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1944]
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (sub_id);
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1944]
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
+ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (domain_id, sub_id);
+include/start_slave.inc
+connection master;
+connection slave;
+connection slave;
+SELECT * FROM t1;
+a
+1
+*** Test that setting @@gtid_domain_id or @@gtid_seq_no is not allowed inside a transaction. ***
+BEGIN;
+INSERT INTO t1 VALUES (100);
+SET SESSION gtid_domain_id= 100;
+ERROR HY000: Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a transaction
+SET SESSION gtid_seq_no= 100;
+ERROR HY000: Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a transaction
+SET @old_domain= @@GLOBAL.gtid_domain_id;
+SET GLOBAL gtid_domain_id= 100;
+SELECT @@SESSION.gtid_domain_id;
+@@SESSION.gtid_domain_id
+0
+SET GLOBAL gtid_domain_id= @old_domain;
+INSERT INTO t1 VALUES (101);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+100
+101
+ROLLBACK;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+*** Test requesting an explicit GTID position that conflicts with newer GTIDs of our own in the binlog. ***
+connection slave;
+include/stop_slave.inc
+connection master;
+RESET MASTER;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (4);
+include/save_master_gtid.inc
+connection slave;
+SET sql_log_bin = 0;
+INSERT INTO t1 VALUES (2);
+SET sql_log_bin = 1;
+INSERT INTO t1 VALUES (3);
+CHANGE MASTER TO master_use_gtid=current_pos;
+BEGIN;
+SET GLOBAL gtid_slave_pos = "100-100-100";
+ERROR 25000: You are not allowed to execute this command in a transaction
+INSERT INTO t1 VALUES (100);
+SET GLOBAL gtid_slave_pos = "100-100-100";
+ERROR 25000: You are not allowed to execute this command in a transaction
+ROLLBACK;
+SET GLOBAL gtid_strict_mode= 1;
+SET GLOBAL gtid_slave_pos = "0-1-1";
+ERROR HY000: Specified GTID 0-1-1 conflicts with the binary log which contains a more recent GTID 0-2-11. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+SET GLOBAL gtid_slave_pos = "";
+ERROR HY000: Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-11. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+SET GLOBAL gtid_strict_mode= 0;
+SET GLOBAL gtid_slave_pos = "0-1-1";
+Warnings:
+Warning	1947	Specified GTID 0-1-1 conflicts with the binary log which contains a more recent GTID 0-2-11. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+SET GLOBAL gtid_slave_pos = "";
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-11. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+RESET MASTER;
+SET GLOBAL gtid_slave_pos = "0-1-1";
+START SLAVE;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+*** MDEV-4688: Empty value of @@GLOBAL.gtid_slave_pos ***
+include/stop_slave.inc
+connection master;
+INSERT INTO t1 VALUES (5);
+include/save_master_gtid.inc
+connection slave;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
+SET GLOBAL debug_dbug="+d,gtid_fail_after_record_gtid";
+SET sql_log_bin=0;
+CALL mtr.add_suppression('Got error 131 "Command not supported by the engine" during COMMIT');
+SET sql_log_bin=1;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1180]
+SELECT @@GLOBAL.gtid_slave_pos;
+@@GLOBAL.gtid_slave_pos
+0-1-2
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+SET GLOBAL debug_dbug= @old_dbug;
+START SLAVE SQL_THREAD;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+*** Test slave requesting a GTID that is not present in the master's binlog ***
+include/stop_slave.inc
+SET GLOBAL gtid_slave_pos = "0-1-4";
+START SLAVE;
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Got fatal error .* from master when reading data from binary log: 'Error: connecting slave requested to start from GTID .*, which is not in the master's binlog'");
+SET sql_log_bin=1;
+include/wait_for_slave_io_error.inc [errno=1236]
+Slave_IO_State = ''
+Last_IO_Errno = '1236'
+Last_IO_Error = 'Got fatal error 1236 from master when reading data from binary log: 'Error: connecting slave requested to start from GTID 0-1-4, which is not in the master's binlog''
+Using_Gtid = 'Current_Pos'
+include/stop_slave.inc
+SET GLOBAL gtid_slave_pos = "0-1-3";
+START SLAVE;
+include/wait_for_slave_to_start.inc
+connection master;
+INSERT INTO t1 VALUES (6);
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+*** MDEV-4278: Slave does not detect that master is not GTID-aware ***
+connection slave;
+include/stop_slave.inc
+connection master;
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,simulate_non_gtid_aware_master";
+connection slave;
+START SLAVE;
+include/wait_for_slave_io_error.inc [errno=1233]
+connection master;
+SET GLOBAL debug_dbug= @old_dbug;
+INSERT INTO t1 VALUES (7);
+connection slave;
+START SLAVE;
+SET sql_log_bin=0;
+CALL mtr.add_suppression("The slave I/O thread stops because master does not support MariaDB global transaction id");
+SET sql_log_bin=1;
+*** Test error during record_gtid() (non-xid cases) ***
+connection slave;
+include/stop_slave.inc
+connection master;
+CREATE TABLE t2 (a INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1);
+connection slave;
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,gtid_inject_record_gtid";
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1942]
+SET GLOBAL debug_dbug= @old_dbug;
+START SLAVE SQL_THREAD;
+SELECT * FROM t2;
+a
+1
+1
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Slave: Could not update replication slave gtid state");
+SET sql_log_bin=1;
+*** MDEV-4906: When event apply fails, next SQL thread start erroneously commits the failing GTID to gtid_slave_pos ***
+connection slave;
+include/stop_slave.inc
+SET sql_log_bin=0;
+DELETE FROM t2;
+SET sql_log_bin=1;
+SET @old_format=@@binlog_format;
+SET GLOBAL binlog_format='row';
+include/start_slave.inc
+connection master;
+SET @old_format=@@binlog_format;
+SET binlog_format='row';
+DELETE FROM t2;
+SET binlog_format=@old_format;
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1032]
+result
+OK
+STOP SLAVE IO_THREAD;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1032]
+result
+OK
+STOP SLAVE IO_THREAD;
+SET sql_log_bin=0;
+INSERT INTO t2 VALUES (1);
+CALL mtr.add_suppression("Slave: Can't find record in 't2' Error_code: 1032");
+SET sql_log_bin=1;
+include/start_slave.inc
+SET GLOBAL binlog_format=@old_format;
+connection master;
+DROP TABLE t1;
+DROP TABLE t2;
+call mtr.add_suppression("Can't find record in 't2'");
+include/rpl_end.inc

@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES utf8;
+CREATE TABLE diaries (
+id varchar(32) NOT NULL PRIMARY KEY,
+content text,
+FULLTEXT INDEX (content)
+) DEFAULT CHARSET=utf8;
+REPLACE INTO diaries(content) VALUES("Hello");
+Got one of the listed errors
+DROP TABLE diaries;

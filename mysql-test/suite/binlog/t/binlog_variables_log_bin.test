@@ -1,0 +1,5 @@
+--source include/not_embedded.inc
+
+let $log_bin_index=`select substring_index(@@log_bin_index,'/',-1)`;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR $log_bin_index mysqld-bin.index
+--query_vertical SHOW VARIABLES LIKE 'log_bin%'

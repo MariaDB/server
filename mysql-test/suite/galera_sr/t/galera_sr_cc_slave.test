@@ -1,0 +1,105 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test the effect of Cluster Configuration Change on a concurrently-running SR transaction
+# We use SET GLOBAL wsrep_cluster_address = '' to cause the slave (node_2) to temporarily
+# leave the cluster.
+#
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source ../../galera/include/auto_increment_offset_save.inc
+
+# Start with a clean slate
+--connection node_2
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+--let $wsrep_trx_fragment_size_orig = `SELECT @@wsrep_trx_fragment_size`
+SET SESSION wsrep_trx_fragment_size = 1;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+
+#
+# Trigger CC . The transaction should be able to continue
+#
+
+--connection node_2
+--let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
+SET GLOBAL wsrep_cluster_address = '';
+
+# Wait until the node_2 disconnects from the cluster
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = default;
+
+--connection node_1
+
+# Wait until the node_1 sees the cluster configuration change
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Continue generating events in the transaction 
+
+INSERT INTO t1 VALUES (6);
+INSERT INTO t1 VALUES (7);
+INSERT INTO t1 VALUES (8);
+INSERT INTO t1 VALUES (9);
+INSERT INTO t1 VALUES (10);
+
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+
+# Restore cluster
+
+--connection node_2
+--disable_query_log
+--eval SET GLOBAL wsrep_cluster_address='$wsrep_cluster_address_orig';
+--enable_query_log
+--source include/galera_wait_ready.inc
+
+# Confirm that the SR table still contains entries from ongoing transaction
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+
+# Continue and finalize transaction
+--connection node_1
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (13);
+INSERT INTO t1 VALUES (14);
+INSERT INTO t1 VALUES (16);
+COMMIT;
+
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+# Confirm that transaction was replicated properly
+# and SR table is cleaned up afterwards.
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 15 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+DROP TABLE t1;
+
+CALL mtr.add_suppression("points to own listening address, blacklisting");
+
+# Restore original auto_increment_offset values.
+--source ../../galera/include/auto_increment_offset_restore.inc

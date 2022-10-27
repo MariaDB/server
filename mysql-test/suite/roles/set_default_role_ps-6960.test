@@ -1,0 +1,20 @@
+#
+# MDEV-6960 Server crashes in check_alter_user on setting a default role via PS
+#
+
+--source include/not_embedded.inc
+
+select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
+
+create role r1;
+prepare stmt from "set password = '11111111111111111111111111111111111111111'";
+execute stmt;
+prepare stmt from "set default role r1";
+execute stmt;
+
+set password = '';
+set default role NONE;
+drop role r1;
+
+#cleanup
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

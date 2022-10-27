@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS ids;
+CREATE TABLE ids (
+id char(6) CHARACTER SET latin1 PRIMARY KEY
+);
+INSERT INTO ids VALUES("abcdef");
+INSERT INTO ids VALUES(  "cdef");
+INSERT INTO ids VALUES(    "ef");
+SELECT * FROM ids FORCE INDEX(PRIMARY) ORDER BY id;
+id
+abcdef
+cdef
+ef
+SELECT * FROM ids FORCE INDEX(PRIMARY) WHERE id = "cdef";
+id
+cdef
+DROP TABLE ids;

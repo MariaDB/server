@@ -1,0 +1,24 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (2);
+connection node_2a;
+ALTER TABLE t1 ADD COLUMN f2 INTEGER, LOCK=EXCLUSIVE;
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1;
+INSERT INTO t1 VALUES (2, 2);
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+connection node_2;
+INSERT INTO t1 VALUES (3, 3);
+SELECT COUNT(*) = 3 FROM t1;
+COUNT(*) = 3
+1
+DROP TABLE t1;

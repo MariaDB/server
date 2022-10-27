@@ -1,0 +1,28 @@
+connection node_2;
+connection node_1;
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+VARIABLE_VALUE = 'Synced'
+1
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+connection node_2;
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+VARIABLE_VALUE = 'Synced'
+1
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+connection node_1;
+SET GLOBAL wsrep_provider_options = "socket.ssl_compression=No";
+ERROR HY000: Incorrect arguments to SET
+CREATE TABLE t1 (f1 VARCHAR(333) PRIMARY KEY, f2 BLOB) Engine=InnoDB;
+INSERT INTO t1 VALUES (REPEAT('a', 333), REPEAT('b', 65535));
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = REPEAT('a', 333) AND f2 = REPEAT('b', 65535);
+COUNT(*) = 1
+1
+connection node_1;
+DROP TABLE t1;
+CALL mtr.add_suppression("Unknown parameter 'socket\.ssl_compression'");
+CALL mtr.add_suppression("Set options returned 7");

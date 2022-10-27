@@ -1,0 +1,11 @@
+#!/bin/sh
+
+make -k clean || true
+/bin/rm -f */.deps/*.P config.cache
+ 
+path=`dirname $0`
+. "$path/autorun.sh"
+ 
+CFLAGS="-g -Wimplicit -Wreturn-type -Wswitch -Wtrigraphs -Wcomment -W -Wchar-subscripts -Wformat -Wparentheses -Wsign-compare -Wwrite-strings -Wunused  -O3 -fno-omit-frame-pointer" CXX=g++ CXXFLAGS="-g -Wimplicit -Wreturn-type -Wswitch -Wtrigraphs -Wcomment -W -Wchar-subscripts -Wformat -Wparentheses -Wsign-compare -Wwrite-strings -Woverloaded-virtual -Wsign-promo -Wreorder -Wctor-dtor-privacy -Wnon-virtual-dtor -felide-constructors -fno-exceptions -O3 -fno-omit-frame-pointer" ./configure --prefix=/usr/local/mysql --enable-assembler --with-extra-charsets=complex --enable-thread-safe-client --with-debug
+
+make -j 4

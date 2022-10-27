@@ -1,0 +1,46 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test the following sequence of events:
+# 
+# 1. Node #1 begins a transaction that is SR replicated
+# 2. Node #2 begins a conflicting transaction, hangs
+# 3. Node #1 comits
+# 4. Node #2 gets a dup key error
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+
+SET SESSION wsrep_trx_fragment_size = 1;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+--connection node_1
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+--connection node_2
+--send INSERT INTO t1 VALUES (5);
+
+--sleep 1
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+--error ER_DUP_ENTRY
+--reap
+
+SELECT COUNT(*) = 5 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 5 FROM t1;
+
+--connection node_1
+DROP TABLE t1;

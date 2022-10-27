@@ -1,0 +1,21 @@
+create table t(id int primary key, a int) engine=InnoDB;
+insert into t (id, a) values (1, 1);
+alter table t modify column id int auto_increment;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+insert into t (a) values (2);
+alter table t modify column id int, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+insert into t (id, a) values (3, 3);
+select * from t;
+id	a
+1	1
+2	2
+3	3
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;

@@ -1,0 +1,55 @@
+--source include/master-slave.inc
+
+connection master;
+CREATE TABLE t1(id INT);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE id>10;
+INSERT INTO t1 VALUES (5), (8), (10), (20), (30);
+SELECT * FROM t1;
+SELECT * FROM v1;
+
+--echo # Syncing slave with master
+sync_slave_with_master;
+SELECT * FROM t1;
+SELECT * FROM v1;
+
+connection master;
+--error ER_TABLE_EXISTS_ERROR
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE id>10;
+
+CREATE VIEW IF NOT EXISTS v1 AS SELECT * FROM t1 WHERE id>10;
+
+--error ER_WRONG_USAGE
+CREATE OR REPLACE VIEW IF NOT EXISTS v1 AS SELECT * FROM t1 WHERE id>10;
+
+--echo # Syncing slave with master
+sync_slave_with_master;
+SELECT * FROM t1;
+SELECT * FROM v1;
+
+connection master;
+CREATE OR REPLACE VIEW v1 AS SELECT * FROM t1 WHERE id>10;
+INSERT INTO t1 VALUES (50), (80), (3), (2), (40);
+SELECT * FROM t1;
+SELECT * FROM v1;
+
+--echo # Syncing slave with master
+sync_slave_with_master;
+SELECT * FROM t1;
+SELECT * FROM v1;
+
+connection master;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--error ER_UNKNOWN_VIEW
+DROP VIEW v1;
+
+DROP VIEW IF EXISTS v2;
+
+--echo # Syncing slave with master
+sync_slave_with_master;
+
+--error ER_NO_SUCH_TABLE
+SELECT * FROM v1;
+
+--source include/rpl_end.inc

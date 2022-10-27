@@ -1,0 +1,82 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE parent (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO parent SET a=1;
+
+CREATE TABLE child (a INT PRIMARY KEY, FOREIGN KEY (a) REFERENCES parent(a)
+ON UPDATE CASCADE)
+ENGINE=InnoDB;
+INSERT INTO child SET a=1;
+
+--error ER_TRUNCATE_ILLEGAL_FK
+TRUNCATE TABLE parent;
+TRUNCATE TABLE child;
+
+INSERT INTO child SET a=1;
+UPDATE parent SET a=2;
+SELECT * FROM child;
+
+connect (dml,localhost,root);
+SET DEBUG_SYNC='foreign_constraint_update_cascade SIGNAL fk WAIT_FOR go';
+send UPDATE parent SET a=3;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR fk';
+SET lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+TRUNCATE TABLE child;
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection dml;
+reap;
+SELECT * FROM child;
+SET DEBUG_SYNC='foreign_constraint_check_for_update SIGNAL fk WAIT_FOR go';
+send DELETE FROM parent;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR fk';
+SET lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+TRUNCATE TABLE child;
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection dml;
+--error ER_ROW_IS_REFERENCED_2
+reap;
+SELECT * FROM child;
+INSERT INTO parent SET a=5;
+SET DEBUG_SYNC='foreign_constraint_check_for_ins SIGNAL fk WAIT_FOR go';
+send INSERT INTO child SET a=5;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR fk';
+SET foreign_key_checks=0;
+TRUNCATE TABLE parent;
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection dml;
+--error ER_NO_REFERENCED_ROW_2
+reap;
+SELECT * FROM parent;
+SELECT * FROM child;
+disconnect dml;
+
+connection default;
+SET DEBUG_SYNC = RESET;
+
+DROP TABLE child, parent;
+
+--echo #
+--echo # MDEV-24532 Table corruption ER_NO_SUCH_TABLE_IN_ENGINE or
+--echo # ER_CRASHED_ON_USAGE after ALTER on table with foreign key
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY (a)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (b) REFERENCES t1 (a) ON UPDATE CASCADE;
+LOCK TABLE t1 WRITE;
+TRUNCATE TABLE t1;
+ALTER TABLE t1 ADD c INT;
+UNLOCK TABLES;
+DROP TABLE t1;

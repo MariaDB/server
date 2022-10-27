@@ -1,0 +1,43 @@
+#
+# GCF-832 SR: mysql.wsrep_streaming_log table remains populated on all nodes after crash
+# followed by immediate recovery
+#
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_2
+SET GLOBAL debug_dbug="d,crash_last_fragment_commit_after_fragment_removal";
+
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--exec echo "wait" > $_expect_file_name
+
+CREATE TABLE t1 (f1 VARCHAR(30)) ENGINE=InnoDB;
+
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+
+INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
+--error 2013
+COMMIT;
+
+--source include/start_mysqld.inc
+
+--connection node_1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--enable_reconnect
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+DROP TABLE t1;
+
+--source ../galera/include/auto_increment_offset_restore.inc

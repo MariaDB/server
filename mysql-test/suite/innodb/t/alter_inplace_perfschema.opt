@@ -1,0 +1,2 @@
+--innodb-sort-buffer-size=64k
+--tmpdir=$MYSQLTEST_VARDIR/tmp

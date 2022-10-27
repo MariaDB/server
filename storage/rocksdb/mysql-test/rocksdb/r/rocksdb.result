@@ -1,0 +1,2636 @@
+select ENGINE,COMMENT,TRANSACTIONS,XA,SAVEPOINTS from information_schema.engines where engine = 'rocksdb';
+ENGINE	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+ROCKSDB	RocksDB storage engine	YES	YES	YES
+drop table if exists t0,t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+drop table if exists t11,t12,t13,t14,t15,t16,t17,t18,t19,t20;
+drop table if exists t21,t22,t23,t24,t25,t26,t27,t28,t29;
+drop table if exists t30,t31,t32,t33,t34,t35,t36,t37,t38,t39;
+drop table if exists t40,t41,t42,t43,t44,t45,t46,t47,t48,t49;
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+#
+# Issue #1: Don't update indexes if index values have not changed
+#
+create table t1 (
+pk int primary key,
+a int,
+b int,
+key(a)
+) engine=rocksdb;
+insert into t1 values
+(1,1,1), (2,2,2), (3,3,3), (4,4,4);
+set @var1=(select variable_value 
+from information_schema.global_status 
+where variable_name='rocksdb_number_keys_written');
+# Do an update that doesn't change the key 'a'.
+update t1 set b=3334341 where a=2;
+set @var2=(select variable_value 
+from information_schema.global_status 
+where variable_name='rocksdb_number_keys_written');
+# The following should produce 1
+select @var2 - @var1;
+@var2 - @var1
+1
+# Do an update that sets the key to the same value
+update t1 set a=pk where a=3;
+set @var3=(select variable_value 
+from information_schema.global_status 
+where variable_name='rocksdb_number_keys_written');
+# We have 'updated' column to the same value, so the following must return 0:
+select @var3 - @var2;
+@var3 - @var2
+0
+drop table t1;
+create table t0 (a int primary key) engine=rocksdb;
+show create table t0;
+Table	Create Table
+t0	CREATE TABLE `t0` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+drop table t0;
+create table t1 (a int primary key, b int) engine=rocksdb;
+insert into t1 values (1,1);
+insert into t1 values (2,2);
+select * from t1;
+a	b
+1	1
+2	2
+# Check that we can create another table and insert there
+create table t2 (a varchar(10) primary key, b varchar(10)) engine=rocksdb;
+insert into t2 value ('abc','def');
+insert into t2 value ('hijkl','mnopq');
+select * from t2;
+a	b
+abc	def
+hijkl	mnopq
+# Select again from t1 to see that records from different tables dont mix
+select * from t1;
+a	b
+1	1
+2	2
+explain select * from t2 where a='no-such-key';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+explain select * from t2 where a='abc';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	12	const	#	
+select * from t2 where a='abc';
+a	b
+abc	def
+# Try a composite PK
+create table t3 (
+pk1 int, 
+pk2 varchar(10),
+col1 varchar(10),
+primary key(pk1, pk2)
+) engine=rocksdb;
+insert into t3 values (2,'two', 'row#2');
+insert into t3 values (3,'three', 'row#3');
+insert into t3 values (1,'one', 'row#1');
+select * from t3;
+pk1	pk2	col1
+1	one	row#1
+2	two	row#2
+3	three	row#3
+select * from t3 where pk1=3 and pk2='three';
+pk1	pk2	col1
+3	three	row#3
+drop table t1, t2, t3;
+# 
+# Test blob values
+#
+create table t4 (a int primary key, b blob) engine=rocksdb;
+insert into t4 values (1, repeat('quux-quux', 60));
+insert into t4 values (10, repeat('foo-bar', 43));
+insert into t4 values (5, repeat('foo-bar', 200));
+insert into t4 values (2, NULL);
+select 
+a,
+(case a 
+when 1  then b=repeat('quux-quux', 60)
+when 10 then b=repeat('foo-bar', 43)
+when 5  then b=repeat('foo-bar', 200)
+when 2  then b is null
+else 'IMPOSSIBLE!' end) as CMP
+from t4;
+a	CMP
+1	1
+2	1
+5	1
+10	1
+drop table t4;
+#
+# Test blobs of various sizes
+# 
+# TINYBLOB
+create table t5 (a int primary key, b tinyblob) engine=rocksdb;
+insert into t5 values (1, repeat('quux-quux', 6));
+insert into t5 values (10, repeat('foo-bar', 4));
+insert into t5 values (5, repeat('foo-bar', 2));
+select 
+a,
+(case a 
+when 1  then b=repeat('quux-quux', 6)
+when 10 then b=repeat('foo-bar', 4)
+when 5  then b=repeat('foo-bar', 2)
+else 'IMPOSSIBLE!' end) as CMP
+from t5;
+a	CMP
+1	1
+5	1
+10	1
+drop table t5;
+# MEDIUMBLOB
+create table t6 (a int primary key, b mediumblob) engine=rocksdb;
+insert into t6 values (1, repeat('AB', 65000));
+insert into t6 values (10, repeat('bbb', 40000));
+insert into t6 values (5, repeat('foo-bar', 2));
+select 
+a,
+(case a 
+when 1  then b=repeat('AB', 65000)
+when 10 then b=repeat('bbb', 40000)
+when 5  then b=repeat('foo-bar', 2)
+else 'IMPOSSIBLE!' end) as CMP
+from t6;
+a	CMP
+1	1
+5	1
+10	1
+drop table t6;
+# LONGBLOB
+create table t7 (a int primary key, b longblob) engine=rocksdb;
+insert into t7 values (1, repeat('AB', 65000));
+insert into t7 values (10, repeat('bbb', 40000));
+insert into t7 values (5, repeat('foo-bar', 2));
+select 
+a,
+(case a 
+when 1  then b=repeat('AB', 65000)
+when 10 then b=repeat('bbb', 40000)
+when 5  then b=repeat('foo-bar', 2)
+else 'IMPOSSIBLE!' end) as CMP
+from t7;
+a	CMP
+1	1
+5	1
+10	1
+drop table t7;
+#
+# Check if DELETEs work
+# 
+create table t8 (a varchar(10) primary key, col1 varchar(12)) engine=rocksdb;
+insert into t8 values 
+('one', 'eins'),
+('two', 'zwei'),
+('three', 'drei'),
+('four', 'vier'),
+('five', 'funf');
+# Delete by PK
+explain delete from t8 where a='three';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t8	range	PRIMARY	PRIMARY	12	NULL	#	Using where
+delete from t8 where a='three';
+select * from t8;
+a	col1
+five	funf
+four	vier
+one	eins
+two	zwei
+# Delete while doing a full table scan
+delete from t8 where col1='eins' or col1='vier';
+select * from t8;
+a	col1
+five	funf
+two	zwei
+# delete w/o WHERE:
+delete from t8;
+select * from t8;
+a	col1
+#
+# Test UPDATEs
+#
+insert into t8 values 
+('one', 'eins'),
+('two', 'zwei'),
+('three', 'drei'),
+('four', 'vier'),
+('five', 'funf');
+update t8 set col1='dva' where a='two';
+update t8 set a='fourAAA' where col1='vier';
+select * from t8;
+a	col1
+five	funf
+fourAAA	vier
+one	eins
+three	drei
+two	dva
+delete from t8;
+#
+# Basic transactions tests
+#
+begin;
+insert into t8 values ('trx1-val1', 'data');
+insert into t8 values ('trx1-val2', 'data');
+rollback;
+select * from t8;
+a	col1
+begin;
+insert into t8 values ('trx1-val1', 'data');
+insert into t8 values ('trx1-val2', 'data');
+commit;
+select * from t8;
+a	col1
+trx1-val1	data
+trx1-val2	data
+drop table t8;
+#
+# Check if DROP TABLE works
+#
+create table t8 (a varchar(10) primary key, col1 varchar(12)) engine=rocksdb;
+select * from t8;
+a	col1
+insert into t8 values ('foo','foo');
+drop table t8;
+create table t8 (a varchar(10) primary key, col1 varchar(12)) engine=rocksdb;
+select * from t8;
+a	col1
+drop table t8;
+#
+# MDEV-3961: Assertion ... on creating a TEMPORARY RocksDB table
+#
+CREATE TEMPORARY TABLE t10 (pk INT PRIMARY KEY) ENGINE=RocksDB;
+ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'TEMPORARY'
+#
+# MDEV-3963: JOIN or WHERE conditions involving keys on RocksDB tables don't work
+#
+CREATE TABLE t10 (i INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t10 VALUES (1),(3);
+CREATE TABLE t11 (j INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t11 VALUES (1),(4);
+select * from t10;
+i
+1
+3
+select * from t11;
+j
+1
+4
+EXPLAIN
+SELECT * FROM t10, t11 WHERE i=j;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t10	index	PRIMARY	PRIMARY	4	NULL	#	Using index
+1	SIMPLE	t11	eq_ref	PRIMARY	PRIMARY	4	test.t10.i	#	Using index
+SELECT * FROM t10, t11 WHERE i=j;
+i	j
+1	1
+DROP TABLE t10,t11;
+#
+# MDEV-3962: SELECT with ORDER BY causes "ERROR 1030 (HY000): Got error 122
+#
+CREATE TABLE t12 (pk INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t12 VALUES (2),(1);
+SELECT * FROM t12 ORDER BY pk;
+pk
+1
+2
+DROP TABLE t12;
+#
+# MDEV-3964: Assertion `!pk_descr' fails in ha_rocksdb::open on adding partitions ...
+#
+create table t14 (pk int primary key) engine=RocksDB partition by hash(pk) partitions 2;
+drop table t14;
+#
+# MDEV-3960: Server crashes on running DISCARD TABLESPACE on a RocksDB table
+#
+create table t9 (i int primary key) engine=rocksdb;
+alter table t9 discard tablespace;
+ERROR HY000: Storage engine ROCKSDB of the table `test`.`t9` doesn't have this option
+drop table t9;
+#
+# MDEV-3959: Assertion `slice->size() == table->s->reclength' fails ...
+#   on accessing a table after ALTER
+#
+CREATE TABLE t15 (a INT, rocksdb_pk INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t15 VALUES (1,1),(5,2);
+ALTER TABLE t15 DROP COLUMN a;
+DROP TABLE t15;
+#
+# MDEV-3968: UPDATE produces a wrong result while modifying a PK on a RocksDB table
+#
+create table t16 (pk int primary key, a char(8)) engine=RocksDB;
+insert into t16 values (1,'a'),(2,'b'),(3,'c'),(4,'d');
+update t16 set pk=100, a = 'updated' where a in ('b','c');
+ERROR 23000: Duplicate entry '100' for key 'PRIMARY'
+select * from t16;
+pk	a
+1	a
+2	b
+3	c
+4	d
+drop table t16;
+#
+# MDEV-3970: A set of assorted crashes on inserting a row into a RocksDB table 
+#
+drop table if exists t_very_long_table_name;
+CREATE TABLE `t_very_long_table_name` (
+`c` char(1) NOT NULL,
+`c0` char(0) NOT NULL,
+`c1` char(1) NOT NULL,
+`c20` char(20) NOT NULL,
+`c255` char(255) NOT NULL,
+PRIMARY KEY (`c255`)
+) ENGINE=RocksDB DEFAULT CHARSET=latin1;
+INSERT INTO t_very_long_table_name VALUES ('a', '', 'c', REPEAT('a',20), REPEAT('x',255));
+drop table t_very_long_table_name;
+#
+# Test table locking and read-before-write checks.
+#
+create table t17 (pk varchar(12) primary key, col1 varchar(12)) engine=rocksdb;
+insert into t17 values ('row1', 'val1');
+insert into t17 values ('row1', 'val1-try2');
+ERROR 23000: Duplicate entry 'row1' for key 'PRIMARY'
+insert into t17 values ('ROW1', 'val1-try2');
+ERROR 23000: Duplicate entry 'ROW1' for key 'PRIMARY'
+insert into t17 values ('row2', 'val2');
+insert into t17 values ('row3', 'val3');
+# This is ok
+update t17 set pk='row4' where pk='row1';
+# This will try to overwrite another row:
+update t17 set pk='row3' where pk='row2';
+ERROR 23000: Duplicate entry 'row3' for key 'PRIMARY'
+select * from t17;
+pk	col1
+row2	val2
+row3	val3
+row4	val1
+#
+# Locking tests
+#
+connect  con1,localhost,root,,;
+# First, make sure there's no locking when transactions update different rows
+connection con1;
+set autocommit=0;
+update t17 set col1='UPD1' where pk='row2';
+connection default;
+update t17 set col1='UPD2' where pk='row3';
+connection con1;
+commit;
+connection default;
+select * from t17;
+pk	col1
+row2	UPD1
+row3	UPD2
+row4	val1
+# Check the variable
+show variables like 'rocksdb_lock_wait_timeout';
+Variable_name	Value
+rocksdb_lock_wait_timeout	1
+set rocksdb_lock_wait_timeout=2;
+show variables like 'rocksdb_lock_wait_timeout';
+Variable_name	Value
+rocksdb_lock_wait_timeout	2
+# Try updating the same row from two transactions
+connection con1;
+begin;
+update t17 set col1='UPD2-AA' where pk='row2';
+connection default;
+update t17 set col1='UPD2-BB' where pk='row2';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set rocksdb_lock_wait_timeout=1000;
+update t17 set col1='UPD2-CC' where pk='row2';
+connection con1;
+rollback;
+connection default;
+select * from t17 where pk='row2';
+pk	col1
+row2	UPD2-CC
+drop table t17;
+disconnect con1;
+#
+#  MDEV-4035: RocksDB: SELECT produces different results inside a transaction (read is not repeatable)
+#
+create table t18 (pk int primary key, i int) engine=RocksDB;
+begin;
+select * from t18;
+pk	i
+select * from t18 where pk = 1;
+pk	i
+connect  con1,localhost,root,,;
+insert into t18 values (1,100);
+connection default;
+select * from t18;
+pk	i
+select * from t18 where pk = 1;
+pk	i
+commit;
+drop table t18;
+#
+# MDEV-4036: RocksDB: INSERT .. ON DUPLICATE KEY UPDATE does not work, produces ER_DUP_KEY
+#
+create table t19 (pk int primary key, i int) engine=RocksDB;
+insert into t19 values (1,1);
+insert into t19 values (1,100) on duplicate key update i = 102;
+select * from t19;
+pk	i
+1	102
+drop table t19;
+# MDEV-4037: RocksDB: REPLACE doesn't work, produces ER_DUP_KEY
+create table t20 (pk int primary key, i int) engine=RocksDB;
+insert into t20 values (1,1);
+replace into t20 values (1,100);
+select * from t20;
+pk	i
+1	100
+drop table t20;
+#
+# MDEV-4041: Server crashes in Primary_key_comparator::get_hashnr on INSERT 
+#
+create table t21 (v varbinary(16) primary key, i int) engine=RocksDB;
+insert into t21 values ('a',1);
+select * from t21;
+v	i
+a	1
+drop table t21;
+#
+# MDEV-4047: RocksDB: Assertion `0' fails in Protocol::end_statement() on multi-table INSERT IGNORE
+#
+CREATE TABLE t22 (a int primary key) ENGINE=RocksDB;
+INSERT INTO t22 VALUES (1),(2);
+CREATE TABLE t23 (b int primary key) ENGINE=RocksDB;
+INSERT INTO t23 SELECT * FROM t22;
+DELETE IGNORE t22.*, t23.* FROM t22, t23 WHERE b < a;
+DROP TABLE t22,t23;
+#
+# MDEV-4046: RocksDB: Multi-table DELETE locks itself and ends with ER_LOCK_WAIT_TIMEOUT
+#
+CREATE TABLE t24 (pk int primary key) ENGINE=RocksDB;
+INSERT INTO t24 VALUES (1),(2);
+CREATE TABLE t25 LIKE t24;
+INSERT INTO t25 SELECT * FROM t24;
+DELETE t25.* FROM t24, t25;
+DROP TABLE t24,t25;
+#
+# MDEV-4044: RocksDB: UPDATE or DELETE with ORDER BY locks itself
+#
+create table t26 (pk int primary key, c char(1)) engine=RocksDB;
+insert into t26 values (1,'a'),(2,'b');
+update t26 set c = 'x' order by pk limit 1;
+delete from t26 order by pk limit 1;
+select * from t26;
+pk	c
+2	b
+drop table t26;
+#
+# Test whether SELECT ... FOR UPDATE puts locks
+#
+create table t27(pk varchar(10) primary key, col1 varchar(20)) engine=RocksDB;
+insert into t27 values 
+('row1', 'row1data'),
+('row2', 'row2data'),
+('row3', 'row3data');
+connection con1;
+begin;
+select * from t27 where pk='row3' for update;
+pk	col1
+row3	row3data
+connection default;
+set rocksdb_lock_wait_timeout=1;
+update t27 set col1='row2-modified' where pk='row3';
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+rollback;
+connection default;
+disconnect con1;
+drop table t27;
+#
+# MDEV-4060: RocksDB: Assertion `! trx->batch' fails in 
+#
+create table t28 (pk int primary key, a int) engine=RocksDB;
+insert into t28 values (1,10),(2,20);
+begin;
+update t28 set a = 100 where pk = 3;
+rollback;
+select * from t28;
+pk	a
+1	10
+2	20
+drop table t28;
+# 
+# Secondary indexes
+#
+create table t30 (
+pk varchar(16) not null primary key, 
+key1 varchar(16) not null, 
+col1 varchar(16) not null,
+key(key1)
+) engine=rocksdb;
+insert into t30 values ('row1', 'row1-key', 'row1-data');
+insert into t30 values ('row2', 'row2-key', 'row2-data');
+insert into t30 values ('row3', 'row3-key', 'row3-data');
+explain
+select * from t30 where key1='row2-key';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	ref	key1	key1	18	const	#	Using index condition
+select * from t30 where key1='row2-key';
+pk	key1	col1
+row2	row2-key	row2-data
+explain 
+select * from t30 where key1='row1';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	ref	key1	key1	18	const	#	Using index condition
+# This will produce nothing:
+select * from t30 where key1='row1';
+pk	key1	col1
+explain
+select key1 from t30;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	index	NULL	key1	18	NULL	#	Using index
+select key1 from t30;
+key1
+row1-key
+row2-key
+row3-key
+# Create a duplicate record
+insert into t30 values ('row2a', 'row2-key', 'row2a-data');
+# Can we see it?
+select * from t30 where key1='row2-key';
+pk	key1	col1
+row2	row2-key	row2-data
+row2a	row2-key	row2a-data
+delete from t30 where pk='row2';
+select * from t30 where key1='row2-key';
+pk	key1	col1
+row2a	row2-key	row2a-data
+#
+# Range scans on secondary index
+#
+delete from t30;
+insert into t30 values 
+('row1', 'row1-key', 'row1-data'),
+('row2', 'row2-key', 'row2-data'),
+('row3', 'row3-key', 'row3-data'),
+('row4', 'row4-key', 'row4-data'),
+('row5', 'row5-key', 'row5-data');
+explain 
+select * from t30 where key1 <='row3-key';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	range	key1	key1	18	NULL	#	Using index condition
+select * from t30 where key1 <='row3-key';
+pk	key1	col1
+row1	row1-key	row1-data
+row2	row2-key	row2-data
+row3	row3-key	row3-data
+explain 
+select * from t30 where key1 between 'row2-key' and 'row4-key';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	range	key1	key1	18	NULL	#	Using index condition
+select * from t30 where key1 between 'row2-key' and 'row4-key';
+pk	key1	col1
+row2	row2-key	row2-data
+row3	row3-key	row3-data
+row4	row4-key	row4-data
+explain 
+select * from t30 where key1 in ('row2-key','row4-key');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	range	key1	key1	18	NULL	#	Using index condition
+select * from t30 where key1 in ('row2-key','row4-key');
+pk	key1	col1
+row2	row2-key	row2-data
+row4	row4-key	row4-data
+explain 
+select key1 from t30 where key1 in ('row2-key','row4-key');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	range	key1	key1	18	NULL	#	Using where; Using index
+select key1 from t30 where key1 in ('row2-key','row4-key');
+key1
+row2-key
+row4-key
+explain 
+select * from t30 where key1 > 'row1-key' and key1 < 'row4-key';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	range	key1	key1	18	NULL	#	Using index condition
+select * from t30 where key1 > 'row1-key' and key1 < 'row4-key';
+pk	key1	col1
+row2	row2-key	row2-data
+row3	row3-key	row3-data
+explain 
+select * from t30 order by key1 limit 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	index	NULL	key1	18	NULL	#	
+select * from t30 order by key1 limit 3;
+pk	key1	col1
+row1	row1-key	row1-data
+row2	row2-key	row2-data
+row3	row3-key	row3-data
+explain 
+select * from t30 order by key1 desc limit 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	index	NULL	key1	18	NULL	#	
+select * from t30 order by key1 desc limit 3;
+pk	key1	col1
+row5	row5-key	row5-data
+row4	row4-key	row4-data
+row3	row3-key	row3-data
+#
+# Range scans on primary key
+#
+explain 
+select * from t30 where pk <='row3';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	range	PRIMARY	PRIMARY	18	NULL	#	Using where
+select * from t30 where pk <='row3';
+pk	key1	col1
+row1	row1-key	row1-data
+row2	row2-key	row2-data
+row3	row3-key	row3-data
+explain 
+select * from t30 where pk between 'row2' and 'row4';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	range	PRIMARY	PRIMARY	18	NULL	#	Using where
+select * from t30 where pk between 'row2' and 'row4';
+pk	key1	col1
+row2	row2-key	row2-data
+row3	row3-key	row3-data
+row4	row4-key	row4-data
+explain 
+select * from t30 where pk in ('row2','row4');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	range	PRIMARY	PRIMARY	18	NULL	#	Using where
+select * from t30 where pk in ('row2','row4');
+pk	key1	col1
+row2	row2-key	row2-data
+row4	row4-key	row4-data
+explain 
+select * from t30 order by pk limit 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t30	index	NULL	PRIMARY	18	NULL	#	
+select * from t30 order by pk limit 3;
+pk	key1	col1
+row1	row1-key	row1-data
+row2	row2-key	row2-data
+row3	row3-key	row3-data
+drop table t30;
+#
+# MDEV-3841: RocksDB: Reading by PK prefix does not work
+#
+create table t31 (i int, j int, k int, primary key(i,j,k)) engine=RocksDB;
+insert into t31 values (1,10,100),(2,20,200);
+select * from t31 where i = 1;
+i	j	k
+1	10	100
+select * from t31 where j = 10;
+i	j	k
+1	10	100
+select * from t31 where k = 100;
+i	j	k
+1	10	100
+select * from t31 where i = 1 and j = 10;
+i	j	k
+1	10	100
+select * from t31 where i = 1 and k = 100;
+i	j	k
+1	10	100
+select * from t31 where j = 10 and k = 100;
+i	j	k
+1	10	100
+select * from t31 where i = 1 and j = 10 and k = 100;
+i	j	k
+1	10	100
+drop table t31;
+#
+# MDEV-4055: RocksDB: UPDATE/DELETE by a multi-part PK does not work
+#
+create table t32 (i int, j int, k int, primary key(i,j,k), a varchar(8)) engine=RocksDB;
+insert into t32 values 
+(1,10,100,''),
+(2,20,200,'');
+select * from t32 where i = 1 and j = 10 and k = 100;
+i	j	k	a
+1	10	100	
+update t32 set a = 'updated' where i = 1 and j = 10 and k = 100;
+select * from t32;
+i	j	k	a
+1	10	100	updated
+2	20	200	
+drop table t32;
+#
+# MDEV-3841: RocksDB: Assertion `0' fails in ha_rocksdb::index_read_map on range select with ORDER BY .. DESC
+#
+CREATE TABLE t33 (pk INT PRIMARY KEY, a CHAR(1)) ENGINE=RocksDB;
+INSERT INTO t33 VALUES (1,'a'),(2,'b');
+SELECT * FROM t33 WHERE pk <= 10 ORDER BY pk DESC;
+pk	a
+2	b
+1	a
+DROP TABLE t33;
+#
+# MDEV-4081: RocksDB throws error 122 on an attempt to create a table with unique index
+#
+#  Unique indexes can be created, but uniqueness won't be enforced
+create table t33 (pk int primary key, u int, unique index(u)) engine=RocksDB;
+drop table t33;
+#
+# MDEV-4077: RocksDB: Wrong result (duplicate row) on select with range 
+#
+CREATE TABLE t34 (pk INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t34 VALUES (10),(11);
+SELECT pk FROM t34 WHERE pk > 5 AND pk < 15;
+pk
+10
+11
+SELECT pk FROM t34 WHERE pk BETWEEN 5 AND 15;
+pk
+10
+11
+SELECT pk FROM t34 WHERE pk > 5;
+pk
+10
+11
+SELECT pk FROM t34 WHERE pk < 15;
+pk
+10
+11
+drop table t34;
+#
+# MDEV-4086: RocksDB does not allow a query with multi-part pk and index and ORDER BY .. DEC
+#
+create table t35 (a int, b int, c int, d int, e int, primary key (a,b,c), key (a,c,d,e)) engine=RocksDB;
+insert into t35 values (1,1,1,1,1),(2,2,2,2,2);
+select * from t35 where a = 1 and c = 1 and d = 1 order by e desc;
+a	b	c	d	e
+1	1	1	1	1
+drop table t35;
+#
+# MDEV-4084: RocksDB: Wrong result on IN subquery with index
+#
+CREATE TABLE t36 (pk INT PRIMARY KEY, a INT, KEY(a)) ENGINE=RocksDB;
+INSERT INTO t36 VALUES (1,10),(2,20);
+SELECT 3 IN ( SELECT a FROM t36 );
+3 IN ( SELECT a FROM t36 )
+0
+drop table t36;
+#
+# MDEV-4084: RocksDB: Wrong result on IN subquery with index
+#
+CREATE TABLE t37 (pk INT PRIMARY KEY, a INT, b CHAR(1), KEY(a), KEY(a,b)) 
+ENGINE=RocksDB;
+INSERT INTO t37 VALUES (1,10,'x'), (2,20,'y');
+SELECT MAX(a) FROM t37 WHERE a < 100;
+MAX(a)
+20
+DROP TABLE t37;
+#
+# MDEV-4090: RocksDB: Wrong result (duplicate rows) on range access with secondary key and ORDER BY DESC
+#
+CREATE TABLE t38 (pk INT PRIMARY KEY, i INT, KEY(i)) ENGINE=RocksDB;
+INSERT INTO t38 VALUES (1,10), (2,20);
+SELECT i FROM t38 WHERE i NOT IN (8) ORDER BY i DESC;
+i
+20
+10
+drop table t38;
+#
+# MDEV-4092: RocksDB: Assertion `in_table(pa, a_len)' fails in Rdb_key_def::cmp_full_keys 
+#            with a multi-part key and ORDER BY .. DESC
+#
+CREATE TABLE t40 (pk1 INT PRIMARY KEY, a INT, b VARCHAR(1), KEY(b,a)) ENGINE=RocksDB;
+INSERT INTO t40 VALUES (1, 7,'x'),(2,8,'y');
+CREATE TABLE t41 (pk2 INT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t41 VALUES (1),(2);
+SELECT * FROM t40, t41 WHERE pk1 = pk2 AND b = 'o' ORDER BY a DESC;
+pk1	a	b	pk2
+DROP TABLE t40,t41;
+#
+# MDEV-4093: RocksDB: IN subquery by secondary key with NULL among values returns true instead of NULL
+#
+CREATE TABLE t42 (pk INT PRIMARY KEY, a INT, KEY(a)) ENGINE=RocksDB;
+INSERT INTO t42 VALUES (1, NULL),(2, 8);
+SELECT ( 3 ) NOT IN ( SELECT a FROM t42 );
+( 3 ) NOT IN ( SELECT a FROM t42 )
+NULL
+DROP TABLE t42;
+#
+# MDEV-4094: RocksDB: Wrong result on SELECT and ER_KEY_NOT_FOUND on 
+#            DELETE with search by NULL-able secondary key ...
+#
+CREATE TABLE t43 (pk INT PRIMARY KEY, a INT, b CHAR(1), KEY(a)) ENGINE=RocksDB;
+INSERT INTO t43 VALUES (1,8,'g'),(2,9,'x');
+UPDATE t43 SET pk = 10 WHERE a = 8;
+REPLACE INTO t43 ( a ) VALUES ( 8 );
+Warnings:
+Warning	1364	Field 'pk' doesn't have a default value
+REPLACE INTO t43 ( b ) VALUES ( 'y' );
+Warnings:
+Warning	1364	Field 'pk' doesn't have a default value
+SELECT * FROM t43 WHERE a = 8;
+pk	a	b
+10	8	g
+DELETE FROM t43 WHERE a = 8;
+DROP TABLE t43;
+#
+# Basic AUTO_INCREMENT tests
+#
+create table t44(pk int primary key auto_increment, col1 varchar(12)) engine=rocksdb;
+insert into t44 (col1) values ('row1');
+insert into t44 (col1) values ('row2');
+insert into t44 (col1) values ('row3');
+select * from t44;
+pk	col1
+1	row1
+2	row2
+3	row3
+drop table t44;
+#
+# ALTER TABLE tests
+#
+create table t45 (pk int primary key, col1 varchar(12)) engine=rocksdb;
+insert into t45 values (1, 'row1');
+insert into t45 values (2, 'row2');
+alter table t45 rename t46;
+select * from t46;
+pk	col1
+1	row1
+2	row2
+drop table t46;
+drop table t45;
+ERROR 42S02: Unknown table 'test.t45'
+#
+# Check Bulk loading
+# Bulk loading used to overwrite existing data
+# Now it fails if there is data overlap with what
+# already exists
+#
+show variables 
+where 
+variable_name like 'rocksdb%' and 
+variable_name not like 'rocksdb_max_open_files' and
+variable_name not like 'rocksdb_supported_compression_types';
+Variable_name	Value
+rocksdb_access_hint_on_compaction_start	1
+rocksdb_advise_random_on_open	ON
+rocksdb_allow_concurrent_memtable_write	OFF
+rocksdb_allow_mmap_reads	OFF
+rocksdb_allow_mmap_writes	OFF
+rocksdb_allow_to_start_after_corruption	OFF
+rocksdb_blind_delete_primary_key	OFF
+rocksdb_block_cache_size	536870912
+rocksdb_block_restart_interval	16
+rocksdb_block_size	4096
+rocksdb_block_size_deviation	10
+rocksdb_bulk_load	OFF
+rocksdb_bulk_load_allow_sk	OFF
+rocksdb_bulk_load_allow_unsorted	OFF
+rocksdb_bulk_load_size	1000
+rocksdb_bytes_per_sync	0
+rocksdb_cache_dump	ON
+rocksdb_cache_high_pri_pool_ratio	0.000000
+rocksdb_cache_index_and_filter_blocks	ON
+rocksdb_cache_index_and_filter_with_high_priority	ON
+rocksdb_checksums_pct	100
+rocksdb_collect_sst_properties	ON
+rocksdb_commit_in_the_middle	OFF
+rocksdb_commit_time_batch_for_recovery	ON
+rocksdb_compact_cf	
+rocksdb_compaction_readahead_size	0
+rocksdb_compaction_sequential_deletes	0
+rocksdb_compaction_sequential_deletes_count_sd	OFF
+rocksdb_compaction_sequential_deletes_file_size	0
+rocksdb_compaction_sequential_deletes_window	0
+rocksdb_create_checkpoint	
+rocksdb_create_if_missing	ON
+rocksdb_create_missing_column_families	OFF
+rocksdb_datadir	./#rocksdb
+rocksdb_db_write_buffer_size	0
+rocksdb_deadlock_detect	OFF
+rocksdb_deadlock_detect_depth	50
+rocksdb_debug_manual_compaction_delay	0
+rocksdb_debug_optimizer_no_zero_cardinality	ON
+rocksdb_debug_ttl_ignore_pk	OFF
+rocksdb_debug_ttl_read_filter_ts	0
+rocksdb_debug_ttl_rec_ts	0
+rocksdb_debug_ttl_snapshot_ts	0
+rocksdb_default_cf_options	
+rocksdb_delayed_write_rate	0
+rocksdb_delete_cf	
+rocksdb_delete_obsolete_files_period_micros	21600000000
+rocksdb_enable_2pc	ON
+rocksdb_enable_bulk_load_api	ON
+rocksdb_enable_insert_with_update_caching	ON
+rocksdb_enable_thread_tracking	ON
+rocksdb_enable_ttl	ON
+rocksdb_enable_ttl_read_filtering	ON
+rocksdb_enable_write_thread_adaptive_yield	OFF
+rocksdb_error_if_exists	OFF
+rocksdb_error_on_suboptimal_collation	ON
+rocksdb_flush_log_at_trx_commit	0
+rocksdb_force_compute_memtable_stats	ON
+rocksdb_force_compute_memtable_stats_cachetime	0
+rocksdb_force_flush_memtable_and_lzero_now	OFF
+rocksdb_force_flush_memtable_now	OFF
+rocksdb_force_index_records_in_range	0
+rocksdb_git_hash	#
+rocksdb_hash_index_allow_collision	ON
+rocksdb_ignore_unknown_options	ON
+rocksdb_index_type	kBinarySearch
+rocksdb_info_log_level	error_level
+rocksdb_io_write_timeout	0
+rocksdb_is_fd_close_on_exec	ON
+rocksdb_keep_log_file_num	1000
+rocksdb_large_prefix	OFF
+rocksdb_lock_scanned_rows	OFF
+rocksdb_lock_wait_timeout	1
+rocksdb_log_file_time_to_roll	0
+rocksdb_manifest_preallocation_size	4194304
+rocksdb_manual_compaction_threads	0
+rocksdb_manual_wal_flush	ON
+rocksdb_master_skip_tx_api	OFF
+rocksdb_max_background_jobs	2
+rocksdb_max_latest_deadlocks	5
+rocksdb_max_log_file_size	0
+rocksdb_max_manifest_file_size	1073741824
+rocksdb_max_manual_compactions	10
+rocksdb_max_row_locks	1048576
+rocksdb_max_subcompactions	1
+rocksdb_max_total_wal_size	0
+rocksdb_merge_buf_size	67108864
+rocksdb_merge_combine_read_size	1073741824
+rocksdb_merge_tmp_file_removal_delay_ms	0
+rocksdb_new_table_reader_for_compaction_inputs	OFF
+rocksdb_no_block_cache	OFF
+rocksdb_override_cf_options	
+rocksdb_paranoid_checks	ON
+rocksdb_pause_background_work	ON
+rocksdb_perf_context_level	0
+rocksdb_persistent_cache_path	
+rocksdb_persistent_cache_size_mb	0
+rocksdb_pin_l0_filter_and_index_blocks_in_cache	ON
+rocksdb_print_snapshot_conflict_queries	OFF
+rocksdb_rate_limiter_bytes_per_sec	0
+rocksdb_records_in_range	50
+rocksdb_remove_mariabackup_checkpoint	OFF
+rocksdb_reset_stats	OFF
+rocksdb_rollback_on_timeout	OFF
+rocksdb_seconds_between_stat_computes	3600
+rocksdb_signal_drop_index_thread	OFF
+rocksdb_sim_cache_size	0
+rocksdb_skip_bloom_filter_on_read	OFF
+rocksdb_skip_fill_cache	OFF
+rocksdb_skip_unique_check_tables	.*
+rocksdb_sst_mgr_rate_bytes_per_sec	0
+rocksdb_stats_dump_period_sec	600
+rocksdb_stats_level	0
+rocksdb_stats_recalc_rate	0
+rocksdb_store_row_debug_checksums	OFF
+rocksdb_strict_collation_check	OFF
+rocksdb_strict_collation_exceptions	
+rocksdb_table_cache_numshardbits	6
+rocksdb_table_stats_sampling_pct	10
+rocksdb_tmpdir	
+rocksdb_trace_sst_api	OFF
+rocksdb_two_write_queues	ON
+rocksdb_unsafe_for_binlog	OFF
+rocksdb_update_cf_options	
+rocksdb_use_adaptive_mutex	OFF
+rocksdb_use_clock_cache	OFF
+rocksdb_use_direct_io_for_flush_and_compaction	OFF
+rocksdb_use_direct_reads	OFF
+rocksdb_use_fsync	OFF
+rocksdb_validate_tables	1
+rocksdb_verify_row_debug_checksums	OFF
+rocksdb_wal_bytes_per_sync	0
+rocksdb_wal_dir	
+rocksdb_wal_recovery_mode	1
+rocksdb_wal_size_limit_mb	0
+rocksdb_wal_ttl_seconds	0
+rocksdb_whole_key_filtering	ON
+rocksdb_write_batch_max_bytes	0
+rocksdb_write_disable_wal	OFF
+rocksdb_write_ignore_missing_column_families	OFF
+rocksdb_write_policy	write_committed
+create table t47 (pk int primary key, col1 varchar(12)) engine=rocksdb;
+insert into t47 values (1, 'row1');
+insert into t47 values (2, 'row2');
+set rocksdb_bulk_load=1;
+insert into t47 values (3, 'row3'),(4, 'row4');
+set rocksdb_bulk_load=0;
+connect  con1,localhost,root,,;
+set rocksdb_bulk_load=1;
+insert into t47 values (10, 'row10'),(11, 'row11');
+connection default;
+set rocksdb_bulk_load=1;
+insert into t47 values (100, 'row100'),(101, 'row101');
+disconnect con1;
+connection default;
+set rocksdb_bulk_load=0;
+select * from t47;
+pk	col1
+1	row1
+2	row2
+3	row3
+4	row4
+10	row10
+11	row11
+100	row100
+101	row101
+drop table t47;
+#
+# Fix TRUNCATE over empty table (transaction is committed when it wasn't
+# started)
+#
+create table t48(pk int primary key auto_increment, col1 varchar(12)) engine=rocksdb;
+set autocommit=0;
+truncate table t48;
+set autocommit=1;
+drop table t48;
+#
+# MDEV-4059: RocksDB: query waiting for a lock cannot be killed until query timeout exceeded
+#
+create table t49 (pk int primary key, a int) engine=RocksDB;
+insert into t49 values (1,10),(2,20);
+begin;
+update t49 set a = 100 where pk = 1;
+connect  con1,localhost,root,,;
+set rocksdb_lock_wait_timeout=60;
+set @var1= to_seconds(now());
+update t49 set a = 1000 where pk = 1;
+connect  con2,localhost,root,,;
+kill query $con1_id;
+connection con1;
+ERROR 70100: Query execution was interrupted
+set @var2= to_seconds(now());
+select if ((@var2 - @var1) < 60, "passed", (@var2 - @var1)) as 'result';
+result
+passed
+connection default;
+disconnect con1;
+commit;
+drop table t49;
+#
+# Index-only tests for INT-based columns
+#
+create table t1 (pk int primary key, key1 int, col1 int, key(key1)) engine=rocksdb;
+insert into t1 values (1,1,1);
+insert into t1 values (2,2,2);
+insert into t1 values (-5,-5,-5);
+# INT column uses index-only:
+explain
+select key1 from t1 where key1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	key1	key1	5	const	#	Using index
+select key1 from t1 where key1=2;
+key1
+2
+select key1 from t1 where key1=-5;
+key1
+-5
+drop table t1;
+create table t2 (pk int primary key, key1 int unsigned, col1 int, key(key1)) engine=rocksdb;
+insert into t2 values (1,1,1), (2,2,2);
+# INT UNSIGNED column uses index-only:
+explain
+select key1 from t2 where key1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	key1	key1	5	const	#	Using index
+select key1 from t2 where key1=2;
+key1
+2
+drop table t2;
+create table t3 (pk bigint primary key, key1 bigint, col1 int, key(key1)) engine=rocksdb;
+insert into t3 values (1,1,1), (2,2,2);
+# BIGINT uses index-only:
+explain 
+select key1 from t3 where key1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ref	key1	key1	9	const	#	Using index
+select key1 from t3 where key1=2;
+key1
+2
+drop table t3;
+#
+# Index-only reads for string columns
+#
+create table t1 (
+pk int primary key, 
+key1 char(10) character set binary,
+col1 int,
+key (key1)
+) engine=rocksdb;
+insert into t1 values(1, 'one',11), (2,'two',22);
+explain 
+select key1 from t1 where key1='one';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	key1	key1	11	const	#	Using where; Using index
+# The following will produce no rows. This looks like a bug,
+#  but it is actually correct behavior. Binary strings are end-padded
+#  with \0 character (and not space).  Comparison does not ignore
+#   the tail of \0.
+select key1 from t1 where key1='one';
+key1
+explain
+select hex(key1) from t1 where key1='one\0\0\0\0\0\0\0';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	key1	key1	11	const	#	Using where; Using index
+select hex(key1) from t1 where key1='one\0\0\0\0\0\0\0';
+hex(key1)
+6F6E6500000000000000
+drop table t1;
+create table t2 (
+pk int primary key, 
+key1 char(10) collate latin1_bin,
+col1 int,
+key (key1)
+) engine=rocksdb;
+insert into t2 values(1, 'one',11), (2,'two',22);
+explain 
+select key1 from t2 where key1='one';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	key1	key1	11	const	#	Using where; Using index
+select key1 from t2 where key1='one';
+key1
+one
+drop table t2;
+create table t3 (
+pk int primary key, 
+key1 char(10) collate utf8_bin,
+col1 int,
+key (key1)
+) engine=rocksdb;
+insert into t3 values(1, 'one',11), (2,'two',22);
+explain 
+select key1 from t3 where key1='one';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ref	key1	key1	31	const	#	Using where; Using index
+select key1 from t3 where key1='one';
+key1
+one
+drop table t3;
+# a VARCHAR column
+create table t4 (
+pk int primary key, 
+key1 varchar(10) collate latin1_bin, 
+key(key1)
+) engine=rocksdb;
+insert into t4 values(1, 'one'), (2,'two'),(3,'threee'),(55,'fifty-five');
+explain 
+select key1 from t4 where key1='two';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ref	key1	key1	13	const	#	Using where; Using index
+select key1 from t4 where key1='two';
+key1
+two
+select key1 from t4 where key1='fifty-five';
+key1
+fifty-five
+explain 
+select key1 from t4 where key1 between 's' and 'u';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	key1	key1	13	NULL	#	Using where; Using index
+select key1 from t4 where key1 between 's' and 'u';
+key1
+threee
+two
+drop table t4;
+# 
+# MDEV-4305: RocksDB: Assertion `((keypart_map + 1) & keypart_map) == 0' fails in calculate_key_len
+# 
+CREATE TABLE t1 (pk1 INT, pk2 CHAR(32), i INT, PRIMARY KEY(pk1,pk2), KEY(i)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,'test1',6),(2,'test2',8);
+SELECT * FROM t1 WHERE i != 3 OR  pk1 > 9;
+pk1	pk2	i
+1	test1	6
+2	test2	8
+DROP TABLE t1;
+# 
+# MDEV-4298: RocksDB: Assertion `thd->is_error() || kill_errno' fails in ha_rows filesort
+# 
+call mtr.add_suppression("Sort aborted");
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, KEY(i)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,1),(2,2);
+BEGIN;
+UPDATE t1 SET i = 100;
+connect  con1,localhost,root,,test;
+DELETE IGNORE FROM t1 ORDER BY i;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+COMMIT;
+DROP TABLE t1;
+#
+# MDEV-4324: RocksDB: Valgrind "Use of uninitialised value" warnings on inserting value into varchar field
+#  (testcase only)
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, c VARCHAR(4)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,'foo'), (2,'bar');
+DROP TABLE t1;
+#
+# MDEV-4304: RocksDB: Index-only scan by a field with utf8_bin collation returns garbage symbols
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, c1 CHAR(1), c2 CHAR(1), KEY(c1)) ENGINE=RocksDB CHARSET utf8 COLLATE utf8_bin;
+INSERT INTO t1 VALUES (1,'h','h');
+SELECT * FROM t1;
+pk	c1	c2
+1	h	h
+SELECT c1 FROM t1;
+c1
+h
+DROP TABLE t1;
+#
+# MDEV-4300: RocksDB: Server crashes in inline_mysql_mutex_lock on SELECT .. FOR UPDATE
+#
+CREATE TABLE t2 (pk INT PRIMARY KEY, i INT, KEY (i)) ENGINE=RocksDB;
+INSERT INTO t2 VALUES (1,4),(2,5);
+SELECT 1 FROM t2 WHERE i < 0 FOR UPDATE;
+1
+DROP TABLE t2;
+#
+# MDEV-4301: RocksDB: Assertion `pack_info != __null' fails in Rdb_key_def::unpack_record
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, c CHAR(1), KEY(c,i)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,4,'d'),(2,8,'e');
+SELECT MAX( pk ) FROM t1 WHERE i = 105 AND c = 'h';
+MAX( pk )
+NULL
+DROP TABLE t1;
+#
+# MDEV-4337: RocksDB: Inconsistent results comparing a char field with an int field
+#
+create table t1 (c char(1), i int, primary key(c), key(i)) engine=RocksDB;
+insert into t1 values ('2',2),('6',6);
+select * from t1 where c = i;
+c	i
+2	2
+6	6
+select * from t1 ignore index (i) where c = i;
+c	i
+2	2
+6	6
+drop table t1;
+#
+# Test statement rollback inside a transaction
+#
+create table t1 (pk varchar(12) primary key) engine=rocksdb;
+insert into t1 values ('old-val1'),('old-val2');
+create table t2 (pk varchar(12) primary key) engine=rocksdb;
+insert into t2 values ('new-val2'),('old-val1');
+begin;
+insert into t1 values ('new-val1');
+insert into t1 select * from t2;
+ERROR 23000: Duplicate entry 'old-val1' for key 'PRIMARY'
+commit;
+select * from t1;
+pk
+new-val1
+old-val1
+old-val2
+drop table t1, t2;
+#
+# MDEV-4383: RocksDB: Wrong result of DELETE .. ORDER BY .. LIMIT: 
+#   rows that should be deleted remain in the table
+#
+CREATE TABLE t2 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=RocksDB;
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=RocksDB;
+INSERT INTO t1 (pk) VALUES (NULL),(NULL);
+BEGIN;
+INSERT INTO t2 (pk) VALUES (NULL),(NULL);
+INSERT INTO t1 (pk) VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+SELECT * FROM t1 ORDER BY pk LIMIT 9;
+pk
+1
+2
+3
+4
+5
+6
+7
+8
+affected rows: 8
+DELETE FROM t1 ORDER BY pk LIMIT 9;
+affected rows: 8
+SELECT * FROM t1 ORDER BY pk LIMIT 9;
+pk
+affected rows: 0
+DROP TABLE t1,t2;
+#
+# MDEV-4374: RocksDB: Valgrind warnings 'Use of uninitialised value' on 
+#   inserting into a varchar column
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a VARCHAR(32)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+DROP TABLE t1;
+#
+# MDEV-4061: RocksDB: Changes from an interrupted query are still applied
+#
+create table t1 (pk int primary key, a int) engine=RocksDB;
+insert into t1 values (1,10),(2,20);
+set autocommit = 1;
+update t1 set a = sleep(100) where pk = 1;
+connect  con1,localhost,root,,;
+kill query $con_id;
+connection default;
+ERROR 70100: Query execution was interrupted
+select * from t1;
+pk	a
+1	10
+2	20
+disconnect con1;
+drop table t1;
+#
+# MDEV-4099: RocksDB: Wrong results with index and range access after INSERT IGNORE or REPLACE
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a SMALLINT, b INT, KEY (a)) ENGINE=RocksDB;
+INSERT IGNORE INTO t1 VALUES (1, 157, 0), (2, 1898, -504403), (1, -14659,  0);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+SELECT * FROM t1;
+pk	a	b
+1	157	0
+2	1898	-504403
+SELECT pk FROM t1;
+pk
+1
+2
+SELECT * FROM t1 WHERE a != 97;
+pk	a	b
+1	157	0
+2	1898	-504403
+DROP TABLE t1;
+#
+# Test @@rocksdb_max_row_locks
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a int) ENGINE=RocksDB;
+set @a=-1;
+insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables limit 100;
+set @tmp1= @@rocksdb_max_row_locks;
+set rocksdb_max_row_locks= 20;
+update t1 set a=a+10;
+ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to rocksdb_max_row_locks limit' from ROCKSDB
+DROP TABLE t1;
+# 
+# Test AUTO_INCREMENT behavior problem,
+#  "explicit insert into an auto-inc column is not noticed by RocksDB"
+# 
+create table t1 (i int primary key auto_increment) engine=RocksDB;
+insert into t1 values (null);
+insert into t1 values (null);
+select * from t1;
+i
+1
+2
+drop table t1;
+create table t2 (i int primary key auto_increment) engine=RocksDB;
+insert into t2 values (1);
+select * from t2;
+i
+1
+# this fails (ie. used to fail), RocksDB engine did not notice use of '1' above
+insert into t2 values (null);
+select * from t2;
+i
+1
+2
+# but then this succeeds, so previous statement must have incremented next number counter
+insert into t2 values (null);
+select * from t2;
+i
+1
+2
+3
+drop table t2;
+# 
+# Fix Issue#2: AUTO_INCREMENT value doesn't survive server shutdown
+# 
+create table t1 (i int primary key auto_increment) engine=RocksDB;
+insert into t1 values (null);
+insert into t1 values (null);
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;
+# restart
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+insert into t1 values (null);
+select * from t1;
+i
+1
+2
+3
+drop table t1;
+# 
+# Fix Issue #3: SHOW TABLE STATUS shows Auto_increment=0
+# 
+create table t1 (i int primary key auto_increment) engine=RocksDB;
+insert into t1 values (null),(null);
+show table status like 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	10	Fixed	1000	0	#	0	0	0	3	#	#	NULL	latin1_swedish_ci	NULL			0	N
+drop table t1;
+#
+# Fix Issue #4: Crash when using pseudo-unique keys
+#
+CREATE TABLE t1 (
+i INT,
+t TINYINT,
+s SMALLINT,
+m MEDIUMINT,
+b BIGINT,
+pk MEDIUMINT AUTO_INCREMENT PRIMARY KEY,
+UNIQUE KEY b_t (b,t)
+) ENGINE=rocksdb;
+INSERT INTO t1 (i,t,s,m,b) VALUES (1,2,3,4,5),(1000,100,10000,1000000,1000000000000000000),(5,100,10000,1000000,100000000000000000),(2,3,4,5,6),(3,4,5,6,7),(101,102,103,104,105),(10001,103,10002,10003,10004),(10,11,12,13,14),(11,12,13,14,15),(12,13,14,15,16);
+SELECT b+t FROM t1 WHERE (b,t) IN ( SELECT b, t FROM t1 WHERE i>1 ) ORDER BY b+t;
+b+t
+9
+11
+25
+27
+29
+207
+10107
+100000000000000100
+1000000000000000100
+DROP TABLE t1;
+#
+# Fix issue #5: Transaction rollback doesn't undo all changes.
+#
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (id int auto_increment primary key, value int) engine=rocksdb;
+set autocommit=0;
+begin;
+set @a:=0;
+insert into t1 select @a:=@a+1, @a from t0 A, t0 B, t0 C, t0 D where D.a<4;
+insert into t1 select @a:=@a+1, @a from t0 A, t0 B, t0 C, t0 D where D.a<4;
+insert into t1 select @a:=@a+1, @a from t0 A, t0 B, t0 C, t0 D where D.a<4;
+rollback;
+select count(*) from t1;
+count(*)
+0
+set autocommit=1;
+drop table t0, t1;
+#
+# Check status variables
+# NOTE: We exclude rocksdb_num_get_for_update_calls because it's a debug only status var
+#
+show status where variable_name like 'rocksdb%' and variable_name not like '%num_get_for_update%';
+Variable_name	Value
+Rocksdb_rows_deleted	#
+Rocksdb_rows_inserted	#
+Rocksdb_rows_read	#
+Rocksdb_rows_updated	#
+Rocksdb_rows_deleted_blind	#
+Rocksdb_rows_expired	#
+Rocksdb_rows_filtered	#
+Rocksdb_system_rows_deleted	#
+Rocksdb_system_rows_inserted	#
+Rocksdb_system_rows_read	#
+Rocksdb_system_rows_updated	#
+Rocksdb_memtable_total	#
+Rocksdb_memtable_unflushed	#
+Rocksdb_queries_point	#
+Rocksdb_queries_range	#
+Rocksdb_covered_secondary_key_lookups	#
+Rocksdb_block_cache_add	#
+Rocksdb_block_cache_add_failures	#
+Rocksdb_block_cache_bytes_read	#
+Rocksdb_block_cache_bytes_write	#
+Rocksdb_block_cache_data_add	#
+Rocksdb_block_cache_data_bytes_insert	#
+Rocksdb_block_cache_data_hit	#
+Rocksdb_block_cache_data_miss	#
+Rocksdb_block_cache_filter_add	#
+Rocksdb_block_cache_filter_bytes_evict	#
+Rocksdb_block_cache_filter_bytes_insert	#
+Rocksdb_block_cache_filter_hit	#
+Rocksdb_block_cache_filter_miss	#
+Rocksdb_block_cache_hit	#
+Rocksdb_block_cache_index_add	#
+Rocksdb_block_cache_index_bytes_evict	#
+Rocksdb_block_cache_index_bytes_insert	#
+Rocksdb_block_cache_index_hit	#
+Rocksdb_block_cache_index_miss	#
+Rocksdb_block_cache_miss	#
+Rocksdb_block_cachecompressed_hit	#
+Rocksdb_block_cachecompressed_miss	#
+Rocksdb_bloom_filter_full_positive	#
+Rocksdb_bloom_filter_full_true_positive	#
+Rocksdb_bloom_filter_prefix_checked	#
+Rocksdb_bloom_filter_prefix_useful	#
+Rocksdb_bloom_filter_useful	#
+Rocksdb_bytes_read	#
+Rocksdb_bytes_written	#
+Rocksdb_compact_read_bytes	#
+Rocksdb_compact_write_bytes	#
+Rocksdb_compaction_key_drop_new	#
+Rocksdb_compaction_key_drop_obsolete	#
+Rocksdb_compaction_key_drop_user	#
+Rocksdb_flush_write_bytes	#
+Rocksdb_get_hit_l0	#
+Rocksdb_get_hit_l1	#
+Rocksdb_get_hit_l2_and_up	#
+Rocksdb_getupdatessince_calls	#
+Rocksdb_iter_bytes_read	#
+Rocksdb_manual_compactions_processed	#
+Rocksdb_manual_compactions_running	#
+Rocksdb_memtable_hit	#
+Rocksdb_memtable_miss	#
+Rocksdb_no_file_closes	#
+Rocksdb_no_file_errors	#
+Rocksdb_no_file_opens	#
+Rocksdb_num_iterators	#
+Rocksdb_number_block_not_compressed	#
+Rocksdb_number_db_next	#
+Rocksdb_number_db_next_found	#
+Rocksdb_number_db_prev	#
+Rocksdb_number_db_prev_found	#
+Rocksdb_number_db_seek	#
+Rocksdb_number_db_seek_found	#
+Rocksdb_number_deletes_filtered	#
+Rocksdb_number_keys_read	#
+Rocksdb_number_keys_updated	#
+Rocksdb_number_keys_written	#
+Rocksdb_number_merge_failures	#
+Rocksdb_number_multiget_bytes_read	#
+Rocksdb_number_multiget_get	#
+Rocksdb_number_multiget_keys_read	#
+Rocksdb_number_reseeks_iteration	#
+Rocksdb_number_sst_entry_delete	#
+Rocksdb_number_sst_entry_merge	#
+Rocksdb_number_sst_entry_other	#
+Rocksdb_number_sst_entry_put	#
+Rocksdb_number_sst_entry_singledelete	#
+Rocksdb_number_superversion_acquires	#
+Rocksdb_number_superversion_cleanups	#
+Rocksdb_number_superversion_releases	#
+Rocksdb_row_lock_deadlocks	#
+Rocksdb_row_lock_wait_timeouts	#
+Rocksdb_snapshot_conflict_errors	#
+Rocksdb_stall_l0_file_count_limit_slowdowns	#
+Rocksdb_stall_locked_l0_file_count_limit_slowdowns	#
+Rocksdb_stall_l0_file_count_limit_stops	#
+Rocksdb_stall_locked_l0_file_count_limit_stops	#
+Rocksdb_stall_pending_compaction_limit_stops	#
+Rocksdb_stall_pending_compaction_limit_slowdowns	#
+Rocksdb_stall_memtable_limit_stops	#
+Rocksdb_stall_memtable_limit_slowdowns	#
+Rocksdb_stall_total_stops	#
+Rocksdb_stall_total_slowdowns	#
+Rocksdb_stall_micros	#
+Rocksdb_wal_bytes	#
+Rocksdb_wal_group_syncs	#
+Rocksdb_wal_synced	#
+Rocksdb_write_other	#
+Rocksdb_write_self	#
+Rocksdb_write_timedout	#
+Rocksdb_write_wal	#
+select VARIABLE_NAME from INFORMATION_SCHEMA.global_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
+VARIABLE_NAME
+ROCKSDB_ROWS_DELETED
+ROCKSDB_ROWS_INSERTED
+ROCKSDB_ROWS_READ
+ROCKSDB_ROWS_UPDATED
+ROCKSDB_ROWS_DELETED_BLIND
+ROCKSDB_ROWS_EXPIRED
+ROCKSDB_ROWS_FILTERED
+ROCKSDB_SYSTEM_ROWS_DELETED
+ROCKSDB_SYSTEM_ROWS_INSERTED
+ROCKSDB_SYSTEM_ROWS_READ
+ROCKSDB_SYSTEM_ROWS_UPDATED
+ROCKSDB_MEMTABLE_TOTAL
+ROCKSDB_MEMTABLE_UNFLUSHED
+ROCKSDB_QUERIES_POINT
+ROCKSDB_QUERIES_RANGE
+ROCKSDB_COVERED_SECONDARY_KEY_LOOKUPS
+ROCKSDB_BLOCK_CACHE_ADD
+ROCKSDB_BLOCK_CACHE_ADD_FAILURES
+ROCKSDB_BLOCK_CACHE_BYTES_READ
+ROCKSDB_BLOCK_CACHE_BYTES_WRITE
+ROCKSDB_BLOCK_CACHE_DATA_ADD
+ROCKSDB_BLOCK_CACHE_DATA_BYTES_INSERT
+ROCKSDB_BLOCK_CACHE_DATA_HIT
+ROCKSDB_BLOCK_CACHE_DATA_MISS
+ROCKSDB_BLOCK_CACHE_FILTER_ADD
+ROCKSDB_BLOCK_CACHE_FILTER_BYTES_EVICT
+ROCKSDB_BLOCK_CACHE_FILTER_BYTES_INSERT
+ROCKSDB_BLOCK_CACHE_FILTER_HIT
+ROCKSDB_BLOCK_CACHE_FILTER_MISS
+ROCKSDB_BLOCK_CACHE_HIT
+ROCKSDB_BLOCK_CACHE_INDEX_ADD
+ROCKSDB_BLOCK_CACHE_INDEX_BYTES_EVICT
+ROCKSDB_BLOCK_CACHE_INDEX_BYTES_INSERT
+ROCKSDB_BLOCK_CACHE_INDEX_HIT
+ROCKSDB_BLOCK_CACHE_INDEX_MISS
+ROCKSDB_BLOCK_CACHE_MISS
+ROCKSDB_BLOCK_CACHECOMPRESSED_HIT
+ROCKSDB_BLOCK_CACHECOMPRESSED_MISS
+ROCKSDB_BLOOM_FILTER_FULL_POSITIVE
+ROCKSDB_BLOOM_FILTER_FULL_TRUE_POSITIVE
+ROCKSDB_BLOOM_FILTER_PREFIX_CHECKED
+ROCKSDB_BLOOM_FILTER_PREFIX_USEFUL
+ROCKSDB_BLOOM_FILTER_USEFUL
+ROCKSDB_BYTES_READ
+ROCKSDB_BYTES_WRITTEN
+ROCKSDB_COMPACT_READ_BYTES
+ROCKSDB_COMPACT_WRITE_BYTES
+ROCKSDB_COMPACTION_KEY_DROP_NEW
+ROCKSDB_COMPACTION_KEY_DROP_OBSOLETE
+ROCKSDB_COMPACTION_KEY_DROP_USER
+ROCKSDB_FLUSH_WRITE_BYTES
+ROCKSDB_GET_HIT_L0
+ROCKSDB_GET_HIT_L1
+ROCKSDB_GET_HIT_L2_AND_UP
+ROCKSDB_GETUPDATESSINCE_CALLS
+ROCKSDB_ITER_BYTES_READ
+ROCKSDB_MANUAL_COMPACTIONS_PROCESSED
+ROCKSDB_MANUAL_COMPACTIONS_RUNNING
+ROCKSDB_MEMTABLE_HIT
+ROCKSDB_MEMTABLE_MISS
+ROCKSDB_NO_FILE_CLOSES
+ROCKSDB_NO_FILE_ERRORS
+ROCKSDB_NO_FILE_OPENS
+ROCKSDB_NUM_ITERATORS
+ROCKSDB_NUMBER_BLOCK_NOT_COMPRESSED
+ROCKSDB_NUMBER_DB_NEXT
+ROCKSDB_NUMBER_DB_NEXT_FOUND
+ROCKSDB_NUMBER_DB_PREV
+ROCKSDB_NUMBER_DB_PREV_FOUND
+ROCKSDB_NUMBER_DB_SEEK
+ROCKSDB_NUMBER_DB_SEEK_FOUND
+ROCKSDB_NUMBER_DELETES_FILTERED
+ROCKSDB_NUMBER_KEYS_READ
+ROCKSDB_NUMBER_KEYS_UPDATED
+ROCKSDB_NUMBER_KEYS_WRITTEN
+ROCKSDB_NUMBER_MERGE_FAILURES
+ROCKSDB_NUMBER_MULTIGET_BYTES_READ
+ROCKSDB_NUMBER_MULTIGET_GET
+ROCKSDB_NUMBER_MULTIGET_KEYS_READ
+ROCKSDB_NUMBER_RESEEKS_ITERATION
+ROCKSDB_NUMBER_SST_ENTRY_DELETE
+ROCKSDB_NUMBER_SST_ENTRY_MERGE
+ROCKSDB_NUMBER_SST_ENTRY_OTHER
+ROCKSDB_NUMBER_SST_ENTRY_PUT
+ROCKSDB_NUMBER_SST_ENTRY_SINGLEDELETE
+ROCKSDB_NUMBER_SUPERVERSION_ACQUIRES
+ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
+ROCKSDB_NUMBER_SUPERVERSION_RELEASES
+ROCKSDB_ROW_LOCK_DEADLOCKS
+ROCKSDB_ROW_LOCK_WAIT_TIMEOUTS
+ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_MEMTABLE_LIMIT_STOPS
+ROCKSDB_STALL_MEMTABLE_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_TOTAL_STOPS
+ROCKSDB_STALL_TOTAL_SLOWDOWNS
+ROCKSDB_STALL_MICROS
+ROCKSDB_WAL_BYTES
+ROCKSDB_WAL_GROUP_SYNCS
+ROCKSDB_WAL_SYNCED
+ROCKSDB_WRITE_OTHER
+ROCKSDB_WRITE_SELF
+ROCKSDB_WRITE_TIMEDOUT
+ROCKSDB_WRITE_WAL
+# RocksDB-SE's status variables are global internally 
+#  but they are shown as both session and global, like InnoDB's status vars.
+select VARIABLE_NAME from INFORMATION_SCHEMA.session_status where VARIABLE_NAME LIKE 'rocksdb%' and VARIABLE_NAME NOT LIKE '%num_get_for_update%';
+VARIABLE_NAME
+ROCKSDB_ROWS_DELETED
+ROCKSDB_ROWS_INSERTED
+ROCKSDB_ROWS_READ
+ROCKSDB_ROWS_UPDATED
+ROCKSDB_ROWS_DELETED_BLIND
+ROCKSDB_ROWS_EXPIRED
+ROCKSDB_ROWS_FILTERED
+ROCKSDB_SYSTEM_ROWS_DELETED
+ROCKSDB_SYSTEM_ROWS_INSERTED
+ROCKSDB_SYSTEM_ROWS_READ
+ROCKSDB_SYSTEM_ROWS_UPDATED
+ROCKSDB_MEMTABLE_TOTAL
+ROCKSDB_MEMTABLE_UNFLUSHED
+ROCKSDB_QUERIES_POINT
+ROCKSDB_QUERIES_RANGE
+ROCKSDB_COVERED_SECONDARY_KEY_LOOKUPS
+ROCKSDB_BLOCK_CACHE_ADD
+ROCKSDB_BLOCK_CACHE_ADD_FAILURES
+ROCKSDB_BLOCK_CACHE_BYTES_READ
+ROCKSDB_BLOCK_CACHE_BYTES_WRITE
+ROCKSDB_BLOCK_CACHE_DATA_ADD
+ROCKSDB_BLOCK_CACHE_DATA_BYTES_INSERT
+ROCKSDB_BLOCK_CACHE_DATA_HIT
+ROCKSDB_BLOCK_CACHE_DATA_MISS
+ROCKSDB_BLOCK_CACHE_FILTER_ADD
+ROCKSDB_BLOCK_CACHE_FILTER_BYTES_EVICT
+ROCKSDB_BLOCK_CACHE_FILTER_BYTES_INSERT
+ROCKSDB_BLOCK_CACHE_FILTER_HIT
+ROCKSDB_BLOCK_CACHE_FILTER_MISS
+ROCKSDB_BLOCK_CACHE_HIT
+ROCKSDB_BLOCK_CACHE_INDEX_ADD
+ROCKSDB_BLOCK_CACHE_INDEX_BYTES_EVICT
+ROCKSDB_BLOCK_CACHE_INDEX_BYTES_INSERT
+ROCKSDB_BLOCK_CACHE_INDEX_HIT
+ROCKSDB_BLOCK_CACHE_INDEX_MISS
+ROCKSDB_BLOCK_CACHE_MISS
+ROCKSDB_BLOCK_CACHECOMPRESSED_HIT
+ROCKSDB_BLOCK_CACHECOMPRESSED_MISS
+ROCKSDB_BLOOM_FILTER_FULL_POSITIVE
+ROCKSDB_BLOOM_FILTER_FULL_TRUE_POSITIVE
+ROCKSDB_BLOOM_FILTER_PREFIX_CHECKED
+ROCKSDB_BLOOM_FILTER_PREFIX_USEFUL
+ROCKSDB_BLOOM_FILTER_USEFUL
+ROCKSDB_BYTES_READ
+ROCKSDB_BYTES_WRITTEN
+ROCKSDB_COMPACT_READ_BYTES
+ROCKSDB_COMPACT_WRITE_BYTES
+ROCKSDB_COMPACTION_KEY_DROP_NEW
+ROCKSDB_COMPACTION_KEY_DROP_OBSOLETE
+ROCKSDB_COMPACTION_KEY_DROP_USER
+ROCKSDB_FLUSH_WRITE_BYTES
+ROCKSDB_GET_HIT_L0
+ROCKSDB_GET_HIT_L1
+ROCKSDB_GET_HIT_L2_AND_UP
+ROCKSDB_GETUPDATESSINCE_CALLS
+ROCKSDB_ITER_BYTES_READ
+ROCKSDB_MANUAL_COMPACTIONS_PROCESSED
+ROCKSDB_MANUAL_COMPACTIONS_RUNNING
+ROCKSDB_MEMTABLE_HIT
+ROCKSDB_MEMTABLE_MISS
+ROCKSDB_NO_FILE_CLOSES
+ROCKSDB_NO_FILE_ERRORS
+ROCKSDB_NO_FILE_OPENS
+ROCKSDB_NUM_ITERATORS
+ROCKSDB_NUMBER_BLOCK_NOT_COMPRESSED
+ROCKSDB_NUMBER_DB_NEXT
+ROCKSDB_NUMBER_DB_NEXT_FOUND
+ROCKSDB_NUMBER_DB_PREV
+ROCKSDB_NUMBER_DB_PREV_FOUND
+ROCKSDB_NUMBER_DB_SEEK
+ROCKSDB_NUMBER_DB_SEEK_FOUND
+ROCKSDB_NUMBER_DELETES_FILTERED
+ROCKSDB_NUMBER_KEYS_READ
+ROCKSDB_NUMBER_KEYS_UPDATED
+ROCKSDB_NUMBER_KEYS_WRITTEN
+ROCKSDB_NUMBER_MERGE_FAILURES
+ROCKSDB_NUMBER_MULTIGET_BYTES_READ
+ROCKSDB_NUMBER_MULTIGET_GET
+ROCKSDB_NUMBER_MULTIGET_KEYS_READ
+ROCKSDB_NUMBER_RESEEKS_ITERATION
+ROCKSDB_NUMBER_SST_ENTRY_DELETE
+ROCKSDB_NUMBER_SST_ENTRY_MERGE
+ROCKSDB_NUMBER_SST_ENTRY_OTHER
+ROCKSDB_NUMBER_SST_ENTRY_PUT
+ROCKSDB_NUMBER_SST_ENTRY_SINGLEDELETE
+ROCKSDB_NUMBER_SUPERVERSION_ACQUIRES
+ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
+ROCKSDB_NUMBER_SUPERVERSION_RELEASES
+ROCKSDB_ROW_LOCK_DEADLOCKS
+ROCKSDB_ROW_LOCK_WAIT_TIMEOUTS
+ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_STOPS
+ROCKSDB_STALL_PENDING_COMPACTION_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_MEMTABLE_LIMIT_STOPS
+ROCKSDB_STALL_MEMTABLE_LIMIT_SLOWDOWNS
+ROCKSDB_STALL_TOTAL_STOPS
+ROCKSDB_STALL_TOTAL_SLOWDOWNS
+ROCKSDB_STALL_MICROS
+ROCKSDB_WAL_BYTES
+ROCKSDB_WAL_GROUP_SYNCS
+ROCKSDB_WAL_SYNCED
+ROCKSDB_WRITE_OTHER
+ROCKSDB_WRITE_SELF
+ROCKSDB_WRITE_TIMEDOUT
+ROCKSDB_WRITE_WAL
+#
+# Fix issue #9: HA_ERR_INTERNAL_ERROR when running linkbench
+#
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+pk int primary key, 
+col1 varchar(255),
+key(col1)
+) engine=rocksdb;
+insert into t1 select a, repeat('123456789ABCDEF-', 15) from t0;
+select * from t1 where pk=3;
+pk	col1
+3	123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-123456789ABCDEF-
+drop table t0, t1;
+#
+# Fix issue #10: Segfault in Rdb_key_def::get_primary_key_tuple
+#
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t1 (
+id1 bigint(20) unsigned NOT NULL DEFAULT '0',
+id2 bigint(20) unsigned NOT NULL DEFAULT '0',
+link_type bigint(20) unsigned NOT NULL DEFAULT '0',
+visibility tinyint(3) NOT NULL DEFAULT '0',
+data varchar(255) NOT NULL DEFAULT '',
+time bigint(20) unsigned NOT NULL DEFAULT '0',
+version int(11) unsigned NOT NULL DEFAULT '0',
+PRIMARY KEY (link_type,id1,id2)
+) engine=rocksdb;
+insert into t1 select a,a,a,1,a,a,a from t0;
+alter table t1 add index id1_type (id1,link_type,visibility,time,version,data);
+select * from t1 where id1 = 3;
+id1	id2	link_type	visibility	data	time	version
+3	3	3	1	3	3	3
+drop table t0,t1;
+#
+# Test column families
+# 
+create table t1 (
+pk int primary key,
+col1 int, 
+col2 int,
+key(col1) comment 'cf3',
+key(col2) comment 'cf4'
+) engine=rocksdb;
+insert into t1 values (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
+explain
+select * from t1 where col1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	5	const	#	
+select * from t1 where col1=2;
+pk	col1	col2
+2	2	2
+explain
+select * from t1 where col2=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col2	col2	5	const	#	
+select * from t1 where col2=3;
+pk	col1	col2
+3	3	3
+select * from t1 where pk=4;
+pk	col1	col2
+4	4	4
+drop table t1;
+#
+# Try primary key in a non-default CF:
+#
+create table t1 (
+pk int,
+col1 int, 
+col2 int,
+key(col1) comment 'cf3',
+key(col2) comment 'cf4',
+primary key (pk) comment 'cf5'
+) engine=rocksdb;
+insert into t1 values (1,1,1), (2,2,2), (3,3,3), (4,4,4), (5,5,5);
+explain
+select * from t1 where col1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	col1	col1	5	const	#	
+select * from t1 where col1=2;
+pk	col1	col2
+2	2	2
+select * from t1 where pk=4;
+pk	col1	col2
+4	4	4
+drop table t1;
+#
+# Issue #15: SIGSEGV from reading in blob data
+#
+CREATE TABLE t1 (
+id int not null,
+blob_col text,
+PRIMARY KEY (id)
+) ENGINE=ROCKSDB CHARSET=latin1;
+INSERT INTO t1 SET id=123, blob_col=repeat('z',64000) ON DUPLICATE KEY UPDATE blob_col=VALUES(blob_col);
+INSERT INTO t1 SET id=123, blob_col=''                ON DUPLICATE KEY UPDATE blob_col=VALUES(blob_col);
+DROP TABLE t1;
+#
+# Issue #17: Automatic per-index column families
+# (Now deprecated)
+#
+create table t1 (
+id int not null,
+key1 int,
+PRIMARY KEY (id),
+index (key1) comment '$per_index_cf'
+) engine=rocksdb;
+ERROR HY000: The per-index column family option has been deprecated
+#
+# Issue #22: SELECT ... FOR UPDATE takes a long time
+#
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+id1 int,
+id2 int,
+value1 int,
+value2 int,
+primary key(id1, id2) COMMENT 'new_column_family',
+key(id2)
+) engine=rocksdb default charset=latin1 collate=latin1_bin;
+insert into t1 select A.a, B.a, 31, 1234 from t0 A, t0 B;
+explain 
+select * from t1 where id1=30 and value1=30 for update;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	PRIMARY	PRIMARY	4	const	#	Using where
+set @var1=(select variable_value 
+from information_schema.global_status 
+where variable_name='rocksdb_number_keys_read');
+select * from t1 where id1=3 and value1=3 for update;
+id1	id2	value1	value2
+set @var2=(select variable_value 
+from information_schema.global_status 
+where variable_name='rocksdb_number_keys_read');
+# The following must return true (before the fix, the difference was 70):
+select if((@var2 - @var1) < 30, 1, @var2-@var1);
+if((@var2 - @var1) < 30, 1, @var2-@var1)
+1
+drop table t0,t1;
+#
+# Issue #33: SELECT ... FROM rocksdb_table ORDER BY primary_key uses sorting
+#
+create table t1 (id int primary key, value int) engine=rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+# The following must not use 'Using filesort':
+explain select * from t1 ORDER BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	#	
+drop table t1;
+#
+# Issue #26: Index-only scans for DATETIME and TIMESTAMP
+#
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+# Try a DATETIME column:
+create table t1 (
+pk int auto_increment primary key,
+kp1 datetime,
+kp2 int,
+col1 int,
+key(kp1, kp2)
+) engine=rocksdb;
+insert into t1 (kp1,kp2) 
+select date_add('2015-01-01 12:34:56', interval a day), a from t0;
+select * from t1;
+pk	kp1	kp2	col1
+1	2015-01-01 12:34:56	0	NULL
+2	2015-01-02 12:34:56	1	NULL
+3	2015-01-03 12:34:56	2	NULL
+4	2015-01-04 12:34:56	3	NULL
+5	2015-01-05 12:34:56	4	NULL
+6	2015-01-06 12:34:56	5	NULL
+7	2015-01-07 12:34:56	6	NULL
+8	2015-01-08 12:34:56	7	NULL
+9	2015-01-09 12:34:56	8	NULL
+10	2015-01-10 12:34:56	9	NULL
+# This must show 'Using index'
+explain 
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	kp1	kp1	6	NULL	#	Using where; Using index
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+kp1	kp2
+2015-01-01 12:34:56	0
+2015-01-02 12:34:56	1
+2015-01-03 12:34:56	2
+2015-01-04 12:34:56	3
+2015-01-05 12:34:56	4
+# Now, the same with NOT NULL column
+create table t2 (
+pk int auto_increment primary key,
+kp1 datetime not null,
+kp2 int,
+col1 int,
+key(kp1, kp2)
+) engine=rocksdb;
+insert into t2 select * from t1;
+# This must show 'Using index'
+explain 
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using where; Using index
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+kp1	kp2
+2015-01-01 12:34:56	0
+2015-01-02 12:34:56	1
+2015-01-03 12:34:56	2
+2015-01-04 12:34:56	3
+2015-01-05 12:34:56	4
+drop table t1,t2;
+# Try a DATE column:
+create table t1 (
+pk int auto_increment primary key,
+kp1 date,
+kp2 int,
+col1 int,
+key(kp1, kp2)
+) engine=rocksdb;
+insert into t1 (kp1,kp2) 
+select date_add('2015-01-01', interval a day), a from t0;
+select * from t1;
+pk	kp1	kp2	col1
+1	2015-01-01	0	NULL
+2	2015-01-02	1	NULL
+3	2015-01-03	2	NULL
+4	2015-01-04	3	NULL
+5	2015-01-05	4	NULL
+6	2015-01-06	5	NULL
+7	2015-01-07	6	NULL
+8	2015-01-08	7	NULL
+9	2015-01-09	8	NULL
+10	2015-01-10	9	NULL
+# This must show 'Using index'
+explain 
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01' and '2015-01-05';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	kp1	kp1	4	NULL	#	Using where; Using index
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01' and '2015-01-05';
+kp1	kp2
+2015-01-01	0
+2015-01-02	1
+2015-01-03	2
+2015-01-04	3
+2015-01-05	4
+# Now, the same with NOT NULL column
+create table t2 (
+pk int auto_increment primary key,
+kp1 date not null,
+kp2 int,
+col1 int,
+key(kp1, kp2)
+) engine=rocksdb;
+insert into t2 select * from t1;
+# This must show 'Using index'
+explain 
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	kp1	kp1	3	NULL	#	Using where; Using index
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+kp1	kp2
+2015-01-01	0
+2015-01-02	1
+2015-01-03	2
+2015-01-04	3
+2015-01-05	4
+drop table t1,t2;
+#
+# Try a TIMESTAMP column:
+#
+create table t1 (
+pk int auto_increment primary key,
+kp1 timestamp,
+kp2 int,
+col1 int,
+key(kp1, kp2)
+) engine=rocksdb;
+insert into t1 (kp1,kp2) 
+select date_add('2015-01-01 12:34:56', interval a day), a from t0;
+select * from t1;
+pk	kp1	kp2	col1
+1	2015-01-01 12:34:56	0	NULL
+2	2015-01-02 12:34:56	1	NULL
+3	2015-01-03 12:34:56	2	NULL
+4	2015-01-04 12:34:56	3	NULL
+5	2015-01-05 12:34:56	4	NULL
+6	2015-01-06 12:34:56	5	NULL
+7	2015-01-07 12:34:56	6	NULL
+8	2015-01-08 12:34:56	7	NULL
+9	2015-01-09 12:34:56	8	NULL
+10	2015-01-10 12:34:56	9	NULL
+# This must show 'Using index'
+explain 
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	kp1	kp1	5	NULL	#	Using where; Using index
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+kp1	kp2
+2015-01-01 12:34:56	0
+2015-01-02 12:34:56	1
+2015-01-03 12:34:56	2
+2015-01-04 12:34:56	3
+2015-01-05 12:34:56	4
+# Now, the same with NOT NULL column
+create table t2 (
+pk int auto_increment primary key,
+kp1 timestamp not null,
+kp2 int,
+col1 int,
+key(kp1, kp2)
+) engine=rocksdb;
+insert into t2 select * from t1;
+# This must show 'Using index'
+explain 
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	kp1	kp1	4	NULL	#	Using where; Using index
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2015-01-01 00:00:00' and '2015-01-05 23:59:59';
+kp1	kp2
+2015-01-01 12:34:56	0
+2015-01-02 12:34:56	1
+2015-01-03 12:34:56	2
+2015-01-04 12:34:56	3
+2015-01-05 12:34:56	4
+drop table t1,t2;
+#
+# Try a TIME column:
+#
+create table t1 (
+pk int auto_increment primary key,
+kp1 time,
+kp2 int,
+col1 int,
+key(kp1, kp2)
+) engine=rocksdb;
+insert into t1 (kp1,kp2) 
+select date_add('2015-01-01 09:00:00', interval a minute), a from t0;
+select * from t1;
+pk	kp1	kp2	col1
+1	09:00:00	0	NULL
+2	09:01:00	1	NULL
+3	09:02:00	2	NULL
+4	09:03:00	3	NULL
+5	09:04:00	4	NULL
+6	09:05:00	5	NULL
+7	09:06:00	6	NULL
+8	09:07:00	7	NULL
+9	09:08:00	8	NULL
+10	09:09:00	9	NULL
+# This must show 'Using index'
+explain 
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '09:01:00' and '09:05:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	kp1	kp1	4	NULL	#	Using where; Using index
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '09:01:00' and '09:05:00';
+kp1	kp2
+09:01:00	1
+09:02:00	2
+09:03:00	3
+09:04:00	4
+09:05:00	5
+# Now, the same with NOT NULL column
+create table t2 (
+pk int auto_increment primary key,
+kp1 time not null,
+kp2 int,
+col1 int,
+key(kp1, kp2)
+) engine=rocksdb;
+insert into t2 select * from t1;
+# This must show 'Using index'
+explain 
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '09:01:00' and '09:05:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	kp1	kp1	3	NULL	#	Using where; Using index
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '09:01:00' and '09:05:00';
+kp1	kp2
+09:01:00	1
+09:02:00	2
+09:03:00	3
+09:04:00	4
+09:05:00	5
+drop table t1,t2;
+#
+# Try a YEAR column:
+#
+create table t1 (
+pk int auto_increment primary key,
+kp1 year,
+kp2 int,
+col1 int,
+key(kp1, kp2)
+) engine=rocksdb;
+insert into t1 (kp1,kp2) select 2015+a, a from t0;
+select * from t1;
+pk	kp1	kp2	col1
+1	2015	0	NULL
+2	2016	1	NULL
+3	2017	2	NULL
+4	2018	3	NULL
+5	2019	4	NULL
+6	2020	5	NULL
+7	2021	6	NULL
+8	2022	7	NULL
+9	2023	8	NULL
+10	2024	9	NULL
+# This must show 'Using index'
+explain 
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2016' and '2020';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	kp1	kp1	2	NULL	#	Using where; Using index
+select kp1,kp2 from t1 force index (kp1) 
+where kp1 between '2016' and '2020';
+kp1	kp2
+2016	1
+2017	2
+2018	3
+2019	4
+2020	5
+# Now, the same with NOT NULL column
+create table t2 (
+pk int auto_increment primary key,
+kp1 year not null,
+kp2 int,
+col1 int,
+key(kp1, kp2)
+) engine=rocksdb;
+insert into t2 select * from t1;
+# This must show 'Using index'
+explain 
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2016' and '2020';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	kp1	kp1	1	NULL	#	Using where; Using index
+select kp1,kp2 from t2 force index (kp1) 
+where kp1 between '2016' and '2020';
+kp1	kp2
+2016	1
+2017	2
+2018	3
+2019	4
+2020	5
+drop table t1,t2;
+#
+# Issue #57: Release row locks on statement errors
+#
+create table t1 (id int primary key) engine=rocksdb;
+insert into t1 values (1), (2), (3);
+begin;
+insert into t1 values (4), (5), (6);
+insert into t1 values (7), (8), (2), (9);
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+select * from t1;
+id
+1
+2
+3
+4
+5
+6
+begin;
+select * from t1 where id=4 for update;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+select * from t1 where id=7 for update;
+id
+select * from t1 where id=9 for update;
+id
+drop table t1;
+#Index on blob column
+SET @old_mode = @@sql_mode;
+SET sql_mode = 'strict_all_tables';
+create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(c, b(255))) engine=rocksdb;
+drop table t1;
+set global rocksdb_large_prefix=1;
+create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(1255))) engine=rocksdb;
+set global rocksdb_large_prefix=0;
+insert into t1 values (1, '1abcde', '1abcde'), (2, '2abcde', '2abcde'), (3, '3abcde', '3abcde');
+select * from t1;
+a	b	c
+1	1abcde	1abcde
+2	2abcde	2abcde
+3	3abcde	3abcde
+explain select * from t1 where b like '1%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	1258	NULL	#	Using where
+explain select b, a from t1 where b like '1%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	1258	NULL	#	Using where
+update t1 set b= '12345' where b = '2abcde';
+select * from t1;
+a	b	c
+1	1abcde	1abcde
+2	12345	2abcde
+3	3abcde	3abcde
+drop table t1;
+create table t1 (a int, b text, c varchar(400), Primary Key(a), Key(b(2255))) engine=rocksdb;
+Warnings:
+Note	1071	Specified key was too long; max key length is 767 bytes
+drop table t1;
+SET sql_mode = @old_mode;
+drop table t0;
+#
+# Fix assertion failure (attempt to overrun the key buffer) for prefix indexes
+#
+create table t1 (
+pk int primary key,
+col1 varchar(100),
+key (col1(10))
+) engine=rocksdb;
+insert into t1 values (1, repeat('0123456789', 9));
+drop table t1;
+#
+# Issue #76: Assertion `buf == table->record[0]' fails in virtual int ha_rocksdb::delete_row(const uchar*)
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT) ENGINE=RocksDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT) ENGINE=RocksDB;
+CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW DELETE FROM t2 WHERE pk = old.pk;
+INSERT INTO t1 VALUES (1,1);
+REPLACE INTO t1 VALUES (1,2);
+SELECT * FROM t1;
+pk	f1
+1	2
+DROP TABLE t1, t2;
+#
+# Issue #99: UPDATE for table with VARCHAR pk gives "Can't find record" error
+#
+create table t1(a int primary key);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (
+a varchar(32) primary key,
+col1 int
+) engine=rocksdb;
+insert into t2
+select concat('v-', 100 + A.a*100 + B.a), 12345 from t1 A, t1 B;
+update t2 set a=concat('x-', a) where a between 'v-1002' and 'v-1004';
+drop table t1,t2;
+#
+# Issue #131: Assertion `v->cfd_->internal_comparator().Compare(start, end) <= 0' failed
+#
+CREATE TABLE t2(c1 INTEGER UNSIGNED NOT NULL, c2 INTEGER NULL, c3 TINYINT, c4 SMALLINT , c5 MEDIUMINT, c6 INT, c7 BIGINT, PRIMARY KEY(c1,c6)) ENGINE=RocksDB;
+INSERT INTO t2 VALUES (1,1,1,1,1,1,1);
+SELECT * FROM t2 WHERE c1 > 4294967295 ORDER BY c1,c6;
+c1	c2	c3	c4	c5	c6	c7
+EXPLAIN SELECT * FROM t2 WHERE c1 > 4294967295 ORDER BY c1,c6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	PRIMARY	PRIMARY	4	NULL	50	Using where
+drop table t2;
+#
+# Issue #135: register transaction was not being called for statement
+#
+DROP DATABASE IF EXISTS test_db;
+CREATE DATABASE test_db;
+CREATE TABLE test_db.t1(c1 INT PRIMARY KEY);
+LOCK TABLES test_db.t1 READ;
+SET AUTOCOMMIT=0;
+SELECT c1 FROM test_db.t1;
+c1
+START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY;
+DROP DATABASE test_db;
+#
+# Issue #143: Split rocksdb_bulk_load option into two
+#
+CREATE TABLE t1 (id int primary key, value int) engine=RocksDB;
+SET unique_checks=0;
+INSERT INTO t1 VALUES(1, 1);
+INSERT INTO t1 VALUES(1, 2);
+INSERT INTO t1 VALUES(1, 3);
+SELECT * FROM t1;
+id	value
+1	3
+REPLACE INTO t1 VALUES(4, 4);
+ERROR HY000: When unique checking is disabled in MyRocks, INSERT,UPDATE,LOAD statements with clauses that update or replace the key (i.e. INSERT ON DUPLICATE KEY UPDATE, REPLACE) are not allowed. Query: REPLACE INTO t1 VALUES(4, 4)
+INSERT INTO t1 VALUES(5, 5) ON DUPLICATE KEY UPDATE value=value+1;
+ERROR HY000: When unique checking is disabled in MyRocks, INSERT,UPDATE,LOAD statements with clauses that update or replace the key (i.e. INSERT ON DUPLICATE KEY UPDATE, REPLACE) are not allowed. Query: INSERT INTO t1 VALUES(5, 5) ON DUPLICATE KEY UPDATE value=value+1
+TRUNCATE TABLE t1;
+SET @save_rocksdb_bulk_load_size= @@rocksdb_bulk_load_size;
+SET unique_checks=1;
+SET rocksdb_commit_in_the_middle=1;
+SET rocksdb_bulk_load_size=10;
+BEGIN;
+INSERT INTO t1 (id) VALUES(1),(2),(3),(4),(5),(6),(7),(8),(9),(10),
+(11),(12),(13),(14),(15),(16),(17),(18),(19);
+ROLLBACK;
+SELECT * FROM t1;
+id	value
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+6	NULL
+7	NULL
+8	NULL
+9	NULL
+10	NULL
+INSERT INTO t1 (id) VALUES (11),(12),(13),(14),(15);
+BEGIN;
+UPDATE t1 SET value=100;
+ROLLBACK;
+SELECT * FROM t1;
+id	value
+1	100
+2	100
+3	100
+4	100
+5	100
+6	100
+7	100
+8	100
+9	100
+10	100
+11	NULL
+12	NULL
+13	NULL
+14	NULL
+15	NULL
+BEGIN;
+DELETE FROM t1;
+ROLLBACK;
+SELECT * FROM t1;
+id	value
+11	NULL
+12	NULL
+13	NULL
+14	NULL
+15	NULL
+SET rocksdb_commit_in_the_middle=0;
+SET rocksdb_bulk_load_size= @save_rocksdb_bulk_load_size;
+DROP TABLE t1;
+#
+# Issue #185 Assertion `BaseValid()' failed in void rocksdb::BaseDeltaIterator::Advance()
+#
+CREATE TABLE t2(id INT NOT NULL PRIMARY KEY, data INT) Engine=MEMORY;
+INSERT INTO t2 VALUES (100,NULL),(150,"long varchar"),(200,"varchar"),(250,"long long long varchar");
+Warnings:
+Warning	1366	Incorrect integer value: 'long varchar' for column `test`.`t2`.`data` at row 2
+Warning	1366	Incorrect integer value: 'varchar' for column `test`.`t2`.`data` at row 3
+Warning	1366	Incorrect integer value: 'long long long varchar' for column `test`.`t2`.`data` at row 4
+create TABLE t1 (a int not null, b int not null, primary key(a,b));
+INSERT INTO t1  VALUES (1,1);
+SELECT a FROM t1, t2 WHERE a=b AND (b NOT IN (SELECT a FROM t1 WHERE a > 4));
+a
+1
+1
+1
+1
+DROP TABLE t1, t2;
+#
+# Issue #189 ha_rocksdb::load_auto_incr_value() creates implicit snapshot and doesn't release
+#
+create table r1 (id int auto_increment primary key, value int);
+insert into r1 (id) values (null), (null), (null), (null), (null);
+create table r2 like r1;
+show create table r2;
+Table	Create Table
+r2	CREATE TABLE `r2` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `value` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+begin;
+insert into r1 values (10, 1);
+commit;
+begin;
+select * from r1;
+id	value
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+10	1
+commit;
+drop table r1, r2;
+create table r1 (id int auto_increment, value int, index i(id));
+insert into r1 (id) values (null), (null), (null), (null), (null);
+create table r2 like r1;
+show create table r2;
+Table	Create Table
+r2	CREATE TABLE `r2` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `value` int(11) DEFAULT NULL,
+  KEY `i` (`id`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+begin;
+insert into r1 values (10, 1);
+commit;
+begin;
+select * from r1;
+id	value
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+10	1
+commit;
+drop table r1, r2;
+#
+# Issue#211 Crash on LOCK TABLES + START TRANSACTION WITH CONSISTENT SNAPSHOT
+#
+CREATE TABLE t1(c1 INT);
+lock TABLE t1 read local;
+SELECT 1 FROM t1 GROUP BY TRIM(LEADING RAND()FROM'');
+1
+set AUTOCOMMIT=0;
+start transaction with consistent snapshot;
+SELECT * FROM t1;
+c1
+COMMIT;
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# Issue#213 Crash on LOCK TABLES + partitions
+#
+CREATE TABLE t1(a INT,b INT,KEY (b)) engine=rocksdb PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1(a)VALUES (20010101101010.999949);
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+lock tables t1 write,t1 as t0 write,t1 as t2 write;
+SELECT a FROM t1 ORDER BY a;
+a
+2147483647
+truncate t1;
+INSERT INTO t1 VALUES(X'042000200020',X'042000200020'),(X'200400200020',X'200400200020');
+Warnings:
+Warning	1366	Incorrect integer value: '\x04 \x00 \x00 ' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect integer value: '\x04 \x00 \x00 ' for column `test`.`t1`.`b` at row 1
+Warning	1366	Incorrect integer value: ' \x04\x00 \x00 ' for column `test`.`t1`.`a` at row 2
+Warning	1366	Incorrect integer value: ' \x04\x00 \x00 ' for column `test`.`t1`.`b` at row 2
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# Issue#250: MyRocks/Innodb different output from query with order by on table with index and decimal type
+#  (the test was changed to use VARCHAR, because DECIMAL now supports index-only, and this issue 
+#   needs a datype that doesn't support index-inly)
+#
+CREATE TABLE t1(
+c1 varchar(10) character set utf8 collate utf8_general_ci NOT NULL, 
+c2 varchar(10) character set utf8 collate utf8_general_ci, 
+c3 INT, 
+INDEX idx(c1,c2)
+);
+INSERT INTO t1 VALUES ('c1-val1','c2-val1',5);
+INSERT INTO t1 VALUES ('c1-val2','c2-val3',6);
+INSERT INTO t1 VALUES ('c1-val3','c2-val3',7);
+SELECT * FROM t1 force index(idx) WHERE c1 <> 'c1-val2' ORDER BY c1 DESC;
+c1	c2	c3
+c1-val3	c2-val3	7
+c1-val1	c2-val1	5
+explain SELECT * FROM t1  force index(idx) WHERE c1 <> '1' ORDER BY c1 DESC;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx	idx	32	NULL	#	Using where
+drop table t1;
+#
+# Issue#267: MyRocks issue with no matching min/max row and count(*)
+#
+CREATE TABLE t1(c1 INT UNSIGNED, c2 INT SIGNED, INDEX idx2(c2));
+INSERT INTO t1 VALUES(1,null);
+INSERT INTO t1 VALUES(2,null);
+SELECT count(*) as total_rows, min(c2) as min_value FROM t1;
+total_rows	min_value
+2	NULL
+DROP TABLE t1;
+#
+# Issue#263: MyRocks auto_increment skips values if you insert a negative value
+#
+CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
+INSERT INTO t1 VALUES(0),(-1),(0);
+SHOW TABLE STATUS LIKE 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	10	Fixed	1000	0	0	0	0	0	3	#	#	NULL	latin1_swedish_ci	NULL			0	N
+SELECT * FROM t1;
+a
+-1
+1
+2
+DROP TABLE t1;
+CREATE TABLE t1(a INT AUTO_INCREMENT KEY);
+INSERT INTO t1 VALUES(0),(10),(0);
+SHOW TABLE STATUS LIKE 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	10	Fixed	1000	0	0	0	0	0	12	#	#	NULL	latin1_swedish_ci	NULL			0	N
+SELECT * FROM t1;
+a
+1
+10
+11
+DROP TABLE t1;
+#
+# Issue #411: Setting rocksdb_commit_in_the_middle commits transaction
+# without releasing iterator
+#
+CREATE TABLE t1 (id1 bigint(20),
+id2 bigint(20),
+id3 bigint(20),
+PRIMARY KEY (id1, id2, id3))
+DEFAULT CHARSET=latin1;
+CREATE TABLE t2 (id1 bigint(20),
+id2 bigint(20),
+PRIMARY KEY (id1, id2))
+DEFAULT CHARSET=latin1;
+set rocksdb_commit_in_the_middle=1;
+SET @save_rocksdb_bulk_load_size= @@rocksdb_bulk_load_size;
+set rocksdb_bulk_load_size = 100;
+DELETE t2, t1 FROM t2 LEFT JOIN t1 ON t2.id2 = t1.id2 AND t2.id1 = t1.id1 WHERE t2.id1 = 0;
+SET rocksdb_bulk_load_size= @save_rocksdb_bulk_load_size;
+SET rocksdb_commit_in_the_middle=0;
+DROP TABLE t1, t2;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

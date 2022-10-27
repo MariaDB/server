@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_BLOCK_RESTART_INTERVAL;
+SELECT @start_global_value;
+@start_global_value
+16
+"Trying to set variable @@global.ROCKSDB_BLOCK_RESTART_INTERVAL to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_BLOCK_RESTART_INTERVAL   = 444;
+ERROR HY000: Variable 'rocksdb_block_restart_interval' is a read only variable

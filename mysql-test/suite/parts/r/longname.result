@@ -1,0 +1,62 @@
+set names utf8;
+create database mysqltest1;
+select database_name, table_name, length(table_name) from mysql.innodb_table_stats where database_name = 'mysqltest1';
+database_name	table_name	length(table_name)
+CREATE TABLE mysqltest1.test_jfg_table_name_with_64_chars_123456789012345678901234567890 (
+id int(10) unsigned NOT NULL,
+id2 int(10) unsigned NOT NULL,
+PRIMARY KEY ( id, id2 )
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+PARTITION BY RANGE ( id )
+SUBPARTITION BY HASH ( id2 )
+SUBPARTITIONS 2 (
+PARTITION test_jfg_partition_name_with_60_chars_1234567890123456789012 VALUES LESS THAN (1000) ENGINE = InnoDB,
+PARTITION pmax VALUES LESS THAN MAXVALUE ENGINE = InnoDB);
+select database_name, table_name, length(table_name) from mysql.innodb_table_stats where database_name = 'mysqltest1';
+database_name	table_name	length(table_name)
+CREATE TABLE mysqltest1.éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé (
+id int(10) unsigned NOT NULL,
+id2 int(10) unsigned NOT NULL,
+PRIMARY KEY ( id, id2 )
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+PARTITION BY RANGE ( id )
+SUBPARTITION BY HASH ( id2 )
+SUBPARTITIONS 2 (
+PARTITION çççççççççççççççççççççççççççççççççççççççççççççççççççççççççççç VALUES LESS THAN (1000) ENGINE = InnoDB,
+PARTITION pmax VALUES LESS THAN MAXVALUE ENGINE = InnoDB);
+ERROR HY000: The path specified for @0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@0n@... is too long
+SET @file_per_table=@@GLOBAL.innodb_file_per_table;
+SET GLOBAL innodb_file_per_table=0;
+CREATE TABLE mysqltest1.t1 (a INT) ENGINE=INNODB
+PARTITION BY RANGE (a) SUBPARTITION BY HASH(a)
+(PARTITION `$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$`
+ VALUES LESS THAN (10)
+(SUBPARTITION
+`--------------------------abcdef0123456789abcdef0123456789abcdef`,
+SUBPARTITION
+`0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`)
+);
+SET GLOBAL innodb_file_per_table=@file_per_table;
+SHOW CREATE TABLE mysqltest1.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`a`)
+SUBPARTITION BY HASH (`a`)
+(PARTITION `$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$` VALUES LESS THAN (10)
+ (SUBPARTITION `--------------------------abcdef0123456789abcdef0123456789abcdef` ENGINE = InnoDB,
+  SUBPARTITION `0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef` ENGINE = InnoDB))
+INSERT INTO mysqltest1.t1 VALUES(1);
+DROP TABLE mysqltest1.`#mysql50#t1#P#@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024#SP#0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef`;
+ERROR 42000: Incorrect table name '#mysql50#t1#P#@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@'
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
+WHERE NAME LIKE 'mysqltest1%';
+NAME
+mysqltest1/t1#P#@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024#SP#0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+mysqltest1/t1#P#@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024@0024#SP#@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002d@002dabcdef0123456789abcdef0123456789abcdef
+mysqltest1/test_jfg_table_name_with_64_chars_123456789012345678901234567890#P#pmax#SP#pmaxsp0
+mysqltest1/test_jfg_table_name_with_64_chars_123456789012345678901234567890#P#pmax#SP#pmaxsp1
+mysqltest1/test_jfg_table_name_with_64_chars_123456789012345678901234567890#P#test_jfg_partition_name_with_60_chars_1234567890123456789012#SP#test_jfg_partition_name_with_60_chars_1234567890123456789012sp0
+mysqltest1/test_jfg_table_name_with_64_chars_123456789012345678901234567890#P#test_jfg_partition_name_with_60_chars_1234567890123456789012#SP#test_jfg_partition_name_with_60_chars_1234567890123456789012sp1
+drop database mysqltest1;

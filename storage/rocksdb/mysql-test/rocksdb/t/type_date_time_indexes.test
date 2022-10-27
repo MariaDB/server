@@ -1,0 +1,157 @@
+--source include/have_rocksdb.inc
+
+#
+# Date and time columns with indexes
+# (DATE, DATETIME, TIMESTAMP, TIME, YEAR)
+#
+
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+
+CREATE TABLE t1 (
+  d DATE,
+  dt DATETIME PRIMARY KEY,
+  ts TIMESTAMP,
+  t TIME,
+  y YEAR
+) ENGINE=rocksdb;
+
+SHOW INDEX IN t1;
+SET @tm = '2012-04-09 05:27:00';
+
+INSERT INTO t1 (d,dt,ts,t,y) VALUES
+('2012-01-12', '2010-11-22 12:33:54', '2011-11-14 21:45:55', '00:12:33', '2000'),
+('2012-01-12', '2010-11-22 11:43:14', '2011-11-14 21:45:55', '00:12:32', '2001'),
+('2012-03-31', '2011-08-28 21:33:56', '1999-04-30 19:11:08', '12:00:00', '1999'),
+('2012-03-13', '2011-08-27 21:33:56', '1999-03-30 19:11:08', '12:10:00', '1998'),
+('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994'),
+(DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm)); 
+
+--replace_column 9 #
+EXPLAIN SELECT dt FROM t1 ORDER BY dt LIMIT 3;
+SELECT dt FROM t1 ORDER BY dt LIMIT 3;
+
+--replace_column 9 #
+EXPLAIN SELECT dt FROM t1 FORCE INDEX FOR ORDER BY (PRIMARY) ORDER BY dt LIMIT 3;
+SELECT dt FROM t1 FORCE INDEX FOR ORDER BY (PRIMARY) ORDER BY dt LIMIT 3;
+
+--error ER_DUP_ENTRY
+INSERT INTO t1 (d,dt,ts,t,y) VALUES
+('2012-01-11', '2010-11-22 12:33:54', '2011-11-14 21:45:55', '00:12:33', '2000');
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  d DATE,
+  dt DATETIME,
+  ts TIMESTAMP,
+  t TIME,
+  y YEAR,
+  pk TIME PRIMARY KEY,
+  INDEX (ts)
+) ENGINE=rocksdb;
+
+SHOW INDEX IN t1;
+SET @tm = '2012-04-09 05:27:00';
+
+INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
+('2012-01-12', '2010-11-22 12:33:54', '2011-11-14 21:45:55', '00:12:33', '2000','12:00:00'),
+('2012-01-12', '2010-11-22 11:43:14', '2011-11-14 21:45:55', '00:12:32', '2001','12:01:00'),
+('2012-03-31', '2011-08-28 21:33:56', '1999-04-30 19:11:08', '12:00:00', '1999','12:02:00'),
+('2012-03-13', '2011-08-27 21:33:56', '1999-03-30 19:11:08', '12:10:00', '1998','12:03:00'),
+('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994','12:04:00'),
+(DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),'12:05:00');
+
+--replace_column 9 #
+EXPLAIN SELECT ts FROM t1 WHERE ts > NOW();
+--sorted_result
+SELECT ts FROM t1 WHERE ts > NOW();
+
+--replace_column 9 #
+EXPLAIN SELECT ts FROM t1 USE INDEX () WHERE ts > NOW();
+--sorted_result
+SELECT ts FROM t1 USE INDEX () WHERE ts > NOW();
+
+DROP TABLE t1;
+
+--disable_parsing
+--error ER_GET_ERRMSG
+CREATE TABLE t1 (
+  d DATE,
+  dt DATETIME,
+  ts TIMESTAMP,
+  t TIME,
+  y YEAR,
+  pk YEAR PRIMARY KEY,
+  UNIQUE INDEX d_t (d,t)
+) ENGINE=rocksdb;
+
+
+SHOW INDEX IN t1;
+SET @tm = '2012-04-09 05:27:00';
+
+INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
+('2012-01-12', '2010-11-22 12:33:54', '2011-11-14 21:45:55', '00:12:33', '2000','1990'),
+('2012-01-12', '2010-11-22 11:43:14', '2011-11-14 21:45:55', '00:12:32', '2001','1991'),
+('2012-03-31', '2011-08-28 21:33:56', '1999-04-30 19:11:08', '12:00:00', '1999','1992'),
+('2012-03-13', '2011-08-27 21:33:56', '1999-03-30 19:11:08', '12:10:00', '1998','1993'),
+('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994','1994'),
+(DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),'1995');
+
+--replace_column 9 #
+EXPLAIN SELECT d, t FROM t1 WHERE CONCAT(d,' ',t) != CURRENT_DATE();
+--sorted_result
+SELECT d, t FROM t1 WHERE CONCAT(d,' ',t) != CURRENT_DATE();
+
+--replace_column 9 #
+EXPLAIN SELECT d, t FROM t1 IGNORE INDEX (d_t) WHERE CONCAT(d,' ',t) != CURRENT_DATE();
+--sorted_result
+SELECT d, t FROM t1 IGNORE INDEX (d_t) WHERE CONCAT(d,' ',t) != CURRENT_DATE();
+
+--error ER_DUP_ENTRY
+INSERT INTO t1 (d,dt,ts,t,y) VALUES
+('2012-01-12', '2010-11-22 12:33:53', '2011-11-14 21:45:55', '00:12:33', '2000');
+
+DROP TABLE t1;
+
+--enable_parsing
+
+CREATE TABLE t1 (
+  d DATE,
+  dt DATETIME,
+  ts TIMESTAMP,
+  t TIME,
+  y YEAR,
+  pk TIME PRIMARY KEY,
+  INDEX (y,t)
+) ENGINE=rocksdb;
+
+SHOW INDEX IN t1;
+SET @tm = '2012-04-09 05:27:00';
+
+INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
+('2012-01-12', '2010-11-22 12:33:54', '2011-11-14 21:45:55', '00:12:33', '2000','18:18:18'),
+('2012-01-12', '2010-11-22 11:43:14', '2011-11-14 21:45:55', '00:12:32', '2001','19:18:18'),
+('2012-03-31', '2011-08-28 21:33:56', '1999-04-30 19:11:08', '12:00:00', '1999','20:18:18'),
+('2012-03-13', '2011-08-27 21:33:56', '1999-03-30 19:11:08', '12:10:00', '1998','21:18:18'),
+('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994','22:18:18'),
+(DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),'23:18:18');
+
+--replace_column 9 #
+EXPLAIN SELECT y, COUNT(*) FROM t1 GROUP BY y;
+--sorted_result
+SELECT y, COUNT(*) FROM t1 GROUP BY y;
+
+--replace_column 9 #
+EXPLAIN SELECT y, COUNT(*) FROM t1 USE INDEX FOR GROUP BY () GROUP BY y;
+--sorted_result
+SELECT y, COUNT(*) FROM t1 USE INDEX FOR GROUP BY () GROUP BY y;
+
+DROP TABLE t1;
+
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

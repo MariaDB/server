@@ -1,0 +1,47 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2;
+--enable_warnings
+
+CREATE TABLE t1 (b INT PRIMARY KEY);
+
+# Try simple foreign key - should fail
+--error ER_NOT_SUPPORTED_YET
+CREATE TABLE t2 (a INT NOT NULL, b INT NOT NULL, FOREIGN KEY (b) REFERENCES t1(b));
+
+# Try simple valid syntax with 'foreign' as part - should succeed
+CREATE TABLE t2 (a INT NOT NULL, bforeign INT NOT NULL);
+DROP TABLE t2;
+
+# Try simple valid syntax with 'foreign' and 'key' as part (with no space) - should succeed
+CREATE TABLE t2 (a INT NOT NULL, foreignkey INT NOT NULL);
+DROP TABLE t2;
+
+# Try with valid id containing 'foreign' and then a foreign key - should fail
+--error ER_NOT_SUPPORTED_YET
+CREATE TABLE t2 (a INT NOT NULL, bforeign INT not null, FOREIGN KEY (bforeign) REFERENCES t1(b));
+
+CREATE TABLE t2 (a INT NOT NULL, b INT NOT NULL);
+# Alter with foreign key - should fail
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t2 ADD FOREIGN KEY (b) REFERENCES t1(b);
+DROP TABLE t2;
+
+# Alter with valid syntax that contains 'foreign' - should succeed
+CREATE TABLE t2 (a INT NOT NULL);
+ALTER TABLE t2 ADD bforeign INT NOT NULL;
+DROP TABLE t2;
+
+# Alter with valid syntax that contains 'foreign' and 'key' (no space) - should succeed
+CREATE TABLE t2 (a INT NOT NULL);
+ALTER TABLE t2 ADD foreignkey INT NOT NULL;
+DROP TABLE t2;
+
+# Alter with valid syntax that contains 'foreign' and then foreign key - should fail
+CREATE TABLE t2 (a INT NOT NULL);
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t2 ADD bforeign INT NOT NULL, ADD FOREIGN KEY (bforeign) REFERENCES t1(b);
+DROP TABLE t2;
+
+DROP TABLE t1;

@@ -1,0 +1,19 @@
+DROP TABLE IF EXISTS ids;
+FLUSH STATUS;
+SET NAMES utf8mb4;
+CREATE TABLE ids (
+id int PRIMARY KEY,
+text varchar(32),
+FULLTEXT INDEX (text)
+) DEFAULT CHARSET=utf8mb4;
+INSERT INTO ids VALUES (1, 'first');
+SELECT * FROM ids
+WHERE MATCH(text) AGAINST('+first' IN BOOLEAN MODE)
+ORDER BY id, id
+LIMIT 1;
+id	text
+1	first
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	1
+DROP TABLE ids;

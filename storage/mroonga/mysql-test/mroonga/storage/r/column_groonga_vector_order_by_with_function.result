@@ -1,0 +1,23 @@
+DROP TABLE IF EXISTS tags, bugs;
+CREATE TABLE tags (
+name VARCHAR(64) PRIMARY KEY
+) DEFAULT CHARSET=utf8
+COLLATE=utf8_bin
+COMMENT='default_tokenizer "TokenDelimit"';
+CREATE TABLE bugs (
+id INT UNSIGNED PRIMARY KEY,
+tags TEXT COMMENT 'flags "COLUMN_VECTOR", type "tags"'
+) DEFAULT CHARSET=utf8;
+INSERT INTO bugs (id, tags) VALUES (1, "Linux MySQL Groonga");
+INSERT INTO bugs (id, tags) VALUES (2, "MySQL Mroonga");
+INSERT INTO bugs (id, tags) VALUES (3, "Ruby Rroonga");
+SELECT * FROM tags ORDER BY SUBSTRING(name, 1, 1) ASC;
+name
+Groonga
+Linux
+Mroonga
+MySQL
+Rroonga
+Ruby
+DROP TABLE bugs;
+DROP TABLE tags;

@@ -1,0 +1,80 @@
+/*****************************************************************************
+
+Copyright (c) 2006, 2013, Oracle and/or its affiliates. All Rights Reserved.
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; version 2 of the License.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
+
+*****************************************************************************/
+
+/*******************************************************************//**
+@file include/ut0list.ic
+A double-linked list
+
+Created 4/26/2006 Osku Salerma
+************************************************************************/
+
+/****************************************************************//**
+Get the first node in the list.
+@return first node, or NULL */
+UNIV_INLINE
+ib_list_node_t*
+ib_list_get_first(
+/*==============*/
+	ib_list_t*	list)	/*!< in: list */
+{
+	return(list->first);
+}
+
+/****************************************************************//**
+Get the last node in the list.
+@return last node, or NULL */
+UNIV_INLINE
+ib_list_node_t*
+ib_list_get_last(
+/*=============*/
+	ib_list_t*	list)	/*!< in: list */
+{
+	return(list->last);
+}
+
+/********************************************************************
+Check if list is empty. */
+UNIV_INLINE
+ibool
+ib_list_is_empty(
+/*=============*/
+					/* out: TRUE if empty else FALSE */
+	const ib_list_t*	list)	/* in: list */
+{
+	return(!(list->first || list->last));
+}
+
+/********************************************************************
+Get number of items on list.
+@return number of items on list */
+UNIV_INLINE
+ulint
+ib_list_len(
+/*========*/
+	const ib_list_t*	list)		/*<! in: list */
+{
+	ulint len = 0;
+	ib_list_node_t* node = list->first;
+
+	while(node) {
+		len++;
+		node = node->next;
+	}
+
+	return (len);
+}

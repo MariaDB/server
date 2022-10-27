@@ -1,0 +1,90 @@
+--source have_odbc_sqlite3.inc
+
+#
+# To run this test, install SQLite3 ODBC Driver from
+# http://www.ch-werner.de/sqliteodbc/
+#
+# Note, the test does not need a DSN to be created
+# (only the driver is required)
+#
+#
+# On Windows:
+# -----------
+# Download and run the installer file sqliteodbc.exe
+# Version sqliteodbc-0.991 is known to Work.
+# After running the installer the test should start working automatically.
+#
+# On Linux:
+# --------
+# 1. Download the source tarball, e.g.: sqliteodbc-0.993.tar.gz
+# 2. Unpack the sources:
+#    tar -zxf sqliteodbc-0.993.tar.gz
+# 3. Compile the source and install:
+#    cd sqliteodbc-0.993
+#    ./configure --prefix=/opt/sqliteodbc
+#    make
+#    sudo make install
+#
+#    (you can use a different --prefix, according to your preferences)
+#
+# 4. Add these lines into /etc/odbcinst.ini
+#
+#[SQLite3 ODBC Driver]
+#Description=SQLite3 ODBC Driver
+#Driver=/opt/sqliteodbc/libsqlite3odbc.so
+#Setup=/opt/sqliteodbc/libsqlite3odbc.so
+#
+# Adjust the directory "/opt/sqliteodbc/" according to --prefix
+# that you chose on step #3.
+#
+#
+
+SET NAMES utf8;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+
+#
+# For some reasons Windows does not allow to remove the data base
+# file after "DROP TABLE t1". So unlike in odbc_xls.test we won't copy
+# the data file, we'll use directly the file in std_data.
+# As we do not do any modifications in the database, this should be OK.
+#
+let $Database=$MTR_SUITE_DIR/std_data/test.sqlite3;
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=$Database;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Columns TABNAME='t1' TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=$Database;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Tables TABNAME='t1' TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=$Database;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Columns TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=$Database;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8
+SELECT * FROM t1 ORDER BY Table_name;
+DROP TABLE t1;
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE t1 ENGINE=CONNECT CATFUNC=Tables TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=$Database;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8
+SELECT * FROM t1 ORDER BY Table_name;
+DROP TABLE t1;

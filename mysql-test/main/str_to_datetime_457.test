@@ -1,0 +1,26 @@
+#
+# MDEV-457 Inconsistent data truncation on datetime values with fractional seconds represented as strings with no delimiters 
+# (and other problems with str_to_datetime)
+#
+
+# first was ok, second was not
+select cast('01:02:03   ' as time), cast('01:02:03    ' as time);
+# first two were ok, third was not
+select cast('2002-011-012' as date), cast('2002.11.12' as date), cast('2002.011.012' as date);
+# only two microsecond digits were ok, third was truncated with a warning
+select cast('2012103123595912' as datetime(6)), cast('20121031235959123' as datetime(6));
+# zero string date was considered 'out of range'. Must be either ok or invalid format
+select cast(0 as date), cast('0000-00-00' as date), cast('0' as date);
+# first was ok, second was not
+select extract(hour from '100000:02:03'), extract(hour from '100000:02:03 ');
+
+--echo #
+--echo # backward compatibility craziness
+--echo #
+select cast('12:00:00.12.34.56' as time); # was 12:00:00
+select cast('12:00:00 12.34.56' as time); # was 12:34:56
+select cast('12:00:00-12.34.56' as time); # was 12:00:00
+select cast('12:00:00.12.34.56' as datetime);
+select cast('12:00:00-12.34.56' as datetime);
+select cast('12:00:00 12.34.56' as datetime);
+select cast('12:00:00.123456' as time);

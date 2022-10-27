@@ -1,0 +1,75 @@
+create table t1(
+id int unsigned auto_increment primary key,
+x int unsigned,
+y int unsigned,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning;
+create table t2(
+id int unsigned auto_increment primary key,
+x int unsigned,
+y int unsigned);
+insert into t1(x, y) values(1, 11);
+insert into t2(x, y) values(1, 11);
+insert into t1(x, y) values(2, 12);
+insert into t2(x, y) values(2, 12);
+insert into t1(x, y) values(3, 13);
+insert into t2(x, y) values(3, 13);
+insert into t1(x, y) values(4, 14);
+insert into t2(x, y) values(4, 14);
+insert into t1(x, y) values(5, 15);
+insert into t2(x, y) values(5, 15);
+insert into t1(x, y) values(6, 16);
+insert into t2(x, y) values(6, 16);
+insert into t1(x, y) values(7, 17);
+insert into t2(x, y) values(7, 17);
+insert into t1(x, y) values(8, 18);
+insert into t2(x, y) values(8, 18);
+insert into t1(x, y) values(9, 19);
+insert into t2(x, y) values(9, 19);
+select t1.x = t2.x and t1.y = t2.y as A, t1.x, t1.y, t2.x, t2.y from t1 inner join t2 on t1.id = t2.id;
+A	x	y	x	y
+1	1	11	1	11
+1	2	12	2	12
+1	3	13	3	13
+1	4	14	4	14
+1	5	15	5	15
+1	6	16	6	16
+1	7	17	7	17
+1	8	18	8	18
+1	9	19	9	19
+delete from t1 where x = 2;
+delete from t2 where x = 2;
+select t1.x = t2.x and t1.y = t2.y as A, t1.x, t1.y, t2.x, t2.y from t1 inner join t2 on t1.id = t2.id;
+A	x	y	x	y
+1	1	11	1	11
+1	3	13	3	13
+1	4	14	4	14
+1	5	15	5	15
+1	6	16	6	16
+1	7	17	7	17
+1	8	18	8	18
+1	9	19	9	19
+delete from t1 where x > 7;
+delete from t2 where x > 7;
+select t1.x = t2.x and t1.y = t2.y as A, t1.x, t1.y, t2.x, t2.y from t1 inner join t2 on t1.id = t2.id;
+A	x	y	x	y
+1	1	11	1	11
+1	3	13	3	13
+1	4	14	4	14
+1	5	15	5	15
+1	6	16	6	16
+1	7	17	7	17
+drop table t1;
+drop table t2;
+#
+# MDEV-22562 Assertion `next_insert_id == 0' upon UPDATE on system-versioned table
+#
+create table t1 (pk integer auto_increment primary key) engine=myisam with system versioning;
+insert delayed into t1 (pk) values (1);
+lock tables t1 write;
+update t1 set pk= 0;
+update t1 set pk= 0;
+unlock tables;
+drop table t1;

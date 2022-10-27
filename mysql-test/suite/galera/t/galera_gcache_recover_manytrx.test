@@ -1,0 +1,225 @@
+#
+# Kill entire cluster while various transactions are in progress
+# restore the cluster and expect that node #2 will rejoin using IST
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+--source include/have_log_bin.inc
+
+SET SESSION wsrep_sync_wait = 0;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 LONGBLOB) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+DELIMITER |;
+CREATE PROCEDURE insert_simple ()
+BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+	SET SESSION wsrep_sync_wait = 0;
+        WHILE 1 DO
+                INSERT INTO t1 (f1, f2) VALUES (DEFAULT,'abcdef');
+        END WHILE;
+END|
+
+CREATE PROCEDURE insert_multi ()
+BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+	SET SESSION wsrep_sync_wait = 0;
+        WHILE 1 DO
+                INSERT INTO t1 (f1) VALUES (DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT),(DEFAULT);
+        END WHILE;
+END|
+
+CREATE PROCEDURE insert_transaction ()
+BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+	SET SESSION wsrep_sync_wait = 0;
+	SET AUTOCOMMIT = OFF;
+        WHILE 1 DO
+		START TRANSACTION;
+		INSERT INTO t1 (f1) VALUES (DEFAULT);
+		INSERT INTO t1 (f1) VALUES (DEFAULT);
+		INSERT INTO t1 (f1) VALUES (DEFAULT);
+		INSERT INTO t1 (f1) VALUES (DEFAULT);
+		INSERT INTO t1 (f1) VALUES (DEFAULT);
+
+		INSERT INTO t1 (f1) VALUES (DEFAULT);
+		INSERT INTO t1 (f1) VALUES (DEFAULT);
+		INSERT INTO t1 (f1) VALUES (DEFAULT);
+		INSERT INTO t1 (f1) VALUES (DEFAULT);
+		INSERT INTO t1 (f1) VALUES (DEFAULT);
+		COMMIT;
+        END WHILE;
+END|
+
+DELIMITER ;|
+DELIMITER |;
+
+CREATE PROCEDURE update_simple ()
+BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+	SET SESSION wsrep_sync_wait = 0;
+        WHILE 1 DO
+		UPDATE t1 SET f2 = CONCAT(f2,f2);
+        END WHILE;
+END|
+
+CREATE PROCEDURE insert_1k ()
+BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+	SET SESSION wsrep_sync_wait = 0;
+        WHILE 1 DO
+		INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024));
+        END WHILE;
+END|
+
+CREATE PROCEDURE insert_1m ()
+BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+	SET SESSION wsrep_sync_wait = 0;
+        WHILE 1 DO
+		INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024));
+        END WHILE;
+END|
+
+CREATE PROCEDURE insert_10m ()
+BEGIN
+        DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+	SET SESSION wsrep_sync_wait = 0;
+        WHILE 1 DO
+		INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
+        END WHILE;
+END|
+
+DELIMITER ;|
+
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connect node_1_insert_simple, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1_insert_multi, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1_insert_transaction, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1_update_simple, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1_insert_1k, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1_insert_1m, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1_insert_10m, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+--connection node_1_insert_simple
+--send CALL insert_simple();
+
+--connection node_1_insert_multi
+--send CALL insert_multi();
+
+--connection node_1_insert_transaction
+--send CALL insert_transaction ();
+
+--connection node_1_update_simple
+--send CALL update_simple ();
+
+--connection node_1_insert_1k
+--send CALL insert_1k ();
+
+--connection node_1_insert_1m
+--send CALL insert_1m ();
+
+--connection node_1_insert_10m
+--send CALL insert_10m ();
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+
+# Make sure that node_2 is not killed while TOIs are applied.
+# Otherwhise we risk that grastate file is marked unsafe, and
+# as a consequence the node cannot rejoin with IST.
+--let $wait_condition = SELECT VARIABLE_VALUE > $wsrep_last_committed_before FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--source include/wait_condition.inc
+
+--source include/kill_galera.inc
+
+--sleep 10
+--connection node_1
+--source include/kill_galera.inc
+
+--connection node_1_insert_simple
+--error 2013
+--reap
+
+--connection node_1_insert_multi
+--error 2013
+--reap
+
+--connection node_1_insert_transaction
+--error 2013
+--reap
+
+--connection node_1_update_simple
+--error 2013
+--reap
+
+--connection node_1_insert_1k
+--error 2013
+--reap
+
+--connection node_1_insert_1m
+--error 2013
+--reap
+
+--connection node_1_insert_10m
+--error 2013
+--reap
+
+--connection node_1
+--let $galera_wsrep_recover_server_id=1
+--source suite/galera/include/galera_wsrep_recover.inc
+
+--let $_expect_file_name = $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/start_mysqld.inc
+--connection node_2
+--let $galera_wsrep_recover_server_id=2
+--source suite/galera/include/galera_wsrep_recover.inc
+
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--let $diff_servers = 1 2
+--source include/diff_servers.inc
+
+--connection node_1
+DROP TABLE t1;
+DROP TABLE ten;
+DROP PROCEDURE insert_simple;
+DROP PROCEDURE insert_multi;
+DROP PROCEDURE insert_transaction;
+DROP PROCEDURE update_simple;
+DROP PROCEDURE insert_1k;
+DROP PROCEDURE insert_1m;
+
+--connection node_1
+CALL mtr.add_suppression("conflict state 7 after post commit");
+
+# Warning happens when the cluster is started for the first time
+CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
+
+# Confirm that IST took place
+--let $assert_text = async IST sender starting to serve
+--let $assert_select = async IST sender starting to serve
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_only_after = starting as process
+--source include/assert_grep.inc
+
+--connection node_2
+CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
+
+# Confirm that gcache recovery took place
+
+--let $assert_text = Recovering GCache ring buffer: found gapless sequence
+--let $assert_select = Recovering GCache ring buffer: found gapless sequence
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_only_after = starting as process
+--source include/assert_grep.inc

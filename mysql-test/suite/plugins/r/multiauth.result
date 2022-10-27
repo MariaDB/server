@@ -1,0 +1,208 @@
+install soname 'auth_ed25519';
+create user USER         identified via unix_socket OR mysql_native_password as password("GOOD");
+create user mysqltest1 identified via unix_socket OR mysql_native_password as password("good");
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA unix_socket OR mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E'
+# name match = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+USER@localhost	USER@%	test
+# name does not match, password good = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+mysqltest1@localhost	mysqltest1@%	test
+# name does not match, password bad = failure
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'mysqltest1'@'localhost' (using password: YES)
+drop user USER, mysqltest1;
+create user USER         identified via mysql_native_password as password("GOOD") OR unix_socket;
+create user mysqltest1 identified via mysql_native_password as password("good") OR unix_socket;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' OR unix_socket
+# name match = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+USER@localhost	USER@%	test
+# name does not match, password good = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+mysqltest1@localhost	mysqltest1@%	test
+# name does not match, password bad = failure
+mysqltest: Could not open connection 'default': 1698 Access denied for user 'mysqltest1'@'localhost'
+drop user USER, mysqltest1;
+create user USER         identified via unix_socket OR ed25519 as password("GOOD");
+create user mysqltest1 identified via unix_socket OR ed25519 as password("good");
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA unix_socket OR ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc'
+# name match = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+USER@localhost	USER@%	test
+# name does not match, password good = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+mysqltest1@localhost	mysqltest1@%	test
+# name does not match, password bad = failure
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'mysqltest1'@'localhost' (using password: YES)
+drop user USER, mysqltest1;
+create user USER         identified via ed25519 as password("GOOD") OR unix_socket;
+create user mysqltest1 identified via ed25519 as password("good") OR unix_socket;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc' OR unix_socket
+# name match = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+USER@localhost	USER@%	test
+# name does not match, password good = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+mysqltest1@localhost	mysqltest1@%	test
+# name does not match, password bad = failure
+mysqltest: Could not open connection 'default': 1698 Access denied for user 'mysqltest1'@'localhost'
+drop user USER, mysqltest1;
+create user USER         identified via ed25519 as password("GOOD") OR unix_socket OR mysql_native_password as password("works");
+create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc' OR unix_socket OR mysql_native_password USING '*7D8C3DF236D9163B6C274A9D47704BC496988460'
+# name match = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+USER@localhost	USER@%	test
+# name does not match, password good = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+mysqltest1@localhost	mysqltest1@%	test
+# name does not match, second password works = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+mysqltest1@localhost	mysqltest1@%	test
+# name does not match, password bad = failure
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'mysqltest1'@'localhost' (using password: YES)
+drop user USER, mysqltest1;
+create user mysqltest1 identified via mysql_native_password as password("good") OR mysql_native_password as password("works");
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' OR mysql_native_password USING '*7D8C3DF236D9163B6C274A9D47704BC496988460'
+# password good = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+mysqltest1@localhost	mysqltest1@%	test
+# second password works = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+mysqltest1@localhost	mysqltest1@%	test
+# password bad = failure
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'mysqltest1'@'localhost' (using password: YES)
+drop user mysqltest1;
+create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
+show grants for mysqltest1;
+Grants for mysqltest1@%
+GRANT USAGE ON *.* TO `mysqltest1`@`%` IDENTIFIED VIA ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc' OR unix_socket OR mysql_native_password USING '*7D8C3DF236D9163B6C274A9D47704BC496988460'
+select json_detailed(priv) from mysql.global_priv where user='mysqltest1';
+json_detailed(priv)
+{
+    "access": 0,
+    "plugin": "mysql_native_password",
+    "authentication_string": "*7D8C3DF236D9163B6C274A9D47704BC496988460",
+    "auth_or": 
+    [
+        
+        {
+            "plugin": "ed25519",
+            "authentication_string": "F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc"
+        },
+        
+        {
+            "plugin": "unix_socket"
+        },
+        
+        {
+        }
+    ],
+    "password_last_changed": #
+}
+select password,plugin,authentication_string from mysql.user where user='mysqltest1';
+Password	plugin	authentication_string
+*7D8C3DF236D9163B6C274A9D47704BC496988460	mysql_native_password	*7D8C3DF236D9163B6C274A9D47704BC496988460
+flush privileges;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc' OR unix_socket OR mysql_native_password USING '*7D8C3DF236D9163B6C274A9D47704BC496988460'
+set password for mysqltest1 = password('foobar');
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA ed25519 USING 'qv2mG6HWCuy32Slb5xhV4THStewNz2VINVPbgk+XAJ8' OR unix_socket OR mysql_native_password USING '*7D8C3DF236D9163B6C274A9D47704BC496988460'
+alter user mysqltest1 identified via unix_socket OR mysql_native_password as password("some");
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA unix_socket OR mysql_native_password USING '*BFE3F4604CFD21E6595080A261D92EF0183B5971'
+set password for mysqltest1 = password('foobar');
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA unix_socket OR mysql_native_password USING '*9B500343BC52E2911172EB52AE5CF4847604C6E5'
+alter user mysqltest1 identified via unix_socket;
+set password for mysqltest1 = password('bla');
+ERROR HY000: SET PASSWORD is ignored for users authenticating via unix_socket plugin
+alter user mysqltest1 identified via mysql_native_password as password("some") or unix_socket;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*BFE3F4604CFD21E6595080A261D92EF0183B5971' OR unix_socket
+drop user mysqltest1;
+# switching from mysql.global_priv to mysql.user
+create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
+ERROR HY000: Column count of mysql.user is wrong. Expected 3, found 47. Created with MariaDB XX.YY.ZZ, now running XX.YY.ZZ. Please use mysql_upgrade to fix this error
+# switching back from mysql.user to mysql.global_priv
+create user USER         identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
+create user mysqltest1 identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
+update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
+flush privileges;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING 'invalid password' OR unix_socket
+# name match = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+USER@localhost	USER@%	test
+# name does not match = failure
+mysqltest: Could not open connection 'default': 1698 Access denied for user 'mysqltest1'@'localhost'
+# SET PASSWORD helps
+set password for mysqltest1 = password('bla');
+select user(), current_user(), database();
+user()	current_user()	database()
+mysqltest1@localhost	mysqltest1@%	test
+drop user USER, mysqltest1;
+create user mysqltest1 identified via ed25519 as password("good");
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc'
+# no plugin = failure
+mysqltest: Could not open connection 'default': 1045 Plugin client_ed25519 could not be loaded: <PLUGINDIR>/no/client_ed25519.so: cannot open shared object file: No such file or directory
+alter user mysqltest1 identified via ed25519 as password("good") OR mysql_native_password as password("works");
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA ed25519 USING 'F4aF8bw7130VaRbdLCl4f/P/wkjDmgJXwWvpJ5gmsZc' OR mysql_native_password USING '*7D8C3DF236D9163B6C274A9D47704BC496988460'
+# no plugin = failure
+mysqltest: Could not open connection 'default': 1045 Access denied for user 'mysqltest1'@'localhost' (using password: YES)
+# no plugin, second password works = ok
+select user(), current_user(), database();
+user()	current_user()	database()
+mysqltest1@localhost	mysqltest1@%	test
+drop user mysqltest1;
+uninstall soname 'auth_ed25519';
+create user mysqltest1 identified via mysql_native_password as password("good") OR unix_socket;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' OR unix_socket
+alter user mysqltest1 identified via mysql_native_password as password("better");
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED BY PASSWORD '*6E6CABC9967AB586F009616BA69DAC2953849C88'
+flush privileges;
+show create user mysqltest1;
+CREATE USER for mysqltest1@%
+CREATE USER `mysqltest1`@`%` IDENTIFIED BY PASSWORD '*6E6CABC9967AB586F009616BA69DAC2953849C88'
+drop user mysqltest1;

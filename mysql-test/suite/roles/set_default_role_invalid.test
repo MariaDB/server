@@ -1,0 +1,169 @@
+source include/not_embedded.inc;
+
+# This test checks the error paths possible during set default role.
+
+# Create a user with no privileges
+create user test_user@localhost;
+
+create role test_role;
+create role not_granted_role;
+
+grant select on *.* to test_role;
+grant test_role to test_user@localhost;
+
+change_user 'test_user';
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user;
+
+# A user can not set a default role that does not exist in the database.
+--error ER_INVALID_ROLE
+set default role invalid_role;
+
+# A user can not set a default role if he can not call set role <role>.
+--error ER_INVALID_ROLE
+set default role not_granted_role;
+
+set default role test_role;
+
+# Even though a user has the default role set, without reconnecting, we should
+# not already have the roles privileges.
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user;
+
+change_user 'root';
+select user, host, default_role from mysql.user where user='test_user';
+
+change_user 'test_user';
+# This should show that the new test_user has the role's grants enabled.
+show grants;
+select user, host, default_role from mysql.user where user='test_user';
+
+# If we have a failed set default role attempt, don't change the already set
+# default role.
+--error ER_INVALID_ROLE
+set default role invalid_role;
+select user, host, default_role from mysql.user where user='test_user';
+
+change_user 'root';
+# Now, even though a default role is still set for test_user, make sure the
+# user does not get the rights, if he can not set the role.
+revoke test_role from test_user@localhost;
+
+change_user 'test_user';
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user where user='test_user';
+
+change_user 'root';
+
+# Cleanup
+drop role test_role;
+drop role not_granted_role;
+drop user test_user@localhost;
+
+--echo #
+--echo # MDEV-22312: Bad error message for SET DEFAULT ROLE when user account
+--echo #             is not granted the role
+--echo #
+
+CREATE USER a;
+CREATE USER b;
+CREATE ROLE r1;
+CREATE ROLE r2;
+# Role has not been granted to user a, but the role is visible to current_user
+--error ER_INVALID_ROLE
+SET DEFAULT ROLE r1 FOR a;
+# Granting roles to user b
+GRANT r1 TO b;
+GRANT r2 TO b;
+# After granting the role, role can be set as default
+SET DEFAULT ROLE r1 FOR b;
+
+--echo # Change user b
+change_user b;
+SELECT CURRENT_ROLE;
+SET ROLE r2;
+SELECT CURRENT_ROLE;
+# User b has no UPDATE_PRIV for mysql.user
+--error ER_DBACCESS_DENIED_ERROR
+SET DEFAULT ROLE r1 FOR a;
+SET DEFAULT ROLE r2;
+
+--echo # Change user root (session 1: select_priv to b)
+change_user root;
+# Let's grant select_priv to user b
+GRANT SELECT ON mysql.* TO b;
+
+--echo # Change user b (session 1: select_priv)
+change_user b;
+SHOW GRANTS FOR b;
+# User must have update_priv before setting the role
+--error ER_DBACCESS_DENIED_ERROR
+SET DEFAULT ROLE r1 FOR a;
+# Testing the `CURRENT_ROLE` as a special case
+SELECT CURRENT_ROLE;
+SET DEFAULT ROLE NONE;
+SELECT CURRENT_ROLE;
+SET DEFAULT ROLE current_role FOR current_user;
+# Testing of non-existing role
+--error ER_INVALID_ROLE
+SET DEFAULT ROLE invalid_role;
+# Testing of non-existing role for different user
+--error ER_DBACCESS_DENIED_ERROR
+SET DEFAULT ROLE invalid_role FOR a;
+# Testing the `None` role for different user
+-- error ER_DBACCESS_DENIED_ERROR
+SET DEFAULT ROLE none FOR a;
+
+--echo # Change user root (session 2: adding update_priv to user b)
+change_user root;
+# update_priv are enough
+GRANT UPDATE ON mysql.* TO b;
+
+--echo # Change user b
+change_user b;
+SHOW GRANTS FOR b;
+# In all tests in session user a has not been granted the role
+# Testing setting role for different user, should fail with new error
+--error ER_INVALID_ROLE
+SET DEFAULT ROLE r1 FOR a;
+# Testing of non-existing role
+--error ER_INVALID_ROLE
+SET DEFAULT ROLE invalid_role;
+# Testing of non-existing role for different user with update_priv
+--error ER_INVALID_ROLE
+SET DEFAULT ROLE invalid_role FOR a;
+# Testing the `None` role for different user with update_priv
+SET DEFAULT ROLE none FOR a;
+
+--echo # Change user root (session 3: Grant role to user a)
+change_user root;
+# After granting the privilege for a, user b can set default role
+GRANT r1 TO a;
+SET DEFAULT ROLE r1 FOR a;
+
+--echo # Change user a (verify session 3)
+change_user a;
+SELECT CURRENT_ROLE;
+SET DEFAULT ROLE None;
+
+--echo # Change user b (session 3: role granted to user a)
+change_user b;
+# This should set role because b has update_priv
+SET DEFAULT ROLE r1 FOR a;
+# Testing non-granted role r2 still should fail
+-- error ER_INVALID_ROLE
+SET DEFAULT ROLE r2 FOR a;
+# Testing of non-existing role
+--error ER_INVALID_ROLE
+SET DEFAULT ROLE invalid_role;
+# Testing of non-existing role for different user
+--error ER_INVALID_ROLE
+SET DEFAULT ROLE invalid_role FOR a;
+
+# Clear the workspace
+change_user root;
+--sorted_result
+SELECT user, host, default_role FROM mysql.user where user='a' or user='b';
+DROP ROLE r1, r2;
+DROP USER a, b;

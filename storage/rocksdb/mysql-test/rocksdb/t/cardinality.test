@@ -1,0 +1,119 @@
+--source include/have_rocksdb.inc
+
+--source include/restart_mysqld.inc
+
+set use_stat_tables= 'COMPLEMENTARY';
+
+# Test memtable cardinality statistics
+CREATE TABLE t0 (id int PRIMARY KEY, a int, INDEX ix_a (a))  engine=rocksdb;
+
+# populate the table with 10 reconds where cardinality of id is N and a is N/2.
+insert into t0 values (0, 0),(1, 1),(2, 2),(3, 3),(4, 4),
+(5, 4),(6, 4),(7, 4),(8, 4),(9, 4);
+
+# Assert no cardinality data exists before ANALYZE TABLE is done
+SELECT cardinality FROM information_schema.statistics where table_name="t0" and
+column_name="id";
+SELECT cardinality FROM information_schema.statistics where table_name="t0" and
+column_name="a";
+
+--disable_result_log
+ANALYZE TABLE t0;
+--enable_result_log
+
+SELECT table_rows into @N FROM information_schema.tables
+WHERE table_name = "t0";
+SELECT FLOOR(@N/cardinality) FROM
+information_schema.statistics where table_name="t0" and column_name="id";
+SELECT FLOOR(@N/cardinality) FROM
+information_schema.statistics where table_name="t0" and column_name="a";
+
+# Flush the table and re-run the test as statistics is calculated a bit
+# differently for memtable and SST files
+SET GLOBAL rocksdb_force_flush_memtable_now = 1;
+--disable_result_log
+ANALYZE TABLE t0;
+--enable_result_log
+
+SELECT table_rows into @N FROM information_schema.tables
+WHERE table_name = "t0";
+SELECT FLOOR(@N/cardinality) FROM
+information_schema.statistics where table_name="t0" and column_name="id";
+SELECT FLOOR(@N/cardinality) FROM
+information_schema.statistics where table_name="t0" and column_name="a";
+
+drop table t0;
+
+# Test big table on SST
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t10,t11;
+--enable_warnings
+
+create table t1(
+       id bigint not null primary key, 
+       i1 bigint, #unique
+       i2 bigint, #repeating
+       c1 varchar(20), #unique
+       c2 varchar(20), #repeating
+       index t1_1(id, i1),
+       index t1_2(i1, i2),
+       index t1_3(i2, i1),
+       index t1_4(c1, c2),
+       index t1_5(c2, c1)
+) engine=rocksdb;
+
+--disable_query_log
+create table t10(a int primary key);
+insert into t10 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t11(a int primary key);
+insert into t11 select A.a + B.a* 10 + C.a * 100 from t10 A, t10 B, t10 C;
+
+set @a=0;
+let $i=0;
+set rocksdb_bulk_load=1;
+while ($i<100)
+{
+  inc $i;
+  eval insert into t1 select (@a:=@a+1), @a, @a div 10, @a, @a div 10 from t11;
+}
+set rocksdb_bulk_load=0;
+
+drop table t10;
+drop table t11;
+--enable_query_log
+
+# Flush memtable out to SST and display index cardinalities
+optimize table t1;
+show index in t1;
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
+
+--echo restarting...
+--source include/restart_mysqld.inc
+
+# display index cardinalities after the restart
+show index in t1;
+SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
+
+CREATE TABLE t2 (a INT, b INT, c INT, d INT, e INT, f INT, g INT,
+                 PRIMARY KEY (a), KEY (c, b, a, d, e, f, g))
+                 ENGINE=ROCKSDB;
+--disable_query_log
+let $i=0;
+while ($i<100)
+{
+  inc $i;
+  eval insert t2 values($i, $i div 10, 1, 1, 1, 1, 1);
+}
+--enable_query_log
+
+# Cardinality of key c should be 1 for c, 10 for b, 100 for a and the other fields.
+SET GLOBAL rocksdb_force_flush_memtable_now = 1;
+ANALYZE TABLE t2;
+--echo cardinality of the columns after 'a' must be equal to the cardinality of column 'a'
+SELECT CARDINALITY INTO @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND COLUMN_NAME='a';
+SELECT COLUMN_NAME, CARDINALITY = @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND SEQ_IN_INDEX > 3;
+
+drop table t1, t2;
+

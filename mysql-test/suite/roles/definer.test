@@ -1,0 +1,462 @@
+# create view
+# create trigger
+# create procedure
+# create event
+# mysqldump dumping the definer
+
+--source include/not_embedded.inc
+--source include/default_charset.inc
+
+let MYSQLD_DATADIR=`select @@datadir`;
+
+create database mysqltest1;
+use mysqltest1;
+
+create table t1 (a int, b int, c int);
+insert t1 values (1,10,100),(2,20,200);
+
+# non-priv role granted
+create role role1;
+grant select (a) on mysqltest1.t1 to role1;
+grant event,execute,trigger on mysqltest1.* to role1;
+
+grant role1 to current_user;
+
+# priv role
+create role role2;
+grant insert,select on mysqltest1.t1 to role2;
+grant event,execute,trigger on mysqltest1.* to role2;
+
+# create a non-priv user and a priv role granted to him
+create user foo@localhost;
+grant create view on mysqltest1.* to foo@localhost;
+create role role4;
+grant select on mysqltest1.t1 to role4;
+grant role4 to foo@localhost;
+
+##################################################
+# views
+##################################################
+
+# no curent role = error
+--error ER_MALFORMED_DEFINER
+create definer=current_role view test.v1 as select a+b,c from t1;
+
+# definer=current_role, but it has doesn't have enough privileges
+set role role1;
+create definer=current_role view test.v1 as select a+b,c from t1;
+show create view test.v1;
+set role none;
+
+# definer=role_name, privileges ok
+create definer=role2 view test.v2 as select a+b,c,current_role() from t1;
+show create view test.v2;
+
+# definer=non_existent_role
+create definer=role3 view test.v3 as select a+b,c from t1;
+show create view test.v3;
+
+connect (c1, localhost, foo,,mysqltest1);
+connection c1;
+show grants;
+
+# role1 doesn't have enough privileges for v1 to work
+--error ER_VIEW_INVALID
+select * from test.v1;
+
+# role2 is ok, v2 is ok
+select * from test.v2;
+
+# role3 is treated as a user name role3@%, doesn't exist, v3 fails
+--error ER_ACCESS_DENIED_ERROR
+select * from test.v3;
+
+# fails, no SUPER - cannot specify a definer arbitrarily
+--error ER_TABLEACCESS_DENIED_ERROR
+create definer=role4 view test.v4 as select a+b,c from t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from t1;
+set role role4;
+select * from t1;
+
+# can select from t1, but the view won't work, by default definer=current_user
+create view test.v4 as select a+b,c from t1;
+
+# now role4 is the current_role, can be specified as a definer
+create definer=role4 view test.v5 as select a+b,c from t1;
+
+--error ER_VIEW_INVALID
+select * from test.v4;
+select * from test.v5;
+set role none;
+--error ER_VIEW_INVALID
+select * from test.v4;
+select * from test.v5;
+
+connection default;
+
+drop role role4;
+
+show create view test.v5;
+--error ER_NO_SUCH_USER
+select * from test.v5;
+
+create user role4;
+grant select on mysqltest1.t1 to role4;
+show create view test.v5;
+--error ER_NO_SUCH_USER
+select * from test.v5;
+
+# pretend it's an old view from before 10.0.5
+perl;
+local $/;
+my $f= "$ENV{MYSQLD_DATADIR}/test/v5.frm";
+open(F, '<', $f) or die "open(<$f): $!";
+$_=<F>;
+s/create-version=2/create-version=1/;
+open(F, '>', $f) or die "open(>$f): $!";
+syswrite F, $_ or die "syswrite($f): $!" 
+EOF
+
+flush tables;
+show create view test.v5;
+select * from test.v5;
+drop user role4;
+
+
+##################################################
+# trigger
+##################################################
+
+create table t2 select * from t1;
+
+# no curent role = error
+--error ER_MALFORMED_DEFINER
+create definer=current_role trigger tr1 before insert on t2 for each row
+  insert t1 values (111, 222, 333);
+
+# definer=current_role, but it has doesn't have enough privileges
+set role role1;
+create definer=current_role trigger tr1 before insert on t2 for each row
+  insert t1 values (111, 222, 333);
+--replace_column 7 #
+show create trigger tr1;
+set role none;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+insert t2 values (11,22,33);
+select * from t1;
+select * from t2;
+
+# definer=role_name, privileges ok
+create definer=role2 trigger tr2 before delete on t2 for each row
+  insert t1 values (111, 222, 333);
+--replace_column 7 #
+show create trigger tr2;
+delete from t2 where a=1;
+select * from t1;
+select * from t2;
+delete from t1 where a=111;
+
+# definer=non_existent_role
+create definer=role3 trigger tr3 before update on t2 for each row
+  insert t1 values (111, 222, 333);
+--replace_column 7 #
+show create trigger tr3;
+--error ER_NO_SUCH_USER
+update t2 set b=2 where a=2;
+select * from t1;
+select * from t2;
+
+flush tables;
+
+# change triggers to use pre-10.0.5 definer with an empty hostname
+perl;
+local $/;
+my $f= "$ENV{MYSQLD_DATADIR}/mysqltest1/t2.TRG";
+open(F, '<', $f) or die "open(<$f): $!";
+$_=<F>;
+s/'role2'/'role2\@'/;
+s/`role2`/$&\@``/;
+open(F, '>', $f) or die "open(>$f): $!";
+syswrite F, $_ or die "syswrite($f): $!" 
+EOF
+
+--replace_column 7 #
+show create trigger tr2;
+--error ER_NO_SUCH_USER
+delete from t2 where a=2;
+select * from t1;
+select * from t2;
+
+##################################################
+# stored procedures
+##################################################
+
+# no curent role = error
+--error ER_MALFORMED_DEFINER
+create definer=current_role procedure pr1() insert t1 values (111, 222, 333);
+
+# definer=current_role, but it has doesn't have enough privileges
+set role role1;
+create definer=current_role procedure pr1() insert t1 values (111, 222, 333);
+show create procedure pr1;
+set role none;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+call pr1();
+select * from t1;
+
+# definer=role_name, privileges ok
+create definer=role2 procedure pr2() insert t1 values (111, 222, 333);
+show create procedure pr2;
+call pr2();
+select * from t1;
+delete from t1 where a=111;
+
+# definer=non_existent_role
+create definer=role3 procedure pr3() insert t1 values (111, 222, 333);
+show create procedure pr3;
+--error ER_NO_SUCH_USER
+call pr3();
+select * from t1;
+
+# change a procedure to use pre-10.0.5 definer with an empty hostname
+update mysql.proc set definer='role2@' where definer='role2';
+--error ER_NO_SUCH_USER
+call pr2();
+
+##################################################
+# stored functions
+##################################################
+
+# no curent role = error
+--error ER_MALFORMED_DEFINER
+create definer=current_role function fn1() returns int return (select sum(a+b) from t1);
+
+# definer=current_role, but it has doesn't have enough privileges
+set role role1;
+create definer=current_role function fn1() returns int return (select sum(a+b) from t1);
+show create function fn1;
+set role none;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+select fn1();
+select * from t1;
+
+# definer=role_name, privileges ok
+create definer=role2 function fn2() returns int return (select sum(a+b) from t1);
+show create function fn2;
+select fn2();
+
+# definer=non_existent_role
+create definer=role3 function fn3() returns int return (select sum(a+b) from t1);
+show create function fn3;
+--error ER_NO_SUCH_USER
+select fn3();
+
+##################################################
+# events
+##################################################
+
+set global event_scheduler=on;
+
+# no curent role = error
+--error ER_MALFORMED_DEFINER
+create definer=current_role event e1 on schedule every 1 second starts '2000-01-01' do
+  insert t1 values (111, 1, 0);
+
+# definer=current_role, but it has doesn't have enough privileges
+set role role1;
+create definer=current_role event e1 on schedule every 1 second starts '2000-01-01' do
+  insert t1 values (111, 2, 0);
+show create event e1;
+set role none;
+
+# definer=non_existent_role
+create definer=role3 event e3 on schedule every 1 second starts '2000-01-01' do
+  insert t1 values (111, 3, 0);
+show create event e3;
+
+# definer=role_name, privileges ok
+create definer=role2 event e2 on schedule every 1 second starts '2000-01-01' do
+  insert t1 values (111, 4, 0);
+show create event e2;
+
+let $wait_condition=select count(*) >= 4 from t1;
+--source include/wait_condition.inc
+
+set global event_scheduler=off;
+
+--sorted_result
+select distinct * from t1;
+delete from t1 where a=111;
+
+##################################################
+# mysqldump
+##################################################
+
+# note that LOCK TABLES won't work because v3 has invalid definer
+
+--exec $MYSQL_DUMP --compact --events --routines --skip-lock-tables --databases test mysqltest1
+
+##################################################
+# cleanup
+##################################################
+
+drop trigger tr1;
+drop trigger tr2;
+drop trigger tr3;
+drop procedure pr1;
+drop procedure pr2;
+drop procedure pr3;
+drop function fn1;
+drop function fn2;
+drop function fn3;
+drop event e1;
+drop event e2;
+drop event e3;
+drop view test.v1, test.v2, test.v3, test.v4, test.v5;
+drop table t1, t2;
+drop role role1, role2;
+drop user foo@localhost;
+drop database mysqltest1;
+use test;
+
+##################################################
+# reexecution
+##################################################
+
+create user utest;
+prepare stmt1 from 'grant select on *.* to utest';
+execute stmt1;
+show grants for utest;
+drop user utest;
+create role utest;
+execute stmt1;
+show grants for utest;
+drop role utest;
+
+--echo #
+--echo # MDEV-13676: Field "create Procedure" is NULL, even if the the user
+--echo # has role which is the definer. (SHOW CREATE PROCEDURE)
+--echo #
+
+create database rtest;
+create role r1;
+create role r2;
+create role r3;
+grant all privileges  on rtest.*  to r1;
+
+create user user1;
+grant r1 to user1;
+grant r1 to r2;
+grant r2 to user1;
+grant r3 to user1;
+
+connect (user1, localhost,user1,,,,,);
+set role r2;
+use rtest;
+
+DELIMITER //;
+CREATE DEFINER=current_role() PROCEDURE user1_proc() SQL SECURITY INVOKER
+    BEGIN
+        SELECT NOW(), VERSION();
+    END;//
+DELIMITER ;//
+
+set role r2;
+show create procedure user1_proc;
+
+--echo #
+--echo # Currently one can not use as definer any role except CURRENT_ROLE
+--echo #
+DELIMITER //;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE DEFINER='r1' PROCEDURE user1_proc2() SQL SECURITY INVOKER
+    BEGIN
+        SELECT NOW(), VERSION();
+    END;//
+DELIMITER ;//
+
+set role r1;
+DELIMITER //;
+CREATE DEFINER='r1' PROCEDURE user1_proc2() SQL SECURITY INVOKER
+    BEGIN
+        SELECT NOW(), VERSION();
+    END;//
+DELIMITER ;//
+
+show create procedure user1_proc2;
+--echo #
+--echo # Test to see if the user can still see the procedure code if the
+--echo # role that owns it is granted to him indirectly.
+--echo #
+set role r2;
+show create procedure user1_proc2;
+
+--echo #
+--echo # One should not be able to see the procedure code if the role that owns
+--echo # the procedure is not set by the user or is not in the subgraph of the
+--echo # currently active role.
+--echo #
+set role r3;
+--error ER_SP_DOES_NOT_EXIST
+show create procedure user1_proc2;
+
+connection default;
+
+use rtest;
+
+--echo #
+--echo # Try a few edge cases, with usernames identical to role name;
+--echo #
+
+create user user_like_role;
+create user foo;
+create role user_like_role;
+grant select on rtest.* to user_like_role;
+grant select on rtest.* to foo;
+grant select on rtest.* to user_like_role@'%';
+
+grant user_like_role to foo;
+
+--echo #
+--echo # Here we have a procedure that is owned by user_like_role USER
+--echo # We don't want user_like_role ROLE to have access to its code.
+--echo #
+DELIMITER //;
+CREATE DEFINER=`user_like_role`@`%` PROCEDURE sensitive_proc() SQL SECURITY INVOKER
+    BEGIN
+        SELECT NOW(), VERSION();
+    END;//
+DELIMITER ;//
+
+connect (user_like_role, localhost, user_like_role,,,,,);
+use rtest;
+show create procedure sensitive_proc;
+
+connect (foo, localhost, foo,,,,,);
+set role user_like_role;
+use rtest;
+
+--echo #
+--echo # Foo has the set rolename identical to the procedure's definer's username.
+--echo # Foo should not have access to this procedure.
+--echo #
+--error ER_SP_DOES_NOT_EXIST
+show create procedure sensitive_proc;
+
+connection default;
+drop role r1;
+drop role r2;
+drop role r3;
+drop role user_like_role;
+drop user user1;
+drop user foo;
+drop user user_like_role;
+drop procedure user1_proc;
+drop procedure user1_proc2;
+drop procedure sensitive_proc;
+drop database rtest;

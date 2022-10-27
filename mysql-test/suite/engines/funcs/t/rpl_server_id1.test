@@ -1,0 +1,31 @@
+# This test checks that the slave I/O thread refuses to start if slave
+# and master have the same server id (because this is a useless setup,
+# and otherwise SHOW SLAVE STATUS shows progress but all queries are
+# ignored, which has caught our customers), unless
+# --replicate-same-server-id.
+
+--source include/master-slave.inc
+connection slave;
+create table t1 (n int);
+reset master;
+# replicate ourselves
+--source include/stop_slave.inc
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval change master to master_port=$SLAVE_MYPORT;
+--let $status_items= Slave_IO_Running, Slave_SQL_Running, Last_SQL_Errno, Last_SQL_Error, Exec_Master_Log_Pos
+--source include/show_slave_status.inc
+start slave;
+insert into t1 values (1);
+
+--let $slave_param=Last_IO_Errno
+--let $slave_param_value=1593
+--source include/wait_for_slave_param.inc
+
+--let $slave_field_result_replace= / at [0-9]*/ at XXX/
+--let $status_items= Last_IO_Errno, Last_IO_Error
+--source include/show_slave_status.inc
+
+--source include/stop_slave.inc
+reset slave;
+reset master;
+drop table t1;

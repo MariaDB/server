@@ -1,0 +1,61 @@
+drop table if exists con, aux, nul, lpt1, com1, `clock$`;
+create table con (a int);
+drop table con;
+create table aux (a int);
+drop table aux;
+create table nul (a int);
+drop table nul;
+create table lpt1 (a int);
+drop table lpt1;
+create table com1 (a int);
+drop table com1;
+create table `clock$` (a int);
+drop table `clock$`;
+select convert(convert(',' using filename) using binary);
+convert(convert(',' using filename) using binary)
+@002c
+#
+# MDEV-7677 my_charset_handler_filename has a wrong "ismbchar" member
+#
+SET NAMES utf8;
+SELECT @a:=CONVERT('aя' USING filename) AS `@a`, BINARY @a, REVERSE(@a), HEX(@a), HEX(REVERSE(@a));
+@a	BINARY @a	REVERSE(@a)	HEX(@a)	HEX(REVERSE(@a))
+aя	a@r1	яa	61407231	40723161
+#
+# Beginning of 10.2 test.
+#
+# MDEV-25462: Assertion `m_status == DA_ERROR || m_status == DA_OK ||
+# m_status == DA_OK_BULK' failed in Diagnostics_area::message from
+# get_schema_tables_record
+#
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+@@character_set_client	@@character_set_connection	@@character_set_results
+utf8	utf8	utf8
+SET @old_character_set_client= @@character_set_client;
+SET @old_character_set_connection= @@character_set_connection;
+SET @old_character_set_results= @@character_set_results;
+SET NAMES 'filename';
+ERROR 42000: Variable 'character_set_client' can't be set to the value of 'filename'
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+@@character_set_client	@@character_set_connection	@@character_set_results
+utf8	utf8	utf8
+CREATE VIEW v2 AS SELECT 1;
+SHOW TABLE STATUS;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+v2	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	VIEW	NULL	NULL
+DROP VIEW v2;
+SET @@character_set_client= @old_character_set_client;
+SET @@character_set_connection= @old_character_set_connection;
+SET @@character_set_results= @old_character_set_results;
+#
+# End of 10.2 test
+#
+#
+# MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
+#
+SET CHARACTER_SET_CLIENT=17;
+ERROR 42000: Variable 'character_set_client' can't be set to the value of '17'
+SELECT doc.`Children`.0 FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.0 FROM t1' at line 1
+SET NAMES latin1;
+# End of 10.3 tests

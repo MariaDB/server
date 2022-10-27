@@ -1,0 +1,43 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Bug#50124 Rpl failure on DROP table with concurrent txn/non-txn
+--echo #           DML flow and SAVEPOINT
+--echo #
+
+connection master;
+
+--disable_warnings
+DROP TABLE IF EXISTS tt, nt;
+--enable_warnings
+
+CREATE TABLE tt (i INT) ENGINE = InnoDB;
+CREATE TABLE nt (i INT) ENGINE = MyISAM;
+FLUSH LOGS;
+START TRANSACTION;
+INSERT INTO nt VALUES (1);
+SAVEPOINT insert_statement;
+INSERT INTO tt VALUES (1);
+
+connection master1;
+--echo # Sending:
+--send DROP TABLE tt
+
+connection master;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE state = "Waiting for table metadata lock" AND info = "DROP TABLE tt";
+--source include/wait_condition.inc
+ROLLBACK TO SAVEPOINT insert_statement;
+COMMIT;
+
+connection master1;
+--echo # Reaping: DROP TABLE tt
+--reap
+FLUSH LOGS;
+
+connection master;
+DROP TABLE nt;
+
+--source include/rpl_end.inc

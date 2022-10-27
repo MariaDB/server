@@ -1,0 +1,294 @@
+DROP TABLE IF EXISTS t1,t2,t3,t4;
+FLUSH STATUS;
+---------------------------------------by range------------------------------------------
+CREATE TABLE t1 (i int, a VARCHAR(1000) COMPRESSED DEFAULT "AAA")
+PARTITION BY RANGE COLUMNS (a)(
+PARTITION p0 VALUES LESS THAN ('g') COMMENT "p0",
+PARTITION p1 VALUES LESS THAN ('m'),
+PARTITION p2 VALUES LESS THAN ('t'),
+PARTITION p3 VALUES LESS THAN ('w'));
+ALTER TABLE t1 ADD PARTITION (PARTITION p4 VALUES LESS THAN (MAXVALUE));
+INSERT INTO t1 VALUES (1,REPEAT('a',100)),(2,REPEAT('v',200)),(3,REPEAT('r',300)),(4,NULL);
+INSERT INTO t1 VALUES (5,REPEAT('k',500)),(6,'April'),(7,7),(8,""),(9,"M"),(10,DEFAULT);
+ALTER TABLE t1 ANALYZE PARTITION p1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ALTER TABLE t1 CHECK PARTITION p2;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT i,SUBSTRING(a,1,10) FROM t1 PARTITION (p2) ORDER BY i;
+i	SUBSTRING(a,1,10)
+3	rrrrrrrrrr
+9	M
+SELECT i,SUBSTRING(a,1,10) FROM t1 where length(a)>=300 ORDER BY i;
+i	SUBSTRING(a,1,10)
+3	rrrrrrrrrr
+5	kkkkkkkkkk
+SELECT i,SUBSTRING(a,1,10) FROM t1 where a like "%k" ORDER BY i;
+i	SUBSTRING(a,1,10)
+5	kkkkkkkkkk
+DELETE FROM t1 where a="";
+DELETE FROM t1 where a=(REPEAT('a',100));
+DELETE FROM t1 where a like "%v";
+SELECT i,SUBSTRING(a,1,10) FROM t1 ORDER BY i;
+i	SUBSTRING(a,1,10)
+3	rrrrrrrrrr
+4	NULL
+5	kkkkkkkkkk
+6	April
+7	7
+9	M
+10	AAA
+SELECT i,SUBSTRING(a,1,10) FROM t1 where a not like "%k" ORDER BY i;
+i	SUBSTRING(a,1,10)
+3	rrrrrrrrrr
+6	April
+7	7
+9	M
+10	AAA
+SELECT i,SUBSTRING(a,1,10) FROM t1 where (a>'m') ORDER BY i;
+i	SUBSTRING(a,1,10)
+3	rrrrrrrrrr
+SELECT i,SUBSTRING(a,1,10) FROM t1 where (a between 'h' and 'z') and (i=9) ORDER BY i;
+i	SUBSTRING(a,1,10)
+9	M
+EXPLAIN PARTITIONS SELECT i,SUBSTRING(a,1,10) FROM t1 where (a>'m');
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2,p3,p4	ALL	NULL	NULL	NULL	NULL	2	Using where
+EXPLAIN PARTITIONS SELECT i,SUBSTRING(a,1,10) FROM t1 where (a<'w');
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,p2,p3	ALL	NULL	NULL	NULL	NULL	7	Using where
+ALTER TABLE t1 TRUNCATE PARTITION p2;
+ALTER TABLE t1 DROP PARTITION p0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL,
+  `a` varchar(1000) /*!100301 COMPRESSED*/ DEFAULT 'AAA'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE  COLUMNS(`a`)
+(PARTITION `p1` VALUES LESS THAN ('m') ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN ('t') ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN ('w') ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (MAXVALUE) ENGINE = MyISAM)
+ALTER TABLE t1 MODIFY COLUMN a VARCHAR(1000);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL,
+  `a` varchar(1000) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE  COLUMNS(`a`)
+(PARTITION `p1` VALUES LESS THAN ('m') ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN ('t') ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN ('w') ENGINE = MyISAM,
+ PARTITION `p4` VALUES LESS THAN (MAXVALUE) ENGINE = MyISAM)
+DROP TABLE t1;
+---------------------------------------------------------------------------------------------
+CREATE TABLE t1 (a VARCHAR(1000) COMPRESSED  NOT NULL, id INT)	
+PARTITION BY RANGE COLUMNS(id,a)(
+PARTITION p0 VALUES LESS THAN (100,'sss'),
+PARTITION p1 VALUES LESS THAN (MAXVALUE,MAXVALUE));
+INSERT INTO t1 VALUES (REPEAT('a',100), 23),(REPEAT('v',100),123),(REPEAT('z',100),24),(REPEAT('k',100),124);
+SELECT id,SUBSTRING(a,1,10) FROM t1 order by id;
+id	SUBSTRING(a,1,10)
+23	aaaaaaaaaa
+24	zzzzzzzzzz
+123	vvvvvvvvvv
+124	kkkkkkkkkk
+SELECT * from t1 partition (p0);
+a	id
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	23
+zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz	24
+SELECT * from t1 partition (p1);
+a	id
+vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv	123
+kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk	124
+INSERT INTO t1 VALUES (REPEAT('a',100),101);
+SELECT * from t1 partition (p0);
+a	id
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	23
+zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz	24
+SELECT * from t1 partition (p1);
+a	id
+vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv	123
+kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk	124
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	101
+ALTER TABLE t1 DROP PARTITION p1;
+SELECT id,SUBSTRING(a,1,10) FROM t1 WHERE id<50 order by id;
+id	SUBSTRING(a,1,10)
+23	aaaaaaaaaa
+24	zzzzzzzzzz
+INSERT INTO t1 VALUES (REPEAT('a',100),101);
+ERROR HY000: Table has no partition for value from column_list
+ALTER TABLE t1 ALTER COLUMN a SET DEFAULT 'qwerty';
+ALTER TABLE t1 ALTER COLUMN a DROP DEFAULT;
+ALTER TABLE t1 MODIFY COLUMN a VARCHAR(1000);
+ALTER TABLE t1 ALTER COLUMN a DROP DEFAULT;
+INSERT INTO t1 VALUES (REPEAT('b',100),11);
+INSERT INTO t1 VALUES (default,10);
+ERROR HY000: Field 'a' doesn't have a default value
+ALTER TABLE t1 MODIFY COLUMN a VARCHAR(1000) COMPRESSED;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(1000) /*!100301 COMPRESSED*/ DEFAULT NULL,
+  `id` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE  COLUMNS(`id`,`a`)
+(PARTITION `p0` VALUES LESS THAN (100,'sss') ENGINE = MyISAM)
+SELECT * from t1 ORDER BY id;
+a	id
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb	11
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	23
+zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz	24
+DROP TABLE t1;
+----------------------------1 partition--------------------------------------------------
+CREATE TABLE t1 (a VARCHAR(1000) COMPRESSED DEFAULT "10-12-2010")
+PARTITION BY RANGE COLUMNS (a) (partition p0 VALUES LESS THAN (MAXVALUE));
+INSERT INTO t1 VALUES (REPEAT('a',100)), (REPEAT('v',200)), (REPEAT('Z',300)),(NULL),(DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT),(REPEAT('b',200)),(REPEAT('q',300)),(DEFAULT),("MAY");
+SELECT SUBSTRING(a,1,10) FROM t1;
+SUBSTRING(a,1,10)
+10-12-2010
+10-12-2010
+10-12-2010
+MAY
+NULL
+ZZZZZZZZZZ
+aaaaaaaaaa
+bbbbbbbbbb
+qqqqqqqqqq
+vvvvvvvvvv
+-----------------------------------------by key------------------------------------------
+ALTER TABLE t1 PARTITION BY KEY(a) PARTITIONS 6;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(1000) /*!100301 COMPRESSED*/ DEFAULT '10-12-2010'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+PARTITIONS 6
+UPDATE t1 SET a="NEW" where length(a)<20;
+SELECT SUBSTRING(a,1,10) FROM t1;
+SUBSTRING(a,1,10)
+NEW
+NEW
+NEW
+NEW
+NULL
+ZZZZZZZZZZ
+aaaaaaaaaa
+bbbbbbbbbb
+qqqqqqqqqq
+vvvvvvvvvv
+CREATE TABLE t2 (a VARBINARY(1000) COMPRESSED)
+PARTITION BY KEY(a) PARTITIONS 3;
+ALTER TABLE t2 PARTITION BY LINEAR KEY ALGORITHM=2 (a) PARTITIONS 32;
+INSERT INTO t2 VALUES (REPEAT('a',100)),(REPEAT('v',6)),(REPEAT('z',13)),(REPEAT('k',900));
+SELECT SUBSTRING(a,1,10) FROM t2;
+SUBSTRING(a,1,10)
+aaaaaaaaaa
+kkkkkkkkkk
+vvvvvv
+zzzzzzzzzz
+CREATE TABLE t3 ( a VARCHAR(1000) COMPRESSED DEFAULT NULL)
+PARTITION BY LINEAR KEY(a) PARTITIONS 3;
+INSERT INTO t3 VALUES (REPEAT('a',100)),(REPEAT('v',100)),(NULL),(REPEAT('k',100)),(DEFAULT);
+SELECT SUBSTRING(a,1,10) FROM t3 where a<>NULL;
+SUBSTRING(a,1,10)
+CREATE TABLE t4 (a VARBINARY(1000) COMPRESSED NOT NULL DEFAULT 0 COMMENT "QQ")
+PARTITION BY LINEAR KEY(a)
+PARTITIONS 3;
+INSERT INTO t4 VALUES (REPEAT('a',100)),('0'),(DEFAULT),(DEFAULT),(REPEAT('v',100)),(REPEAT('k',100));
+SELECT SUBSTRING(a,1,10) FROM t4 where length(a)>3;
+SUBSTRING(a,1,10)
+aaaaaaaaaa
+kkkkkkkkkk
+vvvvvvvvvv
+DROP TABLE t1,t2,t3,t4;
+-----------------------------------subpartitions------------------------------------------
+CREATE TABLE t1 (a VARCHAR(1000) COMPRESSED, id INT NOT NULL)
+PARTITION BY RANGE(id)
+SUBPARTITION BY KEY(a) SUBPARTITIONS 4
+(PARTITION p0 VALUES LESS THAN (5),
+PARTITION p1 VALUES LESS THAN (MAXVALUE));
+INSERT INTO t1 VALUES (REPEAT('a',100),23),(REPEAT('v',100),123),(REPEAT('z',100),24),(REPEAT('k',100),124);
+SELECT id,SUBSTRING(a,1,10) FROM t1 where a=(REPEAT('k',100)) order by id;
+id	SUBSTRING(a,1,10)
+124	kkkkkkkkkk
+DROP TABLE t1;
+-------------------------------------------------------------------------------------------
+CREATE TABLE t1 (a BLOB COMPRESSED)
+PARTITION BY KEY(a) partitions 30;
+ERROR HY000: A BLOB field is not allowed in partition function
+CREATE TABLE t1 (a VARCHAR(200) COMPRESSED) PARTITION BY KEY(a) partitions 30;
+ALTER TABLE t1 COALESCE PARTITION 20;
+ALTER TABLE t1 ADD PARTITION (PARTITION pm);
+CREATE TABLE t2 like t1;
+ALTER TABLE t2  REMOVE PARTITIONING;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(200) /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MyISAM,
+ PARTITION `p1` ENGINE = MyISAM,
+ PARTITION `p2` ENGINE = MyISAM,
+ PARTITION `p3` ENGINE = MyISAM,
+ PARTITION `p4` ENGINE = MyISAM,
+ PARTITION `p5` ENGINE = MyISAM,
+ PARTITION `p6` ENGINE = MyISAM,
+ PARTITION `p7` ENGINE = MyISAM,
+ PARTITION `p8` ENGINE = MyISAM,
+ PARTITION `p9` ENGINE = MyISAM,
+ PARTITION `pm` ENGINE = MyISAM)
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(200) /*!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE t1 EXCHANGE PARTITION pm WITH TABLE t2;
+DROP TABLE t1,t2;
+-------------------------------------------------------------------------------------------
+CREATE TABLE t1 (a BLOB COMPRESSED default 5,i int);
+INSERT INTO t1 VALUES (REPEAT('a',100),1),(REPEAT('v',100),2),(REPEAT('z',100),3),(REPEAT('k',100),2),(2,2);
+ALTER TABLE t1 PARTITION BY KEY(a) partitions 3;
+ERROR HY000: A BLOB field is not allowed in partition function
+ALTER TABLE t1 PARTITION BY HASH(i) PARTITIONS 8;
+ALTER TABLE t1 REORGANIZE PARTITION p0 INTO (
+PARTITION s0 VALUES LESS THAN (1960),
+PARTITION s1 VALUES LESS THAN (1970)
+);
+ERROR HY000: Only RANGE PARTITIONING can use VALUES LESS THAN in partition definition
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob /*!100301 COMPRESSED*/ DEFAULT 5,
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`i`)
+PARTITIONS 8
+ALTER TABLE t1 REMOVE PARTITIONING;
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(500) COMPRESSED default 5,i int)
+PARTITION BY RANGE COLUMNS(i)(
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (100),
+PARTITION p2 VALUES LESS THAN (1000));
+INSERT INTO t1 VALUES (REPEAT('a',100),1),("one",21),(REPEAT('3',100),34),(REPEAT('k',100),267),(2,278);
+ALTER TABLE t1 REORGANIZE PARTITION p2 INTO (PARTITION p22 VALUES LESS THAN (MAXVALUE));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(500) /*!100301 COMPRESSED*/ DEFAULT '5',
+  `i` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE  COLUMNS(`i`)
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p1` VALUES LESS THAN (100) ENGINE = MyISAM,
+ PARTITION `p22` VALUES LESS THAN (MAXVALUE) ENGINE = MyISAM)
+ALTER TABLE t1 REBUILD PARTITION p22;
+DROP TABLE t1;

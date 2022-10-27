@@ -1,0 +1,21 @@
+--source include/have_debug.inc
+--source include/have_partition.inc
+
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+CREATE TABLE `bobby``tables` (id INT, name VARCHAR(50), purchased DATE) ENGINE INNODB PARTITION BY RANGE( YEAR(purchased) ) (
+    PARTITION p0 VALUES LESS THAN (1990),
+    PARTITION p1 VALUES LESS THAN (1995),
+    PARTITION p2 VALUES LESS THAN (2000),
+    PARTITION p3 VALUES LESS THAN (2005)
+) ;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --lock-ddl-per-table=1 --dbug=+d,check_mdl_lock_works;
+--enable_result_log
+DROP TABLE t;
+DROP TABLE `bobby``tables`;
+rmdir $targetdir;

@@ -1,0 +1,78 @@
+--source include/have_rocksdb.inc
+
+# 
+# UPDATE statements for tables with keys
+#
+
+#############################################
+# TODO:
+# The test doesn't work quite as expected,
+# apparently due to "can't see own changes"
+#############################################
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, INDEX(b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(6,'x'),(7,'y'),(8,'z');
+UPDATE t1 SET a=100, b='f' WHERE b IN ('b','c');
+UPDATE t1 SET b='m' WHERE b = 'f';
+UPDATE t1 SET b='z' WHERE a < 2;
+UPDATE t1 SET b='';
+--sorted_result
+SELECT a,b FROM t1;
+DROP TABLE t1;
+
+--echo # RocksDB: skip the test for secondary UNIQUE keys.
+--disable_parsing
+--error ER_GET_ERRMSG
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, UNIQUE INDEX(a)) ENGINE=innodb;
+
+
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(0,'f'),(100,'a');
+UPDATE t1 SET a=a+200;
+UPDATE t1 SET a=0 WHERE a > 250;
+--error ER_DUP_ENTRY
+UPDATE t1 SET a=205 WHERE a=200;
+UPDATE t1 SET a=12345 ORDER BY a, b LIMIT 1;
+--sorted_result
+SELECT a,b FROM t1;
+
+--error ER_DUP_ENTRY
+UPDATE t1 SET a=80 WHERE a IN (202,203);
+--sorted_result
+SELECT a,b FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, UNIQUE INDEX(a,b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(100,'a'),(6,'f');
+UPDATE t1 SET a=6 WHERE a=3; 
+--error ER_DUP_ENTRY
+UPDATE t1 SET a=100 WHERE a=1;
+--error ER_DUP_ENTRY
+UPDATE t1 SET a=4, b='d' WHERE b='f';
+UPDATE t1 SET a=a+1;
+--sorted_result
+SELECT a,b FROM t1;
+--error ER_DUP_ENTRY
+UPDATE t1 SET b='z';
+DROP TABLE t1;
+
+--enable_parsing
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(0,'f'),(100,'a');
+UPDATE t1 SET a=a+200;
+UPDATE t1 SET a=0 WHERE a > 250;
+--error ER_DUP_ENTRY
+UPDATE t1 SET a=205 WHERE a=200;
+UPDATE t1 SET a=12345 ORDER BY a DESC, b LIMIT 1;
+
+--sorted_result
+SELECT a,b FROM t1;
+
+--error ER_DUP_ENTRY
+UPDATE t1 SET a=80 WHERE a IN (202,203);
+DROP TABLE t1;
+

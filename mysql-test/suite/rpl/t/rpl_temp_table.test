@@ -1,0 +1,85 @@
+# drop table t1 t2 t3 are included int master-slave.inc
+#  meaningful only in statement-based:
+
+-- source include/have_binlog_format_mixed_or_statement.inc
+-- source include/master-slave.inc
+
+--disable_query_log
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+--enable_query_log
+
+create table t2 (n int, PRIMARY KEY(n));
+create temporary table t1 (n int);
+create temporary table t3 (n int not null);
+
+insert into t1 values(1),(2),(3),(100),(25),(26),(200),(300);
+--disable_warnings
+insert into t2 select * from t1;
+--enable_warnings
+alter table t3 add primary key(n);
+
+flush logs;
+insert into t3 values (1010);
+--disable_warnings
+insert into t2 select * from t3;
+--enable_warnings
+
+drop table if exists t3;
+insert into t2 values (1012);
+
+connection master1;
+create temporary table t1 (n int);
+insert into t1 values (4),(5);
+--disable_warnings
+insert into t2 select * from t1;
+--enable_warnings
+
+save_master_pos;
+disconnect master;
+
+connection slave;
+#add 1 to the saved position, so we will catch  drop table on disconnect
+#for sure
+sync_with_master 1;
+
+connection master1;
+insert into t2 values(61);
+
+save_master_pos;
+disconnect master1;
+
+connection slave;
+#same trick - make sure we catch drop of temporary table on disconnect
+sync_with_master 1;
+
+select * from t2;
+select count(*) from t2;
+select sum(n) from t2;
+show status like 'Slave_open_temp_tables';
+
+--echo *** MDEV-8016: Replication aborts on DROP /*!40005 TEMPORARY */ TABLE IF EXISTS ***
+connect (master2,localhost,root,,);
+INSERT INTO t2 VALUES (2000), (2001);
+CREATE FUNCTION f() RETURNS INTEGER RETURN 1;
+CREATE TEMPORARY TABLE t3 AS SELECT f() AS col FROM t2;
+--let $gtid=`SELECT @@gtid_binlog_pos`
+--disconnect master2
+--connection default
+# Wait for implicit DROP TEMPORARY TABLE tmp to be binlogged.
+--let $wait_condition= SELECT @@gtid_binlog_pos != '$gtid'
+--source include/wait_condition.inc
+
+--sync_slave_with_master
+
+
+#
+# Clean up
+#
+connect (master2,localhost,root,,);
+connection master2;
+drop table if exists t1,t2;
+drop function f;
+sync_slave_with_master;
+
+
+--source include/rpl_end.inc

@@ -1,0 +1,53 @@
+#
+# wsrep_cluster_address
+#
+# save the initial value
+SET @wsrep_cluster_address_global_saved = @@global.wsrep_cluster_address;
+# default
+SELECT @@global.wsrep_cluster_address;
+@@global.wsrep_cluster_address
+
+
+# scope
+SELECT @@session.wsrep_cluster_address;
+ERROR HY000: Variable 'wsrep_cluster_address' is a GLOBAL variable
+SELECT @@global.wsrep_cluster_address;
+@@global.wsrep_cluster_address
+
+
+# valid values
+SET @@global.wsrep_cluster_address='127.0.0.1';
+SELECT @@global.wsrep_cluster_address;
+@@global.wsrep_cluster_address
+127.0.0.1
+SET @@global.wsrep_cluster_address=AUTO;
+SELECT @@global.wsrep_cluster_address;
+@@global.wsrep_cluster_address
+AUTO
+SET @@global.wsrep_cluster_address=default;
+SELECT @@global.wsrep_cluster_address;
+@@global.wsrep_cluster_address
+
+
+# invalid values
+SET @@global.wsrep_node_address=NULL;
+ERROR 42000: Variable 'wsrep_node_address' can't be set to the value of 'NULL'
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+
+SET @@global.wsrep_cluster_address=ON;
+SELECT @@global.wsrep_cluster_address;
+@@global.wsrep_cluster_address
+ON
+SET @@global.wsrep_cluster_address='OFF';
+SELECT @@global.wsrep_cluster_address;
+@@global.wsrep_cluster_address
+OFF
+SET @@global.wsrep_cluster_address='junk';
+SELECT @@global.wsrep_cluster_address;
+@@global.wsrep_cluster_address
+junk
+
+# restore the initial value
+SET @@global.wsrep_cluster_address = @wsrep_cluster_address_global_saved;
+# End of test

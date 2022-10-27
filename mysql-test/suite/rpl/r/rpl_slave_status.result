@@ -1,0 +1,48 @@
+include/master-slave.inc
+[connection master]
+==== Create new replication user ====
+connection master;
+GRANT REPLICATION SLAVE ON *.* TO rpl@127.0.0.1 IDENTIFIED BY 'rpl';
+connection slave;
+include/stop_slave.inc
+set @save_relay_log_purge=@@global.relay_log_purge;
+set @@global.relay_log_purge=0;
+CHANGE MASTER TO master_user='rpl', master_password='rpl';
+select @@global.relay_log_purge;
+@@global.relay_log_purge
+0
+set @@global.relay_log_purge=1;
+CHANGE MASTER TO master_user='rpl', master_password='rpl';
+select @@global.relay_log_purge;
+@@global.relay_log_purge
+1
+set @@global.relay_log_purge=@save_relay_log_purge;
+CHANGE MASTER TO master_user='rpl', master_password='rpl';
+include/start_slave.inc
+==== Do replication as new user ====
+connection master;
+CREATE TABLE t1 (n INT);
+INSERT INTO t1 VALUES (1);
+connection slave;
+SELECT * FROM t1;
+n
+1
+==== Delete new replication user ====
+connection master;
+DROP USER rpl@127.0.0.1;
+FLUSH PRIVILEGES;
+connection slave;
+==== Restart slave without privileges =====
+include/stop_slave.inc
+START SLAVE;
+include/wait_for_slave_sql_to_start.inc
+include/wait_for_slave_io_to_stop.inc
+==== Verify that Slave IO thread stopped with error ====
+include/wait_for_slave_io_error.inc [errno=1045]
+==== Cleanup (Note that slave IO thread is not running) ====
+include/stop_slave_sql.inc
+CHANGE MASTER TO MASTER_USER = 'root', MASTER_PASSWORD = '';
+include/rpl_reset.inc
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

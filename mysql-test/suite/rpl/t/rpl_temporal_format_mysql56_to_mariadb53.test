@@ -1,0 +1,4 @@
+--let $force_master_mysql56_temporal_format=true;
+--let $force_slave_mysql56_temporal_format=false;
+
+--source rpl_temporal_format_default_to_default.test

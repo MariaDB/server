@@ -1,0 +1,39 @@
+# Copyright(C) 2012 Kentoku SHIBA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (c1 int primary key, c2 varchar(10), c3 varchar(10), unique key uk1(c2,c3)) default charset=utf8 collate utf8_bin;
+insert into t1 values(1,'abcde','abc ');
+insert into t1 values(2,'abc\0','abcde');
+insert into t1 values(3,'abc','abc\0');
+insert into t1 values(4,'abc  ','abc');
+insert into t1 values(5,'abc ','abc  ');
+select c1, c2, c3 from t1 force index(uk1) where c2 = 'abc  ' and c3 = 'abc';
+select c1, c2, c3 from t1 force index(uk1) order by c2, c3;
+select c1, c2, c3 from t1 force index(uk1) order by c2 desc, c3 desc;
+select c2, c3 from t1 force index(uk1) order by c2, c3;
+--error ER_DUP_ENTRY
+insert into t1 values(6,'abcde','abc ');
+delete from t1 where c1 = 1;
+insert into t1 values(1,'abcde','abc ');
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

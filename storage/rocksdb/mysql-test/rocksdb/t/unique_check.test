@@ -1,0 +1,173 @@
+--source include/have_rocksdb.inc
+--source include/have_debug_sync.inc
+
+# For GitHub issue#167 -- Unique key check doesn't work
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+connect (con3, localhost, root,,);
+connection default;
+
+--disable_warnings
+set debug_sync='RESET';
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (id int, value int, primary key (id)) engine=rocksdb;
+create table t2 (id int, id2 int, value int, primary key (id), unique key (id2)) engine=rocksdb;
+
+# 1) second insert should be blocked at GetForUpdate(), then returning duplicate key error
+# after con1's commit
+connection con1;
+begin;
+insert into t1 values (1,1);
+
+connection con2;
+let $ID= `select connection_id()`;
+set session rocksdb_lock_wait_timeout=50;
+begin;
+send insert into t1 values (1,2);
+
+connection con1;
+let $wait_condition= select 1 from INFORMATION_SCHEMA.PROCESSLIST
+                     where (ID = $ID /* or SRV_ID = $ID*/)
+                     and STATE = "Waiting for row lock";
+--source include/wait_condition.inc
+commit;
+
+connection con2;
+--error ER_DUP_ENTRY
+reap;
+commit;
+select * from t1;
+truncate table t1;
+
+# 2) same as 1) but using secondary unique key constraint
+connection con1;
+begin;
+insert into t2 values (1,1,1);
+
+connection con2;
+begin;
+send insert into t2 values (2,1,2);
+
+connection con1;
+--source include/wait_condition.inc
+commit;
+
+connection con2;
+--error ER_DUP_ENTRY
+reap;
+commit;
+select * from t2;
+truncate table t2;
+
+# 3) similar to 1),2) but rolled back
+connection con1;
+begin;
+insert into t1 values (1,1);
+
+connection con2;
+begin;
+send insert into t1 values (1,2);
+
+connection con1;
+--source include/wait_condition.inc
+rollback;
+
+connection con2;
+reap;
+commit;
+select * from t1;
+truncate table t1;
+
+connection con1;
+begin;
+insert into t2 values (1,1,1);
+
+connection con2;
+begin;
+send insert into t2 values (2,1,2);
+
+connection con1;
+--source include/wait_condition.inc
+rollback;
+
+connection con2;
+reap;
+commit;
+select * from t2;
+truncate table t2;
+
+
+# 4) simulating T1 GetForUpdate() -> T2 GetForUpdate(). T2 should fail with lock wait timeout. 
+connection con1;
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked1 WAIT_FOR go';
+send insert into t1 values (1,1);
+
+connection default;
+set debug_sync='now WAIT_FOR parked1';
+
+connection con2;
+set debug_sync='rocksdb.update_write_row_after_unique_check SIGNAL parked2 WAIT_FOR go';
+send insert into t2 values (1,1,1);
+
+connection default;
+set debug_sync='now WAIT_FOR parked2';
+
+connection con3;
+set session rocksdb_lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+insert into t1 values (1,2);
+--error ER_LOCK_WAIT_TIMEOUT
+insert into t2 values (2,1,2);
+
+connection default;
+set debug_sync='now SIGNAL go';
+
+connection con1;
+reap;
+
+connection con2;
+reap;
+
+connection default;
+--error ER_DUP_ENTRY
+insert into t1 values (1,2);
+--error ER_DUP_ENTRY
+insert into t2 values (2,1,2);
+select * from t1;
+select * from t2;
+# Cleanup
+connection default;
+set debug_sync='RESET';
+disconnect con1;
+disconnect con2;
+disconnect con3;
+drop table t1, t2;
+
+# skip_unique checks should skip checks only for tables that don't have
+# secondary indexes
+connection default;
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+
+# table with PK only
+create table t1 (id int, value int, primary key (id)) engine=rocksdb;
+# table with PK and SK
+create table t2 (id int, id2 int, value int, primary key (id), unique key (id2)) engine=rocksdb;
+# table with hidden PK
+create table t3 (id int, value int) engine=rocksdb;
+
+SET @old_val = @@session.unique_checks;
+set @@session.unique_checks = FALSE;
+
+insert into t1 values (1, 1), (1, 2);
+--error ER_DUP_ENTRY
+insert into t2 values (1, 1, 1), (1, 2, 1);
+insert into t3 values (1, 1), (1, 1);
+
+set @@session.unique_checks = @old_val;
+# cleanup
+drop table t1, t2, t3;

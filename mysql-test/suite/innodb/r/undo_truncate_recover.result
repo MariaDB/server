@@ -1,0 +1,16 @@
+SET GLOBAL innodb_undo_logs = 4;
+SET GLOBAL innodb_undo_log_truncate = 1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+create table t1(keyc int primary key, c char(100)) engine = innodb;
+begin;
+commit;
+begin;
+update t1 set c = 'MariaDB';
+update t1 set c = 'InnoDB';
+set global debug_dbug = '+d,ib_undo_trunc';
+commit;
+drop table t1;
+call mtr.add_suppression("InnoDB: innodb_undo_tablespaces=0 disables dedicated undo log tablespaces");
+SET GLOBAL innodb_fast_shutdown=0;
+FOUND 1 /ib_undo_trunc/ in mysqld.1.err
+# restart: with restart_parameters

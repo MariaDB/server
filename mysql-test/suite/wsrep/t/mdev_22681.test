@@ -1,0 +1,15 @@
+#
+# MDEV-22681: Server crashes in galera::ReplicatorSMM::CommitOrder::CommitOrder
+#            or assertion failed in wsrep::transaction::before_prepare.
+#
+# EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 ENGINE=InnoDB AS SELECT 1 AS b'
+# crashes the server if binlog is on (see mdev_22681.cnf for configuration).
+#
+--source include/have_wsrep.inc
+--source include/have_wsrep_provider.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 ENGINE=InnoDB AS SELECT 1 AS b';
+
+DROP TABLE t1;

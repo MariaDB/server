@@ -1,0 +1,129 @@
+include/rpl_init.inc [topology=1->2->3]
+include/rpl_connect.inc [creating master]
+include/rpl_connect.inc [creating slave]
+include/rpl_connect.inc [creating slave2]
+connection master;
+set @@default_storage_engine="aria";
+CREATE SEQUENCE s1 cache=10;
+create table t1 select * from s1;
+select NEXT VALUE for s1,seq from seq_1_to_20;
+NEXT VALUE for s1	seq
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+13	13
+14	14
+15	15
+16	16
+17	17
+18	18
+19	19
+20	20
+insert into t1 select * from s1;
+do setval(s1,5, 1, 0);
+insert into t1 select * from s1;
+do setval(s1, 5000, 1 ,0);
+insert into t1 select * from s1;
+alter sequence s1 minvalue=-1 start=-1 restart=-1;
+insert into t1 select * from s1;
+insert into s1 values(-100,-1000,9223372036854775806,1,1,1000,0,0);
+insert into t1 select * from s1;
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	10	0	0
+21	1	9223372036854775806	1	1	10	0	0
+21	1	9223372036854775806	1	1	10	0	0
+5001	1	9223372036854775806	1	1	10	0	0
+-1	-1	9223372036854775806	-1	1	10	0	0
+-100	-1000	9223372036854775806	1	1	1000	0	0
+connection slave;
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	10	0	0
+21	1	9223372036854775806	1	1	10	0	0
+21	1	9223372036854775806	1	1	10	0	0
+5001	1	9223372036854775806	1	1	10	0	0
+-1	-1	9223372036854775806	-1	1	10	0	0
+-100	-1000	9223372036854775806	1	1	1000	0	0
+connection slave2;
+select * from t1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	10	0	0
+21	1	9223372036854775806	1	1	10	0	0
+21	1	9223372036854775806	1	1	10	0	0
+5001	1	9223372036854775806	1	1	10	0	0
+-1	-1	9223372036854775806	-1	1	10	0	0
+-100	-1000	9223372036854775806	1	1	1000	0	0
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE SEQUENCE s1 cache=10
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t1` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) PAGE_CHECKSUM=1
+master-bin.000001	#	Annotate_rows	#	#	create table t1 select * from s1
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	select NEXT VALUE for s1,seq from seq_1_to_20
+master-bin.000001	#	Table_map	#	#	table_id: # (test.s1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into t1 select * from s1
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into t1 select * from s1
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	do setval(s1, 5000, 1 ,0)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.s1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into t1 select * from s1
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; alter sequence s1 minvalue=-1 start=-1 restart=-1
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into t1 select * from s1
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into s1 values(-100,-1000,9223372036854775806,1,1,1000,0,0)
+master-bin.000001	#	Table_map	#	#	table_id: # (test.s1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into t1 select * from s1
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+connection master;
+drop table s1,t1;
+include/rpl_end.inc

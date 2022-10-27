@@ -1,0 +1,47 @@
+SET @old_gtid_slave_pos= @@gtid_slave_pos;
+SET GLOBAL gtid_slave_pos= '';
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+
+SET GLOBAL gtid_slave_pos= '1-2-3';
+SELECT variable_value FROM information_schema.global_variables
+WHERE variable_name='gtid_slave_pos';
+variable_value
+1-2-3
+SET @@global.gtid_slave_pos= '1-2-4';
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+1-2-4
+SET GLOBAL gtid_slave_pos= ' 1-2-3';
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+1-2-3
+SET GLOBAL gtid_slave_pos= '1-2-3, 2-4-6';
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+1-2-3,2-4-6
+SET GLOBAL gtid_slave_pos= '-1-2-3';
+ERROR HY000: Could not parse GTID list
+SET GLOBAL gtid_slave_pos= '1-2 -3';
+ERROR HY000: Could not parse GTID list
+SET GLOBAL gtid_slave_pos= '1-2-3 ';
+ERROR HY000: Could not parse GTID list
+SET GLOBAL gtid_slave_pos= '1-2-3,2-4';
+ERROR HY000: Could not parse GTID list
+SET GLOBAL gtid_slave_pos= '0-1-10,0-2-20';
+ERROR HY000: GTID 0-2-20 and 0-1-10 conflict (duplicate domain id 0)
+SET GLOBAL gtid_slave_pos= '0-1-10,1-2-20,2-3-30,1-20-200,3-4-1';
+ERROR HY000: GTID 1-20-200 and 1-2-20 conflict (duplicate domain id 1)
+SET gtid_slave_pos= '';
+ERROR HY000: Variable 'gtid_slave_pos' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION gtid_slave_pos= '';
+ERROR HY000: Variable 'gtid_slave_pos' is a GLOBAL variable and should be set with SET GLOBAL
+SET GLOBAL gtid_slave_pos= '1-2-3,2-4-6';
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+1-2-3,2-4-6
+SET GLOBAL gtid_slave_pos= DEFAULT;
+ERROR 42000: Variable 'gtid_slave_pos' doesn't have a default value
+SELECT @@session.gtid_slave_pos;
+ERROR HY000: Variable 'gtid_slave_pos' is a GLOBAL variable
+SET GLOBAL gtid_slave_pos= @old_gtid_slave_pos;

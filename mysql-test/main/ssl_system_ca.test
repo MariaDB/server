@@ -1,0 +1,22 @@
+#
+# Tests here don't use --ssl-ca but expect the certificate to be
+# signed by a CA in a system CA store
+#
+# They only work for openssl, because the following line works only there:
+let SSL_CERT_DIR=$MYSQL_TMP_DIR;
+
+source include/not_embedded.inc;
+
+if (`select @@version_ssl_library not like 'OpenSSL%'`) {
+  skip Needs OpenSSL;
+}
+
+# See `openssl x509 -in cacert.pem -noout -issuer_hash`
+copy_file $MYSQL_TEST_DIR/std_data/cacert.pem $MYSQL_TMP_DIR/ed1f42db.0;
+
+#
+# test --ssl-verify-server-cert
+#
+
+disable_abort_on_error;
+exec $MYSQL --ssl-verify-server-cert -Ee "select (variable_value <> '') as have_ssl from information_schema.session_status where variable_name='ssl_cipher'" 2>&1;

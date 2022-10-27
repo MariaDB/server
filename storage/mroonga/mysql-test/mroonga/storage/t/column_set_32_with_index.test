@@ -1,0 +1,74 @@
+# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS items;
+--enable_warnings
+
+CREATE TABLE items (
+  name VARCHAR(255),
+  colors SET("black",
+             "dim gray",
+             "dark gray",
+             "gray",
+             "light gray",
+             "gainsboro",
+             "white smoke",
+             "white",
+
+             "red",
+             "orange red",
+             "dark orange",
+             "orange",
+             "gold",
+             "yellow",
+             "chartreuse",
+             "lawn green",
+
+             "green",
+             "spring green",
+             "medium spring green",
+             "cyan",
+             "deep sky blue",
+             "blue",
+             "medium blue",
+             "dark violet",
+
+             "dark magenta",
+             "magenta",
+             "dark red",
+             "brown",
+             "firebrick",
+             "indian red",
+             "light coral",
+             "salmon"),
+  INDEX (colors)
+) DEFAULT CHARSET=utf8;
+SHOW CREATE TABLE items;
+
+INSERT INTO items VALUES ("t-shart", "black,white");
+INSERT INTO items VALUES ("hat", "white,dark violet");
+INSERT INTO items VALUES ("parka", "green,brown,red");
+
+SELECT * FROM items;
+
+SELECT * FROM items WHERE colors = "white,dark violet";
+
+DROP TABLE items;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

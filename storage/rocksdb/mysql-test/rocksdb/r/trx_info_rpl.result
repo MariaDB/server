@@ -1,0 +1,16 @@
+include/master-slave.inc
+[connection master]
+DROP TABLE IF EXISTS t1;
+connection slave;
+include/stop_slave.inc
+create table t1 (a int, b int, primary key (a), unique key (b)) engine=rocksdb;
+connection master;
+connection slave;
+show variables like 'rpl_skip_tx_api';
+Variable_name	Value
+rpl_skip_tx_api	ON
+include/start_slave.inc
+found
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

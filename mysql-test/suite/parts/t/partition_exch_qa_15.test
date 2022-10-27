@@ -1,0 +1,25 @@
+# Author: Horst Hunger
+# Created: 2010-07-15
+
+source include/have_innodb.inc;
+source include/have_partition.inc;
+
+let $engine_table= InnoDB;
+let $engine_part= InnoDB;
+let $engine_subpart= InnoDB;
+
+use test;
+
+source suite/parts/inc/part_exch_tabs.inc;
+
+# 21) Foreign Key.
+# Exchange of partition with table differing in structure.
+CREATE TABLE t_11 (a INT, b VARCHAR(55), 
+             FOREIGN KEY (a) REFERENCES t_10 (a) ON DELETE CASCADE)
+             ENGINE= InnoDB;
+#--error ER_TABLES_DIFFERENT_METADATA
+error ER_PARTITION_EXCHANGE_FOREIGN_KEY;
+ALTER TABLE tp EXCHANGE PARTITION p0 WITH TABLE t_11;
+DROP TABLE t_11;
+source suite/parts/inc/part_exch_drop_tabs.inc;
+

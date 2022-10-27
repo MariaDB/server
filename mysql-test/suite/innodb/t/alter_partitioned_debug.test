@@ -1,0 +1,34 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (a INT, b VARCHAR(10)) ENGINE=InnoDB
+PARTITION BY RANGE(a)
+(PARTITION pa VALUES LESS THAN (3),
+PARTITION pb VALUES LESS THAN (5));
+
+INSERT INTO t1 VALUES(2,'two'),(2,'two'),(4,'four');
+
+connect ddl,localhost,root,,test;
+SET DEBUG_SYNC = 'inplace_after_index_build SIGNAL go WAIT_FOR done';
+send ALTER TABLE t1 ADD UNIQUE KEY (a,b(3));
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR go';
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+SET DEBUG_SYNC = 'now SIGNAL done';
+
+connection ddl;
+--error ER_DUP_ENTRY
+reap;
+
+connection default;
+DELETE FROM t1;
+disconnect ddl;
+
+SET DEBUG_SYNC = 'RESET';
+
+CHECK TABLE t1;
+DROP TABLE t1;

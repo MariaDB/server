@@ -1,0 +1,80 @@
+--source suite/versioning/key_type.inc
+if ($MTR_COMBINATION_SEC)
+{
+  --skip pk or unique only
+}
+--source suite/versioning/common.inc
+--source suite/versioning/engines.inc
+
+--replace_result $sys_datatype_expl SYS_DATATYPE "$KEY_TYPE" KEY_TYPE
+eval create or replace table t(
+  id int,
+  $KEY_TYPE(id),
+  x int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning;
+
+insert t values (1, 2);
+replace t values (1, 3);
+select *, current_row(row_end) as current from t for system_time all order by x;
+drop table t;
+
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create table t (
+  id int unique,
+  x int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning;
+
+insert t values (1, 2);
+replace t values (1, 3);
+select *, current_row(row_end) as current from t for system_time all order by x;
+drop table t;
+
+--echo # MDEV-15645 Assertion `table->insert_values' failed in write_record upon REPLACE into a view with underlying versioned table
+create or replace table t1 (a int, b int, primary key (a), unique(b)) with system versioning;
+insert into t1 values (1,1);
+create or replace table t2 (c int);
+create or replace view v as select t1.* from t1 join t2;
+replace into v (a, b) select a, b from t1;
+drop view v;
+drop tables t1, t2;
+
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval CREATE TABLE t1 (
+    pk INT AUTO_INCREMENT,
+    f INT,
+    row_start $sys_datatype_expl AS ROW START INVISIBLE,
+    row_end $sys_datatype_expl AS ROW END INVISIBLE,
+    PRIMARY KEY(pk),
+    UNIQUE(f),
+    PERIOD FOR SYSTEM_TIME(row_start, row_end)
+) WITH SYSTEM VERSIONING;
+INSERT INTO t1 () VALUES (),(),(),(),(),();
+UPDATE IGNORE t1 SET f = 1;
+REPLACE t1 SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo # MDEV-22540 ER_DUP_ENTRY upon REPLACE or Assertion failed
+set timestamp=1589245268.41934;
+create table t1 (a int primary key) with system versioning;
+insert into t1 values (1),(2);
+
+--connect (con1,localhost,root,,test)
+set timestamp=1589245268.52093;
+replace into t1 values (1),(2);
+
+--connection default
+replace into t1 values (1),(2);
+
+--connection con1
+--error ER_DUP_ENTRY
+replace into t1 values (1),(2);
+
+drop table t1;
+
+--source suite/versioning/common_finish.inc

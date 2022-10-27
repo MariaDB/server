@@ -1,0 +1,175 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+--source include/not_windows.inc # decorated database names  is too long, exceeded OS limits
+
+# 
+# SHOW TABLE STATUS statement
+#
+
+###################################
+# TODO:
+# The result file is likely to change 
+# if MDEV-4197 is fixed
+###################################
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2, t3;
+--enable_warnings
+
+CREATE TABLE t1 (a INT, b CHAR(8) PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (100,'a'),(2,'foo');
+
+CREATE TABLE t2 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t2 (a,b) VALUES (1,'bar');
+
+set global rocksdb_force_flush_memtable_now = true;
+
+CREATE TABLE t3 (a INT, b CHAR(8), pk INT PRIMARY KEY) ENGINE=rocksdb CHARACTER SET utf8;
+
+--replace_column 6 # 7 # 12 # 13 #
+SHOW TABLE STATUS WHERE name IN ( 't1', 't2', 't3' );
+
+# Some statistics don't get updated as quickly.  The Data_length and
+# Avg_row_length are trailing statistics, meaning they don't get updated
+# for the current SST until the next SST is written.  Insert a bunch of data,
+# then flush, then insert a bit more and do another flush to get them to show
+# up.
+
+--disable_query_log
+let $count = 2;
+let $max = 10000;
+while ($count < $max) {
+  eval INSERT INTO t2 (a) VALUES ($count);
+  inc $count;
+}
+
+set global rocksdb_force_flush_memtable_now = true;
+eval INSERT INTO t2 (a) VALUES ($max);
+set global rocksdb_force_flush_memtable_now = true;
+--enable_query_log
+
+# We expect the number of rows to be 10000. Data_len and Avg_row_len
+# may vary, depending on built-in compression library.
+--replace_column 6 # 7 # 12 # 13 #
+SHOW TABLE STATUS WHERE name LIKE 't2';
+DROP TABLE t1, t2, t3;
+
+#
+# Confirm that long db and table names work.
+#
+
+CREATE DATABASE `db_new..............................................end`;
+USE `db_new..............................................end`;
+CREATE TABLE `t1_new..............................................end`(a int) engine=rocksdb;
+INSERT INTO `t1_new..............................................end` VALUES (1);
+--query_vertical SELECT TABLE_SCHEMA, TABLE_NAME FROM information_schema.table_statistics WHERE TABLE_NAME = 't1_new..............................................end'
+DROP DATABASE `db_new..............................................end`;
+--echo #
+--echo # MDEV-17171: Bug: RocksDB Tables do not have "Creation Date"
+--echo #
+use test;
+create table t1 (a int) engine=rocksdb;
+
+select create_time is not null, update_time, check_time 
+from information_schema.tables where table_schema=database() and table_name='t1';
+
+insert into t1 values (1);
+select create_time is not null, update_time is not null, check_time 
+from information_schema.tables where table_schema=database() and table_name='t1';
+
+flush tables;
+select create_time is not null, update_time is not null, check_time 
+from information_schema.tables where table_schema=database() and table_name='t1';
+
+select create_time, update_time into @create_tm, @update_tm
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+
+select sleep(3);
+insert into t1 values (2);
+
+--vertical_results
+select 
+  create_time=@create_tm /* should not change */ , 
+  timestampdiff(second, @update_tm, update_time) > 2,
+  check_time
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+
+--echo #
+--echo # Check how create_time survives ALTER TABLE.
+--echo # First, an ALTER TABLE that re-creates the table:
+alter table t1 add b int;
+select
+  create_time<>@create_tm /* should change */,
+  create_time IS NOT NULL,
+  update_time IS NULL
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+
+insert into t1 values (5,5);
+
+select create_time, update_time into @create_tm, @update_tm
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+
+--echo # Then, an in-place ALTER TABLE:
+select sleep(2);
+alter table t1 add key (a);
+
+--echo # create_time will change as .frm file is rewritten:
+select
+  create_time=@create_tm,
+  update_time
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+
+--echo # Check TRUNCATE TABLE
+insert into t1 values (10,10);
+select create_time, update_time into @create_tm, @update_tm
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+
+select sleep(2);
+truncate table t1;
+
+select
+  create_time=@create_tm /* should not change */,
+  update_time
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+
+
+--echo #
+--echo # Check what is left after server restart
+--echo #
+drop table t1;
+create table t1 (a int);
+insert into t1 values (1);
+--echo # Save t1's creation time
+create table t2 as
+select create_time
+from information_schema.tables
+where table_schema=database() and table_name='t1';
+
+select sleep(2);
+--source include/restart_mysqld.inc
+
+select
+  create_time=(select create_time from t2)  /* should not change */,
+  update_time
+from information_schema.tables
+where table_schema=database() and table_name='t1';
+
+drop table t1, t2;
+
+--echo #
+--echo # Check how it works for partitioned tables
+--echo #
+create table t1 (pk int primary key) partition by hash(pk) partitions 2;
+insert into t1 values (1);
+
+select create_time IS NOT NULL , update_time IS NOT NULL
+from information_schema.tables 
+where table_schema=database() and table_name='t1';
+drop table t1;

@@ -1,0 +1,70 @@
+SET GLOBAL tokudb_dir_per_db=ON;
+CREATE PROCEDURE create_table()
+BEGIN
+CREATE TABLE test.t1 (
+a INT
+) ENGINE = TokuDB
+PARTITION BY RANGE (a)
+(PARTITION p100 VALUES LESS THAN (100) ENGINE = TokuDB,
+PARTITION p_to_del VALUES LESS THAN (200) ENGINE = TokuDB,
+PARTITION p300 VALUES LESS THAN (300) ENGINE = TokuDB,
+PARTITION p400 VALUES LESS THAN (400) ENGINE = TokuDB
+);
+END|
+### Create partitioned table
+CALL create_table();
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+t1_P_p100_main_id.tokudb
+t1_P_p100_status_id.tokudb
+t1_P_p300_main_id.tokudb
+t1_P_p300_status_id.tokudb
+t1_P_p400_main_id.tokudb
+t1_P_p400_status_id.tokudb
+t1_P_p_to_del_main_id.tokudb
+t1_P_p_to_del_status_id.tokudb
+### Stop server
+### Remove 'main' file of one of the partitions
+### Start server
+### Make sure 'main' partition file is deleted
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+t1_P_p100_main_id.tokudb
+t1_P_p100_status_id.tokudb
+t1_P_p300_main_id.tokudb
+t1_P_p300_status_id.tokudb
+t1_P_p400_main_id.tokudb
+t1_P_p400_status_id.tokudb
+t1_P_p_to_del_status_id.tokudb
+### Make sure the table still exists
+SHOW TABLES;
+Tables_in_test
+t1
+### Drop table
+DROP TABLE t1;
+### Make sure the table is dropped
+SHOW TABLES;
+Tables_in_test
+### Check what files still exist after DROP TABLE
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+### Remove the rest of the files
+### Make sure there are no tokudb files
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+### Create the same table once more
+CALL create_table();
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+t1_P_p100_main_id.tokudb
+t1_P_p100_status_id.tokudb
+t1_P_p300_main_id.tokudb
+t1_P_p300_status_id.tokudb
+t1_P_p400_main_id.tokudb
+t1_P_p400_status_id.tokudb
+t1_P_p_to_del_main_id.tokudb
+t1_P_p_to_del_status_id.tokudb
+### Restore state
+DROP TABLE t1;
+DROP PROCEDURE create_table;
+SET GLOBAL tokudb_dir_per_db=default;

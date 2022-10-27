@@ -1,0 +1,47 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_cluster_address
+--echo #
+
+--echo # save the initial value
+SET @wsrep_cluster_address_global_saved = @@global.wsrep_cluster_address;
+
+--echo # default
+SELECT @@global.wsrep_cluster_address;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_cluster_address;
+SELECT @@global.wsrep_cluster_address;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_cluster_address='127.0.0.1';
+SELECT @@global.wsrep_cluster_address;
+SET @@global.wsrep_cluster_address=AUTO;
+SELECT @@global.wsrep_cluster_address;
+SET @@global.wsrep_cluster_address=default;
+SELECT @@global.wsrep_cluster_address;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_node_address=NULL;
+SELECT @@global.wsrep_node_address;
+# The values being assigned to wsrep_node_address are not verified so the
+# following alues are currently valid too.
+SET @@global.wsrep_cluster_address=ON;
+SELECT @@global.wsrep_cluster_address;
+SET @@global.wsrep_cluster_address='OFF';
+SELECT @@global.wsrep_cluster_address;
+SET @@global.wsrep_cluster_address='junk';
+SELECT @@global.wsrep_cluster_address;
+
+--echo
+--echo # restore the initial value
+--error 0,ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_cluster_address = @wsrep_cluster_address_global_saved;
+
+--echo # End of test

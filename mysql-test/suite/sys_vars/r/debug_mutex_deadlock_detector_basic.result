@@ -1,0 +1,21 @@
+select @@global.debug_mutex_deadlock_detector;
+@@global.debug_mutex_deadlock_detector
+1
+select @@session.debug_mutex_deadlock_detector;
+ERROR HY000: Variable 'debug_mutex_deadlock_detector' is a GLOBAL variable
+show global variables like 'debug_mutex_deadlock_detector';
+Variable_name	Value
+debug_mutex_deadlock_detector	ON
+show session variables like 'debug_mutex_deadlock_detector';
+Variable_name	Value
+debug_mutex_deadlock_detector	ON
+select * from information_schema.global_variables where variable_name='debug_mutex_deadlock_detector';
+VARIABLE_NAME	VARIABLE_VALUE
+DEBUG_MUTEX_DEADLOCK_DETECTOR	ON
+select * from information_schema.session_variables where variable_name='debug_mutex_deadlock_detector';
+VARIABLE_NAME	VARIABLE_VALUE
+DEBUG_MUTEX_DEADLOCK_DETECTOR	ON
+set global debug_mutex_deadlock_detector=1;
+ERROR HY000: Variable 'debug_mutex_deadlock_detector' is a read only variable
+set session debug_mutex_deadlock_detector=1;
+ERROR HY000: Variable 'debug_mutex_deadlock_detector' is a read only variable

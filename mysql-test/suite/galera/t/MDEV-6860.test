@@ -1,0 +1,42 @@
+--source include/have_innodb.inc
+
+--source include/galera_cluster.inc
+
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3, MASTER_USE_GTID=slave_pos;
+--enable_query_log
+START SLAVE;
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
+--let $inserts=1000
+CREATE TABLE t1 (f1 int, f2 int) ENGINE=InnoDB;
+
+--let $count=0
+--disable_query_log
+while($count < $inserts)
+{
+  --eval insert into t1 values ($count,1)
+  --inc $count
+}
+--enable_query_log
+
+--connection node_2
+
+--let $wait_condition = SELECT COUNT(*) = $inserts FROM t1
+--source include/wait_condition.inc
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = $inserts FROM t1
+--source include/wait_condition.inc
+
+--connection node_3
+DROP TABLE t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test'
+--source include/wait_condition.inc
+
+STOP SLAVE;
+RESET SLAVE ALL;

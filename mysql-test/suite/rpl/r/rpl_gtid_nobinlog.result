@@ -1,0 +1,69 @@
+include/rpl_init.inc [topology=1->2]
+connection server_1;
+SET @old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+select @@global.log_slave_updates;
+@@global.log_slave_updates
+0
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t1 VALUES (2, 1);
+connection server_2;
+SET @old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+select @@global.log_slave_updates;
+@@global.log_slave_updates
+0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+2	1
+include/stop_slave.inc
+connection server_1;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SLAVE_PORT,
+master_user = 'root', master_use_gtid = current_pos;
+START SLAVE;
+include/wait_for_slave_to_start.inc
+connection server_2;
+INSERT INTO t1 VALUES (3, 2);
+INSERT INTO t1 VALUES (4, 2);
+include/save_master_gtid.inc
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3, 2)
+slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (4, 2)
+slave-bin.000001	#	Query	#	#	COMMIT
+connection server_1;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+2	1
+3	2
+4	2
+include/stop_slave.inc
+RESET SLAVE;
+INSERT INTO t1 VALUES (5, 1);
+INSERT INTO t1 VALUES (6, 1);
+include/save_master_gtid.inc
+connection server_2;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+master_use_gtid = current_pos;
+START SLAVE;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+2	1
+3	2
+4	2
+5	1
+6	1
+SET GLOBAL gtid_strict_mode= @old_strict;
+connection server_1;
+SET GLOBAL gtid_strict_mode= @old_strict;
+DROP TABLE t1;
+include/rpl_end.inc

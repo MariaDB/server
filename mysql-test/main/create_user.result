@@ -1,0 +1,72 @@
+create user foo;
+select * from mysql.user where user = 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo		N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N					0	0	0	0	mysql_native_password		N	N		0.000000
+drop user foo;
+create user foo identified by 'password';
+select * from mysql.user where user = 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N					0	0	0	0	mysql_native_password	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N		0.000000
+drop user foo;
+create user foo identified by 'password' require SSL;
+select * from mysql.user where user = 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	ANY				0	0	0	0	mysql_native_password	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N		0.000000
+drop user foo;
+create user foo identified by 'password' require X509;
+select * from mysql.user where user = 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	X509				0	0	0	0	mysql_native_password	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N		0.000000
+drop user foo;
+create user foo identified by 'password' require CIPHER 'cipher';
+select * from mysql.user where user = 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	SPECIFIED	cipher			0	0	0	0	mysql_native_password	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N		0.000000
+drop user foo;
+create user foo identified by 'password' require ISSUER 'issuer';
+select * from mysql.user where user = 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	SPECIFIED		issuer		0	0	0	0	mysql_native_password	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N		0.000000
+drop user foo;
+create user foo identified by 'password' require SUBJECT 'subject';
+select * from mysql.user where user = 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	SPECIFIED			subject	0	0	0	0	mysql_native_password	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N		0.000000
+drop user foo;
+create user foo identified by 'password' require CIPHER 'cipher'
+                                                   SUBJECT 'subject';
+select * from mysql.user where user = 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	SPECIFIED	cipher		subject	0	0	0	0	mysql_native_password	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N		0.000000
+drop user foo;
+create user foo identified by 'password' require CIPHER 'cipher' 
+AND SUBJECT 'subject'
+                                                   AND ISSUER 'issuer';
+select * from mysql.user where user = 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	SPECIFIED	cipher	issuer	subject	0	0	0	0	mysql_native_password	*2470C0C06DEE42FD1618BB99005ADCA2EC9D1E19	N	N		0.000000
+drop user foo;
+create user foo, foo2 identified by 'password' require CIPHER 'cipher' 
+AND SUBJECT 'subject'
+                                                   AND ISSUER 'issuer';
+select * from mysql.user where user like 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo		N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	SPECIFIED	cipher	issuer	subject	0	0	0	0	mysql_native_password		N	N		0.000000
+#--warning ER_USER_CREATE_EXISTS
+create user if not exists foo, foo2 identified by 'password2'
+    require CIPHER 'cipher2' AND SUBJECT 'subject2' AND ISSUER 'issuer2';
+Warnings:
+Note	1973	Can't create user 'foo'@'%'; it already exists
+Note	1973	Can't create user 'foo2'@'%'; it already exists
+select * from mysql.user where user like 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo		N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	SPECIFIED	cipher	issuer	subject	0	0	0	0	mysql_native_password		N	N		0.000000
+drop user foo, foo2;
+create user foo with MAX_QUERIES_PER_HOUR 10
+MAX_UPDATES_PER_HOUR 20
+MAX_CONNECTIONS_PER_HOUR 30
+MAX_USER_CONNECTIONS 40;
+select * from mysql.user where user like 'foo';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+%	foo		N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N					10	20	30	40	mysql_native_password		N	N		0.000000
+drop user foo;

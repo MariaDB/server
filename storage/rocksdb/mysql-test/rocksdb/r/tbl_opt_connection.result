@@ -1,0 +1,26 @@
+DROP TABLE IF EXISTS t1;
+CREATE DATABASE test_remote;
+CREATE SERVER test_connection FOREIGN DATA WRAPPER mysql
+OPTIONS (USER 'root', HOST 'localhost', DATABASE 'test_remote');
+CREATE SERVER test_connection2 FOREIGN DATA WRAPPER mysql
+OPTIONS (USER 'root', HOST 'localhost', DATABASE 'test_remote');
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb CONNECTION='test_connection';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` char(8) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 CONNECTION='test_connection'
+ALTER TABLE t1 CONNECTION='test_connection2';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` char(8) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 CONNECTION='test_connection2'
+DROP TABLE t1;
+DROP SERVER test_connection;
+DROP SERVER test_connection2;
+DROP DATABASE test_remote;

@@ -1,0 +1,76 @@
+#
+# Check the handling of @@wsrep_dirty_reads
+#
+
+--source include/galera_cluster.inc
+--source include/have_perfschema.inc
+
+call mtr.add_suppression("WSREP has not yet prepared node for application use");
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_2
+--let $wsrep_cluster_address_saved = `SELECT @@global.wsrep_cluster_address`
+
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1;
+
+SET @@global.wsrep_cluster_address = '';
+SET @@session.wsrep_dirty_reads=OFF;
+
+# Set wsrep_sync_wait to avoid ER_LOCK_WAIT_TIMEOUT.
+SET SESSION wsrep_sync_wait=0;
+
+# Must return 'OFF'
+SHOW STATUS LIKE 'wsrep_ready';
+
+# Must return 'Disconnected'
+SHOW STATUS LIKE 'wsrep_cluster_status';
+
+--error ER_UNKNOWN_COM_ERROR,1047
+SELECT * FROM t1;
+
+--error ER_UNKNOWN_COM_ERROR,1047
+SELECT 1 FROM t1;
+
+SET @@session.wsrep_dirty_reads=ON;
+
+SELECT * FROM t1;
+SELECT 1 FROM t1;
+
+SELECT i, variable_name, variable_value FROM t1, information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads" AND i = 1;
+
+SET @@session.wsrep_dirty_reads=OFF;
+
+--error ER_UNKNOWN_COM_ERROR,1047
+SELECT i, variable_name, variable_value FROM t1, information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads" AND i = 1;
+
+
+SELECT 1;
+
+USE information_schema;
+
+SELECT * FROM information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads";
+
+SELECT COUNT(*) >= 10 FROM performance_schema.events_statements_history;
+
+--disable_query_log
+--eval SET @@global.wsrep_cluster_address = '$wsrep_cluster_address_saved'
+--enable_query_log
+--source include/wait_until_connected_again.inc
+--source include/galera_wait_ready.inc
+
+--connection node_1
+USE test;
+SELECT * FROM t1;
+# Cleanup
+DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc

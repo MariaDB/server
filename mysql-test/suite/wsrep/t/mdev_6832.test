@@ -1,0 +1,17 @@
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # MDEV-6832: ER_LOCK_WAIT_TIMEOUT on SHOW STATUS
+--echo #
+
+SHOW STATUS LIKE 'wsrep_ready';
+--disable_query_log
+eval SET @@global.wsrep_provider='$WSREP_PROVIDER';
+--enable_query_log
+SHOW STATUS LIKE 'wsrep_ready';
+SET @@global.wsrep_cluster_address='gcomm://';
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+--echo # End of test.

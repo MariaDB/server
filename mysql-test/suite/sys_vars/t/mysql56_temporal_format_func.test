@@ -1,0 +1,66 @@
+#
+# This test checks that DATETIME, DATETIME(5), TIME(5) columns
+# occupy different data length depending on @@mysql56_temporal_format:
+#
+#  Type           MariaDB   MySQL
+#  ----           -------   -----
+#  DATETIME             8       5
+#  DATETIME(5)          7       8
+#  TIME(5)              5       6
+#
+# The DATETIME(1-3,4,6) and TIME(0-4,6) data types use the same size
+# in both MariaDB and MySQL formats.
+# TIMESTAMP(0-6) also uses the same size in both formats.
+#
+# We use two columns in the tests below, to make sure the record length
+# is longer than 7. Records whose fields occupy less then 7 bytes use
+# 7 bytes anyway (assuming the default MAX_ROWS values), to store deleted
+# record list pointers.
+#
+
+--echo #
+--echo # MariaDB-5.3 format
+--echo #
+SET @@global.mysql56_temporal_format=false;
+CREATE TABLE t1 (a DATETIME NOT NULL, b DATETIME NOT NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:10:10','2001-01-01 10:10:10');
+SELECT * FROM t1;
+SELECT (AVG_ROW_LENGTH-1) DIV 2 AS FIELD_LENGTH,DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATETIME(5) NOT NULL, b DATETIME(5) NOT NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:10:10.12345','2001-01-01 10:10:10.12345');
+SELECT (AVG_ROW_LENGTH-1) DIV 2 AS FIELD_LENGTH,DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIME(5) NOT NULL,b TIME(5) NOT NULL);
+INSERT INTO t1 VALUES ('10:10:10.12345','10:10:10.12345');
+SELECT * FROM t1;
+SELECT (AVG_ROW_LENGTH-1) DIV 2 AS FIELD_LENGTH,DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
+DROP TABLE t1;
+
+--echo #
+--echo # MySQL-5.6 format
+--echo #
+
+SET @@global.mysql56_temporal_format=true;
+CREATE TABLE t1 (a DATETIME NOT NULL, b DATETIME NOT NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:10:10','2001-01-01 10:10:10');
+SELECT * FROM t1;
+SELECT (AVG_ROW_LENGTH-1) DIV 2 AS FIELD_LENGTH,DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a DATETIME(5) NOT NULL, b DATETIME(5) NOT NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:10:10.12345','2001-01-01 10:10:10.12345');
+SELECT * FROM t1;
+SELECT (AVG_ROW_LENGTH-1) DIV 2 AS FIELD_LENGTH,DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIME(5) NOT NULL,b TIME(5) NOT NULL);
+INSERT INTO t1 VALUES ('10:10:10.12345','10:10:10.12345');
+SELECT * FROM t1;
+SELECT (AVG_ROW_LENGTH-1) DIV 2 AS FIELD_LENGTH,DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
+DROP TABLE t1;
+
+SET @@global.mysql56_temporal_format=DEFAULT;

@@ -1,0 +1,35 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 BLOB) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL),('abc');
+connection node_2;
+SELECT f1 FROM t1;
+f1
+NULL
+abc
+DELETE FROM t1 WHERE f1 IS NULL;
+UPDATE t1 SET f1 = 'xyz' WHERE f1 = 'abc';
+connection node_1;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+SELECT f1 = 'abc' FROM t1;
+f1 = 'abc'
+0
+connection node_1;
+CREATE TABLE t2 (f1 BLOB) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (NULL);
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t2 SET f1 = 'abc' WHERE f1 IS NULL;
+connection node_2;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t2 SET f1 = 'xyz' WHERE f1 IS NULL;
+connection node_1;
+COMMIT;
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;
+DROP TABLE t2;

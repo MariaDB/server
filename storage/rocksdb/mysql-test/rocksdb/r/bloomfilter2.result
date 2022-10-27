@@ -1,0 +1,71 @@
+CREATE TABLE t0 (id1 VARCHAR(30), id2 INT, value INT, PRIMARY KEY (id1, id2)) ENGINE=rocksdb collate latin1_bin;
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+SELECT COUNT(*) FROM t0 WHERE id1='X' AND id2>=1;
+COUNT(*)
+10000
+select case when variable_value-@u = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+case when variable_value-@u = 0 then 'true' else 'false' end
+true
+DROP TABLE t0;
+CREATE TABLE t1 (id1 BIGINT, id2 INT, id3 BIGINT, value INT, PRIMARY KEY (id1, id2, id3)) ENGINE=rocksdb;
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2=1 AND id3>=2;
+COUNT(*)
+9999
+select case when variable_value-@u = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+case when variable_value-@u = 0 then 'true' else 'false' end
+true
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+SELECT COUNT(*) FROM t1 WHERE id1=1 AND id2>=1 AND id3>=2;
+COUNT(*)
+9999
+select case when variable_value-@u = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+case when variable_value-@u = 0 then 'true' else 'false' end
+true
+DROP TABLE t1;
+CREATE TABLE t2 (id1 INT, id2 VARCHAR(100), id3 BIGINT, value INT, PRIMARY KEY (id1, id2, id3)) ENGINE=rocksdb collate latin1_bin;
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+select count(*) from t2 WHERE id1=100 and id2 IN ('00000000000000000000', '100');
+count(*)
+1
+select case when variable_value-@u > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+case when variable_value-@u > 0 then 'true' else 'false' end
+true
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+select count(*) from t2 WHERE id1=200 and id2 IN ('00000000000000000000', '200');
+count(*)
+1
+select case when variable_value-@u > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+case when variable_value-@u > 0 then 'true' else 'false' end
+true
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+select count(*) from t2 WHERE id1=200 and id2 IN ('3', '200');
+count(*)
+1
+select case when variable_value-@u = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+case when variable_value-@u = 0 then 'true' else 'false' end
+true
+DROP TABLE t2;
+CREATE TABLE t3 (id1 BIGINT, id2 BIGINT, id3 BIGINT, id4 BIGINT, PRIMARY KEY (id1, id2, id3, id4)) ENGINE=rocksdb collate latin1_bin;
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_useful';
+SELECT COUNT(*) FROM t3 WHERE id1=1 AND id2=5000 AND id3=1 AND id4=1;
+COUNT(*)
+0
+select case when variable_value-@u > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_useful';
+case when variable_value-@u > 0 then 'true' else 'false' end
+true
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+SELECT COUNT(*) FROM t3 WHERE id1=1 AND id2=1 AND id3=1;
+COUNT(*)
+1
+select case when variable_value-@u > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+case when variable_value-@u > 0 then 'true' else 'false' end
+true
+select variable_value into @u from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+SELECT COUNT(*) FROM t3 WHERE id1=1 AND id2=1 AND id3=1 AND id4 <= 500;
+COUNT(*)
+1
+select case when variable_value-@u > 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_bloom_filter_prefix_useful';
+case when variable_value-@u > 0 then 'true' else 'false' end
+true
+DROP TABLE t3;

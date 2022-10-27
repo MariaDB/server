@@ -1,0 +1,45 @@
+#
+# wsrep_convert_lock_to_trx
+#
+# save the initial value
+SET @wsrep_convert_lock_to_trx_global_saved = @@global.wsrep_convert_lock_to_trx;
+# default
+SELECT @@global.wsrep_convert_lock_to_trx;
+@@global.wsrep_convert_lock_to_trx
+0
+
+# scope
+SELECT @@session.wsrep_convert_lock_to_trx;
+ERROR HY000: Variable 'wsrep_convert_LOCK_to_trx' is a GLOBAL variable
+SET @@global.wsrep_convert_lock_to_trx=OFF;
+SELECT @@global.wsrep_convert_lock_to_trx;
+@@global.wsrep_convert_lock_to_trx
+0
+SET @@global.wsrep_convert_lock_to_trx=ON;
+SELECT @@global.wsrep_convert_lock_to_trx;
+@@global.wsrep_convert_lock_to_trx
+1
+
+# valid values
+SET @@global.wsrep_convert_lock_to_trx='OFF';
+SELECT @@global.wsrep_convert_lock_to_trx;
+@@global.wsrep_convert_lock_to_trx
+0
+SET @@global.wsrep_convert_lock_to_trx=ON;
+SELECT @@global.wsrep_convert_lock_to_trx;
+@@global.wsrep_convert_lock_to_trx
+1
+SET @@global.wsrep_convert_lock_to_trx=default;
+SELECT @@global.wsrep_convert_lock_to_trx;
+@@global.wsrep_convert_lock_to_trx
+0
+
+# invalid values
+SET @@global.wsrep_convert_lock_to_trx=NULL;
+ERROR 42000: Variable 'wsrep_convert_LOCK_to_trx' can't be set to the value of 'NULL'
+SET @@global.wsrep_convert_lock_to_trx='junk';
+ERROR 42000: Variable 'wsrep_convert_LOCK_to_trx' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_convert_lock_to_trx = @wsrep_convert_lock_to_trx_global_saved;
+# End of test

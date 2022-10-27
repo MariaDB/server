@@ -1,0 +1,214 @@
+connection node_2;
+connection node_1;
+#
+# Testing CREATE/GRANT role
+#
+
+# On node_1
+connection node_1;
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a int, b int);
+CREATE TABLE test1.t2 (a int, b int);
+INSERT INTO test1.t1 values (1,2),(3,4);
+INSERT INTO test1.t2 values (5,6),(7,8);
+CREATE PROCEDURE test1.pr1() SELECT "pr1";
+CREATE USER foo@localhost;
+CREATE ROLE role1;
+GRANT role1 TO foo@localhost;
+GRANT RELOAD ON *.* TO role1;
+GRANT SELECT ON mysql.* TO role1;
+GRANT EXECUTE ON PROCEDURE test1.pr1 TO role1;
+GRANT SELECT ON test1.t1 TO role1;
+GRANT SELECT (a) ON test1.t2 TO role1;
+# Open connections to the 2 nodes using 'foo' user.
+connect foo_node_1,127.0.0.1,foo,,test,$port_1,;
+connect foo_node_2,127.0.0.1,foo,,test,$port_2,;
+
+# Connect with foo_node_1
+connection foo_node_1;
+SHOW GRANTS;
+Grants for foo@localhost
+GRANT `role1` TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+FLUSH TABLES;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+SELECT * FROM mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+SHOW TABLES FROM test1;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'test1'
+SET ROLE role1;
+FLUSH TABLES;
+SELECT * FROM mysql.roles_mapping;
+Host	User	Role	Admin_option
+localhost	foo	role1	N
+localhost	root	role1	Y
+SHOW TABLES FROM test1;
+Tables_in_test1
+t1
+t2
+SELECT * FROM test1.t1;
+a	b
+1	2
+3	4
+SELECT * FROM test1.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+SELECT a FROM test1.t2;
+a
+5
+7
+CALL test1.pr1();
+pr1
+pr1
+
+# Connect with foo_node_2
+connection foo_node_2;
+SHOW GRANTS;
+Grants for foo@localhost
+GRANT `role1` TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+FLUSH TABLES;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+SELECT * FROM mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+SHOW TABLES FROM test1;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'test1'
+SET ROLE role1;
+FLUSH TABLES;
+SELECT * FROM mysql.roles_mapping;
+Host	User	Role	Admin_option
+localhost	foo	role1	N
+localhost	root	role1	Y
+SHOW TABLES FROM test1;
+Tables_in_test1
+t1
+t2
+SELECT * FROM test1.t1;
+a	b
+1	2
+3	4
+SELECT * FROM test1.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+SELECT a FROM test1.t2;
+a
+5
+7
+CALL test1.pr1();
+pr1
+pr1
+#
+# Testing REVOKE role
+#
+#
+# Connect with node_1
+connection node_1;
+REVOKE EXECUTE ON PROCEDURE test1.pr1 FROM role1;
+
+# Connect with foo_node_1
+connection foo_node_1;
+CALL test1.pr1();
+ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test1.pr1'
+
+# Connect with foo_node_2
+connection foo_node_2;
+CALL test1.pr1();
+ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test1.pr1'
+#
+# Testing DROP role
+#
+
+# Connect with node_1
+connection node_1;
+DROP ROLE role1;
+
+# Connect with foo_node_1
+connection foo_node_1;
+FLUSH TABLES;
+SELECT * FROM mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+SELECT * FROM test1.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+SELECT a FROM test1.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+SHOW GRANTS;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO `foo`@`localhost`
+SELECT * FROM INFORMATION_SCHEMA.ENABLED_ROLES;
+ROLE_NAME
+NULL
+SELECT * FROM INFORMATION_SCHEMA.ENABLED_ROLES;
+ROLE_NAME
+NULL
+SELECT CURRENT_ROLE();
+CURRENT_ROLE()
+role1
+
+# Connect with foo_node_2
+connection foo_node_2;
+FLUSH TABLES;
+SELECT * FROM mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+SELECT * FROM test1.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+SELECT a FROM test1.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+SHOW GRANTS;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO `foo`@`localhost`
+SELECT * FROM INFORMATION_SCHEMA.ENABLED_ROLES;
+ROLE_NAME
+NULL
+SELECT * FROM INFORMATION_SCHEMA.ENABLED_ROLES;
+ROLE_NAME
+NULL
+SELECT CURRENT_ROLE();
+CURRENT_ROLE()
+role1
+disconnect foo_node_2;
+# Connect with node_1
+connection node_1;
+DROP USER foo@localhost;
+DROP DATABASE test1;
+#
+# MDEV-10566: Create role statement replicated inconsistently in Galera Cluster
+#
+
+# On node_1
+connection node_1;
+CREATE USER foo@localhost;
+CREATE ROLE role1;
+CREATE ROLE role2 WITH ADMIN CURRENT_USER;
+CREATE ROLE role3 WITH ADMIN foo@localhost;
+CREATE ROLE role4 WITH ADMIN role1;
+SELECT * FROM mysql.roles_mapping;
+Host	User	Role	Admin_option
+	role1	role4	Y
+localhost	foo	role3	Y
+localhost	root	role1	Y
+localhost	root	role2	Y
+SELECT * FROM INFORMATION_SCHEMA.APPLICABLE_ROLES;
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+role1	role4	YES	NULL
+root@localhost	role1	YES	NO
+root@localhost	role2	YES	NO
+
+# On node_2
+connection node_2;
+SELECT * FROM mysql.roles_mapping;
+Host	User	Role	Admin_option
+	role1	role4	Y
+localhost	foo	role3	Y
+localhost	root	role1	Y
+localhost	root	role2	Y
+SELECT * FROM INFORMATION_SCHEMA.APPLICABLE_ROLES;
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+role1	role4	YES	NULL
+root@localhost	role1	YES	NO
+root@localhost	role2	YES	NO
+DROP ROLE role1;
+DROP ROLE role2;
+DROP ROLE role3;
+DROP ROLE role4;
+DROP USER foo@localhost;
+disconnect node_2;
+disconnect node_1;
+# End of test

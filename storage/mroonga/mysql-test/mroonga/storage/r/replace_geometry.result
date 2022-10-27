@@ -1,0 +1,23 @@
+DROP TABLE IF EXISTS geo_replace;
+CREATE TABLE geo_replace (
+id INT NOT NULL,
+geo GEOMETRY NOT NULL,
+PRIMARY KEY(id)
+) DEFAULT CHARSET=utf8;
+INSERT INTO geo_replace VALUES(1, POINT(100,100));
+SELECT id, ST_AsText(geo) FROM geo_replace;
+id	ST_AsText(geo)
+1	POINT(100 100)
+REPLACE INTO geo_replace VALUES(1, POINT(100,200));
+SELECT id, ST_AsText(geo) FROM geo_replace;
+id	ST_AsText(geo)
+1	POINT(100 200)
+INSERT INTO geo_replace VALUES(1, POINT(200,200)) ON DUPLICATE KEY UPDATE geo = POINT(200,200);
+SELECT id, ST_AsText(geo) FROM geo_replace;
+id	ST_AsText(geo)
+1	POINT(200 200)
+UPDATE geo_replace SET geo = POINT(200,300);
+SELECT id, ST_AsText(geo) FROM geo_replace;
+id	ST_AsText(geo)
+1	POINT(200 300)
+DROP TABLE geo_replace;

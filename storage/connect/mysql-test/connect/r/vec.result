@@ -1,0 +1,138 @@
+CREATE TABLE dir1 (
+spath VARCHAR(256) NOT NULL flag=1,
+fname VARCHAR(256) NOT NULL,
+ftype CHAR(4) NOT NULL,
+size DOUBLE(12,0) NOT NULL flag=5
+) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*vec*';
+CREATE TABLE t1
+(
+a INT NOT NULL,
+b CHAR(10) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1vec';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` char(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=VEC `FILE_NAME`='t1vec'
+SELECT * FROM t1;
+a	b
+Warnings:
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1vec1: No such file or directory
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1vec2: No such file or directory
+INSERT INTO t1 VALUES (0,'test01'), (1,'test01'), (2,'test02'), (3,'test03');
+SELECT * FROM t1;
+a	b
+0	test01
+1	test01
+2	test02
+3	test03
+SELECT a FROM t1;
+a
+0
+1
+2
+3
+SELECT b FROM t1;
+b
+test01
+test01
+test02
+test03
+SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
+fname	ftype	size
+t1vec1		16
+t1vec2		40
+DROP TABLE t1;
+CREATE TABLE t1
+(
+a INT NOT NULL,
+b CHAR(10) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1vec' MAX_ROWS=10;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` char(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 MAX_ROWS=10 `TABLE_TYPE`=VEC `FILE_NAME`='t1vec'
+SELECT * FROM t1;
+a	b
+Warnings:
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1vec: No such file or directory
+SELECT a FROM t1;
+a
+Warnings:
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1vec: No such file or directory
+SELECT b FROM t1;
+b
+Warnings:
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1vec: No such file or directory
+INSERT INTO t1 VALUES (0,'test01'), (1,'test01'), (2,'test02'), (3,'test03');
+SELECT * FROM t1;
+a	b
+0	test01
+1	test01
+2	test02
+3	test03
+SELECT a FROM t1;
+a
+0
+1
+2
+3
+SELECT b FROM t1;
+b
+test01
+test01
+test02
+test03
+SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
+fname	ftype	size
+t1vec		1400
+t1vec	.blk	8
+#
+# Testing READONLY
+#
+ALTER TABLE t1 READONLY=yes;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` char(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 MAX_ROWS=10 `TABLE_TYPE`=VEC `FILE_NAME`='t1vec' `READONLY`=yes
+INSERT INTO t1 VALUES (4,'test04');
+ERROR HY000: Table 't1' is read only
+UPDATE t1 SET b='test04' WHERE a=3;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+DELETE FROM t1 WHERE a=3;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+TRUNCATE TABLE t1;
+ERROR HY000: Table 't1' is read only
+ALTER TABLE t1 READONLY=no;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` char(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 MAX_ROWS=10 `TABLE_TYPE`=VEC `FILE_NAME`='t1vec' `READONLY`=no
+INSERT INTO t1 VALUES (4,'test04');
+UPDATE t1 SET b='test04a' WHERE a=4;
+DELETE FROM t1 WHERE a=0;
+SELECT * FROM t1;
+a	b
+1	test01
+2	test02
+3	test03
+4	test04a
+TRUNCATE TABLE t1;
+SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
+fname	ftype	size
+t1vec		0
+t1vec	.blk	8
+SELECT * FROM t1;
+a	b
+DROP TABLE t1;
+#
+# Clean up
+#
+DROP TABLE dir1;

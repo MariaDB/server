@@ -1,0 +1,14 @@
+#
+# MDEV-7798: mysql.server init script can't stop mysqld when WSREP is
+# turned off
+#
+SELECT @@GLOBAL.WSREP_ON;
+@@GLOBAL.WSREP_ON
+1
+SET GLOBAL WSREP_ON= 0;
+Restart the node.
+# restart
+SELECT @@GLOBAL.WSREP_ON;
+@@GLOBAL.WSREP_ON
+1
+# End of test.

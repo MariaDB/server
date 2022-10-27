@@ -1,0 +1,7 @@
+create table t1 (i int) engine=myisam partition by hash(i) partitions 2 ;
+lock table t1 write;
+truncate table t1;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+i	int(11)	YES		NULL	
+drop table t1;

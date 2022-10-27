@@ -1,0 +1,114 @@
+create table t1(
+id int auto_increment primary key,
+sys_trx_start bigint unsigned as row start invisible,
+sys_trx_end bigint unsigned as row end invisible,
+period for system_time (sys_trx_start, sys_trx_end)
+)
+with system versioning
+engine innodb;
+insert into t1 values ();
+set @ts0= now(6);
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx0;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select transaction_id = @tx0 from mysql.transaction_registry
+order by transaction_id desc limit 1;
+transaction_id = @tx0
+1
+set @ts1= now(6);
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx1;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select transaction_id = @tx1 from mysql.transaction_registry
+order by transaction_id desc limit 1;
+transaction_id = @tx1
+1
+set @ts2= now(6);
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx2;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select transaction_id = @tx2 from mysql.transaction_registry
+order by transaction_id desc limit 1;
+transaction_id = @tx2
+1
+set @ts3= now(6);
+select
+trt_trx_id(@ts0) < @tx0 as A,
+trt_trx_id(@ts0, true) = @tx0 as B,
+trt_trx_id(@ts1) = @tx0 as C,
+trt_trx_id(@ts1, true) = @tx1 as D,
+trt_trx_id(@ts2) = @tx1 as E,
+trt_trx_id(@ts2, true) = @tx2 as F,
+trt_trx_id(@ts3) = @tx2 as G,
+trt_trx_id(@ts3, true) is null as H;
+A	B	C	D	E	F	G	H
+1	1	1	1	1	1	1	1
+select
+trt_commit_id(@ts0) < @tx0 as A,
+trt_commit_id(@ts0, true) = trt_commit_id(null, @tx0) as B,
+trt_commit_id(@ts1) = trt_commit_id(null, @tx0) as C,
+trt_commit_id(@ts1, true) = trt_commit_id(null, @tx1) as D,
+trt_commit_id(@ts2) = trt_commit_id(null, @tx1) as E,
+trt_commit_id(@ts2, true) = trt_commit_id(null, @tx2) as F,
+trt_commit_id(@ts3) = trt_commit_id(null, @tx2) as G,
+trt_commit_id(@ts3, true) is null as H;
+A	B	C	D	E	F	G	H
+1	1	1	1	1	1	1	1
+select
+trt_trx_sees(@tx1, @tx0) as A,
+not trt_trx_sees(@tx0, @tx1) as B,
+trt_trx_sees_eq(@tx1, @tx1) as C,
+not trt_trx_sees(@tx1, @tx1) as D,
+trt_trx_sees(@tx2, 0) as E,
+trt_trx_sees(-1, @tx2) as F;
+A	B	C	D	E	F
+1	1	1	1	1	1
+select trt_trx_sees(0, @tx2);
+trt_trx_sees(0, @tx2)
+0
+set transaction isolation level read uncommitted;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx3;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select isolation_level = 'READ-UNCOMMITTED' from mysql.transaction_registry where transaction_id = @tx3;
+isolation_level = 'READ-UNCOMMITTED'
+1
+set transaction isolation level read committed;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx4;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select isolation_level = 'READ-COMMITTED' from mysql.transaction_registry where transaction_id = @tx4;
+isolation_level = 'READ-COMMITTED'
+1
+set transaction isolation level serializable;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx5;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select isolation_level = 'SERIALIZABLE' from mysql.transaction_registry where transaction_id = @tx5;
+isolation_level = 'SERIALIZABLE'
+1
+set transaction isolation level repeatable read;
+insert into t1 values ();
+select sys_trx_start from t1 where id = last_insert_id() into @tx6;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select isolation_level = 'REPEATABLE-READ' from mysql.transaction_registry where transaction_id = @tx6;
+isolation_level = 'REPEATABLE-READ'
+1
+drop table t1;
+call verify_trt;
+No	A	B	C	D
+1	1	1	1	1
+2	1	1	1	1
+3	1	1	1	1
+4	1	1	1	1
+5	1	1	1	1
+6	1	1	1	1
+7	1	1	1	1
+8	1	1	1	1

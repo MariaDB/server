@@ -1,0 +1,20 @@
+DROP TABLE IF EXISTS users;
+SET NAMES utf8;
+CREATE TABLE users (
+first_name VARCHAR(32) NOT NULL,
+last_name  VARCHAR(32) NOT NULL,
+KEY (first_name, last_name)
+);
+INSERT INTO users VALUES("Taro",   "Yamada");
+INSERT INTO users VALUES("Hanako", "Tanaka");
+INSERT INTO users VALUES("Joe",    "Honda");
+SELECT * FROM users;
+first_name	last_name
+Taro	Yamada
+Hanako	Tanaka
+Joe	Honda
+ALTER TABLE users DISABLE KEYS;
+TRUNCATE users;
+SELECT * FROM users;
+first_name	last_name
+DROP TABLE users;

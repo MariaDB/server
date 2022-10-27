@@ -1,0 +1,79 @@
+include/rpl_init.inc [topology=1->2]
+connection server_1;
+FLUSH TABLES;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+connection server_2;
+SET @save_slave_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET @save_slave_parallel_mode= @@GLOBAL.slave_parallel_mode;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=2;
+SET GLOBAL slave_parallel_mode=optimistic;
+include/start_slave.inc
+connection server_1;
+CREATE TABLE t1(a INT) ENGINE=INNODB;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1  SELECT 1+a FROM t1;
+INSERT INTO t1  SELECT 2+a FROM t1;
+connection server_2;
+#
+# Verify that following admin commands are marked as ddl
+# 'OPTIMIZE TABLE', 'REPAIR TABLE' and 'ANALYZE TABLE'
+#
+connection server_1;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	note	The storage engine for the table doesn't support repair
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+FLUSH LOGS;
+FOUND 1 /GTID 0-1-8 ddl/ in mysqlbinlog.out
+FOUND 1 /GTID 0-1-9 ddl/ in mysqlbinlog.out
+FOUND 1 /GTID 0-1-10 ddl/ in mysqlbinlog.out
+#
+# Clean up
+#
+DROP TABLE t1;
+connection server_2;
+FLUSH LOGS;
+#
+# Check that ALTER TABLE commands with ANALYZE, OPTIMIZE and REPAIR on
+# partitions will be marked as DDL in binary log.
+#
+connection server_1;
+CREATE TABLE t1(id INT) PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (100),
+PARTITION pmax VALUES LESS THAN (MAXVALUE));
+INSERT INTO t1 VALUES (1), (10), (100), (1000);
+ALTER TABLE t1 ANALYZE PARTITION p0;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ALTER TABLE t1 OPTIMIZE PARTITION p0;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+ALTER TABLE t1 REPAIR PARTITION p0;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+FLUSH LOGS;
+FOUND 1 /GTID 0-1-14 ddl/ in mysqlbinlog.out
+FOUND 1 /GTID 0-1-15 ddl/ in mysqlbinlog.out
+FOUND 1 /GTID 0-1-16 ddl/ in mysqlbinlog.out
+#
+# Clean up
+#
+DROP TABLE t1;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @save_slave_parallel_threads;
+SET GLOBAL slave_parallel_mode= @save_slave_parallel_mode;
+include/start_slave.inc
+include/rpl_end.inc

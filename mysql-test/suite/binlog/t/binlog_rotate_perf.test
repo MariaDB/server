@@ -1,0 +1,102 @@
+# ==== Purpose ====
+#
+# functional test for open_binlog call using when
+#
+# flush log reset master/slave called
+#
+# ==== Related ====
+#
+# TXSQL feature 67 binlog rotate perf optimization
+
+let $engine= myisam;
+
+--source include/have_binlog_format_row.inc
+--connect(conn1,localhost,root,,test)
+
+reset master;
+create database test_rotate_db;
+use test_rotate_db;
+--echo #currrent engine=$engine
+# Create a new table
+--replace_column 2 #
+show binary logs;
+--eval CREATE TABLE t1_$engine (c1 INT) ENGINE=$engine
+--eval insert into t1_$engine values(0),(1)
+
+# do batch flush and show
+let $loop_times= 100;
+--source include/show_master_status.inc
+while ($loop_times) {
+  flush logs;
+  flush logs;
+  if ($loop_times < 5)
+  {
+    --source include/show_master_status.inc
+    if ($loop_times == 4)
+    {
+      --source include/show_binary_logs.inc
+    }
+    reset master;
+  }
+  if ($loop_times >= 5)
+  {
+    flush logs;
+  }
+
+  #
+  dec $loop_times;
+  --echo # left times= $loop_times
+}
+--echo # [engine=$engine] after first loop_times=$loop_times, show master logs results
+--source include/show_binary_logs.inc
+
+# do batch flush and show with restart mysql
+--source include/show_master_status.inc
+let $loop_times= 10;
+while ($loop_times) {
+  flush logs;
+  flush logs;
+  --echo #begin to restart mysqld current loop_times=$loop_times
+  --source include/restart_mysqld.inc
+  #
+  dec $loop_times;
+  --echo # left restart times= $loop_times
+}
+--echo # [engine=$engine] after second loop_times=$loop_times, show master logs results
+--source include/show_binary_logs.inc
+
+
+# try to change the log-bin configs and restart
+--echo # ======= now try to change the log-bin config for mysqld =======
+--let $restart_parameters="--log-bin=new_log_bin"
+--echo #begin to restart mysqld
+--source include/restart_mysqld.inc
+--let $restart_parameters= ""
+
+--source include/show_binary_logs.inc
+let $loop_times= 10;
+while ($loop_times) {
+  flush logs;
+  flush logs;
+  if ($loop_times < 5)
+  {
+    if ($loop_times == 4)
+    {
+      --source include/show_binary_logs.inc
+    }
+    reset master;
+  }
+  if ($loop_times >= 5)
+  {
+    flush logs;
+  }
+
+  #
+  dec $loop_times;
+  --echo # left times= $loop_times
+}
+--echo # [engine=$engine] after third loop_times=$loop_times, show master logs results
+--source include/show_binary_logs.inc
+
+##cleanup
+drop database test_rotate_db;

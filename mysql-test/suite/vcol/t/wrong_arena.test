@@ -1,0 +1,52 @@
+#
+# This tests various issues when vcol items allocate memory (e.g. more items)
+# not in the TABLE::expr_arena.
+#
+
+#
+# MDEV-9690 concurrent queries with virtual columns crash in temporal code
+#
+create table t1 (a datetime,
+  # get_datetime_value
+  b int as (a > 1),                             # Arg_comparator
+  c int as (a in (1,2,3)),                      # in_datetime
+  d int as ((a,a) in ((1,1),(2,1),(NULL,1))),   # cmp_item_datetime
+  # other issues
+  e int as ((a,1) in ((1,1),(2,1),(NULL,1)))    # cmp_item_row::alloc_comparators()
+);
+enable_prepare_warnings;
+show create table t1;
+disable_prepare_warnings;
+connect con1, localhost, root;
+disable_warnings;
+insert t1 (a) values ('2010-10-10 10:10:10');
+enable_warnings;
+select * from t1;
+disconnect con1;
+connection default;
+disable_warnings;
+select * from t1;
+enable_warnings;
+drop table t1;
+
+connect con1, localhost, root;
+create table t1 (a datetime,
+  b datetime as (least(a,1))                    # Item_func_min_max::get_date
+);
+insert t1 (a) values ('2010-10-10 10:10:10');
+select * from t1;
+disconnect con1;
+connection default;
+select * from t1;
+drop table t1;
+
+#
+# MDEV-13435 Crash when selecting virtual columns generated using JSON functions
+#
+create table t1 (
+  id int  not null ,
+  js varchar(1000) not null,
+  t time AS (cast(json_value(json_extract(js,concat('$.singleDay."', dayname(curdate()),'"')),'$.start') as time)) virtual);
+insert  into t1(id,js) values (0, '{"default" : {"start": "00:00:00", "end":"23:59:50"}}');
+select * from t1;
+drop table t1;

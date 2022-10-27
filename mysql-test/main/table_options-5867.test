@@ -1,0 +1,30 @@
+#
+# MDEV-5867 ALTER TABLE t1 ENGINE=InnoDB keeps bad options when t1 ENGINE is CONNECT
+#
+# verify that SHOW CREATE TABLE hides unknown options when IGNORE_BAD_TABLE_OPTIONS is not set
+
+--source include/have_example_plugin.inc
+--source include/not_embedded.inc
+
+install soname 'ha_example';
+
+set sql_mode='ignore_bad_table_options';
+create table t1 (
+  a int complex='c,f,f,f' invalid=3
+) engine=example ull=10000 str='dskj' one_or_two='one' yesno=0
+  foobar=barfoo;
+
+create table t2 (a int, key (a) some_option=2014);
+
+show create table t1;
+show create table t2;
+
+set sql_mode='';
+
+show create table t1;
+show create table t2;
+
+drop table t1, t2;
+
+uninstall soname 'ha_example';
+

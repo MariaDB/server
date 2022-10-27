@@ -1,0 +1,283 @@
+CREATE TABLE t1 (
+a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+SELECT * FROM t1;
+a
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_compact_cf='default';
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+2
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int PRIMARY KEY,
+b BIGINT UNSIGNED NOT NULL
+) ENGINE=rocksdb
+COMMENT='ttl_duration=10;';
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, UNIX_TIMESTAMP());
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (2, UNIX_TIMESTAMP());
+INSERT INTO t1 values (3, UNIX_TIMESTAMP());
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+SELECT a FROM t1;
+a
+2
+3
+set global rocksdb_compact_cf='default';
+SELECT a FROM t1;
+a
+2
+3
+set global rocksdb_debug_ttl_read_filter_ts = -310;
+SELECT a FROM t1;
+a
+set global rocksdb_debug_ttl_read_filter_ts = 0;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (5);
+INSERT INTO t1 values (7);
+set global rocksdb_debug_ttl_rec_ts = 0;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+SELECT * FROM t1;
+a
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+variable_value-@a
+4
+set global rocksdb_enable_ttl_read_filtering=0;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+SELECT * FROM t1;
+a
+1
+3
+5
+7
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+variable_value-@a
+0
+set global rocksdb_enable_ttl_read_filtering=1;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+SELECT * FROM t1;
+a
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+variable_value-@a
+4
+DROP TABLE t1;
+set global ROCKSDB_COMPACT_CF= 'default';
+CREATE TABLE t1 (
+a int,
+b int,
+c int,
+PRIMARY KEY (a,b,c)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (0,0,0);
+INSERT INTO t1 values (0,0,1);
+INSERT INTO t1 values (0,1,0);
+INSERT INTO t1 values (0,1,1);
+INSERT INTO t1 values (1,1,2);
+INSERT INTO t1 values (1,2,1);
+INSERT INTO t1 values (1,2,2);
+INSERT INTO t1 values (1,2,3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_force_flush_memtable_now=1;
+SELECT * FROM t1 WHERE a=1 AND b=2 AND c=2;
+a	b	c
+SELECT * FROM t1 WHERE a = 1;
+a	b	c
+SELECT max(a) from t1 where a < 3;
+max(a)
+NULL
+SELECT max(a) from t1 where a < 2 AND b = 1 AND c < 3;
+max(a)
+NULL
+SELECT min(a) from t1 where a >= 1;
+min(a)
+NULL
+SELECT min(a) from t1 where a > 1;
+min(a)
+NULL
+select * from t1 where a=1 and b in (1) order by c desc;
+a	b	c
+select max(a) from t1 where a <=10;
+max(a)
+NULL
+select a from t1 where a > 0 and a <= 2;
+a
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+0
+set global rocksdb_compact_cf='default';
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+variable_value-@c
+8
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+set global rocksdb_debug_ttl_rec_ts = -110;
+INSERT INTO t1 values (1);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT * FROM t1;
+a
+INSERT INTO t1 values (1);
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+set global rocksdb_force_flush_memtable_now=1;
+CREATE TABLE t1 (
+a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1);
+set global rocksdb_debug_ttl_rec_ts = 0;
+SELECT * FROM t1;
+a
+UPDATE t1 set a = 1;
+DROP TABLE t1;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+CREATE TABLE t1 (
+a int PRIMARY KEY,
+b int
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+set global rocksdb_debug_ttl_rec_ts = -110;
+INSERT INTO t1 values (1,1);
+INSERT INTO t1 values (3,3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+INSERT INTO t1 values (5,5);
+UPDATE t1 set a = 1;
+SELECT * FROM t1;
+a	b
+1	5
+set global rocksdb_enable_ttl_read_filtering=0;
+SELECT * FROM t1;
+a	b
+1	5
+3	3
+set global rocksdb_enable_ttl_read_filtering=1;
+UPDATE t1 set a = 999 where a = 1;
+SELECT * FROM t1;
+a	b
+999	5
+UPDATE t1 set a = a - 1;
+SELECT * FROM t1;
+a	b
+998	5
+DROP TABLE t1;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+CREATE TABLE t1 (
+a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;';
+INSERT INTO t1 values (1);
+connection con1;
+# Creating Snapshot (start transaction)
+BEGIN;
+SELECT * FROM t1;
+a
+1
+SELECT * FROM t1;
+a
+1
+# Switching to connection 2
+connection con2;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+SELECT * FROM t1;
+a
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+variable_value-@a
+1
+# Switching to connection 1
+connection con1;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+SELECT * FROM t1;
+a
+1
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+variable_value-@a
+0
+UPDATE t1 set a = a + 1;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+SELECT * FROM t1;
+a
+2
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+variable_value-@a
+0
+COMMIT;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+SELECT * FROM t1;
+a
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+variable_value-@a
+1
+DROP TABLE t1;
+disconnect con1;
+disconnect con2;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+CREATE TABLE t1 (
+a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+# On Connection 1
+connection con1;
+# Creating Snapshot (start transaction)
+BEGIN;
+SELECT * FROM t1;
+a
+# On Connection 2
+connection con2;
+set global rocksdb_debug_ttl_rec_ts = -2;
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (5);
+INSERT INTO t1 values (7);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+# On Connection 1
+connection con1;
+SELECT * FROM t1;
+a
+# On Connection 2
+connection con2;
+SELECT * FROM t1;
+a
+set global rocksdb_enable_ttl_read_filtering=0;
+SELECT * FROM t1;
+a
+1
+3
+5
+7
+set global rocksdb_enable_ttl_read_filtering=1;
+disconnect con2;
+disconnect con1;
+connection default;
+DROP TABLE t1;

@@ -1,0 +1,45 @@
+-- source myconn.inc
+
+--echo #
+--echo # Checking Sending Commands
+--echo #
+connection master;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (
+    command VARCHAR(128) NOT NULL,
+    warnings INT(4) NOT NULL FLAG=3,
+    number INT(5) NOT NULL FLAG=1,
+    message VARCHAR(255) FLAG=2)
+  ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test' OPTION_LIST='Execsrc=1,maxerr=2';
+
+SELECT * FROM t1 WHERE command IN ('Warning','Note',
+  'drop table if exists t1',
+  'create table t1 (id int key auto_increment, msg varchar(32) not null)',
+  "insert into t1(msg) values('One'),(NULL),('Three')",
+  "insert into t1 values(2,'Deux') on duplicate key update msg = 'Two'",
+  "insert into t1(message) values('Four'),('Five'),('Six')",
+  'insert ignore into t1(id) values(NULL)',
+  "update t1 set msg = 'Four' where id = 4",
+  'select * from t1');
+
+--echo #
+--echo # Checking Using Procedure
+--echo #
+DROP PROCEDURE IF EXISTS p1;
+CREATE PROCEDURE p1(cmd varchar(512))
+  READS SQL DATA
+  SELECT * FROM t1 WHERE command IN ('Warning','Note',cmd);
+
+CALL p1('insert ignore into t1(id) values(NULL)');
+CALL p1('update t1 set msg = "Five" where id = 5');
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+connection slave;
+--sorted_result
+SELECT * FROM t1;
+DROP TABLE t1;
+
+-- source myconn_cleanup.inc
+

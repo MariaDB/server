@@ -1,0 +1,29 @@
+drop table if exists memos;
+create table memos (
+_id int,
+content varchar(255),
+unique key (_id) using hash
+);
+insert into memos values (null, "今夜はさんま。");
+insert into memos values (null, "明日はgroongaをアップデート。");
+insert into memos values (null, "帰りにおだんご。");
+insert into memos values (null, "金曜日は肉の日。");
+select * from memos;
+_id	content
+1	今夜はさんま。
+2	明日はgroongaをアップデート。
+3	帰りにおだんご。
+4	金曜日は肉の日。
+insert into memos values (null, "冷蔵庫に牛乳が残り1本。");
+select last_insert_grn_id();
+last_insert_grn_id()
+5
+update memos set content = "冷蔵庫に牛乳はまだたくさんある。" where _id = last_insert_grn_id();
+select * from memos;
+_id	content
+1	今夜はさんま。
+2	明日はgroongaをアップデート。
+3	帰りにおだんご。
+4	金曜日は肉の日。
+5	冷蔵庫に牛乳はまだたくさんある。
+drop table memos;

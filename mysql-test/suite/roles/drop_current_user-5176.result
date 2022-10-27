@@ -1,0 +1,11 @@
+create user foo@localhost;
+grant create user on *.* to foo@localhost;
+connect  foo,localhost,foo,,;
+drop user foo@localhost;
+select * from information_schema.applicable_roles;
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+show grants;
+ERROR 42000: There is no such grant defined for user 'foo' on host 'localhost'
+select current_user();
+current_user()
+foo@localhost

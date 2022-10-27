@@ -1,0 +1,94 @@
+--source include/have_innodb.inc
+let $datadir=`select @@datadir`;
+--echo #
+--echo # TRUNCATE TABLE
+--echo #
+--echo # Truncating is disallowed for parent tables unless such table
+--echo # participates in self-referencing foreign keys only.
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=INNODB;
+CREATE TABLE t2 (fk INT NOT NULL, FOREIGN KEY (fk) REFERENCES t1 (pk)) ENGINE=INNODB;
+--error ER_TRUNCATE_ILLEGAL_FK
+TRUNCATE TABLE t1;
+--echo # Truncation of child should succeed.
+TRUNCATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY, fk INT,
+                 FOREIGN KEY (fk) REFERENCES t1 (pk)) ENGINE=INNODB;
+--echo # Truncation of self-referencing table should succeed.
+TRUNCATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Also, truncating such tables is allowed if foreign key
+--echo # checks are disabled.
+--echo #
+
+SET @old_foreign_key_checks = @@SESSION.foreign_key_checks;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=INNODB;
+CREATE TABLE t2 (fk INT NOT NULL, FOREIGN KEY (fk) REFERENCES t1 (pk)) ENGINE=INNODB;
+CREATE TABLE t3 (pk INT PRIMARY KEY, fk INT,
+                 FOREIGN KEY (fk) REFERENCES t1 (pk)) ENGINE=INNODB;
+SET @@SESSION.foreign_key_checks = 0;
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+TRUNCATE TABLE t3;
+SET @@SESSION.foreign_key_checks = 1;
+--error ER_TRUNCATE_ILLEGAL_FK
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+TRUNCATE TABLE t3;
+LOCK TABLES t1 WRITE;
+SET @@SESSION.foreign_key_checks = 0;
+TRUNCATE TABLE t1;
+SET @@SESSION.foreign_key_checks = 1;
+--error ER_TRUNCATE_ILLEGAL_FK
+TRUNCATE TABLE t1;
+UNLOCK TABLES;
+DROP TABLE t3,t2,t1;
+SET @@SESSION.foreign_key_checks = @old_foreign_key_checks;
+
+--echo #
+--echo # Test that TRUNCATE resets auto-increment.
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
+ b INT, c INT, d INT, e INT, f INT, g INT, h INT, i INT, j INT, k INT,
+ l INT, m INT, n INT, o INT, p INT, q INT, r INT, s INT, t INT, u INT,
+ KEY(b),KEY(c),KEY(d),KEY(e),KEY(f),KEY(g),KEY(h),KEY(i),KEY(j),KEY(k),
+ KEY(l),KEY(m),KEY(n),KEY(o),KEY(p),KEY(q),KEY(r),KEY(s),KEY(t),KEY(u),
+ KEY(c,b),KEY(d,b),KEY(e,b),KEY(f,b),KEY(g,b),KEY(h,b),KEY(i,b),KEY(j,b),
+ KEY(k,b),KEY(l,b),KEY(m,b),KEY(n,b),KEY(o,b),KEY(p,b),KEY(q,b),KEY(r,b),
+ KEY(s,b),KEY(t,b),KEY(u,b),
+ KEY(d,c),KEY(e,c),KEY(f,c),KEY(g,c),KEY(h,c),KEY(i,c),KEY(j,c),
+ KEY(k,c),KEY(l,c),KEY(m,c),KEY(n,c),KEY(o,c),KEY(p,c),KEY(q,c),KEY(r,c),
+ KEY(s,c),KEY(t,c),KEY(u,c),
+ KEY(e,d),KEY(f,d),KEY(g,d),KEY(h,d),KEY(i,d),KEY(j,d)
+) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES (), ();
+SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES WHERE table_name = 't1';
+SELECT a FROM t1 ORDER BY a;
+TRUNCATE TABLE t1;
+SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES WHERE table_name = 't1';
+INSERT INTO t1 () VALUES (), ();
+SELECT a FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+#
+# MDEV-18923 Assertion `!lex_string_cmp(system_charset_info, fk_info->referenced_table, &table->s->table_name)' failed in fk_truncate_illegal_if_parent
+#
+call mtr.add_suppression('InnoDB: in RENAME TABLE table `test`.`t3`');
+SET FOREIGN_KEY_CHECKS= OFF;
+CREATE TABLE t1 (f2 INT, f4 INT, KEY(f2), FOREIGN KEY (f4) REFERENCES t3 (f4)) ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS= ON;
+CREATE TABLE t2 (f2 INT, FOREIGN KEY(f2) REFERENCES t1 (f2)) ENGINE=InnoDB;
+--error ER_CANT_CREATE_TABLE
+CREATE TABLE t3 (a INT) ENGINE=InnoDB;
+--replace_result $datadir ./
+--error ER_ERROR_ON_RENAME
+ALTER TABLE t1 RENAME TO t3;
+ALTER TABLE t1 FORCE;
+--error ER_TRUNCATE_ILLEGAL_FK
+TRUNCATE TABLE t1;
+DROP TABLE t2, t1;

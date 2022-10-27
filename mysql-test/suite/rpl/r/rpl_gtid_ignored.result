@@ -1,0 +1,88 @@
+include/rpl_init.inc [topology=1->2]
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+connection server_2;
+include/stop_slave.inc
+SET @old_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode=1;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection server_2;
+**** MDEV-4488: GTID position should be updated for events that are ignored due to server id ***
+include/stop_slave.inc
+CHANGE MASTER TO ignore_server_ids=(1);
+include/start_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+connection server_2;
+RESULT
+OK
+SELECT * FROM t1 ORDER BY a;
+a
+1
+include/stop_slave.inc
+CHANGE MASTER TO ignore_server_ids=();
+include/start_slave.inc
+RESULT
+OK
+SELECT * FROM t1 ORDER BY a;
+a
+1
+connection server_1;
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+connection server_2;
+RESULT
+OK
+a
+1
+4
+5
+*** Test the same thing when IO thread exits before SQL thread reaches end of log. ***
+connection server_2;
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= "+d,inject_slave_sql_before_apply_event";
+CHANGE MASTER TO ignore_server_ids=(1);
+include/start_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (6);
+INSERT INTO t1 VALUES (7);
+connection server_2;
+include/wait_for_slave_param.inc [Read_Master_Log_Pos]
+STOP SLAVE IO_THREAD;
+SET debug_sync = "now SIGNAL continue";
+RESULT
+OK
+RESULT
+OK
+include/stop_slave.inc
+CHANGE MASTER TO ignore_server_ids=();
+SET GLOBAL debug_dbug= @old_dbug;
+include/start_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (8);
+INSERT INTO t1 VALUES (9);
+connection server_2;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+4
+5
+8
+9
+connection server_1;
+DROP TABLE t1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
+SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
+SET debug_sync = "reset";
+connection server_2;
+SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
+SET debug_sync = "reset";
+include/rpl_end.inc

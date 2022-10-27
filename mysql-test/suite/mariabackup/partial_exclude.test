@@ -1,0 +1,49 @@
+#--source include/innodb_page_size.inc
+
+# Test --databases-exclude and --tables-exclude feature of xtrabackup 2.3.8
+select @@ignore_db_dirs;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+mkdir $MYSQLD_DATADIR/db3;
+mkdir $MYSQLD_DATADIR/db4;
+mkdir $MYSQLD_DATADIR/db5;
+
+CREATE TABLE t1(i INT) ENGINE INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t2(i int) ENGINE INNODB;
+
+CREATE DATABASE db2;
+USE db2;
+CREATE TABLE t1(i INT) ENGINE INNODB;
+
+USE test;
+
+echo # xtrabackup backup;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables-exclude=test.*2" "--databases-exclude=db2" --target-dir=$targetdir;
+--enable_result_log
+
+# check that only t1 table is in backup (t2 is excluded)
+list_files $targetdir/test *.ibd;
+# check that db2 database is not in the backup (excluded)
+--error 1
+list_files $targetdir/db2 *.ibd;
+# check that db3 database is not in the backup (excluded)
+--error 1
+list_files $targetdir/db3 *.ibd;
+# check that db4 database is not in the backup (excluded)
+--error 1
+list_files $targetdir/db4 *.ibd;
+# check that db5 database is in the backup
+list_files $targetdir/db5 *.ibd;
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP DATABASE db2;
+rmdir $MYSQLD_DATADIR/db3;
+rmdir $MYSQLD_DATADIR/db4;
+rmdir $MYSQLD_DATADIR/db5;
+rmdir $targetdir;

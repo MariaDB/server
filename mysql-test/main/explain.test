@@ -1,0 +1,341 @@
+#
+# Test of different EXPLAINs
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+create table t1 (id int not null, str char(10), unique(str));
+explain select * from t1;
+insert into t1 values (1, null),(2, null),(3, "foo"),(4, "bar");
+select * from t1 where str is null;
+select * from t1 where str="foo";
+explain select * from t1 where str is null;
+explain select * from t1 where str="foo";
+explain select * from t1 ignore key (str) where str="foo";
+explain select * from t1 use key (str,str) where str="foo";
+
+#The following should give errors
+--error 1176
+explain select * from t1 use key (str,str,foo) where str="foo";
+--error 1176
+explain select * from t1 ignore key (str,str,foo) where str="foo";
+drop table t1;
+
+explain select 1;
+
+create table t1 (a int not null);
+explain select count(*) from t1;
+insert into t1 values(1);
+explain select count(*) from t1;
+insert into t1 values(1);
+explain select count(*) from t1;
+drop table t1;
+
+#
+# Bug #3403 Wrong encoding in EXPLAIN SELECT output
+#
+set names koi8r;
+create table таб (кол0 int, кол1 int, key инд0 (кол0), key инд01 (кол0,кол1));
+insert into таб (кол0) values (1);
+insert into таб (кол0) values (2);
+explain select кол0 from таб where кол0=1;
+drop table таб;
+set names latin1;
+
+# End of 4.1 tests
+
+
+#
+# Bug#15463: EXPLAIN SELECT..INTO hangs the client (QB, command line)
+#
+select 3 into @v1;
+explain select 3 into @v1;
+
+#
+# Bug#22331: Wrong WHERE in EXPLAIN EXTENDED when all expressions were
+#            optimized away.
+#
+create table t1(f1 int, f2 int);
+insert into t1 values (1,1);
+create view v1 as select * from t1 where f1=1;
+explain extended select * from v1 where f2=1;
+explain extended select * from t1 where 0;
+explain extended select * from t1 where 1;
+explain extended select * from t1 having 0;
+explain extended select * from t1 having 1;
+drop view v1;
+drop table t1;
+
+#
+# Bug #32241: memory corruption due to large index map in 'Range checked for 
+#             each record'
+#
+
+CREATE TABLE t1(c INT);
+INSERT INTO t1 VALUES (),();
+
+CREATE TABLE t2 (b INT,
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b),
+KEY(b),KEY(b),KEY(b),KEY(b),KEY(b));
+
+INSERT INTO t2 VALUES (),(),();
+
+# We only need to make sure that there is no buffer overrun and the index map
+# is displayed correctly
+--replace_column 1 X 2 X 3 X 4 X 5 X 6 X 7 X 8 X 9 X
+EXPLAIN SELECT 1 FROM
+  (SELECT 1 FROM t2,t1 WHERE b < c GROUP BY 1 LIMIT 1) AS d2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+#
+# Bug #34773: query with explain extended and derived table / other table
+# crashes server
+#
+
+CREATE TABLE t1(a INT);
+CREATE TABLE t2(a INT);
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2);
+
+EXPLAIN EXTENDED SELECT 1
+ FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1;
+
+EXPLAIN EXTENDED SELECT 1
+ FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1;
+
+prepare s1 from 
+'EXPLAIN EXTENDED SELECT 1  
+ FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1';
+execute s1;
+
+prepare s1 from 
+'EXPLAIN EXTENDED SELECT 1  
+ FROM (SELECT COUNT(DISTINCT t1.a) FROM t1,t2 GROUP BY t1.a) AS s1';
+execute s1;
+execute s1;
+
+DROP TABLE t1,t2;
+
+
+#
+# Bug #43354: Use key hint can crash server in explain extended query
+#
+
+CREATE TABLE t1 (a INT PRIMARY KEY);
+
+--error ER_KEY_DOES_NOT_EXITS
+EXPLAIN EXTENDED SELECT COUNT(a) FROM t1 USE KEY(a);
+
+DROP TABLE t1;
+
+#
+# Bug#45989 memory leak after explain encounters an error in the query
+#
+CREATE TABLE t1(a LONGTEXT);
+INSERT INTO t1 VALUES (repeat('a',@@global.max_allowed_packet));
+INSERT INTO t1 VALUES (repeat('b',@@global.max_allowed_packet));
+--error ER_BAD_FIELD_ERROR
+EXPLAIN SELECT DISTINCT 1 FROM t1,
+        (SELECT DISTINCTROW a AS away FROM t1 GROUP BY a WITH ROLLUP) as d1
+         WHERE t1.a = d1.a;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#48295:
+--echo # explain extended crash with subquery and ONLY_FULL_GROUP_BY sql_mode
+--echo #
+
+CREATE TABLE t1 (f1 INT not null);
+
+SELECT @@session.sql_mode INTO @old_sql_mode;
+SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
+
+# EXPLAIN EXTENDED (with subselect). used to crash. should give NOTICE.
+# Before moving max/min optimization to optimize phase this statement
+# generated error, but as far as original query do not contain aggregate
+# function user should not see error
+#  --error ER_MIX_OF_GROUP_FUNC_AND_FIELDS
+EXPLAIN EXTENDED SELECT 1 FROM t1
+                          WHERE f1 > ALL( SELECT t.f1 FROM t1,t1 AS t );
+
+SET SESSION sql_mode=@old_sql_mode;
+
+DROP TABLE t1;
+
+--echo End of 5.0 tests.
+
+--echo #
+--echo # Bug#37870: Usage of uninitialized value caused failed assertion.
+--echo #
+create table t1 (dt datetime not null, t time not null);
+create table t2 (dt datetime not null);
+insert into t1 values ('2001-01-01 1:1:1', '1:1:1'),
+('2001-01-01 1:1:1', '1:1:1');
+insert into t2 values ('2001-01-01 1:1:1'), ('2001-01-01 1:1:1');
+SET @save_join_cache_level=@@join_cache_level;
+SET join_cache_level=0;
+flush tables;
+EXPLAIN SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN (SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.dt IS NULL );
+flush tables;
+SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN (SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.dt IS NULL );
+flush tables;
+EXPLAIN SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN ( SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.t < '2005-11-13 7:41:31' ); 
+flush tables;
+SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN ( SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.t < '2005-11-13 7:41:31' );
+SET join_cache_level=@save_join_cache_level;
+drop tables t1, t2;
+
+--echo #
+--echo # Bug#47669: Query showed by EXPLAIN EXTENDED gives different result from original query
+--echo #
+
+CREATE TABLE t1 (c int);
+INSERT INTO t1 VALUES (NULL);
+CREATE TABLE t2 (d int);
+INSERT INTO t2 VALUES (NULL), (0);
+EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Bug#30302: Tables that were optimized away are printed in the
+--echo #            EXPLAIN EXTENDED warning.
+--echo #
+create table t1(f1 int);
+create table t2(f2 int);
+insert into t1 values(1);
+insert into t2 values(1),(2);
+explain extended select * from t1 where f1=1;
+explain extended select * from t1 join t2 on f1=f2 where f1=1;
+drop table t1,t2;
+
+--echo #
+--echo # Bug #48419: another explain crash..
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b BLOB, KEY b(b(100)));
+INSERT INTO t2 VALUES ('1'), ('2'), ('3');
+
+FLUSH TABLES;
+
+EXPLAIN SELECT 1 FROM t1 WHERE a = (SELECT 1 FROM t1 t JOIN t2 WHERE b <= 1 AND t.a);
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Bug #48573: difference of index selection between rpm binary and
+--echo #             .tar.gz, windows vs linux..
+--echo #
+
+CREATE TABLE t1(c1 INT, c2 INT, c4 INT, c5 INT, KEY(c2, c5), KEY(c2, c4, c5));
+INSERT INTO t1 VALUES(4, 1, 1, 1);
+INSERT INTO t1 VALUES(3, 1, 1, 1);
+INSERT INTO t1 VALUES(2, 1, 1, 1);
+INSERT INTO t1 VALUES(1, 1, 1, 1);
+INSERT INTO t1 VALUES(5, 2, 1, 1);
+INSERT INTO t1 VALUES(6, 2, 1, 1);
+INSERT INTO t1 VALUES(7, 3, 1, 1);
+INSERT INTO t1 VALUES(9, 3, 1, 1);
+INSERT INTO t1 VALUES(10, 4, 1, 1);
+INSERT INTO t1 VALUES(11, 4, 1, 1);
+
+EXPLAIN SELECT c1 FROM t1 WHERE c2 = 1 AND c4 = 1 AND c5 = 1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#56814 Explain + subselect + fulltext crashes server
+--echo #
+
+CREATE TABLE t1(f1 VARCHAR(6) NOT NULL,
+FULLTEXT KEY(f1),UNIQUE(f1));
+INSERT INTO t1 VALUES ('test');
+
+EXPLAIN SELECT 1 FROM t1
+WHERE 1 > ALL((SELECT t1.f1 FROM t1 JOIN t1 a ON (MATCH(t1.f1) AGAINST (""))
+WHERE t1.f1 GROUP BY t1.f1));
+
+PREPARE stmt FROM
+'EXPLAIN SELECT 1 FROM t1
+ WHERE 1 > ALL((SELECT t1.f1 FROM t1 RIGHT OUTER JOIN t1 a
+ ON (MATCH(t1.f1) AGAINST (""))
+ WHERE t1.f1 GROUP BY t1.f1))';
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM
+'EXPLAIN SELECT 1 FROM t1
+ WHERE 1 > ALL((SELECT t1.f1 FROM t1 JOIN t1 a
+ ON (MATCH(t1.f1) AGAINST (""))
+ WHERE t1.f1 GROUP BY t1.f1))';
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1;
+
+--echo End of 5.1 tests.
+
+--echo #
+--echo # Bug#11829785 EXPLAIN EXTENDED CRASH WITH RIGHT OUTER JOIN, SUBQUERIES
+--echo #
+
+CREATE TABLE t1(a INT);
+
+INSERT INTO t1 VALUES (0), (0);
+
+PREPARE s FROM 
+'EXPLAIN EXTENDED
+SELECT SUBSTRING(1, (SELECT 1 FROM t1 a1 RIGHT OUTER JOIN t1 ON 0)) AS d
+FROM t1 WHERE 0 > ANY (SELECT @a FROM t1)';
+
+--error ER_SUBQUERY_NO_1_ROW
+EXECUTE s;
+
+DEALLOCATE PREPARE s;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#776295: EXPLAIN EXTENDED with always false multiple equality
+--echo #             in the WHERE condition of a derived table
+--echo #
+
+CREATE TABLE t1 (a int) ;
+
+CREATE TABLE t2 (a int) ;
+INSERT INTO t2 VALUES (8);
+
+set @tmp_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='derived_merge=off,derived_with_keys=off';
+EXPLAIN EXTENDED
+SELECT * FROM ( SELECT t1.a FROM t1,t2 WHERE t2.a = t1.a ) AS t;
+set optimizer_switch=@tmp_optimizer_switch;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-7215: EXPLAIN REPLACE produces an error:
+--echo # Column count doesn't match value count 
+--echo #
+create table t1 (a int);
+insert into t1 values (1);
+create table t2 (b int, c int);
+
+replace into t2 select 100, (select a from t1);
+explain replace into t2 select 100, (select a from t1);
+#analyze replace into t2 select 100, (select a from t1);
+
+drop table t1, t2;
+
+--echo # End of 10.1 tests

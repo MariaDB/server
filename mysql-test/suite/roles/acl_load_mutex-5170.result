@@ -1,0 +1,9 @@
+create user user1@localhost;
+create role r1 with admin user1@localhost;
+grant all on test.* to r1;
+flush tables;
+select 1;
+1
+1
+drop role r1;
+drop user user1@localhost;

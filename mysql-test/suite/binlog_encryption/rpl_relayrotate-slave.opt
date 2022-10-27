@@ -1,0 +1,5 @@
+--max_relay_log_size=16384
+--log-warnings
+--plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+--loose-file-key-management-filename=$MYSQLTEST_VARDIR/std_data/keys.txt
+--encrypt-binlog

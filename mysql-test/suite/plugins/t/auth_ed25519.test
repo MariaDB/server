@@ -1,0 +1,57 @@
+#
+# MDEV-12160 Modern alternative to the SHA1 authentication plugin
+#
+source include/not_embedded.inc;
+if (!$AUTH_ED25519_SO) {
+  skip No auth_ed25519 plugin;
+}
+
+replace_result dll so;
+eval create function ed25519_password returns string soname "$AUTH_ED25519_SO";
+error ER_CANT_INITIALIZE_UDF;
+select ed25519_password();
+error ER_CANT_INITIALIZE_UDF;
+select ed25519_password(1);
+error ER_CANT_INITIALIZE_UDF;
+select ed25519_password("foo", "bar");
+error ER_CANT_INITIALIZE_UDF;
+select ed25519_password("foo");
+
+install soname 'auth_ed25519';
+select ed25519_password("foo");
+select ed25519_password("foobar");
+select ed25519_password("foo bar");
+select ed25519_password(NULL);
+
+replace_result dll so;
+query_vertical select * from information_schema.plugins where plugin_name='ed25519';
+let $pwd=`select ed25519_password("secret")`;
+eval create user test1@localhost identified via ed25519 using '$pwd';
+show grants for test1@localhost;
+drop user test1@localhost;
+--error ER_PASSWD_LENGTH
+create user test1@localhost identified via ed25519 using 'foo';
+--error ER_PASSWD_LENGTH
+create user test1@localhost identified via ed25519 using '>>>1234567890123456789012345678901234567890';
+create user test1@localhost identified via ed25519 using password('foo');
+show grants for test1@localhost;
+select ed25519_password('foo');
+set password for test1@localhost = password('bar');
+show create user test1@localhost;
+select ed25519_password('bar');
+eval set password for test1@localhost = '$pwd';
+show create user test1@localhost;
+
+replace_result $MASTER_MYPORT PORT $MASTER_MYSOCK SOCKET;
+error ER_ACCESS_DENIED_ERROR;
+connect con1, localhost, test1, public;
+connect con1, localhost, test1, secret;
+select current_user();
+disconnect con1;
+connection default;
+
+drop user test1@localhost;
+uninstall plugin ed25519;
+error ER_CANT_INITIALIZE_UDF;
+select ed25519_password("foo");
+drop function ed25519_password;

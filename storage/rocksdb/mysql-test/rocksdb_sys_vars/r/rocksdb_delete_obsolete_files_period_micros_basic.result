@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_DELETE_OBSOLETE_FILES_PERIOD_MICROS;
+SELECT @start_global_value;
+@start_global_value
+21600000000
+"Trying to set variable @@global.ROCKSDB_DELETE_OBSOLETE_FILES_PERIOD_MICROS to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_DELETE_OBSOLETE_FILES_PERIOD_MICROS   = 444;
+ERROR HY000: Variable 'rocksdb_delete_obsolete_files_period_micros' is a read only variable

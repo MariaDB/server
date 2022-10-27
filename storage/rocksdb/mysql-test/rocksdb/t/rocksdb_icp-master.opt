@@ -1,0 +1,1 @@
+--rocksdb_debug_optimizer_n_rows=20000 --rocksdb_records_in_range=1000 --rocksdb_perf_context_level=2 --userstat=ON

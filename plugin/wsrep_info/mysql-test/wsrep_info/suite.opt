@@ -1,0 +1,1 @@
+--plugin-load-add=$WSREP_INFO_SO

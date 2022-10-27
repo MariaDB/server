@@ -1,0 +1,61 @@
+#
+# Test that under gcs.fc_limit=1 on the slave, transactions on the master can not commit.
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+--source include/force_restart.inc
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,B INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*)=1 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM t1;
+
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
+SET GLOBAL wsrep_provider_options = 'gcs.fc_limit=1';
+
+# Block the slave applier thread
+LOCK TABLE t1 WRITE;
+
+--connection node_1
+FLUSH STATUS;
+INSERT INTO t1 VALUES (2,2);
+INSERT INTO t1 VALUES (3,3);
+INSERT INTO t1 VALUES (4,4);
+
+# This query will hang because flow control will kick in
+--send
+INSERT INTO t1(B) SELECT B FROM t1;
+
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+--connection node_1a
+
+--echo # In node_1 either insert or commit should be stuck
+--let $wait_condition = SELECT VARIABLE_VALUE > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_flow_control_paused';
+--source include/wait_condition.inc
+
+--connection node_2
+# Unblock the slave applier thread
+UNLOCK TABLES;
+
+--connection node_1
+--reap
+
+INSERT INTO t1 VALUES (NULL,6);
+
+--connection node_2
+# Replication catches up and continues normally
+SELECT COUNT(*) FROM t1;
+
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_orig';
+--enable_query_log
+--source include/wait_until_connected_again.inc
+
+DROP TABLE t1;

@@ -1,0 +1,392 @@
+SET NAMES utf8;
+#
+# Testing tag values
+#
+CREATE TABLE t1
+(
+AUTHOR CHAR(50),
+TITLE CHAR(32),
+TRANSLATOR CHAR(40),
+PUBLISHER CHAR(40),
+DATEPUB INT(4)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+  OPTION_LIST='xmlsup=domdoc';
+SELECT * FROM t1;
+AUTHOR	Jean-Christophe Bernadac
+TITLE	Construire une application XML
+TRANSLATOR	NULL
+PUBLISHER	Eyrolles Paris
+DATEPUB	1999
+AUTHOR	William J. Pardi
+TITLE	XML en Action
+TRANSLATOR	James Guerin
+PUBLISHER	Microsoft Press Paris
+DATEPUB	1999
+DROP TABLE t1;
+#
+# Testing that tag names are case sensitive
+#
+CREATE TABLE t1
+(
+author CHAR(50),
+TITLE CHAR(32),
+TRANSLATOR CHAR(40),
+PUBLISHER CHAR(40),
+DATEPUB INT(4)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+  OPTION_LIST='xmlsup=domdoc';
+SELECT * FROM t1;
+author	NULL
+TITLE	Construire une application XML
+TRANSLATOR	NULL
+PUBLISHER	Eyrolles Paris
+DATEPUB	1999
+author	NULL
+TITLE	XML en Action
+TRANSLATOR	James Guerin
+PUBLISHER	Microsoft Press Paris
+DATEPUB	1999
+DROP TABLE t1;
+#
+# Testing attribute values
+#
+CREATE TABLE t1 (
+ISBN CHAR(15),
+LANG CHAR(2),
+SUBJECT CHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+  OPTION_LIST='Coltype=@,xmlsup=domdoc';
+SELECT * FROM t1;
+ISBN	9782212090819
+LANG	fr
+SUBJECT	applications
+ISBN	9782840825685
+LANG	fr
+SUBJECT	applications
+DROP TABLE t1;
+#
+# Testing that attribute names are case sensitive
+#
+CREATE TABLE t1 (
+isbn CHAR(15),
+LANG CHAR(2),
+SUBJECT CHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+  OPTION_LIST='Coltype=@,xmlsup=domdoc';
+SELECT * FROM t1;
+isbn	NULL
+LANG	fr
+SUBJECT	applications
+isbn	NULL
+LANG	fr
+SUBJECT	applications
+DROP TABLE t1;
+#
+# Testing mixed tag and attribute values
+#
+CREATE TABLE t1 (
+ISBN CHAR(15) FIELD_FORMAT='@',
+LANG CHAR(2)  FIELD_FORMAT='@',
+SUBJECT CHAR(32) FIELD_FORMAT='@',
+AUTHOR CHAR(50),
+TITLE CHAR(32),
+TRANSLATOR CHAR(40),
+PUBLISHER CHAR(40),
+DATEPUB INT(4)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK'
+  OPTION_LIST='xmlsup=domdoc';
+SELECT * FROM t1;
+ISBN	9782212090819
+LANG	fr
+SUBJECT	applications
+AUTHOR	Jean-Christophe Bernadac
+TITLE	Construire une application XML
+TRANSLATOR	NULL
+PUBLISHER	Eyrolles Paris
+DATEPUB	1999
+ISBN	9782840825685
+LANG	fr
+SUBJECT	applications
+AUTHOR	William J. Pardi
+TITLE	XML en Action
+TRANSLATOR	James Guerin
+PUBLISHER	Microsoft Press Paris
+DATEPUB	1999
+DROP TABLE t1;
+#
+# Testing INSERT on mixed tag and attribute values
+#
+CREATE TABLE t1 (
+ISBN CHAR(15) FIELD_FORMAT='@',
+LANG CHAR(2)  FIELD_FORMAT='@',
+SUBJECT CHAR(32) FIELD_FORMAT='@',
+AUTHOR CHAR(50),
+TITLE CHAR(32),
+TRANSLATOR CHAR(40),
+PUBLISHER CHAR(40),
+DATEPUB INT(4)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample2.xml'
+  TABNAME='BIBLIO'
+  OPTION_LIST='rownode=BOOK,xmlsup=domdoc';
+INSERT INTO t1 (ISBN, LANG, SUBJECT, AUTHOR, TITLE, PUBLISHEr, DATEPUB)
+VALUES('9782212090529','fr','général','Alain Michard',
+'XML, Langage et Applications','Eyrolles Paris',1998);
+SELECT * FROM t1;
+ISBN	9782212090819
+LANG	fr
+SUBJECT	applications
+AUTHOR	Jean-Christophe Bernadac
+TITLE	Construire une application XML
+TRANSLATOR	NULL
+PUBLISHER	Eyrolles Paris
+DATEPUB	1999
+ISBN	9782840825685
+LANG	fr
+SUBJECT	applications
+AUTHOR	William J. Pardi
+TITLE	XML en Action
+TRANSLATOR	James Guerin
+PUBLISHER	Microsoft Press Paris
+DATEPUB	1999
+ISBN	9782212090529
+LANG	fr
+SUBJECT	général
+AUTHOR	Alain Michard
+TITLE	XML, Langage et Applications
+TRANSLATOR	NULL
+PUBLISHER	Eyrolles Paris
+DATEPUB	1998
+SELECT LOAD_FILE('MYSQLD_DATADIR/test/xsample2.xml') AS xml;
+xml	<?xml version="1.0" encoding="UTF-8"?>
+<BIBLIO SUBJECT="XML">
+	<BOOK ISBN="9782212090819" LANG="fr" SUBJECT="applications">
+		<AUTHOR>
+			<FIRSTNAME>Jean-Christophe</FIRSTNAME>
+			<LASTNAME>Bernadac</LASTNAME>
+		</AUTHOR>
+		<AUTHOR>
+			<FIRSTNAME>François</FIRSTNAME>
+			<LASTNAME>Knab</LASTNAME>
+		</AUTHOR>
+		<TITLE>Construire une application XML</TITLE>
+		<PUBLISHER>
+			<NAME>Eyrolles</NAME>
+			<PLACE>Paris</PLACE>
+		</PUBLISHER>
+		<DATEPUB>1999</DATEPUB>
+	</BOOK>
+	<BOOK ISBN="9782840825685" LANG="fr" SUBJECT="applications">
+		<AUTHOR>
+			<FIRSTNAME>William J.</FIRSTNAME>
+			<LASTNAME>Pardi</LASTNAME>
+		</AUTHOR>
+		<TRANSLATOR PREFIX="adapté de l'anglais par">
+			<FIRSTNAME>James</FIRSTNAME>
+			<LASTNAME>Guerin</LASTNAME>
+		</TRANSLATOR>
+		<TITLE>XML en Action</TITLE>
+		<PUBLISHER>
+			<NAME>Microsoft Press</NAME>
+			<PLACE>Paris</PLACE>
+		</PUBLISHER>
+		<DATEPUB>1999</DATEPUB>
+	</BOOK>
+	<BOOK ISBN="9782212090529" LANG="fr" SUBJECT="général">
+		<AUTHOR>Alain Michard</AUTHOR>
+		<TITLE>XML, Langage et Applications</TITLE>
+		<PUBLISHER>Eyrolles Paris</PUBLISHER>
+		<DATEPUB>1998</DATEPUB>
+	</BOOK>
+</BIBLIO>
+
+DROP TABLE t1;
+#
+# Testing XPath
+#
+CREATE TABLE t1 (
+isbn       CHAR(15) FIELD_FORMAT='@ISBN',
+language   CHAR(2)  FIELD_FORMAT='@LANG',
+subject    CHAR(32) FIELD_FORMAT='@SUBJECT',
+authorfn   CHAR(20) FIELD_FORMAT='AUTHOR/FIRSTNAME',
+authorln   CHAR(20) FIELD_FORMAT='AUTHOR/LASTNAME',
+title      CHAR(32) FIELD_FORMAT='TITLE',
+translated CHAR(32) FIELD_FORMAT='TRANSLATOR/@PREFIX',
+tranfn     CHAR(20) FIELD_FORMAT='TRANSLATOR/FIRSTNAME',
+tranln     CHAR(20) FIELD_FORMAT='TRANSLATOR/LASTNAME',
+publisher  CHAR(20) FIELD_FORMAT='PUBLISHER/NAME',
+location   CHAR(20) FIELD_FORMAT='PUBLISHER/PLACE',
+year       INT(4)   FIELD_FORMAT='DATEPUB'
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1,xmlsup=domdoc';
+SELECT * FROM t1;
+isbn	9782212090819
+language	fr
+subject	applications
+authorfn	Jean-Christophe
+authorln	Bernadac
+title	Construire une application XML
+translated	NULL
+tranfn	NULL
+tranln	NULL
+publisher	Eyrolles
+location	Paris
+year	1999
+isbn	9782840825685
+language	fr
+subject	applications
+authorfn	William J.
+authorln	Pardi
+title	XML en Action
+translated	adapté de l'anglais par
+tranfn	James
+tranln	Guerin
+publisher	Microsoft Press
+location	Paris
+year	1999
+SELECT isbn, title, translated, tranfn, tranln, location FROM t1
+WHERE translated <> '';
+isbn	9782840825685
+title	XML en Action
+translated	adapté de l'anglais par
+tranfn	James
+tranln	Guerin
+location	Paris
+DROP TABLE t1;
+#
+# Testing that XPath is case sensitive
+#
+CREATE TABLE t1
+(
+isbn       CHAR(15) FIELD_FORMAT='@isbn'
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1,xmlsup=domdoc';
+SELECT * FROM t1;
+isbn	NULL
+isbn	NULL
+DROP TABLE t1;
+#
+# Testing character sets
+#
+CREATE TABLE t1
+(
+c CHAR(16)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='latin1.xml'
+  OPTION_LIST='xmlsup=domdoc'
+  DATA_CHARSET=latin1;
+ERROR HY000: DATA_CHARSET='latin1' is not supported for TABLE_TYPE=XML
+CREATE TABLE t1
+(
+c CHAR(16)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='latin1.xml'
+  OPTION_LIST='xmlsup=domdoc'
+  DATA_CHARSET=utf8;
+SHOW CREATE TABLE t1;
+Table	t1
+Create Table	CREATE TABLE `t1` (
+  `c` char(16) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=XML `FILE_NAME`='latin1.xml' `OPTION_LIST`='xmlsup=domdoc' `DATA_CHARSET`=utf8
+SELECT c, HEX(c) FROM t1;
+c	ÁÂÃÄÅÆÇ
+HEX(c)	C1C2C3C4C5C6C7
+DROP TABLE t1;
+CREATE TABLE t1
+(
+c CHAR(16)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='latin1.xml'
+  OPTION_LIST='xmlsup=domdoc';
+SELECT c, HEX(c) FROM t1;
+c	ÁÂÃÄÅÆÇ
+HEX(c)	C1C2C3C4C5C6C7
+DROP TABLE t1;
+CREATE TABLE t1
+(
+c CHAR(16) CHARACTER SET utf8
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='latin1.xml'
+  OPTION_LIST='xmlsup=domdoc';
+SELECT c, HEX(c) FROM t1;
+c	ÁÂÃÄÅÆÇ
+HEX(c)	C381C382C383C384C385C386C387
+DROP TABLE t1;
+#
+# Conversion from latin1 to cp1251 produces a warning.
+# Question marks are returned.
+#
+CREATE TABLE t1
+(
+c CHAR(16) CHARACTER SET cp1251
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='latin1.xml'
+  OPTION_LIST='xmlsup=domdoc';
+SELECT c, HEX(c) FROM t1;
+c	???????
+HEX(c)	3F3F3F3F3F3F3F
+Warnings:
+Level	Warning
+Code	1366
+Message	Incorrect string value: '\xC3\x81\xC3\x82\xC3\x83...' for column `test`.`t1`.`c` at row 1
+Level	Warning
+Code	1105
+Message	Out of range value ÁÂÃÄÅÆÇ for column 'c' at row 1
+DROP TABLE t1;
+#
+# Testing Cyrillic
+#
+#
+# Testing that the underlying file is created with a proper Encoding
+#
+CREATE TABLE t1 (node VARCHAR(50))
+CHARACTER SET latin1
+ENGINE=connect TABLE_TYPE=xml FILE_NAME='t1.xml'
+  OPTION_LIST='xmlsup=domdoc,rownode=line,encoding=utf-8';
+INSERT INTO t1 VALUES (_latin1 0xC0C1C2C3);
+SELECT node, hex(node) FROM t1;
+node	ÀÁÂÃ
+hex(node)	C0C1C2C3
+DROP TABLE t1;
+SET @a=LOAD_FILE('MYSQLD_DATADIR/test/t1.xml');
+SELECT LEFT(@a,38);
+LEFT(@a,38)	<?xml version="1.0" encoding="utf-8"?>
+SELECT HEX(EXTRACTVALUE(@a,'/t1/line/node'));
+HEX(EXTRACTVALUE(@a,'/t1/line/node'))	C380C381C382C383
+CREATE TABLE t1 (node VARCHAR(50))
+CHARACTER SET latin1
+ENGINE=connect TABLE_TYPE=xml FILE_NAME='t1.xml'
+  OPTION_LIST='xmlsup=domdoc,rownode=line,encoding=iso-8859-1';
+INSERT INTO t1 VALUES (_latin1 0xC0C1C2C3);
+SELECT node, hex(node) FROM t1;
+node	ÀÁÂÃ
+hex(node)	C0C1C2C3
+DROP TABLE t1;
+SET @a=LOAD_FILE('MYSQLD_DATADIR/test/t1.xml');
+SELECT LEFT(@a,43);
+LEFT(@a,43)	<?xml version="1.0" encoding="iso-8859-1"?>
+SELECT HEX(EXTRACTVALUE(@a,'/t1/line/node'));
+HEX(EXTRACTVALUE(@a,'/t1/line/node'))	C0C1C2C3
+#
+# Testing XML entities
+#
+CREATE TABLE t1 (node VARCHAR(50))
+CHARACTER SET utf8
+ENGINE=connect TABLE_TYPE=xml FILE_NAME='t1.xml'
+  OPTION_LIST='xmlsup=domdoc,rownode=line,encoding=iso-8859-1';
+INSERT INTO t1 VALUES (_latin1 0xC0C1C2C3);
+INSERT INTO t1 VALUES (_cp1251 0xC0C1C2C3);
+Warnings:
+Level	Warning
+Code	1105
+Message	warning about characters outside of iso-8859-1
+INSERT INTO t1 VALUES ('&<>"\'');
+SELECT node, hex(node) FROM t1;
+node	&<>"'
+hex(node)	263C3E2227
+DROP TABLE t1;
+SET @a=LOAD_FILE('MYSQLD_DATADIR/test/t1.xml');
+SELECT CAST(@a AS CHAR CHARACTER SET latin1);
+CAST(@a AS CHAR CHARACTER SET latin1)	<?xml version="1.0" encoding="iso-8859-1"?>
+<!-- Created by the MariaDB CONNECT Storage Engine-->
+<t1>
+	<line>
+		<node>&amp;&lt;&gt;"'</node>
+	</line>
+</t1>
+

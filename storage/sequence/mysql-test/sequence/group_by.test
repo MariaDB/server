@@ -1,0 +1,58 @@
+--source inc.inc
+
+# Check that group by handler forks for the sequence engine.
+# The sequence engine can only optimize queries with COUNT(primary_key) or
+# SUM(primary_key) when there is no GROUP BY.
+
+show create table seq_1_to_15_step_2;
+
+# Get the correct results
+select count(seq),sum(seq),1 from seq_1_to_15_step_2;
+
+--echo #
+--echo # The engine should be able to optimize the following requests
+--echo #
+select count(*) from seq_1_to_15_step_2;
+explain select count(*) from seq_1_to_15_step_2;
+select count(seq) from seq_1_to_15_step_2;
+explain select count(seq) from seq_1_to_15_step_2;
+select sum(seq) from seq_1_to_15_step_2;
+explain select sum(seq) from seq_1_to_15_step_2;
+select count(seq),sum(seq) from seq_1_to_15_step_2;
+explain select count(seq),sum(seq) from seq_1_to_15_step_2;
+select count(seq) as c from seq_1_to_15_step_2 having c > 5;
+explain select count(seq) as c from seq_1_to_15_step_2 having c > 5;
+select count(seq) as c from seq_1_to_15_step_2 having c > 1000;
+explain select count(seq) as c from seq_1_to_15_step_2 having c > 1000;
+select distinct count(*) from seq_1_to_15_step_2;
+explain select distinct count(*) from seq_1_to_15_step_2;
+select * from seq_1_to_15_step_2, (select count(*) from seq_1_to_15_step_2) as t1;
+--replace_column 9 #
+explain select * from seq_1_to_15_step_2, (select count(*) from seq_1_to_15_step_2) as t1;
+
+create view v1 as select count(*) from seq_1_to_15_step_2;
+select * from v1;
+drop view v1;
+
+--echo #
+--echo # The engine can't optimize the following queries
+--echo #
+select count(seq),sum(seq),1 from seq_1_to_15_step_2;
+explain select count(seq),sum(seq),1 from seq_1_to_15_step_2;
+explain select count(*) from seq_1_to_15_step_2, seq_1_to_15_step_2 as t2;
+explain select count(*) from seq_1_to_15_step_2 where seq > 0;
+explain select count(*) from seq_1_to_15_step_2 group by mod(seq,2);
+
+#
+# MDEV-9550 COUNT(NULL) returns incorrect result with sequence storage engine
+#
+create temporary table t1 select * from seq_1_to_3;
+select count(NULL) from t1;
+select count(NULL) from seq_1_to_3;
+
+--echo #
+--echo # MDEV-20753: Sequence with limit 0 crashes server
+--echo #
+select count(NULL) from seq_1_to_3 limit 0;
+
+--echo # End of 10.3 tests

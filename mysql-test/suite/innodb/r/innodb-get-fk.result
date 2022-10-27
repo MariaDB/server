@@ -1,0 +1,78 @@
+CREATE SCHEMA `repro`;
+CREATE TABLE `repro`.`crew` (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`code` varchar(50) NOT NULL,
+`name` varchar(50) NOT NULL,
+`created_at` timestamp NULL DEFAULT NULL,
+`updated_at` timestamp NULL DEFAULT NULL,
+PRIMARY KEY (`id`),
+KEY `code` (`code`)
+) ENGINE=InnoDB;
+CREATE TABLE `repro`.`pilot` (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`code` varchar(50) NOT NULL,
+`name` varchar(50) NOT NULL,
+`created_at` timestamp NULL DEFAULT NULL,
+`updated_at` timestamp NULL DEFAULT NULL,
+PRIMARY KEY (`id`),
+KEY `code` (`code`)
+) ENGINE=InnoDB;
+CREATE TABLE `repro`.`crew_role_assigned` (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`crew_id` int(11) NOT NULL,
+`role_code` varchar(50) NOT NULL,
+PRIMARY KEY (`id`),
+KEY `fk_crewRoleAssigned_roleCode` (`role_code`),
+CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `repro`.`crew` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `repro`.`pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB COMMENT="This is a comment about tables";
+# restart: --innodb-read-only
+ALTER TABLE `repro`.`crew_role_assigned` COMMENT = 'innodb_read_only';
+ERROR HY000: Table 'crew_role_assigned' is read only
+SHOW CREATE TABLE `repro`.`crew_role_assigned`;
+Table	Create Table
+crew_role_assigned	CREATE TABLE `crew_role_assigned` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `crew_id` int(11) NOT NULL,
+  `role_code` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_crewRoleAssigned_roleCode` (`role_code`),
+  KEY `fk_crewRoleAssigned_pilotId` (`crew_id`),
+  CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `crew` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='This is a comment about tables'
+SET GLOBAL innodb_buffer_pool_load_now = ON;
+SET GLOBAL innodb_buffer_pool_dump_now = ON;
+SET GLOBAL innodb_buffer_pool_load_abort = ON;
+# restart
+ALTER TABLE `repro`.`crew_role_assigned` COMMENT = "This is a new comment about tables";
+SHOW CREATE TABLE `repro`.`crew_role_assigned`;
+Table	Create Table
+crew_role_assigned	CREATE TABLE `crew_role_assigned` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `crew_id` int(11) NOT NULL,
+  `role_code` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_crewRoleAssigned_roleCode` (`role_code`),
+  KEY `fk_crewRoleAssigned_pilotId` (`crew_id`),
+  CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `crew` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='This is a new comment about tables'
+# restart: --innodb-read-only
+SHOW CREATE TABLE `repro`.`crew_role_assigned`;
+Table	Create Table
+crew_role_assigned	CREATE TABLE `crew_role_assigned` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `crew_id` int(11) NOT NULL,
+  `role_code` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_crewRoleAssigned_roleCode` (`role_code`),
+  KEY `fk_crewRoleAssigned_pilotId` (`crew_id`),
+  CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `crew` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='This is a new comment about tables'
+# restart
+DROP TABLE `repro`.`crew_role_assigned`;
+DROP TABLE `repro`.`pilot`;
+DROP TABLE `repro`.`crew`;
+DROP SCHEMA `repro`;

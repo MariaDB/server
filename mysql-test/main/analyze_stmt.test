@@ -1,0 +1,279 @@
+#
+#  Tests for "ANALYZE $statement" feature
+#
+
+# Fix that analyze delete with join doesn't add extra WHERE clause.
+set join_cache_level=2;
+
+--disable_warnings
+drop table if exists t0,t1,t2,t3;
+--enable_warnings
+
+create table t0 (a int) engine=myisam;
+INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (a int) engine=myisam;
+INSERT INTO t1 select * from t0;
+
+--echo # Try a few basic selects to see that r_rows and r_filtered columns work
+analyze select * from t1;
+analyze select * from t1 where a<5;
+analyze select * from t1 where a>100;
+
+--echo # ANALYZE DELETE will delete rows:
+analyze delete from t1 where a in (2,3,4);
+select * from t1;
+drop table t1;
+
+--echo # ANALYZE UPDATE will make updates:
+create table t1(a int, b int);
+insert into t1 select a,a from t0;
+analyze update t1 set b=100+b where a in (6,7,8);
+select * from t1;
+drop table t1;
+
+--echo # Check that UNION works
+create table t1(a int, b int);
+insert into t1 select a,a from t0;
+analyze (select * from t1 A where a<5) union (select * from t1 B where a in (5,6));
+analyze (select * from t1 A where a<5) union (select * from t1 B where a in (1,2));
+drop table t1;
+drop table t0;
+
+--echo # 
+--echo # Try a subquery.
+--echo # 
+create table t0 (a int, b int);
+insert into t0 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+
+#
+#   t1      t0
+#   a=1     (0,1)       2 rows
+#   a=2     (0,1,2)     3 rows
+#   a=3     (0,1,2,3)   4 rows
+#
+#  TOTAL    TOTAL= 9 rows.  3 executions, avg=3 rows.
+#  WHERE is satisfied for 1 row per query, which gives filtered=33.3
+
+--echo # See .test file for the right values of r_rows and r_filtered.
+analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1;
+
+--echo # Try a subquery that is never executed
+analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1 where t1.a > 5;
+
+drop table t0, t1;
+
+--echo #
+--echo # Tests for join buffering
+--echo #
+create table t0 (a int, b int);
+insert into t0 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+create table t1 like t0;
+insert into t1 select * from t0;
+
+explain select * from t0, t1 where t0.a<5 and t1.a<5;
+--echo # These should have filtered=50
+analyze select * from t0, t1 where t0.a<5 and t1.a<5;
+
+explain select * from t0, t1 where t0.a<5 and t1.b=t0.b;
+--echo # Now, t1 should have filtered=10
+analyze select * from t0, t1 where t0.a<5 and t1.b=t0.b;
+
+explain select * from t0, t1 where t0.a<5 and t1.a<5 and t1.b=t0.b;
+--echo # Now, t1 should have filtered=10
+analyze select * from t0, t1 where t0.a<5 and t1.a<5 and t1.b=t0.b;
+
+--echo # TODO: Check what is counted for "range checked for each record".
+
+--echo #
+--echo # Test for joins
+--echo #
+create table t2 (key1 int, key2x int, col1 int, key(key1), key(key2x));
+insert into t2 select A.a + 10 *B.a +100 * C.a, 
+                      (A.a + 10 *B.a +100 * C.a)*2,
+                      A.a + 10 *B.a +100 * C.a 
+               from t0 A, t0 B, t0 C;
+
+--echo # This always has matches, filtered=100%.
+analyze select * from t1,t2 where t2.key1=t1.a;
+
+--echo # This shows r_rows=0. It is actually 0.5 (should r_rows be changed to double?)
+analyze select * from t1,t2 where t2.key2x=t1.a;
+        select * from t1,t2 where t2.key2x=t1.a;
+
+--echo # This has t2.filtered=40% (there are 5 values: {0,1,2,3,4}. two of them have mod=0)
+analyze select * from t1,t2 where t2.key2x=t1.a and mod(t2.col1,4)=0;
+
+drop table t0,t1,t2;
+
+--echo #
+--echo # Check non-merged derived tables
+--echo #
+create table t0 (a int, b int);
+insert into t0 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+update t0 set b=b/3;
+analyze select * from (select count(*),max(a),b from t0 group by b) T;
+drop table t0;
+
+--echo #
+--echo # Check ORDER/GROUP BY
+--echo #
+create table t0 (a int, b int);
+insert into t0 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+analyze select count(*),max(a),b from t0 where a<7 group by b;
+drop table t0;
+
+--echo #
+--echo # Check multi-table UPDATE/DELETE.
+--echo #
+create table t0 (a int, b int);
+create table t1 (a int, b int);
+insert into t0 values (0,0),(2,2),(4,4),     (8,8);
+insert into t1 values (0,0),(2,2),      (6,6);
+
+analyze select * from t0,t1 where t0.a=t1.a;
+
+analyze update t0,t1 set t1.b=5555 where t0.a=t1.a;
+select * from t1;
+
+analyze delete t1 from t1, t0 where t0.a=t1.a;
+select * from t1;
+
+drop table t0, t1;
+
+--echo #
+--echo # MDEV-6393: ANALYZE SELECT crashes in Explain_query::print_explain with a non-existing column
+--echo #
+create table t1 (i int);
+insert into t1 values (1),(2);
+--error ER_BAD_FIELD_ERROR
+analyze select a from t1;
+
+--error ER_BAD_FIELD_ERROR
+analyze delete from t1 where a=2;
+
+--error ER_BAD_FIELD_ERROR
+analyze update t1 set a=2;
+
+create table t2 like t1;
+insert into t2 select * from t1;
+
+--error ER_BAD_FIELD_ERROR
+analyze update t2,t1 set t2.i=5 where t2.a=t1.a;
+
+--error ER_BAD_FIELD_ERROR
+analyze delete t1 from t2,t1 where t2.a=t1.a;
+
+drop table t1, t2;
+--echo #
+--echo # MDEV-6395: ANALYZE UPDATE/DELETE with impossible where does not produce any output
+--echo #
+create table t1 (a int, b int, key(a));
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+
+analyze delete from t1 where 1 > 2;
+analyze delete from t1 where a > 30 and a < 10;
+
+analyze update t1 set b=12345 where 1 > 2;
+analyze update t1 set b=12345 where a > 30 and a < 10;
+
+drop table t1;
+--echo #
+--echo # MDEV-6398: ANALYZE UPDATE does not populate r_rows
+--echo #
+create table t1 (i int);
+insert into t1 values (1),(2),(3),(4);
+analyze update t1 set i=8;
+drop table t1;
+
+--echo #
+--echo # Check ANALYZE SELECT INTO
+--echo #
+create table t1 (i int);
+insert into t1 values (1);
+analyze select * into @var from t1 ;
+drop table t1;
+
+--echo #
+--echo # MDEV-6394: ANALYZE DELETE .. RETURNING fails with ERROR 2027 Malformed packet
+--echo #
+create table t1 (i int);
+analyze delete from t1 returning *;
+drop table t1;
+
+--echo #
+--echo # MDEV-6396: ANALYZE INSERT/REPLACE is accepted, but does not produce a plan
+--echo #
+create table t1 (a int primary key, b int);
+analyze insert into t1 values (1,1);
+select * from t1;
+
+analyze replace t1 values (1,2);
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-6400 "ANALYZE SELECT ... INTO @var" doesn't set @var
+--echo #
+create table t1(a int);
+insert into t1 values (1),(2);
+
+analyze select a into @var from t1 where a <2 ;
+--error ER_TOO_MANY_ROWS
+analyze select a into @var from t1 ;
+
+analyze insert into t1 select * from t1;
+
+analyze select * into outfile '../../tmp/data1.tmp' from t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/data1.tmp
+
+drop table t1;
+
+
+--echo #
+--echo # MDEV-7024: Assertion `! is_set()' failed in 
+--echo # Diagnostics_area::set_eof_status on executing ANALYZE SELECT via PS
+--echo #
+
+create table t1(a int);
+prepare stmt from "analyze select * from t1";
+execute stmt;
+drop table t1;
+
+--echo #
+--echo # MDEV-7674: ANALYZE shows r_rows=0
+--echo #
+
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (a int, key(a));
+insert into t2 values (0),(1);
+
+analyze select * from t1 straight_join t2 force index(a) where t2.a=t1.a;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-8063: Unconditional ANALYZE DELETE does not delete rows
+--echo #
+
+create table t1 (i int);
+insert into t1 values (1),(2);
+analyze delete from t1;
+select * from t1;
+
+insert into t1 values (1),(2);
+explain delete from t1;
+select * from t1;
+
+drop table t1;

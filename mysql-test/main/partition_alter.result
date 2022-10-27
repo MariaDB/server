@@ -1,0 +1,203 @@
+CREATE TABLE `test_data` (
+`hid` bigint(20) unsigned NOT NULL,
+`itid` bigint(20) unsigned NOT NULL,
+`clocktime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+`values` double(16,4) NOT NULL,
+PRIMARY KEY (`hid`,`itid`,`clocktime`)
+) ;
+INSERT INTO `test_data` (`hid`, `itid`, `clocktime`, `values`) VALUES
+(1, 1, '2015-03-10 06:25:16', 0.0000),
+(1, 1, '2015-03-10 06:26:24', 0.0000),
+(1, 1, '2015-03-10 06:27:32', 0.0000),
+(1, 1, '2015-03-10 06:28:40', 0.0000),
+(1, 1, '2015-03-10 06:29:49', 0.0000),
+(1, 1, '2015-03-10 06:30:57', 0.0000),
+(1, 1, '2015-03-10 06:32:05', 0.0000),
+(1, 1, '2015-03-10 06:33:14', 0.0000),
+(1, 1, '2015-03-10 06:34:22', 0.0000),
+(1, 1, '2015-03-10 06:35:30', 0.0000),
+(1, 1, '2015-03-10 06:36:39', 0.0000),
+(1, 1, '2015-03-10 06:37:47', 0.0000),
+(1, 1, '2015-03-10 06:38:55', 0.0000),
+(1, 1, '2015-03-10 06:40:03', 0.0000),
+(1, 1, '2015-03-10 06:41:09', 0.0000),
+(1, 1, '2015-03-10 06:42:21', 0.0000),
+(1, 1, '2015-03-10 06:43:29', 0.0000),
+(1, 1, '2015-03-10 06:44:37', 0.0000),
+(1, 1, '2015-03-10 06:45:46', 0.0000),
+(1, 1, '2015-03-10 06:47:05', 0.0000),
+(1, 1, '2015-03-10 06:48:21', 0.0000),
+(1, 1, '2015-03-10 06:49:41', 0.0000),
+(1, 1, '2015-03-10 06:50:58', 0.0000),
+(1, 1, '2015-03-10 06:52:08', 0.0000),
+(1, 1, '2015-03-10 06:53:17', 0.0000),
+(1, 1, '2015-03-10 06:54:25', 0.0000),
+(563, 1, '2015-03-17 14:28:28', 0.3125),
+(563, 1, '2015-03-17 14:29:39', 0.2775),
+(563, 1, '2015-03-17 14:30:49', 0.2675);
+CREATE PROCEDURE `create_part_max`()
+alter table `test_data`
+     partition by range(unix_timestamp(clocktime)) (
+partition partMAX values less than MAXVALUE
+);
+call create_part_max();
+call create_part_max();
+drop procedure create_part_max;
+prepare stmt from "alter table `test_data`
+     partition by range(unix_timestamp(clocktime)) (
+     partition partMAX values less than MAXVALUE
+     )";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+drop table test_data;
+create table t1(id int, d date not null, b bool not null default 0, primary key(id,d))
+engine=innodb
+partition by range columns (d) (
+partition p1 values less than ('2016-10-18'),
+partition p2 values less than ('2020-10-19'));
+insert t1 values (0, '2000-01-02', 0);
+insert t1 values (1, '2020-01-02', 10);
+alter table t1 add check (b in (0, 1));
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+alter table t1 add check (b in (0, 10));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `d` date NOT NULL,
+  `b` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`,`d`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`b` in (0,10))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE  COLUMNS(`d`)
+(PARTITION `p1` VALUES LESS THAN ('2016-10-18') ENGINE = InnoDB,
+ PARTITION `p2` VALUES LESS THAN ('2020-10-19') ENGINE = InnoDB)
+insert t1 values (2, '2020-01-03', 20);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;
+db.opt
+create table t1(id int, d date not null, b bool not null default 0, primary key(id,d))
+partition by range columns (d) (
+partition p1 values less than ('2016-10-18'),
+partition p2 values less than ('2020-10-19'));
+insert t1 values (0, '2000-01-02', 0);
+insert t1 values (1, '2020-01-02', 10);
+alter table t1 add check (b in (0, 1));
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+alter table t1 add check (b in (0, 10));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `d` date NOT NULL,
+  `b` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`,`d`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`b` in (0,10))
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE  COLUMNS(`d`)
+(PARTITION `p1` VALUES LESS THAN ('2016-10-18') ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN ('2020-10-19') ENGINE = MyISAM)
+insert t1 values (2, '2020-01-03', 20);
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;
+db.opt
+create table t1 (id_1 int auto_increment, id_2 int, id_3 int, d1 date, dt1 datetime default current_timestamp, dt2 datetime default current_timestamp on update current_timestamp, primary key (id_2, id_3), key(id_1)) partition by hash(id_2) partitions 3 (partition p01, partition p02, partition p03);
+insert into t1 values(0, 1, 1, NULL, now(), now());
+alter online table t1 delay_key_write=1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id_1` int(11) NOT NULL AUTO_INCREMENT,
+  `id_2` int(11) NOT NULL,
+  `id_3` int(11) NOT NULL,
+  `d1` date DEFAULT NULL,
+  `dt1` datetime DEFAULT current_timestamp(),
+  `dt2` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id_2`,`id_3`),
+  KEY `id_1` (`id_1`)
+) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
+ PARTITION BY HASH (`id_2`)
+(PARTITION `p01` ENGINE = MyISAM,
+ PARTITION `p02` ENGINE = MyISAM,
+ PARTITION `p03` ENGINE = MyISAM)
+drop table t1;
+#
+# MDEV-19751 Wrong partitioning by KEY() after key dropped
+#
+create or replace table t1 (pk int, x timestamp(6), primary key (pk, x)) engine innodb
+partition by key() partitions 2;
+insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
+# Inplace for DROP PRIMARY KEY when partitioned by default field list is denied
+alter table t1 drop primary key, drop column x, add primary key (pk), algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 drop primary key, drop column x, add primary key (pk);
+select * from t1 partition (p0);
+pk
+1
+drop table t1;
+create or replace table t1 (pk int not null, x timestamp(6), unique u(pk, x)) engine innodb
+partition by key() partitions 2;
+insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
+# Same for NOT NULL UNIQUE KEY as this is actually primary key
+alter table t1 drop key u, drop column x, add unique (pk), algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 drop key u, drop column x, add unique (pk);
+select * from t1 partition (p0);
+pk
+1
+drop table t1;
+create or replace table t1 (pk int, x timestamp(6), primary key (pk)) engine innodb
+partition by key(pk) partitions 2;
+insert into t1 (pk, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
+# Inplace for DROP PRIMARY KEY when partitioned by explicit field list is allowed
+alter table t1 drop primary key, add primary key (pk, x), algorithm=inplace;
+select * from t1 partition (p0);
+pk	x
+1	2000-01-01 00:00:00.000000
+drop table t1;
+create or replace table t1 (k int, x timestamp(6), unique key u (x, k)) engine innodb
+partition by key(k) partitions 2;
+insert into t1 (k, x) values (1, '2000-01-01 00:00'), (2, '2000-01-01 00:01');
+# Inplace for DROP KEY is allowed
+alter table t1 drop key u, algorithm=inplace;
+select * from t1 partition (p0);
+k	x
+1	2000-01-01 00:00:00.000000
+drop table t1;
+# End of 10.2 tests
+#
+# MDEV-14817 Server crashes in prep_alter_part_table()
+# after table lock and multiple add partition
+#
+create table t1 (x int) partition by hash (x) (partition p1, partition p2);
+lock table t1 write;
+alter table t1 add partition (partition p1);
+ERROR HY000: Duplicate partition name p1
+alter table t1 add partition (partition p1);
+ERROR HY000: Duplicate partition name p1
+drop table t1;
+#
+# MDEV-17091 Assertion `old_part_id == m_last_part' failed in
+# ha_partition::update_row or `part_id == m_last_part' in
+# ha_partition::delete_row upon UPDATE/DELETE after dropping versioning
+#
+create table t1 (pk int, f int, primary key(pk, f)) engine=innodb
+partition by key() partitions 2;
+insert into t1 values (1,10),(2,11);
+# expected to hit same partition
+select * from t1 partition (p0);
+pk	f
+1	10
+2	11
+alter table t1 drop primary key, drop f, add primary key(pk);
+# 1 and 2 are expected to be in different partitions
+select * from t1 partition(p0);
+pk
+1
+select * from t1 partition(p1);
+pk
+2
+delete from t1;
+drop table t1;
+# End of 10.3 tests

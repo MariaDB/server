@@ -1,0 +1,270 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--enable_connect_log
+
+--echo #
+--echo # Bug #19471516 SERVER CRASHES WHEN EXECUTING ALTER TABLE
+--echo # ADD FOREIGN KEY
+--echo #
+
+CREATE TABLE `department` (`department_id` INT, `department_people_fk` INT,
+PRIMARY KEY (`department_id`)) engine=innodb;
+
+CREATE TABLE `title` (`title_id` INT, `title_manager_fk` INT,
+`title_reporter_fk` INT, PRIMARY KEY (`title_id`)) engine=innodb;
+
+CREATE TABLE `people` (`people_id` INT, PRIMARY KEY (`people_id`)) engine=innodb;
+
+ALTER TABLE `department` ADD FOREIGN KEY (`department_people_fk`) REFERENCES
+`people` (`people_id`);
+
+ALTER TABLE `title` ADD FOREIGN KEY (`title_manager_fk`) REFERENCES `people`
+(`people_id`);
+
+ALTER TABLE `title` ADD FOREIGN KEY (`title_reporter_fk`) REFERENCES `people`
+(`people_id`);
+
+drop table title, department, people;
+
+#
+# FK and prelocking:
+# child table accesses (reads and writes) wait for locks.
+#
+create table t1 (a int primary key, b int) engine=innodb;
+create table t2 (c int primary key, d int,
+  foreign key (d) references t1 (a) on update cascade) engine=innodb;
+insert t1 values (1,1),(2,2),(3,3);
+insert t2 values (4,1),(5,2),(6,3);
+flush table t2 with read lock; # this takes MDL_SHARED_NO_WRITE
+connect (con1,localhost,root);
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where a=2;
+send update t1 set a=10 where a=1;
+connection default;
+let $wait_condition= select 1 from information_schema.processlist where state='Waiting for table metadata lock';
+source include/wait_condition.inc;
+unlock tables;
+connection con1;
+reap;
+connection default;
+lock table t2 write; # this takes MDL_SHARED_NO_READ_WRITE
+connection con1;
+send delete from t1 where a=2;
+connection default;
+let $wait_condition= select 1 from information_schema.processlist where state='Waiting for table metadata lock';
+source include/wait_condition.inc;
+unlock tables;
+connection con1;
+--error ER_ROW_IS_REFERENCED_2
+reap;
+connection default;
+unlock tables;
+disconnect con1;
+
+# but privileges should not be checked
+create user foo;
+grant select,update on test.t1 to foo;
+connect(foo,localhost,foo);
+update t1 set a=30 where a=3;
+disconnect foo;
+connection default;
+select * from t2;
+drop table t2, t1;
+drop user foo;
+
+#
+# MDEV-16465 Invalid (old?) table or database name or hang in ha_innobase::delete_table and log semaphore wait upon concurrent DDL with foreign keys
+#
+create table t1 (f1 int primary key) engine=innodb;
+create table t2 (f2 int primary key) engine=innodb;
+create table t3 (f3 int primary key, foreign key (f3) references t2(f2)) engine=innodb;
+insert into t1 values (1),(2),(3),(4),(5);
+insert into t2 values (1),(2),(3),(4),(5);
+insert into t3 values (1),(2),(3),(4),(5);
+connect con1,localhost,root;
+set debug_sync='alter_table_before_rename_result_table signal g1 wait_for g2';
+send alter table t2 add constraint foreign key (f2) references t1(f1) on delete cascade on update cascade;
+connection default;
+let $conn=`select connection_id()`;
+set debug_sync='before_execute_sql_command wait_for g1';
+send update t1 set f1 = f1 + 100000 limit 2;
+connect con2,localhost,root;
+let $wait_condition= select 1 from information_schema.processlist where state='Waiting for table metadata lock' and info like 'update t1 %';
+source include/wait_condition.inc;
+--replace_result $conn UPDATE
+eval kill query $conn;
+disconnect con2;
+connection default;
+error ER_QUERY_INTERRUPTED;
+reap;
+set debug_sync='now signal g2';
+connection con1;
+reap;
+show create table t2;
+disconnect con1;
+connection default;
+select * from t2 where f2 not in (select f1 from t1);
+select * from t3 where f3 not in (select f2 from t2);
+drop table t3;
+drop table t2;
+drop table t1;
+set debug_sync='reset';
+
+
+--echo #
+--echo # MDEV-17595 - Server crashes in copy_data_between_tables or
+--echo #              Assertion `thd->transaction.stmt.is_empty() ||
+--echo #              (thd->state_flags & Open_tables_state::BACKUPS_AVAIL)'
+--echo #              fails in close_tables_for_reopen upon concurrent
+--echo #              ALTER TABLE and FLUSH
+--echo #
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+CREATE TABLE t2 (b INT, KEY(b)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(2);
+ALTER TABLE t2 ADD FOREIGN KEY(b) REFERENCES t1(a), LOCK=EXCLUSIVE;
+DROP TABLE t2, t1;
+
+
+--echo #
+--echo # MDEV-16060 - InnoDB: Failing assertion: ut_strcmp(index->name, key->name)
+--echo #
+CREATE TABLE t1 (`pk` INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+FLUSH TABLES;
+
+SET debug_sync='alter_table_intermediate_table_created SIGNAL ready WAIT_FOR go';
+send ALTER TABLE t1 ADD FOREIGN KEY(pk) REFERENCES t2(pk) ON UPDATE CASCADE;
+
+connect con1, localhost, root;
+SET debug_sync='now WAIT_FOR ready';
+SET lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t2 SET pk=10 WHERE pk=1;
+PREPARE stmt FROM 'UPDATE t2 SET pk=10 WHERE pk=1';
+DEALLOCATE PREPARE stmt;
+SET debug_sync='now SIGNAL go';
+
+connection default;
+reap;
+
+# Cleanup
+disconnect con1;
+
+connection default;
+SET debug_sync='reset';
+SHOW OPEN TABLES FROM test;
+DROP TABLE t1, t2;
+
+#
+# FK and prelocking:
+# child table accesses (reads and writes) wait for locks.
+#
+create table t1 (a int primary key, b int) engine=innodb;
+create table t2 (c int primary key, d int,
+  foreign key (d) references t1 (a) on update cascade) engine=innodb;
+insert t1 values (1,1),(2,2),(3,3);
+insert t2 values (4,1),(5,2),(6,3);
+flush table t2 with read lock; # this takes MDL_SHARED_NO_WRITE
+connect (con1,localhost,root);
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where a=2;
+send update t1 set a=10 where a=1;
+connection default;
+let $wait_condition= select 1 from information_schema.processlist where state='Waiting for table metadata lock';
+source include/wait_condition.inc;
+unlock tables;
+connection con1;
+reap;
+connection default;
+lock table t2 write; # this takes MDL_SHARED_NO_READ_WRITE
+connection con1;
+send delete from t1 where a=2;
+connection default;
+let $wait_condition= select 1 from information_schema.processlist where state='Waiting for table metadata lock';
+source include/wait_condition.inc;
+unlock tables;
+connection con1;
+--error ER_ROW_IS_REFERENCED_2
+reap;
+connection default;
+unlock tables;
+disconnect con1;
+
+# but privileges should not be checked
+create user foo;
+grant select,update on test.t1 to foo;
+connect(foo,localhost,foo);
+update t1 set a=30 where a=3;
+disconnect foo;
+connection default;
+select * from t2;
+drop table t2, t1;
+drop user foo;
+
+--echo #
+--echo # MDEV-17187 table doesn't exist in engine after ALTER other tables
+--echo # with CONSTRAINTs
+--echo #
+
+set foreign_key_checks=on;
+create table t1 (id int not null primary key) engine=innodb;
+create table t2 (id int not null primary key, fid int not null,
+CONSTRAINT fk_fid FOREIGN KEY (fid) REFERENCES t1 (id))engine=innodb;
+
+insert into t1 values (1), (2), (3);
+insert into t2 values (1, 1), (2, 1), (3, 2);
+
+set foreign_key_checks=off;
+alter table t2 drop index fk_fid;
+set foreign_key_checks=on;
+
+--error ER_ROW_IS_REFERENCED_2
+delete from t1 where id=2;
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values(4, 99);
+
+select * from t1;
+select * from t2;
+
+set foreign_key_checks=off;
+delete from t1 where id=2;
+insert into t2 values(4, 99);
+set foreign_key_checks=on;
+
+select * from t1;
+select * from t2;
+
+show create table t1;
+show create table t2;
+
+# Optional: test DROP TABLE without any prior ha_innobase::open().
+# This was tested manually, but it would cause --embedded to skip the test,
+# and the restart would significantly increase the running time.
+# --source include/restart_mysqld.inc
+
+--error ER_ROW_IS_REFERENCED_2
+drop table t1,t2;
+--error ER_BAD_TABLE_ERROR
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-23470 InnoDB: Failing assertion: cmp < 0 in
+--echo #	row_ins_check_foreign_constraint
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL)ENGINE=InnoDB;
+CREATE TABLE t2(f1 VARCHAR(100), f2 INT NOT NULL,
+                INDEX(f2))ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES(99, 2);
+ALTER TABLE t2 ADD FOREIGN KEY(f2) REFERENCES t1(f1);
+
+SET FOREIGN_KEY_CHECKS=0;
+DROP INDEX f2 ON t2;
+SET FOREIGN_KEY_CHECKS=1;
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO t2 VALUES('G', 3);
+DROP TABLE t2, t1;
+SET FOREIGN_KEY_CHECKS=DEFAULT;

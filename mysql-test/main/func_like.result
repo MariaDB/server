@@ -1,0 +1,426 @@
+drop table if exists t1;
+create table t1 (a varchar(10), key(a));
+insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
+explain extended select * from t1 where a like 'abc%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	a	a	13	NULL	5	40.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` like 'abc%'
+explain extended select * from t1 where a like concat('abc','%');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	index	a	a	13	NULL	5	40.00	Using where; Using index
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` like <cache>(concat('abc','%'))
+select * from t1 where a like "abc%";
+a
+abc
+abcd
+select * from t1 where a like concat("abc","%");
+a
+abc
+abcd
+select * from t1 where a like "ABC%";
+a
+abc
+abcd
+select * from t1 where a like "test%";
+a
+test
+select * from t1 where a like "te_t";
+a
+test
+select * from t1 where a like "%a%";
+a
+a
+abc
+abcd
+select * from t1 where a like "%abcd%";
+a
+abcd
+select * from t1 where a like "%abc\d%";
+a
+abcd
+drop table t1;
+create table t1 (a varchar(10), key(a));
+insert into t1 values ('a'), ('a\\b');
+select * from t1 where a like 'a\\%' escape '#';
+a
+a\b
+select * from t1 where a like 'a\\%' escape '#' and a like 'a\\\\b';
+a
+a\b
+prepare stmt1 from 'select * from t1 where a like \'a\\%\' escape ?';
+set @esc='#';
+execute stmt1 using @esc;
+a
+a\b
+deallocate prepare stmt1;
+drop table t1;
+create table t1 (a datetime);
+insert into t1 values ('2004-03-11 12:00:21');
+select * from t1 where a like '2004-03-11 12:00:21';
+a
+2004-03-11 12:00:21
+drop table t1;
+SET NAMES koi8r;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET koi8r);
+INSERT INTO t1 VALUES ('фыва'),('Фыва'),('фЫва'),('фыВа'),('фывА'),('ФЫВА');
+INSERT INTO t1 VALUES ('фывапролдж'),('Фывапролдж'),('фЫвапролдж'),('фыВапролдж');
+INSERT INTO t1 VALUES ('фывАпролдж'),('фываПролдж'),('фывапРолдж'),('фывапрОлдж');
+INSERT INTO t1 VALUES ('фывапроЛдж'),('фывапролДж'),('фывапролдЖ'),('ФЫВАПРОЛДЖ');
+SELECT * FROM t1 WHERE a LIKE '%фЫва%';
+a
+фыва
+Фыва
+фЫва
+фыВа
+фывА
+ФЫВА
+фывапролдж
+Фывапролдж
+фЫвапролдж
+фыВапролдж
+фывАпролдж
+фываПролдж
+фывапРолдж
+фывапрОлдж
+фывапроЛдж
+фывапролДж
+фывапролдЖ
+ФЫВАПРОЛДЖ
+SELECT * FROM t1 WHERE a LIKE '%фЫв%';
+a
+фыва
+Фыва
+фЫва
+фыВа
+фывА
+ФЫВА
+фывапролдж
+Фывапролдж
+фЫвапролдж
+фыВапролдж
+фывАпролдж
+фываПролдж
+фывапРолдж
+фывапрОлдж
+фывапроЛдж
+фывапролДж
+фывапролдЖ
+ФЫВАПРОЛДЖ
+SELECT * FROM t1 WHERE a LIKE 'фЫва%';
+a
+фыва
+Фыва
+фЫва
+фыВа
+фывА
+ФЫВА
+фывапролдж
+Фывапролдж
+фЫвапролдж
+фыВапролдж
+фывАпролдж
+фываПролдж
+фывапРолдж
+фывапрОлдж
+фывапроЛдж
+фывапролДж
+фывапролдЖ
+ФЫВАПРОЛДЖ
+DROP TABLE t1;
+SET NAMES cp1250;
+CREATE TABLE t1 (a varchar(250) NOT NULL) DEFAULT CHARACTER SET=cp1250;
+INSERT INTO t1 VALUES
+('Techni Tapes Sp. z o.o.'),
+('Pojazdy Szynowe PESA Bydgoszcz SA Holding'),
+('AKAPESTER 1 P.P.H.U.'),
+('Pojazdy Szynowe PESA Bydgoszcz S A Holding'),
+('PPUH PESKA-I Maria Struniarska');
+select * from t1 where a like '%PESA%';
+a
+Pojazdy Szynowe PESA Bydgoszcz SA Holding
+Pojazdy Szynowe PESA Bydgoszcz S A Holding
+select * from t1 where a like '%PESA %';
+a
+Pojazdy Szynowe PESA Bydgoszcz SA Holding
+Pojazdy Szynowe PESA Bydgoszcz S A Holding
+select * from t1 where a like '%PES%';
+a
+Techni Tapes Sp. z o.o.
+Pojazdy Szynowe PESA Bydgoszcz SA Holding
+AKAPESTER 1 P.P.H.U.
+Pojazdy Szynowe PESA Bydgoszcz S A Holding
+PPUH PESKA-I Maria Struniarska
+select * from t1 where a like '%PESKA%';
+a
+PPUH PESKA-I Maria Struniarska
+select * from t1 where a like '%ESKA%';
+a
+PPUH PESKA-I Maria Struniarska
+DROP TABLE t1;
+select _cp866'aaaaaaaaa' like _cp866'%aaaa%' collate cp866_bin;
+_cp866'aaaaaaaaa' like _cp866'%aaaa%' collate cp866_bin
+1
+set names koi8r;
+select 'andre%' like 'andreй%' escape 'й';
+'andre%' like 'andreй%' escape 'й'
+1
+select _cp1251'andre%' like convert('andreй%' using cp1251)  escape 'й';
+_cp1251'andre%' like convert('andreй%' using cp1251)  escape 'й'
+1
+End of 4.1 tests
+#
+# Bug #54575: crash when joining tables with unique set column
+#
+CREATE TABLE t1(a SET('a') NOT NULL, UNIQUE KEY(a));
+CREATE TABLE t2(b INT PRIMARY KEY);
+INSERT IGNORE INTO t1 VALUES ();
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
+INSERT INTO t2 VALUES (1), (2), (3);
+SELECT 1 FROM t2 JOIN t1 ON 1 LIKE a GROUP BY a;
+1
+DROP TABLE t1, t2;
+#
+# Bug#59149 valgrind warnings with "like .. escape .." function
+#
+SELECT '' LIKE '1' ESCAPE COUNT(1);
+ERROR HY000: Incorrect arguments to ESCAPE
+End of 5.1 tests
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-5445 Server crashes in Item_func_like::fix_fields on LIKE ExtractValue(..)
+#
+SELECT 'a' LIKE REPEAT('',0);
+'a' LIKE REPEAT('',0)
+0
+SELECT 'a' LIKE EXTRACTVALUE('bar','qux');
+'a' LIKE EXTRACTVALUE('bar','qux')
+0
+#
+# End of 10.0 tests
+#
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8257 Erroneous "Impossible where" when mixing decimal comparison and LIKE
+#
+CREATE TABLE t1 (a DECIMAL(8,2));
+INSERT INTO t1 VALUES (10),(20);
+SELECT * FROM t1 WHERE a=10.0;
+a
+10.00
+SELECT * FROM t1 WHERE a LIKE 10.00;
+a
+10.00
+SELECT * FROM t1 WHERE a=10.0 AND a LIKE 10.00;
+a
+10.00
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10.0 AND a LIKE 10.00;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 10.0 and `test`.`t1`.`a` like 10.00
+DROP TABLE t1;
+#
+# MDEV-8599 "WHERE varchar_field LIKE temporal_const" does not use range optimizer
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('00:00:00');
+INSERT INTO t1 VALUES ('00:00:01');
+INSERT INTO t1 VALUES ('00:00:02');
+INSERT INTO t1 VALUES ('00:00:03');
+INSERT INTO t1 VALUES ('00:00:04');
+INSERT INTO t1 VALUES ('00:00:05');
+INSERT INTO t1 VALUES ('00:00:06');
+INSERT INTO t1 VALUES ('00:00:07');
+EXPLAIN SELECT * FROM t1 WHERE a LIKE '00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	13	NULL	1	Using where; Using index
+EXPLAIN SELECT * FROM t1 WHERE a LIKE TIME'00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	13	NULL	1	Using where; Using index
+SELECT * FROM t1 WHERE a LIKE '00:00:00';
+a
+00:00:00
+SELECT * FROM t1 WHERE a LIKE TIME'00:00:00';
+a
+00:00:00
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#
+create view v1 as select 'foo!' like 'foo!!', 'foo!' like 'foo!!' escape '!';
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 'foo!' like 'foo!!' AS `'foo!' like 'foo!!'`,'foo!' like 'foo!!' escape '!' AS `'foo!' like 'foo!!' escape '!'`	koi8r	koi8r_general_ci
+select * from v1;
+'foo!' like 'foo!!'	'foo!' like 'foo!!' escape '!'
+0	1
+drop view v1;
+create table t1 (a varchar(100),
+b int default (a like '%f\\_'),
+c int default (a like '%f\\_' escape ''),
+d int default (a like '%f\\_' escape '\\'));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(100) DEFAULT NULL,
+  `b` int(11) DEFAULT (`a` like '%f\\_'),
+  `c` int(11) DEFAULT (`a` like '%f\\_' escape ''),
+  `d` int(11) DEFAULT (`a` like '%f\\_' escape '\\')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t1 (a) values ('1 f_'), ('1 f\\_');
+set sql_mode=no_backslash_escapes;
+insert t1 (a) values ('2 f_'), ('2 f\_');
+flush tables;
+insert t1 (a) values ('3 f_'), ('3 f\_');
+set sql_mode=default;
+select * from t1;
+a	b	c	d
+1 f_	1	0	1
+1 f\_	0	1	0
+2 f_	1	0	1
+2 f\_	0	1	0
+3 f_	1	0	1
+3 f\_	0	1	0
+drop table t1;
+create table t1 (f int);
+insert t1 values (1),(2);
+select 1 from (select distinct * from t1) as x where f < (select 1 like 2 escape (3=1));
+1
+drop table t1;
+create table t1(f1 int);
+insert into t1 values(1);
+update (select 1 like 2 escape (1 in (select 1 from t1))) x, t1 as d set d.f1 = 1;
+ERROR HY000: Incorrect arguments to ESCAPE
+select * from (select 1 like 2 escape (1 in (select 1 from t1))) x;
+1 like 2 escape (1 in (select 1 from t1))
+0
+drop table t1;
+create table t1 (f int);
+insert t1 values (1),(2);
+create view v1 as select * from t1 where (1 like 2 escape (3 in (('h', 'b') in (select 'k', 'k' union select 'g', 'j'))) and f >= 0);
+drop view v1;
+drop table t1;
+#
+# MDEV-17359 - Extend expression supported by like (| & << >> || + - * / DIV MOD ^ )
+#
+SELECT 1 LIKE +1;
+1 LIKE +1
+1
+SELECT -1 LIKE -1;
+-1 LIKE -1
+1
+SELECT 1 LIKE (1);
+1 LIKE (1)
+1
+SELECT 1 LIKE 1|2, 3 LIKE 1|2;
+1 LIKE 1|2	3 LIKE 1|2
+0	1
+SELECT 1 LIKE 3&2, 2 LIKE 3&2;
+1 LIKE 3&2	2 LIKE 3&2
+0	1
+SELECT 1 LIKE 1>>0, 1 LIKE 1>>1 , 64 LIKE 256>>2;
+1 LIKE 1>>0	1 LIKE 1>>1	64 LIKE 256>>2
+1	0	1
+SELECT 1 LIKE 1<<0, 1 LIKE 0<<2, 32 LIKE 1<<5;
+1 LIKE 1<<0	1 LIKE 0<<2	32 LIKE 1<<5
+1	0	1
+SELECT 1 LIKE 1||2, 1 LIKE 0||2;
+1 LIKE 1||2	1 LIKE 0||2
+1	1
+SELECT 2 LIKE 1+1, 2.0 LIKE 1+1.0, 2 LIKE 1+1.0, 1+1 LIKE 2, 1+1 LIKE 0+2;
+2 LIKE 1+1	2.0 LIKE 1+1.0	2 LIKE 1+1.0	1+1 LIKE 2	1+1 LIKE 0+2
+1	1	0	1	1
+SELECT 0 LIKE 1-1, 2.0 LIKE 3-1.0, 2 LIKE 3-1.0, 2-1 LIKE 1, 3-1 LIKE 4-1;
+0 LIKE 1-1	2.0 LIKE 3-1.0	2 LIKE 3-1.0	2-1 LIKE 1	3-1 LIKE 4-1
+1	1	0	1	0
+SELECT 1 LIKE 1*1, 2.0 LIKE 2*1.0, 2 LIKE 2*1.0, 2*1 LIKE 2, 2*3 LIKE 6*1;
+1 LIKE 1*1	2.0 LIKE 2*1.0	2 LIKE 2*1.0	2*1 LIKE 2	2*3 LIKE 6*1
+1	1	0	1	1
+SELECT 1 LIKE 1/1, 1.0000 LIKE 1/1, 1.0000 LIKE 1/1.000000, 1.000000 LIKE 1.0/1.000000, 1/1 like 1/1;
+1 LIKE 1/1	1.0000 LIKE 1/1	1.0000 LIKE 1/1.000000	1.000000 LIKE 1.0/1.000000	1/1 like 1/1
+0	1	1	0	1
+SELECT 1 LIKE 1 DIV 1, 1 LIKE 1.0 DIV 1.0 ;
+1 LIKE 1 DIV 1	1 LIKE 1.0 DIV 1.0
+1	1
+SELECT 2 LIKE 10 MOD 8, 1.9 LIKE 10 MOD 8.1, 1.9 LIKE 10 MOD 8.10 ;
+2 LIKE 10 MOD 8	1.9 LIKE 10 MOD 8.1	1.9 LIKE 10 MOD 8.10
+1	1	0
+SELECT 1 LIKE CAST(1 AS CHAR(10));
+1 LIKE CAST(1 AS CHAR(10))
+1
+SELECT 1 LIKE CASE WHEN 1=1 THEN '1' ELSE '0' END;
+1 LIKE CASE WHEN 1=1 THEN '1' ELSE '0' END
+1
+SELECT 1 LIKE COALESCE(1+0, 1);
+1 LIKE COALESCE(1+0, 1)
+1
+CREATE TABLE t1(c1 INTEGER, c2 INTEGER);
+INSERT INTO t1 VALUES(1,1);
+INSERT INTO t1 VALUES(1,2);
+SELECT c1, c2, c1|c2, 1 LIKE c1|c2 FROM t1 ORDER BY c2;
+c1	c2	c1|c2	1 LIKE c1|c2
+1	1	1	1
+1	2	3	0
+SELECT c1, c2, c1&c2, 1 LIKE c1&c2 FROM t1 ORDER BY c2;
+c1	c2	c1&c2	1 LIKE c1&c2
+1	1	1	1
+1	2	0	0
+SELECT c1, c2, c2>>c1, 1 LIKE c2>>c1 FROM t1 ORDER BY c2;
+c1	c2	c2>>c1	1 LIKE c2>>c1
+1	1	0	0
+1	2	1	1
+SELECT c1, c2, c2<<c1, 2 LIKE c2<<c1 FROM t1 ORDER BY c2;
+c1	c2	c2<<c1	2 LIKE c2<<c1
+1	1	2	1
+1	2	4	0
+SELECT c1, c2, c1||c2, 1 LIKE c1||c2 FROM t1 ORDER BY c2;
+c1	c2	c1||c2	1 LIKE c1||c2
+1	1	1	1
+1	2	1	1
+SELECT c1, c2, c1+c2, 2 LIKE c1+c2 FROM t1 ORDER BY c2;
+c1	c2	c1+c2	2 LIKE c1+c2
+1	1	2	1
+1	2	3	0
+SELECT c1, c2, c1-c2, -1 LIKE c1-c2 FROM t1 ORDER BY c2;
+c1	c2	c1-c2	-1 LIKE c1-c2
+1	1	0	0
+1	2	-1	1
+SELECT c1, c2, c1*c2, 2 LIKE c1*c2 FROM t1 ORDER BY c2;
+c1	c2	c1*c2	2 LIKE c1*c2
+1	1	1	0
+1	2	2	1
+SELECT c1, c2, c1/c2, 0.5000 LIKE c1/c2 FROM t1 ORDER BY c2;
+c1	c2	c1/c2	0.5000 LIKE c1/c2
+1	1	1.0000	0
+1	2	0.5000	1
+SELECT c1, c2, c1 DIV c2, 0 LIKE c1 DIV c2 FROM t1 ORDER BY c2;
+c1	c2	c1 DIV c2	0 LIKE c1 DIV c2
+1	1	1	0
+1	2	0	1
+SELECT c1, c2, c1 MOD c2, 0 LIKE c1 MOD c2 FROM t1 ORDER BY c2;
+c1	c2	c1 MOD c2	0 LIKE c1 MOD c2
+1	1	0	1
+1	2	1	0
+CREATE VIEW v1 AS
+SELECT 1 LIKE c1|c2, 1 LIKE c1&c2, 1 LIKE c2>>c1, 2 LIKE c2<<c1,
+1 LIKE c1||c2, 2 LIKE c1+c2, -1 LIKE c1-c2, 2 LIKE c1*c2,
+0.5000 LIKE c1/c2, 0 LIKE c1 DIV c2, 0 LIKE c1 MOD c2
+FROM t1 ORDER BY c2;
+SELECT * FROM v1;
+1 LIKE c1|c2	1 LIKE c1&c2	1 LIKE c2>>c1	2 LIKE c2<<c1	1 LIKE c1||c2	2 LIKE c1+c2	-1 LIKE c1-c2	2 LIKE c1*c2	0.5000 LIKE c1/c2	0 LIKE c1 DIV c2	0 LIKE c1 MOD c2
+1	1	0	1	1	1	0	0	0	0	1
+0	0	1	0	1	0	1	1	1	1	0
+EXPLAIN EXTENDED SELECT * FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using filesort
+Warnings:
+Note	1003	select 1 like `test`.`t1`.`c1` | `test`.`t1`.`c2` AS `1 LIKE c1|c2`,1 like `test`.`t1`.`c1` & `test`.`t1`.`c2` AS `1 LIKE c1&c2`,1 like `test`.`t1`.`c2` >> `test`.`t1`.`c1` AS `1 LIKE c2>>c1`,2 like `test`.`t1`.`c2` << `test`.`t1`.`c1` AS `2 LIKE c2<<c1`,1 like `test`.`t1`.`c1` or `test`.`t1`.`c2` <> 0 AS `1 LIKE c1||c2`,2 like `test`.`t1`.`c1` + `test`.`t1`.`c2` AS `2 LIKE c1+c2`,-1 like `test`.`t1`.`c1` - `test`.`t1`.`c2` AS `-1 LIKE c1-c2`,2 like `test`.`t1`.`c1` * `test`.`t1`.`c2` AS `2 LIKE c1*c2`,0.5000 like `test`.`t1`.`c1` / `test`.`t1`.`c2` AS `0.5000 LIKE c1/c2`,0 like `test`.`t1`.`c1` DIV `test`.`t1`.`c2` AS `0 LIKE c1 DIV c2`,0 like `test`.`t1`.`c1` MOD `test`.`t1`.`c2` AS `0 LIKE c1 MOD c2` from `test`.`t1` order by `test`.`t1`.`c2`
+DROP VIEW v1;
+DROP TABLE t1;

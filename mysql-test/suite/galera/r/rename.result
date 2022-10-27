@@ -1,0 +1,48 @@
+connection node_2;
+connection node_1;
+#
+# MDEV-8598 : Failed MySQL DDL commands and Galera replication
+#
+# On node 1
+connection node_1;
+USE test;
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUE(1);
+SELECT * FROM t1;
+i
+1
+# Create a new user 'foo' with limited privileges
+CREATE USER foo@localhost;
+GRANT SELECT on test.* TO foo@localhost;
+# Open connection to the 1st node using 'test_user1' user.
+connect foo_node_1,localhost,foo,,test,$port_1,;
+connection foo_node_1;
+SELECT * FROM t1;
+i
+1
+# Following RENAME should not replicate to other node.
+RENAME TABLE t1 TO t2;
+ERROR 42000: DROP, ALTER command denied to user 'foo'@'localhost' for table 't1'
+# On node 2
+connection node_2;
+USE test;
+SELECT * FROM t1;
+i
+1
+# On node_1
+connection node_1;
+RENAME TABLE t1 TO t2;
+SHOW TABLES;
+Tables_in_test
+t2
+# On node 2
+connection node_2;
+USE test;
+SELECT * FROM t2;
+i
+1
+connection node_1;
+DROP USER foo@localhost;
+DROP TABLE t2;
+# End of tests

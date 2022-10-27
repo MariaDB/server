@@ -1,0 +1,10 @@
+
+CREATE TABLE t1 (i INT) ENGINE=TokuDB;
+EXPLAIN INSERT INTO t1 SELECT * FROM t1;
+
+--connect con1,localhost,root,,test
+INSERT INTO t1 SELECT * FROM t1;
+
+--connection default
+--disconnect con1
+DROP TABLE t1;

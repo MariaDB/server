@@ -1,0 +1,2 @@
+let SEARCH_PATTERN=Cannot decrypt .*filekeys-data.enc. Wrong key;
+source filekeys_badtest.inc;

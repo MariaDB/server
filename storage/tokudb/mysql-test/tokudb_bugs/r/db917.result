@@ -1,0 +1,14 @@
+drop table if exists t1;
+set @orig_table_open_cache = @@global.table_open_cache;
+create table t1(a int) engine = tokudb partition by key(a) partitions 2 (partition p0 engine = tokudb, partition p1 engine = tokudb);
+lock tables t1 read,t1 as t2 read,t1 as t3 read, t1 as t4 read, t1 as t5 read, t1 as t6 read, t1 as t7 read, t1 as t8 read, t1 as t9 read, t1 as t10 read;
+set @@global.table_open_cache = 10;
+begin;
+insert into t1 values(1),(1);
+select * from t1 where c like _ucs2 0x039C0025 collate ucs2_unicode_ci;
+ERROR 42S22: Unknown column 'c' in 'where clause'
+create table t1(c1 binary (1), c2 varbinary(1));
+ERROR 42S01: Table 't1' already exists
+unlock tables;
+drop table t1;
+set @@global.table_open_cache = @orig_table_open_cache;

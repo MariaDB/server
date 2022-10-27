@@ -1,0 +1,252 @@
+#
+# MariaDB tests for EXPLAIN UPDATE/DELETE.
+#
+--source include/have_partition.inc
+
+--disable_warnings
+drop table if exists t0, t1;
+--enable_warnings
+
+create table t0 (a int) engine=myisam;
+insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
+
+--echo #
+--echo #  Tests for single-table DELETE
+--echo # 
+
+explain select * from t0 where a=3;
+explain delete from t0 where a=3;
+
+--echo # DELETE without WHERE is a special case:
+explain delete from t0;
+
+create table t1 (a int, b int, filler char(100), key(a), key(b));
+insert into t1 
+select A.a+10*B.a + 10*C.a, A.a+10*B.a + 10*C.a, 'filler' 
+from t0 A, t0 B, t0 C;
+
+--echo # This should use an index,  possible_keys=NULL because there is no WHERE
+explain delete from t1 order by a limit 2;
+
+--echo # This should use range, possible_keys={a,b}
+explain delete from t1 where a<20 and b < 10;
+
+--echo # This should use ALL + filesort
+explain delete from t1 order by a+1 limit 2;
+
+--echo # This should use range + using filesort
+explain delete from t1 where a<20 order by b limit 2;
+
+--echo # Try some subqueries:
+explain delete from t1 where a < (select max(a) from t0);
+explain delete from t1 where a < (select max(a) from t0 where a < t1.b);
+
+--echo #
+--echo #  Tests for multi-table DELETE
+--echo # 
+explain delete t1 from t0, t1 where t0.a = t1.a;
+drop table t0, t1;
+
+--echo # ###################################################################
+--echo # ## EXPLAIN UPDATE tests
+--echo # ###################################################################
+create table t0 (a int) engine=myisam;
+insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
+
+explain update t0 set a=3 where a=4;
+
+create table t1 (a int, b int, filler char(100), key(a), key(b));
+insert into t1 
+select A.a+10*B.a + 10*C.a, A.a+10*B.a + 10*C.a, 'filler' 
+from t0 A, t0 B, t0 C;
+
+explain update t1 set a=a+1 where 3>4;
+explain update t1 set a=a+1 where a=3 and a=4;
+
+--echo # This should use an index,  possible_keys=NULL because there is no WHERE
+explain update t1 set a=a+1 order by a limit 2;
+
+--echo # This should use range, possible_keys={a,b}
+explain update t1 set filler='fooo' where a<20 and b < 10;
+
+--echo # This should use ALL + filesort
+explain update t1 set filler='fooo' order by a+1 limit 2;
+
+--echo # This should use range + using filesort
+explain update t1 set filler='fooo' where a<20 order by b limit 2;
+
+--echo # Try some subqueries:
+explain update t1 set filler='fooo' where a < (select max(a) from t0);
+explain update t1 set filler='fooo' where a < (select max(a) from t0 where a < t1.b);
+
+--echo #
+--echo #  Tests for multi-table UPDATE
+--echo # 
+explain update t0, t1 set t1.a=t1.a+1 where t0.a = t1.a;
+
+
+drop table t0, t1;
+
+--echo #
+--echo # Try DELETE ... RETURNING ...
+--echo #
+create table t0 (a int);
+insert into t0 values (1),(2),(3),(4);
+explain delete from t0 where a=1 returning a;
+explain delete from t0 returning a;
+drop table t0;
+
+--echo #
+--echo # MDEV-5070 - EXPLAIN INSERT ... SELECT crashes on 10.0-base-explain-slowquerylog
+--echo #
+create table t0 (a int);
+insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
+create table t1 (a int);
+
+explain insert into t1 select * from t0;
+explain replace into t1 select * from t0;
+
+drop table t0, t1;
+
+--echo #
+--echo # MDEV-5067: Valgrind warnings (Invalid read) in QPF_table_access::print_explain
+--echo #
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7),(0),(9);
+
+SELECT * FROM t1 INNER JOIN ( SELECT DISTINCT * FROM t1 ) AS sq ON (sq.i = t1.i);
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-5093, MDEV-5094: EXPLAIN PARTITIONS and EXPLAIN EXTENDED do not
+--echo #  work for EXPLAIN UPDATE.
+--echo #
+create table t1 (i int);
+explain partitions update t1 set i = 3;
+
+create table t2 (a int, b int) partition by hash(a) partitions 5;
+insert into t2 values (0,0),(1,1),(2,2),(3,3),(4,4);
+
+explain partitions update t2 set b=3 where a in (3,4);
+explain partitions delete from t2 where a in (3,4);
+
+explain extended update t2 set b=3 where a in (3,4);
+explain extended delete from t2 where a in (3,4);
+
+drop table t1,t2;
+
+--echo #
+--echo #  Check the special case where partition pruning removed all partitions
+--echo #
+
+create table t1 (a int, b int) 
+partition by range (a) (
+ partition p0 values less than (10),
+ partition p1 values less than (20),
+ partition p2 values less than (30)
+);
+insert into t1 values (9,9), (19,19), (29,29);
+
+explain partitions select * from t1 where a in (32,33);
+
+explain partitions delete from t1 where a in (32,33);
+
+explain partitions update t1 set b=12345 where a in (32,33);
+
+drop table t1;
+
+--echo #
+--echo # Tests for EXPLAIN INSERT ... VALUES 
+--echo #
+create table t1 (a int, key(a));
+explain insert into t1 values (1),(2),(3);
+insert into t1 values (1),(2),(3);
+
+create table t2 (a int, b int);
+explain insert into t2 values 
+  (10, 1+(select max(a)   from t1)),
+  (11, 1+(select max(a+1) from t1));
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-5122: "Commands out of sync", "Malformed packet" or client hang up on unique key violation
+--echo #
+drop table if exists t1;
+
+--disable_warnings
+drop function if exists f1;
+--enable_warnings
+
+create table t1 (a int, unique(a));
+
+delimiter |;
+create function f1(x int)
+  returns int
+begin
+  insert into t1 values(x),(x);
+  return 10;
+end|
+delimiter ;|
+
+--error ER_DUP_ENTRY
+select f1(100);
+select 'OK';
+
+drop function f1;
+drop table t1;
+
+--echo #
+--echo # MDEV-7038: Assertion `status_var.memory_used == 0' failed in THD::~THD()
+--echo #            on disconnect after executing EXPLAIN for multi-table UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+EXPLAIN UPDATE v1, mysql.user SET v1.a = v1.a + 1;
+DROP TABLE t1;
+DROP VIEW v1;
+ 
+--echo #
+--echo # MDEV-8299: MyISAM or Aria table gets corrupted after EXPLAIN INSERT and INSERT
+--echo #
+CREATE TABLE t1 (pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY, i INT, KEY(i)) ENGINE=MyISAM;
+INSERT INTO t1 (i) VALUES (100),(200);
+
+CREATE TABLE t2 (j INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (10),(20);
+
+EXPLAIN INSERT INTO t1 (i) SELECT j FROM t2;
+INSERT INTO t1 (i) VALUES (300);
+CHECK TABLE t1;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-8321: Assertion `! is_set()' failed in Diagnostics_area::set_eof_status on EXPLAIN INSERT ... UNION
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+
+# Data is not necessary, tables can be empty as well
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (3),(4);
+INSERT INTO t3 VALUES (5),(6);
+
+EXPLAIN INSERT INTO t1 SELECT * FROM t2 UNION SELECT * FROM t3;
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-6223: Assertion `! is_set()' fails in Diagnostics_area::set_eof_status on EXPLAIN INSERT executed as a PS
+--echo #
+CREATE TABLE t1 (a INT) ENGINE = MyISAM;
+CREATE TABLE t2 (b INT) ENGINE = MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+PREPARE stmt FROM 'EXPLAIN INSERT INTO t1 SELECT * FROM t2';
+EXECUTE stmt;
+drop table t1,t2;
+

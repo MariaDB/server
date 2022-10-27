@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS t1, child1, child2;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb UNION(child1);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+ALTER TABLE t1 UNION = (child1,child2);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+DROP TABLE t1, child1, child2;

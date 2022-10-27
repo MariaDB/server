@@ -1,0 +1,185 @@
+#
+# Test wsrep_on = OFF. Some events will not be replicated
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET SESSION wsrep_on = FALSE;
+
+# This statement will not be replicated
+INSERT INTO t1 VALUES (2);
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_1
+SET GLOBAL wsrep_on = TRUE;
+INSERT INTO t1 VALUES (3);
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t1;
+
+# Middle insert is not replicated
+SELECT COUNT(*) = 0 FROM t1 WHERE f1 = 2;
+
+# Final insert is replicated
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 3;
+
+DROP TABLE t1;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+#
+# Test that variable wsrep_on cannot be changed while in
+# active transaction.
+#
+
+--connection node_1
+START TRANSACTION;
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+SET SESSION wsrep_on=OFF;
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+SET GLOBAL wsrep_on=OFF;
+COMMIT;
+
+
+#
+# Test that @@global.wsrep_on does not affect the value of
+# @@session.wsrep_on of current sessions
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+--connection node_1a
+SET GLOBAL wsrep_on = OFF;
+
+--connection node_1
+SHOW SESSION VARIABLES LIKE 'wsrep_on';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_on';
+INSERT INTO t1 VALUES (2);
+COMMIT;
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 15;
+SELECT * FROM t1;
+
+--connection node_1a
+SET GLOBAL wsrep_on = ON;
+DROP TABLE t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+
+#
+# New connections inherit @@session.wsrep_on from @@global.wsrep_on
+#
+
+--connection node_1
+SET GLOBAL wsrep_on = OFF;
+
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+--connection node_1b
+SHOW SESSION VARIABLES LIKE 'wsrep_on';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_on';
+CREATE TABLE t2 (f1 INTEGER);
+DROP TABLE t2;
+
+SET GLOBAL wsrep_on = ON;
+SHOW SESSION VARIABLES LIKE 'wsrep_on';
+
+--disconnect node_1b
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+--source include/wait_condition.inc
+
+
+#
+# Can't set @@session.wsrep_on = ON, while @@global.wsrep_on = OFF
+#
+
+--connection node_1
+SET GLOBAL wsrep_on = OFF;
+--error ER_WRONG_ARGUMENTS
+SET SESSION wsrep_on = ON;
+
+SET GLOBAL wsrep_on = ON;
+SET SESSION wsrep_on = ON;
+
+
+#
+# @@global.wsrep_on = OFF followed by @@global.wsrep_on = ON
+# in a new connection
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+SET GLOBAL wsrep_on = OFF;
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+--connection node_1b
+SHOW SESSION VARIABLES LIKE 'wsrep_on';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_on';
+SET GLOBAL wsrep_on = ON;
+START TRANSACTION;
+INSERT INTO t1 VALUES(1);
+COMMIT;
+
+SELECT * FROM t1;
+
+--connection node_2
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+#
+# Test single statement, multi statement, and
+# TOI tansactions while @@session.wsrep_on = OFF
+# and then same @@global.wsrep_on = OFF.
+# Notice, the combination @@global.wsrep_on = OFF
+# and @@session.wsrep_on = ON is not not possible,
+# (as tested above in this test case)
+#
+
+--connection node_1
+SET SESSION wsrep_on = OFF;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+START TRANSACTION;
+INSERT INTO t1 VALUES (2);
+COMMIT;
+DROP TABLE t1;
+--connection node_2
+SHOW TABLES;
+--connection node_1
+SET SESSION wsrep_on = ON;
+
+SET GLOBAL wsrep_on = OFF;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+START TRANSACTION;
+INSERT INTO t1 VALUES (2);
+COMMIT;
+--connection node_2
+SHOW TABLES;
+--connection node_1
+DROP TABLE t1;
+SET GLOBAL wsrep_on = ON;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc

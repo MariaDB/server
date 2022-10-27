@@ -1,0 +1,10 @@
+--innodb-encrypt-log=ON
+--innodb-tablespaces-encryption
+--innodb-encrypt-tables=ON
+--innodb-encryption-rotate-key-age=1
+--innodb-encryption-threads=4
+--plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+--loose-file-key-management
+--loose-file-key-management-filekey=FILE:$MTR_SUITE_DIR/filekeys-data.key
+--loose-file-key-management-filename=$MTR_SUITE_DIR/filekeys-data.enc
+--loose-file-key-management-encryption-algorithm=aes_cbc

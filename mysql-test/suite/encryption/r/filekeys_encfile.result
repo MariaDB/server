@@ -1,0 +1,38 @@
+create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes `encryption_key_id`=1
+insert t1 values (12345, repeat('1234567890', 20));
+alter table t1 encryption_key_id=2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes `encryption_key_id`=2
+alter table t1 encryption_key_id=3;
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTION_KEY_ID'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes `encryption_key_id`=2
+alter table t1 encryption_key_id=33;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes `encryption_key_id`=33
+alter table t1 encryption_key_id=4;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes `encryption_key_id`=4
+drop table t1;

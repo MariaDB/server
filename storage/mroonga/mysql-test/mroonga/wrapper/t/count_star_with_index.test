@@ -1,0 +1,57 @@
+# Copyright(C) 2011-2016 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/have_innodb.inc
+--source ../../include/mroonga/skip_mysql_5_7_or_later.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_query_log
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+--enable_query_log
+
+CREATE TABLE diaries_innodb (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  body TEXT,
+  flag TINYINT(2),
+  INDEX (flag)
+) ENGINE = InnoDB DEFAULT CHARSET UTF8;
+
+CREATE TABLE diaries_mroonga (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  body TEXT,
+  flag TINYINT(2),
+  INDEX (flag)
+) COMMENT = 'ENGINE "InnoDB"' DEFAULT CHARSET UTF8;
+
+INSERT INTO diaries_innodb (body) VALUES ("will start groonga!");
+INSERT INTO diaries_innodb (body) VALUES ("starting groonga...");
+INSERT INTO diaries_innodb (body) VALUES ("started groonga.");
+
+INSERT INTO diaries_mroonga (body) VALUES ("will start groonga!");
+INSERT INTO diaries_mroonga (body) VALUES ("starting groonga...");
+INSERT INTO diaries_mroonga (body) VALUES ("started groonga.");
+
+-- replace_column 9 #
+EXPLAIN SELECT COUNT(*) FROM diaries_innodb;
+-- replace_column 9 #
+EXPLAIN SELECT COUNT(*) FROM diaries_mroonga;
+
+DROP TABLE diaries_innodb;
+DROP TABLE diaries_mroonga;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

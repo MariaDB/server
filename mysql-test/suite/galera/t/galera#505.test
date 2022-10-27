@@ -1,0 +1,23 @@
+# galera#505 - Change of pc.weight wsrep param will be correctly stored in wsrep_provider_options variable
+
+--source include/galera_cluster.inc
+
+--connection node_1
+
+SET SESSION wsrep_sync_wait=0;
+--let $galera_version=25.3.24
+source ../../wsrep/include/check_galera_version.inc;
+
+SET SESSION wsrep_sync_wait=DEFAULT;
+
+# Convert "... pc.weight = N; ..." to "N; ..."
+--let $s1 = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('pc.weight =', @@wsrep_provider_options) + LENGTH('pc.weight = '))`
+# Convert "N; ..." to "N"
+--let $pc_weight_value = `SELECT SUBSTR('$s1', 1, LOCATE(';', '$s1') - 1)`
+
+SET GLOBAL wsrep_provider_options = 'pc.weight=3';
+
+-- replace_regex /.*(pc\.weight = [0-9]+);.*/\1/
+SHOW GLOBAL VARIABLES LIKE 'wsrep_provider_options';
+
+--eval SET GLOBAL wsrep_provider_options = 'pc.weight=$pc_weight_value'

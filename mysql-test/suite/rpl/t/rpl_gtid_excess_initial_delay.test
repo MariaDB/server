@@ -1,0 +1,58 @@
+# ==== Purpose ====
+#
+# Test verifies that when "Master_Delay" is specified on slave with GTIDS there
+# will not be any extra delay initially.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Stop the slave and execute CHANGE MASTER command with
+#        master_use_gtid=  curren_pos and master_delay= 10
+#    1 - On slave introduce a sleep of 15 seconds and check that the
+#        Seconds_Behind_Master is within specified master_delay limit. It should
+#        not be more that "10" seconds.
+#
+# ==== References ====
+#
+# MDEV-13895: GTID and Master_Delay causes excessive initial delay
+
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1 (i INT);
+--sync_slave_with_master
+
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID= current_pos, MASTER_DELAY= 10;
+--source include/start_slave.inc
+
+--connection master
+INSERT INTO t1 VALUES (1);
+--source include/sync_slave_io_with_master.inc
+
+--connection slave
+--let $actual_delay= query_get_value(SHOW SLAVE STATUS, SQL_Delay, 1)
+--let $sleep_time= `SELECT 5 + $actual_delay`
+--echo "Sleeping for $sleep_time"
+--sleep $sleep_time
+
+--let $assert_cond= [SHOW SLAVE STATUS, Seconds_Behind_Master, 1] <= 10
+--let $assert_text= Seconds_Behind_Master should be less than MASTER_DELAY
+--source include/rpl_assert.inc
+
+# The row should be available in table after master_delay=20 seconds.
+--let $assert_text= One row shoule be found in table t1.
+--let $assert_cond= COUNT(*) = 1 FROM t1
+--source include/rpl_assert.inc
+
+--echo "======= Clean up ========"
+STOP SLAVE;
+CHANGE MASTER TO MASTER_USE_GTID=no, MASTER_DELAY=0;
+START SLAVE;
+
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+--connection master
+--source include/rpl_end.inc

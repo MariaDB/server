@@ -1,0 +1,6 @@
+CREATE DATABASE `new..............................................end`;
+USE `new..............................................end`;
+CREATE TABLE t1(a INT KEY,b INT)ENGINE=TokuDB;
+INSERT INTO t1 VALUES(1,11),(2,12),(3,13),(4,14),(5,15);
+USE test;
+DROP DATABASE `new..............................................end`;

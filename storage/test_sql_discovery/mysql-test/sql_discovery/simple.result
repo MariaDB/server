@@ -1,0 +1,190 @@
+show variables like 'test_sql_discovery%';
+Variable_name	Value
+test_sql_discovery_statement	
+test_sql_discovery_write_frm	ON
+set sql_quote_show_create=0;
+create table t1 (a int) engine=test_sql_discovery;
+ERROR HY000: Can't create table `test`.`t1` (errno: 131 "Command not supported by the engine")
+select * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+set @@test_sql_discovery_statement='t1:foobar bwa-ha-ha';
+select * from t0;
+ERROR 42S02: Table 'test.t0' doesn't exist
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'foobar bwa-ha-ha'
+show warnings;
+Level	Code	Message
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'foobar bwa-ha-ha' at line 1
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'foobar bwa-ha-ha'
+set @@test_sql_discovery_statement='t1:select 1';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'select 1'
+show warnings;
+Level	Code	Message
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'select 1'
+set @@test_sql_discovery_statement='t1:create table t1 (a int primary key) partition by hash(id) partitions 2';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int primary key) partition by hash(id) partitions 2'
+show warnings;
+Level	Code	Message
+Error	1290	The MariaDB server is running with the --skip-partition option so it cannot execute this statement
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int primary key) partition by hash(id) partitions 2'
+set @@test_sql_discovery_statement='t1:create table t1 (a int) union=(t3,t4)';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) union=(t3,t4)'
+show warnings;
+Level	Code	Message
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) union=(t3,t4)'
+set @@test_sql_discovery_statement='t1:create table t1 like t2';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 like t2'
+show warnings;
+Level	Code	Message
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 like t2'
+set @@test_sql_discovery_statement='t1:create table t1 select * from t2';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 select * from t2'
+show warnings;
+Level	Code	Message
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 select * from t2'
+set @@test_sql_discovery_statement='t1:create table t1 (a int) index directory="/tmp"';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) index directory="/tmp"'
+show warnings;
+Level	Code	Message
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) index directory="/tmp"'
+set @@test_sql_discovery_statement='t1:create table t1 (a int) data directory="/tmp"';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) data directory="/tmp"'
+show warnings;
+Level	Code	Message
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) data directory="/tmp"'
+set @@test_sql_discovery_statement='t1:create table t1 (a int) engine=myisam';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) engine=myisam'
+show warnings;
+Level	Code	Message
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) engine=myisam'
+set @@test_sql_discovery_statement='t1:create temporary table t1 (a int)';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create temporary table t1 (a int)'
+show warnings;
+Level	Code	Message
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create temporary table t1 (a int)'
+set @@test_sql_discovery_statement='t1:create table if not exists t1 (a int)';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table if not exists t1 (a int)'
+show warnings;
+Level	Code	Message
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table if not exists t1 (a int)'
+set @@test_sql_discovery_statement='t1:create table t1 (a uint)';
+select * from t1;
+ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a uint)'
+show warnings;
+Level	Code	Message
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a uint)'
+set @@test_sql_discovery_statement='t1:create table t1 (a int)';
+select * from t1;
+a
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE t1 (
+  a int(11) DEFAULT NULL
+) ENGINE=TEST_SQL_DISCOVERY DEFAULT CHARSET=latin1
+drop table t1;
+set @@test_sql_discovery_statement='t1:create table t2 (a int)';
+select * from t1;
+a
+select * from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+drop table t1;
+set @@test_sql_discovery_statement='t1:create table t1 (a int) engine=test_sql_discovery';
+select * from t1;
+a
+drop table t1;
+set @@test_sql_discovery_statement='t1:
+create table t1 (
+  a int not null default 5 primary key,
+  b timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  c tinyblob,
+  d decimal(5,2),
+  e varchar(30) character set ascii,
+  f geometry not null,
+  index (d,b),
+  unique index (c(10)),
+  fulltext (e),
+  spatial (f)
+) comment="abc" default character set utf8 max_rows=100 min_rows=10 checksum=1';
+show status like 'handler_discover';
+Variable_name	Value
+Handler_discover	15
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE t1 (
+  a int(11) NOT NULL DEFAULT 5,
+  b timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  c tinyblob DEFAULT NULL,
+  d decimal(5,2) DEFAULT NULL,
+  e varchar(30) CHARACTER SET ascii DEFAULT NULL,
+  f geometry NOT NULL,
+  PRIMARY KEY (a),
+  UNIQUE KEY c (c(10)),
+  KEY d (d,b),
+  SPATIAL KEY f (f),
+  FULLTEXT KEY e (e)
+) ENGINE=TEST_SQL_DISCOVERY DEFAULT CHARSET=utf8 MIN_ROWS=10 MAX_ROWS=100 CHECKSUM=1 COMMENT='abc'
+show status like 'handler_discover';
+Variable_name	Value
+Handler_discover	16
+----
+t1.frm
+----
+show open tables from test;
+Database	Table	In_use	Name_locked
+test	t1	0	0
+select * from t1;
+a	b	c	d	e	f
+show status like 'handler_discover';
+Variable_name	Value
+Handler_discover	16
+flush tables;
+select * from t1;
+a	b	c	d	e	f
+show status like 'handler_discover';
+Variable_name	Value
+Handler_discover	16
+drop table t1;
+set @@test_sql_discovery_write_frm=0;
+set @@test_sql_discovery_statement='t1:create table t1 (a int)';
+show status like 'handler_discover';
+Variable_name	Value
+Handler_discover	16
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE t1 (
+  a int(11) DEFAULT NULL
+) ENGINE=TEST_SQL_DISCOVERY DEFAULT CHARSET=latin1
+show status like 'handler_discover';
+Variable_name	Value
+Handler_discover	17
+----
+----
+show open tables from test;
+Database	Table	In_use	Name_locked
+test	t1	0	0
+select * from t1;
+a
+show status like 'handler_discover';
+Variable_name	Value
+Handler_discover	17
+flush tables;
+select * from t1;
+a
+show status like 'handler_discover';
+Variable_name	Value
+Handler_discover	18
+drop table t1;
+show status like 'handler_discover';
+Variable_name	Value
+Handler_discover	18

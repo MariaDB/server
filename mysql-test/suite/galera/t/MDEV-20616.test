@@ -1,0 +1,244 @@
+#
+# Test different deadlock scenarios in innodb and make sure that
+# wsrep patch does not handle them as BF aborts.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+##############################################################################
+# test case to verify that natural deadlock of trigger SP execution is
+# handled correctly
+##############################################################################
+
+--echo
+--echo Test phase 1 to make sure that natral deadlock in trigger SP execution is
+--echo handled correctly
+--echo
+--let $aborts_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+
+CREATE TABLE t1(a INT);
+CREATE TABLE t2(f1 INT, f2 INT, f3 INT);
+--disable_query_log
+let $run=1000;
+while($run)
+{
+  INSERT INTO t2 VALUES (1, 2, 3);
+  dec $run;
+}
+--enable_query_log
+
+DELIMITER |;
+CREATE PROCEDURE proc()
+BEGIN
+    INSERT INTO t2 VALUES(100, 200, 300);
+    UPDATE t2 SET f3 = f3 + 100;
+END|
+DELIMITER ;|
+
+CREATE TRIGGER t1 BEFORE INSERT ON t1 FOR EACH ROW CALL proc();
+
+--send INSERT INTO t1 VALUES(2);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--send INSERT INTO t1 VALUES(1);
+
+--connection node_1
+--error 0,ER_LOCK_DEADLOCK
+--reap
+
+--connection node_1a
+--error 0,ER_LOCK_DEADLOCK
+--reap
+
+--connection node_1
+--let $aborts_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+--disable_query_log
+--eval SELECT $aborts_new - $aborts_old AS wsrep__bf_aborts;
+--enable_query_log
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE proc;
+
+##############################################################################
+#
+# test case to verify that BF abort for SP execution is handled correctly
+#
+##############################################################################
+
+--echo
+--echo Test phase 2 to make sure that BF abort for SP execution is
+--echo handled correctly
+--echo
+--connection node_1
+SET SESSION wsrep_retry_autocommit = 0;
+SET SESSION wsrep_sync_wait = 0;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+
+# Control connection for Galera sync point management
+--connection node_1a
+
+SET SESSION wsrep_retry_autocommit = 0;
+SET SESSION wsrep_sync_wait = 0;
+--let $aborts_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+
+DELIMITER |;
+CREATE PROCEDURE proc_update()
+BEGIN
+  UPDATE t1 SET f2 = 'b';
+END|
+DELIMITER ;|
+
+INSERT INTO t1 VALUES(1, 'a');
+
+--connection node_1
+SET debug_sync='wsrep_before_certification SIGNAL ready WAIT_FOR cont';
+--send CALL proc_update
+
+--connection node_1a
+SET debug_sync='now WAIT_FOR ready';
+
+--connection node_2
+UPDATE t1 SET f2='c';
+
+--connection node_1a
+# wait for BF to happen
+--let $wait_condition = SELECT VARIABLE_VALUE = $aborts_old + 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'
+--source include/wait_condition.inc
+
+SET debug_sync='now SIGNAL cont';
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_1a
+SET debug_sync='RESET';
+
+DROP PROCEDURE proc_update;
+
+
+##############################################################################
+#
+# test case to verify that natural deadlock  does not cause BF abort
+#
+##############################################################################
+
+--connection node_1
+--echo
+--echo Test phase 3 to make sure natural deadlock is not treated as BF abort
+--echo
+TRUNCATE t1;
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a');
+
+--connection node_1a
+--let $aborts_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+
+START TRANSACTION;
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+
+--connection node_1
+START TRANSACTION;
+UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+
+--connection node_1a
+# this hangs for lock wait
+--send UPDATE t1 SET f2 = 'b' WHERE f1 = 2
+
+#
+# classic deadlock happens here
+#
+--connection node_1
+--error 0, ER_LOCK_DEADLOCK
+UPDATE t1 SET f2 = 'c' WHERE f1 = 1;
+
+--connection node_1a
+--error 0, ER_LOCK_DEADLOCK
+--reap
+COMMIT;
+
+#
+# either one of SP executions was aborted because of natural deadlock, or in worst case
+# they were ordered seqeuntailly, and both succeeded.
+# anyways, we just check here that no BF aborts happened
+#
+--let $aborts_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+--disable_query_log
+--eval SELECT $aborts_new - $aborts_old AS wsrep__bf_aborts;
+--enable_query_log
+
+--connection node_1
+ROLLBACK;
+
+##############################################################################
+#
+# test case to verify that natural deadlock within SP exceution
+# does not cause BF abort
+#
+##############################################################################
+
+--echo
+--echo Test phase 4 to make sure natural deadlock inside SP execution
+--echo is not treated as BF abort
+--echo
+
+--connection node_1a
+TRUNCATE t1;
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a');
+
+--let $aborts_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+
+DELIMITER |;
+CREATE PROCEDURE proc_update_1()
+BEGIN
+  START TRANSACTION;
+  UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+  SELECT SLEEP(5);
+  UPDATE t1 SET f2 = 'b' WHERE f1 = 2;
+  COMMIT;
+END|
+DELIMITER ;|
+
+DELIMITER |;
+CREATE PROCEDURE proc_update_2()
+BEGIN
+  START TRANSACTION;
+  UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+  SELECT SLEEP(5);
+  UPDATE t1 SET f2 = 'c' WHERE f1 = 1;
+  COMMIT;
+END|
+DELIMITER ;|
+
+--connection node_1
+--send CALL proc_update_1
+
+--connection node_1a
+#
+# calling proc_update_2 should cause a natural deadlock
+# however, this test is not deterministic, and depends on the sleep() to
+# cause expected ordering for update statement execution within SPs
+# We therefore, allow both success and deadlock error for the result
+#
+--error 0, ER_LOCK_DEADLOCK
+CALL proc_update_2;
+
+#
+# either one of SP executions was aborted because of natural deadlock, or in worst case
+# they were ordered seqeuntailly, and both succeeded.
+# anyways, we just check here that no BF aborts happened
+#
+--let $aborts_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+--disable_query_log
+--eval SELECT $aborts_new - $aborts_old AS wsrep__bf_aborts;
+--enable_query_log
+
+
+--connection node_1
+--error 0, ER_LOCK_DEADLOCK
+--reap
+
+DROP PROCEDURE proc_update_1;
+DROP PROCEDURE proc_update_2;
+DROP TABLE t1;

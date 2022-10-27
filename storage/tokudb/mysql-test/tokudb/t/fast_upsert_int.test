@@ -1,0 +1,38 @@
+--source ../include/fast_upsert_gen_header.inc
+
+--let GENERATED=$MYSQL_TMP_DIR/generated_fast_upsert_int.inc
+
+--perl
+
+  open(FILE, '>', "$ENV{GENERATED}") or die;
+  my @blob_types = ();
+  foreach my $t ('tinyint', 'smallint', 'mediumint', 'int', 'bigint') {
+    foreach my $u ('', 'unsigned') {
+      foreach my $n ('null', 'not null') {
+        test_upsert_int($t, $u, $n)
+      }
+    }
+  }
+  close FILE;
+
+  sub test_upsert_int {
+    my $t = shift;
+    my $u = shift;
+    my $n = shift;
+
+    print FILE "create table tt (\n";
+    print FILE "    id $t $u primary key,\n";
+    $n .= ' default 0' if ($n eq 'not null');
+    print FILE "    x $t $u $n,\n";
+    print FILE "    y $t $u $n,\n";
+    print FILE "    z $t $u $n,\n";
+    print FILE "    a char(32), aa varchar(32)\n";
+    print FILE ") engine = tokudb;\n";
+
+    print FILE "--source $ENV{MYSQL_CURRENT_TEST_DIR}/../include/".
+               "fast_upsert_int.inc\n\n";
+  }
+
+EOF
+
+--source ../include/fast_update_gen_footer_silent.inc

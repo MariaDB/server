@@ -1,0 +1,30 @@
+#
+# Simple test for the operation on the wsrep-mysql-replication-bundle
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $wsrep_mysql_replication_bundle_orig = `SELECT @@wsrep_mysql_replication_bundle`
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
+
+SET GLOBAL wsrep_mysql_replication_bundle = 2;
+
+--connection node_1
+# This statement will not be replicated immediately
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_1
+INSERT INTO t1 VALUES (2);
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t1;
+
+--connection node_1
+--eval SET GLOBAL wsrep_mysql_replication_bundle = $wsrep_mysql_replication_bundle_orig
+
+DROP TABLE t1;

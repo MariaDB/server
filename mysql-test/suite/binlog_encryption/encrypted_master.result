@@ -1,0 +1,626 @@
+#################
+# Initialization
+#################
+include/rpl_init.inc [topology=1->2]
+connection server_2;
+include/stop_slave_sql.inc
+connection server_1;
+SET @binlog_annotate_row_events.save= @@global.binlog_annotate_row_events;
+SET @binlog_checksum.save= @@global.binlog_checksum;
+SET @master_verify_checksum.save= @@global.master_verify_checksum;
+SET @binlog_row_image.save= @@global.binlog_row_image;
+####################################################
+# Test 1: simple binlog, no checksum, no annotation
+####################################################
+connection server_1;
+SET binlog_annotate_row_events= 0;
+SET GLOBAL binlog_annotate_row_events= 0;
+SET GLOBAL binlog_checksum= NONE;
+SET GLOBAL master_verify_checksum= 0;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+CREATE DATABASE database_name_to_encrypt;
+USE database_name_to_encrypt;
+CREATE USER user_name_to_encrypt;
+GRANT ALL ON database_name_to_encrypt.* TO user_name_to_encrypt;
+SET PASSWORD FOR user_name_to_encrypt = PASSWORD('password_to_encrypt');
+CREATE TABLE innodb_table_name_to_encrypt (
+int_column_name_to_encrypt INT PRIMARY KEY,
+timestamp_column_name_to_encrypt TIMESTAMP(6) NULL,
+blob_column_name_to_encrypt BLOB,
+virt_column_name_to_encrypt INT AS (int_column_name_to_encrypt % 10) VIRTUAL,
+pers_column_name_to_encrypt INT AS (int_column_name_to_encrypt) PERSISTENT,
+INDEX `index_name_to_encrypt`(`timestamp_column_name_to_encrypt`)
+) ENGINE=InnoDB 
+PARTITION BY RANGE (int_column_name_to_encrypt)
+SUBPARTITION BY KEY (int_column_name_to_encrypt)
+SUBPARTITIONS 2 (
+PARTITION partition0_name_to_encrypt VALUES LESS THAN (100),
+PARTITION partition1_name_to_encrypt VALUES LESS THAN (MAXVALUE)
+)
+;
+CREATE TABLE myisam_table_name_to_encrypt (
+int_column_name_to_encrypt INT AUTO_INCREMENT PRIMARY KEY,
+char_column_name_to_encrypt VARCHAR(255),
+datetime_column_name_to_encrypt DATETIME,
+text_column_name_to_encrypt TEXT
+) ENGINE=MyISAM;
+CREATE TABLE aria_table_name_to_encrypt (
+int_column_name_to_encrypt INT AUTO_INCREMENT PRIMARY KEY,
+varchar_column_name_to_encrypt VARCHAR(1024),
+enum_column_name_to_encrypt ENUM(
+'enum_value1_to_encrypt',
+'enum_value2_to_encrypt'
+  ),
+timestamp_column_name_to_encrypt TIMESTAMP(6) NULL,
+blob_column_name_to_encrypt BLOB
+) ENGINE=Aria;
+CREATE TRIGGER trigger_name_to_encrypt 
+AFTER INSERT ON myisam_table_name_to_encrypt FOR EACH ROW
+INSERT INTO aria_table_name_to_encrypt (varchar_column_name_to_encrypt)
+VALUES (NEW.char_column_name_to_encrypt);
+CREATE DEFINER=user_name_to_encrypt VIEW view_name_to_encrypt 
+AS SELECT * FROM innodb_table_name_to_encrypt;
+CREATE FUNCTION func_name_to_encrypt (func_parameter_to_encrypt INT)
+RETURNS VARCHAR(64)
+RETURN 'func_result_to_encrypt';
+CREATE PROCEDURE proc_name_to_encrypt (
+IN proc_in_parameter_to_encrypt CHAR(32),
+OUT proc_out_parameter_to_encrypt INT
+)
+BEGIN
+DECLARE procvar_name_to_encrypt CHAR(64) DEFAULT 'procvar_val_to_encrypt';
+DECLARE cursor_name_to_encrypt CURSOR FOR
+SELECT virt_column_name_to_encrypt FROM innodb_table_name_to_encrypt;
+DECLARE EXIT HANDLER FOR NOT FOUND
+BEGIN
+SET @stmt_var_to_encrypt = CONCAT(
+"SELECT 
+      IF (RAND()>0.5,'enum_value2_to_encrypt','enum_value1_to_encrypt')
+      FROM innodb_table_name_to_encrypt
+      INTO OUTFILE '", proc_in_parameter_to_encrypt, "'");
+PREPARE stmt_to_encrypt FROM @stmt_var_to_encrypt;
+EXECUTE stmt_to_encrypt;
+DEALLOCATE PREPARE stmt_to_encrypt;
+END;
+OPEN cursor_name_to_encrypt;
+proc_label_to_encrypt: LOOP 
+FETCH cursor_name_to_encrypt INTO procvar_name_to_encrypt;
+END LOOP;
+CLOSE cursor_name_to_encrypt;
+END $$
+CREATE SERVER server_name_to_encrypt
+FOREIGN DATA WRAPPER mysql
+OPTIONS (HOST 'host_name_to_encrypt');
+connect  con1,localhost,user_name_to_encrypt,password_to_encrypt,database_name_to_encrypt;
+CREATE TEMPORARY TABLE tmp_table_name_to_encrypt (
+float_column_name_to_encrypt FLOAT,
+binary_column_name_to_encrypt BINARY(64)
+);
+disconnect con1;
+connection server_1;
+CREATE INDEX index_name_to_encrypt 
+ON myisam_table_name_to_encrypt (datetime_column_name_to_encrypt);
+ALTER DATABASE database_name_to_encrypt CHARACTER SET utf8;
+ALTER TABLE innodb_table_name_to_encrypt 
+MODIFY timestamp_column_name_to_encrypt TIMESTAMP NOT NULL 
+DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+;
+ALTER ALGORITHM=MERGE VIEW view_name_to_encrypt 
+AS SELECT * FROM innodb_table_name_to_encrypt;
+RENAME TABLE innodb_table_name_to_encrypt TO new_table_name_to_encrypt;
+ALTER TABLE new_table_name_to_encrypt RENAME TO innodb_table_name_to_encrypt;
+set @user_var1_to_encrypt= 'dyncol1_val_to_encrypt';
+set @user_var2_to_encrypt= 'dyncol2_name_to_encrypt';
+INSERT INTO view_name_to_encrypt VALUES
+(1, NOW(6), COLUMN_CREATE('dyncol1_name_to_encrypt',@user_var1_to_encrypt), NULL, NULL),
+(2, NOW(6), COLUMN_CREATE(@user_var2_to_encrypt,'dyncol2_val_to_encrypt'), NULL, NULL)
+;
+BEGIN NOT ATOMIC
+DECLARE counter_name_to_encrypt INT DEFAULT 0;
+START TRANSACTION;
+WHILE counter_name_to_encrypt<12 DO
+SELECT COUNT(*) INTO @cnt FROM innodb_table_name_to_encrypt;
+INSERT INTO innodb_table_name_to_encrypt 
+SELECT int_column_name_to_encrypt+@cnt, NOW(6), blob_column_name_to_encrypt, NULL, NULL
+FROM innodb_table_name_to_encrypt
+ORDER BY int_column_name_to_encrypt;
+SET counter_name_to_encrypt = counter_name_to_encrypt+1;
+END WHILE;
+COMMIT;
+END
+$$
+INSERT INTO myisam_table_name_to_encrypt
+SELECT NULL, 'char_literal_to_encrypt', NULL, 'text_to_encrypt';
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+CALL proc_name_to_encrypt('file_name_to_encrypt',@useless_var_to_encrypt);
+TRUNCATE TABLE aria_table_name_to_encrypt;
+LOAD DATA INFILE 'file_name_to_encrypt' INTO TABLE aria_table_name_to_encrypt
+(enum_column_name_to_encrypt);
+LOAD DATA LOCAL INFILE '<DATADIR>/database_name_to_encrypt/file_name_to_encrypt' 
+INTO TABLE aria_table_name_to_encrypt (enum_column_name_to_encrypt);
+UPDATE view_name_to_encrypt SET blob_column_name_to_encrypt = 
+COLUMN_CREATE('dyncol1_name_to_encrypt',func_name_to_encrypt(0))
+;
+DELETE FROM aria_table_name_to_encrypt ORDER BY int_column_name_to_encrypt LIMIT 10;
+ANALYZE TABLE myisam_table_name_to_encrypt;
+CHECK TABLE aria_table_name_to_encrypt;
+CHECKSUM TABLE innodb_table_name_to_encrypt, myisam_table_name_to_encrypt;
+RENAME USER user_name_to_encrypt to new_user_name_to_encrypt;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM new_user_name_to_encrypt;
+DROP DATABASE database_name_to_encrypt;
+DROP USER new_user_name_to_encrypt;
+DROP SERVER server_name_to_encrypt;
+####################################################
+# Test 2: binlog with checksum, no annotated events
+####################################################
+connection server_1;
+SET binlog_annotate_row_events= 0;
+SET GLOBAL binlog_annotate_row_events= 0;
+SET GLOBAL binlog_checksum= CRC32;
+SET GLOBAL master_verify_checksum= 1;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+CREATE DATABASE database_name_to_encrypt;
+USE database_name_to_encrypt;
+CREATE USER user_name_to_encrypt;
+GRANT ALL ON database_name_to_encrypt.* TO user_name_to_encrypt;
+SET PASSWORD FOR user_name_to_encrypt = PASSWORD('password_to_encrypt');
+CREATE TABLE innodb_table_name_to_encrypt (
+int_column_name_to_encrypt INT PRIMARY KEY,
+timestamp_column_name_to_encrypt TIMESTAMP(6) NULL,
+blob_column_name_to_encrypt BLOB,
+virt_column_name_to_encrypt INT AS (int_column_name_to_encrypt % 10) VIRTUAL,
+pers_column_name_to_encrypt INT AS (int_column_name_to_encrypt) PERSISTENT,
+INDEX `index_name_to_encrypt`(`timestamp_column_name_to_encrypt`)
+) ENGINE=InnoDB 
+PARTITION BY RANGE (int_column_name_to_encrypt)
+SUBPARTITION BY KEY (int_column_name_to_encrypt)
+SUBPARTITIONS 2 (
+PARTITION partition0_name_to_encrypt VALUES LESS THAN (100),
+PARTITION partition1_name_to_encrypt VALUES LESS THAN (MAXVALUE)
+)
+;
+CREATE TABLE myisam_table_name_to_encrypt (
+int_column_name_to_encrypt INT AUTO_INCREMENT PRIMARY KEY,
+char_column_name_to_encrypt VARCHAR(255),
+datetime_column_name_to_encrypt DATETIME,
+text_column_name_to_encrypt TEXT
+) ENGINE=MyISAM;
+CREATE TABLE aria_table_name_to_encrypt (
+int_column_name_to_encrypt INT AUTO_INCREMENT PRIMARY KEY,
+varchar_column_name_to_encrypt VARCHAR(1024),
+enum_column_name_to_encrypt ENUM(
+'enum_value1_to_encrypt',
+'enum_value2_to_encrypt'
+  ),
+timestamp_column_name_to_encrypt TIMESTAMP(6) NULL,
+blob_column_name_to_encrypt BLOB
+) ENGINE=Aria;
+CREATE TRIGGER trigger_name_to_encrypt 
+AFTER INSERT ON myisam_table_name_to_encrypt FOR EACH ROW
+INSERT INTO aria_table_name_to_encrypt (varchar_column_name_to_encrypt)
+VALUES (NEW.char_column_name_to_encrypt);
+CREATE DEFINER=user_name_to_encrypt VIEW view_name_to_encrypt 
+AS SELECT * FROM innodb_table_name_to_encrypt;
+CREATE FUNCTION func_name_to_encrypt (func_parameter_to_encrypt INT)
+RETURNS VARCHAR(64)
+RETURN 'func_result_to_encrypt';
+CREATE PROCEDURE proc_name_to_encrypt (
+IN proc_in_parameter_to_encrypt CHAR(32),
+OUT proc_out_parameter_to_encrypt INT
+)
+BEGIN
+DECLARE procvar_name_to_encrypt CHAR(64) DEFAULT 'procvar_val_to_encrypt';
+DECLARE cursor_name_to_encrypt CURSOR FOR
+SELECT virt_column_name_to_encrypt FROM innodb_table_name_to_encrypt;
+DECLARE EXIT HANDLER FOR NOT FOUND
+BEGIN
+SET @stmt_var_to_encrypt = CONCAT(
+"SELECT 
+      IF (RAND()>0.5,'enum_value2_to_encrypt','enum_value1_to_encrypt')
+      FROM innodb_table_name_to_encrypt
+      INTO OUTFILE '", proc_in_parameter_to_encrypt, "'");
+PREPARE stmt_to_encrypt FROM @stmt_var_to_encrypt;
+EXECUTE stmt_to_encrypt;
+DEALLOCATE PREPARE stmt_to_encrypt;
+END;
+OPEN cursor_name_to_encrypt;
+proc_label_to_encrypt: LOOP 
+FETCH cursor_name_to_encrypt INTO procvar_name_to_encrypt;
+END LOOP;
+CLOSE cursor_name_to_encrypt;
+END $$
+CREATE SERVER server_name_to_encrypt
+FOREIGN DATA WRAPPER mysql
+OPTIONS (HOST 'host_name_to_encrypt');
+connect  con1,localhost,user_name_to_encrypt,password_to_encrypt,database_name_to_encrypt;
+CREATE TEMPORARY TABLE tmp_table_name_to_encrypt (
+float_column_name_to_encrypt FLOAT,
+binary_column_name_to_encrypt BINARY(64)
+);
+disconnect con1;
+connection server_1;
+CREATE INDEX index_name_to_encrypt 
+ON myisam_table_name_to_encrypt (datetime_column_name_to_encrypt);
+ALTER DATABASE database_name_to_encrypt CHARACTER SET utf8;
+ALTER TABLE innodb_table_name_to_encrypt 
+MODIFY timestamp_column_name_to_encrypt TIMESTAMP NOT NULL 
+DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+;
+ALTER ALGORITHM=MERGE VIEW view_name_to_encrypt 
+AS SELECT * FROM innodb_table_name_to_encrypt;
+RENAME TABLE innodb_table_name_to_encrypt TO new_table_name_to_encrypt;
+ALTER TABLE new_table_name_to_encrypt RENAME TO innodb_table_name_to_encrypt;
+set @user_var1_to_encrypt= 'dyncol1_val_to_encrypt';
+set @user_var2_to_encrypt= 'dyncol2_name_to_encrypt';
+INSERT INTO view_name_to_encrypt VALUES
+(1, NOW(6), COLUMN_CREATE('dyncol1_name_to_encrypt',@user_var1_to_encrypt), NULL, NULL),
+(2, NOW(6), COLUMN_CREATE(@user_var2_to_encrypt,'dyncol2_val_to_encrypt'), NULL, NULL)
+;
+BEGIN NOT ATOMIC
+DECLARE counter_name_to_encrypt INT DEFAULT 0;
+START TRANSACTION;
+WHILE counter_name_to_encrypt<12 DO
+SELECT COUNT(*) INTO @cnt FROM innodb_table_name_to_encrypt;
+INSERT INTO innodb_table_name_to_encrypt 
+SELECT int_column_name_to_encrypt+@cnt, NOW(6), blob_column_name_to_encrypt, NULL, NULL
+FROM innodb_table_name_to_encrypt
+ORDER BY int_column_name_to_encrypt;
+SET counter_name_to_encrypt = counter_name_to_encrypt+1;
+END WHILE;
+COMMIT;
+END
+$$
+INSERT INTO myisam_table_name_to_encrypt
+SELECT NULL, 'char_literal_to_encrypt', NULL, 'text_to_encrypt';
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+CALL proc_name_to_encrypt('file_name_to_encrypt',@useless_var_to_encrypt);
+TRUNCATE TABLE aria_table_name_to_encrypt;
+LOAD DATA INFILE 'file_name_to_encrypt' INTO TABLE aria_table_name_to_encrypt
+(enum_column_name_to_encrypt);
+LOAD DATA LOCAL INFILE '<DATADIR>/database_name_to_encrypt/file_name_to_encrypt' 
+INTO TABLE aria_table_name_to_encrypt (enum_column_name_to_encrypt);
+UPDATE view_name_to_encrypt SET blob_column_name_to_encrypt = 
+COLUMN_CREATE('dyncol1_name_to_encrypt',func_name_to_encrypt(0))
+;
+DELETE FROM aria_table_name_to_encrypt ORDER BY int_column_name_to_encrypt LIMIT 10;
+ANALYZE TABLE myisam_table_name_to_encrypt;
+CHECK TABLE aria_table_name_to_encrypt;
+CHECKSUM TABLE innodb_table_name_to_encrypt, myisam_table_name_to_encrypt;
+RENAME USER user_name_to_encrypt to new_user_name_to_encrypt;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM new_user_name_to_encrypt;
+DROP DATABASE database_name_to_encrypt;
+DROP USER new_user_name_to_encrypt;
+DROP SERVER server_name_to_encrypt;
+####################################################
+# Test 3: binlog with checksum and annotated events
+####################################################
+connection server_1;
+SET binlog_annotate_row_events= 1;
+SET GLOBAL binlog_annotate_row_events= 1;
+SET GLOBAL binlog_checksum= CRC32;
+SET GLOBAL master_verify_checksum= 1;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+CREATE DATABASE database_name_to_encrypt;
+USE database_name_to_encrypt;
+CREATE USER user_name_to_encrypt;
+GRANT ALL ON database_name_to_encrypt.* TO user_name_to_encrypt;
+SET PASSWORD FOR user_name_to_encrypt = PASSWORD('password_to_encrypt');
+CREATE TABLE innodb_table_name_to_encrypt (
+int_column_name_to_encrypt INT PRIMARY KEY,
+timestamp_column_name_to_encrypt TIMESTAMP(6) NULL,
+blob_column_name_to_encrypt BLOB,
+virt_column_name_to_encrypt INT AS (int_column_name_to_encrypt % 10) VIRTUAL,
+pers_column_name_to_encrypt INT AS (int_column_name_to_encrypt) PERSISTENT,
+INDEX `index_name_to_encrypt`(`timestamp_column_name_to_encrypt`)
+) ENGINE=InnoDB 
+PARTITION BY RANGE (int_column_name_to_encrypt)
+SUBPARTITION BY KEY (int_column_name_to_encrypt)
+SUBPARTITIONS 2 (
+PARTITION partition0_name_to_encrypt VALUES LESS THAN (100),
+PARTITION partition1_name_to_encrypt VALUES LESS THAN (MAXVALUE)
+)
+;
+CREATE TABLE myisam_table_name_to_encrypt (
+int_column_name_to_encrypt INT AUTO_INCREMENT PRIMARY KEY,
+char_column_name_to_encrypt VARCHAR(255),
+datetime_column_name_to_encrypt DATETIME,
+text_column_name_to_encrypt TEXT
+) ENGINE=MyISAM;
+CREATE TABLE aria_table_name_to_encrypt (
+int_column_name_to_encrypt INT AUTO_INCREMENT PRIMARY KEY,
+varchar_column_name_to_encrypt VARCHAR(1024),
+enum_column_name_to_encrypt ENUM(
+'enum_value1_to_encrypt',
+'enum_value2_to_encrypt'
+  ),
+timestamp_column_name_to_encrypt TIMESTAMP(6) NULL,
+blob_column_name_to_encrypt BLOB
+) ENGINE=Aria;
+CREATE TRIGGER trigger_name_to_encrypt 
+AFTER INSERT ON myisam_table_name_to_encrypt FOR EACH ROW
+INSERT INTO aria_table_name_to_encrypt (varchar_column_name_to_encrypt)
+VALUES (NEW.char_column_name_to_encrypt);
+CREATE DEFINER=user_name_to_encrypt VIEW view_name_to_encrypt 
+AS SELECT * FROM innodb_table_name_to_encrypt;
+CREATE FUNCTION func_name_to_encrypt (func_parameter_to_encrypt INT)
+RETURNS VARCHAR(64)
+RETURN 'func_result_to_encrypt';
+CREATE PROCEDURE proc_name_to_encrypt (
+IN proc_in_parameter_to_encrypt CHAR(32),
+OUT proc_out_parameter_to_encrypt INT
+)
+BEGIN
+DECLARE procvar_name_to_encrypt CHAR(64) DEFAULT 'procvar_val_to_encrypt';
+DECLARE cursor_name_to_encrypt CURSOR FOR
+SELECT virt_column_name_to_encrypt FROM innodb_table_name_to_encrypt;
+DECLARE EXIT HANDLER FOR NOT FOUND
+BEGIN
+SET @stmt_var_to_encrypt = CONCAT(
+"SELECT 
+      IF (RAND()>0.5,'enum_value2_to_encrypt','enum_value1_to_encrypt')
+      FROM innodb_table_name_to_encrypt
+      INTO OUTFILE '", proc_in_parameter_to_encrypt, "'");
+PREPARE stmt_to_encrypt FROM @stmt_var_to_encrypt;
+EXECUTE stmt_to_encrypt;
+DEALLOCATE PREPARE stmt_to_encrypt;
+END;
+OPEN cursor_name_to_encrypt;
+proc_label_to_encrypt: LOOP 
+FETCH cursor_name_to_encrypt INTO procvar_name_to_encrypt;
+END LOOP;
+CLOSE cursor_name_to_encrypt;
+END $$
+CREATE SERVER server_name_to_encrypt
+FOREIGN DATA WRAPPER mysql
+OPTIONS (HOST 'host_name_to_encrypt');
+connect  con1,localhost,user_name_to_encrypt,password_to_encrypt,database_name_to_encrypt;
+CREATE TEMPORARY TABLE tmp_table_name_to_encrypt (
+float_column_name_to_encrypt FLOAT,
+binary_column_name_to_encrypt BINARY(64)
+);
+disconnect con1;
+connection server_1;
+CREATE INDEX index_name_to_encrypt 
+ON myisam_table_name_to_encrypt (datetime_column_name_to_encrypt);
+ALTER DATABASE database_name_to_encrypt CHARACTER SET utf8;
+ALTER TABLE innodb_table_name_to_encrypt 
+MODIFY timestamp_column_name_to_encrypt TIMESTAMP NOT NULL 
+DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+;
+ALTER ALGORITHM=MERGE VIEW view_name_to_encrypt 
+AS SELECT * FROM innodb_table_name_to_encrypt;
+RENAME TABLE innodb_table_name_to_encrypt TO new_table_name_to_encrypt;
+ALTER TABLE new_table_name_to_encrypt RENAME TO innodb_table_name_to_encrypt;
+set @user_var1_to_encrypt= 'dyncol1_val_to_encrypt';
+set @user_var2_to_encrypt= 'dyncol2_name_to_encrypt';
+INSERT INTO view_name_to_encrypt VALUES
+(1, NOW(6), COLUMN_CREATE('dyncol1_name_to_encrypt',@user_var1_to_encrypt), NULL, NULL),
+(2, NOW(6), COLUMN_CREATE(@user_var2_to_encrypt,'dyncol2_val_to_encrypt'), NULL, NULL)
+;
+BEGIN NOT ATOMIC
+DECLARE counter_name_to_encrypt INT DEFAULT 0;
+START TRANSACTION;
+WHILE counter_name_to_encrypt<12 DO
+SELECT COUNT(*) INTO @cnt FROM innodb_table_name_to_encrypt;
+INSERT INTO innodb_table_name_to_encrypt 
+SELECT int_column_name_to_encrypt+@cnt, NOW(6), blob_column_name_to_encrypt, NULL, NULL
+FROM innodb_table_name_to_encrypt
+ORDER BY int_column_name_to_encrypt;
+SET counter_name_to_encrypt = counter_name_to_encrypt+1;
+END WHILE;
+COMMIT;
+END
+$$
+INSERT INTO myisam_table_name_to_encrypt
+SELECT NULL, 'char_literal_to_encrypt', NULL, 'text_to_encrypt';
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+CALL proc_name_to_encrypt('file_name_to_encrypt',@useless_var_to_encrypt);
+TRUNCATE TABLE aria_table_name_to_encrypt;
+LOAD DATA INFILE 'file_name_to_encrypt' INTO TABLE aria_table_name_to_encrypt
+(enum_column_name_to_encrypt);
+LOAD DATA LOCAL INFILE '<DATADIR>/database_name_to_encrypt/file_name_to_encrypt' 
+INTO TABLE aria_table_name_to_encrypt (enum_column_name_to_encrypt);
+UPDATE view_name_to_encrypt SET blob_column_name_to_encrypt = 
+COLUMN_CREATE('dyncol1_name_to_encrypt',func_name_to_encrypt(0))
+;
+DELETE FROM aria_table_name_to_encrypt ORDER BY int_column_name_to_encrypt LIMIT 10;
+ANALYZE TABLE myisam_table_name_to_encrypt;
+CHECK TABLE aria_table_name_to_encrypt;
+CHECKSUM TABLE innodb_table_name_to_encrypt, myisam_table_name_to_encrypt;
+RENAME USER user_name_to_encrypt to new_user_name_to_encrypt;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM new_user_name_to_encrypt;
+DROP DATABASE database_name_to_encrypt;
+DROP USER new_user_name_to_encrypt;
+DROP SERVER server_name_to_encrypt;
+####################################################
+# Test 4: binlog with annotated events and binlog_row_image=minimal
+####################################################
+connection server_1;
+SET binlog_annotate_row_events= 1;
+SET GLOBAL binlog_annotate_row_events= 1;
+SET GLOBAL binlog_checksum= NONE;
+SET GLOBAL master_verify_checksum= 0;
+SET GLOBAL binlog_row_image= MINIMAL;
+SET binlog_row_image= MINIMAL;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+CREATE DATABASE database_name_to_encrypt;
+USE database_name_to_encrypt;
+CREATE USER user_name_to_encrypt;
+GRANT ALL ON database_name_to_encrypt.* TO user_name_to_encrypt;
+SET PASSWORD FOR user_name_to_encrypt = PASSWORD('password_to_encrypt');
+CREATE TABLE innodb_table_name_to_encrypt (
+int_column_name_to_encrypt INT PRIMARY KEY,
+timestamp_column_name_to_encrypt TIMESTAMP(6) NULL,
+blob_column_name_to_encrypt BLOB,
+virt_column_name_to_encrypt INT AS (int_column_name_to_encrypt % 10) VIRTUAL,
+pers_column_name_to_encrypt INT AS (int_column_name_to_encrypt) PERSISTENT,
+INDEX `index_name_to_encrypt`(`timestamp_column_name_to_encrypt`)
+) ENGINE=InnoDB 
+PARTITION BY RANGE (int_column_name_to_encrypt)
+SUBPARTITION BY KEY (int_column_name_to_encrypt)
+SUBPARTITIONS 2 (
+PARTITION partition0_name_to_encrypt VALUES LESS THAN (100),
+PARTITION partition1_name_to_encrypt VALUES LESS THAN (MAXVALUE)
+)
+;
+CREATE TABLE myisam_table_name_to_encrypt (
+int_column_name_to_encrypt INT AUTO_INCREMENT PRIMARY KEY,
+char_column_name_to_encrypt VARCHAR(255),
+datetime_column_name_to_encrypt DATETIME,
+text_column_name_to_encrypt TEXT
+) ENGINE=MyISAM;
+CREATE TABLE aria_table_name_to_encrypt (
+int_column_name_to_encrypt INT AUTO_INCREMENT PRIMARY KEY,
+varchar_column_name_to_encrypt VARCHAR(1024),
+enum_column_name_to_encrypt ENUM(
+'enum_value1_to_encrypt',
+'enum_value2_to_encrypt'
+  ),
+timestamp_column_name_to_encrypt TIMESTAMP(6) NULL,
+blob_column_name_to_encrypt BLOB
+) ENGINE=Aria;
+CREATE TRIGGER trigger_name_to_encrypt 
+AFTER INSERT ON myisam_table_name_to_encrypt FOR EACH ROW
+INSERT INTO aria_table_name_to_encrypt (varchar_column_name_to_encrypt)
+VALUES (NEW.char_column_name_to_encrypt);
+CREATE DEFINER=user_name_to_encrypt VIEW view_name_to_encrypt 
+AS SELECT * FROM innodb_table_name_to_encrypt;
+CREATE FUNCTION func_name_to_encrypt (func_parameter_to_encrypt INT)
+RETURNS VARCHAR(64)
+RETURN 'func_result_to_encrypt';
+CREATE PROCEDURE proc_name_to_encrypt (
+IN proc_in_parameter_to_encrypt CHAR(32),
+OUT proc_out_parameter_to_encrypt INT
+)
+BEGIN
+DECLARE procvar_name_to_encrypt CHAR(64) DEFAULT 'procvar_val_to_encrypt';
+DECLARE cursor_name_to_encrypt CURSOR FOR
+SELECT virt_column_name_to_encrypt FROM innodb_table_name_to_encrypt;
+DECLARE EXIT HANDLER FOR NOT FOUND
+BEGIN
+SET @stmt_var_to_encrypt = CONCAT(
+"SELECT 
+      IF (RAND()>0.5,'enum_value2_to_encrypt','enum_value1_to_encrypt')
+      FROM innodb_table_name_to_encrypt
+      INTO OUTFILE '", proc_in_parameter_to_encrypt, "'");
+PREPARE stmt_to_encrypt FROM @stmt_var_to_encrypt;
+EXECUTE stmt_to_encrypt;
+DEALLOCATE PREPARE stmt_to_encrypt;
+END;
+OPEN cursor_name_to_encrypt;
+proc_label_to_encrypt: LOOP 
+FETCH cursor_name_to_encrypt INTO procvar_name_to_encrypt;
+END LOOP;
+CLOSE cursor_name_to_encrypt;
+END $$
+CREATE SERVER server_name_to_encrypt
+FOREIGN DATA WRAPPER mysql
+OPTIONS (HOST 'host_name_to_encrypt');
+connect  con1,localhost,user_name_to_encrypt,password_to_encrypt,database_name_to_encrypt;
+CREATE TEMPORARY TABLE tmp_table_name_to_encrypt (
+float_column_name_to_encrypt FLOAT,
+binary_column_name_to_encrypt BINARY(64)
+);
+disconnect con1;
+connection server_1;
+CREATE INDEX index_name_to_encrypt 
+ON myisam_table_name_to_encrypt (datetime_column_name_to_encrypt);
+ALTER DATABASE database_name_to_encrypt CHARACTER SET utf8;
+ALTER TABLE innodb_table_name_to_encrypt 
+MODIFY timestamp_column_name_to_encrypt TIMESTAMP NOT NULL 
+DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+;
+ALTER ALGORITHM=MERGE VIEW view_name_to_encrypt 
+AS SELECT * FROM innodb_table_name_to_encrypt;
+RENAME TABLE innodb_table_name_to_encrypt TO new_table_name_to_encrypt;
+ALTER TABLE new_table_name_to_encrypt RENAME TO innodb_table_name_to_encrypt;
+set @user_var1_to_encrypt= 'dyncol1_val_to_encrypt';
+set @user_var2_to_encrypt= 'dyncol2_name_to_encrypt';
+INSERT INTO view_name_to_encrypt VALUES
+(1, NOW(6), COLUMN_CREATE('dyncol1_name_to_encrypt',@user_var1_to_encrypt), NULL, NULL),
+(2, NOW(6), COLUMN_CREATE(@user_var2_to_encrypt,'dyncol2_val_to_encrypt'), NULL, NULL)
+;
+BEGIN NOT ATOMIC
+DECLARE counter_name_to_encrypt INT DEFAULT 0;
+START TRANSACTION;
+WHILE counter_name_to_encrypt<12 DO
+SELECT COUNT(*) INTO @cnt FROM innodb_table_name_to_encrypt;
+INSERT INTO innodb_table_name_to_encrypt 
+SELECT int_column_name_to_encrypt+@cnt, NOW(6), blob_column_name_to_encrypt, NULL, NULL
+FROM innodb_table_name_to_encrypt
+ORDER BY int_column_name_to_encrypt;
+SET counter_name_to_encrypt = counter_name_to_encrypt+1;
+END WHILE;
+COMMIT;
+END
+$$
+INSERT INTO myisam_table_name_to_encrypt
+SELECT NULL, 'char_literal_to_encrypt', NULL, 'text_to_encrypt';
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+INSERT INTO myisam_table_name_to_encrypt (char_column_name_to_encrypt) 
+SELECT char_column_name_to_encrypt FROM myisam_table_name_to_encrypt;
+CALL proc_name_to_encrypt('file_name_to_encrypt',@useless_var_to_encrypt);
+TRUNCATE TABLE aria_table_name_to_encrypt;
+LOAD DATA INFILE 'file_name_to_encrypt' INTO TABLE aria_table_name_to_encrypt
+(enum_column_name_to_encrypt);
+LOAD DATA LOCAL INFILE '<DATADIR>/database_name_to_encrypt/file_name_to_encrypt' 
+INTO TABLE aria_table_name_to_encrypt (enum_column_name_to_encrypt);
+UPDATE view_name_to_encrypt SET blob_column_name_to_encrypt = 
+COLUMN_CREATE('dyncol1_name_to_encrypt',func_name_to_encrypt(0))
+;
+DELETE FROM aria_table_name_to_encrypt ORDER BY int_column_name_to_encrypt LIMIT 10;
+ANALYZE TABLE myisam_table_name_to_encrypt;
+CHECK TABLE aria_table_name_to_encrypt;
+CHECKSUM TABLE innodb_table_name_to_encrypt, myisam_table_name_to_encrypt;
+RENAME USER user_name_to_encrypt to new_user_name_to_encrypt;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM new_user_name_to_encrypt;
+DROP DATABASE database_name_to_encrypt;
+DROP USER new_user_name_to_encrypt;
+DROP SERVER server_name_to_encrypt;
+#############################
+# Final checks for the master
+#############################
+NOT FOUND /_to_encrypt.*/ in master-bin.0*
+NOT FOUND /COMMIT.*/ in master-bin.0*
+NOT FOUND /TIMESTAMP.*/ in master-bin.0*
+include/save_master_pos.inc
+#############################
+# Final checks for the slave
+#############################
+connection server_2;
+include/sync_io_with_master.inc
+FOUND 1 /_to_encrypt.*/ in slave-relay-bin.0*
+FOUND 1 /COMMIT.*/ in slave-relay-bin.0*
+FOUND 1 /TIMESTAMP.*/ in slave-relay-bin.0*
+include/start_slave.inc
+include/sync_slave_sql_with_io.inc
+FOUND 1 /_to_encrypt.*/ in slave-bin.0*
+FOUND 1 /COMMIT.*/ in slave-bin.0*
+FOUND 1 /TIMESTAMP.*/ in slave-bin.0*
+##########
+# Cleanup
+##########
+connection server_1;
+SET GLOBAL binlog_annotate_row_events= @binlog_annotate_row_events.save;
+SET GLOBAL binlog_checksum= @binlog_checksum.save;
+SET GLOBAL master_verify_checksum= @master_verify_checksum.save;
+SET GLOBAL binlog_row_image= @binlog_row_image.save;
+include/rpl_end.inc

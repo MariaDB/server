@@ -1,0 +1,35 @@
+# Copyright(C) 2011 Kentoku SHIBA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/have_innodb.inc
+--source include/have_eucjpms.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+set names eucjpms;
+create table t1 (c1 int primary key, c2 varchar(255), c3 text, fulltext index(c2), fulltext index(c3)) default charset eucjpms COMMENT = 'engine "innodb"';
+insert into t1 values(1, "明日の富士山の天気について","あああああああ");
+insert into t1 values(2, "いいいいい","明日の富士山の天気は分かりません");
+insert into t1 values(3, "dummy", "dummy");
+select * from t1;
+select * from t1 where match(c2) against("富士山");
+select * from t1 where match(c3) against("富士山");
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

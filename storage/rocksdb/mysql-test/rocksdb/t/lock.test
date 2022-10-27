@@ -1,0 +1,224 @@
+--source include/have_rocksdb.inc
+
+# Standard table locking:
+#   LOCK TABLE .. READ 
+#   LOCK TABLE .. [LOW_PRIORITY] WRITE 
+#   UNLOCK TABLES
+#
+# and global locking:
+# FLUSH TABLES [..] WITH READ LOCK
+# 
+############################################
+# TODO:   
+# A part of the test is currently disabled
+# because temporary tables are not supported
+############################################
+
+--enable_connect_log
+
+# Save the initial number of concurrent sessions.
+--source include/count_sessions.inc
+
+connect (con1,localhost,root,,);
+SET lock_wait_timeout=1;
+
+connection default;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2, t3;
+--enable_warnings
+
+CREATE TABLE t1 (id INT, id2 INT, pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (id,id2) VALUES (1,1),(1,2),(1,3);
+
+# LOW_PRIORITY has no effect, but is still syntactically correct
+LOCK TABLE t1 LOW_PRIORITY WRITE;
+SELECT id2,COUNT(DISTINCT id) FROM t1 GROUP BY id2;
+
+UPDATE t1 SET id=-1 WHERE id=1;
+
+connection con1;
+# With WRITE lock held by connection 'default',
+# nobody else can access the table
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT id,id2 FROM t1;
+--error ER_LOCK_WAIT_TIMEOUT
+LOCK TABLE t1 READ;
+
+connection default;
+LOCK TABLE t1 READ;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+UPDATE t1 SET id=1 WHERE id=1;
+
+connection con1;
+# With READ lock held by connection 'default',
+# it should be possible to read from the table
+# or acquire another READ lock, 
+# but not update it or acquire WRITE lock
+SELECT COUNT(DISTINCT id) FROM t1;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t1 SET id=2 WHERE id=2;
+--error ER_LOCK_WAIT_TIMEOUT
+LOCK TABLE t1 WRITE;
+LOCK TABLE t1 READ;
+UNLOCK TABLES;
+
+
+--connection default
+
+--error ER_TABLE_NOT_LOCKED
+CREATE TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+
+--disable_parsing
+
+CREATE TEMPORARY TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+DROP TABLE IF EXISTS t2;
+
+--enable_parsing
+
+UNLOCK TABLES;
+
+CREATE TABLE t2 (id INT, id2 INT, pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+LOCK TABLE t1 WRITE, t2 WRITE;
+INSERT INTO t2 (id,id2) SELECT id,id2 FROM t1;
+UPDATE t1 SET id=1 WHERE id=-1;
+DROP TABLE t1,t2;
+
+#
+# INSERT ... SELECT with lock tables
+#
+
+CREATE TABLE t1 (i1 INT, nr INT, pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+CREATE TABLE t2 (nr INT, nm INT, pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t2 (nr,nm) VALUES (1,3);
+INSERT INTO t2 (nr,nm) VALUES (2,4);
+
+LOCK TABLES t1 WRITE, t2 READ;
+INSERT INTO t1 (i1,nr) SELECT 1, nr FROM t2 WHERE nm=3;
+INSERT INTO t1 (i1,nr) SELECT 2, nr FROM t2 WHERE nm=4;
+UNLOCK TABLES;
+
+LOCK TABLES t1 WRITE;
+--error ER_TABLE_NOT_LOCKED
+INSERT INTO t1 (i1,nr) SELECT i1, nr FROM t1;
+UNLOCK TABLES;
+LOCK TABLES t1 WRITE, t1 AS t1_alias READ;
+INSERT INTO t1 (i1,nr) SELECT i1, nr FROM t1 AS t1_alias;
+--error ER_TABLE_NOT_LOCKED
+DROP TABLE t1,t2;
+UNLOCK TABLES;
+DROP TABLE t1,t2;
+
+#
+# Check that a dropped table is removed from a lock
+
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+CREATE TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(b)) ENGINE=rocksdb;
+CREATE TABLE t3 (a INT, b CHAR(8), pk INT PRIMARY KEY) ENGINE=rocksdb;
+LOCK TABLES t1 WRITE, t2 WRITE, t3 WRITE;
+# This removes one table after the other from the lock.
+DROP TABLE t2, t3, t1;
+#
+# Check that a lock merge works
+
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+CREATE TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(b)) ENGINE=rocksdb;
+CREATE TABLE t3 (a INT, b CHAR(8), pk INT PRIMARY KEY) ENGINE=rocksdb;
+LOCK TABLES t1 WRITE, t2 WRITE, t3 WRITE, t1 AS t4 READ;
+
+ALTER TABLE t2 ADD COLUMN c2 INT;
+
+DROP TABLE t1, t2, t3;
+
+# FLUSH TABLES is not permitted when there is an active LOCK TABLES .. READ,
+# FLUSH TABLES .. WITH READ LOCK should be used instead
+# (and for other connections the table is locked)
+
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+CREATE TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(b)) ENGINE=rocksdb;
+
+LOCK TABLE t1 READ, t2 READ;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+FLUSH TABLE t1;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+FLUSH TABLES;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+FLUSH TABLES t1, t2 WITH READ LOCK;
+UNLOCK TABLES;
+
+FLUSH TABLES t1, t2 WITH READ LOCK;
+
+--connection con1
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+
+--connection default
+UNLOCK TABLES;
+
+# Global lock
+
+FLUSH TABLES WITH READ LOCK;
+
+--connection con1
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+
+--connection default
+UNLOCK TABLES;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+FLUSH TABLES WITH READ LOCK;
+--error ER_CANT_UPDATE_WITH_READLOCK
+DROP TABLE t1, t2;
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+
+--disconnect con1
+
+#
+# Ensure that FLUSH TABLES doesn't substitute a base locked table
+# with a temporary one.
+#
+
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+CREATE TABLE t2 (a INT, b CHAR(8), PRIMARY KEY(b)) ENGINE=rocksdb;
+
+LOCK TABLE t1 WRITE, t2 WRITE;
+
+--disable_parsing
+
+CREATE TEMPORARY TABLE t1 (a INT, b CHAR(8), PRIMARY KEY(a)) ENGINE=rocksdb;
+FLUSH TABLE t1;
+DROP TEMPORARY TABLE t1;
+
+--enable_parsing
+
+SELECT a,b FROM t1;
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+HANDLER t1 OPEN h;
+CREATE TABLE t2 (i INT) ENGINE=RocksDB;
+LOCK TABLES t2 WRITE;
+
+--connect (con1,localhost,root,,test)
+--connection con1
+--send
+FLUSH TABLES WITH READ LOCK;
+
+--connection default
+INSERT INTO t2 VALUES (1);
+UNLOCK TABLES;
+HANDLER h CLOSE;
+
+--connection con1
+--reap
+--disconnect con1
+
+--connection default
+DROP TABLE t1, t2;
+
+# Check that all connections opened by test cases in this file are really
+# gone so execution of other tests won't be affected by their presence.
+--source include/wait_until_count_sessions.inc
+

@@ -1,0 +1,593 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-15620 Crash when using "SET @@NEW.a=expr" inside a trigger
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @@NEW.a=0;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15615 Unexpected syntax error instead of "Unknown system variable" inside an SP
+--echo #
+
+DELIMITER $$;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+DECLARE
+  a INT;
+BEGIN
+  SET GLOBAL a=10;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # MDEV-16202 Latest changes made erroneously some keywords reserved in sql_mode=ORACLE
+--echo #
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(name VARCHAR(64), pattern TEXT) AS
+  query TEXT DEFAULT REPLACE(pattern, 'name', name);
+BEGIN
+  SELECT query AS '';
+  EXECUTE IMMEDIATE query;
+EXCEPTION
+  WHEN OTHERS THEN
+  BEGIN
+    SHOW ERRORS;
+  END;
+END;
+$$
+
+CREATE PROCEDURE p2(name VARCHAR(64)) AS
+BEGIN
+  CALL p1(name, 'DECLARE name INT; BEGIN name:=10; SELECT name; END');
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (name INT)', 'name', name);
+  CALL p1(name, 'SELECT name FROM t1');
+  CALL p1(name, 'SELECT name ''alias'' FROM t1');
+  CALL p1(name, 'SELECT name()');
+  CALL p1(name, 'SELECT name.name()');
+  CALL p1(name, 'SELECT name DATE FROM t1');
+  CALL p1(name, 'SELECT name HISTORY FROM t1');
+  CALL p1(name, 'SELECT name NEXT FROM t1');
+  CALL p1(name, 'SELECT name PERIOD FROM t1');
+  CALL p1(name, 'SELECT name PREVIOUS FROM t1');
+  CALL p1(name, 'SELECT name SYSTEM FROM t1');
+  CALL p1(name, 'SELECT name SYSTEM_TIME FROM t1');
+  CALL p1(name, 'SELECT name TIME FROM t1');
+  CALL p1(name, 'SELECT name TIMESTAMP FROM t1');
+  CALL p1(name, 'SELECT name TRANSACTION FROM t1');
+  CALL p1(name, 'SELECT name VALUE FROM t1');
+  CALL p1(name, 'SELECT name VERSIONING FROM t1');
+  CALL p1(name, 'SELECT name WITHOUT FROM t1');
+  DROP TABLE t1;
+END;
+$$
+DELIMITER ;$$
+
+--disable_column_names
+CALL p2('date');
+CALL p2('history');
+CALL p2('next');
+CALL p2('period');
+CALL p2('previous');
+CALL p2('system');
+CALL p2('system_time');
+CALL p2('time');
+CALL p2('timestamp');
+CALL p2('transaction');
+CALL p2('value');
+CALL p2('versioning');
+CALL p2('without');
+--enable_column_names
+
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-16244 sql_mode=ORACLE: Some keywords do not work in variable declarations
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER /;
+
+DECLARE
+  do INT;
+BEGIN
+  SELECT do INTO do FROM DUAL;
+END;
+/
+
+DECLARE
+  handler INT;
+BEGIN
+  SELECT handler INTO handler FROM DUAL;
+END;
+/
+
+DECLARE
+  repair INT;
+BEGIN
+  SELECT repair INTO repair FROM DUAL;
+END;
+/
+
+DECLARE
+  shutdown INT;
+BEGIN
+  SELECT shutdown INTO shutdown FROM DUAL;
+END;
+/
+
+DECLARE
+  truncate INT;
+BEGIN
+  SELECT truncate INTO truncate FROM DUAL;
+END;
+/
+
+DECLARE
+  close INT;
+BEGIN
+  SELECT close INTO close FROM DUAL;
+END;
+/
+
+DECLARE
+  commit INT;
+BEGIN
+  SELECT commit INTO commit FROM DUAL;
+END;
+/
+
+DECLARE
+  open INT;
+BEGIN
+  SELECT open INTO open FROM DUAL;
+END;
+/
+
+DECLARE
+  rollback INT;
+BEGIN
+  SELECT rollback INTO rollback FROM DUAL;
+END;
+/
+
+DECLARE
+  savepoint INT;
+BEGIN
+  SELECT savepoint INTO savepoint FROM DUAL;
+END;
+/
+
+DECLARE
+  contains INT;
+BEGIN
+  SELECT contains INTO contains FROM DUAL;
+END;
+/
+
+DECLARE
+  language INT;
+BEGIN
+  SELECT language INTO language FROM DUAL;
+END;
+/
+
+DECLARE
+  no INT;
+BEGIN
+  SELECT no INTO no FROM DUAL;
+END;
+/
+
+DECLARE
+  charset INT;
+BEGIN
+  SELECT charset INTO charset FROM DUAL;
+END;
+/
+DECLARE
+  follows INT;
+BEGIN
+  SELECT follows INTO follows FROM DUAL;
+END;
+/
+
+DECLARE
+  precedes INT;
+BEGIN
+  SELECT precedes INTO precedes FROM DUAL;
+END;
+/
+
+DELIMITER ;/
+
+
+--echo #
+--echo # MDEV-16464 Oracle Comp.: Sql-Error on "SELECT name, comment FROM mysql.proc"
+--echo #
+
+SET sql_mode=ORACLE;
+SELECT name, comment FROM mysql.proc WHERE db='test';
+
+CREATE TABLE comment (comment INT);
+SELECT comment FROM comment;
+SELECT comment comment FROM comment comment;
+SELECT comment AS comment FROM comment AS comment;
+DROP TABLE comment;
+
+DELIMITER /;
+DECLARE
+  comment INT;
+BEGIN
+  SELECT comment INTO comment FROM DUAL;
+END;
+/
+DELIMITER ;/
+
+DELIMITER /;
+CREATE PROCEDURE comment COMMENT 'test' AS
+BEGIN
+  SELECT 1;
+END;
+/
+BEGIN
+  comment;
+END;
+/
+DELIMITER ;/
+CALL comment();
+CALL comment;
+DROP PROCEDURE comment;
+
+DELIMITER /;
+CREATE FUNCTION comment RETURN INT COMMENT 'test' AS
+BEGIN
+  RETURN 1;
+END;
+/
+DELIMITER ;/
+enable_prepare_warnings;
+SELECT test.comment() FROM DUAL;
+disable_prepare_warnings;
+DROP FUNCTION comment;
+
+
+--echo #
+--echo # MDEV-17660 sql_mode=ORACLE: Some keywords do not work as label names: history, system, versioning, without
+--echo #
+
+DELIMITER /;
+BEGIN
+<<date_format>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<decode>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<history>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<system>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<versioning>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN
+<<without>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+--echo #
+--echo # MDEV-17666 sql_mode=ORACLE: Keyword ELSEIF should not be reserved
+--echo #
+
+DELIMITER /;
+DECLARE
+  ELSEIF INT;
+BEGIN
+  ELSEIF:=1;
+END;
+/
+DELIMITER ;/
+
+DELIMITER /;
+BEGIN
+<<ELSEIF>>
+  NULL;
+END;
+/
+DELIMITER ;/
+
+
+--echo #
+--echo # MDEV-17693 Shift/reduce conflicts for NAMES,ROLE,PASSWORD in the option_value_no_option_type grammar
+--echo #
+
+CREATE TABLE names (names INT);
+SELECT names FROM names AS names;
+DROP TABLE names;
+
+CREATE TABLE password (password INT);
+SELECT password FROM password AS password;
+DROP TABLE password;
+
+CREATE TABLE role (role INT);
+SELECT role FROM role AS role;
+DROP TABLE role;
+
+DELIMITER $$;
+DECLARE
+  names    VARCHAR(32) DEFAULT '[names]';
+  password VARCHAR(32) DEFAULT '[password]';
+  role     VARCHAR(32) DEFAULT '[role]';
+BEGIN
+<<names>>
+   SELECT names;
+<<password>>
+   SELECT password;
+<<role>>
+  SELECT role;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_BAD_VAR_SHADOW
+DECLARE
+  names VARCHAR(32);
+BEGIN
+  SET names='[names]';
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_BAD_VAR_SHADOW
+DECLARE
+  password VARCHAR(32);
+BEGIN
+  SET password='[password]';
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+DECLARE
+  role VARCHAR(32);
+BEGIN
+  SET role='[role]';
+END;
+$$
+DELIMITER ;$$
+
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.names;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.password;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.role;
+
+
+--echo #
+--echo # MDEV-22822 sql_mode="oracle" cannot declare without variable errors
+--echo #
+--echo # It's OK to have no declarations between DECLARE and BEGIN.
+--echo #
+
+DELIMITER //;
+BEGIN
+  DECLARE
+  BEGIN
+    NULL;
+  END;
+EXCEPTION
+WHEN OTHERS THEN
+    NULL;
+END;
+//
+DELIMITER ;//
+
+
+DELIMITER //;
+DECLARE
+BEGIN
+  NULL;
+EXCEPTION
+WHEN OTHERS THEN
+  NULL;
+END;
+//
+DELIMITER ;//
+
+
+DELIMITER //;
+BEGIN
+<<lab>>
+  DECLARE
+  BEGIN
+    NULL;
+  END;
+EXCEPTION
+WHEN OTHERS THEN
+    NULL;
+END;
+//
+DELIMITER ;//
+
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-21998: Server crashes in st_select_lex::add_table_to_list
+--echo # upon mix of KILL and sequences
+--echo #
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+KILL ( SELECT 1 ) + LASTVAL(s);
+--error ER_SUBQUERIES_NOT_SUPPORTED
+KILL LASTVAL(s);
+
+--echo #
+--echo # MDEV-23094: Multiple calls to a Stored Procedure from another
+--echo # Stored Procedure crashes server
+--echo #
+
+create table t1 (id1 int primary key, data1 int);
+create table t2 (id2 int primary key, data2 int);
+
+delimiter //;
+create procedure p1(id int,dt int) as
+begin
+  if (exists(select * from t1 where id1 = id and data1 = dt) or
+      not exists (select * from t2 where id2 = id and data2 = dt))
+  then
+      select 1;
+  end if;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(id int, dt int) as
+begin
+case (exists(select * from t1 where id1 = id and data1 = dt) or
+      not exists (select * from t2 where id2 = id and data2 = dt))
+when 1 then
+  select 1;
+else
+  select 0;
+end case;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(id int, dt int) as
+begin
+declare wcont int default 1;
+begin
+  while (exists(select * from t1 where id1 = id and data1 = dt) or
+        not exists (select * from t2 where id2 = id and data2 = dt)) and wcont
+  loop
+    select 1;
+    set wcont=0;
+  end loop;
+end;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(id int, dt int) as
+begin
+declare count int default 1;
+begin
+  repeat
+    select 1;
+    set count=count+1;
+  until (exists(select * from t1 where id1 = id and data1 = dt) or
+        not exists (select * from t2 where id2 = id and data2 = dt)) and
+        count < 3
+  end repeat;
+end;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+create procedure p1(id int, dt int) as
+begin
+for i in 1..(exists(select * from t1 where id1 = id and data1 = dt) or
+             not exists (select * from t2 where id2 = id and data2 = dt))
+loop
+  select 1;
+end loop;
+end //
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+delimiter //;
+set sql_mode=ORACLE;
+create or replace procedure p1(id int, dt int) as
+begin
+  while (1)
+  loop
+    exit when (exists(select * from t1 where id1 = id and data1 = dt) or
+               not exists (select * from t2 where id2 = id and data2 = dt));
+  end loop;
+end;
+//
+delimiter ;//
+
+call p1(1,2);
+call p1(1,2);
+
+drop procedure p1;
+
+drop table t1,t2;
+
+--echo # End of 10.4 tests

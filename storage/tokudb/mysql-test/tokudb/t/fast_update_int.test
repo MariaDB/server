@@ -1,0 +1,35 @@
+--source ../include/fast_update_gen_header.inc
+
+--let GENERATED=$MYSQL_TMP_DIR/generated_fast_update_int.inc
+
+--perl
+
+  my $mysql_current_test_dir = $ENV{MYSQL_CURRENT_TEST_DIR};
+  open(FILE, '>', "$ENV{GENERATED}") or die;
+  foreach my $t ('tinyint', 'smallint', 'mediumint', 'int', 'bigint') {
+    foreach my $u ('', 'unsigned') {
+      foreach my $n ('null', 'not null') {
+        print FILE "--echo ### Test int for: $t, $u, $n\n";
+        test_int($t, $u, $n);
+      }
+    }
+  }
+  close FILE;
+
+  sub test_int {
+    my $t = shift;
+    my $u = shift;
+    my $n = shift;
+
+    print FILE "create table t (\n";
+    print FILE "    id $t $u primary key,\n";
+    print FILE "    x $t $u $n\n";
+    print FILE ") engine = tokudb;\n";
+
+    print FILE "--source $ENV{MYSQL_CURRENT_TEST_DIR}/../include/".
+               "fast_update_int.inc\n\n";
+  }
+
+EOF
+
+--source ../include/fast_update_gen_footer.inc

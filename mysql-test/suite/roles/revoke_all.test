@@ -1,0 +1,103 @@
+source include/not_embedded.inc;
+
+create role r1;
+create role r2;
+create role r3;
+create role r4;
+create user u1;
+
+#CREATE A CHAIN OF ROLES
+grant r2 to r1;
+grant r3 to r2;
+grant r4 to r3;
+grant r1 to u1;
+grant r4 to r1;
+
+--sorted_result
+show grants for u1;
+--sorted_result
+show grants for r1;
+
+grant SELECT on *.* to u1;
+grant INSERT on mysql.* to r1;
+grant DELETE on mysql.roles_mapping to r2;
+grant UPDATE on mysql.user to r3;
+
+create function mysql.test_func (s CHAR(20))
+returns CHAR(50) DETERMINISTIC
+return concat('Test string: ',s);
+
+
+delimiter |;
+create procedure mysql.test_proc (OUT param1 INT)
+begin
+  select COUNT(*) into param1 from mysql.roles_mapping;
+end|
+delimiter ;|
+
+grant execute on function mysql.test_func to r2;
+grant execute on procedure mysql.test_proc to r3;
+grant execute on mysql.* to r4;
+
+--sorted_result
+show grants for r1;
+--sorted_result
+show grants for r2;
+--sorted_result
+show grants for r3;
+--sorted_result
+show grants for r4;
+
+revoke all privileges, grant option from r4;
+
+--sorted_result
+show grants for r1;
+--sorted_result
+show grants for r2;
+--sorted_result
+show grants for r3;
+--sorted_result
+show grants for r4;
+
+revoke all privileges, grant option from r3;
+--sorted_result
+show grants for r1;
+--sorted_result
+show grants for r2;
+--sorted_result
+show grants for r3;
+--sorted_result
+show grants for r4;
+
+revoke all privileges, grant option from r2;
+--sorted_result
+show grants for r1;
+--sorted_result
+show grants for r2;
+--sorted_result
+show grants for r3;
+--sorted_result
+show grants for r4;
+
+revoke all privileges, grant option from r1;
+--sorted_result
+show grants for r1;
+--sorted_result
+show grants for r2;
+--sorted_result
+show grants for r3;
+--sorted_result
+show grants for r4;
+
+revoke all privileges, grant option from u1;
+
+show grants for u1;
+
+drop function mysql.test_func;
+drop procedure mysql.test_proc;
+
+--sorted_result
+show grants for r1;
+
+drop role r1, r2, r3, r4;
+drop user u1;

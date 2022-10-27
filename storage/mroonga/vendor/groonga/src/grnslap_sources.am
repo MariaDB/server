@@ -1,0 +1,2 @@
+grnslap_SOURCES =				\
+	grnslap.c

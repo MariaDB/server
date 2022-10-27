@@ -1,0 +1,47 @@
+create table t1 (pk int primary key);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+select * from t1 order by now(), cast(pk as char(0));
+pk
+1
+10
+2
+3
+4
+5
+6
+7
+8
+9
+show warnings;
+Level	Code	Message
+Warning	1292	Truncated incorrect CHAR(0) value: '1'
+Warning	1292	Truncated incorrect CHAR(0) value: '2'
+Warning	1292	Truncated incorrect CHAR(0) value: '3'
+Warning	1292	Truncated incorrect CHAR(0) value: '4'
+Warning	1292	Truncated incorrect CHAR(0) value: '5'
+Warning	1292	Truncated incorrect CHAR(0) value: '6'
+Warning	1292	Truncated incorrect CHAR(0) value: '7'
+Warning	1292	Truncated incorrect CHAR(0) value: '8'
+Warning	1292	Truncated incorrect CHAR(0) value: '9'
+Warning	1292	Truncated incorrect CHAR(0) value: '10'
+drop table t1;
+#
+# MDEV-17020: Assertion `length > 0' failed in ptr_compare upon ORDER BY with bad conversion
+#
+set @save_sql_mode= @@sql_mode;
+SET @@sql_mode= '';
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+explain
+SELECT * FROM t1 ORDER BY 'foo', CONVERT(pk, CHAR(0)) LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	2	Using index; Using filesort
+SELECT * FROM t1 ORDER BY 'foo', Cast(pk as CHAR(0)) LIMIT 2;
+pk
+1
+2
+Warnings:
+Warning	1292	Truncated incorrect CHAR(0) value: '1'
+Warning	1292	Truncated incorrect CHAR(0) value: '2'
+set @@sql_mode= @save_sql_mode;
+drop table t1;

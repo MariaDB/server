@@ -1,0 +1,57 @@
+connection node_2;
+connection node_1;
+#
+# MDEV#5552 Deadlock when inserting NULL column value in column with
+# UNIQUE index
+#
+USE test;
+
+# On node_1
+connection node_1;
+CREATE TABLE t1(c1 INT DEFAULT NULL, UNIQUE KEY c1(c1)) ENGINE=INNODB;
+INSERT INTO t1 VALUES (NULL);
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM test.t1;
+c1
+NULL
+NULL
+
+# On node_2
+connection node_2;
+SELECT * FROM test.t1;
+c1
+NULL
+NULL
+
+# On node_1
+connection node_1;
+INSERT INTO t1 VALUES (1);
+UPDATE t1 SET c1=NULL WHERE c1=1;
+SELECT * FROM test.t1;
+c1
+NULL
+NULL
+NULL
+
+# On node_2
+connection node_2;
+SELECT * FROM test.t1;
+c1
+NULL
+NULL
+NULL
+
+# On node_1
+connection node_1;
+DELETE FROM t1 WHERE c1<=>NULL;
+SELECT * FROM test.t1;
+c1
+
+# On node_2
+connection node_2;
+SELECT * FROM test.t1;
+c1
+DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;
+# End of test

@@ -1,0 +1,9 @@
+SELECT @@global.last_gtid;
+ERROR HY000: Variable 'last_gtid' is a SESSION variable
+SET GLOBAL last_gtid= 10;
+ERROR HY000: Variable 'last_gtid' is a read only variable
+SET SESSION last_gtid= 20;
+ERROR HY000: Variable 'last_gtid' is a read only variable
+SELECT @@session.last_gtid;
+@@session.last_gtid
+

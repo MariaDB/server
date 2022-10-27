@@ -1,0 +1,58 @@
+SET @start_global_value = @@global.aria_recover_options;
+set @@global.aria_recover_options=default;
+select @@global.aria_recover_options;
+@@global.aria_recover_options
+BACKUP,QUICK
+select @@session.aria_recover_options;
+ERROR HY000: Variable 'aria_recover_options' is a GLOBAL variable
+show global variables like 'aria_recover_options';
+Variable_name	Value
+aria_recover_options	BACKUP,QUICK
+show session variables like 'aria_recover_options';
+Variable_name	Value
+aria_recover_options	BACKUP,QUICK
+select * from information_schema.global_variables where variable_name='aria_recover_options';
+VARIABLE_NAME	VARIABLE_VALUE
+ARIA_RECOVER_OPTIONS	BACKUP,QUICK
+select * from information_schema.session_variables where variable_name='aria_recover_options';
+VARIABLE_NAME	VARIABLE_VALUE
+ARIA_RECOVER_OPTIONS	BACKUP,QUICK
+set global aria_recover_options=1;
+select @@global.aria_recover_options;
+@@global.aria_recover_options
+NORMAL
+set session aria_recover_options=1;
+ERROR HY000: Variable 'aria_recover_options' is a GLOBAL variable and should be set with SET GLOBAL
+set global aria_recover_options=normal;
+select @@global.aria_recover_options;
+@@global.aria_recover_options
+NORMAL
+set global aria_recover_options=backup;
+select @@global.aria_recover_options;
+@@global.aria_recover_options
+BACKUP
+set global aria_recover_options='force';
+select @@global.aria_recover_options;
+@@global.aria_recover_options
+FORCE
+set global aria_recover_options=off;
+select @@global.aria_recover_options;
+@@global.aria_recover_options
+OFF
+set global aria_recover_options='quick,force';
+select @@global.aria_recover_options;
+@@global.aria_recover_options
+FORCE,QUICK
+set global aria_recover_options=16;
+select @@global.aria_recover_options;
+@@global.aria_recover_options
+OFF
+set global aria_recover_options=1.1;
+ERROR 42000: Incorrect argument type to variable 'aria_recover_options'
+set global aria_recover_options=1e1;
+ERROR 42000: Incorrect argument type to variable 'aria_recover_options'
+set global aria_recover_options="foo";
+ERROR 42000: Variable 'aria_recover_options' can't be set to the value of 'foo'
+set global aria_recover_options=32;
+ERROR 42000: Variable 'aria_recover_options' can't be set to the value of '32'
+SET @@global.aria_recover_options = @start_global_value;

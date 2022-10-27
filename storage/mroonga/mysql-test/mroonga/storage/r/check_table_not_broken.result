@@ -1,0 +1,13 @@
+SET NAMES UTF8;
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+title TEXT
+);
+INSERT INTO diaries VALUES ('Hello');
+CHECK TABLE diaries;
+Table	Op	Msg_type	Msg_text
+test.diaries	check	status	OK
+SELECT * FROM diaries;
+title
+Hello
+DROP TABLE diaries;

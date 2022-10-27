@@ -1,0 +1,77 @@
+SET sql_mode=ORACLE;
+CREATE SEQUENCE s1;
+SHOW CREATE SEQUENCE s1;
+Table	Create Table
+s1	CREATE SEQUENCE "s1" start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle
+SELECT s1.currval;
+s1.currval
+NULL
+SELECT s1.nextval;
+s1.nextval
+1
+SELECT s1.nextval;
+s1.nextval
+2
+SELECT s1.nextval;
+s1.nextval
+3
+EXPLAIN EXTENDED SELECT s1.nextval;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select nextval("test"."s1") AS "s1.nextval"
+SELECT nextval(s1);
+nextval(s1)
+4
+EXPLAIN EXTENDED SELECT s1.currval;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select lastval("test"."s1") AS "s1.currval"
+SELECT lastval(s1);
+lastval(s1)
+4
+DROP SEQUENCE s1;
+CREATE SEQUENCE s1;
+CREATE VIEW v1 AS SELECT s1.nextval AS a;
+SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1';
+VIEW_DEFINITION
+select nextval(`test`.`s1`) AS `a`
+SELECT * FROM v1;
+a
+1
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select nextval("test"."s1") AS "a"	latin1	latin1_swedish_ci
+DROP VIEW v1;
+DROP SEQUENCE s1;
+CREATE SEQUENCE s1;
+CREATE VIEW v1 AS SELECT s1.currval AS a;
+SELECT VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME='v1';
+VIEW_DEFINITION
+select lastval(`test`.`s1`) AS `a`
+SELECT * FROM v1;
+a
+NULL
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE VIEW "v1" AS select lastval("test"."s1") AS "a"	latin1	latin1_swedish_ci
+DROP VIEW v1;
+DROP SEQUENCE s1;
+#
+# MDEV-12533 sql_mode=ORACLE: Add support for database qualified sequence names in NEXTVAL and CURRVAL
+#
+CREATE SEQUENCE s1;
+SELECT test.s1.nextval;
+test.s1.nextval
+1
+SELECT test.s1.currval;
+test.s1.currval
+1
+SELECT .s1.nextval;
+.s1.nextval
+2
+SELECT .s1.currval;
+.s1.currval
+2
+DROP SEQUENCE s1;

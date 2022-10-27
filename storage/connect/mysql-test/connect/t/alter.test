@@ -1,0 +1,139 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Testing indexing with ALTER on inward table (in-place)
+--echo #
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT;
+INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
+SELECT * FROM t1;
+CREATE INDEX xc ON t1(c);
+DESCRIBE SELECT * FROM t1 WHERE c = 2;
+DROP INDEX xc ON t1;
+CREATE INDEX xd ON t1(d);
+DROP INDEX xd ON t1;
+ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
+SHOW INDEX FROM t1;
+ALTER TABLE t1 DROP INDEX xc, DROP INDEX xd;
+SHOW INDEX FROM t1;
+
+--echo #
+--echo # Testing modifying columns inward table (not in-place)
+--echo #
+ALTER TABLE t1 MODIFY COLUMN c CHAR(5) NOT NULL;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+ALTER TABLE t1 MODIFY COLUMN c INT NOT NULL;
+
+--echo #
+--echo # Fails because indexing must be in-place
+--echo #
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY COLUMN c CHAR(10) NOT NULL, ADD INDEX xd (d);
+
+--echo #
+--echo # Testing changing table type (not in-place)
+--echo #
+ALTER TABLE t1 TABLE_TYPE=CSV HEADER=1 QUOTED=1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+
+--echo # create an outward table used to see the t1 file
+CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.csv';
+SELECT * FROM t2;
+
+--echo #
+--echo # Testing changing engine
+--echo #
+DROP TABLE t1;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT;
+INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
+ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
+ALTER TABLE t1 ENGINE = MYISAM;
+SHOW CREATE TABLE t1;
+SHOW INDEX FROM t1;
+SELECT * FROM t1;
+ALTER TABLE t1 ENGINE = CONNECT TABLE_TYPE=DBF;
+SHOW CREATE TABLE t1;
+SHOW INDEX FROM t1;
+SELECT * FROM t1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Testing ALTER on outward tables
+--echo #
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='tf1.txt' ENDING=1;
+INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
+SELECT * FROM t1;
+CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='tf1.txt';
+SELECT * FROM t2;
+
+--echo #
+--echo # Indexing works the same
+--echo #
+ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
+SHOW INDEX FROM t1;
+SELECT d FROM t1 WHERE c = 2;
+ALTER TABLE t1 DROP INDEX xc, DROP INDEX xd;
+SHOW INDEX FROM t1;
+
+--echo #
+--echo # Other alterations do not modify the file
+--echo #
+ALTER TABLE t1 MODIFY COLUMN c CHAR(5) NOT NULL;
+SELECT * FROM t2;
+SHOW CREATE TABLE t1;
+#Wrong result
+--error ER_GET_ERRMSG
+SELECT * FROM t1;
+ALTER TABLE t1 MODIFY COLUMN c INT NOT NULL;
+
+--echo #
+--echo # Changing column order
+--echo #
+ALTER TABLE t1 MODIFY COLUMN c INT NOT NULL AFTER d;
+SELECT * FROM t2;
+SHOW CREATE TABLE t1;
+--echo # Wrong result
+SELECT * FROM t1;
+ALTER TABLE t1 MODIFY COLUMN c INT NOT NULL FIRST;
+--echo # What should have been done
+ALTER TABLE t1 MODIFY c INT NOT NULL FLAG=0 AFTER d, MODIFY d CHAR(10) NOT NULL FLAG=11;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+--echo #
+--echo # Changing to another engine is Ok
+--echo # However, the data file is not deleted.
+--echo #
+ALTER TABLE t1 ENGINE=ARIA;
+SHOW CREATE TABLE t1;
+set @old_sql_mode=@@sql_mode;
+set sql_mode=ignore_bad_table_options;
+SHOW CREATE TABLE t1;
+set sql_mode=@old_sql_mode;
+SELECT * from t1;
+SELECT * from t2;
+
+--echo #
+--echo # Changing back to CONNECT fails
+--echo # Sure enough, the data file was not deleted.
+--echo #
+--error ER_UNKNOWN_ERROR
+ALTER TABLE t1 ENGINE=CONNECT;
+
+--echo #
+--echo # But changing back to CONNECT succeed
+--echo # if the data file does not exist.
+--echo #
+--remove_file $MYSQLD_DATADIR/test/tf1.txt
+ALTER TABLE t1 ENGINE=CONNECT;
+SHOW CREATE TABLE t1;
+SELECT * from t1;
+SELECT * from t2;
+
+DROP TABLE t1, t2;
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/tf1.txt

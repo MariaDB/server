@@ -1,0 +1,22 @@
+drop table if exists shops;
+create table shops (
+id int primary key auto_increment,
+name text,
+location geometry NOT NULL,
+spatial key location_index (location)
+) comment = 'engine "innodb"';
+insert into shops (name, location)
+values ('sazare',
+ST_GeomFromText('POINT(139.685043 35.714653)'));
+select id, name, ST_AsText(location) as location_text from shops
+where MBRContains(ST_GeomFromText('LineString(139.68466 35.71592, 139.68804 35.71411)'), location);
+id	name	location_text
+1	sazare	POINT(139.685043 35.714653)
+delete from shops
+where MBRContains(ST_GeomFromText('LineString(139.68466 35.71592, 139.68804 35.71411)'), location);
+select id, name, ST_AsText(location) as location_text from shops
+where MBRContains(ST_GeomFromText('LineString(139.68466 35.71592, 139.68804 35.71411)'), location);
+id	name	location_text
+select id, name, ST_AsText(location) as location_text from shops;
+id	name	location_text
+drop table shops;

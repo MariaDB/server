@@ -1,0 +1,58 @@
+#
+# wsrep_sst_method
+#
+# save the initial value
+SET @wsrep_sst_method_global_saved = @@global.wsrep_sst_method;
+# default
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+rsync
+
+# scope
+SELECT @@session.wsrep_sst_method;
+ERROR HY000: Variable 'wsrep_sst_method' is a GLOBAL variable
+SET @@global.wsrep_sst_method=rsync;
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+rsync
+
+# valid values
+SET @@global.wsrep_sst_method=rsync;
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+rsync
+SET @@global.wsrep_sst_method=mysqldump;
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+mysqldump
+SET @@global.wsrep_sst_method=xtrabackup;
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+xtrabackup
+SET @@global.wsrep_sst_method="xtrabackup-v2";
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+xtrabackup-v2
+SET @@global.wsrep_sst_method="mariabackup";
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+mariabackup
+SET @@global.wsrep_sst_method=default;
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+rsync
+SET @@global.wsrep_sst_method='junk';
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+junk
+
+# invalid values
+SET @@global.wsrep_sst_method=NULL;
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of 'NULL'
+SELECT @@global.wsrep_sst_method;
+@@global.wsrep_sst_method
+junk
+
+# restore the initial value
+SET @@global.wsrep_sst_method = @wsrep_sst_method_global_saved;
+# End of test

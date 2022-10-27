@@ -1,0 +1,136 @@
+#
+# Testing multiple 1
+#
+CREATE TABLE t1 (
+Chiffre int(3) NOT NULL,
+Lettre char(16) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='num1.csv' LRECL=20 HEADER=1;
+INSERT INTO t1 VALUES(1,'One'),(2,'Two'),(3,'Three'),(4,'Four'),(5,'Five'),(6,'Six');
+SELECT * FROM t1;
+Chiffre	Lettre
+1	One
+2	Two
+3	Three
+4	Four
+5	Five
+6	Six
+CREATE TABLE t2 (
+Chiffre int(3) NOT NULL,
+Lettre char(16) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE='CSV' FILE_NAME='subdir/num2.csv' LRECL=20 HEADER=1;
+INSERT INTO t2 VALUES(7,'Seven'),(8,'Eight'),(9,'Nine'),(10,'Ten'),(11,'Eleven'),(12,'Twelve');
+SELECT * FROM t2;
+Chiffre	Lettre
+7	Seven
+8	Eight
+9	Nine
+10	Ten
+11	Eleven
+12	Twelve
+CREATE TABLE t3 (
+Chiffre int(3) NOT NULL,
+Lettre char(16) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE='CSV' FILE_NAME='num3.csv' LRECL=20 HEADER=1;
+INSERT INTO t3 VALUES(13,'Thirteen'),(14,'Fourteen'),(15,'Fifteen'),(16,'Sixteen'),(17,'Seventeen'),(18,'Eighteen');
+SELECT * FROM t3;
+Chiffre	Lettre
+13	Thirteen
+14	Fourteen
+15	Fifteen
+16	Sixteen
+17	Seventeen
+18	Eighteen
+CREATE TABLE t4 (
+Chiffre int(3) NOT NULL,
+Lettre char(16) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE='CSV' FILE_NAME='subdir/num4.csv' LRECL=20 HEADER=1;
+INSERT INTO t4 VALUES(19,'Nineteen'),(20,'Twenty'),(21,'Twenty one'),(22,'Twenty two'),(23,'Tenty three'),(24,'Twenty four');
+SELECT * FROM t4;
+Chiffre	Lettre
+19	Nineteen
+20	Twenty
+21	Twenty one
+22	Twenty two
+23	Tenty three
+24	Twenty four
+CREATE TABLE t5 (
+Chiffre int(3) NOT NULL,
+Lettre char(16) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE='CSV' FILE_NAME='num5.csv' LRECL=20 HEADER=1;
+INSERT INTO t5 VALUES(25,'Twenty five'),(26,'Twenty six'),(27,'Twenty seven'),(28,'Twenty eight'),(29,'Tenty eight'),(30,'Thirty');
+SELECT * FROM t5;
+Chiffre	Lettre
+25	Twenty five
+26	Twenty six
+27	Twenty seven
+28	Twenty eight
+29	Tenty eight
+30	Thirty
+CREATE TABLE t_all (
+Chiffre int(3) not null,
+Lettre char(16) not null)
+ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='num?.csv' HEADER=1 LRECL=20 MULTIPLE=1;
+SELECT * FROM t_all ORDER BY Chiffre;
+Chiffre	Lettre
+1	One
+2	Two
+3	Three
+4	Four
+5	Five
+6	Six
+13	Thirteen
+14	Fourteen
+15	Fifteen
+16	Sixteen
+17	Seventeen
+18	Eighteen
+25	Twenty five
+26	Twenty six
+27	Twenty seven
+28	Twenty eight
+29	Tenty eight
+30	Thirty
+#
+# Testing multiple 3
+#
+ALTER TABLE t_all MULTIPLE=3;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
+SELECT * FROM t_all ORDER BY Chiffre;
+Chiffre	Lettre
+1	One
+2	Two
+3	Three
+4	Four
+5	Five
+6	Six
+7	Seven
+8	Eight
+9	Nine
+10	Ten
+11	Eleven
+12	Twelve
+13	Thirteen
+14	Fourteen
+15	Fifteen
+16	Sixteen
+17	Seventeen
+18	Eighteen
+19	Nineteen
+20	Twenty
+21	Twenty one
+22	Twenty two
+23	Tenty three
+24	Twenty four
+25	Twenty five
+26	Twenty six
+27	Twenty seven
+28	Twenty eight
+29	Tenty eight
+30	Thirty
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+DROP TABLE t4;
+DROP TABLE t5;
+DROP TABLE t_all;

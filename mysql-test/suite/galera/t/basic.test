@@ -1,0 +1,26 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+USE test;
+CREATE TABLE t1(c1 INT PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+SELECT * FROM t1;
+
+--echo
+--echo # On node_1
+--connection node_1
+SELECT * FROM test.t1;
+
+--echo
+--echo # On node_2
+--connection node_2
+SELECT * FROM test.t1;
+
+--let $galera_diff_statement = SELECT * FROM t1
+--source include/galera_diff.inc
+
+# Cleanup
+DROP TABLE t1;
+
+--source include/galera_end.inc
+--echo # End of test

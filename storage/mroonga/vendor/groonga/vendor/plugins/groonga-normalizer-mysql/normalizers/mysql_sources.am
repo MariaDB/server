@@ -1,0 +1,7 @@
+mysql_la_SOURCES =								\
+	mysql.c									\
+	mysql_general_ci_table.h						\
+	mysql_unicode_ci_table.h						\
+	mysql_unicode_ci_except_kana_ci_kana_with_voiced_sound_mark_table.h	\
+	mysql_unicode_520_ci_table.h						\
+	mysql_unicode_520_ci_except_kana_ci_kana_with_voiced_sound_mark_table.h

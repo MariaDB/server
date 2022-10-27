@@ -1,0 +1,74 @@
+SET GLOBAL connect_class_path='C:/MariaDB-10.2/MariaDB/storage/connect/mysql-test/connect/std_data/JavaWrappers.jar;C:/Jconnectors/postgresql-42.2.1.jar';
+CREATE TABLE t2 (
+command varchar(128) not null,
+number int(5) not null flag=1,
+message varchar(255) flag=2)
+ENGINE=CONNECT TABLE_TYPE=JDBC
+CONNECTION='jdbc:postgresql://localhost/test?user=postgres&password=tinono'
+OPTION_LIST='Execsrc=1';
+SELECT * FROM t2 WHERE command='drop table employee';
+command	number	message
+drop table employee	0	Execute: org.postgresql.util.PSQLException: ERREUR: la table Â« employee Â» n'existe pas
+Warnings:
+Warning	1105	Execute: org.postgresql.util.PSQLException: ERREUR: la table « employee » n'existe pas
+SELECT * FROM t2 WHERE command = 'create table employee (id int not null, name varchar(32), title char(16), salary decimal(8,2))';
+command	number	message
+create table employee (id int not null, name varchar(32), title char(16), salary decimal(8,2))	0	Affected rows
+Warnings:
+Warning	1105	Affected rows
+SELECT * FROM t2 WHERE command = "insert into employee values(4567,'Johnson', 'Engineer', 12560.50)";
+command	number	message
+insert into employee values(4567,'Johnson', 'Engineer', 12560.50)	1	Affected rows
+Warnings:
+Warning	1105	Affected rows
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables
+CONNECTION='jdbc:postgresql://localhost/test?user=postgres&password=tinono'
+OPTION_LIST='Tabtype=TABLE,Maxres=10';
+SELECT * FROM t1;
+Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
+NULL	public	employee	TABLE	NULL
+NULL	public	t1	TABLE	NULL
+NULL	public	t2	TABLE	NULL
+NULL	public	tchar	TABLE	NULL
+NULL	public	testuuid	TABLE	NULL
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC tabname=employee CATFUNC=columns
+CONNECTION='jdbc:postgresql://localhost/test?user=postgres&password=tinono';
+SELECT * FROM t1;
+Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
+NULL	public	employee	id	4	int4	10	0	0	10	0	NULL
+NULL	public	employee	name	12	varchar	32	0	0	10	1	NULL
+NULL	public	employee	title	1	bpchar	16	0	0	10	1	NULL
+NULL	public	employee	salary	2	numeric	8	0	2	10	1	NULL
+DROP TABLE t1;
+CREATE SERVER 'postgresql' FOREIGN DATA WRAPPER 'postgresql' OPTIONS (
+HOST 'localhost',
+DATABASE 'test',
+USER 'postgres',
+PASSWORD 'tinono',
+PORT 0,
+SOCKET '',
+OWNER 'root');
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
+CONNECTION='postgresql/public.employee';
+SELECT * FROM t1;
+id	name	title	salary
+4567	Johnson	Engineer	12560.50
+INSERT INTO t1 VALUES(3126,'Smith', 'Clerk', 5230.00);
+Warnings:
+Note	1105	public.employee: 1 affected rows
+UPDATE t1 SET salary = salary + 100.00;
+Warnings:
+Note	1105	public.employee: 2 affected rows
+SELECT * FROM t1;
+id	name	title	salary
+4567	Johnson	Engineer	12660.50
+3126	Smith	Clerk	5330.00
+DROP TABLE t1;
+DROP SERVER 'postgresql';
+SELECT * FROM t2 WHERE command='drop table employee';
+command	number	message
+drop table employee	0	Affected rows
+Warnings:
+Warning	1105	Affected rows
+DROP TABLE t2;

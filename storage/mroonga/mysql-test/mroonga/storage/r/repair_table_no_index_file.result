@@ -1,0 +1,31 @@
+CREATE DATABASE repair_test;
+USE repair_test;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+body TEXT,
+FULLTEXT INDEX body_index (body)
+) DEFAULT CHARSET UTF8;
+INSERT INTO diaries (title, body) VALUES ("survey", "will start Groonga!");
+INSERT INTO diaries (title, body) VALUES ("Groonga (1)", "starting Groonga...");
+INSERT INTO diaries (title, body) VALUES ("Groonga (2)", "started Groonga.");
+SELECT * FROM diaries WHERE MATCH(body) AGAINST("+starting" IN BOOLEAN MODE);
+id	title	body
+2	Groonga (1)	starting Groonga...
+FLUSH TABLES;
+SELECT * FROM diaries WHERE MATCH(body) AGAINST("+starting" IN BOOLEAN MODE);
+ERROR HY000: system call error: No such file or directory: failed to open path: <repair_test.mrn.000010E.c>
+REPAIR TABLE diaries;
+Table	Op	Msg_type	Msg_text
+repair_test.diaries	repair	status	OK
+SELECT * FROM diaries;
+id	title	body
+1	survey	will start Groonga!
+2	Groonga (1)	starting Groonga...
+3	Groonga (2)	started Groonga.
+SELECT * FROM diaries WHERE MATCH(body) AGAINST("+starting" IN BOOLEAN MODE);
+id	title	body
+2	Groonga (1)	starting Groonga...
+DROP TABLE diaries;
+DROP DATABASE repair_test;
+USE test;

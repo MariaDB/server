@@ -1,0 +1,63 @@
+connection node_2;
+connection node_1;
+SET GLOBAL wsrep_sync_wait = 15;
+connection node_2;
+SET GLOBAL wsrep_sync_wait = 15;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT IGNORE INTO t1 VALUES (1), (2);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+SELECT * FROM t1;
+f1
+1
+2
+connection node_2;
+SELECT * FROM t1;
+f1
+1
+2
+connection node_2;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (0), (2), (3);
+INSERT IGNORE INTO t1 SELECT f1 FROM t2;
+Warnings:
+Warning	1062	Duplicate entry '2' for key 'PRIMARY'
+SELECT * FROM t1;
+f1
+0
+1
+2
+3
+connection node_1;
+SELECT * FROM t1;
+f1
+0
+1
+2
+3
+connection node_2;
+CREATE TABLE t3 (f1 INTEGER UNIQUE) Engine=InnoDB;
+INSERT INTO t3 VALUES (NULL);
+connection node_1;
+INSERT IGNORE INTO t3 VALUES (1), (NULL), (2);
+SELECT * FROM t3;
+f1
+NULL
+NULL
+1
+2
+connection node_2;
+SELECT * FROM t3;
+f1
+NULL
+NULL
+1
+2
+SET GLOBAL wsrep_sync_wait = (SELECT @@wsrep_sync_wait);
+connection node_1;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+SET GLOBAL wsrep_sync_wait = (SELECT @@wsrep_sync_wait);

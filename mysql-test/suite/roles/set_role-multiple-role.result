@@ -1,0 +1,147 @@
+create user 'test_user'@'localhost';
+create role r_sel;
+create role r_ins;
+create role r_upd;
+create role r_del;
+create role r_crt;
+create role r_drp;
+create role r_rld;
+grant select on *.* to r_sel;
+grant insert on *.* to r_ins;
+grant update on *.* to r_upd;
+grant delete on *.* to r_del;
+grant create on *.* to r_crt;
+grant drop   on *.* to r_drp;
+grant reload on *.* to r_rld;
+grant r_sel to test_user@localhost;
+grant r_ins to test_user@localhost;
+grant r_upd to test_user@localhost;
+grant r_del to test_user@localhost;
+grant r_crt to test_user@localhost;
+grant r_drp to test_user@localhost;
+grant r_rld to test_user@localhost;
+flush privileges;
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+show grants;
+Grants for test_user@localhost
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+GRANT `r_crt` TO `test_user`@`localhost`
+GRANT `r_del` TO `test_user`@`localhost`
+GRANT `r_drp` TO `test_user`@`localhost`
+GRANT `r_ins` TO `test_user`@`localhost`
+GRANT `r_rld` TO `test_user`@`localhost`
+GRANT `r_sel` TO `test_user`@`localhost`
+GRANT `r_upd` TO `test_user`@`localhost`
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	NULL
+set role r_sel;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	r_sel
+show grants;
+Grants for test_user@localhost
+GRANT SELECT ON *.* TO `r_sel`
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+GRANT `r_crt` TO `test_user`@`localhost`
+GRANT `r_del` TO `test_user`@`localhost`
+GRANT `r_drp` TO `test_user`@`localhost`
+GRANT `r_ins` TO `test_user`@`localhost`
+GRANT `r_rld` TO `test_user`@`localhost`
+GRANT `r_sel` TO `test_user`@`localhost`
+GRANT `r_upd` TO `test_user`@`localhost`
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+localhost	root	r_crt	Y
+localhost	root	r_del	Y
+localhost	root	r_drp	Y
+localhost	root	r_ins	Y
+localhost	root	r_rld	Y
+localhost	root	r_sel	Y
+localhost	root	r_upd	Y
+localhost	test_user	r_crt	N
+localhost	test_user	r_del	N
+localhost	test_user	r_drp	N
+localhost	test_user	r_ins	N
+localhost	test_user	r_rld	N
+localhost	test_user	r_sel	N
+localhost	test_user	r_upd	N
+set role r_ins;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	r_ins
+show grants;
+Grants for test_user@localhost
+GRANT INSERT ON *.* TO `r_ins`
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+GRANT `r_crt` TO `test_user`@`localhost`
+GRANT `r_del` TO `test_user`@`localhost`
+GRANT `r_drp` TO `test_user`@`localhost`
+GRANT `r_ins` TO `test_user`@`localhost`
+GRANT `r_rld` TO `test_user`@`localhost`
+GRANT `r_sel` TO `test_user`@`localhost`
+GRANT `r_upd` TO `test_user`@`localhost`
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_rld', 'N');
+flush privileges;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+set role r_rld;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	r_rld
+flush privileges;
+set role r_sel;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	r_sel
+flush privileges;
+set role none;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	NULL
+flush privileges;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+set role r_ins;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	r_ins
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_upd', 'N');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_del', 'N');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_crt', 'N');
+insert into mysql.roles_mapping values ('', 'r_sel', 'r_drp', 'N');
+insert into mysql.roles_mapping values ('', 'r_del', 'r_ins', 'N');
+set role r_rld;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	r_rld
+flush privileges;
+set role r_sel;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	r_sel
+update mysql.roles_mapping set Role='r_ins' where Role='r_ins_wrong';
+flush privileges;
+set role r_sel;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	r_sel
+create table mysql.random_test_table (id INT);
+insert into mysql.random_test_table values (1);
+select * from mysql.random_test_table;
+id
+1
+delete from mysql.roles_mapping where Role='r_ins';
+flush privileges;
+set role r_sel;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	r_sel
+insert into mysql.random_test_table values (1);
+ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 'random_test_table'
+drop table mysql.random_test_table;
+delete from mysql.user where user like 'r\_%';
+delete from mysql.roles_mapping where Role like 'r\_%';
+flush privileges;
+drop user 'test_user'@'localhost';

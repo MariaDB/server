@@ -1,0 +1,28 @@
+--source include/windows.inc
+
+if (!$AUTH_NAMED_PIPE_SO)
+{
+  skip No auth_named_pipe plugin;
+}
+
+INSTALL SONAME 'auth_named_pipe';
+
+--replace_result $USERNAME USERNAME
+eval CREATE USER '$USERNAME' IDENTIFIED WITH named_pipe;
+# Connect using named pipe, correct username
+connect(pipe_con,localhost,$USERNAME,,,,,PIPE);
+--replace_result $USERNAME USERNAME
+SELECT USER(),CURRENT_USER();
+disconnect pipe_con;
+connection default;
+--replace_result $USERNAME USERNAME
+eval DROP USER '$USERNAME';
+
+# test invalid user name
+CREATE USER nosuchuser IDENTIFIED WITH named_pipe;
+--disable_query_log
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+connect(pipe_con,localhost,nosuchuser,,,,,PIPE);
+--enable_query_log
+DROP USER nosuchuser;
+UNINSTALL SONAME 'auth_named_pipe';

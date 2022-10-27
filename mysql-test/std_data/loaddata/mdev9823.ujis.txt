@@ -1,0 +1,11 @@
+# This file has incomplete UJIS sequences {8F}, {8FA1},
+# has a valid UJIS sequence {8FA1A1},
+# and has no NL at the end:
+# {8F} \n xxx1 {8FA1} \n xxx2 {8FA1A1} \n xxx3 \n {8FA1} EOF
+è
+xxx1
+è°
+xxx2
+è°°
+xxx3
+è°

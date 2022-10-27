@@ -1,0 +1,42 @@
+connection node_2;
+connection node_1;
+INSERT INTO t1 (f1) VALUES (DEFAULT);
+connection node_2;
+SELECT f1 = 'ABC', f1017 = 'ABC' FROM t1;
+f1 = 'ABC'	f1017 = 'ABC'
+1	1
+UPDATE t1 SET f1 = 'XYZ', f1017 = 'XYZ' ;
+connection node_1;
+SELECT f1 = 'XYZ', f1017 = 'XYZ' FROM t1 WHERE f1 = 'XYZ' AND f1017 = 'XYZ';
+f1 = 'XYZ'	f1017 = 'XYZ'
+1	1
+connection node_1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'KLM' WHERE f1 = 'XYZ' AND f1017 = 'XYZ';
+connection node_2;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'CDE' WHERE f1 = 'XYZ' AND f1017 = 'XYZ';
+COMMIT;
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+connection node_2;
+ROLLBACK;
+connection node_1;
+START TRANSACTION;
+INSERT INTO t1 (f1, f1017) VALUES ('BCE','BCE');
+INSERT INTO t1 (f1, f1017) VALUES ('CED','CED');
+INSERT INTO t1 (f1, f1017) VALUES ('EDF','EDF');
+INSERT INTO t1 (f1, f1017) VALUES ('FED','FED');
+ROLLBACK;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+DROP TABLE t1;

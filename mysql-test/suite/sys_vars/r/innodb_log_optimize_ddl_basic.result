@@ -1,0 +1,36 @@
+SELECT COUNT(@@GLOBAL.innodb_log_optimize_ddl);
+COUNT(@@GLOBAL.innodb_log_optimize_ddl)
+1
+1 Expected
+SELECT COUNT(@@SESSION.innodb_log_optimize_ddl);
+ERROR HY000: Variable 'innodb_log_optimize_ddl' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT @@GLOBAL.innodb_log_optimize_ddl INTO @innodb_log_optimize_ddl_save;
+SET @@GLOBAL.innodb_log_optimize_ddl = ON;
+SET @@GLOBAL.innodb_log_optimize_ddl = OFF;
+SET @@GLOBAL.innodb_log_optimize_ddl = 13;
+ERROR 42000: Variable 'innodb_log_optimize_ddl' can't be set to the value of '13'
+SET @@GLOBAL.innodb_log_optimize_ddl = 'ABC';
+ERROR 42000: Variable 'innodb_log_optimize_ddl' can't be set to the value of 'ABC'
+SELECT @@GLOBAL.innodb_log_optimize_ddl = 0
+OR @@GLOBAL.innodb_log_optimize_ddl = 1 AS col;
+col
+1
+1 Expected
+SELECT @@innodb_log_optimize_ddl = @@GLOBAL.innodb_log_optimize_ddl AS col;
+col
+1
+1 Expected
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='innodb_log_optimize_ddl';
+VARIABLE_VALUE
+OFF
+SHOW VARIABLES WHERE VARIABLE_NAME='innodb_log_optimize_ddl';
+Variable_name	Value
+innodb_log_optimize_ddl	OFF
+SELECT @@local.innodb_log_optimize_ddl;
+ERROR HY000: Variable 'innodb_log_optimize_ddl' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT innodb_log_optimize_ddl;
+ERROR 42S22: Unknown column 'innodb_log_optimize_ddl' in 'field list'
+SET GLOBAL innodb_log_optimize_ddl = @innodb_log_optimize_ddl_save;

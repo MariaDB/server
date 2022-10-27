@@ -1,0 +1,99 @@
+set @OLD_SQL_MODE=@@SESSION.SQL_MODE;
+create table t1 (a int, b int generated always  as (a+1));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a int, b int as (a+1) virtual);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a int, b int generated always  as (a+1) persistent);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` + 1) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+set session sql_mode='ORACLE';
+create table t1 (a int, b int as (a+1));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "b" int(11) GENERATED ALWAYS AS ("a" + 1) VIRTUAL
+)
+drop table t1;
+create table t1 (a int, b int generated always as (a+1) virtual);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "b" int(11) GENERATED ALWAYS AS ("a" + 1) VIRTUAL
+)
+drop table t1;
+create table t1 (a int, b int as (a+1) persistent);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" int(11) DEFAULT NULL,
+  "b" int(11) GENERATED ALWAYS AS ("a" + 1) STORED
+)
+drop table t1;
+set session sql_mode=@OLD_SQL_MODE;
+#
+# MDEV-25091 CREATE TABLE: field references qualified by a wrong table name succeed
+#
+create table t2 (x int);
+create table t1 (x int, y int generated always as (t2.x));
+ERROR 42S22: Unknown column '`t2`.`x`' in 'GENERATED ALWAYS'
+create table t1 (x int, y int check (y > t2.x));
+ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+create table t1 (x int, y int default t2.x);
+ERROR 42S22: Unknown column '`t2`.`x`' in 'DEFAULT'
+create table t1 (x int, check (t2.x > 0));
+ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+create table t1 (x int);
+alter table t1 add column y int generated always as (t2.x);
+ERROR 42S22: Unknown column '`t2`.`x`' in 'GENERATED ALWAYS'
+alter table t1 add column y int check (z > t2.x);
+ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+alter table t1 add column y int default t2.x;
+ERROR 42S22: Unknown column '`t2`.`x`' in 'DEFAULT'
+alter table t1 add constraint check (t2.x > 0);
+ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+create or replace table t1 (x int, y int generated always as (t1.x));
+create or replace table t1 (x int, y int check (y > t1.x));
+create or replace table t1 (x int, y int default t1.x);
+create or replace table t1 (x int, check (t1.x > 0));
+create or replace table t1 (x int, y int generated always as (test.t1.x));
+create or replace table t1 (x int, y int check (y > test.t1.x));
+create or replace table t1 (x int, y int default test.t1.x);
+create or replace table t1 (x int, check (test.t1.x > 0));
+drop tables t1, t2;
+create table t1 (x int, y int generated always as (test2.t1.x));
+ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'GENERATED ALWAYS'
+create table t1 (x int, y int check (y > test2.t1.x));
+ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'CHECK'
+create table t1 (x int, y int default test2.t1.x);
+ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'DEFAULT'
+create table t1 (x int, check (test2.t1.x > 0));
+ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'CHECK'
+#
+# MDEV-25672 table alias from previous statement interferes later commands
+#
+create table t1 (a int, v_a int generated always as (a));
+update t1 as x set a = 1;
+alter table t1 force;
+drop table t1;
+#
+# End of 10.2 tests
+#

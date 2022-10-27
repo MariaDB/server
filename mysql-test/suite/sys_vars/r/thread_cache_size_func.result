@@ -1,0 +1,28 @@
+SET @global_thread_cache_size = @@GLOBAL.thread_cache_size;
+FLUSH STATUS;
+'# Test1#'
+SET @@GLOBAL.thread_cache_size=3;
+SHOW STATUS LIKE 'Threads_cached';
+Variable_name	Value
+Threads_cached	0
+0 Expected
+CONNECT  conn1,localhost,root,,;
+CONNECT  conn2,localhost,root,,;
+CONNECT  conn3,localhost,root,,;
+CONNECT  conn4,localhost,root,,;
+connection default;
+SHOW STATUS LIKE 'Threads_cached';
+Variable_name	Value
+Threads_cached	0
+0 Expected
+disconnect conn1;
+disconnect conn2;
+disconnect conn3;
+disconnect conn4;
+SET @@GLOBAL.thread_cache_size= 1;
+CONNECT  conn1,localhost,root,,;
+CONNECT  conn2,localhost,root,,;
+connection default;
+disconnect conn1;
+disconnect conn2;
+SET @@GLOBAL.thread_cache_size = @global_thread_cache_size;

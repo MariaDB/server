@@ -1,0 +1,668 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+# Valgrind does not work well with test that crashes the server
+--source include/not_valgrind.inc
+
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--echo *** Test crashing master, causing slave IO thread to reconnect while SQL thread is running ***
+
+--connection server_1
+call mtr.add_suppression("Checking table:");
+call mtr.add_suppression("client is using or hasn't closed the table properly");
+call mtr.add_suppression("Table .* is marked as crashed and should be repaired");
+flush tables;
+
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SET sql_log_bin=0;
+call mtr.add_suppression('Master command COM_REGISTER_SLAVE failed: failed registering on master, reconnecting to try again');
+SET sql_log_bin=1;
+--source include/stop_slave.inc
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
+     MASTER_USE_GTID=CURRENT_POS;
+
+--connection server_1
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t1 VALUES (3,1);
+
+--connection server_2
+--source include/start_slave.inc
+
+--connection server_1
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait-rpl_gtid_crash.test
+EOF
+
+let $1=200;
+--disable_query_log
+while ($1)
+{
+  eval INSERT INTO t1 VALUES ($1 + 10, 2);
+  dec $1;
+}
+--enable_query_log
+--source include/save_master_gtid.inc
+
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+SELECT 1;
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart-rpl_gtid_crash.test
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (1000, 3);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+--connection server_1
+DROP TABLE t1;
+--save_master_pos
+
+--echo *** Test crashing the master mysqld and check that binlog state is recovered. ***
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+RESET MASTER;
+SET GLOBAL gtid_slave_pos='';
+
+--connection server_1
+RESET MASTER;
+--replace_column 2 # 4 # 5 #
+SHOW BINLOG EVENTS IN 'master-bin.000001' LIMIT 1,1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--connection server_2
+--source include/start_slave.inc
+
+--connection server_1
+SET gtid_domain_id= 1;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+FLUSH LOGS;
+SET gtid_domain_id= 2;
+INSERT INTO t1 VALUES (3);
+FLUSH LOGS;
+--source include/show_binary_logs.inc
+--replace_column 2 # 4 # 5 # 6 #
+SHOW BINLOG EVENTS IN 'master-bin.000003' LIMIT 1,1;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+SELECT 1;
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/show_binary_logs.inc
+--replace_column 2 # 4 # 5 # 6 #
+SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** Test crashing slave at various points and check that it recovers crash-safe. ***
+
+# Crash the slave just before updating mysql.gtid_slave_pos table.
+--source include/stop_slave.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+# We do not have to save @@GLOBAL.debug_dbug, it is reset when slave crashes.
+SET GLOBAL debug_dbug="+d,inject_crash_before_write_rpl_slave_state";
+START SLAVE;
+
+--connection server_1
+INSERT INTO t1 VALUES (4);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/sync_with_master_gtid.inc
+
+# Crash the slave just before committing.
+--source include/stop_slave.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+START SLAVE;
+--error 0,2006,2013
+SET GLOBAL debug_dbug="+d,crash_commit_before";
+
+--connection server_1
+INSERT INTO t1 VALUES (5);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/sync_with_master_gtid.inc
+
+# Crash the slave just after committing.
+--source include/stop_slave.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+START SLAVE;
+--error 0,2006,2013
+SET GLOBAL debug_dbug="+d,crash_commit_after";
+
+--connection server_1
+INSERT INTO t1 VALUES (6);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/sync_with_master_gtid.inc
+
+# Crash the slave just before updating relay-log.info
+--source include/stop_slave.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+SET GLOBAL debug_dbug="+d,inject_crash_before_flush_rli";
+--error 0,2006,2013
+START SLAVE;
+
+--connection server_1
+INSERT INTO t1 VALUES (7);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/sync_with_master_gtid.inc
+
+# Crash the slave just after updating relay-log.info
+--source include/stop_slave.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+SET GLOBAL debug_dbug="+d,inject_crash_after_flush_rli";
+--error 0,2006,2013
+START SLAVE;
+
+--connection server_1
+INSERT INTO t1 VALUES (8);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/sync_with_master_gtid.inc
+
+
+# Check that everything was replicated correctly.
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** MDEV-4725: Incorrect recovery when crash in the middle of writing an event group ***
+
+--connection server_2
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+
+--let $old_gtid_strict= `SELECT @@gtid_strict_mode`
+SET GLOBAL debug_dbug="+d,crash_before_writing_xid";
+
+--connection server_1
+INSERT INTO t1 VALUES (9), (10);
+--let $saved_gtid=`SELECT @@last_gtid`
+--save_master_pos
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+# The bug was that during crash recovery we would update the binlog state
+# with the GTID of the half-written event group at the end of the slaves
+# binlog, even though this event group was not committed.
+# We restart the server with gtid_strict_mode; this way, we get an error
+# about duplicate gtid when the slave re-executes the event group, if the
+# binlog crash recovery is incorrect.
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --gtid_strict_mode=1
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+SHOW VARIABLES like 'gtid_strict_mode';
+--source include/start_slave.inc
+--sync_with_master
+--disable_query_log
+eval SET GLOBAL gtid_strict_mode= $old_gtid_strict;
+--enable_query_log
+
+
+--echo *** MDEV-6462: Incorrect recovery on a slave reconnecting to crashed master ***
+
+--connection server_1
+set sql_log_bin= 0;
+call mtr.add_suppression("Error writing file 'master-bin'");
+set sql_log_bin= 1;
+--connection server_2
+set sql_log_bin= 0;
+call mtr.add_suppression("The server_id of master server changed in the middle of GTID");
+call mtr.add_suppression("Unexpected change of master binlog file name in the middle of GTID");
+set sql_log_bin= 1;
+
+--connection server_1
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (11);
+--error ER_ERROR_ON_WRITE
+COMMIT;
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+COMMIT;
+
+--source include/wait_until_disconnected.inc
+
+# Simulate that we reconnect to a different server (new server_id).
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart: --server-id=3
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+SELECT @@GLOBAL.server_id;
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+--disable_query_log
+eval SELECT IF(INSTR(@@gtid_binlog_pos, '$saved_gtid'), "Binlog pos ok", CONCAT("Unexpected binlog pos: ", @@gtid_binlog_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+--enable_query_log
+
+--echo # Wait 30 seconds for SQL thread to catch up with IO thread
+--connection server_2
+--let $wait_timeout= 300
+while ($wait_timeout != 0)
+{
+  --let $read_log_pos= query_get_value('SHOW SLAVE STATUS', Read_Master_Log_Pos, 1)
+  --let $exec_log_pos= query_get_value('SHOW SLAVE STATUS', Exec_Master_Log_Pos, 1)
+  if ($read_log_pos == $exec_log_pos)
+  {
+    --let $wait_timeout= 0
+  }
+  if ($read_log_pos != $exec_log_pos)
+  {
+    --sleep 0.1
+    --dec $wait_timeout
+  }
+}
+if ($read_log_pos != $exec_log_pos)
+{
+  --die Timeout wait for SQL thread to catch up with IO thread
+}
+
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+--disable_query_log
+eval SELECT IF(INSTR(@@gtid_binlog_pos, '$saved_gtid'), "Binlog pos ok", CONCAT("Unexpected binlog pos: ", @@gtid_binlog_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+eval SELECT IF(INSTR(@@gtid_slave_pos, '$saved_gtid'), "Slave pos ok", CONCAT("Unexpected slave pos: ", @@gtid_slave_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+eval SELECT IF(INSTR(@@gtid_current_pos, '$saved_gtid'), "Current pos ok", CONCAT("Unexpected current pos: ", @@gtid_current_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+--enable_query_log
+
+--echo # Repeat this with additional transactions on the master
+
+--connection server_1
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (12);
+--error ER_ERROR_ON_WRITE
+COMMIT;
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+COMMIT;
+
+--source include/wait_until_disconnected.inc
+
+# Simulate that we reconnect to a different server (new server_id).
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart: --server-id=1
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+SELECT @@GLOBAL.server_id;
+INSERT INTO t1 VALUES (13);
+INSERT INTO t1 VALUES (14);
+--let $saved_gtid=`SELECT @@last_gtid`
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+
+--connection server_1
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (21);
+--error ER_ERROR_ON_WRITE
+COMMIT;
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+COMMIT;
+
+--source include/wait_until_disconnected.inc
+
+# Simulate that we reconnect to the same server (same server_id).
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+SELECT @@GLOBAL.server_id;
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+--disable_query_log
+eval SELECT IF(INSTR(@@gtid_binlog_pos, '$saved_gtid'), "Binlog pos ok", CONCAT("Unexpected binlog pos: ", @@gtid_binlog_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+eval SELECT IF(INSTR(@@gtid_current_pos, '$saved_gtid'), "Current pos ok", CONCAT("Unexpected current pos: ", @@gtid_current_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+--enable_query_log
+
+--echo # Wait 30 seconds for SQL thread to catch up with IO thread
+--connection server_2
+--let $wait_timeout= 300
+while ($wait_timeout != 0)
+{
+  --let $read_log_pos= query_get_value('SHOW SLAVE STATUS', Read_Master_Log_Pos, 1)
+  --let $exec_log_pos= query_get_value('SHOW SLAVE STATUS', Exec_Master_Log_Pos, 1)
+  if ($read_log_pos == $exec_log_pos)
+  {
+    --let $wait_timeout= 0
+  }
+  if ($read_log_pos != $exec_log_pos)
+  {
+    --sleep 0.1
+    --dec $wait_timeout
+  }
+}
+if ($read_log_pos != $exec_log_pos)
+{
+  --die Timeout wait for SQL thread to catch up with IO thread
+}
+
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+--disable_query_log
+eval SELECT IF(INSTR(@@gtid_binlog_pos, '$saved_gtid'), "Binlog pos ok", CONCAT("Unexpected binlog pos: ", @@gtid_binlog_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+eval SELECT IF(INSTR(@@gtid_slave_pos, '$saved_gtid'), "Slave pos ok", CONCAT("Unexpected slave pos: ", @@gtid_slave_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+eval SELECT IF(INSTR(@@gtid_current_pos, '$saved_gtid'), "Current pos ok", CONCAT("Unexpected current pos: ", @@gtid_current_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+--enable_query_log
+
+--echo # Repeat this with additional transactions on the master
+
+--connection server_1
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (22);
+--error ER_ERROR_ON_WRITE
+COMMIT;
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+COMMIT;
+
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (23);
+INSERT INTO t1 VALUES (24);
+--let $saved_gtid=`SELECT @@last_gtid`
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+
+--echo # Repeat this with slave restart
+
+--connection server_1
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (25);
+--error ER_ERROR_ON_WRITE
+COMMIT;
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+COMMIT;
+
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+--connection server_1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection server_2
+--echo # Wait 30 seconds for IO thread to connect and SQL thread to catch up
+--echo # with IO thread.
+--let $wait_timeout= 300
+while ($wait_timeout != 0)
+{
+  --let $connected=`SELECT COUNT(*) > 0 FROM information_schema.processlist WHERE State = 'Waiting for master to send event'`
+  if ($connected)
+  {
+    --let $read_log_pos= query_get_value('SHOW SLAVE STATUS', Read_Master_Log_Pos, 1)
+    --let $exec_log_pos= query_get_value('SHOW SLAVE STATUS', Exec_Master_Log_Pos, 1)
+    if ($read_log_pos == $exec_log_pos)
+    {
+      --let $wait_timeout= 0
+    }
+    if ($read_log_pos != $exec_log_pos)
+    {
+      --sleep 0.1
+      --dec $wait_timeout
+    }
+  }
+  if (!$connected)
+  {
+    --sleep 0.1
+    --dec $wait_timeout
+  }
+}
+if (`SELECT NOT $connected OR $read_log_pos != $exec_log_pos`)
+{
+  --die Timeout wait for IO thread to connect and SQL thread to catch up with IO thread
+}
+
+--source include/stop_slave.inc
+
+--connection server_1
+--disable_query_log
+eval SELECT IF(INSTR(@@gtid_binlog_pos, '$saved_gtid'), "Binlog pos ok", CONCAT("Unexpected binlog pos: ", @@gtid_binlog_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+eval SELECT IF(INSTR(@@gtid_current_pos, '$saved_gtid'), "Current pos ok", CONCAT("Unexpected current pos: ", @@gtid_current_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+--enable_query_log
+INSERT INTO t1 VALUES (26);
+INSERT INTO t1 VALUES (27);
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--disable_query_log
+eval SELECT IF(INSTR(@@gtid_binlog_pos, '$saved_gtid'), "Binlog pos ok", CONCAT("Unexpected binlog pos: ", @@gtid_binlog_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+eval SELECT IF(INSTR(@@gtid_slave_pos, '$saved_gtid'), "Slave pos ok", CONCAT("Unexpected slave pos: ", @@gtid_slave_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+eval SELECT IF(INSTR(@@gtid_current_pos, '$saved_gtid'), "Current pos ok", CONCAT("Unexpected current pos: ", @@gtid_current_pos, "; does not contain the GTID $saved_gtid.")) AS gtid_check;
+--enable_query_log
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+
+
+--echo *** MDEV-6391: GTID binlog state not recovered if mariadb-bin.state is removed ***
+
+--connection server_2
+--source include/stop_slave.inc
+
+# Do some misc. transactions, stop the master, drop the master-bin.state file.
+# Start the master back up, check that binlog state is correct.
+
+--connection server_1
+
+INSERT INTO t1 VALUES (30);
+SET @old_server_id= @@server_id;
+SET @old_domain_id= @@gtid_domain_id;
+
+SET SESSION server_id= 10;
+INSERT INTO t1 VALUES (31);
+INSERT INTO t1 VALUES (32);
+SET SESSION gtid_domain_id= 1;
+SET SESSION server_id=11;
+INSERT INTO t1 VALUES (33);
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t1 VALUES (34);
+SET SESSION server_id= 10;
+INSERT INTO t1 VALUES (35);
+INSERT INTO t1 VALUES (36);
+SET SESSION gtid_domain_id= 0;
+SET SESSION server_id= 12;
+INSERT INTO t1 VALUES (37);
+SET SESSION gtid_domain_id= @old_domain_id;
+SET SESSION server_id= @old_server_id;
+INSERT INTO t1 VALUES (38);
+INSERT INTO t1 VALUES (39);
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--let OLD_STATE= `SELECT @@gtid_binlog_state`
+
+--let $datadir= `SELECT @@datadir`
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+shutdown_server;
+--source include/wait_until_disconnected.inc
+
+--remove_file $datadir/master-bin.state
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--let NEW_STATE= `SELECT @@gtid_binlog_state`
+
+--perl
+my $old= $ENV{'OLD_STATE'};
+my $new= $ENV{'NEW_STATE'};
+# Make them order-independent, for easy comparison.
+$old= join(",", sort(split(",", $old)));
+$new= join(",", sort(split(",", $new)));
+die "ERROR: new binlog state '$new' differs from old '$old'\n"
+  unless $old eq $new;
+EOF
+
+--connection server_2
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+
+
+--connection server_1
+DROP TABLE t1;
+
+--connection default
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/rpl_end.inc

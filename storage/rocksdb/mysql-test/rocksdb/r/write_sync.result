@@ -1,0 +1,30 @@
+SET GLOBAL rocksdb_write_disable_wal=false;
+SET GLOBAL rocksdb_write_ignore_missing_column_families=true;
+create table aaa (id int primary key, i int) engine rocksdb;
+set @save_rocksdb_flush_log_at_trx_commit=@@global.rocksdb_flush_log_at_trx_commit;
+SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
+insert aaa(id, i) values(0,1);
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_wal_synced';
+insert aaa(id, i) values(1,1);
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_wal_synced';
+variable_value-@a
+1
+insert aaa(id, i) values(2,1);
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_wal_synced';
+variable_value-@a
+2
+insert aaa(id, i) values(3,1);
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_wal_synced';
+variable_value-@a
+3
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_wal_synced';
+SET GLOBAL rocksdb_flush_log_at_trx_commit=0;
+insert aaa(id, i) values(4,1);
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_wal_synced';
+SET GLOBAL rocksdb_flush_log_at_trx_commit=2;
+insert aaa(id, i) values(5,1);
+truncate table aaa;
+drop table aaa;
+set @@global.rocksdb_flush_log_at_trx_commit=@save_rocksdb_flush_log_at_trx_commit;
+SET GLOBAL rocksdb_write_disable_wal=false;
+SET GLOBAL rocksdb_write_ignore_missing_column_families=false;

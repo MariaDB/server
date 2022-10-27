@@ -1,0 +1,24 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES UTF8;
+CREATE TABLE diaries(
+title TEXT,
+body TEXT,
+FULLTEXT KEY (title),
+FULLTEXT KEY (body)
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES("Start groonga", "I read groonga's tutorial.");
+INSERT INTO diaries VALUES("Start mroonga", "I read mroonga's tutorial.");
+INSERT INTO diaries VALUES("Start groonga and Ruby", "I installed rroonga.");
+SELECT * FROM diaries;
+title	body
+Start groonga	I read groonga's tutorial.
+Start mroonga	I read mroonga's tutorial.
+Start groonga and Ruby	I installed rroonga.
+SELECT *,       MATCH(body)  AGAINST("groonga" IN BOOLEAN MODE) AS score
+FROM diaries
+WHERE    MATCH(title) AGAINST("groonga" IN BOOLEAN MODE)
+ORDER BY MATCH(body)  AGAINST("groonga" IN BOOLEAN MODE);
+title	body	score
+Start groonga and Ruby	I installed rroonga.	0
+Start groonga	I read groonga's tutorial.	1
+DROP TABLE diaries;

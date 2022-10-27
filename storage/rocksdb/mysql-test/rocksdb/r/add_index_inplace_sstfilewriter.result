@@ -1,0 +1,79 @@
+drop table if exists t1;
+CREATE TABLE t1(pk CHAR(5) PRIMARY KEY, a char(30), b char(30)) COLLATE 'latin1_bin';
+set rocksdb_bulk_load=1;
+set rocksdb_bulk_load_size=10000;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+set rocksdb_bulk_load=0;
+select count(pk) from t1;
+count(pk)
+300000
+select count(a) from t1;
+count(a)
+300000
+select count(b) from t1;
+count(b)
+300000
+ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
+set @tmp= @@rocksdb_max_row_locks;
+set session rocksdb_max_row_locks=1000;
+ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
+ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to rocksdb_max_row_locks limit' from ROCKSDB
+set session rocksdb_bulk_load=1;
+ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
+set session rocksdb_bulk_load=0;
+set session rocksdb_max_row_locks=@tmp;
+SELECT COUNT(*) as c FROM
+(SELECT COALESCE(LOWER(CONV(BIT_XOR(CAST(CRC32(CONCAT_WS('#', `b`, CONCAT(ISNULL(`b`)))) AS UNSIGNED)), 10, 16)), 0) AS crc FROM `t1` FORCE INDEX(`kb`)
+UNION DISTINCT
+SELECT COALESCE(LOWER(CONV(BIT_XOR(CAST(CRC32(CONCAT_WS('#',
+`b`, CONCAT(ISNULL(`b`)))) AS UNSIGNED)), 10, 16)), 0) AS crc FROM `t1` FORCE
+INDEX(`kb_copy`)) as temp;
+c
+1
+select count(*) from t1 FORCE INDEX(kb);
+count(*)
+300000
+select count(*) from t1 FORCE INDEX(kb_copy);
+count(*)
+300000
+select count(*) from t1 FORCE INDEX(PRIMARY);
+count(*)
+300000
+ALTER TABLE t1 DROP INDEX kb, ALGORITHM=INPLACE;
+ALTER TABLE t1 DROP INDEX kb_copy, ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD INDEX kb(b), ADD INDEX kab(a,b), ALGORITHM=INPLACE;
+SELECT COUNT(*) FROM t1 FORCE INDEX(kab);
+COUNT(*)
+300000
+SELECT COUNT(*) FROM t1 FORCE INDEX(kb);
+COUNT(*)
+300000
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` char(5) COLLATE latin1_bin NOT NULL,
+  `a` char(30) COLLATE latin1_bin DEFAULT NULL,
+  `b` char(30) COLLATE latin1_bin DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `kb` (`b`),
+  KEY `kab` (`a`,`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_bin
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 DROP INDEX kab, ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD INDEX kb(b) comment 'rev:cf1', ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `kb` (`b`) COMMENT 'rev:cf1'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) FROM t1 FORCE INDEX(kb);
+COUNT(*)
+3
+DROP TABLE t1;

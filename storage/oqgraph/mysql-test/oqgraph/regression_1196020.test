@@ -1,0 +1,71 @@
+# Regression test for https://bugs.launchpad.net/oqgraph/+bug/1196020
+#-- bug where select blah with origid = X where X does not exist, returns a row
+#-- bug where select blah with destid = X where X does not exist, returns a row
+--disable_warnings
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+# Create the backing store
+CREATE TABLE graph_base (
+    from_id INT UNSIGNED NOT NULL,
+    to_id INT UNSIGNED NOT NULL,
+    PRIMARY KEY (from_id,to_id),
+    INDEX (to_id)
+  ) ENGINE=MyISAM;
+
+
+CREATE TABLE graph (
+    latch   VARCHAR(32) NULL,
+    origid  BIGINT    UNSIGNED NULL,
+    destid  BIGINT    UNSIGNED NULL,
+    weight  DOUBLE    NULL,
+    seq     BIGINT    UNSIGNED NULL,
+    linkid  BIGINT    UNSIGNED NULL,
+    KEY (latch, origid, destid) USING HASH,
+    KEY (latch, destid, origid) USING HASH
+  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+
+
+INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
+
+# All the following should return no result because no vertex 666 exists in the graph
+
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 666;
+SELECT * FROM graph WHERE latch = '2' AND origid = 666;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 666;
+SELECT * FROM graph WHERE latch = '1' AND origid = 666;
+
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 666;
+SELECT * FROM graph WHERE latch = '2' AND destid = 666;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND destid = 666;
+SELECT * FROM graph WHERE latch = '1' AND destid = 666;
+
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 666 and weight = 1;
+SELECT * FROM graph WHERE latch = '2' AND origid = 666 and weight = 1;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 666 and weight = 1;
+SELECT * FROM graph WHERE latch = '1' AND origid = 666 and weight = 1;
+
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 666 and weight = 1;
+SELECT * FROM graph WHERE latch = '2' AND destid = 666 and weight = 1;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND destid = 666 and weight = 1;
+SELECT * FROM graph WHERE latch = '1' AND destid = 666 and weight = 1;
+
+# Sanity check for no-search
+SELECT * FROM graph WHERE latch = '' AND origid = 666;
+SELECT * FROM graph WHERE latch = '0' AND origid = 666;
+SELECT * FROM graph WHERE latch is NULL AND origid = 666;
+
+SELECT * FROM graph WHERE latch = '' AND destid = 666;
+SELECT * FROM graph WHERE latch = '0' AND destid = 666;
+SELECT * FROM graph WHERE latch is NULL AND destid = 666;
+
+
+
+DELETE FROM graph_base;
+FLUSH TABLES;
+TRUNCATE TABLE graph_base;
+
+DROP TABLE graph_base;
+DROP TABLE graph;
+

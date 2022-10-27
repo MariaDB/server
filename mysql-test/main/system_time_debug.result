@@ -1,0 +1,16 @@
+set @old_dbug=@@debug_dbug;
+select timestampdiff(minute,now(),sysdate()) as 'must be 0', (unix_timestamp(sysdate()) - unix_timestamp()) div 60 as 'must be 0';
+must be 0	must be 0
+0	0
+set @@debug_dbug='+d,system_time_plus_one_hour';
+select timestampdiff(minute,now(),sysdate()) as 'must be 0', (unix_timestamp(sysdate()) - unix_timestamp()) div 60 as 'must be 0';
+must be 0	must be 0
+0	0
+set @@debug_dbug='+d,system_time_minus_one_hour:-d,system_time_plus_one_hour';
+select timestampdiff(minute,now(),sysdate()) as 'must be 0', (unix_timestamp(sysdate()) - unix_timestamp()) div 60 as 'must be 0';
+must be 0	must be 0
+0	0
+set @@debug_dbug=@old_dbug;
+select timestampdiff(minute,now(),sysdate()) as 'must be 0', (unix_timestamp(sysdate()) - unix_timestamp()) div 60 as 'must be 0';
+must be 0	must be 0
+0	0

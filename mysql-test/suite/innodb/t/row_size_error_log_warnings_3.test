@@ -1,0 +1,32 @@
+--source include/have_innodb.inc
+
+call mtr.add_suppression("InnoDB: Cannot add field .* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
+
+SET innodb_strict_mode = 0;
+SET @@global.log_warnings = 3;
+
+CREATE TABLE t1 (
+  col_1 TEXT
+  ,col_2 TEXT
+  ,col_3 TEXT
+  ,col_4 TEXT
+  ,col_5 TEXT
+  ,col_6 TEXT
+  ,col_7 TEXT
+  ,col_8 TEXT
+  ,col_9 TEXT
+  ,col_10 TEXT
+  ,col_11 TEXT
+) ENGINE=INNODB ROW_FORMAT=COMPACT;
+--enable_warnings
+TRUNCATE TABLE t1;
+OPTIMIZE TABLE t1;
+ALTER TABLE t1 FORCE;
+SET innodb_strict_mode = ON;
+TRUNCATE TABLE t1;
+OPTIMIZE TABLE t1;
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;
+--disable_warnings
+
+SET @@global.log_warnings = 2;

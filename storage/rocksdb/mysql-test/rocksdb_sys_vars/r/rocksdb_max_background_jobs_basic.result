@@ -1,0 +1,46 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(64);
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'abc\'');
+SET @start_global_value = @@global.ROCKSDB_MAX_BACKGROUND_JOBS;
+SELECT @start_global_value;
+@start_global_value
+2
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_MAX_BACKGROUND_JOBS to 1"
+SET @@global.ROCKSDB_MAX_BACKGROUND_JOBS   = 1;
+SELECT @@global.ROCKSDB_MAX_BACKGROUND_JOBS;
+@@global.ROCKSDB_MAX_BACKGROUND_JOBS
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_MAX_BACKGROUND_JOBS = DEFAULT;
+SELECT @@global.ROCKSDB_MAX_BACKGROUND_JOBS;
+@@global.ROCKSDB_MAX_BACKGROUND_JOBS
+2
+"Trying to set variable @@global.ROCKSDB_MAX_BACKGROUND_JOBS to 64"
+SET @@global.ROCKSDB_MAX_BACKGROUND_JOBS   = 64;
+SELECT @@global.ROCKSDB_MAX_BACKGROUND_JOBS;
+@@global.ROCKSDB_MAX_BACKGROUND_JOBS
+64
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_MAX_BACKGROUND_JOBS = DEFAULT;
+SELECT @@global.ROCKSDB_MAX_BACKGROUND_JOBS;
+@@global.ROCKSDB_MAX_BACKGROUND_JOBS
+2
+"Trying to set variable @@session.ROCKSDB_MAX_BACKGROUND_JOBS to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_MAX_BACKGROUND_JOBS   = 444;
+ERROR HY000: Variable 'rocksdb_max_background_jobs' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_MAX_BACKGROUND_JOBS to 'abc'"
+SET @@global.ROCKSDB_MAX_BACKGROUND_JOBS   = 'abc';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_MAX_BACKGROUND_JOBS;
+@@global.ROCKSDB_MAX_BACKGROUND_JOBS
+2
+SET @@global.ROCKSDB_MAX_BACKGROUND_JOBS = @start_global_value;
+SELECT @@global.ROCKSDB_MAX_BACKGROUND_JOBS;
+@@global.ROCKSDB_MAX_BACKGROUND_JOBS
+2
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

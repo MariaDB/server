@@ -1,0 +1,221 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+--echo #
+--echo # MDEV#4953 Galera: DELETE from a partitioned table is not replicated
+--echo #
+
+USE test;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT) ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+INSERT INTO t1 VALUES (1,100), (2,200);
+SELECT * FROM t1;
+
+DELETE FROM t1;
+SELECT * FROM t1;
+
+--echo
+--echo # On node_1
+--connection node_1
+SELECT * FROM t1;
+
+--echo
+--echo # On node_2
+--connection node_2
+SELECT * FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV#7501 : alter table exchange partition is not replicated in
+--echo #             galera cluster
+--echo #
+
+--echo
+--echo # On node_1
+--connection node_1
+
+CREATE TABLE test.t1 (
+  i INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (i)
+  ) ENGINE=INNODB
+  PARTITION BY RANGE (i)
+    (PARTITION p1 VALUES LESS THAN (10) ENGINE = INNODB,
+     PARTITION p2 VALUES LESS THAN (20) ENGINE = INNODB,
+     PARTITION pMax VALUES LESS THAN MAXVALUE ENGINE = INNODB);
+
+INSERT INTO test.t1 (i) VALUE (9),(19);
+CREATE TABLE test.p1 LIKE test.t1;
+ALTER TABLE test.p1 REMOVE PARTITIONING;
+
+ALTER TABLE test.t1 EXCHANGE PARTITION p1 WITH TABLE test.p1; 
+SELECT * FROM test.t1;
+SELECT * FROM test.p1;
+
+--echo
+--echo # On node_2
+--connection node_2
+
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE p1;
+
+SELECT * FROM test.t1;
+SELECT * FROM test.p1;
+
+--echo
+--echo # On node_1
+--connection node_1
+ALTER TABLE t1 TRUNCATE PARTITION p2;
+SELECT * FROM test.t1;
+
+--echo
+--echo # On node_2
+--connection node_2
+SELECT * FROM test.t1;
+
+--echo
+--echo # On node_1
+--connection node_1
+ALTER TABLE t1 DROP PARTITION p2;
+SHOW CREATE TABLE t1;
+
+--echo
+--echo # On node_2
+--connection node_2
+SHOW CREATE TABLE t1;
+
+
+# Cleanup
+DROP TABLE t1, p1;
+
+--echo #
+--echo # MDEV-5146: Bulk loads into partitioned table not working
+--echo #
+
+# Create 2 files with 20002 & 101 entries in each.
+--perl
+open(FILE, ">", "$ENV{'MYSQLTEST_VARDIR'}/tmp/mdev-5146-1.dat") or die;
+foreach  my $i (1..20002) {
+        print FILE "$i\n";
+}
+
+open(FILE, ">", "$ENV{'MYSQLTEST_VARDIR'}/tmp/mdev-5146-2.dat") or die;
+foreach  my $i (1..101) {
+        print FILE "$i\n";
+}
+EOF
+
+--connection node_1
+
+--let $wsrep_load_data_splitting_orig = `SELECT @@wsrep_load_data_splitting`
+
+--echo # Case 1: wsrep_load_data_splitting = ON & LOAD DATA with 20002
+--echo # entries.
+
+SET GLOBAL wsrep_load_data_splitting = ON;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY)
+  ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+
+# Record wsrep_last_committed as it was before LOAD DATA
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--disable_query_log
+--eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/mdev-5146-1.dat' INTO TABLE t1;
+--enable_query_log
+
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 20002 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM t1;
+
+# LOAD-ing 20002 rows causes
+# 3 commits to be registered when the Galera library does not support streaming replication and
+# 5 commits to be registered when the Galera library supports streaming replication
+--disable_query_log
+--replace_result 3 AS_EXPECTED_3_or_5 5 AS_EXPECTED_3_or_5
+--eval SELECT $wsrep_last_committed_after - $wsrep_last_committed_before AS wsrep_last_committed_diff;
+--enable_query_log
+
+DROP TABLE t1;
+
+--echo # Case 2: wsrep_load_data_splitting = ON & LOAD DATA with 101 entries.
+
+--connection node_1
+
+SET GLOBAL wsrep_load_data_splitting = ON;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY)
+  ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+
+# Record wsrep_last_committed as it was before LOAD DATA
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--disable_query_log
+--eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/mdev-5146-2.dat' INTO TABLE t1;
+--enable_query_log
+
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 101 FROM t1;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) FROM t1;
+
+# LOAD-ing 101 rows causes 1 commit to be registered
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after - $wsrep_last_committed_before AS wsrep_last_committed_diff;
+--enable_query_log
+
+DROP TABLE t1;
+
+--echo # Case 3: wsrep_load_data_splitting = OFF & LOAD DATA with 20002
+--echo # entries.
+
+--connection node_1
+
+SET GLOBAL wsrep_load_data_splitting = OFF;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY)
+  ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+
+# Record wsrep_last_committed as it was before LOAD DATA
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--disable_query_log
+--eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/mdev-5146-1.dat' INTO TABLE t1;
+--enable_query_log
+
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 20002 FROM t1;
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
+
+# LOAD-ing 20002 rows causes
+# 1 commit  to be registered when the Galera library does not support streaming replication and
+# 2 commits to be registered when the Galera library supports streaming replication
+--disable_query_log
+--replace_result 1 AS_EXPECTED_1_or_2 2 AS_EXPECTED_1_or_2
+--eval SELECT $wsrep_last_committed_after - $wsrep_last_committed_before AS wsrep_last_committed_diff;
+--enable_query_log
+
+DROP TABLE t1;
+
+--connection node_1
+# Restore the original value
+--eval SET GLOBAL wsrep_load_data_splitting = $wsrep_load_data_splitting_orig;
+
+# Cleanup
+remove_file '$MYSQLTEST_VARDIR/tmp/mdev-5146-1.dat';
+remove_file '$MYSQLTEST_VARDIR/tmp/mdev-5146-2.dat';
+
+--source include/galera_end.inc
+--echo # End of test

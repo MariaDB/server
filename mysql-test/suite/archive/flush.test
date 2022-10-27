@@ -1,0 +1,25 @@
+--source include/have_archive.inc
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+CREATE TABLE t1(a INT) ENGINE=archive;
+INSERT INTO t1 VALUES(1);
+# Works correct if we uncomment next row
+#FLUSH TABLE t1;
+
+connect(con1, localhost, root);
+LOCK TABLE t1 READ;
+
+connection default;
+FLUSH TABLES WITH READ LOCK;
+copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm;
+copy_file $MYSQLD_DATADIR/test/t1.ARZ $MYSQLD_DATADIR/test/t2.ARZ;
+UNLOCK TABLES;
+--echo # Must return 1 row
+SELECT * FROM t2;
+SELECT * FROM t1;
+
+connection con1;
+UNLOCK TABLES;
+
+connection default;
+DROP TABLE t1, t2;

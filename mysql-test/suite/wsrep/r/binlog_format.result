@@ -1,0 +1,61 @@
+call mtr.add_suppression("WSREP: MariaDB Galera does not support binlog format");
+call mtr.add_suppression("WSREP: Cannot get fake transaction ID from storage engine.");
+#
+# MDEV-4227: Galera server should stop crashing on setting binlog_format STATEMENT
+#
+SHOW VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+SET binlog_format=STATEMENT;
+Warnings:
+Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT
+SHOW VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	STATEMENT
+CREATE TABLE IF NOT EXISTS test.t1 AS SELECT * FROM information_schema.routines WHERE 1 = 0;
+SET binlog_format=MIXED;
+Warnings:
+Warning	1105	MariaDB Galera and flashback do not support binlog format: MIXED
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1105	MariaDB Galera and flashback do not support binlog format: MIXED
+SHOW VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	MIXED
+CREATE TABLE IF NOT EXISTS test.t2 AS SELECT * FROM information_schema.routines WHERE 1 = 0;
+SET binlog_format=ROW;
+SHOW WARNINGS;
+Level	Code	Message
+SHOW VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+CREATE TABLE IF NOT EXISTS test.t3 AS SELECT * FROM information_schema.routines WHERE 1 = 0;
+DROP TABLE IF EXISTS test.t1;
+DROP TABLE IF EXISTS test.t2;
+DROP TABLE IF EXISTS test.t3;
+#
+# MDEV-7322: Option to allow setting the binlog_format with Galera
+#
+SET @@GLOBAL.binlog_format=STATEMENT;
+ERROR 42000: Variable 'binlog_format' can't be set to the value of 'STATEMENT'
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+SET @@GLOBAL.binlog_format=MIXED;
+ERROR 42000: Variable 'binlog_format' can't be set to the value of 'MIXED'
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+SET @@GLOBAL.binlog_format=DEFAULT;
+ERROR 42000: Variable 'binlog_format' can't be set to the value of 'DEFAULT'
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+SET @@GLOBAL.binlog_format=ROW;
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+# End of test.

@@ -1,0 +1,85 @@
+#
+# Test TRUNCATE on TEMPORARY tables. It should not be replicated
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TEMPORARY TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+
+INSERT INTO t1 VALUES (1);
+
+TRUNCATE TABLE t1;
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_2
+--error ER_NO_SUCH_TABLE
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+
+#
+# Test the case where a TEMPORARY table is masking an existing one
+#
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+CREATE TEMPORARY TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (2);
+
+SELECT f1 = 2 FROM t1;
+SELECT COUNT(*) = 1 FROM t1;
+
+TRUNCATE TABLE t1;
+
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+SELECT f1 = 1 FROM t1;
+
+--connection node_1
+
+DROP TABLE t1;
+SELECT COUNT(*) = 1 FROM t1;
+SELECT f1 = 1 FROM t1;
+
+TRUNCATE TABLE t1;
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+
+#
+# Test the case where one node has a TEMPORARY table but the TRUNCATE arrives from another node
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+CREATE TEMPORARY TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (2);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+
+TRUNCATE TABLE t1;
+
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_1
+SELECT f1 = 2 FROM t1;
+SELECT COUNT(*) = 1 FROM t1;
+
+DROP TABLE t1;
+
+SELECT COUNT(*) = 0 FROM t1;
+
+DROP TABLE t1;

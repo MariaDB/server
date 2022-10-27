@@ -1,0 +1,110 @@
+SET @start_value = @@global.key_cache_file_hash_size;
+SELECT @start_value;
+@start_value
+512
+'#--------------------FN_DYNVARS_056_01------------------------#'
+SET @@global.key_cache_file_hash_size = DEFAULT;
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+512
+'#---------------------FN_DYNVARS_056_02-------------------------#'
+SET @@global.key_cache_file_hash_size = @start_value;
+SELECT @@global.key_cache_file_hash_size = 300;
+@@global.key_cache_file_hash_size = 300
+0
+'#--------------------FN_DYNVARS_056_03------------------------#'
+SET @@global.key_cache_file_hash_size = 128;
+SET @@global.key_cache_file_hash_size = 16384;
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+16384
+'#--------------------FN_DYNVARS_056_04-------------------------#'
+SET @@global.key_cache_file_hash_size = -1;
+Warnings:
+Warning	1292	Truncated incorrect key_cache_file_hash_size value: '-1'
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+128
+SET @@global.key_cache_file_hash_size = 42949672951;
+Warnings:
+Warning	1292	Truncated incorrect key_cache_file_hash_size value: '42949672951'
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+16384
+SET @@global.key_cache_file_hash_size = 10000.01;
+ERROR 42000: Incorrect argument type to variable 'key_cache_file_hash_size'
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+16384
+SET @@global.key_cache_file_hash_size = -1024;
+Warnings:
+Warning	1292	Truncated incorrect key_cache_file_hash_size value: '-1024'
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+128
+SET @@global.key_cache_file_hash_size = 99;
+Warnings:
+Warning	1292	Truncated incorrect key_cache_file_hash_size value: '99'
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+128
+SET @@global.key_cache_file_hash_size = ON;
+ERROR 42000: Incorrect argument type to variable 'key_cache_file_hash_size'
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+128
+SET @@global.key_cache_file_hash_size = 'test';
+ERROR 42000: Incorrect argument type to variable 'key_cache_file_hash_size'
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+128
+'#-------------------FN_DYNVARS_056_05----------------------------#'
+SET @@session.key_cache_file_hash_size = 0;
+ERROR HY000: Variable 'key_cache_file_hash_size' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@session.key_cache_file_hash_size;
+ERROR HY000: Variable 'key_cache_file_hash_size' is a GLOBAL variable
+'#----------------------FN_DYNVARS_056_06------------------------#'
+SELECT @@global.key_cache_file_hash_size = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='key_cache_file_hash_size';
+@@global.key_cache_file_hash_size = VARIABLE_VALUE
+1
+SELECT @@key_cache_file_hash_size = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES 
+WHERE VARIABLE_NAME='key_cache_file_hash_size';
+@@key_cache_file_hash_size = VARIABLE_VALUE
+1
+'#---------------------FN_DYNVARS_056_07----------------------#'
+SET @@global.key_cache_file_hash_size = TRUE;
+Warnings:
+Warning	1292	Truncated incorrect key_cache_file_hash_size value: '1'
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+128
+SET @@global.key_cache_file_hash_size = FALSE;
+Warnings:
+Warning	1292	Truncated incorrect key_cache_file_hash_size value: '0'
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+128
+'#---------------------FN_DYNVARS_056_08----------------------#'
+SET @@global.key_cache_file_hash_size = 150;
+SELECT @@key_cache_file_hash_size = @@global.key_cache_file_hash_size;
+@@key_cache_file_hash_size = @@global.key_cache_file_hash_size
+1
+'#---------------------FN_DYNVARS_056_09----------------------#'
+SET key_cache_file_hash_size = 8000;
+ERROR HY000: Variable 'key_cache_file_hash_size' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@key_cache_file_hash_size;
+@@key_cache_file_hash_size
+150
+SELECT local.key_cache_file_hash_size;
+ERROR 42S02: Unknown table 'local' in field list
+SELECT global.key_cache_file_hash_size;
+ERROR 42S02: Unknown table 'global' in field list
+SELECT key_cache_file_hash_size = @@session.key_cache_file_hash_size;
+ERROR 42S22: Unknown column 'key_cache_file_hash_size' in 'field list'
+SET @@global.key_cache_file_hash_size = @start_value;
+SELECT @@global.key_cache_file_hash_size;
+@@global.key_cache_file_hash_size
+512

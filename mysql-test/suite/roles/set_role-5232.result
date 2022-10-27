@@ -1,0 +1,18 @@
+create user ''@localhost;
+create user c;
+grant select on mysql.* to c;
+create role r1;
+grant r1 to c;
+connect  c,localhost,c,,,,,;
+select user(), current_user();
+user()	current_user()
+c@localhost	@localhost
+select user from mysql.user group by user;
+ERROR 42000: SELECT command denied to user ''@'localhost' for table 'user'
+set role r1;
+ERROR OP000: Invalid role specification `r1`
+disconnect c;
+connection default;
+drop role r1;
+drop user c;
+drop user ''@localhost;

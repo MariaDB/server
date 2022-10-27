@@ -1,0 +1,127 @@
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph_base (
+from_id INT UNSIGNED NOT NULL,
+to_id INT UNSIGNED NOT NULL,
+PRIMARY KEY (from_id,to_id),
+INDEX (to_id)
+) ENGINE=MyISAM;
+CREATE TABLE graph (
+latch   VARCHAR(32) NULL,
+origid  BIGINT    UNSIGNED NULL,
+destid  BIGINT    UNSIGNED NULL,
+weight  DOUBLE    NULL,
+seq     BIGINT    UNSIGNED NULL,
+linkid  BIGINT    UNSIGNED NULL,
+KEY (latch, origid, destid) USING HASH,
+KEY (latch, destid, origid) USING HASH
+) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
+SELECT count(*) FROM graph;
+count(*)
+2
+SELECT count(*) FROM graph_base;
+count(*)
+2
+INSERT INTO graph_base(from_id, to_id) VALUES (12,10);
+SELECT count(*) FROM graph;
+count(*)
+3
+SELECT count(*) FROM graph_base;
+count(*)
+3
+INSERT INTO graph_base(from_id, to_id) VALUES (14,13);
+SELECT count(*) FROM graph;
+count(*)
+4
+SELECT count(*) FROM graph_base;
+count(*)
+4
+DELETE FROM graph_base where from_id=10 and to_id=11;
+INSERT INTO graph_base(from_id, to_id) VALUES (10,15);
+INSERT INTO graph_base(from_id, to_id) VALUES (15,13);
+INSERT INTO graph_base(from_id, to_id) VALUES (10,11);
+SELECT count(*) FROM graph;
+count(*)
+7
+SELECT count(*) FROM graph_base;
+count(*)
+7
+INSERT INTO graph_base(from_id, to_id) VALUES (21,22);
+INSERT INTO graph_base (from_id,to_id) VALUES (4,6);
+SELECT count(*) FROM graph;
+count(*)
+9
+SELECT count(*) FROM graph_base;
+count(*)
+9
+SELECT * FROM graph  where latch='0';
+latch	origid	destid	weight	seq	linkid
+0	NULL	NULL	NULL	NULL	1
+0	NULL	NULL	NULL	NULL	2
+0	NULL	NULL	NULL	NULL	12
+0	NULL	NULL	NULL	NULL	10
+0	NULL	NULL	NULL	NULL	14
+0	NULL	NULL	NULL	NULL	13
+0	NULL	NULL	NULL	NULL	15
+0	NULL	NULL	NULL	NULL	11
+0	NULL	NULL	NULL	NULL	21
+0	NULL	NULL	NULL	NULL	22
+0	NULL	NULL	NULL	NULL	4
+0	NULL	NULL	NULL	NULL	6
+SELECT * FROM graph_base;
+from_id	to_id
+1	2
+2	1
+4	6
+10	11
+10	15
+12	10
+14	13
+15	13
+21	22
+# And delete all references to node 2
+DELETE FROM graph_base WHERE from_id=2;
+DELETE FROM graph_base WHERE to_id=2;
+SELECT count(*) FROM graph;
+count(*)
+7
+SELECT count(*) FROM graph_base;
+count(*)
+7
+SELECT * FROM graph  where latch='0';
+latch	origid	destid	weight	seq	linkid
+0	NULL	NULL	NULL	NULL	12
+0	NULL	NULL	NULL	NULL	10
+0	NULL	NULL	NULL	NULL	14
+0	NULL	NULL	NULL	NULL	13
+0	NULL	NULL	NULL	NULL	15
+0	NULL	NULL	NULL	NULL	11
+0	NULL	NULL	NULL	NULL	21
+0	NULL	NULL	NULL	NULL	22
+0	NULL	NULL	NULL	NULL	4
+0	NULL	NULL	NULL	NULL	6
+SELECT * FROM graph_base;
+from_id	to_id
+4	6
+10	11
+10	15
+12	10
+14	13
+15	13
+21	22
+DELETE FROM graph_base;
+SELECT count(*) FROM graph;
+count(*)
+0
+SELECT count(*) FROM graph_base;
+count(*)
+0
+SELECT * FROM graph  where latch='0';
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph_base;
+from_id	to_id
+FLUSH TABLES;
+TRUNCATE TABLE graph_base;
+DROP TABLE graph_base;
+DROP TABLE graph;

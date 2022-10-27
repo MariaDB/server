@@ -1,0 +1,77 @@
+#
+# This test uses galera_sr_bf_abort.inc to probe various BF abort points
+# for SR transactions with wsrep provider commit ordering disabled.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/galera_have_debug_sync.inc
+
+# Control connection for manipulating sync points on node 1
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait = 0;
+
+# SR bf abort on fragment
+--let $wsrep_trx_fragment_size = 1
+--echo galera_sr_bf_abort_at_commit = 0
+--let $galera_sr_bf_abort_at_commit = 0
+
+--echo after_replicate_sync
+--let $galera_sr_bf_abort_sync_point = after_replicate_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+--echo local_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = local_monitor_master_enter_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+--echo apply_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = apply_monitor_master_enter_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+--echo commit_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = commit_monitor_master_enter_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+# SR bf abort on commit fragment
+--let $wsrep_trx_fragment_size = 1
+--echo galera_sr_bf_abort_at_commit = 1
+--let $galera_sr_bf_abort_at_commit = 1
+
+--echo after_replicate_sync
+--let $galera_sr_bf_abort_sync_point = after_replicate_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+--echo local_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = local_monitor_master_enter_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+--echo apply_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = apply_monitor_master_enter_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+--echo commit_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = commit_monitor_master_enter_sync
+--source suite/galera/t/galera_sr_bf_abort.inc
+
+# Normal bf abort on commit
+--let $wsrep_trx_fragment_size = 0
+--echo galera_sr_bf_abort_at_commit = 1
+--let $galera_sr_bf_abort_at_commit = 1
+
+--echo after_replicate_sync
+--let $galera_sr_bf_abort_sync_point = after_replicate_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+--echo local_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = local_monitor_master_enter_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+--echo apply_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = apply_monitor_master_enter_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+--echo commit_monitor_master_enter_sync
+--let $galera_sr_bf_abort_sync_point = commit_monitor_master_enter_sync
+--source ../../suite/galera_sr/t/galera_sr_bf_abort.inc
+
+CALL mtr.add_suppression("WSREP: fragment replication failed: 1");

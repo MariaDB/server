@@ -1,0 +1,41 @@
+# We should not run this test with embedded as we are using
+# max_session_mem_used, which causes things to fail/not fail randomly
+# as memory usage is different compared to normal server.
+
+--source include/not_embedded.inc
+
+#
+# MDEV-11539 test_if_reopen: Assertion `strcmp(share->unique_file_name,filename) || share->last_version' failed upon select from I_S
+#
+CREATE TABLE t1 (i INT) ENGINE=Aria TRANSACTIONAL=1;
+INSERT t1 VALUES (1);
+LOCK TABLE t1 WRITE;
+REPAIR TABLE t1;
+--disable_result_log
+SELECT * FROM INFORMATION_SCHEMA.TABLES;
+--enable_result_log
+SELECT * FROM t1;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+CREATE TABLE t1 (i INT) ENGINE=Aria TRANSACTIONAL=1;
+INSERT t1 VALUES (1);
+LOCK TABLE t1 WRITE;
+OPTIMIZE TABLE t1;
+--disable_result_log
+SELECT * FROM INFORMATION_SCHEMA.TABLES;
+--enable_result_log
+SELECT * FROM t1;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23824 SIGSEGV in end_io_cache on REPAIR LOCAL TABLE for Aria table
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1);
+SET max_session_mem_used=50000;
+REPAIR LOCAL TABLE t1 USE_FRM;
+REPAIR LOCAL TABLE t1;
+DROP TABLE t1;

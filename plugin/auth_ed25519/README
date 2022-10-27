@@ -1,0 +1,27 @@
+This plugin uses public domain ed25519 code
+by Daniel J. Bernstein, Niels Duif, Tanja Lange, Peter Schwabe, Bo-Yin Yang.
+
+It is "ref10" implementation from the SUPERCOP:
+https://bench.cr.yp.to/supercop.html
+
+OpenSSH also uses ed25519 from SUPERCOP, but "ref" implementation.
+
+There are four ed25519 implementations in SUPERCOP, ref10 is faster then ref,
+and there are two that are even faster, written in amd64 assembler.
+Benchmarks are here: https://bench.cr.yp.to/impl-sign/ed25519.html
+
+==============================
+MariaDB changes:
+
+API functions were simplified to better fit our use case:
+* crypto_sign_open() does not return the verified message, only the
+  result of the verification (passed/failed)
+* no secret key is generated explicitly, user specified password is used
+  as a source of randomness instead (SHA512("user password")).
+* lengths are not returned, where they're known in advance
+  (e.g. from crypto_sign()).
+* crypto_sign() does not take the public key as an argument, but
+  generates it on the fly (we used to generate public key before
+  crypto_sign(), doing it internally avoids double work).
+
+See the changes done in this commit.

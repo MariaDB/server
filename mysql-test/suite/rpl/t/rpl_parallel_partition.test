@@ -1,0 +1,81 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--connection server_2
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+--source include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,inject_wakeup_subsequent_commits_sleep";
+SET GLOBAL slave_parallel_threads=8;
+
+--echo *** MDEV-8147: Assertion `m_lock_type == 2' failed in handler::ha_close() during parallel replication ***
+--connection server_1
+CREATE TABLE E (
+			pk INTEGER AUTO_INCREMENT,
+			col_int_nokey INTEGER /*! NULL */,
+			col_int_key INTEGER /*! NULL */,
+
+			col_date_key DATE /*! NULL */,
+			col_date_nokey DATE /*! NULL */,
+
+			col_time_key TIME /*! NULL */,
+			col_time_nokey TIME /*! NULL */,
+
+			col_datetime_key DATETIME /*! NULL */,
+			col_datetime_nokey DATETIME /*! NULL */,
+
+			col_varchar_key VARCHAR(1) /*! NULL */,
+			col_varchar_nokey VARCHAR(1) /*! NULL */,
+
+			PRIMARY KEY (pk),
+			KEY (col_int_key),
+			KEY (col_date_key),
+			KEY (col_time_key),
+			KEY (col_datetime_key),
+			KEY (col_varchar_key, col_int_key)
+		)  ENGINE=InnoDB;
+
+ALTER TABLE `E` PARTITION BY KEY() PARTITIONS 5;
+ALTER TABLE `E` REMOVE PARTITIONING;
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+--shutdown_server
+--source include/wait_until_disconnected.inc
+--connection default
+--source include/wait_until_disconnected.inc
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart:
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--connection server_1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+CREATE TABLE t1 (a INT PRIMARY KEY);
+--save_master_pos
+
+--connection server_2
+--source include/start_slave.inc
+--sync_with_master
+
+# Re-spawn worker threads to clear dbug injection.
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=8;
+--source include/start_slave.inc
+
+
+# Clean up.
+--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE `E`;
+DROP TABLE t1;
+--source include/rpl_end.inc

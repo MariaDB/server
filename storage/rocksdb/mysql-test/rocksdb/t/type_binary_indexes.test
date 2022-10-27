@@ -1,0 +1,99 @@
+--source include/have_rocksdb.inc
+
+#
+# BINARY and VARBINARY columns with indexes
+#
+
+#######################################
+# TODO: 
+# A part of the test is disabled 
+# because unique keys are not supported
+#######################################
+
+SET @ORIG_PAUSE_BACKGROUND_WORK = @@ROCKSDB_PAUSE_BACKGROUND_WORK;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = 1;
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (b BINARY,
+  b20 BINARY(20) PRIMARY KEY,
+  v16 VARBINARY(16),
+  v128 VARBINARY(128)
+) ENGINE=rocksdb;
+
+SHOW INDEX IN t1;
+
+INSERT INTO t1 (b,b20,v16,v128) VALUES ('a','char1','varchar1a','varchar1b'),('a','char2','varchar2a','varchar2b'),('b','char3','varchar1a','varchar1b'),('c','char4','varchar3a','varchar3b');
+
+--replace_column 9 #
+EXPLAIN SELECT HEX(b20) FROM t1 ORDER BY b20;
+SELECT HEX(b20) FROM t1 ORDER BY b20;
+
+--replace_column 9 #
+EXPLAIN SELECT HEX(b20) FROM t1 IGNORE INDEX (PRIMARY) ORDER BY b20 DESC;
+SELECT HEX(b20) FROM t1 ORDER BY b20 DESC;
+
+DROP TABLE t1;
+
+--disable_parsing
+--error ER_GET_ERRMSG
+CREATE TABLE t1 (b BINARY,
+  b20 BINARY(20),
+  v16 VARBINARY(16),
+  v128 VARBINARY(128),
+  UNIQUE INDEX b_v (b,v128),
+  pk VARBINARY(10) PRIMARY KEY
+) ENGINE=rocksdb;
+
+
+SHOW INDEX IN t1;
+
+INSERT INTO t1 (b,b20,v16,v128) VALUES ('a','char1','varchar1a','varchar1b'),('a','char2','varchar2a','varchar2b'),('b','char3','varchar1a','varchar1b'),('c','char4','varchar3a','varchar3b');
+
+--replace_column 9 #
+EXPLAIN SELECT HEX(b), HEX(v128) FROM t1 WHERE b != 'a' AND v128 > 'varchar';
+--sorted_result
+SELECT HEX(b), HEX(v128) FROM t1 WHERE b != 'a' AND v128 > 'varchar';
+
+--replace_column 9 #
+EXPLAIN SELECT HEX(b), HEX(v128) FROM t1 USE INDEX (b_v) WHERE b != 'a' AND v128 > 'varchar';
+--sorted_result
+SELECT HEX(b), HEX(v128) FROM t1 USE INDEX (b_v) WHERE b != 'a' AND v128 > 'varchar';
+
+--replace_column 9 #
+EXPLAIN SELECT HEX(v128), COUNT(*) FROM t1 GROUP BY HEX(v128);
+--sorted_result
+SELECT HEX(v128), COUNT(*) FROM t1 GROUP BY HEX(v128);
+
+DROP TABLE t1;
+
+--enable_parsing
+
+CREATE TABLE t1 (b BINARY,
+  b20 BINARY(20),
+  v16 VARBINARY(16),
+  v128 VARBINARY(128),
+  pk VARBINARY(10) PRIMARY KEY,
+  INDEX (v16(10))
+) ENGINE=rocksdb;
+
+SHOW INDEX IN t1;
+
+INSERT INTO t1 (b,b20,v16,v128,pk) VALUES ('a','char1','varchar1a','varchar1b',1),('a','char2','varchar2a','varchar2b',2),('b','char3','varchar1a','varchar1b',3),('c','char4','varchar3a','varchar3b',4),('d','char5','varchar4a','varchar3b',5),('e','char6','varchar2a','varchar3b',6);
+INSERT INTO t1 (b,b20,v16,v128,pk) SELECT b,b20,v16,v128,pk+100 FROM t1;
+
+--replace_column 9 #
+EXPLAIN SELECT HEX(SUBSTRING(v16,0,3)) FROM t1 WHERE v16 LIKE 'varchar%';
+--sorted_result
+SELECT HEX(SUBSTRING(v16,7,3)) FROM t1 WHERE v16 LIKE 'varchar%';
+
+--replace_column 9 #
+EXPLAIN SELECT HEX(SUBSTRING(v16,0,3)) FROM t1 FORCE INDEX (v16) WHERE v16 LIKE 'varchar%';
+--sorted_result
+SELECT HEX(SUBSTRING(v16,7,3)) FROM t1 FORCE INDEX (v16) WHERE v16 LIKE 'varchar%';
+
+DROP TABLE t1;
+
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;

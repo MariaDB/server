@@ -1,0 +1,9 @@
+create role r1;
+create user user;
+grant proxy on r1 to user;
+show grants for user;
+Grants for user@%
+GRANT USAGE ON *.* TO `user`@`%`
+GRANT PROXY ON 'r1'@'%' TO 'user'@'%'
+drop user user;
+drop role r1;

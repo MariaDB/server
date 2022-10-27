@@ -1,0 +1,42 @@
+-- source include/have_innodb.inc
+-- source include/have_debug.inc
+-- source include/not_embedded.inc
+
+if (`select count(*) = 0 from information_schema.plugins
+     where plugin_name = 'debug_key_management' and plugin_status='active'`)
+{
+  --skip Needs debug_key_management
+}
+
+create table t1(a serial) engine=innoDB;
+
+set global innodb_encrypt_tables=ON;
+show variables like 'innodb_encrypt%';
+
+--let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+let $wait_condition= select count(*) = $tables_count from information_schema.innodb_tablespaces_encryption where current_key_version=1;
+--source include/wait_condition.inc
+
+select count(*) from information_schema.innodb_tablespaces_encryption where current_key_version <> 1;
+set global debug_key_management_version=10;
+
+let $wait_condition= select count(*) = $tables_count from information_schema.innodb_tablespaces_encryption where current_key_version=10;
+--source include/wait_condition.inc
+select count(*) from information_schema.innodb_tablespaces_encryption where current_key_version <> 10;
+
+# Test redo log key rotation and crash recovery.
+SET GLOBAL debug_dbug = '+d,ib_log';
+SET GLOBAL innodb_log_checkpoint_now = 1;
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+INSERT INTO t1 VALUES(NULL);
+let $shutdown_timeout = 0;
+-- source include/restart_mysqld.inc
+
+# Note that we expect that key_version is increasing so disable encryption before reset
+
+set global innodb_encrypt_tables=OFF;
+set global debug_key_management_version=1;
+
+select * from t1;
+
+drop table t1;

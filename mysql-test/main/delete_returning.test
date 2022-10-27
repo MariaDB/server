@@ -1,0 +1,172 @@
+#
+#  Tests for DELETE FROM <table> ... RETURNING <expr>,...
+# 
+--disable_warnings
+drop table if exists t1,t2;
+drop view if exists v1;
+drop procedure if exists p1;
+--enable_warnings
+
+CREATE TABLE t1 (a int, b varchar(32));
+INSERT INTO t1 VALUES
+  (7,'ggggggg'), (1,'a'), (3,'ccc'),
+  (4,'dddd'), (1,'A'), (2,'BB'), (4,'DDDD'),
+  (5,'EEEEE'), (7,'GGGGGGG'), (2,'bb');
+
+CREATE TABLE t1c SELECT * FROM t1;
+
+CREATE TABLE t2 (c int);
+INSERT INTO t2 VALUES 
+  (4), (5), (7), (1);
+
+CREATE TABLE t2c SELECT * FROM t2;
+
+CREATE VIEW v1 AS SELECT a, UPPER(b) FROM t1;
+
+# DELETE FROM <table> ...  RETURNING *
+ 
+DELETE FROM t1 WHERE a=2 RETURNING * ;
+SELECT * FROM t1;
+
+INSERT INTO t1 VALUES (2,'BB'), (2,'bb');
+
+# DELETE FROM <table> ...  RETURNING <col>
+ 
+DELETE FROM t1 WHERE a=2 RETURNING b;
+SELECT * FROM t1;
+
+# DELETE FROM <table> ...  RETURNING <not existing col>
+--error ER_BAD_FIELD_ERROR
+DELETE FROM t1 WHERE a=2 RETURNING c;
+ 
+INSERT INTO t1 VALUES (2,'BB'), (2,'bb');
+
+# DELETE FROM <table> ...  RETURNING <col>, <expr>
+
+DELETE FROM t1 WHERE a=2 RETURNING a, UPPER(b);
+SELECT * FROM t1;
+
+INSERT INTO t1 VALUES (2,'BB'), (2,'bb');
+
+# DELETE FROM <table> ...  RETURNING <col> with no rows to be deleted
+
+DELETE FROM t1 WHERE a=6 RETURNING b;
+SELECT * FROM t1;
+
+# DELETE FROM <table> ... RETURNING <expr with aggr function>
+
+--error ER_INVALID_GROUP_FUNC_USE
+DELETE FROM t1 WHERE a=2 RETURNING MAX(b); 
+
+# DELETE FROM <table> ...  RETURNING <expr with subquery>
+
+DELETE FROM t1 WHERE a < 5 RETURNING a, (SELECT MIN(c) FROM t2 WHERE c=a+1);   
+SELECT * FROM t1;
+
+DELETE FROM t1;
+INSERT INTO t1 SELECT * FROM t1c;
+
+DELETE FROM t2 WHERE c < 5 
+  RETURNING (SELECT GROUP_CONCAT(b) FROM t1 GROUP BY a HAVING a=c);
+SELECT * FROM t2;
+
+DELETE FROM t2;
+INSERT INTO t2 SELECT * FROM t2c;
+
+# DELETE FROM <table> ... RETURNING <expr with function invocation>
+
+DELIMITER |;
+
+CREATE FUNCTION f(arg INT) RETURNS TEXT
+BEGIN
+  RETURN (SELECT GROUP_CONCAT(b) FROM t1 WHERE a=arg);
+END|
+
+DELIMITER ;|
+
+DELETE FROM t2 WHERE c < 5 RETURNING f(c);
+SELECT * FROM t2;
+
+DELETE FROM t2;
+INSERT INTO t2 SELECT * FROM t2c;
+
+DROP FUNCTION f;
+
+# DELETE FROM <view> ...  RETURNING <col>, <col>
+
+DELETE FROM v1 WHERE a < 5 RETURNING * ;
+SELECT * FROM t1;
+ 
+DELETE FROM t1;
+INSERT INTO t1 SELECT * FROM t1c;
+
+# DELETE FROM <view> ...  RETURNING <expr>
+
+CREATE VIEW v11(a,c) AS SELECT a, COUNT(b) FROM t1 GROUP BY a;
+-- error ER_NON_UPDATABLE_TABLE
+DELETE FROM v11 WHERE a < 5 RETURNING * ;
+DROP VIEW v11;
+
+# prepared DELETE FROM <table> ... RETURNING <expr>
+
+PREPARE stmt FROM 
+"DELETE FROM t1 WHERE a=2 ORDER BY b LIMIT 1 RETURNING a, UPPER(b)";
+EXECUTE stmt;
+SELECT * FROM t1;
+EXECUTE stmt;
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1,t2;
+DROP TABLE t1c,t2c;
+
+--echo #
+--echo # Bug mdev-4918: DELETE ... RETURNING subquery with more than 1 row
+--echo #
+
+CREATE TABLE t1 (i1 int);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (i2 int);
+INSERT INTO t2 VALUES (1),(2);
+
+--error ER_SUBQUERY_NO_1_ROW
+DELETE FROM t1 ORDER BY i1 RETURNING ( SELECT i2 FROM t2 );
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-4919: Packets out of order on a SELECT after calling a procedure with DELETE .. RETURNING
+--echo #
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+--delimiter |
+CREATE PROCEDURE p1 (a INT) 
+BEGIN
+  DELETE FROM t1 WHERE i = a RETURNING *;
+  INSERT INTO t1 VALUES (a);
+END |
+--delimiter ;
+
+CALL p1(1);
+SELECT * FROM t1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-13776: DELETE ... RETURNING with sql_mode='ONLY_FULL_GROUP_BY'
+--echo #
+
+set @sql_mode_save= @@sql_mode;
+set sql_mode='ONLY_FULL_GROUP_BY';
+
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUE(1),(2),(3);
+
+DELETE FROM t1 WHERE id > 2 RETURNING *;
+
+set sql_mode=@sql_mode_save;
+
+DROP TABLE t1;

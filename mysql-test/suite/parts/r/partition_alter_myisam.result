@@ -1,0 +1,63 @@
+#
+# MDEV-14641 Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM PARTITION BY LIST(i) (PARTITION p0 VALUES IN (1),  PARTITION p1 VALUES IN (2));;
+ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
+ALTER TABLE t1 DROP PARTITION p1;
+SELECT * FROM t1;
+i
+DROP TABLE t1;
+#
+# MDEV-13788 Server crash when issuing bad SQL partition syntax
+#
+CREATE TABLE t1 (id int, d date) ENGINE=MyISAM PARTITION BY RANGE COLUMNS(d) (PARTITION p1 VALUES LESS THAN (MAXVALUE));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `d` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE  COLUMNS(`d`)
+(PARTITION `p1` VALUES LESS THAN (MAXVALUE) ENGINE = MyISAM)
+ALTER TABLE t1 REORGANIZE PARTITION p1 INTO
+(
+PARTITION p2, /* Notice no values */
+PARTITION p3 VALUES LESS THAN (MAXVALUE)
+);
+ERROR HY000: Syntax error: RANGE PARTITIONING requires definition of VALUES LESS THAN for each partition
+DROP TABLE t1;
+CREATE TABLE t1 (id int, d date) ENGINE=MyISAM PARTITION BY LIST (id) (PARTITION p1 VALUES IN (1,2,3));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL,
+  `d` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`id`)
+(PARTITION `p1` VALUES IN (1,2,3) ENGINE = MyISAM)
+ALTER TABLE t1 REORGANIZE PARTITION p1 INTO
+(
+PARTITION p2, /* Notice no values */
+PARTITION p3 VALUES IN (4,5,6)
+);
+ERROR HY000: Syntax error: LIST PARTITIONING requires definition of VALUES IN for each partition
+DROP TABLE t1;
+create table t1 (i int) engine=MyISAM partition by range(i) (partition p0 values less than (10));
+lock table t1 write;
+alter table t1 add partition (partition p0 values less than (20));
+ERROR HY000: Duplicate partition name p0
+alter table t1 add partition (partition p1 values less than (20)) /* comment */;
+drop table t1;
+create table t1 ( c1 int, c2 int, c3 varchar(100)) delay_key_write=1
+partition by key(c1) (
+partition p01 data directory = 'MYSQL_TMP_DIR'
+                 index directory = 'MYSQL_TMP_DIR',
+partition p02 data directory = 'MYSQL_TMP_DIR'
+                 index directory = 'MYSQL_TMP_DIR');
+insert into t1 values (1, 1, repeat('a', 100));
+insert into t1 select rand()*1000, rand()*1000, repeat('b', 100) from t1;
+insert into t1 select rand()*1000, rand()*1000, repeat('b', 100) from t1;
+insert into t1 select rand()*1000, rand()*1000, repeat('b', 100) from t1;
+alter online table t1 delay_key_write=0;
+alter online table t1 delay_key_write=1;
+drop table t1;

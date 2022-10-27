@@ -1,0 +1,647 @@
+select json_valid('[1, 2]');
+select json_valid('"string"}');
+select json_valid('{"key1":1, "key2":[2,3]}');
+select json_valid('[false, true, null]');
+select json_valid(repeat('[', 1000));
+select json_valid(repeat('{"a":', 1000));
+
+select json_value('{"key1":123}', '$.key2');
+select json_value('{"key1":123}', '$.key1');
+select json_value('{"key1":[1,2,3]}', '$.key1');
+select json_value('{"key1": [1,2,3], "key1":123}', '$.key1');
+select JSON_VALUE('{ "x": [0,1], "y": "[0,1]", "z": "Mon\\\"t\\\"y" }','$.z');
+
+select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key2');
+select json_query('{"key1":{"a":1, "b":[1,2]}}', '$.key1');
+select json_query('{"key1": 1}', '$.key1');
+select json_query('{"key1":123, "key1": [1,2,3]}', '$.key1');
+select json_query('{"key1":123, "key1": [1,2,3]}', concat('$', repeat('.k', 1000)));
+
+select json_array();
+select json_array(1);
+select json_array(1, "text", false, null);
+
+select json_array_append('["a", "b"]', '$', FALSE);
+select json_array_append('{"k1":1, "k2":["a", "b"]}', '$.k2', 2);
+select json_array_append('["a", ["b", "c"], "d"]', '$[0]', 2);
+
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1]', 'x');
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2]', 'x');
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[3]', 'x');
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[4]', 'x');
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[1].b[0]', 'x');
+select json_array_insert('true', '$', 1);
+select json_array_insert('["a", {"b": [1, 2]}, [3, 4]]', '$[2][1]', 'y');
+
+select json_contains('{"k1":123, "k2":345}', '123', '$.k1');
+select json_contains('"you"', '"you"');
+select json_contains('"youth"', '"you"');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select json_contains('[1]', '[1]', '$', '$[0]');
+select json_contains('', '', '$');
+select json_contains('null', 'null', '$');
+select json_contains('"10"', '"10"', '$');
+select json_contains('"10"', '10', '$');
+select json_contains('10.1', '10', '$');
+select json_contains('10.0', '10', '$');
+select json_contains('[1]', '1');
+select json_contains('[2, 1]', '1');
+select json_contains('[2, [2, 3], 1]', '1');
+select json_contains('[4, [2, 3], 1]', '2');
+select json_contains('[2, 1]', '[1, 2]');
+select json_contains('[2, 1]', '[1, 0, 2]');
+select json_contains('[2, 0, 3, 1]', '[1, 2]');
+select json_contains('{"b":[1,2], "a":1}', '{"a":1, "b":2}');
+select json_contains('{"a":1}', '{}');
+select json_contains('[1, {"a":1}]', '{}');
+select json_contains('[1, {"a":1}]', '{"a":1}');
+select json_contains('[{"abc":"def", "def":"abc"}]', '["foo","bar"]');
+select json_contains('[{"abc":"def", "def":"abc"}, "bar"]', '["bar", {}]');
+select json_contains('[{"a":"b"},{"c":"d"}]','{"c":"d"}');
+
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[1]");
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.key2[10]");
+select json_contains_path('{"key1":1, "key2":[2,3]}', "oNE", "$.ma");
+select json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1");
+select json_contains_path('{"key1":1, "key2":[2,3]}', "one", "$.key1", "$.ma");
+select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.ma");
+select json_contains_path('{"key1":1, "key2":[2,3]}', "aLl", "$.key1", "$.key2");
+select json_contains_path('{ "a": true }', NULL, '$.a' );
+select json_contains_path('{ "a": true }', 'all', NULL );
+select json_contains_path('{"a":{"b":"c"}}', 'one', '$.a.*');
+ 
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1");
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.keyX", "$.keyY");
+select json_extract('{"key1":"asd", "key2":[2,3]}', "$.key1", "$.key2");
+select json_extract('{"key1":5, "key2":[2,3]}', "$.key1", "$.key2");
+select json_extract('{"key0":true, "key1":"qwe"}', "$.key1");
+select json_extract(json_object('foo', 'foobar'),'$');
+select json_extract('[10, 20, [30, 40]]', '$[2][*]');
+select json_extract('[10, 20, [{"a":3}, 30, 40]]', '$[2][*]');
+select json_extract('1', '$');
+select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]');
+select json_extract('[10, 20, [30, 40], 1, 10]', '$[1]', '$[25]');
+select json_extract( '[{"a": [3, 4]}, {"b": 2}]', '$[0].a', '$[1].a');
+
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.k1', 'word');
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.d[3]', 3);
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.a[2]', 2);
+select json_insert('{"a":1, "b":{"c":1}, "d":[1, 2]}', '$.b.c', 'word');
+
+select json_set('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]');
+
+select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.c', '[true, false]');
+select json_replace('{ "a": 1, "b": [2, 3]}', '$.a', 10, '$.b', '[true, false]');
+
+set @j = '["a", ["b", "c"], "d"]';
+select json_remove(@j, '$[0]');
+select json_remove(@j, '$[1]');
+select json_remove(@j, '$[2]');
+set @j = '{"a": 1, "b": [2, 3]}';
+select json_remove(@j, '$.b');
+select json_remove(@j, '$.a');
+
+select json_object();
+select json_object("ki", 1, "mi", "ya");
+create table t1 as select json_object('id', 87, 'name', 'carrot') as f;
+show create table t1;
+select * from t1;
+drop table t1;
+
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2");
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[1]");
+select json_exists('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2[10]");
+
+select json_quote('"string"');
+create table t1 as select json_quote('foo');
+select * from t1;
+show create table t1;
+drop table t1;
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select json_merge('string');
+select json_merge('string', 123);
+select json_merge('"string"', 123);
+select json_merge('[1, 2]', '[true, false]');
+select json_merge('{"1": 2}', '{"true": false}');
+select json_merge('{"1": 2}', '{"true": false}', '{"3": 4}');
+select json_merge(NULL,json_object('foo', 1));
+select json_merge('a','b');
+select json_merge('{"a":"b"}','{"c":"d"}');
+SELECT JSON_MERGE('[1, 2]', '{"id": 47}');
+
+select json_type('{"k1":123, "k2":345}');
+select json_type('[123, "k2", 345]');
+select json_type("true");
+select json_type('123');
+select json_type('123.12');
+
+select json_keys('{"a":{"c":1, "d":2}, "b":2}');
+select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.a");
+select json_keys('{"a":{"c":1, "d":2}, "b":2}', "$.b");
+select json_keys('foo');
+#
+# mdev-12789 JSON_KEYS returns duplicate keys twice
+#
+select json_keys('{"a":{"c":1, "d":2}, "b":2, "c":1, "a":3, "b":1, "c":2}');
+select json_keys('{"c1": "value 1", "c1": "value 2"}');
+
+SET @j = '["abc", [{"k": "10"}, "def"], {"x":"abc"}, {"y":"bcd"}]';
+select json_search(@j, 'one', 'abc');
+select json_search(@j, 'all', 'abc');
+select json_search(@j, 'all', 'abc', NULL, '$[2]');
+select json_search(@j, 'all', 'abc', NULL, '$');
+select json_search(@j, 'all', '10', NULL, '$');
+select json_search(@j, 'all', '10', NULL, '$[*]');
+select json_search(@j, 'all', '10', NULL, '$[*][0].k');
+select json_search(@j, 'all', '10', NULL, '$**.k');
+create table t1( json_col text );
+insert into t1 values
+('{ "a": "foobar" }'),
+  ('{ "a": "foobar", "b": "focus", "c": [ "arm", "foot", "shoulder" ] }');
+select json_search( json_col, 'all', 'foot' ) from t1;
+drop table t1;
+
+
+select json_unquote('"abc"');
+select json_unquote('abc');
+#
+# MDEV-13703 Illegal mix of collations for operation 'json_object' on using JSON_UNQUOTE as an argument.
+#
+create table t1 (c VARCHAR(8)) DEFAULT CHARSET=latin1;
+insert into t1 values ('abc'),('def');
+ 
+select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1;
+drop table t1;
+
+select json_object("a", json_object("b", "abcd"));
+select json_object("a", '{"b": "abcd"}');
+select json_object("a", json_compact('{"b": "abcd"}'));
+
+select json_compact(NULL);
+select json_depth(json_compact(NULL));
+select json_depth('[[], {}]');
+select json_depth('[[[1,2,3],"s"], {}, []]');
+select json_depth('[10, {"a": 20}]');
+
+select json_length('');
+select json_length('{}');
+select json_length('[1, 2, {"a": 3}]');
+select json_length('{"a": 1, "b": {"c": 30}}', '$.b');
+select json_length('{"a": 1, "b": {"c": 30}}');
+select json_length('{}{');
+
+create table json (j INT);
+show create table json;
+drop table json;
+
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0]' );
+select json_length( '[ 1, [ 2, 3, 4 ], {"a":5, "b":6} ]', '$[2][0][0][0]' );
+select json_length( '{"a":{"b":{"d":1}}, "a":{"c":{"d":1, "j":2}}}', '$.a[0][0][0].c' );
+
+select json_set('1', '$[0]', 100);
+select json_set('1', '$[0][0]', 100);
+select json_set('1', '$[1]', 100);
+select json_set('{"a":12}', '$[0]', 100);
+select json_set('{"a":12}', '$[0].a', 100);
+select json_set('{"a":12}', '$[0][0].a', 100);
+select json_set('{"a":12}', '$[0][1].a', 100);
+
+select json_value('{"\\"key1":123}', '$."\\"key1"');
+select json_value('{"\\"key1\\"":123}', '$."\\"key1\\""');
+select json_value('{"key 1":123}', '$."key 1"');
+
+select json_contains_path('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[2]");
+select json_contains_path('{"a":[{"c":[1,{"a":[0,1,2]},3]}], "b":[1,2,3]}', 'one', "$**.a[3]");
+
+select json_extract( '[1]', '$[0][0]' );
+select json_extract( '[1]', '$[1][0]' );
+select json_extract( '[1]', '$**[0]' );
+select json_extract( '[1]', '$**[0][0]' );
+
+select json_insert('1', '$[0]', 4);
+select json_replace('1', '$[0]', 4);
+select json_set('1', '$[0]', 4);
+select json_set('1', '$[1]', 4);
+select json_replace('1', '$[1]', 4);
+SELECT json_insert('[]', '$[0][0]', 100);
+SELECT json_insert('1', '$[0][0]', 100);
+SELECT json_replace('1', '$[0][0]', 100);
+SELECT json_replace('[]', '$[0][0]', 100);
+SELECT json_set('[]', '$[0][0]', 100);
+SELECT json_set('[]', '$[0][0][0]', 100);
+
+#
+# MDEV-11857 json_search() shows "Out of memory" with empty key.
+#
+SELECT JSON_search( '{"": "a"}', "one", 'a');
+
+#
+# MDEV-11858 json_merge() concatenates instead of merging.
+#
+
+select json_merge('{"a":"b"}', '{"a":"c"}') ;
+select json_merge('{"a":{"x":"b"}}', '{"a":"c"}') ;
+select json_merge('{"a":{"u":12, "x":"b"}}', '{"a":{"x":"c"}}') ;
+select json_merge('{"a":{"u":12, "x":"b", "r":1}}', '{"a":{"x":"c", "r":2}}') ;
+
+select json_compact('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
+select json_loose('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
+select json_detailed('{"a":1, "b":[1,2,3], "c":{"aa":"v1", "bb": "v2"}}');
+
+#
+# MDEV-11856 json_search doesn't search for values with double quotes character (")
+#
+
+SELECT JSON_search( '{"x": "\\""}', "one", '"');
+SELECT JSON_search( '{"x": "\\""}', "one", '\\"');
+
+#
+# MDEV-11833 JSON functions don't seem to respect max_allowed_packet.
+#
+set @save_max_allowed_packet=@@max_allowed_packet;
+set @save_net_buffer_length=@@net_buffer_length;
+
+set @@global.net_buffer_length=1024;
+set @@global.max_allowed_packet=2048;
+--connect (newconn, localhost, root,,)
+
+show variables like 'net_buffer_length';
+show variables like 'max_allowed_packet';
+select json_array(repeat('a',1024),repeat('a',1024));
+select json_object("a", repeat('a',1024),"b", repeat('a',1024));
+--connection default
+
+set @@global.max_allowed_packet = @save_max_allowed_packet;
+set @@global.net_buffer_length = @save_net_buffer_length;
+--disconnect newconn
+
+
+#
+# MDEV-12262 Assertion `!null_value' failed in virtual bool Item::send on JSON_REMOVE.
+#
+create table t1(j longtext, p longtext);
+insert into t1 values
+    ('{"a":1,"b":2,"c":3}','$.a'),
+    ('{"a":1,"b":2,"c":3}','$.b'),
+      ('{"a":1,"b":2,"c":3}','$.c');
+select j, p, json_remove(j, p) from t1;
+drop table t1;
+
+#
+# MDEV-12364 Server crashes in __memcpy_sse2_unaligned / String::copy on JSON_SEARCH with variables.
+#
+SET @str = 'bar', @path = '$';
+SELECT JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path);
+
+#
+# MDEV-12351 Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path.
+#
+
+SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
+
+#
+# MDEV-12363 Assertion `0' failed in Type_handler_string_result::make_sort_key(uchar*, Item*, const SORT_FIELD_ATTR*, Sort_param*)      
+#
+
+CREATE TABLE t1 (f INT NOT NULL);
+INSERT INTO t1 VALUES (0);
+SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
+DROP TABLE t1;
+
+#
+# MDEV-12324 Wrong result (phantom array value) on JSON_EXTRACT.
+#
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*].*' );
+SELECT JSON_EXTRACT( '{"foo":"bar"}', '$[*]' );
+
+#
+# MDEV-12604 Comparison of JSON_EXTRACT result differs with Mysql.
+#
+
+select JSON_EXTRACT('{"name":"value"}', '$.name') = 'value';
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = true;
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = false;
+select JSON_EXTRACT('{\"asdf\":true}', "$.\"asdf\"") = 1;
+select JSON_EXTRACT('{\"input1\":\"\\u00f6\"}', '$.\"input1\"');
+
+#
+# MDEV-129892 JSON_EXTRACT returns data for invalid JSON
+#
+select JSON_EXTRACT('{"foo": "bar" foobar foo invalid ', '$.foo');
+
+#
+# MDEV-13138 JSON_OBJECT returns null with strings containing backticks.
+#
+SELECT JSON_OBJECT('foo', '`');
+SELECT JSON_OBJECT("foo", "bar`bar");
+
+#
+# MDEV-13324 JSON_SET returns NULL instead of object.
+#
+SELECT JSON_SET('{}', '$.age', 87);
+
+#
+# MDEV-13104 Json functions.
+#
+SELECT JSON_MERGE('[]', '{"c":"d"}');
+
+#
+# MDEV-12774 JSON_EXTRACT fails with some escaped unicode as key.
+#
+
+SET @str = "{\"\\u00e4\\u00f6\":\"yes\"}";
+SET @path = "$.\"\\u00e4\\u00f6\"";
+select @str, @path, JSON_EXTRACT(@str, @path);
+SET @str = "{\"\\u00e4\":\"yes\"}";
+SET @path = "$.\"\\u00e4\"";
+select @str, @path, JSON_EXTRACT(@str, @path);
+
+#
+# MDEV-12877 Wrong result from JSON native function.
+#
+select json_array(5,json_query('[1,2]','$'));
+
+#
+# MDEV-13633 JSON_ARRAY() - bad output with some UTF8 characters.
+#
+
+SELECT JSON_ARRAY('1. ě 2. š 3. č 4. ř 5. ž 6. ý 7. á 8. í 9. é 10. ů 11. ú') AS json_data;
+SELECT JSON_OBJECT("user","Jožko Mrkvičká") as json_data;
+
+#
+# MDEV-12312 JSON_CONTAINS_PATH does not detect invalid path and returns TRUE.
+#
+
+select json_contains_path('{"foo":"bar"}', 'one', '$[]');
+
+#
+# MDEV-13971 crash in skip_num_constant.
+#
+select JSON_VALID(0x36f0c8dccd83c5eac156da);
+
+#
+# MDEV-13970 crash in Item_func_json_extract::read_json.
+#
+create table t1(a double not null);
+insert into t1 values (2),(1);
+select 1 from t1 where json_extract(a,'$','$[81]');
+drop table t1;
+
+#
+# MDEV-15561 json_extract returns NULL with numbers in scientific notation.
+#
+
+select json_extract('{"test":8.437e-5}','$.test');
+
+#
+# MDEV-15905 select json_value('{"b":true}','$.b')=1 --> false with
+#    "Truncated incorrect DOUBLE value: 'true'"
+#
+select json_value('{"b":true}','$.b')=1;
+
+#
+# MDEV-16209 JSON_EXTRACT in query crashes server.
+#
+
+CREATE TABLE t1 (c VARCHAR(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1 WHERE c IN (JSON_EXTRACT('{"a":"b"}', '$.*'));
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16814 CREATE TABLE SELECT JSON_QUOTE(multibyte_charset_expr) makes a field of a wrong length
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  JSON_QUOTE(_latin1'foo') AS c1,
+  JSON_QUOTE(_utf8'foo') AS c2;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16054 simple json functions flatline cpu on garbage input.
+--echo #
+
+select json_array(1,uuid(),compress(5.140264e+307));
+
+--echo #
+--echo # MDEV-16869 String functions don't respect character set of JSON_VALUE.
+--echo #
+
+create table t1(json_col TEXT) DEFAULT CHARSET=latin1;
+insert into t1 values (_latin1 X'7B226B657931223A2253EC227D');
+select JSON_VALUE(json_col, '$.key1')= _latin1 X'53EC' from t1;
+select REPLACE(JSON_VALUE(json_col, '$.key1'), 'null', '') = _latin1 X'53EC' from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-16750 JSON_SET mishandles unicode every second pair of arguments.
+--echo #
+
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6);
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6);
+SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6');
+
+--echo #
+--echo # MDEV-17121 JSON_ARRAY_APPEND
+--echo #
+
+select json_array_append('[             ]', '$', 'aue');
+
+--echo #
+--echo # MDEV-17018 JSON_SEARCH and User-Defined Variables.
+--echo #
+
+SET @`json` := '["A", [{"B": "1"}], {"C": "AB"}, {"D": "BC"}]', @`value` := 'AB';
+SELECT JSON_SEARCH(@`json`, 'one', @`value`);
+SET @`json` := NULL, @`value` := NULL;
+
+--echo #
+--echo # MDEV-17001 JSON_MERGE returns nullwhen merging empty array.
+--echo #
+
+SELECT JSON_MERGE('[1]', '[]');
+
+--echo #
+--echo # MDEV-16174 Assertion `0' failed in Type_handler_string_result::
+--echo #       make_sort_key(uchar*, Item*, const SORT_FIELD_ATTR*, Sort_param*)
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (fld varchar(16) NOT NULL);
+CREATE TABLE t2 SELECT JSON_ARRAY_INSERT(fld, '$.[0]', '0') FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+SET sql_mode=default;
+
+--echo #
+--echo # MDEV-17454 JSON_VALID( '{"a":1]' ) evaluates to 1
+--echo #
+
+select JSON_VALID( '{"a":1]' );
+
+--echo #
+--echo # MDEV-18886 JSON_ARRAY() does not recognise JSON argument.
+--echo #
+SELECT JSON_ARRAY(_UTF8 'str', JSON_OBJECT(_LATIN1 'plugin', _LATIN1'unix_socket'));
+SELECT CHARSET(JSON_ARRAY());
+SELECT CHARSET(JSON_OBJECT());
+
+--echo #
+--echo # MDEV-13992 Implement JSON_MERGE_PATCH
+--echo #
+
+CREATE TABLE merge_t(
+id INT PRIMARY KEY AUTO_INCREMENT,
+target VARCHAR(100), patch VARCHAR(100)
+);
+INSERT INTO merge_t(target, patch) VALUES
+('{"a":"b"}', '{"a":"c"}'),
+('{"a":"b"}', '{"b":"c"}'),
+('{"a":"b"}', '{"a":null}'),
+('{"a":"b", "b":"c"}', '{"a":null}'),
+('{"a":["b"]}', '{"a":"c"}'),
+('{"a":"c"}', '{"a":["b"]}'),
+('{"a": {"b":"c"}}', '{"a": {"b":"d", "c":null}}'),
+('{"a":[{"b":"c"}]}', '{"a": [1]}'),
+('["a","b"]', '["c","d"]'),
+('{"a":"b"}', '["c"]'),
+('{"a":"foo"}', 'null'),
+('{"a":"foo"}', '"bar"'),
+('{"e":null}', '{"a":1}'),
+('[1,2]', '{"a":"b", "c":null}'),
+('{}', '{"a":{"bb":{"ccc":null}}}'),
+(NULL, '{}'),
+('{}', NULL);
+SELECT id, target, patch,
+       JSON_MERGE_PATCH(target, patch) AS merged,
+       JSON_EXTRACT(JSON_MERGE_PATCH(target, patch), '$.a') AS a
+FROM merge_t ORDER BY id;
+DROP TABLE merge_t;
+
+SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}');
+SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]');
+SELECT JSON_MERGE_PATCH(NULL, 'a');
+SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}');
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_MERGE_PATCH();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_MERGE_PATCH('{}');
+SELECT JSON_MERGE_PATCH('{', '[1,2,3]');
+SELECT JSON_MERGE_PATCH('{"a":"b"}', '[1,');
+
+--echo #
+--echo # MDEV-22976 CAST(JSON_EXTRACT() AS DECIMAL) does not handle boolean values
+--echo #
+
+SELECT
+  CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DOUBLE) AS cf,
+  CAST(JSON_EXTRACT('{"x":true}', '$.x') AS DECIMAL) AS cd;
+
+SELECT
+  CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DOUBLE) AS cf,
+  CAST(JSON_EXTRACT('{"x":false}', '$.x') AS DECIMAL) AS cd;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+
+SELECT
+  JSON_VALID('{"id": 1, "name": "Monty"}') AS json_valid,
+  JSON_EXISTS('{"key1":"xxxx", "key2":[1, 2, 3]}', "$.key2") AS json_exists,
+  JSON_CONTAINS('{"A": 0, "B": {"C": 1}, "D": 2}', '2', '$.A') AS ison_contains,
+  JSON_CONTAINS_PATH('{"A": 1, "B": [2], "C": [3, 4]}', 'one', '$.A', '$.D') AS json_contains_path;
+
+SELECT
+  JSON_LENGTH('{"a": 1, "b": {"c": 30}}') AS json_length,
+  JSON_DEPTH('[10, {"a": 20}]') AS json_depnth;
+
+--enable_ps_protocol
+--disable_metadata
+
+--echo #
+--echo # MDEV-19670 json escaped unicode parse error
+--echo #
+
+SELECT json_valid('{"value":"\\ud83d\\ude0a"}');
+SELECT json_valid('{"test": "\\ud83d\\ude0b"}');
+
+--echo #
+--echo # MDEV-19670 json escaped unicode parse error
+--echo #
+
+SELECT JSON_VALID('{"admin\\"": null}'), '{"admin\\"": null}'
+    UNION
+    SELECT JSON_VALID('{"\\"admin": null}'), '{"\\"admin": null}'
+      UNION
+      SELECT JSON_VALID('{"\\"": null}'), '{"\\"": null}';
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16351 JSON_OBJECT() treats hybrid functions with boolean arguments as numbers
+--echo #
+
+--vertical_results
+SELECT
+  JSON_OBJECT("cond", true) AS j1,
+  JSON_OBJECT("cond", COALESCE(true, false)) j2,
+  JSON_OBJECT("cond", COALESCE(COALESCE(true, false))) j3;
+--horizontal_results
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT JSON_OBJECT('x',(SELECT MAX(a)=4 FROM t1));
+SELECT JSON_OBJECT('x',(SELECT MAX(a)=3 FROM t1));
+SELECT JSON_OBJECT('x',(SELECT MAX(a)=2 FROM t1));
+
+SELECT JSON_OBJECT('x',MAX(a=4)) FROM t1;
+SELECT JSON_OBJECT('x',MAX(a=3)) FROM t1;
+SELECT JSON_OBJECT('x',MAX(a=2)) FROM t1;
+
+SELECT JSON_OBJECT('x',(SELECT MAX(a=4) FROM t1));
+SELECT JSON_OBJECT('x',(SELECT MAX(a=3) FROM t1));
+SELECT JSON_OBJECT('x',(SELECT MAX(a=2) FROM t1));
+
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=4 FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=4 FROM t1))='{"x": false}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=3 FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=3 FROM t1))='{"x": false}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=2 FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=2 FROM t1))='{"x": false}' THEN a END;
+
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=4) FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=4) FROM t1))='{"x": false}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=3) FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=3) FROM t1))='{"x": false}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=2) FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=2) FROM t1))='{"x": false}' THEN a END;
+
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

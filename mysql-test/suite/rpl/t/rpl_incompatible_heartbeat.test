@@ -1,0 +1,44 @@
+# ==== Purpose ====
+#
+# Test verifies that slave IO thread can process heartbeat events with log_pos
+# values higher than UINT32_MAX.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Stop slave threads. Configure a small master_heartbeat_period.
+#    1 - Using debug points, simulate a huge binlog offset higher than
+#        UINT32_MAX on master.
+#    2 - Start the slave and observe that slave IO thread is able to process
+#        the offset received through heartbeat event.
+#
+# ==== References ====
+#
+# MDEV-16146: MariaDB slave stops with incompatible heartbeat
+#
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+# Test simulates binarylog offsets higher than UINT32_MAX
+--source include/have_64bit.inc
+--source include/master-slave.inc
+
+--connection master
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET @@global.debug_dbug= 'd,simulate_pos_4G';
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD=0.001;
+--source include/start_slave.inc
+
+--connection master
+sleep 1;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+--sync_slave_with_master
+
+--connection master
+CREATE TABLE t (f INT) ENGINE=INNODB;
+INSERT INTO t VALUES (10);
+DROP TABLE t;
+--source include/rpl_end.inc

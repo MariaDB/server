@@ -1,0 +1,57 @@
+--source include/have_rocksdb.inc
+--source include/have_debug_sync.inc
+
+####
+# Bump rows_examined count whenever MyRocks filters out a row due to expired TTL
+####
+
+# clean start
+set debug_sync='RESET';
+set global rocksdb_debug_ttl_read_filter_ts = -10;
+
+--enable_connect_log
+--enable_info
+
+connect (conn1, localhost, root,,test);
+connect (conn2, localhost, root,,test);
+
+connection conn1;
+
+# create table with TTL policy (1s)
+CREATE TABLE t_re (
+  a INT, b INT, PRIMARY KEY (a)
+) ENGINE=ROCKSDB
+COMMENT 'ttl_duration=1';
+
+# start with 2 rows, expired at the insertion time
+set global rocksdb_debug_ttl_rec_ts = -13;
+insert into t_re values (1,1);
+insert into t_re values (2,2);
+set global rocksdb_debug_ttl_rec_ts = 0;
+commit;
+
+# setup signal to stop in code where we skip expired records
+set debug_sync='rocksdb.ttl_rows_examined SIGNAL parked WAIT_FOR go';
+send SELECT * FROM t_re;
+
+connection conn2;
+set debug_sync='now WAIT_FOR parked';
+
+# display "Rows Examined" before returning from call
+--replace_result Execute Query
+--replace_column 1 ### 2 ### 3 ### 4 ### 6 ### 10 ### 11 ### 12 ###
+--sorted_result
+SHOW PROCESSLIST;
+
+set debug_sync='now SIGNAL go';
+
+connection conn1;
+reap;
+
+# tidy up
+set debug_sync='RESET';
+set global rocksdb_debug_ttl_read_filter_ts = DEFAULT;
+drop table t_re;
+
+disconnect conn1;
+disconnect conn2;

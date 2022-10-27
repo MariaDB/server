@@ -1,0 +1,28 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+NAME
+test/t1
+FLUSH TABLES t1 FOR EXPORT;
+connection node_1;
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+INSERT INTO t1 VALUES (2,3);
+connection node_2;
+UNLOCK TABLES;
+### t1 should have column f2
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `f2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT * from t1;
+id	f2
+1	NULL
+2	3
+connection node_1;
+DROP TABLE t1;

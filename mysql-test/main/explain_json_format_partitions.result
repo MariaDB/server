@@ -1,0 +1,86 @@
+create table t2(a int);
+insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+a int not null
+) partition by key(a);
+insert into t1 select a from t2;
+explain partitions select * from t1 where a in (2,3,4);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	10	Using where
+explain format=json select * from t1 where a in (2,3,4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "partitions": ["p0"],
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "t1.a in (2,3,4)"
+    }
+  }
+}
+analyze format=json select * from t1 where a in (2,3,4);
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t1",
+      "partitions": ["p0"],
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 10,
+      "r_rows": 10,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 30,
+      "attached_condition": "t1.a in (2,3,4)"
+    }
+  }
+}
+analyze format=json update t1 set a=a+10 where a in (2,3,4);
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "buffer": {
+      "table": {
+        "update": 1,
+        "table_name": "t1",
+        "partitions": ["p0"],
+        "access_type": "ALL",
+        "rows": 10,
+        "r_rows": 10,
+        "r_filtered": 30,
+        "r_total_time_ms": "REPLACED",
+        "attached_condition": "t1.a in (2,3,4)"
+      }
+    }
+  }
+}
+analyze format=json delete from t1 where a in (20,30,40);
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "partitions": ["p0"],
+      "access_type": "ALL",
+      "rows": 10,
+      "r_rows": 10,
+      "r_filtered": 0,
+      "r_total_time_ms": "REPLACED",
+      "attached_condition": "t1.a in (20,30,40)"
+    }
+  }
+}
+drop table t1,t2;

@@ -1,0 +1,10 @@
+!include ../my.cnf
+
+[mysqld.1]
+log-slave-updates=0
+loose-innodb
+
+[mysqld.2]
+slave-transaction-retries=100
+log-slave-updates=0
+loose-innodb

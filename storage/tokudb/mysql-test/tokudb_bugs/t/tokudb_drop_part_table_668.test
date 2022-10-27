@@ -1,0 +1,37 @@
+# verify that we can drop partitioned tokudb tables created in tokudb 6.6.8
+
+source include/have_tokudb.inc;
+source include/have_partition.inc;
+set default_storage_engine='tokudb';
+
+# capture the datadir
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+--source include/shutdown_mysqld.inc
+# remove all tokudb file in the datadir
+system mkdir $MYSQLD_DATADIR/save;
+system mv $MYSQLD_DATADIR/*toku* $MYSQLD_DATADIR/test $MYSQLD_DATADIR/save;
+system mkdir $MYSQLD_DATADIR/test;
+
+# install 6.6.8 tokudb test files
+system cp -r std_data/tokudb_drop_part_table_668/data/* $MYSQLD_DATADIR;
+--source include/start_mysqld.inc
+
+create table tc (a int, b int, c int, primary key(a), key(b)) engine=tokudb partition by hash(a) partitions 2;
+
+# check that the tokudb meta data gets dropped when the table is dropped
+select dictionary_name from information_schema.tokudb_file_map;
+drop table ta;
+select dictionary_name from information_schema.tokudb_file_map;
+drop table tc;
+select dictionary_name from information_schema.tokudb_file_map;
+
+# check that the test dir is empty
+list_files $MYSQLD_DATADIR/test *.frm;
+
+--source include/shutdown_mysqld.inc
+# restore saved datadir
+system rm -rf $MYSQLD_DATADIR/*toku* $MYSQLD_DATADIR/test;
+system mv $MYSQLD_DATADIR/save/* $MYSQLD_DATADIR;
+system rmdir $MYSQLD_DATADIR/save;
+--source include/start_mysqld.inc

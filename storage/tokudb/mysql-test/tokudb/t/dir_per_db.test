@@ -1,0 +1,91 @@
+source include/have_tokudb.inc;
+
+SET @orig_tokudb_dir_per_db=@@global.tokudb_dir_per_db;
+
+--let $DB= test
+--let $DATADIR= `select @@datadir`
+--let $i= 2
+
+while ($i) {
+  --dec $i
+  --echo ########
+  --echo #  tokudb_dir_per_db = $i
+  --echo ########
+  --eval SET GLOBAL tokudb_dir_per_db= $i
+  --echo ########
+  --echo #  CREATE
+  --echo ########
+  CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, b INT(10) UNSIGNED NOT NULL) ENGINE=tokudb;
+  INSERT INTO t1 SET b = 10;
+  INSERT INTO t1 SET b = 20;
+  SELECT b FROM t1 ORDER BY a;
+  CREATE INDEX b ON t1 (b);
+  CREATE INDEX ab ON t1 (a,b);
+  --source dir_per_db_show_table_files.inc
+  --echo ########
+  --echo #  RENAME
+  --echo ########
+  RENAME TABLE t1 TO t2;
+  SELECT b FROM t2 ORDER BY a;
+  --source dir_per_db_show_table_files.inc
+  --echo ########
+  --echo #  DROP
+  --echo ########
+  DROP TABLE t2;
+  --source dir_per_db_show_table_files.inc
+}
+
+--echo ########
+--echo #  CREATE on tokudb_dir_per_db = 0 and RENAME on tokudb_dir_per_db = 1 and vice versa
+--echo ########
+
+--let $i= 2
+
+while ($i) {
+  --dec $i
+  --let $inv_i= (1 - $i);
+  --echo ########
+  --echo #  tokudb_dir_per_db = $inv_i
+  --echo ########
+  --eval SET GLOBAL tokudb_dir_per_db= $inv_i
+  --echo ########
+  --echo #  CREATE
+  --echo ########
+  CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, b INT(10) UNSIGNED NOT NULL) ENGINE=tokudb;
+  INSERT INTO t1 SET b = 10;
+  INSERT INTO t1 SET b = 20;
+  SELECT b FROM t1 ORDER BY a;
+  CREATE INDEX b ON t1 (b);
+  CREATE INDEX ab ON t1 (a,b);
+  --source dir_per_db_show_table_files.inc
+  --echo ########
+  --echo #  tokudb_dir_per_db = $i
+  --echo ########
+  --eval SET GLOBAL tokudb_dir_per_db= $i
+  --echo ########
+  --echo #  RENAME
+  --echo ########
+  RENAME TABLE t1 TO t2;
+  SELECT b FROM t2 ORDER BY a;
+  --source dir_per_db_show_table_files.inc
+  --echo ########
+  --echo #  DROP
+  --echo ########
+  DROP TABLE t2;
+  --source dir_per_db_show_table_files.inc
+}
+
+
+# test case for TDB-72 : Can not rename table in database with non alphanum
+# characters in its name.
+CREATE DATABASE `a::a@@`;
+CREATE TABLE `a::a@@`.`t1` (a INT) ENGINE=TOKUDB;
+CREATE DATABASE `!@#$%^&*()`;
+ALTER TABLE `a::a@@`.`t1` RENAME `!@#$%^&*()`.`t1`;
+
+DROP TABLE `!@#$%^&*()`.`t1`;
+DROP DATABASE `!@#$%^&*()`;
+DROP DATABASE `a::a@@`;
+
+# cleanup
+SET GLOBAL tokudb_dir_per_db=@orig_tokudb_dir_per_db;

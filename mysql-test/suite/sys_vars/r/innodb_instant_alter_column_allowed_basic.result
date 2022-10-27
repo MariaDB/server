@@ -1,0 +1,49 @@
+SET @start_global_value = @@global.innodb_instant_alter_column_allowed;
+SET GLOBAL innodb_instant_alter_column_allowed=never;
+select @@session.innodb_instant_alter_column_allowed;
+ERROR HY000: Variable 'innodb_instant_alter_column_allowed' is a GLOBAL variable
+show global variables like 'innodb_instant_alter_column_allowed';
+Variable_name	Value
+innodb_instant_alter_column_allowed	never
+show session variables like 'innodb_instant_alter_column_allowed';
+Variable_name	Value
+innodb_instant_alter_column_allowed	never
+SELECT * FROM information_schema.global_variables
+WHERE variable_name='innodb_instant_alter_column_allowed';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_INSTANT_ALTER_COLUMN_ALLOWED	never
+SELECT * FROM information_schema.session_variables
+WHERE variable_name='innodb_instant_alter_column_allowed';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_INSTANT_ALTER_COLUMN_ALLOWED	never
+set global innodb_instant_alter_column_allowed=no;
+ERROR 42000: Variable 'innodb_instant_alter_column_allowed' can't be set to the value of 'no'
+set global innodb_instant_alter_column_allowed=1.1;
+ERROR 42000: Incorrect argument type to variable 'innodb_instant_alter_column_allowed'
+set global innodb_instant_alter_column_allowed=-1;
+ERROR 42000: Variable 'innodb_instant_alter_column_allowed' can't be set to the value of '-1'
+select @@global.innodb_instant_alter_column_allowed;
+@@global.innodb_instant_alter_column_allowed
+never
+set global innodb_instant_alter_column_allowed=3;
+ERROR 42000: Variable 'innodb_instant_alter_column_allowed' can't be set to the value of '3'
+select @@global.innodb_instant_alter_column_allowed;
+@@global.innodb_instant_alter_column_allowed
+never
+set global innodb_instant_alter_column_allowed=2;
+select @@global.innodb_instant_alter_column_allowed;
+@@global.innodb_instant_alter_column_allowed
+add_drop_reorder
+set global innodb_instant_alter_column_allowed=1;
+select @@global.innodb_instant_alter_column_allowed;
+@@global.innodb_instant_alter_column_allowed
+add_last
+set global innodb_instant_alter_column_allowed=0;
+select @@global.innodb_instant_alter_column_allowed;
+@@global.innodb_instant_alter_column_allowed
+never
+set global innodb_instant_alter_column_allowed=default;
+select @@global.innodb_instant_alter_column_allowed;
+@@global.innodb_instant_alter_column_allowed
+add_drop_reorder
+SET GLOBAL innodb_instant_alter_column_allowed = @start_global_value;

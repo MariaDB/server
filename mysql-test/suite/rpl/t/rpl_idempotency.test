@@ -1,0 +1,107 @@
+# Testing various forms of idempotency for replication that should
+# work the same way under statement based as under row based.
+
+source include/master-slave.inc;
+
+# Add suppression for expected warning(s) in slaves error log
+call mtr.add_suppression("Slave SQL.*Can.t find record in .t[12].* error.* 1032");
+call mtr.add_suppression("Slave SQL.*Cannot delete or update a parent row: a foreign key constraint fails .* error.* 1451");
+call mtr.add_suppression("Slave SQL.*Cannot add or update a child row: a foreign key constraint fails .* error.* 1452");
+call mtr.add_suppression("Slave SQL.*Could not execute Write_rows event on table test.* Duplicate entry .1. for key .PRIMARY.* error.* 1062");
+call mtr.add_suppression("Can't find record in 't1'");
+call mtr.add_suppression("Can't find record in 't2'");
+
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+CREATE TABLE t2 (a INT);
+INSERT INTO t1 VALUES (-1),(-2),(-3);
+INSERT INTO t2 VALUES (-1),(-2),(-3);
+sync_slave_with_master;
+
+SET @old_slave_exec_mode= @@global.slave_exec_mode;
+SET @@global.slave_exec_mode= IDEMPOTENT;
+
+# A delete for a row that does not exist, the statement is
+# deliberately written to be idempotent for statement-based
+# replication as well. We test this towards both a table with a
+# primary key and without a primary key.
+
+connection slave;
+DELETE FROM t1 WHERE a = -2;
+DELETE FROM t2 WHERE a = -2;
+connection master;
+DELETE FROM t1 WHERE a = -2;
+DELETE FROM t2 WHERE a = -2;
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+sync_slave_with_master;
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+--source include/check_slave_no_error.inc
+
+# An insert of a row that already exists. Since we are replacing the
+# row if it already exists, the most apropriate representation is
+# INSERT IGNORE. We only test this towards a table with a primary key,
+# since the other case does not make sense.
+
+INSERT IGNORE INTO t1 VALUES (-2);
+connection master;
+INSERT IGNORE INTO t1 VALUES (-2);
+SELECT * FROM t1 ORDER BY a;
+sync_slave_with_master;
+SELECT * FROM t1 ORDER BY a;
+--source include/check_slave_no_error.inc
+
+
+# BUG#19958: RBR idempotency issue for UPDATE and DELETE
+
+# Statement-based and row-based replication have different behaviour
+# when updating a row with an explicit WHERE-clause that matches
+# exactly one row (or no row at all). For statement-based replication,
+# the statement is idempotent since the first time it is executed, it
+# will update exactly one row, and the second time it will not update
+# any row at all.  This was not the case for row-based replication, so
+# we test under both row-based and statement-based replication both
+# for tables with and without primary keys.
+
+connection slave;
+UPDATE t1 SET a = 1 WHERE a = -1;
+UPDATE t2 SET a = 1 WHERE a = -1;
+connection master;
+UPDATE t1 SET a = 1 WHERE a = -1;
+UPDATE t2 SET a = 1 WHERE a = -1;
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+sync_slave_with_master;
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+--source include/check_slave_no_error.inc
+
+connection slave;
+drop table t1, t2;
+
+connection master;
+DROP TABLE t1, t2;
+sync_slave_with_master;
+--source include/check_slave_no_error.inc
+create database d;
+create database e;
+
+connection master;
+create database d;
+create database if not exists e;
+
+sync_slave_with_master;
+--source include/check_slave_no_error.inc
+drop database d;
+drop database e;
+
+connection master;
+drop database d;
+drop database if exists e;
+sync_slave_with_master;
+--source include/check_slave_no_error.inc
+
+SET @@global.slave_exec_mode= @old_slave_exec_mode;
+
+--source include/rpl_end.inc

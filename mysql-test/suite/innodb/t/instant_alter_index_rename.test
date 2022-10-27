@@ -1,0 +1,229 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+delimiter |;
+create function get_index_id(tbl_id int, index_name char(100))
+  returns int
+begin
+  declare res int;
+  select index_id into res from information_schema.innodb_sys_indexes where
+    name=index_name and table_id = tbl_id;
+  return res;
+end|
+
+delimiter ;|
+
+create table t (
+  pk int primary key,
+  a int,
+  b int,
+  c int,
+  unique index a_key (a),
+  key c_key (c)
+) engine=innodb stats_persistent=1;
+
+insert into t values (1, 1, 1, 1);
+
+set @table_id = (select table_id from information_schema.innodb_sys_tables where name='test/t');
+
+set @a_key_id = get_index_id(@table_id, 'a_key');
+set @c_key_id = get_index_id(@table_id, 'c_key');
+set @primary_id = get_index_id(@table_id, 'primary');
+
+select distinct(index_name) from mysql.innodb_index_stats where table_name = 't';
+alter table t
+  drop index a_key,
+  add unique index a_key_strikes_back (a);
+select distinct(index_name) from mysql.innodb_index_stats where table_name = 't';
+
+check table t;
+select @a_key_id = get_index_id(@table_id, 'a_key_strikes_back'),
+  @c_key_id = get_index_id(@table_id, 'c_key'),
+  @primary_id = get_index_id(@table_id, 'primary');
+
+set @a_key_strikes_back_id = get_index_id(@table_id, 'a_key_strikes_back');
+set @c_key_id = get_index_id(@table_id, 'c_key');
+set @primary_id = get_index_id(@table_id, 'primary');
+
+alter table t
+  drop index a_key_strikes_back,
+  add unique index a_key_returns (a),
+  drop primary key,
+  add primary key (pk),
+  add unique index b_key (b);
+
+check table t;
+select @a_key_strikes_back_id = get_index_id(@table_id, 'a_key_returns'),
+  @c_key_id = get_index_id(@table_id, 'c_key'),
+  @primary_id = get_index_id(@table_id, 'primary');
+
+set @a_key_returns_id = get_index_id(@table_id, 'a_key_returns');
+set @b_key_id = get_index_id(@table_id, 'b_key');
+set @c_key_id = get_index_id(@table_id, 'c_key');
+set @primary_id = get_index_id(@table_id, 'primary');
+
+alter table t
+  drop key c_key,
+  add key c_key2 (c);
+
+check table t;
+select @a_key_returns_id = get_index_id(@table_id, 'a_key_returns'),
+  @b_key_id = get_index_id(@table_id, 'b_key'),
+  @c_key_id = get_index_id(@table_id, 'c_key2'),
+  @primary_id = get_index_id(@table_id, 'primary');
+
+drop table t;
+
+create table errors (
+  a int,
+  unique key a_key (a),
+  b int
+) engine=innodb;
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table errors
+  drop key a_key,
+  drop key a_key,
+  add unique key a_key2 (a);
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table errors
+  drop key a_key,
+  drop key a_key2,
+  add unique key a_key2 (a);
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table errors
+  add key b_key (b),
+  drop key b_key,
+  add key bb_key (b);
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table errors
+  drop key a_key,
+  add key a_key2 (a),
+  drop key a_key,
+  add key a_key2 (a);
+
+drop table errors;
+
+--disable_query_log
+call mtr.add_suppression("Flagged corruption of `a_key` in table `test`.`corrupted` in dict_set_index_corrupted");
+--enable_query_log
+
+create table corrupted (
+  a int,
+  key a_key (a)
+) engine=innodb;
+
+insert into corrupted values (1);
+
+select * from corrupted;
+
+SET @save_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,dict_set_index_corrupted';
+check table corrupted;
+SET debug_dbug = @save_dbug;
+
+--error ER_INDEX_CORRUPT
+select * from corrupted;
+
+--error ER_INDEX_CORRUPT
+alter table corrupted
+  drop key a_key,
+  add key a_key2 (a);
+
+alter table corrupted
+  drop key a_key;
+
+select * from corrupted;
+
+check table corrupted;
+
+drop table corrupted;
+
+create table t (
+  a int,
+  unique key a_key (a)
+) engine=innodb stats_persistent=1;
+
+SET @save_dbug = @@SESSION.debug_dbug;
+SET debug_dbug = '+d,ib_rename_index_fail1';
+-- error ER_LOCK_DEADLOCK
+alter table t
+  drop key a_key,
+  add unique key a_key2 (a),
+  algorithm=instant;
+SET debug_dbug = @save_dbug;
+
+--error ER_WRONG_NAME_FOR_INDEX
+alter table t
+  drop key a_key,
+  add unique key `GEN_CLUST_INDEX` (a),
+  algorithm=instant;
+
+show create table t;
+
+drop table t;
+
+
+create table rename_column_and_index (
+  a int,
+  unique index a_key(a)
+) engine=innodb;
+
+insert into rename_column_and_index values (1), (3);
+
+alter table rename_column_and_index
+  change a aa int,
+  drop key a_key,
+  add unique key aa_key(aa),
+  algorithm=instant;
+
+show create table rename_column_and_index;
+check table rename_column_and_index;
+drop table rename_column_and_index;
+
+
+--echo #
+--echo # MDEV-19189: ASAN memcpy-param-overlap in fill_alter_inplace_info upon adding indexes
+--echo #
+
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT);
+ALTER TABLE t1 ADD FOREIGN KEY f (f2) REFERENCES xx(f2);
+ALTER TABLE t1 ADD FOREIGN KEY (f2) REFERENCES t1(f2), ADD KEY (f3), ADD KEY (f1);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21669 InnoDB: Table ... contains <n> indexes inside InnoDB, which is different from the number of indexes <n> defined in the MariaDB
+--echo #
+CREATE TABLE t1 (col_int INTEGER, col_char CHAR(20), col_varchar VARCHAR(500)) ENGINE=InnoDB;
+SET @table_id = (SELECT table_id FROM information_schema.innodb_sys_tables WHERE name='test/t1');
+ALTER TABLE t1 ADD KEY idx3 (col_varchar(9)), ADD KEY idX2 (col_char(9));
+SET @idx3_key_id = get_index_id(@table_id, 'iDx3');
+ALTER TABLE t1 DROP KEY iDx3, ADD KEY Idx3 (col_varchar(9));
+SELECT @idx3_key_id = get_index_id(@table_id, 'Idx3');
+CHECK TABLE t1 EXTENDED ;
+DROP TABLE t1;
+
+DROP FUNCTION get_index_id;
+
+--echo #
+--echo # MDEV-23356 InnoDB: Failing assertion: field->col->mtype == type, crash or ASAN failures in row_sel_convert_mysql_key_to_innobase, InnoDB indexes are inconsistent after INDEX changes
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c CHAR(8),
+  KEY ind1(c), KEY ind2(b)) ENGINE=InnoDB STATS_PERSISTENT=1;
+
+INSERT INTO t1 SELECT 1, 1, 'a' FROM seq_1_to_100;
+
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+
+ALTER TABLE t1 DROP INDEX ind2, ADD INDEX ind3(b),
+  DROP INDEX ind1, ADD INDEX ind2(c);
+
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+
+UPDATE t1 SET a = 1 WHERE c = 'foo';
+DROP TABLE t1;

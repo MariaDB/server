@@ -1,0 +1,158 @@
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a DATE);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" datetime DEFAULT NULL
+)
+DROP TABLE t1;
+#
+# MDEV-19632 Replication aborts with ER_SLAVE_CONVERSION_FAILED upon CREATE ... SELECT in ORACLE mode
+#
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a unknown.DATE);
+ERROR HY000: Unknown data type: 'unknown.date'
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (
+def_date DATE,
+mdb_date mariadb_schema.DATE,
+ora_date oracle_schema.DATE,
+max_date maxdb_schema.DATE
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `def_date` date DEFAULT NULL,
+  `mdb_date` date DEFAULT NULL,
+  `ora_date` datetime DEFAULT NULL,
+  `max_date` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SET sql_mode=ORACLE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "def_date" mariadb_schema.date DEFAULT NULL,
+  "mdb_date" mariadb_schema.date DEFAULT NULL,
+  "ora_date" datetime DEFAULT NULL,
+  "max_date" mariadb_schema.date DEFAULT NULL
+)
+DROP TABLE t1;
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (
+def_date DATE,
+mdb_date mariadb_schema.DATE,
+ora_date oracle_schema.DATE,
+max_date maxdb_schema.DATE
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "def_date" datetime DEFAULT NULL,
+  "mdb_date" mariadb_schema.date DEFAULT NULL,
+  "ora_date" datetime DEFAULT NULL,
+  "max_date" mariadb_schema.date DEFAULT NULL
+)
+SET sql_mode=DEFAULT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `def_date` datetime DEFAULT NULL,
+  `mdb_date` date DEFAULT NULL,
+  `ora_date` datetime DEFAULT NULL,
+  `max_date` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# ALTER..MODIFY and ALTER..CHANGE understand qualifiers 
+#
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01');
+SET sql_mode=ORACLE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" mariadb_schema.date DEFAULT NULL
+)
+SELECT * FROM t1;
+a
+2001-01-01
+ALTER TABLE t1 MODIFY a DATE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" datetime DEFAULT NULL
+)
+SELECT * FROM t1;
+a
+2001-01-01 00:00:00
+ALTER TABLE t1 MODIFY a mariadb_schema.DATE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" mariadb_schema.date DEFAULT NULL
+)
+SELECT * FROM t1;
+a
+2001-01-01
+ALTER TABLE t1 MODIFY a oracle_schema.DATE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" datetime DEFAULT NULL
+)
+SELECT * FROM t1;
+a
+2001-01-01 00:00:00
+ALTER TABLE t1 CHANGE a b mariadb_schema.DATE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "b" mariadb_schema.date DEFAULT NULL
+)
+SELECT * FROM t1;
+b
+2001-01-01
+ALTER TABLE t1 CHANGE b a oracle_schema.DATE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" datetime DEFAULT NULL
+)
+SELECT * FROM t1;
+a
+2001-01-01 00:00:00
+DROP TABLE t1;
+#
+# Qualified syntax is not supported yet in SP
+# See MDEV-23353 Qualified data types in SP
+#
+SET sql_mode=ORACLE;
+CREATE FUNCTION f1() RETURN mariadb_schema.DATE AS
+BEGIN
+RETURN CURRENT_DATE;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'mariadb_schema.DATE AS
+BEGIN
+RETURN CURRENT_DATE;
+END' at line 1
+CREATE PROCEDURE p1(a mariadb_schema.DATE) AS
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ') AS
+BEGIN
+NULL;
+END' at line 1
+CREATE PROCEDURE p1() AS
+a mariadb_schema.DATE;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ';
+BEGIN
+NULL;
+END' at line 2

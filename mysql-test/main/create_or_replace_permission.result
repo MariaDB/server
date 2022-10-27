@@ -1,0 +1,56 @@
+set local sql_mode="";
+set global sql_mode="";
+#
+# Tests for checking permission denied on CREATE OR REPLACE if DROP
+# access is revoked
+#
+# These statements do not need special tests for CREATE OR REPLACE,
+# because they do not have separate permissions for create and drop:
+# CREATE OR REPLACE EVENT (uses EVENT_ACL for both CREATE and DROP)
+# CREATE OR DROP SERVER (uses SUPER_ALC for both CREATE and DROP)
+# CREATE OR DROP TRIGGER (uses TRIGGER_ACL for both CREATE and DROP)
+SELECT CURRENT_USER;
+CURRENT_USER
+root@localhost
+CREATE DATABASE db1;
+GRANT ALL ON db1.* TO mysqltest_1@localhost;
+REVOKE DROP ON db1.* FROM mysqltest_1@localhost;
+REVOKE ALTER ROUTINE ON db1.* FROM mysqltest_1@localhost;
+GRANT DELETE ON mysql.* TO mysqltest_1@localhost;
+REVOKE DELETE ON mysql.* FROM mysqltest_1@localhost;
+FLUSH PRIVILEGES;
+connect  user_a, localhost, mysqltest_1,,;
+connection user_a;
+SELECT CURRENT_USER;
+CURRENT_USER
+mysqltest_1@localhost
+CREATE DATABASE db1;
+ERROR HY000: Can't create database 'db1'; database exists
+CREATE OR REPLACE DATABASE db1;
+ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'db1'
+CREATE OR REPLACE DATABASE db2;
+ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'db2'
+USE db1;
+CREATE OR REPLACE TABLE t1(id INT);
+ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table 't1'
+CREATE OR REPLACE PROCEDURE proc1 (OUT cnt INT) BEGIN END;
+ERROR 42000: alter routine command denied to user 'mysqltest_1'@'localhost' for routine 'db1.proc1'
+CREATE OR REPLACE FUNCTION lookup RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
+ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'mysql'
+CREATE OR REPLACE FUNCTION hello(str char(20)) RETURNS TEXT RETURN CONCAT('Hello, ', str, '!');
+ERROR 42000: alter routine command denied to user 'mysqltest_1'@'localhost' for routine 'db1.hello'
+CREATE OR REPLACE USER u1@localhost;
+ERROR 42000: Access denied; you need (at least one of) the CREATE USER privilege(s) for this operation
+CREATE OR REPLACE ROLE developer;
+ERROR 42000: Access denied; you need (at least one of) the CREATE USER privilege(s) for this operation
+connection default;
+SELECT CURRENT_USER;
+CURRENT_USER
+root@localhost
+REVOKE ALL ON db1.* FROM mysqltest_1@localhost;
+DROP DATABASE IF EXISTS db2;
+Warnings:
+Note	1008	Can't drop database 'db2'; database doesn't exist
+DROP DATABASE db1;
+DROP USER mysqltest_1@localhost;
+set global sql_mode=default;

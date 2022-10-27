@@ -1,0 +1,44 @@
+[mysqld.1.1]
+log-bin=                  master-bin
+loose_handlersocket_port=                20000
+loose_handlersocket_port_wr=             20001
+loose_handlersocket_threads=             2
+loose_handlersocket_threads_wr=          1
+loose_handlersocket_support_merge_table= 0
+loose_handlersocket_direct_update_mode=  2
+loose_handlersocket_unlimited_boundary=  65536
+loose_handlersocket_bulk_insert=         0
+loose_handlersocket_bulk_insert_timeout= 0
+loose_handlersocket_general_log=         1
+loose_handlersocket_timeout=             30
+loose_handlersocket_close_table_interval=2
+open_files_limit=                        4096
+loose_partition=                         1
+
+[ENV]
+USE_GEOMETRY_TEST=        1
+USE_FULLTEXT_TEST=        1
+USE_HA_TEST=              1
+USE_GENERAL_LOG=          1
+USE_REPLICATION=          1
+MASTER_1_MYPORT=          @mysqld.1.1.port
+MASTER_1_HSRPORT=         20000
+MASTER_1_HSWPORT=         20001
+MASTER_1_MYSOCK=          @mysqld.1.1.socket
+MASTER_1_ENGINE_TYPE=     Spider
+#MASTER_1_ENGINE_TYPE=     MyISAM
+MASTER_1_ENGINE=          ENGINE=Spider
+MASTER_1_CHARSET=         DEFAULT CHARSET=utf8
+MASTER_1_ENGINE2=         ENGINE=MyISAM
+MASTER_1_CHARSET2=        DEFAULT CHARSET=utf8
+MASTER_1_CHARSET3=        DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci
+
+STR_SEMICOLON=            ;
+
+#The followings are set in include/init_xxx.inc files
+# MASTER_1_COMMENT_2_1
+# MASTER_1_COMMENT2_2_1
+# MASTER_1_COMMENT3_2_1
+# MASTER_1_COMMENT4_2_1
+# MASTER_1_COMMENT5_2_1
+# MASTER_1_COMMENT_P_2_1

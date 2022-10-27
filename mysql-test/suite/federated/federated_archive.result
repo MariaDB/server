@@ -1,0 +1,48 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+connection slave;
+DROP TABLE IF EXISTS federated.archive_table;
+CREATE TABLE federated.archive_table (
+`id` int(4) NOT NULL,
+`name` varchar(54) default NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+CREATE TABLE federated.t1 (
+`id` int(4) NOT NULL,
+`name` varchar(54) default NULL,
+PRIMARY KEY (`id`)
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/archive_table';
+INSERT INTO federated.t1 (id, name) VALUES (1, 'foo');
+INSERT INTO federated.t1 (id, name) VALUES (2, 'bar');
+SELECT * FROM federated.t1;
+id	name
+1	foo
+2	bar
+DELETE FROM federated.t1 WHERE id = 1;
+ERROR HY000: Got error 10000 'Error on remote system: 1031: Storage engine ARCHIVE of the table `federated`.`archive_table` doesn't have this option' from FEDERATED
+SELECT * FROM federated.t1;
+id	name
+1	foo
+2	bar
+UPDATE federated.t1 SET name='baz' WHERE id = 1;
+ERROR HY000: Got error 10000 'Error on remote system: 1031: Storage engine ARCHIVE of the table `federated`.`archive_table` doesn't have this option' from FEDERATED
+SELECT * FROM federated.t1;
+id	name
+1	foo
+2	bar
+DROP TABLE federated.t1;
+connection slave;
+DROP TABLE federated.archive_table;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

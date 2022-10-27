@@ -1,0 +1,37 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SET GLOBAL wsrep_provider_options = 'gcs.fc_limit=1';
+FLUSH TABLES WITH READ LOCK;
+connection node_1;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+INSERT INTO t1 VALUES (6);
+INSERT INTO t1 VALUES (7);
+INSERT INTO t1 VALUES (8);
+INSERT INTO t1 VALUES (9);
+INSERT INTO t1 VALUES (10);
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+UNLOCK TABLES;
+SET SESSION wsrep_sync_wait = 1;
+SELECT COUNT(*) = 10 FROM t1;
+COUNT(*) = 10
+1
+connection node_1;
+INSERT INTO t1 VALUES (11);
+connection node_2;
+SELECT COUNT(*) = 11 FROM t1;
+COUNT(*) = 11
+1
+CALL mtr.add_suppression("Protocol violation");
+DROP TABLE t1;
+connection node_1;
+CALL mtr.add_suppression("Protocol violation");

@@ -1,0 +1,27 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (
+f1 VARCHAR(255) PRIMARY KEY
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO t1 VALUES ('abc');
+connection node_2;
+SELECT f1 = 'abc' FROM t1;
+f1 = 'abc'
+1
+connection node_1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f1 = 'klm';
+connection node_2;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET f1 = 'xyz';
+connection node_1;
+COMMIT;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+include/assert_grep.inc [cluster conflict due to high priority abort for threads]
+DROP TABLE t1;

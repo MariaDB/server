@@ -1,0 +1,281 @@
+# Copyright 2010, Oracle and/or its affiliates. All rights reserved.
+# 
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
+
+IF(NOT WIN32)
+  RETURN()
+ENDIF()
+
+IF(MSVC_VERSION LESS 1600)
+ RETURN()
+ENDIF()
+
+SET(MANUFACTURER "MariaDB Corporation Ab")
+SET(WIX_BIN_PATHS)
+FOREACH(WIX_VER 3.9 3.10 3.11)
+  LIST(APPEND WIX_BIN_PATHS "$ENV{ProgramFiles}/WiX Toolset v${WIX_VER}/bin")
+  LIST(APPEND WIX_BIN_PATHS "$ENV{ProgramFiles} (x86)/WiX Toolset v${WIX_VER}/bin")
+ENDFOREACH()
+
+FIND_PATH(WIX_DIR heat.exe ${WIX_BIN_PATHS})
+SET(CPACK_WIX_PACKAGE_BASE_NAME "MariaDB")
+IF(CMAKE_SIZEOF_VOID_P EQUAL 4)
+ SET(CPACK_WIX_UPGRADE_CODE "49EB7A6A-1CEF-4A1E-9E89-B9A4993963E3")
+ SET(CPACK_WIX_PACKAGE_NAME "MariaDB ${MAJOR_VERSION}.${MINOR_VERSION}")
+ELSE()
+ SET(CPACK_WIX_UPGRADE_CODE "2331E7BD-EE58-431B-9E18-B2B918BCEB1B")
+ SET(CPACK_WIX_PACKAGE_NAME "MariaDB ${MAJOR_VERSION}.${MINOR_VERSION} (x64)")
+ENDIF()
+
+IF(WIX_DIR)
+IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  SET(WIX_ARCH_SUFFIX "x64")
+ELSE()
+  SET(WIX_ARCH_SUFFIX "x86")
+ENDIF()
+# Need some Wix SDK libraries to link with customaction
+IF(MSVC_VERSION EQUAL 1600 OR MSVC_VERSION EQUAL 1700 )
+  SET(WIX_MSVC_SUFFIX "VS2010")
+ELSEIF(MSVC_VERSION EQUAL 1800)
+  SET(WIX_MSVC_SUFFIX "VS2013")
+ELSE()
+  SET(WIX_MSVC_SUFFIX "VS2015")
+ENDIF()
+
+
+FIND_LIBRARY(WIX_WCAUTIL_LIBRARY 
+  NAMES wcautil${WIX_ARCH_SUFFIX}  wcautil${WIX_MSVC_SUFFIX}${WIX_ARCH_SUFFIX}
+  wcautil
+  PATHS 
+  ${WIX_DIR}/../SDK/${WIX_MSVC_SUFFIX}/lib/${WIX_ARCH_SUFFIX}
+  )
+
+FIND_LIBRARY(WIX_DUTIL_LIBRARY 
+  NAMES dutil${WIX_ARCH_SUFFIX} 
+  dutil
+  PATHS 
+  ${WIX_DIR}/../SDK/${WIX_MSVC_SUFFIX}/lib/${WIX_ARCH_SUFFIX}
+  )
+ENDIF()
+
+IF(NOT WIX_DUTIL_LIBRARY)
+  MESSAGE(STATUS "Cannot find wix 3, installer project will not be generated")
+  IF(BUILD_RELEASE)
+      MESSAGE(FATAL_ERROR
+        "Can't find Wix. It is necessary for producing official package")
+  ENDIF()
+  RETURN()
+ENDIF()
+
+ADD_SUBDIRECTORY(ca)
+
+# extra.wxs.in needs DATADIR_MYSQL_FILES and DATADIR_PERFORMANCE_SCHEMA_FILES, i.e
+# Wix-compatible file lists for ${builddir}\sql\data\{mysql,performance_schema}
+
+FOREACH(dir mysql performance_schema)
+ FILE(GLOB files ${CMAKE_BINARY_DIR}/sql/data/${dir}/*)
+ SET(filelist)
+ FOREACH(f ${files})
+   IF(NOT f MATCHES ".rule")
+   FILE(TO_NATIVE_PATH "${f}" file_native_path)
+   GET_FILENAME_COMPONENT(file_name "${f}" NAME)
+   SET(filelist 
+"${filelist}
+<File Id='${file_name}' Source='${file_native_path}'/>")
+   ENDIF()
+ ENDFOREACH()
+ STRING(TOUPPER ${dir} DIR_UPPER)
+ SET(DATADIR_${DIR_UPPER}_FILES "${filelist}")
+ENDFOREACH()
+
+
+FIND_PROGRAM(CANDLE_EXECUTABLE candle ${WIX_DIR})
+FIND_PROGRAM(LIGHT_EXECUTABLE light ${WIX_DIR})
+
+# WiX wants the license text as rtf; if there is no rtf license, 
+# we create a fake one from the plain text COPYING file.
+IF(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/COPYING.rtf")
+ SET(COPYING_RTF "${CMAKE_CURRENT_SOURCE_DIR}/COPYING.rtf")
+ELSE()
+  IF(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../LICENSE.mysql")
+    SET(LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../../LICENSE.mysql")
+  ELSE()
+    SET(LICENSE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/../../COPYING")
+  ENDIF()
+  FILE(READ ${LICENSE_FILE} CONTENTS)
+  STRING(REGEX REPLACE "\n" "\\\\par\n" CONTENTS "${CONTENTS}")
+  STRING(REGEX REPLACE "\t" "\\\\tab" CONTENTS "${CONTENTS}")
+  FILE(WRITE "${CMAKE_CURRENT_BINARY_DIR}/COPYING.rtf" "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0\\fnil\\fcharset0 Courier New;}}\\viewkind4\\uc1\\pard\\lang1031\\f0\\fs15")
+  FILE(APPEND "${CMAKE_CURRENT_BINARY_DIR}/COPYING.rtf" "${CONTENTS}")
+  FILE(APPEND "${CMAKE_CURRENT_BINARY_DIR}/COPYING.rtf" "\n}\n")
+  SET(COPYING_RTF "${CMAKE_CURRENT_BINARY_DIR}/COPYING.rtf")
+ENDIF()
+SET(CPACK_WIX_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/CPackWixConfig.cmake)
+
+IF(NOT TARGET mysql_upgrade_wizard)
+  SET(EXTRA_WIX_PREPROCESSOR_FLAGS "-dHaveUpgradeWizard=0")
+ENDIF()
+IF(WITH_INNOBASE_STORAGE_ENGINE)
+  SET(EXTRA_WIX_PREPROCESSOR_FLAGS ${EXTRA_WIX_PREPROCESSOR_FLAGS} "-dHaveInnodb=1")
+ENDIF()
+
+SET(THIRD_PARTY_FEATURE_CONDITION "")
+
+IF(WITH_THIRD_PARTY)
+  SET(THIRD_PARTY_DOWNLOAD_LOCATION "$ENV{TEMP}")
+  IF(THIRD_PARTY_DOWNLOAD_LOCATION)
+    FILE(TO_CMAKE_PATH "${THIRD_PARTY_DOWNLOAD_LOCATION}" THIRD_PARTY_DOWNLOAD_LOCATION)
+  ELSE()
+    SET(THIRD_PARTY_DOWNLOAD_LOCATION "${CMAKE_BINARY_DIR}")
+  ENDIF()
+ENDIF()
+
+FOREACH(third_party ${WITH_THIRD_PARTY})
+  SET(third_party_install_plugin ${CMAKE_CURRENT_SOURCE_DIR}/${third_party}.cmake)
+  IF(NOT EXISTS ${third_party_install_plugin})
+    MESSAGE(FATAL_ERROR 
+"Third party MSI installation plugin ${third_party_install_plugin} does not exist.
+It was expected due to WITH_THIRD_PARTY=${WITH_THIRD_PARTY}"
+)
+  ENDIF()
+  STRING(TOUPPER "${third_party}" upper_third_party)
+  IF(NOT THIRD_PARTY_FEATURE_CONDITION )
+   SET(THIRD_PARTY_FEATURE_CONDITION "<Condition Level='0'>${upper_third_party}INSTALLED")
+  ELSE()
+   SET(THIRD_PARTY_FEATURE_CONDITION "AND ${upper_third_party}INSTALLED")
+  ENDIF()
+ENDFOREACH()
+
+IF(THIRD_PARTY_FEATURE_CONDITION)
+  SET(THIRD_PARTY_FEATURE_CONDITION "${THIRD_PARTY_FEATURE_CONDITION}</Condition>")
+ENDIF()
+
+IF(NOT CPACK_WIX_UI)
+  SET(CPACK_WIX_UI "MyWixUI_Mondo")
+ENDIF()
+
+IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  SET(WixWin64 " Win64='yes'")
+ELSE()
+  SET(WixWin64)
+ENDIF()
+
+
+IF(CMAKE_GENERATOR MATCHES "Visual Studio")
+ SET(CONFIG_PARAM "-DCMAKE_INSTALL_CONFIG_NAME=${CMAKE_CFG_INTDIR}")
+ENDIF()
+
+IF(MSVC_CRT_TYPE MATCHES "/MD")
+  # Find out CRT merge module path, we're going to use it in installer
+  # The path  and name depends on VS version
+  IF(MSVC_VERSION LESS 1900)
+    # VS2015
+    SET(VCREDIST_MSM_FILENAME Microsoft_VC140_CRT_${WIX_ARCH_SUFFIX}.msm)
+    SET(ProgramFilesX86 "ProgramFiles(x86)")
+    FIND_FILE(${VCREDIST_MSM_FILENAME}
+      NO_DEFAULT_PATH
+      PATHS
+        "$ENV{${ProgramFilesX86}}/Common Files/Merge Modules"
+        "$ENV{ProgramFiles}/Common Files/Merge Modules"
+    )
+  ELSEIF(MSVC_VERSION LESS 1920)
+    # VS2017
+    SET(VCREDIST_MSM_FILENAME Microsoft_VC141_CRT_${WIX_ARCH_SUFFIX}.msm)
+    FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/2017/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
+    LIST(LENGTH MSM_LIST LEN)
+    IF(LEN GREATER 0)
+      LIST(GET MSM_LIST 0 VCRedist_MSM)
+    ENDIF()
+  ELSE()
+    # VS2019
+    SET(VCREDIST_MSM_FILENAME Microsoft_VC142_CRT_${WIX_ARCH_SUFFIX}.msm)
+    FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/2019/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
+    LIST(LENGTH MSM_LIST LEN)
+    IF(LEN GREATER 0)
+      LIST(GET MSM_LIST 0 VCRedist_MSM)
+    ENDIF()
+  ENDIF()
+  IF (NOT VCRedist_MSM)
+    MESSAGE(WARNING "Can't find merge module ${VCREDIST_MSM_FILENAME}")
+  ELSE()
+    FILE(TO_NATIVE_PATH  ${VCRedist_MSM} VCRedist_MSM)
+    # MESSAGE("VCRedist_MSM=${VCRedist_MSM}")
+  ENDIF()
+ENDIF()
+
+ADD_CUSTOM_TARGET(
+  MSI
+  COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM}
+    -DCANDLE_EXECUTABLE="${CANDLE_EXECUTABLE}"
+    -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
+    -DCMAKE_FULL_VER="${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}.${CMAKE_PATCH_VERSION}"
+    -DCMAKE_SIZEOF_VOID_P=${CMAKE_SIZEOF_VOID_P}
+    -DCOPYING_RTF="${COPYING_RTF}"
+    -DCPACK_WIX_CONFIG="${CPACK_WIX_CONFIG}"
+    -DCPACK_WIX_INCLUDE="${CPACK_WIX_INCLUDE}"
+    -DCPACK_WIX_PACKAGE_BASE_NAME="${CPACK_WIX_PACKAGE_BASE_NAME}"
+    -DCPACK_WIX_PACKAGE_NAME="${CPACK_WIX_PACKAGE_NAME}"
+    -DCPACK_WIX_UPGRADE_CODE="${CPACK_WIX_UPGRADE_CODE}"
+    -DEXTRA_WIX_PREPROCESSOR_FLAGS="${EXTRA_WIX_PREPROCESSOR_FLAGS}"
+    -DLIGHT_EXECUTABLE="${LIGHT_EXECUTABLE}"
+    -DMAJOR_VERSION="${MAJOR_VERSION}"
+    -DMANUFACTURER="${MANUFACTURER}"
+    -DMINOR_VERSION="${MINOR_VERSION}"
+    -DPATCH_VERSION="${PATCH_VERSION}"
+    -DSIGNCODE="${SIGNCODE}"
+    -DSIGNTOOL_EXECUTABLE="${SIGNTOOL_EXECUTABLE}"
+    -DSIGNTOOL_PARAMETERS="${SIGNTOOL_PARAMETERS}"
+    -DSRCDIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    -DTHIRD_PARTY_DOWNLOAD_LOCATION="${THIRD_PARTY_DOWNLOAD_LOCATION}"
+    -DTHIRD_PARTY_FEATURE_CONDITION="${THIRD_PARTY_FEATURE_CONDITION}"
+    -DTINY_VERSION="${TINY_VERSION}"
+    -DTOP_BINDIR="${CMAKE_BINARY_DIR}"
+    -DVERSION="${VERSION}"
+    -DWITH_THIRD_PARTY="${WITH_THIRD_PARTY}"
+    -DWIXCA_LOCATION="$<TARGET_FILE:wixca>"
+    -DMSVC_CRT_TYPE="${MSVC_CRT_TYPE}"
+    -DVCRedist_MSM="${VCRedist_MSM}"
+    -P  ${CMAKE_CURRENT_SOURCE_DIR}/create_msi.cmake
+)
+ADD_DEPENDENCIES(MSI wixca)
+
+
+IF(CMAKE_GENERATOR MATCHES "Visual Studio")
+ SET(CPACK_CONFIG_PARAM -C $(Configuration))
+ENDIF()
+
+IF(SIGNCODE)
+  SET(SIGN_COMMAND COMMAND ${CMAKE_COMMAND} -P ${PROJECT_BINARY_DIR}/sign.cmake)
+ENDIF()
+
+ADD_CUSTOM_TARGET(
+  win_package_zip
+  ${SIGN_COMMAND}
+  COMMAND ${CMAKE_CPACK_COMMAND} ${CPACK_CONFIG_PARAM} --config ${CMAKE_CURRENT_SOURCE_DIR}/CPackZipConfig.cmake
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+ADD_CUSTOM_TARGET(
+  win_package_debuginfo
+  COMMAND ${CMAKE_CPACK_COMMAND} ${CPACK_CONFIG_PARAM} --config ${CMAKE_CURRENT_SOURCE_DIR}/CPackZipDebugInfoConfig.cmake
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+ADD_CUSTOM_TARGET(win_package DEPENDS win_package_zip win_package_debuginfo)
+SET_TARGET_PROPERTIES(
+  win_package win_package_zip win_package_debuginfo
+  PROPERTIES
+  EXCLUDE_FROM_ALL TRUE
+  EXCLUDE_FROM_DEFAULT_BUILD TRUE
+)

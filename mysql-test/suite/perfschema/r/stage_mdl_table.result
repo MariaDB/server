@@ -1,0 +1,48 @@
+connect  con1, localhost, user1, , ;
+begin;
+insert into test.t1 values (1), (2), (3);
+commit;
+begin;
+select * from test.t1 for update;
+a
+1
+2
+3
+connect  con2, localhost, user2, , ;
+alter table test.t1 add column (b int);
+connection default;
+call dump_one_thread('user1');
+username	event_name	sql_text
+user1	statement/sql/select	select * from test.t1 for update
+username	event_name	nesting_event_type
+username	event_name	nesting_event_type
+user1	stage/sql/Sending data	STATEMENT
+user1	stage/sql/End of update loop	STATEMENT
+user1	stage/sql/Query end	STATEMENT
+user1	stage/sql/Commit	STATEMENT
+user1	stage/sql/Closing tables	STATEMENT
+user1	stage/sql/Unlocking tables	STATEMENT
+user1	stage/sql/Closing tables	STATEMENT
+user1	stage/sql/Starting cleanup	STATEMENT
+user1	stage/sql/Freeing items	STATEMENT
+user1	stage/sql/Reset for next command	STATEMENT
+call dump_one_thread('user2');
+username	event_name	sql_text
+user2	statement/sql/alter_table	alter table test.t1 add column (b int)
+username	event_name	nesting_event_type
+user2	stage/sql/Waiting for table metadata lock	STATEMENT
+username	event_name	nesting_event_type
+user2	stage/sql/Init	STATEMENT
+user2	stage/sql/Checking permissions	STATEMENT
+user2	stage/sql/Init for update	STATEMENT
+user2	stage/sql/Opening tables	STATEMENT
+user2	stage/sql/After opening tables	STATEMENT
+user2	stage/sql/Setup	STATEMENT
+user2	stage/sql/Creating table	STATEMENT
+user2	stage/sql/After create	STATEMENT
+connection con1;
+commit;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;

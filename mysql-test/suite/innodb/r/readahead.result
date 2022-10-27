@@ -1,0 +1,7 @@
+# Bug#25330449 ASSERT SIZE==SPACE->SIZE DURING BUF_READ_AHEAD_RANDOM
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=INNODB ROW_FORMAT=COMPRESSED;
+# restart
+SET @saved = @@GLOBAL.innodb_random_read_ahead;
+SET GLOBAL innodb_random_read_ahead = 1;
+DROP TABLE t1;
+SET GLOBAL innodb_random_read_ahead = @saved;

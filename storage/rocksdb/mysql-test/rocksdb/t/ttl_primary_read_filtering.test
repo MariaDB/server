@@ -1,0 +1,388 @@
+--source include/have_debug.inc
+--source include/have_rocksdb.inc
+
+# The purpose of read filtering for tables with TTL is to ensure that during a
+# transaction a key which has expired already but not removed by compaction
+# yet, is not returned to the user.
+#
+# Without this the user might be hit with problems such as disappearing rows
+# within a transaction, etc, because the compaction filter ignores snapshots
+# when filtering keys.
+
+# Basic read filtering test
+CREATE TABLE t1 (
+  a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+
+--sorted_result
+SELECT * FROM t1;
+
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_compact_cf='default';
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+
+DROP TABLE t1;
+
+# Test that some rows are hidden but others aren't...
+CREATE TABLE t1 (
+  a int PRIMARY KEY,
+  b BIGINT UNSIGNED NOT NULL
+) ENGINE=rocksdb
+COMMENT='ttl_duration=10;';
+
+set global rocksdb_debug_ttl_rec_ts = -300;
+INSERT INTO t1 values (1, UNIX_TIMESTAMP());
+set global rocksdb_debug_ttl_rec_ts = 300;
+INSERT INTO t1 values (2, UNIX_TIMESTAMP());
+INSERT INTO t1 values (3, UNIX_TIMESTAMP());
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+set global rocksdb_force_flush_memtable_now=1;
+
+# 1 should be hidden even though compaction hasn't run.
+--sorted_result
+SELECT a FROM t1;
+
+set global rocksdb_compact_cf='default';
+
+# none should be hidden yet, compaction runs but records aren't expired
+--sorted_result
+SELECT a FROM t1;
+
+# all should be hidden now, even though compaction hasn't run again
+set global rocksdb_debug_ttl_read_filter_ts = -310;
+--sorted_result
+SELECT a FROM t1;
+set global rocksdb_debug_ttl_read_filter_ts = 0;
+
+DROP TABLE t1;
+
+# Test the filtering code explicitly.
+CREATE TABLE t1 (
+  a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (5);
+INSERT INTO t1 values (7);
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+# should return nothing.
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+--sorted_result
+SELECT * FROM t1;
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+
+# disable filtering
+set global rocksdb_enable_ttl_read_filtering=0;
+
+# should return everything
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+--sorted_result
+SELECT * FROM t1;
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+
+# enable filtering
+set global rocksdb_enable_ttl_read_filtering=1;
+
+# should return nothing.
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+--sorted_result
+SELECT * FROM t1;
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+
+DROP TABLE t1;
+# Compact away the dropped data
+set global ROCKSDB_COMPACT_CF= 'default';
+
+# Read filtering index scan tests (None of these queries should return any results)
+CREATE TABLE t1 (
+  a int,
+  b int,
+  c int,
+  PRIMARY KEY (a,b,c)
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (0,0,0);
+INSERT INTO t1 values (0,0,1);
+INSERT INTO t1 values (0,1,0);
+INSERT INTO t1 values (0,1,1);
+INSERT INTO t1 values (1,1,2);
+INSERT INTO t1 values (1,2,1);
+INSERT INTO t1 values (1,2,2);
+INSERT INTO t1 values (1,2,3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+
+set global rocksdb_force_flush_memtable_now=1;
+
+# HA_READ_KEY_EXACT, using full key
+SELECT * FROM t1 WHERE a=1 AND b=2 AND c=2;
+
+# HA_READ_KEY_EXACT, not using full key
+SELECT * FROM t1 WHERE a = 1;
+
+# HA_READ_BEFORE_KEY, not using full key
+SELECT max(a) from t1 where a < 3;
+
+#HA_READ_BEFORE_KEY, using full key
+SELECT max(a) from t1 where a < 2 AND b = 1 AND c < 3;
+
+# HA_READ_KEY_OR_NEXT
+SELECT min(a) from t1 where a >= 1;
+
+# HA_READ_AFTER_KEY,              /* Find next rec. after key-record */
+SELECT min(a) from t1 where a > 1;
+
+# HA_READ_PREFIX_LAST,            /* Last key with the same prefix */
+select * from t1 where a=1 and b in (1) order by c desc;
+
+# HA_READ_PREFIX_LAST_OR_PREV,    /* Last or prev key with the same prefix */
+select max(a) from t1 where a <=10;
+
+# need to test read_range_first()
+# calls into read_range_next() and uses compare_keys() to see if its out of
+# range
+select a from t1 where a > 0 and a <= 2;
+
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+set global rocksdb_compact_cf='default';
+select variable_value-@c from information_schema.global_status where variable_name='rocksdb_rows_expired';
+DROP TABLE t1;
+
+# duplicate PK value attempt to be inserted when old one is expired...
+# in this case, we pretend the expired key was not found and insert into PK
+CREATE TABLE t1 (
+  a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+set global rocksdb_debug_ttl_rec_ts = -110;
+INSERT INTO t1 values (1);
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+SELECT * FROM t1;
+
+# this should work, even if old value is not filtered out yet.
+INSERT INTO t1 values (1);
+
+# should show (1) result
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+# Attempt to update expired value, should filter out
+set global rocksdb_force_flush_memtable_now=1;
+CREATE TABLE t1 (
+  a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+set global rocksdb_debug_ttl_rec_ts = -100;
+INSERT INTO t1 values (1);
+set global rocksdb_debug_ttl_rec_ts = 0;
+
+--sorted_result
+SELECT * FROM t1;
+
+# No error is thrown here, under the hood rnd_next_with_direction is
+# filtering out the record from being seen in the first place.
+UPDATE t1 set a = 1;
+DROP TABLE t1;
+
+##
+## More tests on update behaviour with expired keys.
+##
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+CREATE TABLE t1 (
+  a int PRIMARY KEY,
+  b int
+) ENGINE=rocksdb
+COMMENT='ttl_duration=100;';
+
+set global rocksdb_debug_ttl_rec_ts = -110;
+INSERT INTO t1 values (1,1);
+INSERT INTO t1 values (3,3);
+set global rocksdb_debug_ttl_rec_ts = 0;
+INSERT INTO t1 values (5,5);
+
+# expired key (1) is still around under the hood, but
+# this time rnd_next_with_direction finds non-expired key (5). So the
+# execution flow in the SQL layer moves onto update_write_row, where it then
+# finds the duplicate key (1). But the duplicate key is expired, so it allows
+# the overwrite.
+UPDATE t1 set a = 1;
+
+--sorted_result
+SELECT * FROM t1;
+
+set global rocksdb_enable_ttl_read_filtering=0;
+# 1,1 should be gone, even with read filtering disabled as it has been
+# overwritten
+--sorted_result
+SELECT * FROM t1;
+set global rocksdb_enable_ttl_read_filtering=1;
+
+# get_row_by_rowid tested here via index_read_map_impl
+UPDATE t1 set a = 999 where a = 1;
+--sorted_result
+SELECT * FROM t1;
+
+UPDATE t1 set a = a - 1;
+--sorted_result
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+# Ensure no rows can disappear in the middle of long-running transactions
+# Also ensure repeatable-read works as expected
+--source include/count_sessions.inc
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+CREATE TABLE t1 (
+  a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=5;';
+
+INSERT INTO t1 values (1);
+
+connection con1;
+--echo # Creating Snapshot (start transaction)
+BEGIN;
+
+# We need the below snippet in case establishing con1 took an arbitrary
+# amount of time. See https://github.com/facebook/mysql-5.6/pull/617#discussion_r120525391.
+--disable_query_log
+--let $snapshot_size= `SELECT COUNT(*) FROM t1`
+--let $i= 0
+while ($snapshot_size != 1)
+{
+	if ($i == 1000)
+	{
+		--die Your testing host is too slow for reasonable TTL testing
+	}
+
+  $i++;
+  ROLLBACK;
+	INSERT INTO t1 values (1);
+  BEGIN;
+  --let $snapshot_size= `SELECT COUNT(*) FROM t1`
+}
+--enable_query_log
+
+# Nothing filtered out here
+--sorted_result
+SELECT * FROM t1;
+
+--sleep 5
+
+--sorted_result
+SELECT * FROM t1; # <= shouldn't be filtered out here
+
+--echo # Switching to connection 2
+connection con2;
+# compaction doesn't do anything since con1 snapshot is still open
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+# read filtered out, because on a different connection, on
+# this connection the records have 'expired' already so they are filtered out
+# even though they have not yet been removed by compaction
+
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+--sorted_result
+SELECT * FROM t1;
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+
+--echo # Switching to connection 1
+connection con1;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+--sorted_result
+SELECT * FROM t1; # <= shouldn't be filtered out here
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+
+UPDATE t1 set a = a + 1;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+--sorted_result
+SELECT * FROM t1; # <= shouldn't be filtered out here
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+
+COMMIT;
+
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+--sorted_result # <= filtered out here because time has passed.
+SELECT * FROM t1;
+select variable_value-@a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
+
+DROP TABLE t1;
+disconnect con1;
+disconnect con2;
+
+#transaction 1, create a snapshot and select * => returns nothing.
+#transaction 2, insert into table, flush
+#transaction 1, select * => returns nothing, but the snapshot should prevent the compaction code from removing the rows, no matter what the ttl duration is.
+#transaction 2, select * -> sees nothing, disable filter, select * -> sees everything, enable filter, select * -> sees nothing.
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+
+CREATE TABLE t1 (
+  a int PRIMARY KEY
+) ENGINE=rocksdb
+COMMENT='ttl_duration=1;';
+
+--echo # On Connection 1
+connection con1;
+--echo # Creating Snapshot (start transaction)
+BEGIN;
+--sorted_result
+SELECT * FROM t1;
+# Sleep 5 secs after creating snapshot, this ensures any records created after
+# this can't be removed by compaction until this snapshot is released.
+--sleep 5
+
+--echo # On Connection 2
+connection con2;
+set global rocksdb_debug_ttl_rec_ts = -2;
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (5);
+INSERT INTO t1 values (7);
+set global rocksdb_debug_ttl_rec_ts = 0;
+set global rocksdb_force_flush_memtable_now=1;
+set global rocksdb_compact_cf='default';
+
+--echo # On Connection 1
+connection con1;
+--sorted_result
+SELECT * FROM t1;
+
+--echo # On Connection 2
+connection con2;
+--sorted_result
+SELECT * FROM t1;
+set global rocksdb_enable_ttl_read_filtering=0;
+--sorted_result
+SELECT * FROM t1;
+set global rocksdb_enable_ttl_read_filtering=1;
+
+disconnect con2;
+disconnect con1;
+connection default;
+
+DROP TABLE t1;
+# Wait till we reached the initial number of concurrent sessions
+--source include/wait_until_count_sessions.inc

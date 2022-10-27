@@ -1,0 +1,230 @@
+--source have_odbc_oracle.inc
+
+#
+# To configure your system to be able to run this test,
+# follow through the following steps:
+#
+# 1. Install and configure Oracle database to start on the system startup.
+#
+# 2. Create user, database, schema and tables to be used by mtr:
+#    sqlplus system/manager < odbc_oracle.sql
+#
+# 3. Configure Oracle ODBC Driver for unixODBC (skip this step on Windows):
+# Add these lines into /etc/odbcinst.ini:
+# (the exact paths can vary)
+#
+#[Oracle11g]
+#Description=Oracle ODBC driver for Oracle 11g
+#Driver=/u01/app/oracle/product/11.2.0/xe/lib/libsqora.so.11.1
+#Setup=
+#FileUsage=
+#CPTimeout=
+#CPReuse=
+#
+# 4. Create a data source with the name "ConnectEngineOracle"
+# - On Windows: use odbcadm.exe
+# - On Linux: put these lines into /etc/odbc.ini
+#
+#[ConnectEngineOracle]
+#Application Attributes=T
+#Attributes=W
+#BatchAutocommitMode=IfAllSuccessful
+#CloseCursor=F
+#DisableDPM=F
+#DisableMTS=T
+#Driver=Oracle11g
+#DSN=ConnectEngineOracle
+#EXECSchemaOpt=
+#EXECSyntax=T
+#Failover=T
+#FailoverDelay=10
+#FailoverRetryCount=10
+#FetchBufferSize=64000
+#ForceWCHAR=F
+#Lobs=T
+#Longs=T
+#MetadataIdDefault=F
+#QueryTimeout=T
+#ResultSets=T
+#ServerName=
+#SQLGetData extensions=F
+#Translation DLL=
+#Translation Option=0
+#UserID=
+
+
+SET NAMES utf8;
+
+#
+# Oracle does not support the third (catalog) level
+# in SQLTables() and SQLColumns(), e.g.:  CATFUNC=Tables TABNAME='%.%.%'.
+# It returns a "Driver not capable" error on attept to use non-NULL catalog.
+#
+# But it works fine with the second (schema) level:
+#    CATFUNC=Tables TABNAME='%.%'
+# Note, if schema level is not specified, or schema level is '%',
+# tables for *all* schemas are returned
+# (not only for the schema associated with the user.
+#
+# Note, schema and table names must be in upper case.
+#
+
+
+
+--echo #
+--echo # Checking CATFUNC=Tables
+--echo #
+--echo
+
+--echo # All tables in all schemas (filtered with WHERE)
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+CATFUNC=Tables;
+SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables in all schemas (filtered with WHERE)
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+CATFUNC=Tables TABNAME='%.%';
+SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables "T1" in all schemas (filtered with WHERE)
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+CATFUNC=Tables TABNAME='%.T1';
+SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables "T1" in all schemas (filtered with WHERE)
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+CATFUNC=Tables TABNAME='T1';
+SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # Table "T1" in the schema "MTR"
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+CATFUNC=Tables TABNAME='MTR.T1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables in the schema "MTR"
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+CATFUNC=Tables TABNAME='MTR.%';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Checking CATFUNC=Columns
+--echo #
+--echo
+
+
+--echo # All columns in all schemas (limited with WHERE)
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+CATFUNC=Columns;
+# Disable warnings to avoid "Result limited to 20000 lines"
+--disable_warnings
+SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
+--enable_warnings
+DROP TABLE t1;
+
+--echo # All columns in all schemas (limited with WHERE)
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+CATFUNC=Columns TABNAME='%.%';
+# Disable warnings to avoid "Result limited to 20000 lines"
+--disable_warnings
+SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
+--enable_warnings
+DROP TABLE t1;
+
+--echo # All tables "T1" in all schemas (limited with WHERE)
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr' CATFUNC=Columns TABNAME='%.T1';
+SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # Table "T1" in the schema "MTR"
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+CATFUNC=Columns TABNAME='MTR.T1';
+SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+--echo # All tables "T1" in all schemas (filtered with WHERE)
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+CATFUNC=Columns TABNAME='%.T1';
+SELECT * FROM t1 WHERE Table_Schema='MTR' ORDER BY Table_Schema, Table_Name;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Checking tables
+--echo #
+--echo
+
+--echo # Table "T1" in the default schema ("MTR")
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+TABNAME='T1';
+SHOW CREATE TABLE t1;
+SELECT * FROM t1 ORDER BY A;
+
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # Table "T1" in the schema "MTR"
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+TABNAME='MTR.T1';
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo # View "V1" in the schema "MTR"
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+TABNAME='MTR.V1';
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # Table "T2" in the schema "MTR"
+CREATE TABLE t1 ENGINE=CONNECT
+TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineOracle;UID=mtr;PWD=newmtr'
+TABNAME='MTR.T2';
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;

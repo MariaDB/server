@@ -1,0 +1,93 @@
+SET @start_value = @@global.mysql56_temporal_format;
+SELECT @start_value;
+@start_value
+1
+'#--------------------FN_DYNVARS_030_01------------------------#'
+SET @@global.mysql56_temporal_format = ON;
+SET @@global.mysql56_temporal_format = DEFAULT;
+SELECT @@global.mysql56_temporal_format;
+@@global.mysql56_temporal_format
+1
+'#---------------------FN_DYNVARS_030_02-------------------------#'
+SET @@global.mysql56_temporal_format = @start_value;
+SELECT @@global.mysql56_temporal_format;
+@@global.mysql56_temporal_format
+1
+'#--------------------FN_DYNVARS_030_03------------------------#'
+SET @@global.mysql56_temporal_format = ON;
+SELECT @@global.mysql56_temporal_format;
+@@global.mysql56_temporal_format
+1
+SET @@global.mysql56_temporal_format = OFF;
+SELECT @@global.mysql56_temporal_format;
+@@global.mysql56_temporal_format
+0
+SET @@global.mysql56_temporal_format = 0;
+SELECT @@global.mysql56_temporal_format;
+@@global.mysql56_temporal_format
+0
+SET @@global.mysql56_temporal_format = 1;
+SELECT @@global.mysql56_temporal_format;
+@@global.mysql56_temporal_format
+1
+'#--------------------FN_DYNVARS_030_04-------------------------#'
+SET @@global.mysql56_temporal_format = 2;
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of '2'
+SET @@global.mysql56_temporal_format = -1;
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of '-1'
+SET @@global.mysql56_temporal_format = TRUEF;
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of 'TRUEF'
+SET @@global.mysql56_temporal_format = TRUE_F;
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of 'TRUE_F'
+SET @@global.mysql56_temporal_format = FALSE0;
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of 'FALSE0'
+SET @@global.mysql56_temporal_format = OON;
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of 'OON'
+SET @@global.mysql56_temporal_format = ONN;
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of 'ONN'
+SET @@global.mysql56_temporal_format = OOFF;
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of 'OOFF'
+SET @@global.mysql56_temporal_format = 0FF;
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of '0FF'
+SET @@global.mysql56_temporal_format = ' ';
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of ' '
+SET @@global.mysql56_temporal_format = " ";
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of ' '
+SET @@global.mysql56_temporal_format = '';
+ERROR 42000: Variable 'mysql56_temporal_format' can't be set to the value of ''
+'#-------------------FN_DYNVARS_030_05----------------------------#'
+SET @@session.mysql56_temporal_format = 1;
+ERROR HY000: Variable 'mysql56_temporal_format' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@session.mysql56_temporal_format;
+ERROR HY000: Variable 'mysql56_temporal_format' is a GLOBAL variable
+'#----------------------FN_DYNVARS_030_06------------------------#'
+SELECT IF(@@global.mysql56_temporal_format, "ON", "OFF") = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='mysql56_temporal_format';
+IF(@@global.mysql56_temporal_format, "ON", "OFF") = VARIABLE_VALUE
+1
+'#---------------------FN_DYNVARS_030_07----------------------#'
+SET @@global.mysql56_temporal_format = TRUE;
+SELECT @@global.mysql56_temporal_format;
+@@global.mysql56_temporal_format
+1
+SET @@global.mysql56_temporal_format = FALSE;
+SELECT @@global.mysql56_temporal_format;
+@@global.mysql56_temporal_format
+0
+'#---------------------FN_DYNVARS_030_08----------------------#'
+SET @@global.mysql56_temporal_format = 1;
+SELECT @@mysql56_temporal_format = @@global.mysql56_temporal_format;
+@@mysql56_temporal_format = @@global.mysql56_temporal_format
+1
+'#---------------------FN_DYNVARS_030_09----------------------#'
+SET mysql56_temporal_format = 1;
+ERROR HY000: Variable 'mysql56_temporal_format' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT global.mysql56_temporal_format;
+ERROR 42S02: Unknown table 'global' in field list
+SELECT mysql56_temporal_format = @@session.mysql56_temporal_format;
+ERROR 42S22: Unknown column 'mysql56_temporal_format' in 'field list'
+SET @@global.mysql56_temporal_format = @start_value;
+SELECT @@global.mysql56_temporal_format;
+@@global.mysql56_temporal_format
+1

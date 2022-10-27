@@ -1,0 +1,44 @@
+# Copyright(C) 2017  Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/load_mroonga_functions.inc
+
+SET NAMES UTF8;
+
+--disable_warnings
+DROP TABLE IF EXISTS synonyms;
+--enable_warnings
+
+CREATE TABLE synonyms (
+  term varchar(255),
+  synonym varchar(255),
+  INDEX (term)
+);
+
+INSERT INTO synonyms VALUES ('Rroonga', 'Rroonga');
+INSERT INTO synonyms VALUES ('Rroonga', 'Groonga Ruby');
+
+SELECT mroonga_query_expand('synonyms',
+                            'term',
+                            'synonym',
+                            'Mroonga Rroonga PGroonga') AS query;
+
+DROP TABLE synonyms;
+
+--source ../../include/mroonga/unload_mroonga_functions.inc
+--source ../../include/mroonga/have_mroonga_deinit.inc

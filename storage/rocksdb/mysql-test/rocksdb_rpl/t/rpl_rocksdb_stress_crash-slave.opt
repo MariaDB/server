@@ -1,0 +1,3 @@
+--gtid_mode=ON --enforce_gtid_consistency --log_slave_updates --max_binlog_size=50000
+--slave_parallel_workers=30 --relay_log_recovery=1 --rocksdb_unsafe_for_binlog=TRUE
+--rocksdb_wal_recovery_mode=2

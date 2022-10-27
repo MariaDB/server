@@ -1,0 +1,11 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+
+# This test requires ~2.3G of disk space
+--source include/big_test.inc
+
+--let pk_cf=cf1
+--let pk_cf_name=cf1
+--let data_order_desc=0
+
+--source ../include/bulk_load.inc

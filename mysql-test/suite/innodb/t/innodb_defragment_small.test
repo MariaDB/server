@@ -1,0 +1,41 @@
+--source include/have_innodb.inc
+
+SET @innodb_defragment_orig=@@GLOBAL.innodb_defragment;
+SET @innodb_optimize_fulltext_orig=@@GLOBAL.innodb_optimize_fulltext_only;
+SET GLOBAL innodb_defragment = 1;
+SET GLOBAL innodb_optimize_fulltext_only = 0;
+
+--echo #
+--echo # MDEV-12198 innodb_defragment=1 crashes server on
+--echo # OPTIMIZE TABLE when FULLTEXT index exists
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(256),
+                 KEY(a, b), FULLTEXT KEY(b)) ENGINE=INNODB;
+OPTIMIZE TABLE t1;
+
+INSERT INTO t1 VALUES (100000, REPEAT('A', 256));
+INSERT INTO t1 VALUES (200000, REPEAT('A', 256));
+INSERT INTO t1 VALUES (300000, REPEAT('A', 256));
+INSERT INTO t1 VALUES (400000, REPEAT('A', 256));
+
+OPTIMIZE TABLE t1;
+
+--echo #
+--echo # MDEV-15824 innodb_defragment=ON trumps
+--echo # innodb_optimize_fulltext_only=ON in OPTIMIZE TABLE
+--echo #
+
+SET GLOBAL innodb_optimize_fulltext_only = 1;
+OPTIMIZE TABLE t1;
+SET GLOBAL innodb_defragment = 0;
+OPTIMIZE TABLE t1;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (c POINT PRIMARY KEY, SPATIAL INDEX(c)) ENGINE=InnoDB;
+OPTIMIZE TABLE t1;
+DROP TABLE t1;
+
+SET GLOBAL innodb_defragment = @innodb_defragment_orig;
+SET GLOBAL innodb_optimize_fulltext_only = @innodb_optimize_fulltext_orig;

@@ -1,0 +1,5 @@
+CREATE TABLE bug11754376 (c INT) ENGINE=INNODB;
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET SESSION DEBUG_DBUG='+d,test_normalize_table_name_low';
+DROP TABLE bug11754376;
+SET debug_dbug= @saved_dbug;

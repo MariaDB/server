@@ -1,0 +1,1 @@
+--ignore-db-dirs=#rocksdb --plugin-load=$HA_ROCKSDB_SO --binlog_format=ROW --collation-server=latin1_bin --loose-rocksdb_flush_log_at_trx_commit=0

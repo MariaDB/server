@@ -1,0 +1,19 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
+SET GLOBAL wsrep_mysql_replication_bundle = 2;
+connection node_1;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+0
+connection node_1;
+INSERT INTO t1 VALUES (2);
+connection node_2;
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+connection node_1;
+SET GLOBAL wsrep_mysql_replication_bundle = 0;
+DROP TABLE t1;

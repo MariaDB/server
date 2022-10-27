@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS ranges;
+CREATE TABLE ranges (
+id INT PRIMARY KEY,
+start YEAR,
+end YEAR,
+UNIQUE KEY range_key(start, end)
+);
+INSERT INTO ranges VALUES (1, 2010, 2012);
+SELECT * FROM ranges;
+id	start	end
+1	2010	2012
+DELETE FROM ranges WHERE id = 1;
+INSERT INTO ranges VALUES (1, 2010, 2012);
+SELECT * FROM ranges;
+id	start	end
+1	2010	2012
+DROP TABLE ranges;

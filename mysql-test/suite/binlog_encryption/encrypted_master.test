@@ -1,0 +1,185 @@
+#
+# The test checks that basic DDL and DML events are encrypted 
+# in the binary log on master.
+# The test is to be run with all binlog formats 
+# (combinations for rpl_init.inc take care of that).
+#
+#
+# The test runs with the encrypted master and non-encrypted slave. 
+# It generates a sequence of events on master, and checks that
+# - all events are encrypted on master;
+# - slave is able to replicate from the master;
+# - relay logs and binary logs are not encrypted on slave.
+#
+# The same exercise is repeated 
+# - without annotated binlog events and without binlog checksums;
+# - with binlog checksums;
+# - with annotated events and binlog checksums;
+# - with annotated events, default checksums and minimal binlog row image
+#
+
+--source include/have_partition.inc
+--source encryption_algorithms.inc
+--source include/have_innodb.inc
+--enable_connect_log
+
+--echo #################
+--echo # Initialization
+--echo #################
+
+--disable_connect_log
+--let $rpl_topology= 1->2
+--source include/rpl_init.inc
+--enable_connect_log
+
+# We stop SQL thread because we want to have
+# all relay logs at the end of the test flow
+
+--connection server_2
+--disable_connect_log
+--source include/stop_slave_sql.inc
+--enable_connect_log
+
+--connection server_1
+
+SET @binlog_annotate_row_events.save= @@global.binlog_annotate_row_events;
+SET @binlog_checksum.save= @@global.binlog_checksum;
+SET @master_verify_checksum.save= @@global.master_verify_checksum;
+SET @binlog_row_image.save= @@global.binlog_row_image;
+
+--echo ####################################################
+--echo # Test 1: simple binlog, no checksum, no annotation
+--echo ####################################################
+
+--connection server_1
+
+SET binlog_annotate_row_events= 0;
+SET GLOBAL binlog_annotate_row_events= 0;
+SET GLOBAL binlog_checksum= NONE;
+SET GLOBAL master_verify_checksum= 0;
+
+--source testdata.inc
+
+--echo ####################################################
+--echo # Test 2: binlog with checksum, no annotated events
+--echo ####################################################
+
+--connection server_1
+
+SET binlog_annotate_row_events= 0;
+SET GLOBAL binlog_annotate_row_events= 0;
+SET GLOBAL binlog_checksum= CRC32;
+SET GLOBAL master_verify_checksum= 1;
+
+--source testdata.inc
+
+--echo ####################################################
+--echo # Test 3: binlog with checksum and annotated events
+--echo ####################################################
+
+--connection server_1
+
+SET binlog_annotate_row_events= 1;
+SET GLOBAL binlog_annotate_row_events= 1;
+SET GLOBAL binlog_checksum= CRC32;
+SET GLOBAL master_verify_checksum= 1;
+
+--source testdata.inc
+
+--echo ####################################################
+--echo # Test 4: binlog with annotated events and binlog_row_image=minimal
+--echo ####################################################
+
+--connection server_1
+
+SET binlog_annotate_row_events= 1;
+SET GLOBAL binlog_annotate_row_events= 1;
+SET GLOBAL binlog_checksum= NONE;
+SET GLOBAL master_verify_checksum= 0;
+SET GLOBAL binlog_row_image= MINIMAL;
+SET binlog_row_image= MINIMAL;
+
+--source testdata.inc
+
+--echo #############################
+--echo # Final checks for the master
+--echo #############################
+
+--let $master_datadir= `SELECT @@datadir`
+
+--let SEARCH_RANGE = 500000
+--let SEARCH_FILE= $master_datadir/master-bin.0*
+--let SEARCH_PATTERN= _to_encrypt.*
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $master_datadir/master-bin.0*
+--let SEARCH_PATTERN= COMMIT.*
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $master_datadir/master-bin.0*
+--let SEARCH_PATTERN= TIMESTAMP.*
+--source include/search_pattern_in_file.inc
+
+--disable_connect_log
+--source include/save_master_pos.inc
+--enable_connect_log
+
+--echo #############################
+--echo # Final checks for the slave
+--echo #############################
+
+# Wait for the IO thread to write everything to relay logs
+
+--connection server_2
+
+--let $slave_datadir= `SELECT @@datadir`
+
+--disable_connect_log
+--source include/sync_io_with_master.inc
+
+# Check that relay logs are unencrypted
+
+--let SEARCH_FILE= $slave_datadir/slave-relay-bin.0*
+--let SEARCH_PATTERN= _to_encrypt.*
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $slave_datadir/slave-relay-bin.0*
+--let SEARCH_PATTERN= COMMIT.*
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $slave_datadir/slave-relay-bin.0*
+--let SEARCH_PATTERN= TIMESTAMP.*
+--source include/search_pattern_in_file.inc
+
+
+# Re-enable SQL thread, let it catch up with IO thread
+# and check slave binary logs
+
+--source include/start_slave.inc
+--source include/sync_slave_sql_with_io.inc
+--enable_connect_log
+
+--let SEARCH_FILE= $slave_datadir/slave-bin.0*
+--let SEARCH_PATTERN= _to_encrypt.*
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $slave_datadir/slave-bin.0*
+--let SEARCH_PATTERN= COMMIT.*
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_FILE= $slave_datadir/slave-bin.0*
+--let SEARCH_PATTERN= TIMESTAMP.*
+--source include/search_pattern_in_file.inc
+
+--echo ##########
+--echo # Cleanup
+--echo ##########
+
+--connection server_1
+SET GLOBAL binlog_annotate_row_events= @binlog_annotate_row_events.save;
+SET GLOBAL binlog_checksum= @binlog_checksum.save;
+SET GLOBAL master_verify_checksum= @master_verify_checksum.save;
+SET GLOBAL binlog_row_image= @binlog_row_image.save;
+
+--disable_connect_log
+--source include/rpl_end.inc

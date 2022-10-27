@@ -1,0 +1,127 @@
+connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+drop database if exists db;
+create database db;
+create table db.this_will_not_be_replicated (i int) engine=MyISAM;
+create table db.t1 (i int) engine=MyISAM;
+create table db.t2 (i int) engine=MyISAM;
+connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+drop database if exists db;
+create database db;
+create table db.t3 (i int) engine=MyISAM;
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
+change master 'master1' to
+master_port=MYPORT_1,
+master_host='127.0.0.1',
+master_user='root';
+start slave 'master1';
+set default_master_connection = 'master1';
+include/wait_for_slave_to_start.inc
+set default_master_connection = 'master2';
+change master 'master2' to
+master_port=MYPORT_2,
+master_host='127.0.0.1',
+master_user='root';
+set global sql_slave_skip_counter = 2;
+select @@global.sql_slave_skip_counter;
+@@global.sql_slave_skip_counter
+2
+select @@session.sql_slave_skip_counter;
+@@session.sql_slave_skip_counter
+2
+set session sql_slave_skip_counter = 3;
+select @@global.sql_slave_skip_counter;
+@@global.sql_slave_skip_counter
+3
+select @@session.sql_slave_skip_counter;
+@@session.sql_slave_skip_counter
+3
+set global sql_slave_skip_counter= default;
+select @@global.sql_slave_skip_counter;
+@@global.sql_slave_skip_counter
+0
+select @@session.sql_slave_skip_counter;
+@@session.sql_slave_skip_counter
+0
+set global sql_slave_skip_counter= 4;
+set default_master_connection = 'master1';
+select @@session.sql_slave_skip_counter;
+@@session.sql_slave_skip_counter
+0
+set default_master_connection = 'qqq';
+select @@session.sql_slave_skip_counter;
+@@session.sql_slave_skip_counter
+0
+Warnings:
+Warning	1617	There is no master connection 'qqq'
+set default_master_connection = 'master2';
+select @@session.sql_slave_skip_counter;
+@@session.sql_slave_skip_counter
+4
+select @@global.max_relay_log_size;
+@@global.max_relay_log_size
+1073741824
+set global max_relay_log_size = 1*1024*1024;
+select @@global.max_relay_log_size;
+@@global.max_relay_log_size
+1048576
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+1048576
+set session max_relay_log_size = 3*1024*1024;
+select @@global.max_relay_log_size;
+@@global.max_relay_log_size
+3145728
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+3145728
+set global max_relay_log_size= default;
+select @@global.max_relay_log_size;
+@@global.max_relay_log_size
+1073741824
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+1073741824
+set global max_relay_log_size= 3*1024*1024;
+set default_master_connection = 'master1';
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+1073741824
+set default_master_connection = 'qqq';
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+0
+Warnings:
+Warning	1617	There is no master connection 'qqq'
+set default_master_connection = 'master2';
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+3145728
+set global max_binlog_size= 4*1024*1024;
+select @@global.max_relay_log_size;
+@@global.max_relay_log_size
+3145728
+start slave 'master2';
+include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+connection master2;
+connection slave;
+show tables in db;
+Tables_in_db
+t1
+t2
+t3
+this_will_not_be_replicated
+drop database db;
+set global sql_slave_skip_counter = 0;
+set global max_relay_log_size = 1073741824;
+set global max_binlog_size = 1073741824;
+include/reset_master_slave.inc
+disconnect slave;
+connection master1;
+drop database db;
+include/reset_master_slave.inc
+disconnect master1;
+connection master2;
+drop database db;
+include/reset_master_slave.inc
+disconnect master2;

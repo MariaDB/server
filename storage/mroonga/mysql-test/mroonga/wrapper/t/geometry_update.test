@@ -1,0 +1,50 @@
+# Copyright(C) 2011 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/have_innodb.inc
+--source include/have_geometry.inc
+--source ../../include/mroonga/have_version_5_6_or_later.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists shops;
+--enable_warnings
+
+create table shops (
+  id int primary key auto_increment,
+  name text,
+  location geometry NOT NULL,
+  spatial key location_index (location)
+) comment = 'engine "innodb"';
+
+insert into shops (name, location)
+           values ('sazare',
+                   ST_GeomFromText('POINT(139.685043 35.714653)'));
+select id, name, ST_AsText(location) as location_text from shops
+  where MBRContains(ST_GeomFromText('LineString(139.68466 35.71592, 139.68804 35.71411)'), location);
+select id, name, ST_AsText(location) as location_text from shops
+  where MBRContains(ST_GeomFromText('LineString(139.65659 35.57903, 139.66489 35.57262)'), location);
+
+update shops set location = ST_GeomFromText('POINT(139.66116 35.57566)')
+             where name = 'sazare';
+select id, name, ST_AsText(location) as location_text from shops
+  where MBRContains(ST_GeomFromText('LineString(139.68466 35.71592, 139.68804 35.71411)'), location);
+select id, name, ST_AsText(location) as location_text from shops
+  where MBRContains(ST_GeomFromText('LineString(139.65659 35.57903, 139.66489 35.57262)'), location);
+
+drop table shops;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

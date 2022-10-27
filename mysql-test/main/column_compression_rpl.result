@@ -1,0 +1,2250 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+SET @saved_slave_type_conversions = @@slave_type_conversions;
+SET GLOBAL SLAVE_TYPE_CONVERSIONS = 'ALL_NON_LOSSY';
+connection master;
+DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+--------------------------------------------------------------------------------------------------------------
+--------------------------------------------COMPRESSED TO COMPRESSED------------------------------------------
+--------------------------------------------------------------------------------------------------------------
+connection slave;
+CREATE TABLE  t1  (a BLOB COMPRESSED default "1111111111") ENGINE=innodb;
+CREATE TABLE  t2  (a TINYBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t3  (a MEDIUMBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t4  (a LONGBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t5  (a TEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t6  (a TINYTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t7  (a MEDIUMTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t8  (a LONGTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t9  (a VARCHAR(10000) COMPRESSED default "0") ENGINE=innodb;
+CREATE TABLE  t10 (a VARBINARY(10000) COMPRESSED) ENGINE=innodb;
+connection master;
+CREATE TABLE  t1  (a BLOB COMPRESSED default "1111111111") ENGINE=myisam;
+CREATE TABLE  t2  (a TINYBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t3  (a MEDIUMBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t4  (a LONGBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t5  (a TEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t6  (a TINYTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t7  (a MEDIUMTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t8  (a LONGTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t9  (a VARCHAR(10000) COMPRESSED default "0") ENGINE=myisam;
+CREATE TABLE  t10 (a VARBINARY(10000) COMPRESSED) ENGINE=myisam;
+INSERT INTO t1(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),(default);
+INSERT INTO t2(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t3(a)  VALUES(REPEAT('a',100)),(REPEAT('v',2000)),("April"),(NULL);
+INSERT INTO t4(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("00-00-00");
+INSERT INTO t5(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t6(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t7(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',3000)),(NULL);
+INSERT INTO t8(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("qwerty");
+INSERT INTO t9(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("12-12-2009"),(default);
+INSERT INTO t10(a) VALUES(REPEAT('a',1000)),(REPEAT('v',2000)),(REPEAT('r',300)),(NULL), ("");
+--------------------------------------------------data on master------------------------------------------------
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+0		M,compressed
+1000	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+108
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1	0	M,compressed
+10	12-12-2009	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+6	qwerty	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+3000	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+92
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+80
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+84
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+8	00-00-00	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+5	April	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+88
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+80
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10	1111111111	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+104
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	29
+COLUMN_DECOMPRESSIONS	58
+--------------------------------------------------data on slave-------------------------------------------------
+connection slave;
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+0		S,compressed
+1000	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+108
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1	0	S,compressed
+10	12-12-2009	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+6	qwerty	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+3000	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+92
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+80
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+84
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+8	00-00-00	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+5	April	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+88
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+80
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10	1111111111	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+104
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	58
+connection master;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+FLUSH STATUS;
+-----------------------------------------------------------------------------------------------------------------
+---------------------------------------COMPRESSED TO NOT COMPRESSED----------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+connection slave;
+FLUSH STATUS;
+CREATE TABLE t1  (a BLOB) ENGINE=innodb;
+CREATE TABLE t2  (a TINYBLOB) ENGINE=innodb;
+CREATE TABLE t3  (a MEDIUMBLOB) ENGINE=innodb;
+CREATE TABLE t4  (a LONGBLOB) ENGINE=innodb;
+CREATE TABLE t5  (a TEXT) ENGINE=innodb;
+CREATE TABLE t6  (a TINYTEXT) ENGINE=innodb;
+CREATE TABLE t7  (a MEDIUMTEXT) ENGINE=innodb;
+CREATE TABLE t8  (a LONGTEXT) ENGINE=innodb;
+CREATE TABLE t9  (a VARCHAR(10000)) ENGINE=innodb;
+CREATE TABLE t10 (a VARBINARY(10000)) ENGINE=innodb;
+connection master;
+CREATE TABLE IF NOT EXISTS t1  (a BLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t2  (a TINYBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t3  (a MEDIUMBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t4  (a LONGBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t5  (a TEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t6  (a TINYTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t7  (a MEDIUMTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t8  (a LONGTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t9  (a VARCHAR(10000) COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t10 (a VARBINARY(10000) COMPRESSED) ENGINE=myisam;
+INSERT INTO t1(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t2(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t3(a)  VALUES(REPEAT('a',100)),(REPEAT('v',2000)),("April"),(NULL);
+INSERT INTO t4(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("00-00-00");
+INSERT INTO t5(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t6(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t7(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',3000)),(NULL);
+INSERT INTO t8(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("qwerty");
+INSERT INTO t9(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("12-12-2009");
+INSERT INTO t10(a) VALUES(REPEAT('a',1000)),(REPEAT('v',2000)),(REPEAT('r',300)),(NULL), ("");
+---------------------------------------data on master-----------------------------------------------------------
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+0		M,compressed
+1000	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+108
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10	12-12-2009	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+100
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+6	qwerty	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+120
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+3000	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+92
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+80
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+84
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+8	00-00-00	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+120
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+5	April	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+88
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+80
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+84
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	29
+COLUMN_DECOMPRESSIONS	58
+---------------------------------------data on slave-------------------------------------------------------------
+connection slave;
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+0		S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+2000	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+10	12-12-2009	S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+10000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+6	qwerty	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+3000	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+254	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+10000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+8	00-00-00	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+2000	vvvvvvvvvv	S,not compressed
+5	April	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+254	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+16384
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	0
+connection master;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+FLUSH STATUS;
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------NOT COMPRESSED to COMPRESSED--------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+connection slave;
+FLUSH STATUS;
+CREATE TABLE t1  (a BLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE t2  (a TINYBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE t3  (a MEDIUMBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE t4  (a LONGBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE t5  (a TEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE t6  (a TINYTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE t7  (a MEDIUMTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE t8  (a LONGTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE t9  (a VARCHAR(10000) COMPRESSED) ENGINE=innodb;
+CREATE TABLE t10 (a VARBINARY(10000) COMPRESSED) ENGINE=innodb;
+connection master;
+CREATE TABLE IF NOT EXISTS t1  (a BLOB) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t2  (a TINYBLOB) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t3  (a MEDIUMBLOB) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t4  (a LONGBLOB) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t5  (a TEXT) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t6  (a TINYTEXT) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t7  (a MEDIUMTEXT) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t8  (a LONGTEXT) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t9  (a VARCHAR(10000)) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t10 (a VARBINARY(10000)) ENGINE=myisam;
+INSERT INTO t1(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t2(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t3(a)  VALUES(REPEAT('a',100)),(REPEAT('v',2000)),("April"),(NULL);
+INSERT INTO t4(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("00-00-00");
+INSERT INTO t5(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t6(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t7(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',3000)),(NULL);
+INSERT INTO t8(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("qwerty");
+INSERT INTO t9(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("12-12-2009");
+INSERT INTO t10(a) VALUES(REPEAT('a',1000)),(REPEAT('v',2000)),(REPEAT('r',300)),(NULL), ("");
+-----------------------------------data on master---------------------------------------------------------------
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+0		M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+2000	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+3364
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+10	12-12-2009	M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+1564
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+10000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+6	qwerty	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+10576
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+3000	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+3344
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+254	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+596
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+1544
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+10000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+8	00-00-00	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+10576
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+2000	vvvvvvvvvv	M,not compressed
+5	April	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+2156
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+254	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+596
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+1544
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	0
+-----------------------------------data on slave-----------------------------------------------------------------
+connection slave;
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+0		S,compressed
+1000	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10	12-12-2009	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+6	qwerty	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+3000	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+8	00-00-00	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+5	April	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+16384
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	58
+connection master;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+-----------------------------------------------------------------------------------------------------------------
+------varchar(1000)->varchar(999) compressed, varchar(1000) compressed->varchar(999) ----------------------------
+-----------------------------------------------------------------------------------------------------------------
+connection slave;
+CREATE TABLE t1  (a VARCHAR(999) COMPRESSED) ENGINE=innodb;
+CREATE TABLE t2  (a VARCHAR(999)) ENGINE=innodb;
+show warnings;
+Level	Code	Message
+call mtr.add_suppression("Slave: Data too long for column 'a' at row 1 Error_code: 1406");
+call mtr.add_suppression("Slave: Table 't2' already exists Error_code: 1050");
+connection master;
+CREATE TABLE IF NOT EXISTS t1 (a VARCHAR(1000))ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t2 (a VARCHAR(1000) COMPRESSED)ENGINE=myisam;
+INSERT INTO t1(a) VALUES(REPEAT('a',1000));
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1406,1677]
+show warnings;
+Level	Code	Message
+connection master;
+INSERT INTO t2(a) VALUES(REPEAT('a',1000));
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1406,1677]
+show warnings;
+Level	Code	Message
+SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
+connection master;
+DROP TABLE t1,t2;
+connection slave;
+connection slave;
+SET @saved_slave_type_conversions = @@slave_type_conversions;
+SET GLOBAL SLAVE_TYPE_CONVERSIONS = 'ALL_NON_LOSSY';
+connection master;
+DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+--------------------------------------------------------------------------------------------------------------
+--------------------------------------------COMPRESSED TO COMPRESSED------------------------------------------
+--------------------------------------------------------------------------------------------------------------
+connection slave;
+CREATE TABLE  t1  (a BLOB COMPRESSED default "1111111111") ENGINE=innodb;
+CREATE TABLE  t2  (a TINYBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t3  (a MEDIUMBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t4  (a LONGBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t5  (a TEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t6  (a TINYTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t7  (a MEDIUMTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t8  (a LONGTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t9  (a VARCHAR(10000) COMPRESSED default "0") ENGINE=innodb;
+CREATE TABLE  t10 (a VARBINARY(10000) COMPRESSED) ENGINE=innodb;
+connection master;
+CREATE TABLE  t1  (a BLOB COMPRESSED default "1111111111") ENGINE=innodb;
+CREATE TABLE  t2  (a TINYBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t3  (a MEDIUMBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t4  (a LONGBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t5  (a TEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t6  (a TINYTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t7  (a MEDIUMTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t8  (a LONGTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE  t9  (a VARCHAR(10000) COMPRESSED default "0") ENGINE=innodb;
+CREATE TABLE  t10 (a VARBINARY(10000) COMPRESSED) ENGINE=innodb;
+INSERT INTO t1(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),(default);
+INSERT INTO t2(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t3(a)  VALUES(REPEAT('a',100)),(REPEAT('v',2000)),("April"),(NULL);
+INSERT INTO t4(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("00-00-00");
+INSERT INTO t5(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t6(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t7(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',3000)),(NULL);
+INSERT INTO t8(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("qwerty");
+INSERT INTO t9(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("12-12-2009"),(default);
+INSERT INTO t10(a) VALUES(REPEAT('a',1000)),(REPEAT('v',2000)),(REPEAT('r',300)),(NULL), ("");
+--------------------------------------------------data on master------------------------------------------------
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+0		M,compressed
+1000	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1	0	M,compressed
+10	12-12-2009	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+6	qwerty	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+3000	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+8	00-00-00	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+5	April	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10	1111111111	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+16384
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	30
+COLUMN_DECOMPRESSIONS	58
+--------------------------------------------------data on slave-------------------------------------------------
+connection slave;
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+0		S,compressed
+1000	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1	0	S,compressed
+10	12-12-2009	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+6	qwerty	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+3000	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+8	00-00-00	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+5	April	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10	1111111111	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+16384
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	116
+connection master;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+FLUSH STATUS;
+-----------------------------------------------------------------------------------------------------------------
+---------------------------------------COMPRESSED TO NOT COMPRESSED----------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+connection slave;
+FLUSH STATUS;
+CREATE TABLE t1  (a BLOB) ENGINE=innodb;
+CREATE TABLE t2  (a TINYBLOB) ENGINE=innodb;
+CREATE TABLE t3  (a MEDIUMBLOB) ENGINE=innodb;
+CREATE TABLE t4  (a LONGBLOB) ENGINE=innodb;
+CREATE TABLE t5  (a TEXT) ENGINE=innodb;
+CREATE TABLE t6  (a TINYTEXT) ENGINE=innodb;
+CREATE TABLE t7  (a MEDIUMTEXT) ENGINE=innodb;
+CREATE TABLE t8  (a LONGTEXT) ENGINE=innodb;
+CREATE TABLE t9  (a VARCHAR(10000)) ENGINE=innodb;
+CREATE TABLE t10 (a VARBINARY(10000)) ENGINE=innodb;
+connection master;
+CREATE TABLE IF NOT EXISTS t1  (a BLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t2  (a TINYBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t3  (a MEDIUMBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t4  (a LONGBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t5  (a TEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t6  (a TINYTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t7  (a MEDIUMTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t8  (a LONGTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t9  (a VARCHAR(10000) COMPRESSED) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t10 (a VARBINARY(10000) COMPRESSED) ENGINE=innodb;
+INSERT INTO t1(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t2(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t3(a)  VALUES(REPEAT('a',100)),(REPEAT('v',2000)),("April"),(NULL);
+INSERT INTO t4(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("00-00-00");
+INSERT INTO t5(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t6(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t7(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',3000)),(NULL);
+INSERT INTO t8(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("qwerty");
+INSERT INTO t9(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("12-12-2009");
+INSERT INTO t10(a) VALUES(REPEAT('a',1000)),(REPEAT('v',2000)),(REPEAT('r',300)),(NULL), ("");
+---------------------------------------data on master-----------------------------------------------------------
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+0		M,compressed
+1000	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10	12-12-2009	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+6	qwerty	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+3000	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+8	00-00-00	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+5	April	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+16384
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	29
+COLUMN_DECOMPRESSIONS	58
+---------------------------------------data on slave-------------------------------------------------------------
+connection slave;
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+0		S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+2000	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+10	12-12-2009	S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+10000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+6	qwerty	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+3000	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+254	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+10000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+8	00-00-00	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+2000	vvvvvvvvvv	S,not compressed
+5	April	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+254	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+16384
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	0
+connection master;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+FLUSH STATUS;
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------NOT COMPRESSED to COMPRESSED--------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+connection slave;
+FLUSH STATUS;
+CREATE TABLE t1  (a BLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE t2  (a TINYBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE t3  (a MEDIUMBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE t4  (a LONGBLOB COMPRESSED) ENGINE=innodb;
+CREATE TABLE t5  (a TEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE t6  (a TINYTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE t7  (a MEDIUMTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE t8  (a LONGTEXT COMPRESSED) ENGINE=innodb;
+CREATE TABLE t9  (a VARCHAR(10000) COMPRESSED) ENGINE=innodb;
+CREATE TABLE t10 (a VARBINARY(10000) COMPRESSED) ENGINE=innodb;
+connection master;
+CREATE TABLE IF NOT EXISTS t1  (a BLOB) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t2  (a TINYBLOB) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t3  (a MEDIUMBLOB) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t4  (a LONGBLOB) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t5  (a TEXT) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t6  (a TINYTEXT) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t7  (a MEDIUMTEXT) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t8  (a LONGTEXT) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t9  (a VARCHAR(10000)) ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t10 (a VARBINARY(10000)) ENGINE=innodb;
+INSERT INTO t1(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t2(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t3(a)  VALUES(REPEAT('a',100)),(REPEAT('v',2000)),("April"),(NULL);
+INSERT INTO t4(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("00-00-00");
+INSERT INTO t5(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t6(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t7(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',3000)),(NULL);
+INSERT INTO t8(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("qwerty");
+INSERT INTO t9(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("12-12-2009");
+INSERT INTO t10(a) VALUES(REPEAT('a',1000)),(REPEAT('v',2000)),(REPEAT('r',300)),(NULL), ("");
+-----------------------------------data on master---------------------------------------------------------------
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+0		M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+2000	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+10	12-12-2009	M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+10000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+6	qwerty	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+3000	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+254	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+10000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+8	00-00-00	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+2000	vvvvvvvvvv	M,not compressed
+5	April	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+254	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+16384
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+16384
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	0
+-----------------------------------data on slave-----------------------------------------------------------------
+connection slave;
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+0		S,compressed
+1000	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10	12-12-2009	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+6	qwerty	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+3000	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+8	00-00-00	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+5	April	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+16384
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+16384
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	58
+connection master;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+-----------------------------------------------------------------------------------------------------------------
+------varchar(1000)->varchar(999) compressed, varchar(1000) compressed->varchar(999) ----------------------------
+-----------------------------------------------------------------------------------------------------------------
+connection slave;
+CREATE TABLE t1  (a VARCHAR(999) COMPRESSED) ENGINE=innodb;
+CREATE TABLE t2  (a VARCHAR(999)) ENGINE=innodb;
+show warnings;
+Level	Code	Message
+call mtr.add_suppression("Slave: Data too long for column 'a' at row 1 Error_code: 1406");
+call mtr.add_suppression("Slave: Table 't2' already exists Error_code: 1050");
+connection master;
+CREATE TABLE IF NOT EXISTS t1 (a VARCHAR(1000))ENGINE=innodb;
+CREATE TABLE IF NOT EXISTS t2 (a VARCHAR(1000) COMPRESSED)ENGINE=innodb;
+INSERT INTO t1(a) VALUES(REPEAT('a',1000));
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1406,1677]
+show warnings;
+Level	Code	Message
+connection master;
+INSERT INTO t2(a) VALUES(REPEAT('a',1000));
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1406,1677]
+show warnings;
+Level	Code	Message
+SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
+connection master;
+DROP TABLE t1,t2;
+connection slave;
+connection slave;
+SET @saved_slave_type_conversions = @@slave_type_conversions;
+SET GLOBAL SLAVE_TYPE_CONVERSIONS = 'ALL_NON_LOSSY';
+connection master;
+DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+--------------------------------------------------------------------------------------------------------------
+--------------------------------------------COMPRESSED TO COMPRESSED------------------------------------------
+--------------------------------------------------------------------------------------------------------------
+connection slave;
+CREATE TABLE  t1  (a BLOB COMPRESSED default "1111111111") ENGINE=myisam;
+CREATE TABLE  t2  (a TINYBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t3  (a MEDIUMBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t4  (a LONGBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t5  (a TEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t6  (a TINYTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t7  (a MEDIUMTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t8  (a LONGTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t9  (a VARCHAR(10000) COMPRESSED default "0") ENGINE=myisam;
+CREATE TABLE  t10 (a VARBINARY(10000) COMPRESSED) ENGINE=myisam;
+connection master;
+CREATE TABLE  t1  (a BLOB COMPRESSED default "1111111111") ENGINE=myisam;
+CREATE TABLE  t2  (a TINYBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t3  (a MEDIUMBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t4  (a LONGBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t5  (a TEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t6  (a TINYTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t7  (a MEDIUMTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t8  (a LONGTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE  t9  (a VARCHAR(10000) COMPRESSED default "0") ENGINE=myisam;
+CREATE TABLE  t10 (a VARBINARY(10000) COMPRESSED) ENGINE=myisam;
+INSERT INTO t1(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),(default);
+INSERT INTO t2(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t3(a)  VALUES(REPEAT('a',100)),(REPEAT('v',2000)),("April"),(NULL);
+INSERT INTO t4(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("00-00-00");
+INSERT INTO t5(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t6(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t7(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',3000)),(NULL);
+INSERT INTO t8(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("qwerty");
+INSERT INTO t9(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("12-12-2009"),(default);
+INSERT INTO t10(a) VALUES(REPEAT('a',1000)),(REPEAT('v',2000)),(REPEAT('r',300)),(NULL), ("");
+--------------------------------------------------data on master------------------------------------------------
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+0		M,compressed
+1000	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+108
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1	0	M,compressed
+10	12-12-2009	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+6	qwerty	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+3000	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+92
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+80
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+84
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+8	00-00-00	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+5	April	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+88
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+80
+SELECT LENGTH(a), SUBSTRING(a,1,10), "M,compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10	1111111111	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+104
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	30
+COLUMN_DECOMPRESSIONS	58
+--------------------------------------------------data on slave-------------------------------------------------
+connection slave;
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+0		S,compressed
+1000	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+108
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1	0	S,compressed
+10	12-12-2009	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+6	qwerty	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+3000	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+92
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+80
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+84
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+8	00-00-00	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+5	April	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+88
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+80
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10	1111111111	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+104
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	116
+connection master;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+FLUSH STATUS;
+-----------------------------------------------------------------------------------------------------------------
+---------------------------------------COMPRESSED TO NOT COMPRESSED----------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+connection slave;
+FLUSH STATUS;
+CREATE TABLE t1  (a BLOB) ENGINE=myisam;
+CREATE TABLE t2  (a TINYBLOB) ENGINE=myisam;
+CREATE TABLE t3  (a MEDIUMBLOB) ENGINE=myisam;
+CREATE TABLE t4  (a LONGBLOB) ENGINE=myisam;
+CREATE TABLE t5  (a TEXT) ENGINE=myisam;
+CREATE TABLE t6  (a TINYTEXT) ENGINE=myisam;
+CREATE TABLE t7  (a MEDIUMTEXT) ENGINE=myisam;
+CREATE TABLE t8  (a LONGTEXT) ENGINE=myisam;
+CREATE TABLE t9  (a VARCHAR(10000)) ENGINE=myisam;
+CREATE TABLE t10 (a VARBINARY(10000)) ENGINE=myisam;
+connection master;
+CREATE TABLE IF NOT EXISTS t1  (a BLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t2  (a TINYBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t3  (a MEDIUMBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t4  (a LONGBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t5  (a TEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t6  (a TINYTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t7  (a MEDIUMTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t8  (a LONGTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t9  (a VARCHAR(10000) COMPRESSED) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t10 (a VARBINARY(10000) COMPRESSED) ENGINE=myisam;
+INSERT INTO t1(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t2(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t3(a)  VALUES(REPEAT('a',100)),(REPEAT('v',2000)),("April"),(NULL);
+INSERT INTO t4(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("00-00-00");
+INSERT INTO t5(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t6(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t7(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',3000)),(NULL);
+INSERT INTO t8(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("qwerty");
+INSERT INTO t9(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("12-12-2009");
+INSERT INTO t10(a) VALUES(REPEAT('a',1000)),(REPEAT('v',2000)),(REPEAT('r',300)),(NULL), ("");
+---------------------------------------data on master-----------------------------------------------------------
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+0		M,compressed
+1000	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+108
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10	12-12-2009	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+100
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+6	qwerty	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+120
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+3000	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+92
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+80
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+84
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+10000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+8	00-00-00	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+120
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+2000	vvvvvvvvvv	M,compressed
+5	April	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+88
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+100	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+254	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+80
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,compressed"  from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	M,compressed
+1000	aaaaaaaaaa	M,compressed
+200	vvvvvvvvvv	M,compressed
+300	rrrrrrrrrr	M,compressed
+NULL	NULL	M,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+84
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	29
+COLUMN_DECOMPRESSIONS	58
+---------------------------------------data on slave-------------------------------------------------------------
+connection slave;
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+0		S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+2000	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+3364
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+10	12-12-2009	S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+1564
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+10000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+6	qwerty	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+10576
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+3000	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+3344
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+254	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+596
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+1544
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+10000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+8	00-00-00	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+10576
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+2000	vvvvvvvvvv	S,not compressed
+5	April	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+2156
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+100	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+254	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+596
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,not compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	S,not compressed
+1000	aaaaaaaaaa	S,not compressed
+200	vvvvvvvvvv	S,not compressed
+300	rrrrrrrrrr	S,not compressed
+NULL	NULL	S,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+1544
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	0
+connection master;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+FLUSH STATUS;
+-----------------------------------------------------------------------------------------------------------------
+-----------------------------------NOT COMPRESSED to COMPRESSED--------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+connection slave;
+FLUSH STATUS;
+CREATE TABLE t1  (a BLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE t2  (a TINYBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE t3  (a MEDIUMBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE t4  (a LONGBLOB COMPRESSED) ENGINE=myisam;
+CREATE TABLE t5  (a TEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE t6  (a TINYTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE t7  (a MEDIUMTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE t8  (a LONGTEXT COMPRESSED) ENGINE=myisam;
+CREATE TABLE t9  (a VARCHAR(10000) COMPRESSED) ENGINE=myisam;
+CREATE TABLE t10 (a VARBINARY(10000) COMPRESSED) ENGINE=myisam;
+connection master;
+CREATE TABLE IF NOT EXISTS t1  (a BLOB) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t2  (a TINYBLOB) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t3  (a MEDIUMBLOB) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t4  (a LONGBLOB) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t5  (a TEXT) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t6  (a TINYTEXT) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t7  (a MEDIUMTEXT) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t8  (a LONGTEXT) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t9  (a VARCHAR(10000)) ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t10 (a VARBINARY(10000)) ENGINE=myisam;
+INSERT INTO t1(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t2(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t3(a)  VALUES(REPEAT('a',100)),(REPEAT('v',2000)),("April"),(NULL);
+INSERT INTO t4(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("00-00-00");
+INSERT INTO t5(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL);
+INSERT INTO t6(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',254)),(NULL);
+INSERT INTO t7(a)  VALUES(REPEAT('a',100)),(REPEAT('v',200)),(REPEAT('r',3000)),(NULL);
+INSERT INTO t8(a)  VALUES(REPEAT('a',10000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("qwerty");
+INSERT INTO t9(a)  VALUES(REPEAT('a',1000)),(REPEAT('v',200)),(REPEAT('r',300)),(NULL),("12-12-2009");
+INSERT INTO t10(a) VALUES(REPEAT('a',1000)),(REPEAT('v',2000)),(REPEAT('r',300)),(NULL), ("");
+-----------------------------------data on master---------------------------------------------------------------
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+0		M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+2000	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+3364
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+10	12-12-2009	M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+1564
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+10000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+6	qwerty	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+10576
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+3000	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+3344
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+254	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+596
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+1544
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+10000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+8	00-00-00	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+10576
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+2000	vvvvvvvvvv	M,not compressed
+5	April	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+2156
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+100	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+254	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+596
+SELECT LENGTH(a),SUBSTRING(a,1,10), "M,not compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	M,not compressed
+1000	aaaaaaaaaa	M,not compressed
+200	vvvvvvvvvv	M,not compressed
+300	rrrrrrrrrr	M,not compressed
+NULL	NULL	M,not compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+1544
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	0
+-----------------------------------data on slave-----------------------------------------------------------------
+connection slave;
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t10;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+0		S,compressed
+1000	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t10';
+DATA_LENGTH
+108
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t9;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10	12-12-2009	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t9';
+DATA_LENGTH
+100
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t8;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+6	qwerty	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t8';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t7;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+3000	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t7';
+DATA_LENGTH
+92
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t6;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t6';
+DATA_LENGTH
+80
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t5;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t5';
+DATA_LENGTH
+84
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t4;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+10000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+8	00-00-00	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t4';
+DATA_LENGTH
+120
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t3;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+2000	vvvvvvvvvv	S,compressed
+5	April	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t3';
+DATA_LENGTH
+88
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t2;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+100	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+254	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t2';
+DATA_LENGTH
+80
+SELECT LENGTH(a), SUBSTRING(a,1,10), "S,compressed" from t1;
+LENGTH(a)	SUBSTRING(a,1,10)	S,compressed
+1000	aaaaaaaaaa	S,compressed
+200	vvvvvvvvvv	S,compressed
+300	rrrrrrrrrr	S,compressed
+NULL	NULL	S,compressed
+SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+DATA_LENGTH
+84
+SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
+VARIABLE_NAME	VARIABLE_VALUE
+COLUMN_COMPRESSIONS	0
+COLUMN_DECOMPRESSIONS	58
+connection master;
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9,t10;
+-----------------------------------------------------------------------------------------------------------------
+------varchar(1000)->varchar(999) compressed, varchar(1000) compressed->varchar(999) ----------------------------
+-----------------------------------------------------------------------------------------------------------------
+connection slave;
+CREATE TABLE t1  (a VARCHAR(999) COMPRESSED) ENGINE=myisam;
+CREATE TABLE t2  (a VARCHAR(999)) ENGINE=myisam;
+show warnings;
+Level	Code	Message
+call mtr.add_suppression("Slave: Data too long for column 'a' at row 1 Error_code: 1406");
+call mtr.add_suppression("Slave: Table 't2' already exists Error_code: 1050");
+connection master;
+CREATE TABLE IF NOT EXISTS t1 (a VARCHAR(1000))ENGINE=myisam;
+CREATE TABLE IF NOT EXISTS t2 (a VARCHAR(1000) COMPRESSED)ENGINE=myisam;
+INSERT INTO t1(a) VALUES(REPEAT('a',1000));
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1406,1677]
+show warnings;
+Level	Code	Message
+connection master;
+INSERT INTO t2(a) VALUES(REPEAT('a',1000));
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1406,1677]
+show warnings;
+Level	Code	Message
+SET GLOBAL SLAVE_TYPE_CONVERSIONS = @saved_slave_type_conversions;
+connection master;
+DROP TABLE t1,t2;
+connection slave;
+include/rpl_end.inc

@@ -1,0 +1,322 @@
+SET sql_mode=ORACLE;
+CREATE DATABASE db1;
+CREATE USER u1@localhost IDENTIFIED BY '';
+GRANT SELECT ON db1.* TO u1@localhost;
+connect  conn1,localhost,u1,,db1;
+SELECT CURRENT_USER;
+CURRENT_USER
+u1@localhost
+SET sql_mode=ORACLE;
+#
+# User u1 cannot drop PROCEDURE, PACKAGE, PACKAGE BODY by default
+#
+DROP PROCEDURE p1;
+ERROR 42000: alter routine command denied to user 'u1'@'localhost' for routine 'db1.p1'
+DROP PACKAGE pkg1;
+ERROR 42000: alter routine command denied to user 'u1'@'localhost' for routine 'db1.pkg1'
+DROP PACKAGE BODY pkg1;
+ERROR 42000: alter routine command denied to user 'u1'@'localhost' for routine 'db1.pkg1'
+#
+# User u1 cannot create PROCEDURE, PACKAGE, PACKAGE BODY by default
+#
+CREATE PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+END;
+$$
+ERROR 42000: PACKAGE db1.pkg1 does not exist
+#
+# Now create a PACKAGE by root
+#
+connection default;
+USE db1;
+CREATE PROCEDURE p1root AS
+BEGIN
+SELECT 1;
+END;
+$$
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+FUNCTION f1 RETURN TEXT;
+END;
+$$
+SHOW CREATE PACKAGE pkg1;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pkg1" AS
+PROCEDURE p1;
+FUNCTION f1 RETURN TEXT;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+#
+# u1 cannot SHOW yet:
+# - the standalone procedure earlier created by root
+# - the package specifications earlier create by root
+#
+connection conn1;
+SHOW CREATE PROCEDURE p1root;
+ERROR 42000: PROCEDURE p1root does not exist
+SHOW CREATE PACKAGE pkg1;
+ERROR 42000: PACKAGE pkg1 does not exist
+#
+# User u1 still cannot create a PACKAGE BODY
+#
+connection conn1;
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is f1'; END;
+END;
+$$
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+#
+# Now grant EXECUTE:
+# - on the standalone procedure earlier created by root
+# - on the package specification earlier created by root
+#
+connection default;
+GRANT EXECUTE ON PROCEDURE db1.p1root TO u1@localhost;
+GRANT EXECUTE ON PACKAGE db1.pkg1 TO u1@localhost;
+#
+# Now u1 can do SHOW for:
+# - the standalone procedure earlier created by root
+# - the package specification earlier created by root
+#
+disconnect conn1;
+connect  conn1,localhost,u1,,db1;
+SET sql_mode=ORACLE;
+SHOW CREATE PROCEDURE db1.p1root;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1root	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE PACKAGE db1.pkg1;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+#
+# Now revoke EXECUTE and grant CREATE ROUTINE instead
+#
+connection default;
+REVOKE EXECUTE ON PROCEDURE db1.p1root FROM u1@localhost;
+REVOKE EXECUTE ON PACKAGE db1.pkg1 FROM u1@localhost;
+GRANT CREATE ROUTINE ON db1.* TO u1@localhost;
+#
+# Reconnect u1 to make new grants have effect
+#
+disconnect conn1;
+connect  conn1,localhost,u1,,db1;
+SET sql_mode=ORACLE;
+#
+# Now u1 can SHOW:
+# - standalone routines earlier created by root
+# - package specifications earlier created by root
+#
+SHOW CREATE PROCEDURE p1root;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1root	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE PACKAGE pkg1;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+#
+# Now u1 can CREATE, DROP and EXECUTE its own standalone procedures
+#
+CREATE PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+$$
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE "db1"."p1" TO "u1"@"localhost"
+CALL p1;
+DROP PROCEDURE p1;
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+#
+# Now u1 can also CREATE, DROP its own package specifications
+#
+CREATE PACKAGE pkg2 AS
+PROCEDURE p1;
+FUNCTION f1 RETURN TEXT;
+END;
+$$
+SHOW CREATE PACKAGE pkg2;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pkg2	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="u1"@"localhost" PACKAGE "pkg2" AS
+PROCEDURE p1;
+FUNCTION f1 RETURN TEXT;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+GRANT EXECUTE, ALTER ROUTINE ON PACKAGE "db1"."pkg2" TO "u1"@"localhost"
+DROP PACKAGE pkg2;
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+#
+# Now u1 can also CREATE, DROP package bodies and EXECUTE package body routines
+#
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS BEGIN SELECT 'This is pkg1.p1' AS `comment`; END;
+FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is pkg1.f1'; END;
+END;
+$$
+SHOW CREATE PACKAGE pkg1;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE PACKAGE BODY pkg1;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="u1"@"localhost" PACKAGE BODY "pkg1" AS
+PROCEDURE p1 AS BEGIN SELECT 'This is pkg1.p1' AS `comment`; END;
+FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is pkg1.f1'; END;
+END	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+GRANT EXECUTE, ALTER ROUTINE ON PACKAGE BODY "db1"."pkg1" TO "u1"@"localhost"
+CALL pkg1.p1;
+comment
+This is pkg1.p1
+SELECT pkg1.f1();
+pkg1.f1()
+This is pkg1.f1
+DROP PACKAGE BODY pkg1;
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+#
+# Now create a PACKAGE BODY by root.
+# u1 does not have EXECUTE access by default.
+#
+connection default;
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS BEGIN SELECT 'This is pkg1.p1' AS `comment`; END;
+FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is pkg1.f1'; END;
+END;
+$$
+connection conn1;
+SHOW CREATE PACKAGE pkg1;
+Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE PACKAGE BODY pkg1;
+Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+CALL pkg1.p1;
+ERROR 42000: execute command denied to user 'u1'@'localhost' for routine 'db1.pkg1'
+SELECT pkg1.f1();
+ERROR 42000: execute command denied to user 'u1'@'localhost' for routine 'db1.pkg1'
+#
+# Now grant EXECUTE to u1 on the PACKAGE BODY created by root
+#
+connection default;
+GRANT EXECUTE ON PACKAGE BODY db1.pkg1 TO u1@localhost;
+disconnect conn1;
+connect  conn1,localhost,u1,,db1;
+SELECT CURRENT_USER;
+CURRENT_USER
+u1@localhost
+SET sql_mode=ORACLE;
+SHOW GRANTS;
+Grants for u1@localhost
+GRANT USAGE ON *.* TO "u1"@"localhost"
+GRANT SELECT, CREATE ROUTINE ON "db1".* TO "u1"@"localhost"
+GRANT EXECUTE ON PACKAGE BODY "db1"."pkg1" TO "u1"@"localhost"
+CALL pkg1.p1;
+comment
+This is pkg1.p1
+SELECT pkg1.f1();
+pkg1.f1()
+This is pkg1.f1
+connection default;
+DROP PACKAGE BODY pkg1;
+#
+# u1 still cannot DROP the package specification earlier created by root.
+#
+connection conn1;
+DROP PACKAGE pkg1;
+ERROR 42000: alter routine command denied to user 'u1'@'localhost' for routine 'db1.pkg1'
+#
+# Grant ALTER ROUTINE to u1
+#
+connection default;
+GRANT ALTER ROUTINE ON db1.* TO u1@localhost;
+#
+# Now u1 can DROP:
+# - the standalone procedure earlier created by root
+# - the package specification earlier created by root
+#
+disconnect conn1;
+connect  conn1,localhost,u1,,db1;
+SET sql_mode=ORACLE;
+DROP PACKAGE pkg1;
+DROP PROCEDURE p1root;
+disconnect conn1;
+connection default;
+DROP USER u1@localhost;
+DROP DATABASE db1;
+USE test;
+#
+# Creator=root, definer=xxx
+#
+CREATE USER xxx@localhost;
+CREATE DEFINER=xxx@localhost PACKAGE p1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 AS
+PROCEDURE p1 AS
+BEGIN
+SELECT SESSION_USER(), CURRENT_USER(), 'p1.p1' AS msg;
+END;
+BEGIN
+SELECT SESSION_USER(), CURRENT_USER(), 'package body p1' AS msg;
+END;
+$$
+CALL p1.p1;
+ERROR 42000: execute command denied to user 'xxx'@'localhost' for routine 'test.p1'
+GRANT EXECUTE ON PACKAGE BODY test.p1 TO xxx@localhost;
+CALL p1.p1;
+SESSION_USER()	CURRENT_USER()	msg
+root@localhost	xxx@localhost	package body p1
+SESSION_USER()	CURRENT_USER()	msg
+root@localhost	xxx@localhost	p1.p1
+DROP PACKAGE p1;
+DROP USER xxx@localhost;
+#
+# Creator=root, definer=xxx, SQL SECURITY INVOKER
+#
+CREATE USER xxx@localhost;
+CREATE DEFINER=xxx@localhost PACKAGE p1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 SQL SECURITY INVOKER AS
+PROCEDURE p1 AS
+BEGIN
+SELECT SESSION_USER(), CURRENT_USER(), 'p1.p1' AS msg;
+END;
+BEGIN
+SELECT SESSION_USER(), CURRENT_USER(), 'package body p1' AS msg;
+END;
+$$
+CALL p1.p1;
+SESSION_USER()	CURRENT_USER()	msg
+root@localhost	root@localhost	package body p1
+SESSION_USER()	CURRENT_USER()	msg
+root@localhost	root@localhost	p1.p1
+DROP PACKAGE p1;
+DROP USER xxx@localhost;

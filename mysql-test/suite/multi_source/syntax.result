@@ -1,0 +1,84 @@
+include/master-slave.inc
+[connection master]
+show slave status;
+Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups
+show slave '' status;
+Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups
+show all slaves status;
+Connection_name	Slave_SQL_State	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Master_SSL_Crl	Master_SSL_Crlpath	Using_Gtid	Gtid_IO_Pos	Replicate_Do_Domain_Ids	Replicate_Ignore_Domain_Ids	Parallel_Mode	SQL_Delay	SQL_Remaining_Delay	Slave_SQL_Running_State	Slave_DDL_Groups	Slave_Non_Transactional_Groups	Slave_Transactional_Groups	Retried_transactions	Max_relay_log_size	Executed_log_entries	Slave_received_heartbeats	Slave_heartbeat_period	Gtid_Slave_Pos
+#
+# Check error handling
+#
+show slave 'qqq' status;
+ERROR HY000: There is no master connection 'qqq'
+show slave 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' status;
+ERROR HY000: There is no master connection 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
+show slave 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' status;
+ERROR HY000: Incorrect arguments to MASTER_CONNECTION_NAME
+change master 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' to master_host='dummy';
+ERROR HY000: Incorrect arguments to MASTER_CONNECTION_NAME
+start slave 'qqq';
+ERROR HY000: There is no master connection 'qqq'
+stop slave 'qqq';
+ERROR HY000: There is no master connection 'qqq'
+flush slave 'qqq';
+ERROR HY000: There is no master connection 'qqq'
+reset slave 'qqq';
+ERROR HY000: There is no master connection 'qqq'
+select master_pos_wait('master-bin.999999',0,2,'qqq');
+master_pos_wait('master-bin.999999',0,2,'qqq')
+NULL
+Warnings:
+Warning	1617	There is no master connection 'qqq'
+select master_pos_wait('master-bin.999999',0,2,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc');
+master_pos_wait('master-bin.999999',0,2,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc')
+NULL
+Warnings:
+Warning	1210	Incorrect arguments to MASTER_CONNECTION_NAME
+connection slave;
+#
+# checking usage of default_master_connection;
+#
+select @@default_master_connection;
+@@default_master_connection
+
+select @@global.default_master_connection;
+ERROR HY000: Variable 'default_master_connection' is a SESSION variable
+set @@global.default_master_connection='qqq';
+ERROR HY000: Variable 'default_master_connection' is a SESSION variable and can't be used with SET GLOBAL
+set @@default_master_connection='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+ERROR 42000: Variable 'default_master_connection' can't be set to the value of 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
+select @@default_master_connection;
+@@default_master_connection
+
+set @@default_master_connection='qqq';
+select @@default_master_connection;
+@@default_master_connection
+qqq
+show variables like "default_master_connection";
+Variable_name	Value
+default_master_connection	qqq
+show slave status;
+ERROR HY000: There is no master connection 'qqq'
+select master_pos_wait('master-bin.999999',0,2);
+master_pos_wait('master-bin.999999',0,2)
+NULL
+Warnings:
+Warning	1617	There is no master connection 'qqq'
+set @@default_master_connection='';
+select master_pos_wait('master-bin.999999',0,2);
+master_pos_wait('master-bin.999999',0,2)
+-1
+set @@default_master_connection='';
+#
+# checking variables
+#
+show status like "Slave_running";
+Variable_name	Value
+Slave_running	ON
+set @@default_master_connection='qqq';
+show status like "Slave_running";
+Variable_name	Value
+Slave_running	
+set @@default_master_connection='';
+include/rpl_end.inc

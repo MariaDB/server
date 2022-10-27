@@ -1,0 +1,28 @@
+SELECT mroonga_command("plugin_register token_filters/stop_word");
+mroonga_command("plugin_register token_filters/stop_word")
+true
+SET NAMES utf8;
+CREATE TABLE memos (
+content VARCHAR(64) NOT NULL,
+FULLTEXT INDEX (content) TOKEN_FILTERS='TokenFilterStopWord,TokenFilterStopWord'
+) DEFAULT CHARSET=utf8;
+SHOW CREATE TABLE memos;
+Table	Create Table
+memos	CREATE TABLE `memos` (
+  `content` varchar(64) NOT NULL,
+  FULLTEXT KEY `content` (`content`) `TOKEN_FILTERS`='TokenFilterStopWord,TokenFilterStopWord'
+) ENGINE=Mroonga DEFAULT CHARSET=utf8
+SELECT mroonga_command("dump --dump_plugins no");
+mroonga_command("dump --dump_plugins no")
+table_create memos TABLE_NO_KEY
+column_create memos content COLUMN_SCALAR ShortText
+
+table_create memos#content TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerMySQLGeneralCI --token_filters TokenFilterStopWord,TokenFilterStopWord
+
+table_create mroonga_operations TABLE_NO_KEY
+column_create mroonga_operations record COLUMN_SCALAR UInt32
+column_create mroonga_operations table COLUMN_SCALAR ShortText
+column_create mroonga_operations type COLUMN_SCALAR ShortText
+
+column_create memos#content index COLUMN_INDEX|WITH_POSITION memos content
+DROP TABLE memos;

@@ -1,0 +1,39 @@
+--source windows.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+SET NAMES utf8;
+
+--copy_file $MTR_SUITE_DIR/std_data/beers.xml $MYSQLD_DATADIR/test/beers.xml
+--copy_file $MTR_SUITE_DIR/std_data/coffee.htm $MYSQLD_DATADIR/test/coffee.htm
+
+--echo #
+--echo # Testing HTML like XML file
+--echo #
+CREATE TABLE beers (
+`Name` CHAR(16) XPATH='brandName',
+`Origin` CHAR(16) XPATH='origin',
+`Description` CHAR(32) XPATH='details')
+ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='beers.xml'
+TABNAME='table' OPTION_LIST='xmlsup=domdoc,rownode=tr,colnode=td';
+SELECT * FROM beers;
+DROP TABLE beers;
+
+--echo #
+--echo # Testing HTML file
+--echo #
+CREATE TABLE coffee (
+`Name` CHAR(16),
+`Cups` INT(8),
+`Type` CHAR(16),
+`Sugar` CHAR(4))
+ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='coffee.htm'
+TABNAME='TABLE' HEADER=1 OPTION_LIST='xmlsup=domdoc,Coltype=HTML';
+SELECT * FROM coffee;
+DROP TABLE coffee;
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/beers.xml
+--remove_file $MYSQLD_DATADIR/test/coffee.htm

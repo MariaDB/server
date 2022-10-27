@@ -1,0 +1,47 @@
+source include/not_embedded.inc;
+
+create user test_user@localhost;
+create role test_role;
+grant select on *.* to test_role;
+grant test_role to test_user@localhost;
+
+--connect (c1, localhost, test_user,,)
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user where user = 'test_user';
+set default role test_role;
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user where user = 'test_user';
+disconnect c1;
+
+connection default;
+select user, host, default_role from mysql.user where user = 'test_user';
+
+
+--connect (c1, localhost, test_user,,)
+show grants;
+select user, host, default_role from mysql.user where user = 'test_user';
+set default role NONE;
+disconnect c1;
+
+connection default;
+select user, host, default_role from mysql.user where user = 'test_user';
+
+--connect (c1, localhost, test_user,,)
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user where user = 'test_user';
+disconnect c1;
+
+connection default;
+select user, host, default_role from mysql.user where user = 'test_user';
+set default role test_role for test_user@localhost;
+
+--connect (c1, localhost, test_user,,)
+show grants;
+select user, host, default_role from mysql.user where user = 'test_user';
+disconnect c1;
+
+connection default;
+drop role test_role;
+drop user test_user@localhost;

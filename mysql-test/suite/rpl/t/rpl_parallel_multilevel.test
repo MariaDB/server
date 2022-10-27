@@ -1,0 +1,284 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--let $rpl_topology=1->2->3->4
+--source include/rpl_init.inc
+
+# Test parallel replication with a multi-level replication hierarchy.
+
+--connection server_1
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--save_master_pos
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode='optimistic';
+
+
+--connection server_3
+--sync_with_master
+--save_master_pos
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode='optimistic';
+
+
+--connection server_4
+--sync_with_master
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode='optimistic';
+
+
+--echo *** MDEV-6676: Test that @@skip_parallel_replication is preserved in slave binlog ***
+--connection server_1
+
+INSERT INTO t1 VALUES(1,1);
+BEGIN;
+INSERT INTO t1 VALUES(2,1);
+INSERT INTO t1 VALUES(3,1);
+COMMIT;
+# Do a lot of updates on same row in sequence. These would be likely to cause
+# conflicts and rollbacks in optimistic parallel replication, but we disable
+# that by enabling @@skip_parallel_replication. We can test that the flag is
+# preserved down the replication hierarchy by checking that no slave retries
+# are made.
+SET SESSION skip_parallel_replication=1;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=2;
+UPDATE t1 SET b=b+1 WHERE a=2;
+SET SESSION skip_parallel_replication=0;
+SELECT * FROM t1 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+--let $retry2= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--disable_query_log
+eval SELECT IF($retry1=$retry2, "Ok, no retry",
+       CONCAT("ERROR: ", $retry2-$retry1, " retries during replication (was ",
+              $retry1, " now ", $retry2, ")")) AS status;
+--enable_query_log
+
+--connection server_3
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+--let $retry2= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--disable_query_log
+eval SELECT IF($retry1=$retry2, "Ok, no retry",
+       CONCAT("ERROR: ", $retry2-$retry1, " retries during replication (was ",
+              $retry1, " now ", $retry2, ")")) AS status;
+--enable_query_log
+
+--connection server_4
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+--let $retry2= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--disable_query_log
+eval SELECT IF($retry1=$retry2, "Ok, no retry",
+       CONCAT("ERROR: ", $retry2-$retry1, " retries during replication (was ",
+              $retry1, " now ", $retry2, ")")) AS status;
+--enable_query_log
+
+
+--echo *** MDEV-6676: Test that the FL_WAITED flag in GTID is preserved in slave binlog ***
+
+--connection server_2
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET GLOBAL slave_parallel_mode='optimistic';
+
+
+--connection server_3
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET GLOBAL slave_parallel_mode='optimistic';
+
+
+--connection server_4
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET GLOBAL slave_parallel_mode='optimistic';
+
+--connection server_1
+# Do a lot of updates on same row in sequence. Ensure that all of these but the
+# first have to do a lock wait on the master, setting FL_WAITED in the GTID
+# event. This should cause all slaves to not attempt to run those updates in
+# parallel with prior events, so that no retries are made.
+
+BEGIN;
+UPDATE t1 SET b=b+1 WHERE a=2;
+
+--connect (con_temp1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync="thd_report_wait_for SIGNAL waiting1";
+send UPDATE t1 SET b=b+1 WHERE a=2;
+--connection server_1
+SET debug_sync="now WAIT_FOR waiting1";
+
+--connect (con_temp2,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync="thd_report_wait_for SIGNAL waiting2";
+send UPDATE t1 SET b=b+1 WHERE a=2;
+--connection server_1
+SET debug_sync="now WAIT_FOR waiting2";
+
+--connect (con_temp3,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync="thd_report_wait_for SIGNAL waiting3";
+send UPDATE t1 SET b=b+1 WHERE a=2;
+--connection server_1
+SET debug_sync="now WAIT_FOR waiting3";
+
+--connect (con_temp4,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync="thd_report_wait_for SIGNAL waiting4";
+send UPDATE t1 SET b=b+1 WHERE a=2;
+--connection server_1
+SET debug_sync="now WAIT_FOR waiting4";
+
+--connect (con_temp5,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync="thd_report_wait_for SIGNAL waiting5";
+send UPDATE t1 SET b=b+1 WHERE a=2;
+--connection server_1
+SET debug_sync="now WAIT_FOR waiting5";
+
+--connect (con_temp6,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync="thd_report_wait_for SIGNAL waiting6";
+send UPDATE t1 SET b=b+1 WHERE a=2;
+--connection server_1
+SET debug_sync="now WAIT_FOR waiting6";
+
+--connect (con_temp7,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync="thd_report_wait_for SIGNAL waiting7";
+send UPDATE t1 SET b=b+1 WHERE a=2;
+--connection server_1
+SET debug_sync="now WAIT_FOR waiting7";
+
+--connect (con_temp8,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync="thd_report_wait_for SIGNAL waiting8";
+send UPDATE t1 SET b=b+1 WHERE a=2;
+--connection server_1
+SET debug_sync="now WAIT_FOR waiting8";
+
+COMMIT;
+SET debug_sync="RESET";
+
+--connection con_temp1
+reap;
+
+COMMIT;
+--connection con_temp2
+reap;
+
+COMMIT;
+--connection con_temp3
+reap;
+
+COMMIT;
+--connection con_temp4
+reap;
+
+COMMIT;
+--connection con_temp5
+reap;
+
+COMMIT;
+--connection con_temp6
+reap;
+
+COMMIT;
+--connection con_temp7
+reap;
+
+COMMIT;
+--connection con_temp8
+reap;
+
+--connection server_1
+SELECT * FROM t1 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+--let $retry2= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--disable_query_log
+eval SELECT IF($retry1=$retry2, "Ok, no retry",
+       CONCAT("ERROR: ", $retry2-$retry1, " retries during replication (was ",
+              $retry1, " now ", $retry2, ")")) AS status;
+--enable_query_log
+
+--connection server_3
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+--let $retry2= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--disable_query_log
+eval SELECT IF($retry1=$retry2, "Ok, no retry",
+       CONCAT("ERROR: ", $retry2-$retry1, " retries during replication (was ",
+              $retry1, " now ", $retry2, ")")) AS status;
+--enable_query_log
+
+--connection server_4
+--let $retry1= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+--let $retry2= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1)
+--disable_query_log
+eval SELECT IF($retry1=$retry2, "Ok, no retry",
+       CONCAT("ERROR: ", $retry2-$retry1, " retries during replication (was ",
+              $retry1, " now ", $retry2, ")")) AS status;
+--enable_query_log
+
+
+# Clean up
+
+--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection server_3
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection server_4
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1;
+
+--source include/rpl_end.inc

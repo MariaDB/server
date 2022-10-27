@@ -1,0 +1,39 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (id INT) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT) ENGINE=InnoDB;
+connection node_2;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+NAME
+test/t1
+test/t2
+SET GLOBAL wsrep_slave_threads = 2;
+LOCK TABLE t1 WRITE;
+connection node_1;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t1 select * from t1;
+INSERT INTO t2 select * from t2;
+INSERT INTO t1 select * from t1;
+INSERT INTO t2 select * from t2;
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+UNLOCK TABLES;
+SET SESSION wsrep_sync_wait = 15;
+SELECT COUNT(*) as expect_20 FROM t1;
+expect_20
+20
+SELECT COUNT(*) as expect_20 FROM t2;
+expect_20
+20
+SET GLOBAL wsrep_slave_threads = 1;;
+DROP TABLE t1;
+DROP TABLE t2;

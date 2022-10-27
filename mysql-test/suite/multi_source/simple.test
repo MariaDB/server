@@ -1,0 +1,86 @@
+#
+# Simple multi-master test
+#
+
+--source include/not_embedded.inc
+--source include/binlog_start_pos.inc
+--let $rpl_server_count= 0
+
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (master2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connection slave
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1 
+eval change master 'slave1' to master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root';
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master 'slave2' to master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root';
+start slave 'slave1';
+set default_master_connection = 'slave1';
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'slave2';
+start all slaves;
+
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+
+# Ensure that all data is in the relay log
+--connection master1
+--save_master_pos
+--connection slave
+--sync_with_master 0,'slave1'
+--connection master2
+--save_master_pos
+--connection slave
+--sync_with_master 0,'slave2'
+
+# MDEV-7074 (Sporadic test failure due to a race condition)
+let $show_statement = SHOW ALL SLAVES STATUS;
+let $field = Executed_log_entries;
+let $condition = = 7;
+let $wait_for_all = 1;
+--source include/wait_show_condition.inc
+
+let read_master_log_pos=`select $binlog_start_pos + 73`;
+let relay_log_pos=`select 2*$binlog_start_pos + 117`;
+let relay_log_space1=`select 3*$binlog_start_pos + 178`;
+let relay_log_space2=`select 3*$binlog_start_pos + 178`;
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
+show all slaves status;
+
+# Ensure that start all slaves doesn't do anything as all slaves are started
+start all slaves;
+
+stop slave 'slave1';
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
+query_vertical show slave 'slave1' status;
+
+reset slave 'slave1';
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
+show all slaves status;
+
+reset slave 'slave1' all;
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
+show all slaves status;
+
+stop all slaves;
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
+show all slaves status;
+
+# Ensure that start all slaves doesn't do anything as all slaves are stopped
+stop all slaves;
+
+#
+# clean up
+#
+
+--source include/reset_master_slave.inc
+--disconnect slave
+--connection master1
+--source include/reset_master_slave.inc
+--disconnect master1
+--connection master2
+--source include/reset_master_slave.inc
+--disconnect master2
+

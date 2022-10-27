@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # Bug #21348684 SIGABRT DURING RESIZING THE INNODB BUFFER POOL
+--echo # ONLINE WITH MEMORY FULL CONDITION
+--echo #
+
+call mtr.add_suppression("InnoDB: .* failed to allocate the chunk array");
+
+SET GLOBAL innodb_disable_resize_buffer_pool_debug=OFF;
+SET GLOBAL debug_dbug='+d,buf_pool_resize_chunk_null';
+
+--disable_warnings
+SET GLOBAL innodb_buffer_pool_size=@@innodb_buffer_pool_size + 1048576;
+--enable_warnings
+
+let $wait_timeout = 60;
+let $wait_condition =
+  SELECT SUBSTR(variable_value, 1, 27) = 'Resizing buffer pool failed'
+  FROM information_schema.global_status
+  WHERE variable_name = 'INNODB_BUFFER_POOL_RESIZE_STATUS';
+
+--source include/wait_condition.inc
+# Restart the server, because the buffer pool would not necessarily be
+# shrunk afterwards even if we request it.
+--source include/restart_mysqld.inc

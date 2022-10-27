@@ -1,0 +1,29 @@
+DROP TABLE IF EXISTS ranges;
+CREATE TABLE ranges (
+id INT PRIMARY KEY,
+start YEAR,
+end YEAR,
+UNIQUE KEY range_key(start, end)
+);
+INSERT IGNORE INTO ranges VALUES (1, 2012, 2155);
+Warnings:
+Warning	1265	Data truncated for column 'end' at row 1
+INSERT IGNORE INTO ranges VALUES (2, 1901, 2012);
+Warnings:
+Warning	1265	Data truncated for column 'start' at row 1
+INSERT IGNORE INTO ranges VALUES (3, 2155, 1901);
+Warnings:
+Warning	1265	Data truncated for column 'start' at row 1
+Warning	1265	Data truncated for column 'end' at row 1
+INSERT IGNORE INTO ranges VALUES (4, 1901, 2155);
+Warnings:
+Warning	1265	Data truncated for column 'start' at row 1
+Warning	1265	Data truncated for column 'end' at row 1
+SELECT * FROM ranges FORCE INDEX(range_key)
+ORDER BY start DESC, end DESC;
+id	start	end
+3	1970	1970
+1	2012	1970
+4	1970	1970
+2	1970	2012
+DROP TABLE ranges;

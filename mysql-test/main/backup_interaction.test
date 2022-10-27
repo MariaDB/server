@@ -1,0 +1,517 @@
+########################################################################
+# Tests how BACKUP STAGE interacts with other commands (MDEV-5336)
+########################################################################
+
+--source include/have_innodb.inc
+--source include/have_metadata_lock_info.inc
+
+--echo #
+--echo # Check backup and FTWRL
+--echo #
+
+flush tables with read lock;
+--error ER_CANT_UPDATE_WITH_READLOCK
+backup stage start;
+unlock tables;
+backup stage start;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+flush tables with read lock;
+backup stage end;
+
+--echo #
+--echo # Check backup and FLUSH TABLES
+--echo #
+
+flush tables;
+backup stage start;
+flush tables;
+backup stage end;
+
+--echo #
+--echo # Check BACKUP STAGE under lock tables
+--echo #
+
+create table t1 (a int);
+lock table t1 write;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+backup stage start;
+--error ER_BACKUP_NOT_RUNNING
+backup stage end;
+unlock tables;
+
+lock table t1 read;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+backup stage start;
+--error ER_BACKUP_NOT_RUNNING
+backup stage end;
+unlock tables;
+
+
+--echo #
+--echo # Check lock tables under BACKUP STAGE
+--echo #
+backup stage start;
+unlock tables;
+select lock_mode from information_schema.metadata_lock_info;
+
+--error ER_BACKUP_LOCK_IS_ACTIVE
+lock table t1 write;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+lock table t1 read;
+unlock tables;
+backup stage end;
+drop table t1;
+
+
+--echo #
+--echo # Check setting readonly under BACKUP STAGE
+--echo #
+backup stage start;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+set @@global.read_only=1;
+backup stage end;
+
+--echo # also make sure going back from read-only mode is not allowed
+set @@global.read_only=1;
+backup stage start;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+set @@global.read_only=0;
+backup stage end;
+set @@global.read_only=0;
+
+--echo #
+--echo # Check BACKUP STAGE under read_only
+--echo #
+
+set @@global.read_only=1;
+backup stage start;
+backup stage end;
+set @@global.read_only=0;
+
+--echo #
+--echo # Check that we can't create tables during backup
+--echo #
+
+backup stage start;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+create table t1 (a int);
+backup stage end;
+
+--echo # also make sure we can't write to a table during backup
+create table t1(a INT);
+backup stage start;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+insert into t1 values(1);
+--error ER_BACKUP_LOCK_IS_ACTIVE
+insert delayed into t1 values(1);
+--error ER_BACKUP_LOCK_IS_ACTIVE
+update t1 set a=1;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+delete from t1;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+truncate table t1;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+drop table t1;
+backup stage end;
+drop table t1;
+
+--echo #
+--echo # BACKUP STAGE performs implicit commits
+--echo #
+create table t1(a int) engine=InnoDB;
+begin;
+insert into t1 values(1);
+select lock_mode from information_schema.metadata_lock_info;
+backup stage start;
+select lock_mode from information_schema.metadata_lock_info;
+backup stage block_commit;
+commit;
+backup stage end;
+drop table t1;
+
+--echo # Ensure that BACKUP STAGE ... does AUTOCOMMIT like most DDL.
+--echo # Sideeffect:
+--echo # Show the impact of not yet committed INSERT before sequence start
+--echo # and ROLLBACK sliding through the sequence.
+
+CREATE TABLE t1 (col1 INT) ENGINE = InnoDB;
+SET AUTOCOMMIT = 0;
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+ROLLBACK;
+BACKUP STAGE END;
+--echo #----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+ROLLBACK;
+BACKUP STAGE END;
+--echo #----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+ROLLBACK;
+BACKUP STAGE END;
+--echo #----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+ROLLBACK;
+BACKUP STAGE END;
+--echo #----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+BACKUP STAGE END;
+ROLLBACK;
+SELECT COUNT(*) = 5 AS expect_1 FROM t1;
+
+--echo # Show the impact of not yet committed INSERT before sequence start
+--echo # and a COMMIT sliding through the sequence.
+
+SET AUTOCOMMIT = 0;
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+COMMIT;
+BACKUP STAGE END;
+--echo #----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+COMMIT;
+BACKUP STAGE END;
+--echo #----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+COMMIT;
+BACKUP STAGE END;
+--echo #----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+COMMIT;
+BACKUP STAGE END;
+--echo #----
+INSERT INTO t1 SET col1 = 1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+BACKUP STAGE END;
+COMMIT;
+SELECT COUNT(*) = 10 AS expect_1 FROM t1;
+DELETE FROM t1;
+COMMIT;
+drop table t1;
+
+--echo #
+--echo # CHECK: RO transaction under BACKUP STAGE is a potential deadlock
+--echo # OTOH we most probably allow them under FTWRL as well
+--echo #
+
+CREATE TABLE t1 (col1 INT) ENGINE = InnoDB;
+insert into t1 values (1);
+backup stage start;
+backup stage block_commit;
+begin;
+select * from t1;
+select lock_mode from information_schema.metadata_lock_info;
+backup stage end;
+select lock_mode from information_schema.metadata_lock_info;
+drop table t1;
+
+--echo #
+--echo # Check that handler are closed by backup stage block_ddl
+--echo #
+
+create table t1 (a int, key a (a));
+insert into t1 (a) values (1), (2), (3), (4), (5);
+handler t1 open;
+handler t1 read a prev;
+backup stage start;
+handler t1 read a prev;
+backup stage flush;
+backup stage block_ddl;
+handler t1 read a prev;
+backup stage block_commit;
+handler t1 read a prev;
+backup stage end;
+handler t1 close;
+drop table t1;
+
+--echo # Show the fate and impact of some SELECT /HANDLER ... READ
+--echo # sliding through the sequence.
+
+CREATE TABLE t1_innodb (col1 INT) ENGINE = InnoDB;
+INSERT INTO t1_innodb values (1),(2),(3);
+COMMIT;
+CREATE TABLE t1_myisam (col1 INT) ENGINE = MyISAM;
+INSERT INTO t1_myisam values (1),(2),(3);
+BACKUP STAGE START;
+SELECT COUNT(*) FROM t1_innodb;
+SELECT * FROM t1_innodb;
+HANDLER t1_innodb OPEN;
+HANDLER t1_innodb READ FIRST;
+HANDLER t1_innodb CLOSE;
+SELECT COUNT(*) FROM t1_myisam;
+HANDLER t1_myisam OPEN;
+HANDLER t1_myisam READ FIRST;
+HANDLER t1_myisam CLOSE;
+BACKUP STAGE FLUSH;
+SELECT COUNT(*) FROM t1_innodb;
+HANDLER t1_innodb OPEN;
+HANDLER t1_innodb READ FIRST;
+HANDLER t1_innodb CLOSE;
+SELECT COUNT(*) FROM t1_myisam;
+HANDLER t1_myisam OPEN;
+HANDLER t1_myisam READ FIRST;
+HANDLER t1_myisam CLOSE;
+BACKUP STAGE BLOCK_DDL;
+SELECT COUNT(*) FROM t1_innodb;
+HANDLER t1_innodb OPEN;
+HANDLER t1_innodb READ FIRST;
+HANDLER t1_innodb CLOSE;
+SELECT COUNT(*) FROM t1_myisam;
+HANDLER t1_myisam OPEN;
+HANDLER t1_myisam READ FIRST;
+HANDLER t1_myisam CLOSE;
+BACKUP STAGE BLOCK_COMMIT;
+SELECT COUNT(*) FROM t1_innodb;
+HANDLER t1_innodb OPEN;
+HANDLER t1_innodb READ FIRST;
+HANDLER t1_innodb CLOSE;
+SELECT COUNT(*) FROM t1_myisam;
+HANDLER t1_myisam OPEN;
+HANDLER t1_myisam READ FIRST;
+HANDLER t1_myisam CLOSE;
+BACKUP STAGE END;
+drop table t1_innodb,t1_myisam;
+
+--echo # Show the fate and impact of some SET GLOBAL tx_read_only = 1/0
+--echo # sliding through the sequence.
+
+BACKUP STAGE START;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+BACKUP STAGE FLUSH;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+BACKUP STAGE BLOCK_DDL;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+BACKUP STAGE BLOCK_COMMIT;
+SET GLOBAL tx_read_only = 1;
+SET GLOBAL tx_read_only = 0;
+BACKUP STAGE END;
+
+--echo # Show the fate and impact of some SET SESSION sql_log_bin = 0/1
+--echo # sliding through the sequence.
+COMMIT;
+SET SESSION sql_log_bin = 1;
+BACKUP STAGE START;
+SET SESSION sql_log_bin = 0;
+SET SESSION sql_log_bin = 1;
+BACKUP STAGE FLUSH;
+SET SESSION sql_log_bin = 0;
+SET SESSION sql_log_bin = 1;
+BACKUP STAGE BLOCK_DDL;
+SET SESSION sql_log_bin = 0;
+SET SESSION sql_log_bin = 1;
+BACKUP STAGE BLOCK_COMMIT;
+SET SESSION sql_log_bin = 0;
+SET SESSION sql_log_bin = 1;
+BACKUP STAGE END;
+
+--echo #----
+SET SESSION sql_log_bin = 0;
+BACKUP STAGE START;
+SET SESSION sql_log_bin = 1;
+SET SESSION sql_log_bin = 0;
+BACKUP STAGE FLUSH;
+SET SESSION sql_log_bin = 1;
+SET SESSION sql_log_bin = 0;
+BACKUP STAGE BLOCK_DDL;
+SET SESSION sql_log_bin = 1;
+SET SESSION sql_log_bin = 0;
+BACKUP STAGE BLOCK_COMMIT;
+SET SESSION sql_log_bin = 1;
+SET SESSION sql_log_bin = 0;
+BACKUP STAGE END;
+SET SESSION sql_log_bin = 1;
+
+--echo #-----------------------------------------------------------------------
+--echo # BACKUP STAGE statements are not allowed in stored routines
+--echo #-----------------------------------------------------------------------
+
+CREATE TABLE t1 (col1 INT);
+
+delimiter |;
+--error ER_SP_BADSTATEMENT
+CREATE PROCEDURE p1()
+BEGIN
+  BACKUP STAGE START;
+  BACKUP STAGE FLUSH;
+  BACKUP STAGE BLOCK_DDL;
+  BACKUP STAGE BLOCK_COMMIT;
+  BACKUP STAGE END;
+END|
+
+--error ER_SP_BADSTATEMENT
+CREATE FUNCTION f1 (s CHAR(20)) RETURNS INT DETERMINISTIC
+BEGIN
+  BACKUP STAGE START;
+  BACKUP STAGE FLUSH;
+  BACKUP STAGE BLOCK_DDL;
+  BACKUP STAGE BLOCK_COMMIT;
+  BACKUP STAGE END;
+  RETURN 1;
+END|
+
+--error ER_SP_BADSTATEMENT
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+    BACKUP STAGE START;
+    BACKUP STAGE FLUSH;
+    BACKUP STAGE BLOCK_DDL;
+    BACKUP STAGE BLOCK_COMMIT;
+    BACKUP STAGE END;
+END|
+
+delimiter ;|
+DROP TABLE t1;
+
+--echo #-----------------------------------------------------------------------
+--echo # Check BACKUP status variables
+--echo #-----------------------------------------------------------------------
+
+SET SESSION lock_wait_timeout = 1;
+
+FLUSH STATUS;
+
+# MDEV-5336 introduces the status variable Com_backup
+--echo # Show how the status variable 'Com_backup' changes after BACKUP STAGE ..
+
+SHOW STATUS LIKE 'Com_backup';
+BACKUP STAGE START;
+SHOW STATUS LIKE 'Com_backup';
+--error ER_BACKUP_WRONG_STAGE
+BACKUP STAGE START;
+SHOW STATUS LIKE 'Com_backup';
+BACKUP STAGE FLUSH;
+SHOW STATUS LIKE 'Com_backup';
+BACKUP STAGE BLOCK_DDL;
+SHOW STATUS LIKE 'Com_backup';
+BACKUP STAGE BLOCK_COMMIT;
+SHOW STATUS LIKE 'Com_backup';
+BACKUP STAGE END;
+
+--echo # In case the backup lock is taken by the current connection than
+--echo # - DML modifying some permanent table is not allowed
+
+CREATE TABLE t1_innodb (col1 INT) ENGINE = InnoDB;
+CREATE TABLE t1_myisam (col1 INT) ENGINE = MyISAM;
+
+BACKUP STAGE START;
+SET AUTOCOMMIT = 0;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+INSERT INTO t1_innodb SET col1 = 1;
+SET AUTOCOMMIT = 1;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+INSERT INTO t1_innodb SET col1 = 1;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+INSERT INTO t1_myisam SET col1 = 1;
+--echo # - DDL creating or renaming a permanent table or a procedure etc.
+--echo #   is not allowed.                                                               
+--error ER_BACKUP_LOCK_IS_ACTIVE
+CREATE TABLE throw_away (col1 INT) ENGINE = InnoDB;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+RENAME TABLE t1_innodb To throw_away;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+CREATE PROCEDURE p1() SELECT 13;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+CREATE PROCEDURE p1() SELECT 13;
+BACKUP STAGE END;
+DROP TABLE t1_innodb;
+DROP TABLE t1_myisam;
+
+--echo #
+--echo # Creating and modifying TEMPORARY TABLES are allowed
+--echo #
+
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_DDL;
+CREATE TEMPORARY TABLE tmp (col1 INT);
+DROP TEMPORARY TABLE tmp;
+
+CREATE TEMPORARY TABLE t_temporary_innodb (col1 INT) ENGINE = InnoDB;
+CREATE TEMPORARY TABLE t_temporary_myisam (col1 INT) ENGINE = MyISAM;
+--echo # - DML modifying that temporary table is allowed.
+INSERT INTO t_temporary_innodb SET col1 = 1;
+SELECT COUNT(*) FROM t_temporary_innodb;
+INSERT INTO t_temporary_myisam SET col1 = 1;
+SELECT COUNT(*) FROM t_temporary_myisam;
+BACKUP STAGE END;
+
+--echo # Show the fate and impact of some auto committed INSERT into temporary
+--echo # table sliding through the sequence.
+SET AUTOCOMMIT = 1;
+BACKUP STAGE START;
+INSERT INTO t_temporary_innodb SET col1 = 1;
+INSERT INTO t_temporary_myisam SET col1 = 1;
+BACKUP STAGE FLUSH;
+INSERT INTO t_temporary_innodb SET col1 = 1;
+INSERT INTO t_temporary_myisam SET col1 = 1;
+BACKUP STAGE BLOCK_DDL;
+INSERT INTO t_temporary_innodb SET col1 = 1;
+INSERT INTO t_temporary_myisam SET col1 = 1;
+BACKUP STAGE BLOCK_COMMIT;
+INSERT INTO t_temporary_innodb SET col1 = 1;
+INSERT INTO t_temporary_myisam SET col1 = 1;
+BACKUP STAGE END;
+SELECT COUNT(*) FROM t_temporary_innodb;
+
+--echo # Show the fate and impact of some DROP/CREATE TEMPORARY TABLE sliding
+--echo # through the sequence.
+SET AUTOCOMMIT = 1;
+BACKUP STAGE START;
+DROP TEMPORARY TABLE t_temporary_innodb;
+CREATE TEMPORARY TABLE t_temporary_innodb (col1 INT) ENGINE = InnoDB;
+BACKUP STAGE FLUSH;
+DROP TEMPORARY TABLE t_temporary_innodb;
+CREATE TEMPORARY TABLE t_temporary_innodb (col1 INT) ENGINE = InnoDB;
+BACKUP STAGE BLOCK_DDL;
+DROP TEMPORARY TABLE t_temporary_innodb;
+CREATE TEMPORARY TABLE t_temporary_innodb (col1 INT) ENGINE = InnoDB;
+BACKUP STAGE BLOCK_COMMIT;
+DROP TEMPORARY TABLE t_temporary_innodb;
+CREATE TEMPORARY TABLE t_temporary_innodb (col1 INT) ENGINE = InnoDB;
+BACKUP STAGE END;
+--echo # Show that even more DDL on the temporary table is allowed.
+BACKUP STAGE START;
+TRUNCATE t_temporary_innodb;
+ALTER TABLE t_temporary_innodb ADD COLUMN col2 INT;
+ALTER TABLE t_temporary_innodb ADD KEY idx(col2);
+BACKUP STAGE END;
+
+#
+# MDEV-18067, MDEV-18068 and MDEV-18069
+# Server crashes with BACKUP STAGE and FLUSH TABLE table_name
+#
+
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY, f INT);
+BACKUP STAGE START;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+FLUSH TABLE t1 FOR EXPORT;
+--error ER_BACKUP_LOCK_IS_ACTIVE
+FLUSH TABLE t1 WITH READ LOCK;
+BACKUP STAGE END;
+DROP TABLE t1;

@@ -1,0 +1,41 @@
+# bool global
+--source include/have_innodb.inc
+
+SET @start_global_value = @@global.innodb_background_scrub_data_compressed;
+
+--echo #
+--echo # exists as global only
+--echo #
+select @@global.innodb_background_scrub_data_compressed;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.innodb_background_scrub_data_compressed;
+show global variables like 'innodb_background_scrub_data_compressed';
+show session variables like 'innodb_background_scrub_data_compressed';
+select * from information_schema.global_variables
+where variable_name='innodb_background_scrub_data_compressed';
+select * from information_schema.session_variables
+where variable_name='innodb_background_scrub_data_compressed';
+
+--echo #
+--echo # show that it's writable
+--echo #
+set global innodb_background_scrub_data_compressed=ON;
+select @@global.innodb_background_scrub_data_compressed;
+set global innodb_background_scrub_data_compressed=OFF;
+select @@global.innodb_background_scrub_data_compressed;
+set global innodb_background_scrub_data_compressed=1;
+select @@global.innodb_background_scrub_data_compressed;
+--error ER_GLOBAL_VARIABLE
+set session innodb_background_scrub_data_compressed=1;
+
+--echo #
+--echo # incorrect types
+--echo #
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_background_scrub_data_compressed=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_background_scrub_data_compressed=1e1;
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_background_scrub_data_compressed="foo";
+
+SET @@global.innodb_background_scrub_data_compressed = @start_global_value;

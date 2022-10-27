@@ -1,0 +1,8 @@
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+create table t (
+b point not null,d point not null, spatial key (d),spatial key (b)
+) engine=innodb;
+InnoDB		0 transactions not purged
+drop table t;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

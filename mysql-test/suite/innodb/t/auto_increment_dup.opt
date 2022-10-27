@@ -1,0 +1,2 @@
+--innodb_autoinc_lock_mode=1
+--innodb_lock_wait_timeout=2

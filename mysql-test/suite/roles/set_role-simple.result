@@ -1,0 +1,59 @@
+create user test_user@localhost;
+create role test_role1;
+grant test_role1 to test_user@localhost;
+select user, host from mysql.user where user not like 'root';
+User	Host
+mariadb.sys	localhost
+test_role1	
+test_user	localhost
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+localhost	root	test_role1	Y
+localhost	test_user	test_role1	N
+grant select on *.* to test_role1;
+select * from mysql.user where user='test_role1';
+Host	User	Password	Select_priv	Insert_priv	Update_priv	Delete_priv	Create_priv	Drop_priv	Reload_priv	Shutdown_priv	Process_priv	File_priv	Grant_priv	References_priv	Index_priv	Alter_priv	Show_db_priv	Super_priv	Create_tmp_table_priv	Lock_tables_priv	Execute_priv	Repl_slave_priv	Repl_client_priv	Create_view_priv	Show_view_priv	Create_routine_priv	Alter_routine_priv	Create_user_priv	Event_priv	Trigger_priv	Create_tablespace_priv	Delete_history_priv	ssl_type	ssl_cipher	x509_issuer	x509_subject	max_questions	max_updates	max_connections	max_user_connections	plugin	authentication_string	password_expired	is_role	default_role	max_statement_time
+	test_role1		Y	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N	N					0	0	0	0			N	Y		0.000000
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+show grants;
+Grants for test_user@localhost
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+GRANT `test_role1` TO `test_user`@`localhost`
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	NULL
+set role test_role1;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	test_role1
+show grants;
+Grants for test_user@localhost
+GRANT SELECT ON *.* TO `test_role1`
+GRANT USAGE ON *.* TO `test_user`@`localhost`
+GRANT `test_role1` TO `test_user`@`localhost`
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+localhost	root	test_role1	Y
+localhost	test_user	test_role1	N
+set role none;
+select current_user(), current_role();
+current_user()	current_role()
+test_user@localhost	NULL
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
+delete from mysql.user where user='test_role1';
+delete from mysql.roles_mapping where Role='test_role1';
+flush privileges;
+drop user 'test_user'@'localhost';
+create user user1;
+connect  con1,localhost,user1,,;
+select current_user;
+current_user
+user1@%
+show grants;
+Grants for user1@%
+GRANT USAGE ON *.* TO `user1`@`%`
+set role none;
+connection default;
+drop user user1;

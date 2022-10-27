@@ -1,0 +1,4 @@
+insert_delayed   : MDEV-12880 - INSERT DELAYED is not detected as inapplicable to a table under lock
+lock_concurrent  : MDEV-12882 - Assertion failure
+select_high_prio : MDEV-12885 - MDL_SHARED_READ_ONLY is taken instead of MDL_SHARED_READ
+lock : MDEV-17145 (Unexpected ER_LOCK_WAIT_TIMEOUT)

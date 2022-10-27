@@ -1,0 +1,6 @@
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+#
+# MDEV-6258 MariaDB 10.0 performance schema timestamps relative to epoch
+#
+select distinct first_seen < DATE'2000-01-01', last_seen < DATE'2000-01-01' from performance_schema.events_statements_summary_by_digest;

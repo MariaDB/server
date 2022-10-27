@@ -1,0 +1,24 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+INSERT INTO t1 (f1) VALUES (1), (2), (3);
+connection node_2;
+SET GLOBAL wsrep_desync = TRUE;
+SET wsrep_on = FALSE;
+SET SESSION debug_sync = "alter_table_inplace_after_lock_upgrade SIGNAL mdl_locked WAIT_FOR mdl_continue";
+ALTER TABLE t1 ADD PRIMARY KEY (f1);;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+SET SESSION debug_sync = "now WAIT_FOR mdl_locked";
+connection node_1;
+INSERT INTO t1(f1) VALUES (11);
+connection node_2a;
+SET debug_sync = "now SIGNAL mdl_continue";
+SET debug_sync='RESET';
+connection node_2;
+ERROR 70100: Query execution was interrupted
+SET wsrep_on = TRUE;
+SET GLOBAL wsrep_desync = FALSE;
+connection node_1;
+DROP TABLE t1;

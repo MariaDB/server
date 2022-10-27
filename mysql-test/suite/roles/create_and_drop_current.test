@@ -1,0 +1,51 @@
+#
+# MDEV-5225 Server crashes on CREATE USER|ROLE CURRENT_ROLE or DROP ROLE CURRENT_ROLE
+#
+
+# Where CURRENT_USER/CURRENT_ROLE is explicitly allowed by the grammar
+# the error (if any) should be ER_CANNOT_USER
+#
+# Where it's not explicitly allowed, the error is ER_PARSE_ERROR,
+# because CURRENT_USER/CURRENT_ROLE are reserved words and cannot be
+# accepted as an identifier.
+#
+
+--source include/not_embedded.inc
+
+create user foo@localhost;
+grant create user on *.* to foo@localhost;
+--change_user foo
+
+--error ER_CANNOT_USER
+create user current_user;
+--error ER_CANNOT_USER
+create user current_role;
+--error ER_PARSE_ERROR
+create role current_user;
+--error ER_CANNOT_USER
+create role current_role;
+# this works
+drop user current_user;
+--error ER_PARSE_ERROR
+drop user current_role;
+--error ER_PARSE_ERROR
+drop role current_user;
+--error ER_CANNOT_USER
+drop role current_role;
+show warnings;
+
+--change_user root
+
+create role r1;
+grant r1 to current_user;
+set role r1;
+select current_role();
+
+--error ER_CANNOT_USER
+create user current_role;
+--error ER_CANNOT_USER
+create role current_role;
+--error ER_PARSE_ERROR
+drop user current_role;
+drop role current_role;
+

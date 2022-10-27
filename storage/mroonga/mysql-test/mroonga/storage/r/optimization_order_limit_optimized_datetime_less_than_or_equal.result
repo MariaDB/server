@@ -1,0 +1,26 @@
+DROP TABLE IF EXISTS diaries;
+FLUSH STATUS;
+SET NAMES UTF8;
+CREATE TABLE diaries (
+id INT UNSIGNED NOT NULL,
+date DATETIME,
+content TEXT,
+FULLTEXT INDEX(content),
+KEY(date)
+) DEFAULT CHARSET UTF8;
+INSERT INTO diaries VALUES(1, "2011-11-11 12:23:30", "Today is fine.");
+INSERT INTO diaries VALUES(2, "2011-11-11 12:23:31", "Today's lucky item is flower!");
+INSERT INTO diaries VALUES(3, "2011-11-11 12:23:32", "I will do something today!");
+INSERT INTO diaries VALUES(4, "2011-11-11 12:23:33", "I don't want to anything today...");
+INSERT INTO diaries VALUES(5, "2011-11-11 12:23:34", "I'm sleepy today.");
+SELECT * FROM diaries
+WHERE MATCH(content) AGAINST("today" IN BOOLEAN MODE) AND
+date <= "2011-11-11 12:23:33"
+         ORDER BY id LIMIT 1,2;
+id	date	content
+2	2011-11-11 12:23:31	Today's lucky item is flower!
+3	2011-11-11 12:23:32	I will do something today!
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	1
+DROP TABLE diaries;

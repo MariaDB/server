@@ -1,0 +1,20 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+temperature DECIMAL(6, 3),
+KEY (temperature)
+) DEFAULT CHARSET UTF8;
+INSERT INTO diaries (title, temperature) VALUES ("clear day", 21.281);
+INSERT INTO diaries (title, temperature) VALUES ("rainy day", 14.213);
+INSERT INTO diaries (title, temperature) VALUES ("cloudy day", 17.821);
+SELECT * FROM diaries;
+id	title	temperature
+1	clear day	21.281
+2	rainy day	14.213
+3	cloudy day	17.821
+SELECT * FROM diaries WHERE temperature BETWEEN "14.213" AND "17.821";
+id	title	temperature
+2	rainy day	14.213
+3	cloudy day	17.821
+DROP TABLE diaries;

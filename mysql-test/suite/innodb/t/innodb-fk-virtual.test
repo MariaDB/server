@@ -1,0 +1,61 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-11850: Can't create foreign key referencing a virtual column
+#
+
+create or replace table a (
+  cola int(10) primary key,
+  v_cola int(10) as (cola mod 10) virtual,
+  p_cola int(10) as (cola mod 10) persistent
+) engine=innodb;
+
+create index v_cola on a (v_cola);
+create index p_cola on a (p_cola);
+
+create or replace table b(
+cola int(10),
+v_cola int(10),
+p_cola int(10),
+c_cola int(10) as (cola + 2) virtual
+) engine=innodb;
+
+alter table b add constraint `p_cola_fk`
+foreign key (p_cola) references a (p_cola)
+on delete restrict
+on update restrict;
+
+show warnings;
+show create table b;
+
+alter table b add constraint `v_cola_fk`
+foreign key (v_cola) references a (v_cola)
+on delete restrict
+on update restrict;
+
+show warnings;
+show create table b;
+
+alter table b add constraint `c_cola_fk`
+foreign key (c_cola) references a (cola)
+on delete restrict
+on update restrict;
+
+show warnings;
+show create table b;
+
+#
+# Test that fk really works
+#
+
+insert into a(cola) values (12);
+select * from a;
+insert into b(cola, v_cola, p_cola) values (10,2,2);
+select * from b;
+--error 1452
+insert into b(cola, v_cola, p_cola) values (10,1,1);
+--error 1451
+delete from a;
+select * from a;
+select * from b;
+drop table b, a;

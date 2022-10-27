@@ -1,0 +1,14 @@
+# The test verifies master crash of MDEV-18096 when the server starts with
+# rpl_semi_sync_master_enabled = OFF rpl_semi_sync_master_wait_no_slave = OFF
+
+--source include/master-slave.inc
+--source include/have_binlog_format_mixed.inc
+
+--connection master
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SET a=1;
+DROP TABLE t1;
+
+--sync_slave_with_master
+
+--source include/rpl_end.inc

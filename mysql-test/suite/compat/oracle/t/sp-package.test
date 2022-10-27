@@ -1,0 +1,2691 @@
+--source include/default_charset.inc
+
+SET sql_mode=ORACLE;
+
+
+--echo #
+--echo # Creating a body of a non-existing package
+--echo #
+DELIMITER $$;
+--error ER_SP_DOES_NOT_EXIST
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Dropping a non-existing package
+--echo #
+--error ER_SP_DOES_NOT_EXIST
+DROP PACKAGE test2;
+DROP PACKAGE IF EXISTS test2;
+--error ER_SP_DOES_NOT_EXIST
+DROP PACKAGE BODY test2;
+
+
+--echo #
+--echo # Bad combinations of OR REPLACE and IF EXISTS
+--echo #
+
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE OR REPLACE PACKAGE IF NOT EXISTS pkg AS
+  PROCEDURE p1;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE OR REPLACE PACKAGE BODY IF NOT EXISTS pkg AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # PACKAGE and PS
+--echo #
+
+--error ER_UNSUPPORTED_PS
+PREPARE stmt FROM 'CREATE PACKAGE test2 AS FUNCTION f1 RETURN INT; END test2';
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+END;
+$$
+DELIMITER ;$$
+--error ER_UNSUPPORTED_PS
+PREPARE stmt FROM 'CREATE PACKAGE BODY test2 AS'
+                  '  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;'
+                  'END test2';
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Package and READ ONLY transactions
+--echo #
+
+SET SESSION TRANSACTION READ ONLY;
+
+DELIMITER $$;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END
+$$
+DELIMITER ;$$
+
+SET SESSION TRANSACTION READ WRITE;
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  FUNCTION f2 RETURN INT;
+END;
+$$
+SET SESSION TRANSACTION READ ONLY
+$$
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+  FUNCTION f2 RETURN INT AS BEGIN RETURN f1(); END;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT f2();
+  END;
+END;
+$$
+DELIMITER ;$$
+SET SESSION TRANSACTION READ WRITE;
+DROP PACKAGE test2;
+
+SET SESSION TRANSACTION READ ONLY;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DROP PACKAGE test2;
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DROP PACKAGE BODY test2;
+
+SET SESSION TRANSACTION READ WRITE;
+
+
+--echo #
+--echo # Syntax error inside a CREATE PACKAGE, inside a routine definition
+--echo #
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  FUNCTION f2 RETURN INT;
+  FUNCTION f3;
+  FUNCTION f4 RETURN INT;
+END
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Syntax error inside a CREATE PACKAGE, outside of a routine definition
+--echo #
+
+# The definition "FUNCTION f3 RETURN INT AS BEGIN RETURN 10; END;"
+# is valid in CREATE PACKAGE BODY, but not in CREATE PACKAGE.
+# Syntax error happens after parsing "FUNCTION f3 RETURN INT".
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  FUNCTION f2 RETURN INT;
+  FUNCTION f3 RETURN INT AS BEGIN RETURN 10; END;
+  FUNCTION f4 RETURN INT;
+END
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Syntax error inside a CREATE PACKAGE BODY, inside a routine definition
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  FUNCTION f2 RETURN INT;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+  FUNCTION f2 RETURN INT SA BEGIN RETURN 10; END; -- Notice "SA" vs "AS"
+END
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+--echo #
+--echo # Syntax error inside a CREATE PACKAGE BODY, outside a routine definition
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  FUNCTION f2 RETURN INT;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+  SOME SYNTAX ERROR;
+  FUNCTION f2 RETURN INT AS BEGIN RETURN 10; END;
+END
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Syntax error inside a CREATE PACKAGE BODY executable section
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+BEGIN
+  SOME SYNTAX ERROR;
+END
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # CREATE PROCEDURE inside a package PROCEDURE is not allowed
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_SP_NO_RECURSIVE_CREATE
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1 AS
+  BEGIN
+    CREATE PROCEDURE p1 AS BEGIN NULL; END;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # CREATE PACKAGE inside a package PROCEDURE is not allowed
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_SP_NO_RECURSIVE_CREATE
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1 AS
+  BEGIN
+    CREATE PACKAGE p1 AS PROCEDURE p1; END;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # CREATE PROCEDURE inside a package executable section is not allowed
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_SP_NO_RECURSIVE_CREATE
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+BEGIN
+  CREATE PROCEDURE p1 AS BEGIN NULL; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # CREATE FUNCTION inside a package executable section is not allowed
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_SP_NO_RECURSIVE_CREATE
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+BEGIN
+  CREATE FUNCTION f1 RETURN INT AS BEGIN RETURN 0; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # CREATE PACKAGE inside a package executable section is not allowed
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_SP_NO_RECURSIVE_CREATE
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+BEGIN
+  CREATE PACKAGE p1 AS PROCEDURE p1; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Broken CREATE PACKAGE at CREATE PACKAGE BODY time
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+END;
+$$
+DELIMITER ;$$
+
+UPDATE mysql.proc SET `body`='garbage'
+  WHERE db='test' AND name='test2' AND type='PACKAGE';
+
+DELIMITER $$;
+--error ER_SP_PROC_TABLE_CORRUPT
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT
+  AS BEGIN
+    RETURN f2();
+  END;
+END;
+$$
+DELIMITER ;$$
+show warnings;
+
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Broken CREATE PACKAGE at a package function call time
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT
+  AS BEGIN
+    RETURN f2();
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--error ER_SP_DOES_NOT_EXIST
+SELECT test2.f1();
+UPDATE mysql.proc SET `body`='garbage'
+  WHERE db='test' AND name='test2' AND type='PACKAGE';
+--source sp-cache-invalidate.inc
+--error ER_SP_PROC_TABLE_CORRUPT
+SELECT test2.f1();
+show warnings;
+--error ER_SP_PROC_TABLE_CORRUPT
+SELECT test2.f1();
+show warnings;
+--error ER_SP_PROC_TABLE_CORRUPT
+SELECT test2.f1();
+show warnings;
+
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Broken CREATE PACKAGE at a package procedure call time
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1
+  AS BEGIN
+    CALL p2;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--error ER_SP_DOES_NOT_EXIST
+CALL test2.f1();
+UPDATE mysql.proc SET `body`='garbage'
+  WHERE db='test' AND name='test2' AND type='PACKAGE';
+--source sp-cache-invalidate.inc
+--error ER_SP_PROC_TABLE_CORRUPT
+CALL test2.p1();
+show warnings;
+--error ER_SP_PROC_TABLE_CORRUPT
+CALL test2.p1();
+show warnings;
+--error ER_SP_PROC_TABLE_CORRUPT
+CALL test2.p1();
+show warnings;
+
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Bad routine names
+--echo #
+
+DELIMITER $$;
+--error ER_TOO_LONG_IDENT
+CREATE PACKAGE p1 AS
+  PROCEDURE pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp1;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_TOO_LONG_IDENT
+CREATE PACKAGE p1 AS
+  FUNCTION fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1
+    RETURN INT;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_SP_WRONG_NAME
+CREATE PACKAGE p1 AS
+  PROCEDURE "p1 ";
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_WRONG_NAME
+CREATE PACKAGE p1 AS
+  FUNCTION "f1 " RETURN INT;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_WRONG_NAME
+CREATE PACKAGE p1 AS
+  PROCEDURE "p1.p1";
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_WRONG_NAME
+CREATE PACKAGE p1 AS
+  FUNCTION "f1.f1" RETURN INT;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Duplicate PROCEDURE in CREATE PACKAGE
+--echo #
+
+DELIMITER $$;
+--error ER_SP_ALREADY_EXISTS,
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+  PROCEDURE p1;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_SP_ALREADY_EXISTS,
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+  PROCEDURE P1;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Duplicate FUNCTION in CREATE PACKAGE
+--echo #
+
+DELIMITER $$;
+--error ER_SP_ALREADY_EXISTS,
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_SP_ALREADY_EXISTS,
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  FUNCTION F1 RETURN INT;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Duplicate PROCEDURE in CREATE PACKAGE BODY
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_SP_ALREADY_EXISTS
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+  PROCEDURE p1 AS BEGIN NULL; END;
+END;
+$$
+--error ER_SP_ALREADY_EXISTS
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+  PROCEDURE P1 AS BEGIN NULL; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Duplicate FUNCTION in CREATE PACKAGE BODY
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+END;
+$$
+--error ER_SP_ALREADY_EXISTS
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 0; END;
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 0; END;
+END;
+$$
+--error ER_SP_ALREADY_EXISTS
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 0; END;
+  FUNCTION F1 RETURN INT AS BEGIN RETURN 0; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Routines declared in CREATE PACKAGE missing in CREATE PACKAGE BODY
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p2 AS BEGIN NULL; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+END;
+$$
+--error ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f2 RETURN INT AS BEGIN RETURN 10; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
+CREATE PACKAGE BODY test2 AS
+  FUNCTION p1 RETURN INT AS BEGIN RETURN 10; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1(a INT) AS BEGIN NULL; END; -- Notice different prototype
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+--echo #
+--echo # Forward declarations in CREATE PACKAGE BODY with missing implementations
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+--error ER_PACKAGE_ROUTINE_FORWARD_DECLARATION_NOT_DEFINED
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+  PROCEDURE p2;
+END;
+$$
+--error ER_PACKAGE_ROUTINE_FORWARD_DECLARATION_NOT_DEFINED
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1 AS BEGIN NULL; END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Creating a new package
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 COMMENT 'package-test2-comment' AS
+  FUNCTION f1 RETURN INT DETERMINISTIC;
+  FUNCTION f2(a INT) RETURN INT;
+  FUNCTION concat RETURN INT;
+  PROCEDURE p1;
+  PROCEDURE p2(a INT);
+END
+$$
+DELIMITER ;$$
+
+--vertical_results
+--replace_column 13 # 14 #
+SELECT * FROM mysql.proc WHERE db='test' AND name='test2';
+--replace_column 24 # 25 #
+SELECT * FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test' AND ROUTINE_NAME='test2';
+--horizontal_results
+
+DELIMITER $$;
+CREATE PACKAGE IF NOT EXISTS test2 AS
+  FUNCTION f1 RETURN INT;
+END test2
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PACKAGE BODY test2 COMMENT 'package-body-test2-comment' AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+  FUNCTION f2(a INT) RETURN INT AS BEGIN RETURN f1()+a; END;
+  FUNCTION concat RETURN INT AS BEGIN RETURN 1; END;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT f2(0);
+  END;
+  PROCEDURE p2(a INT) AS
+  BEGIN
+    SELECT f2(a);
+  END;
+END;
+$$
+DELIMITER ;$$
+
+# This should do nothing and return a warning
+DELIMITER $$;
+CREATE PACKAGE BODY IF NOT EXISTS test2 AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 20; END;
+  FUNCTION f2(a INT) RETURN INT AS BEGIN RETURN f1()+a; END;
+  FUNCTION concat RETURN INT AS BEGIN RETURN 1; END;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT f2(0);
+  END;
+  PROCEDURE p2(a INT) AS
+  BEGIN
+    SELECT f2(a);
+  END;
+END;
+$$
+DELIMITER ;$$
+
+#
+# The next query issues a warning about "concat" name collision,
+# raised during compilation of the package body.
+# However, "mtr --ps" does not produce the warning.
+# It's not a package specific issue. The same difference exists for
+# standalone functions. So just suppress warning for now.
+#
+--disable_warnings
+SELECT test2.f1();
+--enable_warnings
+SELECT test2.f2(1);
+CALL test2.p1();
+CALL test2.p2(1);
+
+--vertical_results
+--replace_column 13 # 14 #
+SELECT * FROM mysql.proc WHERE db='test' AND name LIKE 'test2.%';
+--replace_column 24 # 25 #
+SELECT * FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test' AND ROUTINE_NAME='test2';
+--replace_column 24 # 25 #
+SELECT * FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test' AND ROUTINE_NAME LIKE 'test2.%';
+--replace_column 4 'root@localhost'  5 '0000-00-00 00:00:00' 6 '0000-00-00 00:00:00'
+SHOW PACKAGE STATUS;
+--replace_column 4 'root@localhost'  5 '0000-00-00 00:00:00' 6 '0000-00-00 00:00:00'
+SHOW PACKAGE BODY STATUS;
+SHOW CREATE PACKAGE test2;
+SHOW CREATE PACKAGE BODY test2;
+--horizontal_results
+
+
+
+DROP PACKAGE BODY test2;
+--error ER_SP_DOES_NOT_EXIST
+SELECT test2.f1();
+--error ER_SP_DOES_NOT_EXIST
+SELECT test2.f2();
+--error ER_SP_DOES_NOT_EXIST
+CALL test2.p1();
+
+DROP PACKAGE BODY IF EXISTS test2;
+
+--error ER_SP_DOES_NOT_EXIST
+DROP PACKAGE BODY test2;
+
+
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Creating a new package in a remote database
+--echo #
+
+CREATE DATABASE test2;
+
+DELIMITER $$;
+CREATE PACKAGE test2.test2 COMMENT 'package-test2-comment' AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE BODY test2.test2 COMMENT 'package-body-test2-comment' AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+  PROCEDURE p1 AS BEGIN SELECT f1(); END;
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+--replace_column 4 'root@localhost'  5 '0000-00-00 00:00:00' 6 '0000-00-00 00:00:00'
+SHOW PACKAGE STATUS;
+--replace_column 4 'root@localhost'  5 '0000-00-00 00:00:00' 6 '0000-00-00 00:00:00'
+SHOW PACKAGE BODY STATUS;
+--horizontal_results
+
+USE test2;
+SELECT test2.f1();
+CALL test2.p1();
+USE test;
+DROP PACKAGE BODY test2.test2;
+DROP PACKAGE test2.test2;
+DROP DATABASE test2;
+
+
+--echo #
+--echo # Only public routines are available outside
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY test2 AS
+  -- Public routines
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN 'This is test2.f1';
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT 'This is test2.p1';
+  END;
+  -- Private routines
+  FUNCTION f2 RETURN TEXT AS
+  BEGIN
+    RETURN 'This is test2.f2';
+  END;
+  PROCEDURE p2 AS
+  BEGIN
+    SELECT 'This is test2.p2';
+  END;
+END;
+$$
+DELIMITER ;$$
+SELECT test2.f1();
+CALL test2.p1();
+--error ER_SP_DOES_NOT_EXIST
+SELECT test2.f2();
+--error ER_SP_DOES_NOT_EXIST
+CALL test2.p2();
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # PACKAGE BODY with forward declarations
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY test2 AS
+  -- Forward declarations
+  FUNCTION f2private RETURN TEXT;
+  PROCEDURE p2private;
+  -- Public routines
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN f2private();
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2private;
+  END;
+  -- Definitions for the forward declarations
+  FUNCTION f2private RETURN TEXT AS
+  BEGIN
+    RETURN 'This is f2private';
+  END;
+  PROCEDURE p2private AS
+  BEGIN
+   SELECT 'This is p2private';
+  END;
+END;
+$$
+DELIMITER ;$$
+SELECT test2.f1();
+CALL test2.p1();
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Calling private routines with forward declarations,
+--echo # using qualified notation, e.g. "CALL pkg.proc"
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY test2 AS
+  -- Forward declarations
+  FUNCTION f2private RETURN TEXT;
+  PROCEDURE p2private;
+  -- Public routines
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN test2.f2private();
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL test2.p2private;
+  END;
+  -- Definitions for the forward declarations
+  FUNCTION f2private RETURN TEXT AS
+  BEGIN
+    RETURN 'This is f2private';
+  END;
+  PROCEDURE p2private AS
+  BEGIN
+   SELECT 'This is p2private' AS msg;
+  END;
+END;
+$$
+DELIMITER ;$$
+SELECT test2.f1();
+CALL test2.p1();
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Calling private routines, using qualified notation, e.g. "pkg.proc"
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY test2 AS
+  -- Private routines
+  FUNCTION f2private RETURN TEXT AS
+  BEGIN
+    RETURN 'This is f2private';
+  END;
+  PROCEDURE p2private AS
+  BEGIN
+   SELECT 'This is p2private' AS msg;
+  END;
+  -- Public routines
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN test2.f2private();
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL test2.p2private;
+  END;
+END;
+$$
+DELIMITER ;$$
+SELECT test2.f1();
+CALL test2.p1();
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Calling private routines from the package initialization section,
+--echo # using qualified notation, e.g. "pkg.proc"
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY test2 AS
+  -- Private routines
+  FUNCTION f2private RETURN TEXT AS
+  BEGIN
+    RETURN 'This is f2private';
+  END;
+  PROCEDURE p2private AS
+  BEGIN
+   SELECT 'This is p2private' AS msg;
+  END;
+  -- Public routines
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT 'This is p1' AS msg;
+  END;
+BEGIN
+  SELECT test2.f2private();
+  CALL test2.p2private();
+END;
+$$
+DELIMITER ;$$
+CALL test2.p1();
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # Testing OR REPLACE
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg AS
+  FUNCTION f0 RETURN INT;
+END;
+$$
+CREATE OR REPLACE PACKAGE pkg AS
+  FUNCTION f1 RETURN INT;
+END;
+$$
+DELIMITER ;$$
+SELECT name, type, `body` FROM mysql.proc WHERE name LIKE 'pkg%' ORDER BY type;
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE BODY pkg AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+END;
+$$
+DELIMITER ;$$
+SELECT name, type, `body` FROM mysql.proc WHERE name LIKE 'pkg%' ORDER BY type;
+SELECT pkg.f1();
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE BODY pkg AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 20; END;
+END;
+$$
+DELIMITER ;$$
+SELECT name, type, `body` FROM mysql.proc WHERE name LIKE 'pkg%' ORDER BY type;
+SELECT pkg.f1();
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg AS
+  FUNCTION f1 RETURN BIGINT;
+END;
+$$
+DELIMITER ;$$
+SELECT name, type, `body` FROM mysql.proc WHERE name LIKE 'pkg%' ORDER BY type;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pkg.f1();
+
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE BODY pkg AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 30; END;
+END;
+$$
+DELIMITER ;$$
+SELECT name, type, `body` FROM mysql.proc WHERE name LIKE 'pkg%' ORDER BY type;
+SELECT pkg.f1();
+
+DROP PACKAGE pkg;
+
+
+--echo #
+--echo # Package routines accessing tables
+--echo #
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  PROCEDURE p1(a INT);
+END;
+$$
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1(a INT) AS
+  BEGIN
+    INSERT INTO t1 VALUES (10);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL test2.p1(10);
+SELECT * FROM t1;
+DROP PACKAGE test2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # CREATE PACKAGE: Optional package name after the "END" keyword
+--echo #
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END test2.test2
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END test3
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END test2
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+
+--echo #
+--echo # MDEV-12089 sql_mode=ORACLE: Understand optional routine name after the END keyword
+--echo #
+
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END test2;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    RETURN 10;
+  END f1.f1;
+END test2;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    RETURN 10;
+  END f2;
+END test2;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END p1.p1;
+END test2;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_END_IDENTIFIER_DOES_NOT_MATCH
+CREATE PACKAGE BODY test2 AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END p2;
+END test2;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    RETURN 10;
+  END f1;
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END p1;
+END test2;
+$$
+DELIMITER ;$$
+DROP PACKAGE test2;
+
+--echo #
+--echo # Package and package routine name and end name are case insensitive
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE test2 AS
+  FUNCTION f1 RETURN TEXT;
+  PROCEDURE p1;
+END TEST2;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE BODY test2 AS
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN 'This is f1';
+  END F1;
+  PROCEDURE P1 AS
+  BEGIN
+    SELECT 'This is p1' AS msg;
+  END p1;
+END TEST2;
+$$
+DELIMITER ;$$
+SELECT TEST2.F1();
+SELECT test2.f1();
+CALL TEST2.p1();
+CALL test2.P1();
+DROP PACKAGE BODY TEST2;
+DROP PACKAGE TEST2;
+
+
+--echo #
+--echo # Testing various qualified/non-qualified db/package SP call chains
+--echo #
+
+DELIMITER $$;
+CREATE FUNCTION f3() RETURN TEXT AS
+BEGIN
+  SET @track= @track || ' ' || 'test.f3()';
+  RETURN '';
+END;
+$$
+CREATE PROCEDURE p3() AS
+BEGIN
+  SET @track= @track || ' ' || 'test.p3()';
+END;
+$$
+CREATE FUNCTION ff2(task TEXT) RETURN TEXT AS
+  step TEXT := REGEXP_SUBSTR(task,'^[^ ]*');
+  tail TEXT := REGEXP_REPLACE(task,'^[^ ]*[ ]*(.*)','\\1');
+  rc TEXT;
+BEGIN
+  SET @track= @track || ' ' || 'test.ff2()';
+  CASE step
+    WHEN ''         THEN NULL;
+    WHEN 'p3'       THEN CALL p3();
+    WHEN 'f3'       THEN rc:= f3();
+    WHEN 'pack.p2'  THEN CALL pack.p2(tail);
+    WHEN 'pack.f2'  THEN rc:= pack.f2(tail);
+    WHEN 'pack.p3'  THEN CALL pack.p3();
+    WHEN 'pack.f3'  THEN rc:= pack.f3();
+    WHEN 'test.p3'  THEN CALL test.p3();
+    WHEN 'test.f3'  THEN rc:= test.f3();
+    WHEN 'test.pp2' THEN CALL test.pp2(tail);
+    WHEN 'test.ff2' THEN rc:= test.ff2(tail);
+    ELSE SET @track= @track || ' ' || step || ' [unknown step]';
+  END CASE;
+  RETURN '';
+END;
+$$
+CREATE PROCEDURE pp2(task TEXT) AS
+  step TEXT := REGEXP_SUBSTR(task,'^[^ ]*');
+  tail TEXT := REGEXP_REPLACE(task,'^[^ ]*[ ]*(.*)','\\1');
+  rc TEXT;
+BEGIN
+  SET @track= @track || ' ' || 'test.pp2()';
+  CASE step
+    WHEN ''         THEN NULL;
+    WHEN 'p3'       THEN CALL p3();
+    WHEN 'f3'       THEN rc:= f3();
+    WHEN 'pack.p2'  THEN CALL pack.p2(tail);
+    WHEN 'pack.f2'  THEN rc:= pack.f2(tail);
+    WHEN 'pack.p3'  THEN CALL pack.p3();
+    WHEN 'pack.f3'  THEN rc:= pack.f3();
+    WHEN 'test.p3'  THEN CALL test.p3();
+    WHEN 'test.f3'  THEN rc:= test.f3();
+    WHEN 'test.pp2' THEN CALL test.pp2(tail);
+    WHEN 'test.ff2' THEN rc:= test.ff2(tail);
+    ELSE SET @track= @track || ' ' || step || ' [unknown step]';
+  END CASE;
+END;
+$$
+CREATE PACKAGE pack AS
+  PROCEDURE p1(task TEXT);
+  PROCEDURE p2(task TEXT);
+  FUNCTION f1(task TEXT) RETURN TEXT;
+  FUNCTION f2(step2 TEXT) RETURN TEXT;
+  FUNCTION f3 RETURN TEXT;
+  PROCEDURE p3;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE p1(task TEXT) AS
+    step TEXT := REGEXP_SUBSTR(task,'^[^ ]*');
+    tail TEXT := REGEXP_REPLACE(task,'^[^ ]*[ ]*(.*)','\\1');
+    rc TEXT;
+  BEGIN
+    SET @track= 'test.pack.p1()';
+    CASE step
+      WHEN ''         THEN NULL;
+      WHEN 'p2'       THEN CALL p2(tail);
+      WHEN 'f2'       THEN rc:= f2(tail);
+      WHEN 'p3'       THEN CALL p3();
+      WHEN 'f3'       THEN rc:= f3();
+      WHEN 'px'       THEN CALL px();
+      WHEN 'fx'       THEN rc:= fx();
+      WHEN 'pp2'      THEN CALL pp2(tail);
+      WHEN 'ff2'      THEN rc:= ff2(tail);
+      WHEN 'pack.p2'  THEN CALL pack.p2(tail);
+      WHEN 'pack.f2'  THEN rc:= pack.f2(tail);
+      WHEN 'pack.p3'  THEN CALL pack.p3();
+      WHEN 'pack.f3'  THEN rc:= pack.f3();
+      WHEN 'pack.px'  THEN CALL pack.px();
+      WHEN 'pack.fx'  THEN rc:= pack.fx();
+      WHEN 'test.p3'  THEN CALL test.p3();
+      WHEN 'test.f3'  THEN rc:= test.f3();
+      WHEN 'test.pp2' THEN CALL test.pp2(tail);
+      WHEN 'test.ff2' THEN rc:= test.ff2(tail);
+      ELSE SET @track= @track || ' ' || step || ' [unknown step]';
+    END CASE;
+    SELECT @track;
+  END;
+
+  FUNCTION f1(task TEXT) RETURN TEXT AS
+    step TEXT := REGEXP_SUBSTR(task,'^[^ ]*');
+    tail TEXT := REGEXP_REPLACE(task,'^[^ ]*[ ]*(.*)','\\1');
+    rc TEXT;
+  BEGIN
+    SET @track= 'test.pack.f1()';
+    CASE step
+      WHEN ''         THEN NULL;
+      WHEN 'p2'       THEN CALL p2(tail);
+      WHEN 'f2'       THEN rc:= f2(tail);
+      WHEN 'p3'       THEN CALL p3();
+      WHEN 'f3'       THEN rc:= f3();
+      WHEN 'px'       THEN CALL px();
+      WHEN 'fx'       THEN rc:= fx();
+      WHEN 'pp2'      THEN CALL pp2(tail);
+      WHEN 'ff2'      THEN rc:= ff2(tail);
+      WHEN 'pack.p2'  THEN CALL pack.p2(tail);
+      WHEN 'pack.f2'  THEN rc:= pack.f2(tail);
+      WHEN 'pack.p3'  THEN CALL pack.p3();
+      WHEN 'pack.f3'  THEN rc:= pack.f3();
+      WHEN 'pack.px'  THEN CALL pack.px();
+      WHEN 'pack.fx'  THEN rc:= pack.fx();
+      WHEN 'test.p3'  THEN CALL test.p3();
+      WHEN 'test.f3'  THEN rc:= test.f3();
+      WHEN 'test.pp2' THEN CALL test.pp2(tail);
+      WHEN 'test.ff2' THEN rc:= test.ff2(tail);
+      ELSE SET @track= @track || ' ' || step || ' [unknown step]';
+    END CASE;
+    SIGNAL SQLSTATE '01000' SET MESSAGE_TEXT=@track;
+    RETURN '';
+  END;
+
+  PROCEDURE p2(task TEXT) AS
+    step TEXT := REGEXP_SUBSTR(task,'^[^ ]*');
+    tail TEXT := REGEXP_REPLACE(task,'^[^ ]*[ ]*(.*)','\\1');
+    rc TEXT;
+  BEGIN
+    SET @track= @track || ' ' || 'test.pack.p2()';
+    CASE step
+      WHEN ''         THEN NULL;
+      WHEN 'p2'       THEN CALL p2(tail);
+      WHEN 'f2'       THEN rc:= f2(tail);
+      WHEN 'p3'       THEN CALL p3();
+      WHEN 'f3'       THEN rc:= f3();
+      WHEN 'px'       THEN CALL px();
+      WHEN 'fx'       THEN rc:= fx();
+      WHEN 'pp2'      THEN CALL pp2(tail);
+      WHEN 'ff2'      THEN rc:= ff2(tail);
+      WHEN 'pack.p2'  THEN CALL pack.p2(tail);
+      WHEN 'pack.f2'  THEN rc:= pack.f2(tail);
+      WHEN 'pack.p3'  THEN CALL pack.p3();
+      WHEN 'pack.f3'  THEN rc:= pack.f3();
+      WHEN 'pack.px'  THEN CALL pack.px();
+      WHEN 'pack.fx'  THEN rc:= pack.fx();
+      WHEN 'test.p3'  THEN CALL test.p3();
+      WHEN 'test.f3'  THEN rc:= test.f3();
+      WHEN 'test.pp2' THEN CALL test.pp2(tail);
+      WHEN 'test.ff2' THEN rc:= test.ff2(tail);
+      ELSE SET @track= @track || ' ' || step || ' [unknown step]';
+    END CASE;
+  END;
+
+  FUNCTION f2(task TEXT) RETURN TEXT AS
+    step TEXT := REGEXP_SUBSTR(task,'^[^ ]*');
+    tail TEXT := REGEXP_REPLACE(task,'^[^ ]*[ ]*(.*)','\\1');
+    rc TEXT;
+  BEGIN
+    SET @track= @track || ' ' || 'test.pack.f2()';
+    CASE step
+      WHEN ''         THEN NULL;
+      WHEN 'p2'       THEN CALL p2(tail);
+      WHEN 'f2'       THEN rc:= f2(tail);
+      WHEN 'p3'       THEN CALL p3();
+      WHEN 'f3'       THEN rc:= f3();
+      WHEN 'px'       THEN CALL px();
+      WHEN 'fx'       THEN rc:= fx();
+      WHEN 'pp2'      THEN CALL pp2(tail);
+      WHEN 'ff2'      THEN rc:= ff2(tail);
+      WHEN 'pack.p2'  THEN CALL pack.p2(tail);
+      WHEN 'pack.f2'  THEN rc:= pack.f2(tail);
+      WHEN 'pack.p3'  THEN CALL pack.p3();
+      WHEN 'pack.f3'  THEN rc:= pack.f3();
+      WHEN 'pack.px'  THEN CALL pack.px();
+      WHEN 'pack.fx'  THEN rc:= pack.fx();
+      WHEN 'test.p3'  THEN CALL test.p3();
+      WHEN 'test.f3'  THEN rc:= test.f3();
+      WHEN 'test.pp2' THEN CALL test.pp2(tail);
+      WHEN 'test.ff2' THEN rc:= test.ff2(tail);
+      ELSE SET @track= @track || ' ' || step || ' [unknown step]';
+    END CASE;
+    RETURN '';
+  END;
+  PROCEDURE p3 AS
+  BEGIN
+    SET @track= @track || ' ' || 'test.pack.p3()';
+  END;
+  FUNCTION f3 RETURN TEXT AS
+  BEGIN
+    SET @track= @track || ' ' || 'test.pack.f3()';
+    RETURN '';
+  END;
+
+END pack;
+$$
+DELIMITER ;$$
+
+SET max_sp_recursion_depth=10;
+
+--echo # pack.routine -> *
+
+CALL pack.p1('p2');
+CALL pack.p1('f2');
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.p1('px');
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.p1('fx');
+
+CALL pack.p1('pp2');
+CALL pack.p1('ff2');
+
+CALL pack.p1('pack.p2');
+CALL pack.p1('pack.f2');
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.p1('pack.px');
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.p1('pack.fx');
+
+CALL pack.p1('test.pp2');
+CALL pack.p1('test.ff2');
+
+DO pack.f1('p2');
+DO pack.f1('f2');
+--error ER_SP_DOES_NOT_EXIST
+DO pack.p1('px');
+--error ER_SP_DOES_NOT_EXIST
+DO pack.p1('fx');
+
+DO pack.f1('pp2');
+DO pack.f1('ff2');
+
+DO pack.f1('pack.p2');
+DO pack.f1('pack.f2');
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.f1('pack.px');
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.f1('pack.fx');
+
+DO pack.f1('test.pp2');
+DO pack.f1('test.ff2');
+
+--echo #
+--echo # Qualified_package_routine -> Non_qualified_package_routine
+--echo #
+
+--echo # pack.routine -> [pack.]routine -> pack.routine
+
+CALL pack.p1('p2 pack.p3');
+CALL pack.p1('p2 pack.f3');
+CALL pack.p1('f2 pack.p3');
+CALL pack.p1('f2 pack.f3');
+
+DO pack.f1('p2 pack.p3');
+DO pack.f1('p2 pack.f3');
+DO pack.f1('f2 pack.p3');
+DO pack.f1('f2 pack.f3');
+
+--echo # pack.routine -> [pack.]routine -> [pack]routine
+
+CALL pack.p1('p2 p3');
+CALL pack.p1('p2 f3');
+CALL pack.p1('f2 p3');
+CALL pack.p1('f2 f3');
+
+DO pack.f1('p2 p3');
+DO pack.f1('p2 f3');
+DO pack.f1('f2 p3');
+DO pack.f1('f2 f3');
+
+--echo # pack.routine -> [pack.]routine -> test.routine
+
+CALL pack.p1('p2 test.p3');
+CALL pack.p1('p2 test.f3');
+CALL pack.p1('f2 test.p3');
+CALL pack.p1('f2 test.f3');
+
+DO pack.f1('p2 test.p3');
+DO pack.f1('p2 test.f3');
+DO pack.f1('f2 test.p3');
+DO pack.f1('f2 test.f3');
+
+--echo # pack.routine -> [pack.]routine -> [test.]routine
+
+CALL pack.p1('p2 pp2');
+CALL pack.p1('p2 ff2');
+CALL pack.p1('f2 pp2');
+CALL pack.p1('f2 ff2');
+
+DO pack.f1('p2 pp2');
+DO pack.f1('p2 ff2');
+DO pack.f1('f2 pp2');
+DO pack.f1('f2 ff2');
+
+
+--echo #
+--echo # Qualified_package_routine -> Non_qualified_database_routine
+--echo #
+
+--echo # pack.routine -> [test.]routine -> pack.routine
+
+CALL pack.p1('pp2 pack.p3');
+CALL pack.p1('pp2 pack.f3');
+CALL pack.p1('ff2 pack.p3');
+CALL pack.p1('ff2 pack.f3');
+
+DO pack.f1('pp2 pack.p3');
+DO pack.f1('pp2 pack.f3');
+DO pack.f1('ff2 pack.p3');
+DO pack.f1('ff2 pack.f3');
+
+--echo # pack.routine -> [test.]routine -> test.routine
+
+CALL pack.p1('pp2 test.p3');
+CALL pack.p1('pp2 test.f3');
+CALL pack.p1('ff2 test.p3');
+CALL pack.p1('ff2 test.f3');
+
+DO pack.f1('pp2 test.p3');
+DO pack.f1('pp2 test.f3');
+DO pack.f1('ff2 test.p3');
+DO pack.f1('ff2 test.f3');
+
+--echo # pack.routine -> [test.]routine -> [test.]routine
+
+CALL pack.p1('pp2 p3');
+CALL pack.p1('pp2 f3');
+CALL pack.p1('ff2 p3');
+CALL pack.p1('ff2 f3');
+
+DO pack.f1('pp2 p3');
+DO pack.f1('pp2 f3');
+DO pack.f1('ff2 p3');
+DO pack.f1('ff2 f3');
+
+
+--echo #
+--echo # Qualified_package_routine -> Qualified_package_routine
+--echo #
+
+--echo # pack.routine -> pack.routine -> pack.routine
+
+CALL pack.p1('pack.p2 pack.p3');
+CALL pack.p1('pack.p2 pack.f3');
+CALL pack.p1('pack.f2 pack.p3');
+CALL pack.p1('pack.f2 pack.f3');
+
+DO pack.f1('pack.p2 pack.p3');
+DO pack.f1('pack.p2 pack.f3');
+DO pack.f1('pack.f2 pack.p3');
+DO pack.f1('pack.f2 pack.f3');
+
+--echo # pack.routine -> pack.routine -> [pack.]routine
+
+CALL pack.p1('pack.p2 p3');
+CALL pack.p1('pack.p2 f3');
+CALL pack.p1('pack.f2 p3');
+CALL pack.p1('pack.f2 f3');
+
+DO pack.f1('pack.p2 p3');
+DO pack.f1('pack.p2 f3');
+DO pack.f1('pack.f2 p3');
+DO pack.f1('pack.f2 f3');
+
+--echo # pack.routine -> pack.routine -> test.routine
+
+CALL pack.p1('pack.p2 test.p3');
+CALL pack.p1('pack.p2 test.f3');
+CALL pack.p1('pack.f2 test.p3');
+CALL pack.p1('pack.f2 test.f3');
+
+DO pack.f1('pack.p2 test.p3');
+DO pack.f1('pack.p2 test.f3');
+DO pack.f1('pack.f2 test.p3');
+DO pack.f1('pack.f2 test.f3');
+
+--echo # pack.routine -> pack.routine -> [test.]routine
+
+CALL pack.p1('pack.p2 pp2');
+CALL pack.p1('pack.p2 ff2');
+CALL pack.p1('pack.f2 pp2');
+CALL pack.p1('pack.f2 ff2');
+
+DO pack.f1('pack.p2 pp2');
+DO pack.f1('pack.p2 ff2');
+DO pack.f1('pack.f2 pp2');
+DO pack.f1('pack.f2 ff2');
+
+
+--echo #
+--echo # Qualified_package_routine -> Qualified_database_routine
+--echo #
+
+--echo pack.routine -> test.routine -> pack.routine
+
+CALL pack.p1('test.pp2 pack.p3');
+CALL pack.p1('test.pp2 pack.f3');
+CALL pack.p1('test.ff2 pack.p3');
+CALL pack.p1('test.ff2 pack.f3');
+
+DO pack.f1('test.pp2 pack.p3');
+DO pack.f1('test.pp2 pack.f3');
+DO pack.f1('test.ff2 pack.p3');
+DO pack.f1('test.ff2 pack.f3');
+
+--echo pack.routine -> test.routine -> test.routine
+
+CALL pack.p1('test.pp2 test.p3');
+CALL pack.p1('test.pp2 test.f3');
+CALL pack.p1('test.ff2 test.p3');
+CALL pack.p1('test.ff2 test.f3');
+
+DO pack.f1('test.pp2 test.p3');
+DO pack.f1('test.pp2 test.f3');
+DO pack.f1('test.ff2 test.p3');
+DO pack.f1('test.ff2 test.f3');
+
+--echo pack.routine -> test.routine -> [test.]routine
+
+CALL pack.p1('test.pp2 p3');
+CALL pack.p1('test.pp2 f3');
+CALL pack.p1('test.ff2 p3');
+CALL pack.p1('test.ff2 f3');
+
+DO pack.f1('test.pp2 p3');
+DO pack.f1('test.pp2 f3');
+DO pack.f1('test.ff2 p3');
+DO pack.f1('test.ff2 f3');
+
+
+--echo # Longer chains
+
+CALL pack.p1('p2 f2 p2 test.pp2 test.ff2 pack.p3');
+CALL pack.p1('p2 test.pp2 pack.p2 pack.f2 test.ff2 pack.p3');
+
+
+DROP PACKAGE pack;
+DROP FUNCTION f3;
+DROP PROCEDURE p3;
+DROP FUNCTION ff2;
+DROP PROCEDURE pp2;
+
+
+--echo #
+--echo # Calling a standalone function from a non-current database,
+--echo # which calls a package routine from the same non-current database.
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  CALL pkg1.p1;
+END;
+$$
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT database();
+  END;
+END;
+$$
+DELIMITER ;$$
+# Current database
+CALL p1;
+CREATE DATABASE test2;
+USE test2;
+# Non-current database
+CALL test.p1;
+DROP DATABASE test2;
+# No current database at all
+CALL test.p1;
+USE test;
+DROP PACKAGE pkg1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Creating a package with a different DEFINER
+--echo #
+
+CREATE USER xxx@localhost;
+DELIMITER $$;
+CREATE DEFINER=xxx@localhost PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+DROP PACKAGE p1;
+DROP USER xxx@localhost;
+
+--echo #
+--echo # Creating a package with a different DEFINER, with SQL SECURITY INVOKER
+--echo #
+
+CREATE USER xxx@localhost;
+DELIMITER $$;
+CREATE DEFINER=xxx@localhost PACKAGE p1 SQL SECURITY INVOKER AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 SQL SECURITY INVOKER AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+DROP PACKAGE p1;
+DROP USER xxx@localhost;
+
+--echo #
+--echo # A package with an initialization section
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  PROCEDURE p1 AS BEGIN SET @a=@a+1; SELECT @a; END;
+  FUNCTION f1 RETURN INT AS BEGIN SET @a=@a+1; RETURN @a; END;
+BEGIN
+  SET @a:=10;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT p1.f1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+SELECT p1.f1();
+CALL p1.p1();
+SELECT p1.f1();
+CALL p1.p1();
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # A package with an initialization section calling
+--echo # routines from the same package, and standalone routines.
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE init20 AS
+BEGIN
+  SET @msg= @msg || '[init20]';
+END;
+$$
+CREATE PACKAGE p1 AS
+  PROCEDURE init1;
+  PROCEDURE init2;
+  FUNCTION init3 RETURN INT;
+  PROCEDURE p1;
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  PROCEDURE init1 AS
+  BEGIN
+    SET @msg= @msg || '[p1.init1]';
+  END;
+  PROCEDURE init2 AS
+  BEGIN
+    SET @msg= @msg || '[p1.init2]';
+  END;
+  FUNCTION init3 RETURN INT AS
+  BEGIN
+    SET @msg= @msg || '[p1.init3]';
+    RETURN 0;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    SET @msg= @msg || '[p1.p1]';
+    SELECT @msg;
+  END;
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    SET @msg= @msg || '[p1.f1]';
+    RETURN @msg;
+  END;
+BEGIN
+  SET @msg= '';
+  init1();
+  init2();
+  DO init3();
+  init20();
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT p1.f1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+SELECT p1.f1();
+CALL p1.p1();
+SELECT p1.f1();
+CALL p1.p1();
+DROP PACKAGE p1;
+DROP PROCEDURE init20;
+
+
+--echo #
+--echo # EXECUTE IMMEDIATE in the package initialization section
+--echo #
+
+SET @a=1000;
+CREATE TABLE t1 AS SELECT 10 AS a;
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  PROCEDURE p1 AS BEGIN SET @a=@a+1; SELECT @a; END;
+  FUNCTION f1 RETURN INT AS BEGIN SET @a=@a+1; RETURN @a; END;
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT MAX(a) FROM t1 INTO @a';
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT p1.f1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+--error ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT p1.f1();
+DROP PACKAGE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A package with an initialization section, loading table data into a user variable
+--echo #
+
+SET @a=1000;
+CREATE TABLE t1 AS SELECT 10 AS a;
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  PROCEDURE p1 AS BEGIN SET @a=@a+1; SELECT @a; END;
+  FUNCTION f1 RETURN INT AS BEGIN SET @a=@a+1; RETURN @a; END;
+BEGIN
+  SELECT MAX(a) FROM t1 INTO @a;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT p1.f1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+SELECT p1.f1();
+DROP PACKAGE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # A package with an initialization section producing an error
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  PROCEDURE p1 AS BEGIN SELECT 'This is p1' AS msg; END;
+  FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is f1'; END;
+BEGIN
+  SELECT 1 FROM t1 INTO @a;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1.p1();
+--error ER_NO_SUCH_TABLE
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+--error ER_NO_SUCH_TABLE
+SELECT p1.f1();
+--error ER_NO_SUCH_TABLE
+CALL p1.p1();
+--error ER_NO_SUCH_TABLE
+SELECT p1.f1();
+CREATE TABLE t1 (a INT) AS SELECT 1;
+CALL p1.p1();
+--source sp-cache-invalidate.inc
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+CALL p1.p1();
+DROP TABLE t1;
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # A package with SF-unsafe statements in the initialization section
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  PROCEDURE p1 AS BEGIN SELECT 'This is p1' AS msg; END;
+  FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is f1'; END;
+BEGIN
+  CREATE TABLE IF NOT EXISTS t1 (a INT);
+  DROP TABLE IF EXISTS t1;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+--error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
+SELECT p1.f1();
+CALL p1.p1();
+SELECT p1.f1();
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # MDEV-13139 Package-wide variables in CREATE PACKAGE
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+--error ER_SP_DUP_VAR
+CREATE PACKAGE BODY p1 AS
+  a INT;
+  a INT;
+  PROCEDURE p1 AS
+  BEGIN
+    CREATE VIEW v1 AS SELECT a;
+  END;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PACKAGE BODY p1 AS
+  a INT;
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+  b INT; -- Variables cannot go after routine definitions
+END;
+$$
+--error ER_VIEW_SELECT_VARIABLE
+CREATE PACKAGE BODY p1 AS
+  a INT;
+  PROCEDURE p1 AS
+  BEGIN
+    CREATE VIEW v1 AS SELECT a;
+  END;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a INT:=NULL;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT a;
+    a:=COALESCE(a,0)+100;
+    SET a=a+1;
+  END;
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    RETURN a;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+CALL p1.p1;
+CALL p1.p1;
+SELECT p1.f1();
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # One package variable with a default value
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a INT:=10;
+  PROCEDURE p1 AS BEGIN a:=a+1; SELECT a; END;
+  FUNCTION f1 RETURN INT AS BEGIN a:=a+1; RETURN a; END;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT p1.f1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+SELECT p1.f1();
+CALL p1.p1();
+SELECT p1.f1();
+CALL p1.p1();
+DROP PACKAGE p1;
+
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a ROW (a INT, b TEXT):=ROW(10,'bbb');
+  PROCEDURE p1 AS
+  BEGIN
+    a.a:= a.a+1;
+    a.b:= a.b || 'B';
+    SELECT a.a, a.b;
+  END;
+  FUNCTION f1 RETURN INT AS BEGIN a.a:= a.a+1; RETURN a.a; END;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT p1.f1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+SELECT p1.f1();
+CALL p1.p1();
+SELECT p1.f1();
+CALL p1.p1();
+DROP PACKAGE p1;
+
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a t1.a%TYPE:=10;
+  PROCEDURE p1 AS BEGIN a:=a+1; SELECT a; END;
+  FUNCTION f1 RETURN INT AS BEGIN a:=a+1; RETURN a; END;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT p1.f1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+SELECT p1.f1();
+CALL p1.p1();
+SELECT p1.f1();
+CALL p1.p1();
+DROP PACKAGE p1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT, b TEXT);
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a t1%ROWTYPE:=ROW(10,'bbb');
+  PROCEDURE p1 AS
+  BEGIN
+    a.a:= a.a+1;
+    a.b:= a.b || 'B';
+    SELECT a.a, a.b;
+  END;
+  FUNCTION f1 RETURN INT AS BEGIN a.a:= a.a+1; RETURN a.a; END;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT p1.f1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+SELECT p1.f1();
+CALL p1.p1();
+SELECT p1.f1();
+CALL p1.p1();
+DROP PACKAGE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # One package variable, set in the package initialization section
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a INT;
+  PROCEDURE p1 AS BEGIN a:=a+1; SELECT a; END;
+  FUNCTION f1 RETURN INT AS BEGIN a:=a+1; RETURN a; END;
+BEGIN
+  a:=10;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT p1.f1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+SELECT p1.f1();
+CALL p1.p1();
+SELECT p1.f1();
+CALL p1.p1();
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # A package with an initialization section,
+--echo # loading table data into a package variable
+--echo #
+
+CREATE TABLE t1 AS SELECT 10 AS a;
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a INT;
+  PROCEDURE p1 AS BEGIN SET a=a+1; SELECT a; END;
+  FUNCTION f1 RETURN INT AS BEGIN SET a=a+1; RETURN a; END;
+BEGIN
+  a:=(SELECT MAX(t1.a) FROM t1);
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT p1.f1();
+SELECT p1.f1();
+--source sp-cache-invalidate.inc
+SELECT p1.f1();
+DROP PACKAGE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Package variables and XPath
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  i INT:=0;
+  xml TEXT:= '<a><b>b1</b><b>b2</b><b>b3</b></a>';
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    SET i=i+1;
+    RETURN ExtractValue(xml, '/a/b[$i]');
+  END;
+END;
+$$
+DELIMITER ;$$
+SELECT p1.f1();
+SELECT p1.f1();
+SELECT p1.f1();
+DROP PACKAGE p1;
+
+--echo #
+--echo # Package variables as OUT routine parameter
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a INT;
+  b INT;
+  c INT:=10;
+  PROCEDURE p2(a OUT INT) AS
+  BEGIN
+    a:=c;
+    c:=c+1;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2(b);
+    SELECT a,b;
+  END;
+BEGIN
+  CALL p2(a);
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+DROP PACKAGE p1;
+
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a ROW(a INT, b TEXT);
+  b ROW(a INT, b TEXT);
+  c ROW(a INT, b TEXT):=ROW(1,'b');
+  PROCEDURE p2(x OUT ROW(a INT,b TEXT)) AS
+  BEGIN
+    x:=c;
+    x.a:=c.a+100;
+    x.b:=c.b||'X';
+    c.a:=c.a+1;
+    c.b:=c.b||'B';
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2(b);
+    SELECT a.a,a.b,b.a,b.b;
+  END;
+BEGIN
+  CALL p2(a);
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+DROP PACKAGE p1;
+
+
+CREATE TABLE t1 (a INT,b TEXT);
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a t1%ROWTYPE;
+  b t1%ROWTYPE;
+  c t1%ROWTYPE:=ROW(1,'b');
+  PROCEDURE p2(x OUT t1%ROWTYPE) AS
+  BEGIN
+    x:=c;
+    x.a:=c.a+100;
+    x.b:=c.b||'X';
+    c.a:=c.a+1;
+    c.b:=c.b||'B';
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2(b);
+    SELECT a.a,a.b,b.a,b.b;
+  END;
+BEGIN
+  CALL p2(a);
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+DROP PACKAGE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Package variable fields as OUT routine parameters
+--echo #
+
+CREATE TABLE t1 (a INT,b TEXT);
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a t1%ROWTYPE;
+  x t1%ROWTYPE:=ROW(10,'b');
+  PROCEDURE p2(a OUT INT,b OUT TEXT) AS
+  BEGIN
+    a:=x.a;
+    b:=x.b;
+    x.a:=x.a+1;
+    x.b:=x.b||'B';
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p2(a.a, a.b);
+    SELECT a.a,a.b;
+  END;
+BEGIN
+  CALL p2(a.a, a.b);
+  SELECT a.a, a.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+DROP PACKAGE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Package variables as SELECT INTO targets
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a INT;
+  b INT;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT 2 INTO b;
+    SELECT a,b;
+  END;
+BEGIN
+  SELECT 1 INTO a;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+DROP PACKAGE p1;
+
+
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (10,'b');
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a t1%ROWTYPE;
+  b t1%ROWTYPE;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT * FROM t1 INTO a;
+    SELECT a.a,a.b;
+  END;
+BEGIN
+  SELECT * FROM t1 INTO b;
+  SELECT b.a, b.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+DROP PACKAGE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Package variable fields as SELECT INTO targets
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a ROW(a INT, b TEXT);
+  b ROW(a INT, b TEXT);
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT 20,'x2' INTO b.a,b.b;
+    SELECT a.a,a.b,b.a,b.b;
+  END;
+BEGIN
+  SELECT 10,'x1' INTO a.a,a.b;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # Recursive package procedure calls
+--echo # Makes sure that the non-top sp_head instances created by
+--echo # sp_clone_and_link_routine() correctly reproduce the package context:
+--echo # package variables, package routines.
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1(c INT);
+END p1;
+$$
+CREATE PACKAGE BODY p1 AS
+  pv1 INT:=10;
+  FUNCTION f1 RETURN INT AS BEGIN RETURN pv1+100; END;
+  PROCEDURE p1(c INT) AS
+  BEGIN
+    SELECT c, pv1, f1();
+    IF c>0 THEN
+       pv1:=pv1+1;
+       CALL p1(c-1);
+    END IF;
+  END;
+END;
+$$
+DELIMITER ;$$
+SET max_sp_recursion_depth=5;
+CALL p1.p1(5);
+SET max_sp_recursion_depth=0;
+CALL p1.p1(0);
+--error ER_SP_RECURSION_LIMIT
+CALL p1.p1(1);
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # Non-reserved keywords as package body variable names
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+END p1;
+$$
+CREATE PACKAGE BODY p1 AS
+  ascii INT:=10;
+  action INT:=20;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT ascii, action;
+  END;
+BEGIN
+  ascii := ascii + 1;
+  action := action + 1;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # Package routines calling routines of another package
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE p2 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT 'This is p1.p1' AS msg;
+  END;
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN 'This is p1.f1';
+  END;
+END;
+$$
+CREATE PACKAGE BODY p2 AS
+  PROCEDURE p1 AS
+  BEGIN
+    CALL p1.p1;
+  END;
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN p1.f1();
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+CALL p2.p1;
+SELECT p1.f1(), p2.f1();
+DROP PACKAGE p2;
+DROP PACKAGE p1;
+
+--echo #
+--echo # Package names with dot characters
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE "p1.p1" AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY "p1.p1" AS
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT 'This is p1' AS msg;
+  END;
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN 'This is f1';
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL "p1.p1"."p1";
+SELECT "p1.p1"."f1"();
+DROP PACKAGE "p1.p1";
+
+
+--echo #
+--echo # MDEV-15070 Crash when doing a CREATE VIEW inside a package routine
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg1 AS
+  PROCEDURE p00();
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg1 AS
+  PROCEDURE p01() AS
+  BEGIN
+    SELECT 'This is p01' AS msg;
+  END;
+  PROCEDURE p00() AS
+  BEGIN
+    CREATE OR REPLACE VIEW v1 AS SELECT 1;
+    DROP VIEW v1;
+    CALL p01();
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p00;
+DROP PACKAGE pkg1;
+
+
+CREATE OR REPLACE TABLE t1 (a INT);
+CREATE OR REPLACE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.a=1;
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg1 AS
+  PROCEDURE p00();
+END;
+$$
+CREATE OR REPLACE PACKAGE BODY pkg1 AS
+  PROCEDURE p01() AS
+  BEGIN
+    SELECT 'This is p01' AS msg;
+  END;
+  PROCEDURE p00() AS
+  BEGIN
+    DROP TRIGGER tr1;
+    CALL p01();
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p00;
+DROP PACKAGE pkg1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-17387 MariaDB Server giving wrong error while executing select query from procedure
+--echo #
+
+CREATE TABLE t1 (
+  CTR varchar(2) NOT NULL,
+  COR varchar(3) NOT NULL,
+  DATE datetime NOT NULL,
+  CHAN varchar(4) NOT NULL,
+  CNO varchar(20) NOT NULL,
+  JOBN varchar(18) NOT NULL,
+  C1 varchar(30) DEFAULT NULL,
+  C2 varchar(30) DEFAULT NULL,
+  TIME datetime DEFAULT NULL,
+  AMT decimal(12,2) DEFAULT NULL,
+  DT datetime NOT NULL,
+  pk int(11) NOT NULL,
+  PRIMARY KEY (pk),
+   KEY Indx1 (JOBN)
+);
+
+DELIMITER $$;
+
+CREATE PACKAGE xyz IS
+  PROCEDURE xyz123(ctr IN VARCHAR2,Jn IN VARCHAR2,R OUT VARCHAR2);
+END;
+$$
+
+CREATE OR REPLACE PACKAGE BODY xyz IS
+  PROCEDURE xyz123(
+    ctr IN VARCHAR2,
+    Jn IN VARCHAR2,
+    R OUT VARCHAR2)
+  AS
+    lS NUMBER(10) :=0;
+    CURSOR cBPD IS
+      SELECT CTR, COR, DATE, CHAN, CNO, C1, C2, TIME, AMT
+      FROM t1 WHERE JOBN=Jn;
+  BEGIN
+    FOR lbpd IN cBPD
+    LOOP
+      lS:=lS+1;
+    END LOOP;
+  EXCEPTION
+    WHEN OTHERS THEN
+    BEGIN
+      SELECT SQLERRM;
+    END;
+  END;
+END $$
+DELIMITER ;$$
+
+CALL xyz.xyz123(17,18,@R);
+DROP PACKAGE xyz;
+DROP TABLE t1;

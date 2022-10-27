@@ -1,0 +1,145 @@
+CREATE TABLE `t1` (
+`c1` int(11) NOT NULL,
+`c2` datetime DEFAULT NULL,
+PRIMARY KEY (`c1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+CREATE TABLE `t2` (
+`c0` varchar(10) NOT NULL,
+`c1` int(11) NOT NULL,
+`c2` int(11) NOT NULL,
+PRIMARY KEY (`c0`,`c1`),
+KEY `c1` (`c1`),
+KEY `c2` (`c2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+CREATE TABLE `t3` (
+`id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+`c1` datetime NOT NULL,
+`c2` bigint(20) NOT NULL,
+`c3` int(4) unsigned NOT NULL,
+PRIMARY KEY (`id`),
+KEY `c2` (`c2`),
+KEY `c3` (`c3`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+CREATE TABLE `t4` (
+`c1` int(11) NOT NULL,
+`c2` bigint(20) DEFAULT NULL,
+`c3` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+CREATE ALGORITHM=UNDEFINED VIEW `v1` AS select `t4`.`c1` AS `c1`,`t4`.`c2` AS `c2`,`t4`.`c3` AS `c3` from `t4`;
+UPDATE t1 a JOIN t2 b ON a.c1 = b.c1 JOIN v1 vw ON b.c2 = vw.c1 JOIN t3 del ON vw.c2 = del.c2 SET a.c2 = ( SELECT max(t.c1) FROM t3 t, v1 i WHERE del.c2 = t.c2 AND vw.c3 = i.c3 AND t.c3 = 4 ) WHERE a.c2 IS NULL OR a.c2 < '2011-05-01';
+drop view v1;
+drop table t1,t2,t3,t4;
+#
+# MDEV-14862: Server crashes in Bitmap<64u>::merge / add_key_field
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (b INT) ENGINE=InnoDB;
+DELETE FROM v1 WHERE a IN ( SELECT a FROM t2 );
+DELETE FROM v1 WHERE (a,a) IN ( SELECT a,a FROM t2 );
+drop view v1;
+drop table t1,t2;
+#
+# MDEV-10232 Scalar result of subquery changes after adding an outer select stmt
+#
+CREATE TABLE t1 (
+a_id INT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+b_id INT(20) UNSIGNED NULL DEFAULT NULL,
+c_id VARCHAR(255) NULL DEFAULT NULL,
+PRIMARY KEY (a_id))COLLATE = 'utf8_general_ci' ENGINE = InnoDB;
+CREATE TABLE t2 (
+b_id INT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+c_id VARCHAR(255) NULL DEFAULT NULL,
+PRIMARY KEY (b_id),
+INDEX idx_c_id (c_id))COLLATE = 'utf8_general_ci' ENGINE = InnoDB;
+INSERT INTO t1 (b_id, c_id) VALUES (NULL, NULL);
+INSERT INTO t2 (c_id) VALUES (NULL);
+INSERT INTO t2 (c_id) VALUES (NULL);
+SELECT * FROM t1;
+a_id	b_id	c_id
+1	NULL	NULL
+SELECT t2.b_id FROM t1,t2 WHERE t2.c_id = t1.c_id;
+b_id
+UPDATE t1 SET b_id = (SELECT t2.b_id FROM t2 t2 WHERE t2.c_id = t1.c_id);
+SELECT * FROM t1;
+a_id	b_id	c_id
+1	NULL	NULL
+drop table t1,t2;
+#
+# MDEV-18300: ASAN error in Field_blob::get_key_image upon UPDATE with subquery
+#
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set @save_use_stat_tables= @@use_stat_tables;
+set use_stat_tables=preferably;
+set optimizer_use_condition_selectivity=4;
+CREATE TABLE t1 (a INT, b CHAR(8)) ENGINE=InnoDB;
+insert into t1 values (1,'foo'),(2, 'abc');
+CREATE TABLE t2 (c CHAR(8), d BLOB) ENGINE=InnoDB;
+insert into t2 values ('abc', 'foo'),('edf', 'food');
+ANALYZE TABLE t1,t2;
+UPDATE t1 SET a = 1 WHERE b = ( SELECT c FROM t2 WHERE d = 'foo' );
+SELECT * FROM t1;
+a	b
+1	foo
+1	abc
+DROP TABLE t1, t2;
+create table t1 (a int not null, b int, c int) engine=InnoDB;
+create table t2 (d int, e int) engine=InnoDB;
+update t1, t2 set a=NULL, b=2, c=NULL where b=d and e=200;
+drop table t1,t2;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set @@use_stat_tables= @save_use_stat_tables;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (2);
+BEGIN;
+SELECT * FROM t1 UNION 
+SELECT * FROM t2 FOR UPDATE;
+a
+1
+2
+connect con2,localhost,root,,;
+BEGIN;
+SELECT * FROM t2 FOR UPDATE;;
+connection default;
+select * from t2;
+a
+2
+update t2 set a=a+100;
+commit;
+connection con2;
+a
+102
+commit;
+connection default;
+drop table t1,t2;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (2);
+BEGIN;
+SELECT * FROM (
+SELECT * FROM t1 UNION 
+SELECT * FROM t2 FOR UPDATE
+) t;
+a
+1
+2
+connection con2;
+BEGIN;
+SELECT * FROM t2 FOR UPDATE;;
+connection default;
+select * from t2;
+a
+2
+update t2 set a=a+100;
+commit;
+connection con2;
+a
+102
+commit;
+connection default;
+disconnect con2;
+drop table t1,t2;
+# End of 10.4 tests

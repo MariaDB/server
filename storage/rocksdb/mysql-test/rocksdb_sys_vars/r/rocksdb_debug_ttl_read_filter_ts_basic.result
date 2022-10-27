@@ -1,0 +1,46 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(2400);
+INSERT INTO valid_values VALUES(-2400);
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+SET @start_global_value = @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS;
+SELECT @start_global_value;
+@start_global_value
+0
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS to 2400"
+SET @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS   = 2400;
+SELECT @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS;
+@@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS
+2400
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS = DEFAULT;
+SELECT @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS;
+@@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS
+0
+"Trying to set variable @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS to -2400"
+SET @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS   = -2400;
+SELECT @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS;
+@@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS
+-2400
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS = DEFAULT;
+SELECT @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS;
+@@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS
+0
+"Trying to set variable @@session.ROCKSDB_DEBUG_TTL_READ_FILTER_TS to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_DEBUG_TTL_READ_FILTER_TS   = 444;
+ERROR HY000: Variable 'rocksdb_debug_ttl_read_filter_ts' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS to 'aaa'"
+SET @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS;
+@@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS
+0
+SET @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS = @start_global_value;
+SELECT @@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS;
+@@global.ROCKSDB_DEBUG_TTL_READ_FILTER_TS
+0
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

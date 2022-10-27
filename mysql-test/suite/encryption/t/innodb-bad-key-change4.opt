@@ -1,0 +1,6 @@
+--loose-innodb-buffer-pool-stats
+--loose-innodb-buffer-page
+--loose-innodb-buffer-page-lru
+--innodb-defragment=1
+--innodb-purge-rseg-truncate-frequency=1
+--skip-innodb-fast-shutdown

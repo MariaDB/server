@@ -1,0 +1,66 @@
+--source include/have_innodb.inc
+
+connect(con1,localhost,root,,);
+connect(con2,localhost,root,,);
+connect(con3,localhost,root,,);
+
+create table t1(a int not null primary key, b int, c int,d CHAR(100)) engine=innodb;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into t1 values(current_num, RAND(), RAND(), substring(MD5(RAND()), -64));
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(20000);
+commit;
+set autocommit=1;
+
+connection con1;
+send delete from t1 where a between 1000 and 1300;
+
+connection con2;
+send update t1 set b=b+1 where a between 2000 and 2600;
+
+connection con3;
+send insert into t1 select a+30000,b,c,d from t1 where a between 3000 and 4000;
+
+connection default;
+send delete from t1 where a between 6000 and 7000;
+
+connection con1;
+reap;
+
+connection con2;
+reap;
+
+connection con3;
+reap;
+
+connection default;
+reap;
+
+disconnect con1;
+disconnect con2;
+disconnect con3;
+
+# test that below does not crash, actual result is not
+# repeatable
+--disable_query_log
+--disable_result_log
+--disable_warnings
+select * from information_schema.innodb_mutexes;
+--enable_query_log
+--enable_result_log
+--enable_warnings
+
+drop procedure innodb_insert_proc;
+drop table t1;

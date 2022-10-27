@@ -1,0 +1,26 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+connection master;
+CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='non_existing';
+ERROR HY000: server name: 'non_existing' doesn't exist!
+SHOW WARNINGS;
+Level	Code	Message
+Error	1	server name: 'non_existing' doesn't exist!
+Error	1	Can't create/write to file 'non_existing' (Errcode: 14 "Bad address")
+Warning	1030	Got error 1 "Operation not permitted" from storage engine FEDERATED
+create table t1 (a int);
+create table fed (a int) engine=Federated CONNECTION='mysql://root@127.0.0.1:MASTER_PORT/test/t1';
+drop table t1;
+select * from fed;
+Got one of the listed errors
+drop table fed;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

@@ -1,0 +1,30 @@
+drop table if exists t0,t1,t2,t3;
+# 
+# MDEV-7885: EXPLAIN shows wrong info for ORDER BY query
+# 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (key1 int, col1 int, key(key1));
+insert into t2 select a,a from t0;
+insert into t2 select 15,15 from t1;
+alter table t2 add key2 int, add key(key2);
+# This must show "Using filesort":
+explain 
+select * from t2 ignore index for order by (key1) where col1<0 order by key1 limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1010	Using where; Using filesort
+drop table t0, t1, t2;
+# 
+# MDEV-8857: [Upstream too] EXPLAIN incorrectly shows Distinct for tables using join buffer
+# 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, filler char(200), key(a));
+insert into t1 select A.a + B.a* 10, 'AAAAAAAAAAAAAAAAAAAA' from t0 A, t0 B where B.a in (0,1);
+explain select distinct A.a from t0 A, t1 B where A.a+B.a> 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+1	SIMPLE	B	index	NULL	a	5	NULL	20	Using where; Using index; Using join buffer (flat, BNL join)
+drop table t0, t1;

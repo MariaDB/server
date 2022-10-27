@@ -1,0 +1,47 @@
+#
+# MDEV-4332 Increase username length from 16 characters
+#
+# test that when ALTER-ing tables to have short usernames,
+# the server switches to short usernames internally too.
+#
+
+--source include/not_embedded.inc
+--source include/switch_to_mysql_user.inc
+set global sql_mode="";
+set local sql_mode="";
+
+alter table mysql.user modify User char(16) binary not null default '';
+alter table mysql.db modify User char(16) binary not null default '';
+alter table mysql.tables_priv modify User char(16) binary not null default '';
+alter table mysql.columns_priv modify User char(16) binary not null default '';
+alter table mysql.procs_priv modify User char(16) binary not null default '';
+alter table mysql.proc modify definer char(77) collate utf8_bin not null default '';
+alter table mysql.event modify definer char(77) collate utf8_bin not null default '';
+flush privileges;
+
+--enable_metadata
+select user();
+--disable_metadata
+
+--error ER_WRONG_STRING_LENGTH
+create user a17aaaaaaaaaaaaa0@localhost;
+--error ER_WRONG_STRING_LENGTH
+grant usage on *.* to a17aaaaaaaaaaaaa0@lodalhost;
+--error ER_WRONG_STRING_LENGTH
+drop user a17aaaaaaaaaaaaa0@lodalhost;
+
+alter table mysql.user modify User char(80) binary not null default '';
+alter table mysql.db modify User char(80) binary not null default '';
+alter table mysql.tables_priv modify User char(80) binary not null default '';
+alter table mysql.columns_priv modify User char(80) binary not null default '';
+alter table mysql.procs_priv modify User char(80) binary not null default '';
+alter table mysql.proc modify definer char(141) collate utf8_bin not null default '';
+alter table mysql.event modify definer char(141) collate utf8_bin not null default '';
+flush privileges;
+
+--enable_metadata
+select user();
+--disable_metadata
+
+set global sql_mode=default;
+--source include/switch_to_mysql_global_priv.inc

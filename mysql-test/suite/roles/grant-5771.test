@@ -1,0 +1,32 @@
+#
+# MDEV-5771 Privileges acquired via roles depend on the order of granting
+#
+--source include/not_embedded.inc
+
+create database mysqltest1;
+create database mysqltest2;
+
+create user foo@localhost;
+create role r1, r2;
+grant all on mysqltest1.* to r1;
+grant all on mysqltest2.* to r2;
+grant r1 to r2;
+grant r2 to foo@localhost;
+
+--connect (foo,localhost,foo,,)
+select current_user;
+--error ER_DBACCESS_DENIED_ERROR
+show tables in mysqltest1;
+--error ER_DBACCESS_DENIED_ERROR
+show tables in mysqltest2;
+set role r2;
+show tables in mysqltest1;
+show tables in mysqltest2;
+show grants;
+
+connection default;
+drop user foo@localhost;
+drop role r1;
+drop role r2;
+drop database mysqltest1;
+drop database mysqltest2;

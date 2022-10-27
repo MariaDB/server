@@ -1,0 +1,61 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=NONE;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=NONE;
+*** Test MDEV-6120, output of current GTID when a replication error is logged to the errorlog ***
+connection master;
+CREATE TABLE t1(a INT PRIMARY KEY);
+connection slave;
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+connection master;
+INSERT INTO t1 VALUES (1);
+SET gtid_seq_no=100;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+connection slave;
+SET sql_log_bin=0;
+INSERT INTO t1 VALUES (2);
+SET sql_log_bin=1;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1062]
+include/stop_slave.inc
+SET GLOBAL gtid_slave_pos= "0-1-100";
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+connection master;
+SET @dbug_save= @@debug_dbug;
+SET debug_dbug= '+d,incident_database_resync_on_replace';
+REPLACE INTO t1 VALUES (5);
+SET debug_dbug= @dbug_save;
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1590]
+include/stop_slave.inc
+SET sql_slave_skip_counter=1;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+FOUND 1 /Slave SQL: Error 'Duplicate entry .* on query\. .*Query: '.*', Gtid 0-1-100, Internal MariaDB error code:|Slave SQL: Could not execute Write_rows.*table test.t1; Duplicate entry.*, Gtid 0-1-100, Internal MariaDB error/ in mysqld.2.err
+FOUND 1 /Slave SQL: The incident LOST_EVENTS occurred on the master\. Message: <none>, Internal MariaDB error code: 1590/ in mysqld.2.err
+connection master;
+DROP TABLE t1;
+connection master;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection slave;
+SET GLOBAL BINLOG_CHECKSUM=default;
+connection master;
+include/rpl_end.inc

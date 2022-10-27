@@ -1,0 +1,290 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10801 sql_mode: dynamic SQL placeholders
+--echo #
+
+SET @a=10, @b=20;
+PREPARE stmt FROM 'SELECT ?,?';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :a,:b';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :aaa,:bbb';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :"a",:"b"';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :"aaa",:"bbb"';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :1,:2';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :222,:111';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :0,:65535';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'SELECT :65535,:0';
+EXECUTE stmt USING @a, @b;
+
+--echo #
+--echo # MDEV-10709 Expressions as parameters to Dynamic SQL
+--echo #
+
+--echo #
+--echo # Testing disallowed expressions in USING
+--echo #
+
+PREPARE stmt FROM 'SELECT :1 FROM DUAL';
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE stmt USING (SELECT 1);
+DEALLOCATE PREPARE stmt;
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+BEGIN
+  RETURN 'test';
+END;
+$$
+DELIMITER ;$$
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE stmt USING f1();
+DEALLOCATE PREPARE stmt;
+DROP FUNCTION f1;
+
+--echo #
+--echo # Using a user variable as a EXECUTE..USING out parameter
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1(a OUT INT)
+AS
+BEGIN
+  a:= 10;
+END;
+/
+DELIMITER ;/
+SET @a=1;
+CALL p1(@a);
+SELECT @a;
+SET @a=2;
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING @a;
+SELECT @a;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using an SP variable as a EXECUTE..USING out parameter
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p1 (a OUT INT)
+AS
+BEGIN
+  a:=10;
+END;
+/
+CREATE PROCEDURE p2 (a OUT INT)
+AS
+BEGIN
+  PREPARE stmt FROM 'CALL p1(?)';
+  EXECUTE stmt USING a;
+END;
+/
+DELIMITER ;/
+SET @a= 1;
+CALL p2(@a);
+SELECT @a;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Using a trigger field as a EXECUTE..USING out parameter
+--echo #
+DELIMITER /;
+CREATE PROCEDURE p1 (a OUT INT)
+AS
+BEGIN
+ a:= 10;
+END;
+/
+DELIMITER ;/
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW CALL p1(:NEW.a);
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Testing re-prepare on a table metadata update between PREPARE and EXECUTE
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER /;
+CREATE PROCEDURE p1(a IN INT)
+AS
+BEGIN
+  INSERT INTO t1 VALUES (a);
+END;
+/
+DELIMITER ;/
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING 10;
+SELECT * FROM t1;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW NEW.a:=NEW.a+1;
+EXECUTE stmt USING 20;
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of MDEV-10709 Expressions as parameters to Dynamic SQL
+--echo #
+
+--echo #
+--echo # MDEV-10585 EXECUTE IMMEDIATE statement
+--echo #
+
+--echo #
+--echo # Testing disallowed expressions in USING
+--echo #
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING (SELECT 1);
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+BEGIN
+  RETURN 'test';
+END;
+$$
+DELIMITER ;$$
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING f1();
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Testing simple expressions
+--echo #
+
+EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING 10;
+
+
+--echo #
+--echo # MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+--echo #
+
+--echo #
+--echo # Testing erroneous and diallowed prepare source
+--echo #
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE IMMEDIATE _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+PREPARE stmt FROM _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
+
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE IMMEDIATE (SELECT 'SELECT 1');
+--error ER_SUBQUERIES_NOT_SUPPORTED
+PREPARE stmt FROM (SELECT 'SELECT 1');
+
+--error ER_BAD_FIELD_ERROR
+EXECUTE IMMEDIATE a;
+--error ER_BAD_FIELD_ERROR
+PREPARE stmt FROM a;
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE NULL;
+--error ER_PARSE_ERROR
+PREPARE stmt FROM NULL;
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE COALESCE(NULL);
+--error ER_PARSE_ERROR
+PREPARE stmt FROM COALESCE(NULL);
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+BEGIN
+  RETURN 't1';
+END;
+$$
+DELIMITER ;$$
+--error ER_SUBQUERIES_NOT_SUPPORTED
+EXECUTE IMMEDIATE f1();
+--error ER_SUBQUERIES_NOT_SUPPORTED
+PREPARE stmt FROM f1();
+DROP FUNCTION f1;
+
+--echo #
+--echo # Testing user variables in prepare source
+--echo #
+
+SET @table_name='DUAL';
+EXECUTE IMMEDIATE 'SELECT 1 AS a FROM ' || @table_name;
+PREPARE stmt FROM 'SELECT 1 AS a FROM ' || @table_name;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # Testing SP parameters and variables in prepare source
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(table_name VARCHAR)
+AS
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1 AS c FROM '|| table_name;
+END;
+$$
+DELIMITER ;$$
+CALL p1('DUAL');
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  table_name VARCHAR(64):='DUAL';
+BEGIN
+  EXECUTE IMMEDIATE 'SELECT 1 AS c FROM ' || table_name;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # End of MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+--echo #
+
+
+--echo #
+--echo # MDEV-12846 sql_mode=ORACLE: using Oracle-style placeholders in direct query execution makes the server crash
+--echo #
+
+# When running with --ps, the below queries return
+# CR_PARAMS_NOT_BOUND instead of ER_PARSE_ERROR
+
+--disable_ps_protocol
+--error ER_PARSE_ERROR
+SELECT ? FROM DUAL;
+--error ER_PARSE_ERROR
+SELECT :a FROM DUAL;
+--error ER_PARSE_ERROR
+SELECT :1 FROM DUAL;
+
+--error ER_PARSE_ERROR
+SELECT 1+? FROM DUAL;
+--error ER_PARSE_ERROR
+SELECT 1+:a FROM DUAL;
+--error ER_PARSE_ERROR
+SELECT 1+:1 FROM DUAL;
+--enable_ps_protocol

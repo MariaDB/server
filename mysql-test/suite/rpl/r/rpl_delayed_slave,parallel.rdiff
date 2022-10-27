@@ -1,0 +1,17 @@
+--- mysql-test/suite/rpl/r/rpl_delayed_slave.result	2016-10-14 21:14:02.338075590 +0200
++++ mysql-test/suite/rpl/r/rpl_delayed_slave,parallel.reject	2016-10-14 21:17:51.296986686 +0200
+@@ -45,7 +45,6 @@
+ # wait for first query to execute
+ # sleep 1*T
+ # Asserted this: Second query executed
+-# Asserted this: Status should be executing third query (i.e., 'User sleep')
+ # sleep 2*T
+ # Asserted this: Third query executed
+ # Asserted this: Status should be 'Has read all relay log...'
+@@ -167,5 +166,5 @@
+ conservative
+ SELECT @@GLOBAL.slave_parallel_threads;
+ @@GLOBAL.slave_parallel_threads
+-0
++10
+ include/rpl_end.inc

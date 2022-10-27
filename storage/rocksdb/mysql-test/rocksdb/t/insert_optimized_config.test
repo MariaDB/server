@@ -1,0 +1,51 @@
+--source include/have_rocksdb.inc
+--source include/have_write_committed.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+# reload with load optimized config
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+--exec echo "wait" > $restart_file
+--shutdown_server
+--source include/wait_until_disconnected.inc
+-- exec echo "restart:--rocksdb_write_disable_wal=1 --rocksdb_flush_log_at_trx_commit=0 --rocksdb_default_cf_options=write_buffer_size=16k;target_file_size_base=16k;level0_file_num_compaction_trigger=4;level0_slowdown_writes_trigger=256;level0_stop_writes_trigger=256;max_write_buffer_number=16;compression_per_level=kNoCompression;memtable=vector:1024 --rocksdb_override_cf_options=__system__={memtable=skip_list:16} --rocksdb_compaction_sequential_deletes=0 --rocksdb_compaction_sequential_deletes_window=0 --rocksdb_allow_concurrent_memtable_write=0" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- enable_reconnect
+-- source include/wait_until_connected_again.inc
+
+create table t1(
+       id bigint not null primary key,
+       i1 bigint, #unique
+       i2 bigint, #repeating
+       c1 varchar(20), #unique
+       c2 varchar(20), #repeating
+       index t1_2(i1)
+) engine=rocksdb;
+
+--disable_query_log
+set rocksdb_bulk_load=1;
+let $i=0;
+while ($i<50000)
+{
+  inc $i;
+  eval insert t1(id, i1, i2, c1, c2) values($i, $i, $i div 10, $i, $i div 10);
+}
+set rocksdb_bulk_load=0;
+--enable_query_log
+
+select count(*), sum(id), sum(i1), sum(i2) from t1;
+
+# reload without load optimized config
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+--exec echo "wait" > $restart_file
+--shutdown_server
+--source include/wait_until_disconnected.inc
+-- exec echo "restart:--rocksdb_write_disable_wal=0 --rocksdb_default_cf_options=write_buffer_size=64k;target_file_size_base=64k;max_bytes_for_level_base=1m;compression_per_level=kNoCompression;" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+-- enable_reconnect
+-- source include/wait_until_connected_again.inc
+
+select count(*), sum(id), sum(i1), sum(i2) from t1;
+
+drop table t1;
+

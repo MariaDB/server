@@ -1,0 +1,3 @@
+SET sql_mode=ORACLE;
+
+--source include/install_plugin_if_exists.inc

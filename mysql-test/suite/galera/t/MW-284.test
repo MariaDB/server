@@ -1,0 +1,68 @@
+#
+# MW-284 Slave I/O retry on ER_COM_UNKNOWN_ERROR
+#
+
+--source include/have_log_bin.inc
+--source include/galera_cluster.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+call mtr.add_suppression("\\[ERROR\\] Error reading packet from server: WSREP has not yet prepared node for application use .*");
+call mtr.add_suppression("WSREP has not yet prepared node for application use");
+
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$NODE_MYPORT_1, MASTER_USER='root', MASTER_CONNECT_RETRY=1;
+--enable_query_log
+
+--connection node_1
+--let $wsrep_sync_wait_state= `SELECT @@global.wsrep_sync_wait;`
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+SET SESSION wsrep_on = OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SET SESSION wsrep_on = ON;
+
+#wsrep_sync_wait is set to zero because when slave tries to connect it it ask for queries like SELECT UNIX_TIMESTAMP() on node 1 which will fail, causing
+#a warning in slave error log.
+SET global wsrep_sync_wait=0;
+
+--connection node_3
+SELECT @@wsrep_on;
+--sleep 1
+START SLAVE;
+--let $slave_param= Slave_IO_Running
+--let $slave_param_value= Connecting
+--source include/wait_for_slave_param.inc
+
+--connection node_1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+
+# We expect the slave to reconnect and resume replication
+
+--connection node_3
+--source include/wait_for_slave_to_start.inc
+
+--connection node_1
+--source include/galera_wait_ready.inc
+INSERT INTO t1 VALUES (1);
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) > 0 FROM t1
+--source include/wait_condition.inc
+
+# Cleanup
+
+--connection node_1
+DROP TABLE t1;
+--eval SET global wsrep_sync_wait=$wsrep_sync_wait_state
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+STOP SLAVE;
+RESET SLAVE ALL;
+
+CALL mtr.add_suppression('failed registering on master');

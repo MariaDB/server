@@ -1,0 +1,60 @@
+SET GLOBAL innodb_encrypt_tables = OFF;
+SET GLOBAL innodb_encryption_threads = 4;
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `c` varchar(256) DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+CREATE TABLE t2 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=YES;
+CREATE TABLE t3 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=NO;
+CREATE TABLE t4 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+SET GLOBAL innodb_encrypt_tables = on;
+# Wait max 10 min for key encryption threads to encrypt required all spaces
+# Success!
+SELECT COUNT(1) FROM t1;
+COUNT(1)
+10
+SELECT COUNT(1) FROM t2;
+COUNT(1)
+10
+SELECT COUNT(1) FROM t3;
+COUNT(1)
+10
+SELECT COUNT(1) FROM t4;
+COUNT(1)
+10
+SET GLOBAL innodb_encrypt_tables = off;
+# Wait max 10 min for key encryption threads to decrypt all required spaces
+# Success!
+SET GLOBAL innodb_encrypt_tables = ON;
+set GLOBAL innodb_default_encryption_key_id=4;
+CREATE TABLE t5 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB;
+SHOW CREATE TABLE t5;
+Table	Create Table
+t5	CREATE TABLE `t5` (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `c` varchar(256) DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+INSERT INTO t5 select * from t1;
+# Wait max 10 min for key encryption threads to encrypt required all spaces
+# Success!
+SELECT COUNT(1) FROM t1;
+COUNT(1)
+10
+SELECT COUNT(1) FROM t2;
+COUNT(1)
+10
+SELECT COUNT(1) FROM t3;
+COUNT(1)
+10
+SELECT COUNT(1) FROM t4;
+COUNT(1)
+10
+SELECT COUNT(1) FROM t5;
+COUNT(1)
+10
+drop table t1,t2,t3,t4, t5;

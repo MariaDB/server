@@ -1,0 +1,143 @@
+--source include/have_innodb.inc
+--source include/big_test.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+SET @n_pages= @@GLOBAL.innodb_defragment_n_pages;
+SET @accuracy= @@GLOBAL.innodb_defragment_stats_accuracy;
+SET @sp= @@GLOBAL.innodb_stats_persistent;
+
+SET GLOBAL innodb_stats_persistent = 0;
+set global innodb_defragment_stats_accuracy = 80;
+
+# Create table.
+#
+# TODO: Currently we do not defragment  spatial indexes,
+# because doing it properly would require
+# appropriate logic around the SSN (split
+# sequence number).
+#
+# Also do not defragment auxiliary tables related to FULLTEXT INDEX.
+#
+# Both types added to this test to make sure they do not cause
+# problems.
+#
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+b VARCHAR(256),
+c INT,
+g GEOMETRY NOT NULL,
+t VARCHAR(256),
+KEY second(a, b),
+KEY third(c),
+SPATIAL gk(g),
+FULLTEXT INDEX fti(t)) ENGINE=INNODB;
+
+connect (con1,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+connect (con2,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+connect (con3,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+connect (con4,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+
+connection default;
+
+SET @@global.innodb_defragment_n_pages = 20;
+
+CREATE TEMPORARY TABLE tt (a INT, KEY(a)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO tt SELECT 0 FROM seq_1_to_180;
+INSERT INTO tt SELECT 5 FROM seq_1_to_160;
+INSERT INTO tt SELECT 1 FROM seq_1_to_1000;
+OPTIMIZE TABLE tt;
+
+let $data_size = 20000;
+let $delete_size = 2000;
+
+# Populate table.
+let $i = $data_size;
+--disable_query_log
+while ($i)
+{
+  eval
+    INSERT INTO t1 VALUES ($data_size + 1 - $i, REPEAT('A', 256), $i, Point($i,$i), 'This is a test message.');
+  dec $i;
+}
+--enable_query_log
+
+select count(*) from t1;
+select count(*) from t1 force index (second);
+select count(*) from t1 force index (third);
+
+# Delete some data
+--disable_query_log
+let $size = $delete_size;
+while ($size)
+{
+    let $j =  100 * $size;
+    eval delete from t1 where a between $j - 20 and $j;
+    dec $size;
+}
+--enable_query_log
+
+select count(*) from t1;
+select count(*) from t1 force index (second);
+select count(*) from t1 force index (third);
+
+# Above delete will free some pages and insert causes page split and these could cause defrag
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+
+connection con1;
+--send optimize table t1;
+
+connection default;
+--send INSERT INTO t1 VALUES (400000, REPEAT('A', 256),300000, Point(1,1),'More like a test but different.');
+
+connection con2;
+--send INSERT INTO t1 VALUES (500000, REPEAT('A', 256),400000, Point(1,1),'Totally different text book.');
+
+connection con3;
+--send DELETE FROM t1 where a between 1 and 100;
+
+connection con4;
+--send UPDATE t1 SET c = c + 1 where c between 2000 and 8000;
+
+connection con1;
+--disable_result_log
+--reap
+--enable_result_log
+
+connection con2;
+--reap
+
+connection con3;
+--reap
+
+connection con4;
+--reap
+
+connection default;
+--reap
+
+disconnect con1;
+disconnect con2;
+disconnect con3;
+disconnect con4;
+
+optimize table t1;
+check table t1 extended;
+
+select count(*) from t1;
+select count(*) from t1 force index (second);
+select count(*) from t1 force index (third);
+
+# Now pages are freed
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+
+drop table t1;
+
+# reset system
+SET GLOBAL innodb_defragment_n_pages = @n_pages;
+SET GLOBAL innodb_defragment_stats_accuracy = @accuracy;
+SET GLOBAL innodb_stats_persistent = @sp;

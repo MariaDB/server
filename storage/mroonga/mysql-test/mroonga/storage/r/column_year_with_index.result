@@ -1,0 +1,28 @@
+DROP TABLE IF EXISTS aniversary_memos;
+CREATE TABLE aniversary_memos (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+party_year YEAR,
+KEY (party_year)
+) DEFAULT CHARSET UTF8;
+INSERT INTO aniversary_memos (title, party_year)
+VALUES ("We need a big cake!", "11");
+INSERT INTO aniversary_memos (title, party_year)
+VALUES ("Invitations are sent.", "2012");
+INSERT INTO aniversary_memos (title, party_year)
+VALUES ("Tommorow is the anniversary party day!", "2012");
+INSERT INTO aniversary_memos (title, party_year)
+VALUES ("Wow! Today is the anniversary party day!", "13");
+SELECT * FROM aniversary_memos;
+id	title	party_year
+1	We need a big cake!	2011
+2	Invitations are sent.	2012
+3	Tommorow is the anniversary party day!	2012
+4	Wow! Today is the anniversary party day!	2013
+SELECT * FROM aniversary_memos
+WHERE party_year BETWEEN "12" AND "2013";
+id	title	party_year
+2	Invitations are sent.	2012
+3	Tommorow is the anniversary party day!	2012
+4	Wow! Today is the anniversary party day!	2013
+DROP TABLE aniversary_memos;

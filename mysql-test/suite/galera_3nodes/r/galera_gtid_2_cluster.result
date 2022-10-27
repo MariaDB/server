@@ -1,0 +1,323 @@
+connection node_2;
+connection node_1;
+connection node_1;
+cluster 1 node 1
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+connection node_2;
+cluster 1 node 2
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_3;
+cluster 1 node 3
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+connection node_4;
+cluster 2 node 1
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+connect node_5, 127.0.0.1, root, , test, $NODE_MYPORT_5;
+connection node_5;
+cluster 2 node 2
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+connect node_6, 127.0.0.1, root, , test, $NODE_MYPORT_6;
+connection node_6;
+cluster 2 node 3
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	3
+connection node_1;
+change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_4, master_use_gtid=current_pos, ignore_server_ids=(12,13);;
+start slave;
+include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+
+select @@gtid_slave_pos;
+@@gtid_slave_pos
+
+connection node_4;
+change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_1, master_use_gtid=current_pos, ignore_server_ids=(22,23);;
+start slave;
+include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+
+select @@gtid_slave_pos;
+@@gtid_slave_pos
+
+cluster 1 node 1
+connection node_1;
+create table t1 (cluster_domain_id int ,node_server_id int, seq_no int);
+insert into t1 values (1, 11, 2);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2
+#wait for sync  cluster 1 and 2
+connection node_1;
+include/save_master_gtid.inc
+connection node_4;
+include/sync_with_master_gtid.inc
+cluster 2 node 1
+connection node_4;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2
+insert into t1 values (2, 21, 1);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,2-21-1
+select * from t1;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+2	21	1
+#wait for sync  cluster 1 and 2
+connection node_1;
+include/save_master_gtid.inc
+connection node_4;
+include/sync_with_master_gtid.inc
+cluster 1 node 2
+connection node_2;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,2-21-1
+insert into t1 values (1, 12, 3);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,1-12-3,2-21-1
+#wait for sync  cluster 1 and 2
+connection node_1;
+include/save_master_gtid.inc
+connection node_4;
+include/sync_with_master_gtid.inc
+cluster 1 node 3
+connection node_3;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,1-12-3,2-21-1
+insert into t1 values (1, 13, 4);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1
+#wait for sync  cluster 1 and 2
+connection node_1;
+include/save_master_gtid.inc
+connection node_4;
+include/sync_with_master_gtid.inc
+cluster 2 node 2
+connection node_5;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1
+insert into t1 values (2, 22, 2);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
+#wait for sync  cluster 2 and 1
+connection node_4;
+include/save_master_gtid.inc
+connection node_1;
+include/sync_with_master_gtid.inc
+cluster 2 node 3
+connection node_6;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
+insert into t1 values (2, 23, 3);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
+#wait for sync  cluster 2 and 1
+connection node_4;
+include/save_master_gtid.inc
+connection node_1;
+include/sync_with_master_gtid.inc
+cluster 1 node 1
+connection node_1;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
+drop table t1;
+stop slave;
+reset slave;
+cluster 2 node 1
+connection node_4;
+stop slave;
+reset slave;
+cluster 1 node 1
+connection node_1;
+change master to master_use_gtid=no, ignore_server_ids=();
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+set global GTID_SLAVE_POS="";
+cluster 2 node 1
+connection node_4;
+change master to master_use_gtid=no, ignore_server_ids=();
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+set global GTID_SLAVE_POS="";
+connection node_2;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_3;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_5;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_6;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_1;
+change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_6, master_use_gtid=current_pos, ignore_server_ids=(12,13);;
+start slave;
+include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+
+select @@gtid_slave_pos;
+@@gtid_slave_pos
+
+connection node_4;
+change master to master_host='127.0.0.1', master_user='root', master_port=NODE_MYPORT_3, master_use_gtid=current_pos, ignore_server_ids=(22,23);;
+start slave;
+include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+
+select @@gtid_slave_pos;
+@@gtid_slave_pos
+
+cluster 1 node 1
+connection node_1;
+create table t1 (cluster_domain_id int ,node_server_id int, seq_no int);
+insert into t1 values (1, 11, 2);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2
+#wait for sync  cluster 1 and 2
+connection node_1;
+include/save_master_gtid.inc
+connection node_4;
+include/sync_with_master_gtid.inc
+cluster 2 node 1
+connection node_4;
+insert into t1 values (2, 21, 1);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,2-21-1
+select * from t1;
+cluster_domain_id	node_server_id	seq_no
+1	11	2
+2	21	1
+#wait for sync  cluster 1 and 2
+connection node_1;
+include/save_master_gtid.inc
+connection node_4;
+include/sync_with_master_gtid.inc
+cluster 1 node 2
+connection node_2;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,2-21-1
+insert into t1 values (1, 12, 3);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,1-12-3,2-21-1
+#wait for sync  cluster 1 and 2
+connection node_1;
+include/save_master_gtid.inc
+connection node_4;
+include/sync_with_master_gtid.inc
+cluster 1 node 3
+connection node_3;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-11-2,1-12-3,2-21-1
+insert into t1 values (1, 13, 4);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1
+#wait for sync  cluster 1 and 2
+connection node_1;
+include/save_master_gtid.inc
+connection node_4;
+include/sync_with_master_gtid.inc
+cluster 2 node 2
+connection node_5;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1
+insert into t1 values (2, 22, 2);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
+#wait for sync  cluster 2 and 1
+connection node_4;
+include/save_master_gtid.inc
+connection node_1;
+include/sync_with_master_gtid.inc
+cluster 2 node 3
+connection node_6;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2
+insert into t1 values (2, 23, 3);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
+#wait for sync  cluster 2 and 1
+connection node_4;
+include/save_master_gtid.inc
+connection node_1;
+include/sync_with_master_gtid.inc
+cluster 1 node 1
+connection node_1;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-12-3,1-11-2,1-13-4,2-21-1,2-22-2,2-23-3
+drop table t1;
+stop slave;
+change master to master_use_gtid=no, ignore_server_ids=();
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+set global GTID_SLAVE_POS="";
+cluster 2 node 1
+connection node_4;
+stop slave;
+change master to master_use_gtid=no, ignore_server_ids=();
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+set global GTID_SLAVE_POS="";
+connection node_2;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_3;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_5;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+connection node_6;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;

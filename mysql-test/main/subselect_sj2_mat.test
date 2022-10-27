@@ -1,0 +1,506 @@
+# 
+# Run subselect_sj2.test with subquery materialization.
+#
+--source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
+
+set optimizer_switch='materialization=on';
+set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+
+--source subselect_sj2.test
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+
+set optimizer_switch=default;
+select @@optimizer_switch like '%materialization=on%';
+
+--echo #
+--echo # BUG#906385: EXPLAIN EXTENDED crashes in TABLE_LIST::print with limited max_join_size
+--echo #
+CREATE TABLE t1 ( a INT );
+CREATE TABLE t2 ( b INT );
+
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES
+  (1),(2),(3),(4),(5),
+  (6),(7),(8),(9),(10),
+  (11),(12),(13),(14),(15),
+  (16),(17),(18),(19),(20);
+
+set @tmp_906385=@@max_join_size;
+SET max_join_size = 80;
+
+--error ER_TOO_BIG_SELECT
+EXPLAIN EXTENDED
+SELECT COUNT(*) FROM t1
+WHERE a IN
+      ( SELECT b FROM t2 GROUP BY b )
+  AND ( 6 ) IN
+  ( SELECT MIN( t2.b ) FROM t2 alias1, t2 );
+
+DROP TABLE t1, t2;
+set max_join_size= @tmp_906385;
+
+--echo # 
+--echo # mdev-3995: Wrong result for semijoin with materialization  
+--echo # 
+
+set @save_optimizer_switch=@@optimizer_switch;
+
+CREATE TABLE t1 (
+  cat_id int(10) unsigned NOT NULL,
+  PRIMARY KEY (cat_id)
+) ENGINE=MyISAM;
+
+INSERT INTO t1 VALUES
+(709411),(709412),(709413),(709414),(709416),(709417),(709418),(709419),(709421),(709422),
+(709424),(709425),(709427),(709428),(709429),(709431),(709432),(709433),(709434),(709435),
+(709438),(709439),(709441),(709442),(709443),(709444),(709445),(709446),(709447),(709450),
+(709451),(709454),(709455),(709456),(709457),(709459),(709460),(709461),(709462),(709463),
+(709464),(709465),(709467),(709469),(709470),(709471),(709472),(709473),(709474),(709475),
+(709476),(709477),(709478),(709479),(709480),(709481),(709483),(709484),(709485),(709487),
+(709490),(709491),(709492),(709493),(709494),(709495),(709496),(709497),(709498),(709499),
+(709500),(709501),(709502),(709503),(709504),(709505),(709506),(709507),(709509),(709510),
+(709511),(709512),(709513),(709514),(709515),(709516),(709517),(709518),(709519),(709520),
+(709521),(709522),(709523),(709524),(709525),(709526),(709527),(709528),(709529),(709530),
+(709531),(709532),(709533),(709534),(709535),(709536),(709537),(709538),(709539),(709540),
+(709541),(709542),(709543),(709544),(709545),(709546),(709548),(709549),(709551),(709552),
+(709553),(709555),(709556),(709557),(709558),(709559),(709560),(709561),(709562),(709563),
+(709564),(709565),(709566),(709567),(709568),(709569),(709570),(709571),(709572),(709573),
+(709574),(709575),(709576),(709577),(709578),(709579),(709580),(709581),(709582),(709583),
+(709584),(709585),(709586),(709587),(709588),(709590),(709591),(709592),(709593),(709594),
+(709595),(709596),(709597),(709598),(709600),(709601),(709602),(709603),(709604),(709605),
+(709606),(709608),(709609),(709610),(709611),(709612),(709613),(709614),(709615),(709616),
+(709617),(709618),(709619),(709620),(709621),(709622),(709623),(709624),(709625),(709626),
+(709627),(709628),(709629),(709630),(709631),(709632),(709633),(709634),(709635),(709637),
+(709638),(709639),(709640),(709641),(709642),(709643),(709644),(709645),(709646),(709649),
+(709650),(709651),(709652),(709653),(709654),(709655),(709656),(709657),(709658),(709659);
+
+CREATE TABLE t2 (
+  cat_id int(10) NOT NULL,
+  KEY cat_id (cat_id)
+) ENGINE=MyISAM;
+
+INSERT INTO t2 VALUES
+(708742),(708755),(708759),(708761),(708766),(708769),(708796),(708798),(708824),(708825),
+(708838),(708844),(708861),(708882),(708887),(708889),(708890),(709586),(709626);
+
+CREATE TABLE t3 (
+  sack_id int(10) unsigned NOT NULL,
+  kit_id tinyint(3) unsigned NOT NULL DEFAULT '0',
+  cat_id int(10) unsigned NOT NULL,
+  PRIMARY KEY (sack_id,kit_id,cat_id)
+) ENGINE=MyISAM;
+
+INSERT INTO t3 VALUES
+(33479,6,708523),(33479,6,708632),(33479,6,709085),(33479,6,709586),(33479,6,709626);
+
+CREATE TABLE t4 (
+  cat_id int(10) unsigned NOT NULL,
+  KEY cat_id (cat_id)
+) ENGINE=MyISAM;
+
+INSERT INTO t4 (cat_id) SELECT cat_id from t2; 
+
+set optimizer_switch='materialization=off';
+
+EXPLAIN
+SELECT count(*) FROM t1, t3 
+  WHERE  t1.cat_id = t3.cat_id AND 
+         t3.cat_id IN (SELECT cat_id FROM t2) AND 
+         t3.sack_id = 33479 AND t3.kit_id = 6;
+
+SELECT count(*) FROM t1, t3 
+  WHERE  t1.cat_id = t3.cat_id AND 
+         t3.cat_id IN (SELECT cat_id FROM t2) AND 
+         t3.sack_id = 33479 AND t3.kit_id = 6;
+
+set optimizer_switch='materialization=on';
+
+EXPLAIN
+SELECT count(*) FROM t1, t3 
+  WHERE  t1.cat_id = t3.cat_id AND 
+         t3.cat_id IN (SELECT cat_id FROM t4) AND 
+         t3.sack_id = 33479 AND t3.kit_id = 6;
+
+SELECT count(*) FROM t1, t3 
+  WHERE  t1.cat_id = t3.cat_id AND 
+         t3.cat_id IN (SELECT cat_id FROM t4) AND 
+         t3.sack_id = 33479 AND t3.kit_id = 6;
+
+EXPLAIN
+SELECT count(*) FROM t1, t3 
+  WHERE  t1.cat_id = t3.cat_id AND 
+         t3.cat_id IN (SELECT cat_id FROM t2) AND 
+         t3.sack_id = 33479 AND t3.kit_id = 6;
+
+SELECT count(*) FROM t1, t3 
+  WHERE  t1.cat_id = t3.cat_id AND 
+         t3.cat_id IN (SELECT cat_id FROM t2) AND 
+         t3.sack_id = 33479 AND t3.kit_id = 6;
+
+
+DROP TABLE t1,t2,t3,t4;
+
+set optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # mdev-3913: LEFT JOIN with materialized multi-table IN subquery in WHERE
+--echo #
+
+set @save_optimizer_switch=@@optimizer_switch;
+
+CREATE TABLE t1 (a1 char(1), b1 char(1), index idx(b1,a1));
+INSERT INTO t1 VALUES ('f','c'),('d','m'),('g','y');
+INSERT INTO t1 VALUES ('f','c'),('d','m'),('g','y');
+
+CREATE TABLE t2 (a2 char(1), b2 char(1));
+INSERT INTO t2 VALUES ('y','y'),('y','y'),('w','w');
+
+CREATE TABLE t3 (a3 int);
+INSERT INTO t3 VALUES (8),(6);
+
+CREATE TABLE t4 (a4 char(1), b4 char(1));
+INSERT INTO t4 VALUES ('y','y'),('y','y'),('w','w');
+
+set optimizer_switch='materialization=off';
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 LEFT JOIN t2 ON ( b1 = a2 ) 
+  WHERE ( b1, b1 )  IN ( SELECT a4, b4 FROM t3, t4);
+SELECT * FROM t1 LEFT JOIN t2 ON ( b1 = a2 ) 
+  WHERE ( b1, b1 )  IN ( SELECT a4, b4 FROM t3, t4);
+
+set optimizer_switch='materialization=on';
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 LEFT JOIN t2 ON ( b1 = a2 ) 
+  WHERE ( b1, b1 )  IN ( SELECT a4, b4 FROM t3, t4);
+SELECT * FROM t1 LEFT JOIN t2 ON ( b1 = a2 ) 
+  WHERE ( b1, b1 )  IN ( SELECT a4, b4 FROM t3, t4);
+
+DROP TABLE t1,t2,t3,t4;
+
+set optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # mdev-4172: LEFT JOIN with materialized multi-table IN subquery in WHERE
+--echo #            and OR in ON condition
+--echo #
+
+set @save_optimizer_switch=@@optimizer_switch;
+
+CREATE TABLE t1 (a1 int, c1 varchar(1));
+INSERT t1 VALUES (7,'v'), (3,'y');
+
+CREATE TABLE t2 (c2 varchar(1));
+INSERT INTO t2 VALUES ('y'), ('y');
+
+CREATE TABLE t3 (c3 varchar(1));
+INSERT INTO t3 VALUES
+  ('j'), ('v'), ('c'), ('m'), ('d'),
+  ('d'), ('y'), ('t'), ('d'), ('s');
+
+CREATE TABLE t4 (a4 int, c4 varchar(1));
+INSERT INTO t4 SELECT * FROM t1;
+
+set optimizer_switch='materialization=off';
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 LEFT JOIN t2 ON (c2 = c1 OR c1 > 'z')
+  WHERE c1 IN ( SELECT c4 FROM t3,t4 WHERE c3 = c4);
+SELECT * FROM t1 LEFT JOIN t2 ON (c2 = c1 OR c1 > 'z')
+  WHERE c1 IN ( SELECT c4 FROM t3,t4 WHERE c3 = c4);
+
+set optimizer_switch='materialization=on';
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 LEFT JOIN t2 ON (c2 = c1 OR c1 > 'z')
+  WHERE c1 IN ( SELECT c4 FROM t3,t4 WHERE c3 = c4);
+SELECT * FROM t1 LEFT JOIN t2 ON (c2 = c1 OR c1 > 'z')
+  WHERE c1 IN ( SELECT c4 FROM t3,t4 WHERE c3 = c4);
+
+DROP TABLE t1,t2,t3,t4;
+
+set optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # mdev-4177: materialization of a subquery whose WHERE condition is OR
+--echo # formula with two disjucts such that the second one is always false
+--echo #
+
+set @save_optimizer_switch=@@optimizer_switch;
+set @save_join_cache_level=@@join_cache_level;
+
+CREATE TABLE t1 (i1 int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (7), (4), (8), (4);
+
+CREATE TABLE t2 (i2 int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (7), (5);
+
+CREATE TABLE t3 (i3 int) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (7), (2), (9);
+
+set join_cache_level=3;
+
+set optimizer_switch='materialization=off,semijoin=off';
+
+EXPLAIN EXTENDED 
+SELECT * FROM t1 WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 = i2 OR 1=2);
+SELECT * FROM t1 WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 = i2 OR 1=2);
+
+set optimizer_switch='materialization=on,semijoin=on';
+
+EXPLAIN EXTENDED 
+SELECT * FROM t1 WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 = i2 OR 1=2);
+SELECT * FROM t1 WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 = i2 OR 1=2);
+
+EXPLAIN EXTENDED 
+SELECT * FROM t1 
+  WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 > 0 AND i3 = i2 OR 1=2);
+SELECT * FROM t1 
+  WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 > 0 AND i3 = i2 OR 1=2);
+SELECT * FROM t1 
+  WHERE i1 IN (SELECT i3 FROM t2, t3 WHERE i3 > 7 AND i3 = i2 OR 1=2);
+
+DROP TABLE t1,t2,t3;
+
+set join_cache_level= @save_join_cache_level;
+set optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # mdev-7791: materialization of a semi-join subquery +
+--echo #            RAND() in WHERE
+--echo #            (materialized table is accessed last)
+--echo #
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='materialization=on';
+
+create table t1(i int);
+insert into t1 values (1), (2), (3), (7), (9), (10);
+create table t2(i int);
+insert into t2 values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+select * from t1 where (rand() < 0) and i in (select i from t2);
+explain extended
+select * from t1 where (rand() < 0) and i in (select i from t2);
+
+drop table t1,t2;
+set optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # mdev-12855: materialization of a semi-join subquery + ORDER BY 
+--echo #
+
+CREATE TABLE t1 (f1 varchar(8), KEY(f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('qux'),('foo');
+CREATE TABLE t2 (f2 varchar(8)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES ('bar'),('foo'),('qux');
+
+let $q=
+SELECT f1 FROM t1 
+WHERE f1 IN ( SELECT f2 FROM t2 WHERE f2 > 'bar' )
+HAVING f1 != 'foo'
+ORDER BY f1;
+
+eval $q;
+# Number of rows can be 3 or 4
+--replace_result 4 3
+eval explain $q;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-16225: wrong resultset from query with semijoin=on
+--echo #
+
+CREATE TABLE t1 (
+  `id` int(10)  NOT NULL AUTO_INCREMENT,
+  `local_name` varchar(64) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=latin1;
+
+insert  into t1(`id`,`local_name`) values
+(1,'Cash Advance'),
+(2,'Cash Advance'),
+(3,'Rollover'),
+(4,'AL Installment'),
+(5,'AL Installment'),
+(6,'AL Installment'),
+(7,'AL Installment'),
+(8,'AL Installment'),
+(9,'AL Installment'),
+(10,'Internet Payday'),
+(11,'Rollover - Internet Payday'),
+(12,'AL Monthly Installment'),
+(13,'AL Semi-Monthly Installment');
+insert into t1 select seq,"ignore" from seq_1000_to_1100;
+ANALYZE TABLE t1;
+
+explain
+SELECT SQL_NO_CACHE t.id
+FROM t1 t
+WHERE (
+        t.id IN (SELECT A.id FROM t1 AS A WHERE A.local_name IN (SELECT B.local_name FROM t1 AS B WHERE B.id IN (0,4,12,13,1,10,3,11)))
+        OR
+        (t.id IN (0,4,12,13,1,10,3,11))
+);
+SELECT SQL_NO_CACHE t.id
+FROM t1 t
+WHERE (
+        t.id IN (SELECT A.id FROM t1 AS A WHERE A.local_name IN (SELECT B.local_name FROM t1 AS B WHERE B.id IN (0,4,12,13,1,10,3,11)))
+        OR
+        (t.id IN (0,4,12,13,1,10,3,11))
+);
+drop table t1;
+
+--echo #
+--echo # MDEV-15982: Incorrect results when subquery is materialized
+--echo #
+
+CREATE TABLE `t1` (`id` int(32)  NOT NULL  primary key);
+INSERT INTO `t1` VALUES
+(45), (46), (47), (48), (49), (50), (51), (52), (53), (54), (55), (56), (57), (58), (59), (60), (61), (62),
+(63), (64), (65), (66), (67), (68), (69), (70), (71), (72), (73), (74), (75), (76), (77), (78), (79), (80),
+(81), (82), (83), (84), (85), (86), (87), (88), (89), (90), (91), (92),(93),(94),(95),(96), (97), (98),
+(99), (100), (101), (102), (103), (104), (105), (106), (107), (108), (109), (110), (111), (112), (113),
+(114), (115), (116), (117), (118), (119), (120), (121), (122), (123), (124), (125), (126), (127), (128),
+(129), (130), (131), (132), (133), (134), (135), (136), (137), (138), (139), (140), (141), (142), (143), (144), (145), (146),
+(147), (148), (149), (150), (151), (152), (153), (154), (155), (156), (157), (158), (159), (160), (161),
+(162), (163), (164), (165), (166), (167), (168), (169), (170), (171), (172), (173),
+(174), (175), (176), (177), (178), (179), (180), (181), (182), (183), (2), (3), (4), (5), (6), (19), (35),
+(7), (20), (8), (36), (219), (22), (10), (23), (37), (11), (24);
+
+CREATE TABLE `t2` (`type` int , `id` int(32) NOT NULL  primary key);
+INSERT INTO `t2` VALUES
+(2,2),(2,3),(1,4),(2,5),(1,6),(1,19),(5,7),(1,20),(1,8),(1,21),(1,9),
+(1,22),(2,10),(1,23),(2,11),(1,24),(1,12),(1,25),(2,13),(2,26),(2,14),
+(2,27),(1,15),(1,28),(3,16),(1,29),(2,17),(1,30),(5,18),(2,1);
+
+CREATE TABLE `t3` (`ref_id`  int(32) unsigned ,`type` varchar(80),`id` int(32) NOT NULL );
+INSERT INTO `t3` VALUES
+(1,'incident',31),(2,'faux pas',32),
+(5,'oopsies',33),(3,'deniable',34),
+(11,'wasntme',35),(10,'wasntme',36),
+(17,'faux pas',37),(13,'unlikely',38),
+(13,'improbable',39),(14,'incident',40),
+(26,'problem',41),(14,'problem',42),
+(26,'incident',43),(27,'incident',44);
+
+explain
+SELECT t2.id FROM t2,t1
+  WHERE  t2.id IN (SELECT t3.ref_id FROM t3,t1 where t3.id = t1.id) and t2.id = t1.id;
+
+SELECT t2.id FROM t2,t1
+  WHERE  t2.id IN (SELECT t3.ref_id FROM t3,t1 where t3.id = t1.id) and t2.id = t1.id;
+
+set optimizer_switch='materialization=off';
+
+SELECT t2.id FROM t2,t1
+  WHERE  t2.id IN (SELECT t3.ref_id FROM t3,t1 where t3.id = t1.id) and t2.id = t1.id;
+set optimizer_switch='materialization=on';
+
+DROP TABLE t1,t2,t3;
+
+
+--echo #
+--echo # MDEV-15247: Crash when SET NAMES 'utf8' is set
+--echo #
+
+CREATE TABLE t1 (
+  id_category int unsigned,
+  id_product int unsigned,
+  PRIMARY KEY (id_category,id_product)
+) ENGINE=MyISAM;
+
+INSERT INTO `t1` VALUES (31,216), (31,215), (31,214), (31,213), (31,212), (32,211), (32,210), (32,209), (32,208), (29,207), (30,315372), (2,161), (2,132), (33,315380), (31,315371), (29,315370), (29,315373), (29,315369), (29,315374), (29,315368), (29,315375), (29,315367), (29,183), (29,182), (30,177), (29,315376), (13,315365), (2,167), (2,315357), (2,164), (2,159), (2,131), (2,127), (14,315364), (27,315363), (29,205), (29,204), (29,203), (29,202), (29,201), (29,200), (29,199), (29,198), (29,197), (29,196), (29,195), (29,194), (29,193), (29,192), (29,191), (29,190), (29,189), (14,188), (29,187), (29,186), (29,185), (29,184), (29,315377), (29,315378), (29,181), (33,315379), (29,179), (30,178), (29,180), (30,176), (30,175), (30,174), (30,173), (30,172), (11,171), (27,315357), (23,108), (23,102);
+ 
+CREATE TABLE t2 (
+  id_product int,
+  id_t2 int,
+  KEY id_t2 (id_t2),
+  KEY id_product (id_product)
+) ENGINE=MyISAM;
+ 
+INSERT INTO `t2` VALUES (11,31), (11,31), (11,31), (11,32), (11,32),
+(11,32), (10,26), (11,32), (10,28), (11,32), (10,29), (11,33), (10,26),
+(11,33), (10,27), (9,23), (11,32), (10,26), (8,18), (7,15), (11,32),
+(10,28), (11,32), (10,28), (11,32), (10,29), (11,32), (10,29), (8,19),
+(7,16), (8,18), (7,16), (8,20), (7,16), (11,32), (10,28), (8,19),
+(7,16), (8,20), (7,16), (11,32), (10,29), (8,19), (7,16), (8,20),
+(7,16), (10,27), (9,23), (10,27), (9,23), (10,27), (9,23), (11,32),
+(10,27), (11,32), (10,27), (8,18), (7,15), (10,26), (9,24), (8,19),
+(7,16), (10,26), (9,23), (8,19), (7,16), (8,18), (7,16), (8,18), (7,16),
+(9,23), (8,18), (9,23), (8,19), (7,16), (7,16), (8,19), (7,16), (11,31),
+(10,27), (9,24), (11,31), (10,27), (9,23), (8,19), (11,31), (10,26), (9,24),
+(8,19), (11,31), (10,26), (9,25), (8,18), (11,31), (10,26), (9,23), (8,19),
+(11,31), (10,26), (9,23), (8,18), (11,31), (10,30), (9,23), (8,18), (11,31),
+(10,30), (9,23), (8,19), (11,31), (10,26), (9,25), (8,19), (8,21), (11,32),
+(10,26), (9,22), (8,19), (11,32), (10,26), (9,22), (8,18), (11,32), (10,26),
+(9,22), (8,20), (11,33), (10,26), (9,22), (8,19), (11,33), (10,26), (9,22),
+(8,18), (11,33), (10,26), (9,22), (8,20), (11,32), (10,26), (9,24), (8,19),
+(11,32), (10,26), (9,25), (8,19), (11,32), (10,26), (9,25), (8,18), (11,32),
+(10,26), (9,23), (8,18), (11,32), (10,30), (9,23), (8,18), (11,32), (10,30),
+(9,23), (8,19), (11,32), (10,26), (9,23), (8,19), (11,32), (10,27), (9,23),
+(11,32), (10,27), (9,23), (11,32), (10,27), (9,23), (10,26), (9,22), (8,19),
+(7,15), (10,26), (9,22), (8,20), (7,15), (10,26), (9,22), (8,18), (7,15),
+(8,19), (10,26), (10,26), (11,33), (10,26), (11,33), (10,26), (11,33),
+(10,27), (11,33), (10,27), (11,31), (10,26), (11,31), (10,26), (8,18),
+(7,15), (9,23), (9,23), (9,24), (8,21), (7,15), (7,15), (7,15), (7,15),
+(7,15), (7,15), (7,15), (7,15), (7,15), (8,18), (7,17), (8,18), (7,17), (8,19), (8,19);
+
+CREATE TABLE t3 (
+  id_product int unsigned,
+  PRIMARY KEY (id_product)
+) ENGINE=MyISAM;
+ 
+INSERT INTO t3 VALUES 
+(102),(103),(104),(105),(106),(107),(108),(109),(110),
+(315371),(315373),(315374),(315375),(315376),(315377),
+(315378),(315379),(315380);
+
+CREATE TABLE t4 (
+  id_product int  not null,
+  id_shop int,
+  PRIMARY KEY (id_product,id_shop)
+) ENGINE=MyISAM ;
+ 
+INSERT INTO t4 VALUES 
+(202,1),(201,1),(200,1),(199,1),(198,1),(197,1),(196,1),(195,1),
+(194,1),(193,1),(192,1),(191,1),(190,1),(189,1),(188,1),(187,1),
+(186,1),(185,1),(184,1),(183,1),(182,1),(181,1),(179,1),(178,1),
+(177,1),(176,1),(126,1),(315380,1);
+
+CREATE TABLE t5 (id_product int) ENGINE=MyISAM;
+INSERT INTO `t5` VALUES 
+(652),(668),(669),(670),(671),(673),(674),(675),(676),
+(677),(679),(680),(681),(682),(683),(684),(685),(686);
+
+ANALYZE TABLE t1,t2,t3,t,t5;
+
+set optimizer_switch='rowid_filter=off';
+ 
+explain
+SELECT * FROM t3 
+  JOIN t4 ON (t4.id_product = t3.id_product AND t4.id_shop = 1)
+  JOIN t1 ON (t1.id_product = t3.id_product)
+LEFT JOIN t5 ON (t5.id_product = t3.id_product)
+WHERE 1=1
+AND t3.id_product IN (SELECT id_product FROM t2 t2_1 WHERE t2_1.id_t2 = 32) 
+AND t3.id_product IN (SELECT id_product FROM t2 t2_2 WHERE t2_2.id_t2 = 15)  
+AND t3.id_product IN (SELECT id_product FROM t2 t2_3 WHERE t2_3.id_t2 = 18 OR t2_3.id_t2 = 19)
+AND t3.id_product IN (SELECT id_product FROM t2 t2_4 WHERE t2_4.id_t2 = 34 OR t2_4.id_t2 = 23) 
+AND t3.id_product IN (SELECT id_product FROM t2 t2_5 WHERE t2_5.id_t2 = 29 OR t2_5.id_t2 = 28 OR t2_5.id_t2 = 26);
+ 
+set optimizer_switch='rowid_filter=default';
+
+drop table t1,t2,t3,t4,t5;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

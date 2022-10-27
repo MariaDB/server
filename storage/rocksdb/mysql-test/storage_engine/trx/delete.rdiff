@@ -1,0 +1,10 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/delete.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/delete.reject	2017-06-22 19:29:36.827567276 +0300
+@@ -68,5 +68,7 @@
+ DELETE FROM t1;
+ INSERT INTO t1 (a,b) VALUES (1,'a');
+ ROLLBACK TO SAVEPOINT spt1;
++ERROR HY000: MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows.
+ COMMIT;
++ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+ DROP TABLE t1;

@@ -1,0 +1,9 @@
+"Testing mysql_upgrade with FUNCTION performance_schema.user_func"
+create function test.user_func() returns integer
+return 0;
+update mysql.proc set db='performance_schema' where name='user_func';
+select name from mysql.proc where db='performance_schema';
+name
+user_func
+update mysql.proc set db='test' where name='user_func';
+drop function test.user_func;

@@ -1,0 +1,156 @@
+# Prove basic properties of
+#
+#    FLUSH BINARY LOGS DELETE_DOMAIN_ID = (...)
+#
+# The command removes the supplied list of domains from the current
+# @@global.gtid_binlog_state provided the binlog files do not contain
+# events from such domains.
+
+# The test is not format specific. One format is chosen to run it.
+--source include/have_binlog_format_mixed.inc
+
+# Reset binlog state
+RESET MASTER;
+
+# Empty list is accepted
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = ();
+--echo and the command execution is effective thence rotates binlog as usual
+--source include/show_binary_logs.inc
+
+--echo Non-existed domain is warned, the command completes without rotation
+--echo but with a warning
+--let $binlog_pre_flush=query_get_value(SHOW MASTER STATUS, Position, 1)
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (99);
+--let $binlog_start=$binlog_pre_flush
+--source include/show_binary_logs.inc
+
+# Log one event in a specified domain and try to delete the domain
+SET @@SESSION.gtid_domain_id=1;
+SET @@SESSION.server_id=1;
+CREATE TABLE t (a int);
+SELECT @@GLOBAL.gtid_binlog_state, @@GLOBAL.gtid_binlog_pos;
+--let $binlog_start=
+--source include/show_binlog_events.inc
+
+--error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
+
+# the same error after log rotation
+FLUSH BINARY LOGS;
+--error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
+
+# the latest binlog does not really contain any events incl ones from 1-domain
+--let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--eval PURGE BINARY LOGS TO '$purge_to_binlog';
+# So now it's safe to delete
+--error 0
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
+--echo Gtid_list of the current binlog does not contain '1':
+--let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
+--source include/show_gtid_list.inc
+--echo But the previous log's Gtid_list may have it which explains a warning from the following command
+--let $binlog_file=$purge_to_binlog
+--source include/show_gtid_list.inc
+
+--echo Already deleted domain in Gtid_list of the earliest log is benign
+--echo but may cause a warning
+--error 0
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
+
+# Few domains delete. The chosen number verifies among others how
+# expected overrun of the static buffers of underlying dynamic arrays is doing.
+--let $domain_cnt=17
+--let $server_in_domain_cnt=3
+--let $domain_list=
+--disable_query_log
+while ($domain_cnt)
+{
+  --let servers=$server_in_domain_cnt
+  --eval SET @@SESSION.gtid_domain_id=$domain_cnt
+  while ($servers)
+  {
+    --eval SET @@SESSION.server_id=10*$domain_cnt + $servers
+    --eval INSERT INTO t SET a=@@SESSION.server_id
+
+    --dec $servers
+  }
+  --let $domain_list= $domain_cnt, $domain_list
+
+  --dec $domain_cnt
+}
+--enable_query_log
+--let $zero=0
+--let $domain_list= $domain_list$zero
+
+--error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+--eval FLUSH BINARY LOGS DELETE_DOMAIN_ID = ($domain_list)
+
+# Now satisfy the safety condtion to purge log files containing $domain list
+FLUSH BINARY LOGS;
+--let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--eval PURGE BINARY LOGS TO '$purge_to_binlog'
+--error 0
+--eval FLUSH BINARY LOGS DELETE_DOMAIN_ID = ($domain_list)
+--echo Gtid_list of the current binlog does not contain $domain_list:
+--let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
+--source include/show_gtid_list.inc
+
+# Show reaction on @@global.gtid_binlog_state not succeeding
+# earlier state as described by the 1st binlog' Gtid_list.
+# Now let it be out-order gtid logged to a domain unrelated to deletion.
+
+--let $del_d_id=1
+--eval SET @@SESSION.gtid_domain_id=$del_d_id;
+SET @@SESSION.server_id=1;
+SET @@SESSION.gtid_seq_no=1;
+INSERT INTO t SET a=1;
+SET @@SESSION.server_id=2;
+SET @@SESSION.gtid_seq_no=2;
+INSERT INTO t SET a=2;
+
+SET @@SESSION.gtid_domain_id=11;
+SET @@SESSION.server_id=11;
+SET @@SESSION.gtid_seq_no=11;
+INSERT INTO t SET a=11;
+
+SET @gtid_binlog_state_saved=@@GLOBAL.gtid_binlog_state;
+FLUSH BINARY LOGS;
+
+# Inject out of order for domain '11' before
+SET @@SESSION.gtid_domain_id=11;
+SET @@SESSION.server_id=11;
+SET @@SESSION.gtid_seq_no=1;
+INSERT INTO t SET a=1;
+
+SELECT @gtid_binlog_state_saved "as original state", @@GLOBAL.gtid_binlog_state as "out of order for 11 domain state";
+
+# to delete '1', first to purge logs containing its events
+--let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--eval PURGE BINARY LOGS TO '$purge_to_binlog'
+
+--echo the following command succeeds with warnings
+--eval FLUSH BINARY LOGS DELETE_DOMAIN_ID = ($del_d_id)
+
+# cleanup: forget the out-of-order
+RESET MASTER;
+
+#
+# MDEV-14431
+# Check rejection to delete a domain with value exceeding its range's maximum
+#
+--let $d_max_plus_1=`SELECT 1 << 32`
+--error ER_BINLOG_CANT_DELETE_GTID_DOMAIN
+--eval FLUSH BINARY LOGS DELETE_DOMAIN_ID = ($d_max_plus_1)
+
+# accepted maximum:
+--let $d_max=`SELECT (1 << 32) - 1`
+--error 0
+--eval FLUSH BINARY LOGS DELETE_DOMAIN_ID = ($d_max)
+
+#
+# Cleanup
+#
+
+DROP TABLE t;
+RESET MASTER;

@@ -1,0 +1,24 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES ujis;
+CREATE TABLE diaries (
+id int PRIMARY KEY,
+title varchar(255),
+FULLTEXT KEY title_index (title)
+) DEFAULT CHARSET=ujis;
+ALTER TABLE diaries DISABLE KEYS;
+INSERT INTO diaries VALUES (1, "Hello");
+INSERT INTO diaries VALUES (2, "≈∑µ§");
+INSERT INTO diaries VALUES (3, "…ŸªŒª≥");
+SELECT *
+FROM diaries
+FORCE INDEX (title_index)
+WHERE MATCH (title) AGAINST ("…ŸªŒª≥");
+ERROR HY000: Can't find FULLTEXT index matching the column list
+ALTER TABLE diaries ENABLE KEYS;
+SELECT *
+FROM diaries
+FORCE INDEX (title_index)
+WHERE MATCH (title) AGAINST ("…ŸªŒª≥");
+id	title
+3	…ŸªŒª≥
+DROP TABLE diaries;

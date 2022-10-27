@@ -1,0 +1,35 @@
+CREATE TABLE t1(a BIGINT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t2(a BIGINT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(2);
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+INSERT INTO t2 VALUES(1);
+# Kill the server
+# Corrupt the pages
+SELECT * FROM t1;
+ERROR 42000: Unknown storage engine 'InnoDB'
+SELECT * FROM t1;
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
+SELECT * FROM t2;
+a
+1
+CHECK TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t1, t2;
+CREATE TABLE t1(pk SERIAL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3);
+connect  con1,localhost,root,,;
+BEGIN;
+DELETE FROM t1 WHERE pk=1;
+connection default;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1 WHERE pk=3;
+# Kill the server
+disconnect con1;
+# Corrupt the pages
+SELECT * FROM t1;
+pk
+1
+2
+DROP TABLE t1;

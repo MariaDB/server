@@ -1,0 +1,68 @@
+# Regression test for https://bugs.launchpad.net/oqgraph/+bug/1196036
+#-- bug with Djikstras algorithm - find reachable vertices (origid=X) returns weight=0 instead of weight=count of hops
+--disable_warnings
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+--enable_warnings
+
+# Create the backing store
+CREATE TABLE graph_base (
+    from_id INT UNSIGNED NOT NULL,
+    to_id INT UNSIGNED NOT NULL,
+    weight FLOAT NOT NULL,
+    PRIMARY KEY (from_id,to_id),
+    INDEX (to_id)
+  ) ENGINE=MyISAM;
+
+
+CREATE TABLE graph (
+    latch   VARCHAR(32) NULL,
+    origid  BIGINT    UNSIGNED NULL,
+    destid  BIGINT    UNSIGNED NULL,
+    weight  DOUBLE    NULL,
+    seq     BIGINT    UNSIGNED NULL,
+    linkid  BIGINT    UNSIGNED NULL,
+    KEY (latch, origid, destid) USING HASH,
+    KEY (latch, destid, origid) USING HASH
+  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id', WEIGHT='weight';
+
+
+INSERT INTO graph_base(from_id, to_id, weight) VALUES (1,2,16), (2,1,16);
+INSERT INTO graph_base(from_id, to_id, weight) VALUES (2,3,256), (3,2,256);
+INSERT INTO graph_base(from_id, to_id, weight) VALUES (3,4,65536), (4,3,65536);
+INSERT INTO graph_base(from_id, to_id, weight) VALUES (2,4,768);
+
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 1;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 2;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 3;
+
+SELECT * FROM graph WHERE latch = 'dijkstras' AND destid = 1;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND destid = 2;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND destid = 3;
+
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 1 and destid=3;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 1 and destid=4;
+
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 1 and weight=1;  # <-- should return nothing
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 2 and weight=1;  # <-- should return nothing
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 3 and weight=1;  # <-- should return nothing
+
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 1 and weight=16;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 2 and weight=16;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 3 and weight=16;  # <-- should return nothing
+
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 1 and weight=784;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 2 and weight=784;  # <-- should return nothing
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 3 and weight=784;  # <-- should return nothing
+
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 1 and weight=256;  # <-- should return nothing
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 2 and weight=256;
+SELECT * FROM graph WHERE latch = 'dijkstras' AND origid = 3 and weight=256;
+
+DELETE FROM graph_base;
+FLUSH TABLES;
+TRUNCATE TABLE graph_base;
+
+DROP TABLE graph_base;
+DROP TABLE graph;
+

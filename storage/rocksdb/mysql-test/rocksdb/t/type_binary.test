@@ -1,0 +1,8 @@
+--source include/have_rocksdb.inc
+
+#
+# BINARY column types
+#
+
+--source type_binary.inc
+

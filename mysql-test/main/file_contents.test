@@ -1,0 +1,70 @@
+#
+# Testing files that were built to be packaged, both for existence and for contents
+#
+
+#
+# Bug #42969: Create MANIFEST files
+#
+# Use a Perl script to verify that files "docs/INFO_BIN" and "docs/INFO_SRC" do exist
+# and have the expected contents.
+
+--perl
+print "\nChecking 'INFO_SRC' and 'INFO_BIN'\n";
+$dir_bin = $ENV{'MYSQL_BINDIR'};
+if ($dir_bin eq '/usr/') {
+  # RPM package
+  $dir_docs = $dir_bin;
+  $dir_docs =~ s|/lib|/share/doc|;
+  if(-d "$dir_docs/packages") {
+    # SuSE: "packages/" in the documentation path
+    $dir_docs = glob "$dir_docs/packages/MariaDB-server*";
+  } else {
+    # RedHat: version number in directory name
+    $dir_docs = glob "$dir_docs/MariaDB-server*";
+  }
+} elsif ($dir_bin eq '/usr') {
+  # RPM build during development
+  $dir_docs = "$dir_bin/share/doc";
+  if(-d "$dir_docs/packages") {
+    # SuSE: "packages/" in the documentation path
+    $dir_docs = glob "$dir_docs/packages/MariaDB-server*";
+  } else {
+    # RedHat/Debian: version number in directory name
+    $dir_docs = glob "$dir_docs/mariadb-server-*";
+    $dir_docs = glob "$dir_docs/MariaDB-server*" unless -d $dir_docs;
+  }
+  # Slackware
+  $dir_docs = glob "$dir_bin/doc/mariadb-[0-9]*" unless -d $dir_docs;
+} else {
+  # tar.gz package, Windows, or developer work (in git)
+  $dir_docs = $dir_bin;
+  if(-d "$dir_docs/docs") {
+    $dir_docs = "$dir_docs/docs"; # package
+  } else {
+    $dir_docs = "$dir_docs/Docs"; # development tree
+  }
+}
+$found_version = "No line 'MariaDB source #.#.#' in $dir_docs/INFO_SRC";
+$found_revision = "No line 'revision-id: .....' in $dir_docs/INFO_SRC";
+open(I_SRC,"<","$dir_docs/INFO_SRC") or print "Cannot open 'INFO_SRC' in '$dir_docs' (starting from bindir '$dir_bin')\n";
+while(defined ($line = <I_SRC>)) {
+  if ($line =~ m|^MariaDB source \d+\.\d\.\d+|) {$found_version = "Found MariaDB version number";}
+  if ($line =~ m|^commit: \w{40}$|) {$found_revision = "Found GIT revision id";}
+}
+close I_SRC;
+print "INFO_SRC: $found_version / $found_revision\n";
+$found_compiler = "No line about compiler information";
+$found_features = "No line 'Feature flags'";
+open(I_BIN,"<","$dir_docs/INFO_BIN") or print "Cannot open 'INFO_BIN' in '$dir_docs' (starting from bindir '$dir_bin')\n";
+while(defined ($line = <I_BIN>)) {
+  # "generator" on Windows, "flags" on Unix:
+  if (($line =~ m| Compiler / generator used: |) ||
+      ($line =~ m| Compiler flags used |))   {$found_compiler = "Found 'Compiler ... used' line";}
+  if  ($line =~ m| Feature flags used:|)     {$found_features = "Found 'Feature flags' line";}
+}
+close I_BIN;
+print "INFO_BIN: $found_compiler / $found_features\n";
+EOF
+
+--echo
+--echo End of tests

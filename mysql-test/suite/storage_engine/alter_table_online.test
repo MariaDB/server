@@ -1,0 +1,158 @@
+#
+# ALTER ONLINE TABLE
+#
+
+--source have_engine.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2,t3;
+--enable_warnings
+
+#
+# Test of things that can be done online
+# We are repeating notification here, because for some engines
+# only a part of these ALTER ONLINE statements might be supported.
+#
+
+let $create_definition = a $int_col, b $int_col, c $char_col;
+--source create_table.inc
+
+INSERT INTO t1 (a,b,c) VALUES (1,100,'a'),(2,200,'b'),(3,300,'c');
+
+--let $online = 1
+--let $alter_definition = MODIFY b $int_col DEFAULT 5
+--source alter_table.inc
+if ($mysql_errname)
+{
+  --source unexpected_result.inc
+}
+
+--let $online = 1
+--let $alter_definition = CHANGE b new_name $int_col
+--source alter_table.inc
+if ($mysql_errname)
+{
+  --source unexpected_result.inc
+}
+
+--let $online = 1
+--let $alter_definition = COMMENT 'new comment'
+--source alter_table.inc
+if ($mysql_errname)
+{
+  --source unexpected_result.inc
+}
+
+# It is here because it used to be supported as ALTER ONLINE,
+# but not anymore after the semantics changed in 10.0 
+# to be the same as ALTER .. LOCK=NONE
+
+--let $error_codes = ER_ALTER_OPERATION_NOT_SUPPORTED
+--let $online = 1
+--let $rename_to = t2
+--source alter_table.inc
+if ($mysql_errname!=ER_ALTER_OPERATION_NOT_SUPPORTED)
+{
+  --source unexpected_result.inc
+  DROP TABLE t1;
+}
+DROP TABLE IF EXISTS t2;
+
+#
+# temporary table does not require locking
+#
+
+--let $temporary = 1
+--source create_table.inc
+
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c');
+
+--let $online = 1
+--let $alter_definition = MODIFY b $int_col DEFAULT 5
+--source alter_table.inc
+if ($mysql_errname)
+{
+  --source unexpected_result.inc
+}
+
+--let $online = 1
+--let $alter_definition = CHANGE b new_name $int_col
+--source alter_table.inc
+
+--let $online = 1
+--let $alter_definition = COMMENT 'new comment'
+--source alter_table.inc
+
+--let $online = 1
+--let $rename_to = t2
+--source alter_table.inc
+
+DROP TABLE IF EXISTS t1, t2;
+
+#
+# Test of things that is not possible to do online
+#
+
+--let $create_definition = a $int_col, b $int_col, c $char_col
+--source create_table.inc
+
+INSERT INTO t1 (a,b,c) VALUES (1,100,'a'),(2,200,'b'),(3,300,'c');
+
+# It is here because it used to unsupported as ALTER ONLINE,
+# but is supported now after the semantics changed in 10.0 
+# to be the same as ALTER .. LOCK=NONE
+
+--let $online = 1
+--let $alter_definition = DROP COLUMN b, ADD b $int_col
+--source alter_table.inc
+if ($mysql_errname)
+{
+  --source unexpected_result.inc
+}
+
+--let $error_codes = ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--let $online = 1
+--let $alter_definition = MODIFY b BIGINT $default_col_opts
+--source alter_table.inc
+
+--let $alternative_engine = `SELECT engine FROM information_schema.engines WHERE engine IN ('MEMORY','MyISAM') AND engine != '$storage_engine' ORDER BY engine LIMIT 1`
+
+--let $error_codes = ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--let $online = 1
+--let $alter_definition = ENGINE=$alternative_engine
+--source alter_table.inc
+
+DROP TABLE t1;
+
+--let $create_definition = a $int_col, b $int_indexed_col, c $char_col
+--source create_table.inc
+if ($mysql_errname)
+{
+  --let $functionality = Column options
+  --source unexpected_result.inc
+}
+if (!$mysql_errname)
+{
+
+  # It is here because it used to unsupported as ALTER ONLINE,
+  # but is supported now after the semantics changed in 10.0 
+  # to be the same as ALTER .. LOCK=NONE
+
+  --let $online = 1
+  --let $alter_definition = ADD INDEX (b)
+  --source alter_table.inc
+  if ($mysql_errname)
+  {
+    --let $functionality = Adding an index or ALTER ONLINE
+    --source unexpected_result.inc
+  }
+  if (!$mysql_errname)
+  {
+    --let $online = 1
+    --let $alter_definition = DROP INDEX b
+    --source alter_table.inc
+  }
+  DROP TABLE t1;
+}
+
+--source cleanup_engine.inc

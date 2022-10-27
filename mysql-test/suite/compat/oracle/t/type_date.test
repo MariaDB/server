@@ -1,0 +1,103 @@
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a DATE);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-19632 Replication aborts with ER_SLAVE_CONVERSION_FAILED upon CREATE ... SELECT in ORACLE mode
+--echo #
+
+SET sql_mode=DEFAULT;
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1 (a unknown.DATE);
+
+
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (
+  def_date DATE,
+  mdb_date mariadb_schema.DATE,
+  ora_date oracle_schema.DATE,
+  max_date maxdb_schema.DATE
+);
+SHOW CREATE TABLE t1;
+SET sql_mode=ORACLE;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (
+  def_date DATE,
+  mdb_date mariadb_schema.DATE,
+  ora_date oracle_schema.DATE,
+  max_date maxdb_schema.DATE
+);
+SHOW CREATE TABLE t1;
+SET sql_mode=DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # ALTER..MODIFY and ALTER..CHANGE understand qualifiers 
+--echo #
+
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01');
+SET sql_mode=ORACLE;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+ALTER TABLE t1 MODIFY a DATE;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+ALTER TABLE t1 MODIFY a mariadb_schema.DATE;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+ALTER TABLE t1 MODIFY a oracle_schema.DATE;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+ALTER TABLE t1 CHANGE a b mariadb_schema.DATE;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+ALTER TABLE t1 CHANGE b a oracle_schema.DATE;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Qualified syntax is not supported yet in SP
+--echo # See MDEV-23353 Qualified data types in SP
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+# Change to this when merging to 10.5:
+#--error ER_UNKNOWN_DATA_TYPE
+--error ER_PARSE_ERROR
+CREATE FUNCTION f1() RETURN mariadb_schema.DATE AS
+BEGIN
+  RETURN CURRENT_DATE;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1(a mariadb_schema.DATE) AS
+BEGIN
+  NULL;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1() AS
+  a mariadb_schema.DATE;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$

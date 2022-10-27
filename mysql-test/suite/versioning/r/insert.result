@@ -1,0 +1,114 @@
+create or replace table t1(
+x int unsigned,
+y int unsigned,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning;
+insert into t1(x, y) values(3, 4);
+insert into t1(x, y) values(2, 3);
+insert into t1 values(40, 33);
+select x, y, sys_end < MAXVAL from t1;
+x	y	sys_end < MAXVAL
+3	4	0
+2	3	0
+40	33	0
+create or replace table t1(
+id int unsigned auto_increment primary key,
+x int unsigned,
+y int unsigned,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning;
+insert into t1(x, y) values(33, 44);
+insert into t1(id, x, y) values(20, 33, 44);
+insert into t1 values(40, 33, 44);
+select id, x, y, sys_end < MAXVAL from t1;
+id	x	y	sys_end < MAXVAL
+1	33	44	0
+20	33	44	0
+40	33	44	0
+create or replace table t1(
+x int unsigned,
+y int unsigned,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning;
+create view vt1_1 as select x, y from t1;
+insert into t1(x, y) values(8001, 9001);
+insert into vt1_1(x, y) values(1001, 2001);
+insert into vt1_1 values(1002, 2002);
+select x, y, sys_end < MAXVAL from t1;
+x	y	sys_end < MAXVAL
+8001	9001	0
+1001	2001	0
+1002	2002	0
+select x, y from vt1_1;
+x	y
+8001	9001
+1001	2001
+1002	2002
+drop view vt1_1;
+create or replace table t1( id bigint primary key, a int, b int) with system versioning;
+insert into t1 values(1, 1, 1);
+select row_start, row_end from t1 into @sys_start, @sys_end;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select id, a, b from t1;
+id	a	b
+1	1	1
+insert into t1 values(2, 2, 2);
+select id, a, b, row_start > @sys_start as C, row_end = @sys_end as D from t1 where id = 2;
+id	a	b	C	D
+2	2	2	1	1
+drop table t1;
+create or replace table t1(
+x int unsigned,
+y int unsigned,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning;
+create or replace table t2 like t1;
+insert into t1(x, y) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000), (6, 6000), (7, 7000), (8, 8000), (9, 9000);
+delete from t1 where x >= 1;
+insert into t1(x, y) values (1, 1001), (2, 2001), (3, 3001), (4, 4001), (5, 5001), (6, 6001);
+insert into t1(x, y, sys_start) values (7, 7001, DEFAULT);
+insert into t1(x, y, sys_end) values (8, 8001, DEFAULT);
+insert into t1(x, y, sys_start, sys_end) values (9, 9001, DEFAULT, DEFAULT);
+insert into t2 select x, y from t1 for system_time all;
+select x, y from t1;
+x	y
+1	1001
+2	2001
+3	3001
+4	4001
+5	5001
+6	6001
+7	7001
+8	8001
+9	9001
+select x, y from t2;
+x	y
+1	1000
+2	2000
+3	3000
+4	4000
+5	5000
+6	6000
+7	7000
+8	8000
+9	9000
+1	1001
+2	2001
+3	3001
+4	4001
+5	5001
+6	6001
+7	7001
+8	8001
+9	9001
+drop table t1;
+drop table t2;

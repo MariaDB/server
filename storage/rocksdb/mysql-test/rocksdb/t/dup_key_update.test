@@ -1,0 +1,45 @@
+--source include/have_rocksdb.inc
+
+# Test insert ... on duplicate key update statements
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+--enable_warnings
+
+CREATE TABLE t1 (id1 INT, id2 INT, id3 INT,
+                 PRIMARY KEY (id1, id2, id3),
+                 UNIQUE KEY (id3, id1)) ENGINE=ROCKSDB;
+
+CREATE TABLE t2 (id1 INT, id2 INT, id3 INT,
+                 PRIMARY KEY (id1, id2, id3),
+                 UNIQUE KEY (id3, id1) COMMENT 'rev:cf') ENGINE=ROCKSDB;
+
+
+--source include/dup_key_update.inc
+
+# Cleanup
+DROP TABLE t1;
+DROP TABLE t2;
+
+set global rocksdb_large_prefix=1;
+CREATE TABLE t1 (id1 varchar(128) CHARACTER SET latin1 COLLATE latin1_bin,
+                 id2 varchar(256) CHARACTER SET utf8 COLLATE utf8_bin,
+                 id3 varchar(200) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+                 PRIMARY KEY (id1, id2, id3),
+                 UNIQUE KEY (id3, id1)) ENGINE=ROCKSDB;
+set global rocksdb_large_prefix=DEFAULT;
+
+set global rocksdb_large_prefix=1;
+CREATE TABLE t2 (id1 varchar(128) CHARACTER SET latin1 COLLATE latin1_bin,
+                 id2 varchar(256) CHARACTER SET utf8 COLLATE utf8_bin,
+                 id3 varchar(200) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+                 PRIMARY KEY (id1, id2, id3),
+                 UNIQUE KEY (id3, id1) COMMENT 'rev:cf') ENGINE=ROCKSDB;
+set global rocksdb_large_prefix=DEFAULT;
+
+--source include/dup_key_update.inc
+
+# Cleanup
+DROP TABLE t1;
+DROP TABLE t2;

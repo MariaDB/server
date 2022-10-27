@@ -1,0 +1,135 @@
+set @save_tmp_table_size=@@tmp_table_size;
+set @save_max_heap_table_size=@@max_heap_table_size;
+set storage_engine=MYISAM;
+CREATE TABLE t1 (id INTEGER);
+CREATE TABLE t2 (id INTEGER);
+INSERT INTO t1 SELECT b.seq FROM seq_1_to_128,seq_1_to_1024 b;
+SELECT AVG(DISTINCT id) FROM t1 GROUP BY id % 13;
+AVG(DISTINCT id)
+513.5000
+508.0000
+509.0000
+510.0000
+511.0000
+512.0000
+513.0000
+514.0000
+515.0000
+516.0000
+517.0000
+511.5000
+512.5000
+SELECT SUM(DISTINCT id)/COUNT(DISTINCT id) FROM t1 GROUP BY id % 13;
+SUM(DISTINCT id)/COUNT(DISTINCT id)
+513.5000
+508.0000
+509.0000
+510.0000
+511.0000
+512.0000
+513.0000
+514.0000
+515.0000
+516.0000
+517.0000
+511.5000
+512.5000
+INSERT INTO t1 SELECT b.seq FROM seq_1_to_128,seq_1025_to_16384 b;
+INSERT INTO t2 SELECT b.seq FROM seq_1_to_128 a,seq_1_to_16384 b
+ORDER by (a.seq*0+b.seq)*rand();
+SELECT SUM(DISTINCT id) sm FROM t1;
+sm
+134225920
+SELECT SUM(DISTINCT id) sm FROM t2;
+sm
+134225920
+SELECT SUM(DISTINCT id) sm FROM t1 group by id % 13;
+sm
+10327590
+10328851
+10330112
+10331373
+10332634
+10317510
+10318770
+10320030
+10321290
+10322550
+10323810
+10325070
+10326330
+SET max_heap_table_size=16384;
+SHOW variables LIKE 'max_heap_table_size';
+Variable_name	Value
+max_heap_table_size	16384
+SELECT SUM(DISTINCT id) sm FROM t1;
+sm
+134225920
+SELECT SUM(DISTINCT id) sm FROM t2;
+sm
+134225920
+SELECT SUM(DISTINCT id) sm FROM t1 GROUP BY id % 13;
+sm
+10327590
+10328851
+10330112
+10331373
+10332634
+10317510
+10318770
+10320030
+10321290
+10322550
+10323810
+10325070
+10326330
+# 
+# Bug mdev-4063: SUM(DISTINCT...) with small'max_heap_table_size 
+# (bug #56927)
+# 
+SET max_heap_table_size=default;
+INSERT INTO t1 SELECT b.seq FROM seq_1_to_128,seq_16385_to_32768 b;
+TRUNCATE t2;
+INSERT INTO t2 SELECT b.seq FROM seq_1_to_128 a,seq_1_to_32768 b
+ORDER BY (a.seq*0+b.seq)*rand();
+SELECT SUM(DISTINCT id) sm FROM t2;
+sm
+536887296
+SET max_heap_table_size=16384;
+SELECT SUM(DISTINCT id) sm FROM t2;
+sm
+536887296
+DROP TABLE t1;
+DROP TABLE t2;
+SET @@tmp_table_size=@save_tmp_table_size;
+SET @@max_heap_table_size=@save_max_heap_table_size;
+#
+# MDEV-4311: COUNT(DISTINCT...) requiring a file for UNIQUE (bug #68749)
+#
+CREATE TABLE t2 (id INTEGER) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t2 SELECT b.seq FROM seq_1_to_128 a, seq_1_to_16384 b
+ORDER BY b.seq*rand();
+INSERT INTO t2 VALUE(NULL);
+# With default tmp_table_size / max_heap_table_size
+SELECT SQL_NO_CACHE count(DISTINCT id) sm FROM t2;
+sm
+16384
+set @@tmp_table_size=1024*256;
+# With reduced tmp_table_size
+SELECT SQL_NO_CACHE count(DISTINCT id) sm FROM t2;
+sm
+16384
+set @@tmp_table_size=@save_tmp_table_size;
+SET @@max_heap_table_size=1024*256;
+# With reduced max_heap_table_size
+SELECT SQL_NO_CACHE count(DISTINCT id) sm FROM t2;
+sm
+16384
+SET @@max_heap_table_size=@save_max_heap_table_size;
+# Back to default tmp_table_size / max_heap_table_size
+SELECT SQL_NO_CACHE count(DISTINCT id) sm FROM t2;
+sm
+16384
+COMMIT;
+DROP TABLE t2;

@@ -1,0 +1,122 @@
+
+#
+# Test the operation of ALTER TABLE ... AUTO_INCREMENT
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+
+--connection node_2
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+
+ALTER TABLE t1 AUTO_INCREMENT = 1000;
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+
+--connection node_1
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+
+SELECT MIN(f1) >= 1000, COUNT(*) = 20, COUNT(DISTINCT f1) = 20 FROM t1 WHERE f1 >= 1000;
+
+--connection node_2
+SELECT MIN(f1) >= 1000, COUNT(*) = 20, COUNT(DISTINCT f1) = 20 FROM t1 WHERE f1 >= 1000;
+
+#
+# AUTO_INCREMENT set to a value lower than the current one.
+# The ALTER does nothing, the sequence continues from the current maximum.
+#
+
+--connection node_1
+ALTER TABLE t1 AUTO_INCREMENT = 5;
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+
+--connection node_2
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+SELECT MIN(f1) >= 1000, COUNT(*) = 40, COUNT(DISTINCT f1) = 40 FROM t1 WHERE f1 >= 1000;
+
+--connection node_1
+SELECT MIN(f1) >= 1000, COUNT(*) = 40, COUNT(DISTINCT f1) = 40 FROM t1 WHERE f1 >= 1000;
+
+DROP TABLE t1;
+
+#
+# Under wsrep_auto_increment_control = OFF
+#
+
+--connection node_1
+--let $auto_increment_control_orig = `SELECT @@wsrep_auto_increment_control`
+--let $auto_increment_increment_node1 = `SELECT @@auto_increment_increment`
+--let $auto_increment_offset_node1 = `SELECT @@auto_increment_offset`
+
+# Restore stock MySQL defaults
+SET GLOBAL wsrep_auto_increment_control = OFF;
+SET GLOBAL auto_increment_increment = 1;
+SET GLOBAL auto_increment_offset = 1;
+
+#Open a fresh connection to node_1 so that the variables above take effect
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+
+--connection node_2
+--let $auto_increment_increment_node2 = `SELECT @@auto_increment_increment`
+--let $auto_increment_offset_node2 = `SELECT @@auto_increment_offset`
+
+SET GLOBAL wsrep_auto_increment_control = OFF;
+SET GLOBAL auto_increment_increment = 1;
+SET GLOBAL auto_increment_offset = 1;
+
+#Open a fresh connection to node_2
+--let $galera_connection_name = node_2a
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+
+--connection node_1a
+
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+ALTER TABLE t1 AUTO_INCREMENT=100;
+
+--connection node_1a
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+
+--connection node_2a
+INSERT INTO t1 (f2) SELECT 1 FROM ten;
+
+SELECT MIN(f1) = 100, MAX(f1) = 119, COUNT(f1) = 20, COUNT(DISTINCT f1) = 20 FROM t1;
+
+--connection node_1a
+SELECT MIN(f1) = 100, MAX(f1) = 119, COUNT(f1) = 20, COUNT(DISTINCT f1) = 20 FROM t1;
+
+DROP TABLE t1;
+
+#
+# Restore all variables as they were
+#
+
+--disable_query_log
+
+--connection node_1
+--eval SET GLOBAL wsrep_auto_increment_control = $auto_increment_control_orig
+--eval SET GLOBAL auto_increment_increment = $auto_increment_increment_node1
+--eval SET GLOBAL auto_increment_offset = $auto_increment_offset_node1
+
+--connection node_2
+--eval SET GLOBAL wsrep_auto_increment_control = $auto_increment_control_orig
+--eval SET GLOBAL auto_increment_increment = $auto_increment_increment_node2
+--eval SET GLOBAL auto_increment_offset = $auto_increment_offset_node2
+
+--enable_query_log
+
+DROP TABLE ten;

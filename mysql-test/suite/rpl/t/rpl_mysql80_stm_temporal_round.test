@@ -1,0 +1,62 @@
+--source include/have_binlog_format_statement.inc
+
+--echo #
+--echo # MDEV-8894 Inserting fractional seconds into MySQL 5.6 master breaks consistency on MariaDB 10 slave
+--echo #
+
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+CREATE TABLE t1 (id SERIAL, a DATETIME(3));
+--source include/stop_slave.inc
+
+--connection master
+--let $datadir= `SELECT @@datadir`
+
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc
+
+--remove_file $datadir/master-bin.000001
+
+#
+# Simulate MySQL 8.0.x master
+#
+# mysql-8.0.13-stm-temporal-round-binlog.000001 was recorded against a
+# table with this structure:
+#CREATE TABLE t1 (id SERIAL, a DATETIME(3));
+# (note, the CREATE statement is not inside the binary log)
+#
+# using this command line:
+#   mysqld --log-bin --binlog-format=statement --server-id=1 --character-set-server=latin1
+# with the following SQL script:
+#
+#SET NAMES latin1 COLLATE latin1_swedish_ci;
+#SET sql_mode='';
+#INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00.999999');
+#SET sql_mode=TIME_TRUNCATE_FRACTIONAL;
+#INSERT INTO t1 (a) VALUES ('2001-01-01 00:00:00.999999');
+#
+
+--copy_file $MYSQL_TEST_DIR/std_data/rpl/mysql-8.0.13-stm-temporal-round-binlog.000001 $datadir/master-bin.000001
+
+--let $rpl_server_number= 1
+--source include/rpl_start_server.inc
+
+--source include/wait_until_connected_again.inc
+
+--connection slave
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+
+--source include/start_slave.inc
+
+--connection master
+--sync_slave_with_master
+SELECT * FROM t1 ORDER BY id;
+
+--source include/stop_slave.inc
+DROP TABLE t1;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc

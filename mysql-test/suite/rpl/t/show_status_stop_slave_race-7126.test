@@ -1,0 +1,22 @@
+#
+# MDEV-7126 replication slave - deadlock in terminate_slave_thread with stop slave and show variables of replication filters and show global status
+#
+--source include/master-slave.inc
+
+call mtr.add_suppression("Master is configured to log replication events");
+
+--connection slave
+
+
+# If everything is okay, the test will end in several seconds; maybe a minute. 
+# If the problem shows up, it will hang until testcase timeout is exceeded.
+--exec $MYSQL_SLAP --silent --host=127.0.0.1 -P $SLAVE_MYPORT -q "START SLAVE; STOP SLAVE; SHOW GLOBAL STATUS" -c 2 --number-of-queries=100 --create-schema=test
+
+# All done.
+
+--connection slave
+--source include/wait_for_slave_to_stop.inc
+start slave;
+
+--connection master
+--source include/rpl_end.inc

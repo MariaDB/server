@@ -1,0 +1,109 @@
+source include/not_embedded.inc;
+
+connect (mysql, localhost, root,,);
+use mysql;
+
+#test valid syntax
+--error ER_PARSE_ERROR
+create role test_role1@host1;
+--error ER_PARSE_ERROR
+create role test_role2@host2, test_role1@host1;
+
+create role test_role1;
+create role test_role2, test_role3;
+
+--sorted_result
+select user, host, is_role from user where user like 'test%';
+
+drop role test_role1;
+drop role test_role2, test_role3;
+
+create role test_role1;
+--error ER_CANNOT_USER
+create role test_role1;
+--error ER_CANNOT_USER
+create role test_role1, test_role2;
+
+--sorted_result
+select user, host, is_role from user where user like 'test%';
+
+drop role test_role1;
+--error ER_CANNOT_USER
+drop role test_role1;
+--error ER_CANNOT_USER
+drop role test_role1, test_role2;
+
+#test that we can not drop users when calling drop role
+--error ER_CANNOT_USER
+drop role root;
+create user dummy@'';
+--error ER_CANNOT_USER
+drop role dummy;
+drop user dummy@'';
+
+--sorted_result
+select user, host, is_role from user where user like 'test%';
+disconnect mysql;
+connection default;
+
+#
+# MDEV-5520 Connection lost on wrong CREATE ROLE
+#
+--error ER_INVALID_ROLE
+create role '';
+
+#
+# MDEV-8609 Server crashes in is_invalid_role_name on reloading ACL with a blank role name
+#
+--error ER_INVALID_ROLE
+create role ' ';
+create role 'foo  ';
+drop role foo;
+
+#
+# MDEV-5523 Server crashes on DROP USER <rolename>
+#
+create role r1;
+--error ER_CANNOT_USER
+drop user r1;
+drop role r1;
+
+#
+# MDEV-5525 Assertion `status == 0' fails on creating user after granting it role admin option
+# 
+create role r1 with admin u1;
+create user foo@bar;
+drop user foo@bar;
+drop role r1;
+
+#
+# MDEV-7774 Assertion `status == 0' fails when dropping in this order:
+#
+CREATE USER u1;
+CREATE ROLE r1;
+CREATE USER r1@localhost;
+CREATE ROLE r2;
+GRANT r2 to r1;
+GRANT r2 to r1@localhost;
+# MDEV-7774: Dropping in this order caused the crash.
+DROP ROLE r1;
+--sorted_result
+SELECT * FROM mysql.roles_mapping;
+SHOW GRANTS FOR r1@localhost; # Related to MDEV-7774, also caused a crash, by
+                              # not updating the internal acl_roles_mapping
+                              # data structure correctly;
+DROP USER u1;
+DROP ROLE r2;
+DROP USER r1@localhost;
+
+#
+# MDEV-11533: Roles with trailing white spaces are not cleared correctly
+#
+create role 'foo  ';
+select concat(user, '__'), is_role from mysql.user where user like 'foo%';
+select * from mysql.roles_mapping;
+drop role foo;
+select concat(user, '__'), is_role from mysql.user where user like 'foo%';
+select * from mysql.roles_mapping;
+--sorted_result
+show grants;

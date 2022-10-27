@@ -1,0 +1,122 @@
+set @orig_auto_analyze = @@session.tokudb_auto_analyze;
+set @orig_in_background = @@session.tokudb_analyze_in_background;
+set @orig_mode = @@session.tokudb_analyze_mode;
+set @orig_throttle = @@session.tokudb_analyze_throttle;
+set @orig_time = @@session.tokudb_analyze_time;
+set @orig_scale_percent = @@global.tokudb_cardinality_scale_percent;
+set @orig_default_storage_engine = @@session.default_storage_engine;
+set @orig_pause_background_job_manager = @@global.tokudb_debug_pause_background_job_manager;
+set session default_storage_engine='tokudb';
+set session tokudb_auto_analyze=1;
+set session tokudb_analyze_in_background=1;
+set session tokudb_analyze_mode=tokudb_analyze_standard;
+set session tokudb_analyze_throttle=0;
+set session tokudb_analyze_time=0;
+set global tokudb_cardinality_scale_percent=DEFAULT;
+set global tokudb_debug_pause_background_job_manager=TRUE;
+show create table information_schema.tokudb_background_job_status;
+Table	Create Table
+TokuDB_background_job_status	CREATE TEMPORARY TABLE `TokuDB_background_job_status` (
+  `id` bigint(0) NOT NULL DEFAULT 0,
+  `database_name` varchar(256) NOT NULL DEFAULT '',
+  `table_name` varchar(256) NOT NULL DEFAULT '',
+  `job_type` varchar(256) NOT NULL DEFAULT '',
+  `job_params` varchar(256) NOT NULL DEFAULT '',
+  `scheduler` varchar(32) NOT NULL DEFAULT '',
+  `scheduled_time` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `started_time` datetime DEFAULT NULL,
+  `status` varchar(1024) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8
+create table t1 (a int not null auto_increment, b int, c int, primary key(a), key kb(b), key kc(c), key kabc(a,b,c), key kab(a,b), key kbc(b,c));
+insert into t1(b,c) values(0,0), (1,1), (2,2), (3,3);
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+database_name	table_name	job_type	job_params	scheduler
+test	t1	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	AUTO
+create table t2 like t1;
+create table t3 like t1;
+create table t4 like t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Operation failed
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	OK
+analyze table t3;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	OK
+analyze table t4;
+Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	OK
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+database_name	table_name	job_type	job_params	scheduler
+test	t1	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	AUTO
+test	t2	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t3	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t4	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+set global tokudb_debug_pause_background_job_manager=FALSE;
+set global tokudb_debug_pause_background_job_manager=TRUE;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	OK
+analyze table t3;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	OK
+analyze table t4;
+Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	OK
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+database_name	table_name	job_type	job_params	scheduler
+test	t1	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t2	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t3	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t4	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+alter table t1 add column d int;
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+database_name	table_name	job_type	job_params	scheduler
+test	t2	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t3	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t4	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+set session tokudb_analyze_mode=tokudb_analyze_cancel;
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	OK
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+database_name	table_name	job_type	job_params	scheduler
+test	t3	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t4	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+set session tokudb_analyze_mode=tokudb_analyze_recount_rows;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+database_name	table_name	job_type	job_params	scheduler
+test	t3	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t4	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t1	TOKUDB_ANALYZE_MODE_RECOUNT_ROWS	TOKUDB_ANALYZE_THROTTLE=0;	USER
+set session tokudb_analyze_mode=tokudb_analyze_standard;
+set session tokudb_analyze_in_background=0;
+analyze table t3;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	OK
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+database_name	table_name	job_type	job_params	scheduler
+test	t4	TOKUDB_ANALYZE_MODE_STANDARD	TOKUDB_ANALYZE_DELETE_FRACTION=1.000000; TOKUDB_ANALYZE_TIME=0; TOKUDB_ANALYZE_THROTTLE=0;	USER
+test	t1	TOKUDB_ANALYZE_MODE_RECOUNT_ROWS	TOKUDB_ANALYZE_THROTTLE=0;	USER
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+database_name	table_name	job_type	job_params	scheduler
+set global tokudb_debug_pause_background_job_manager=FALSE;
+set session tokudb_auto_analyze = @orig_auto_analyze;
+set session tokudb_analyze_in_background = @orig_in_background;
+set session tokudb_analyze_mode = @orig_mode;
+set session tokudb_analyze_throttle = @orig_throttle;
+set session tokudb_analyze_time = @orig_time;
+set global tokudb_cardinality_scale_percent = @orig_scale_percent;
+set session default_storage_engine = @orig_default_storage_engine;
+set global tokudb_debug_pause_background_job_manager = @orig_pause_background_job_manager;

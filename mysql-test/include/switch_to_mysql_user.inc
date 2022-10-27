@@ -1,0 +1,57 @@
+echo # switching from mysql.global_priv to mysql.user;
+disable_query_log;
+rename table mysql.user to mysql.user_bak;
+CREATE TABLE mysql.user (
+  Host char(60) binary DEFAULT '' NOT NULL,
+  User char(80) binary DEFAULT '' NOT NULL,
+  Password char(41) character set latin1 collate latin1_bin DEFAULT '' NOT NULL,
+  Select_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Insert_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Update_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Delete_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Create_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Drop_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Reload_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Shutdown_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Process_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  File_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Grant_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  References_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Index_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Alter_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Show_db_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Super_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Create_tmp_table_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Lock_tables_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Execute_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Repl_slave_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Repl_client_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Create_view_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Show_view_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Create_routine_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Alter_routine_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Create_user_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Event_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Trigger_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Create_tablespace_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  Delete_history_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  ssl_type enum('','ANY','X509','SPECIFIED') COLLATE utf8_general_ci DEFAULT '' NOT NULL,
+  ssl_cipher BLOB NOT NULL,
+  x509_issuer BLOB NOT NULL,
+  x509_subject BLOB NOT NULL,
+  max_questions int(11) unsigned DEFAULT 0  NOT NULL,
+  max_updates int(11) unsigned DEFAULT 0  NOT NULL,
+  max_connections int(11) unsigned DEFAULT 0  NOT NULL,
+  max_user_connections int(11) DEFAULT 0  NOT NULL,
+  plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
+  authentication_string TEXT NOT NULL,
+  password_expired ENUM('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  is_role enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
+  default_role char(80) binary DEFAULT '' NOT NULL,
+  max_statement_time decimal(12,6) DEFAULT 0 NOT NULL,
+  PRIMARY KEY (Host,User)
+) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Users and global privileges';
+insert mysql.user select * from mysql.user_bak;
+rename table mysql.global_priv to mysql.global_priv_bak;
+flush privileges;
+enable_query_log;

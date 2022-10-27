@@ -1,0 +1,11 @@
+partition_max_parts_hash_tokudb: 5.6 test not merged yet
+partition_max_parts_inv_tokudb: 5.6 test not merged yet
+partition_max_parts_key_tokudb: 5.6 test not merged yet
+partition_max_parts_list_tokudb: 5.6 test not merged yet
+partition_max_parts_range_tokudb: 5.6 test not merged yet
+partition_max_sub_parts_key_list_tokudb: 5.6 test not merged yet
+partition_max_sub_parts_key_range_tokudb: 5.6 test not merged yet
+partition_max_sub_parts_list_tokudb: 5.6 test not merged yet
+partition_max_sub_parts_range_tokudb: 5.6 test not merged yet
+nonflushing_analyze_debug: Freezes in MariaDB 10.0
+partition_alter4_tokudb : Takes frequently longer than 900 seconds

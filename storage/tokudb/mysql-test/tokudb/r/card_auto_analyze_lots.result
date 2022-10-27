@@ -1,0 +1,805 @@
+SHOW INDEX FROM ar_200;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_200	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_200	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_199;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_199	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_199	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_198;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_198	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_198	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_197;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_197	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_197	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_196;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_196	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_196	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_195;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_195	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_195	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_194;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_194	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_194	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_193;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_193	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_193	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_192;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_192	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_192	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_191;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_191	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_191	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_190;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_190	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_190	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_189;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_189	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_189	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_188;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_188	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_188	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_187;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_187	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_187	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_186;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_186	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_186	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_185;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_185	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_185	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_184;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_184	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_184	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_183;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_183	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_183	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_182;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_182	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_182	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_181;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_181	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_181	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_180;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_180	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_180	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_179;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_179	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_179	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_178;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_178	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_178	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_177;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_177	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_177	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_176;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_176	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_176	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_175;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_175	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_175	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_174;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_174	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_174	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_173;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_173	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_173	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_172;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_172	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_172	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_171;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_171	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_171	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_170;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_170	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_170	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_169;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_169	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_169	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_168;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_168	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_168	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_167;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_167	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_167	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_166;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_166	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_166	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_165;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_165	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_165	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_164;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_164	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_164	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_163;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_163	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_163	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_162;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_162	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_162	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_161;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_161	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_161	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_160;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_160	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_160	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_159;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_159	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_159	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_158;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_158	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_158	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_157;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_157	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_157	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_156;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_156	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_156	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_155;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_155	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_155	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_154;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_154	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_154	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_153;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_153	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_153	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_152;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_152	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_152	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_151;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_151	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_151	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_150;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_150	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_150	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_149;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_149	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_149	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_148;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_148	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_148	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_147;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_147	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_147	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_146;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_146	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_146	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_145;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_145	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_145	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_144;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_144	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_144	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_143;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_143	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_143	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_142;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_142	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_142	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_141;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_141	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_141	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_140;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_140	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_140	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_139;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_139	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_139	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_138;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_138	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_138	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_137;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_137	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_137	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_136;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_136	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_136	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_135;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_135	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_135	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_134;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_134	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_134	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_133;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_133	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_133	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_132;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_132	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_132	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_131;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_131	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_131	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_130;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_130	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_130	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_129;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_129	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_129	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_128;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_128	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_128	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_127;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_127	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_127	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_126;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_126	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_126	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_125;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_125	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_125	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_124;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_124	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_124	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_123;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_123	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_123	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_122;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_122	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_122	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_121;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_121	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_121	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_120;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_120	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_120	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_119;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_119	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_119	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_118;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_118	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_118	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_117;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_117	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_117	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_116;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_116	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_116	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_115;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_115	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_115	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_114;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_114	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_114	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_113;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_113	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_113	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_112;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_112	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_112	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_111;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_111	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_111	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_110;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_110	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_110	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_109;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_109	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_109	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_108;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_108	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_108	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_107;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_107	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_107	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_106;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_106	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_106	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_105;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_105	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_105	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_104;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_104	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_104	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_103;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_103	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_103	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_102;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_102	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_102	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_101;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_101	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_101	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_100;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_100	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_100	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_99;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_99	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_99	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_98;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_98	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_98	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_97;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_97	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_97	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_96;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_96	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_96	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_95;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_95	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_95	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_94;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_94	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_94	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_93;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_93	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_93	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_92;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_92	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_92	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_91;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_91	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_91	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_90;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_90	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_90	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_89;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_89	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_89	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_88;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_88	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_88	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_87;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_87	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_87	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_86;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_86	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_86	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_85;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_85	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_85	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_84;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_84	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_84	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_83;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_83	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_83	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_82;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_82	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_82	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_81;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_81	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_81	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_80;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_80	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_80	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_79;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_79	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_79	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_78;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_78	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_78	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_77;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_77	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_77	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_76;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_76	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_76	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_75;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_75	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_75	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_74;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_74	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_74	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_73;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_73	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_73	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_72;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_72	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_72	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_71;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_71	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_71	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_70;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_70	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_70	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_69;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_69	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_69	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_68;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_68	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_68	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_67;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_67	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_67	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_66;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_66	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_66	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_65;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_65	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_65	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_64;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_64	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_64	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_63;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_63	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_63	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_62;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_62	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_62	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_61;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_61	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_61	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_60;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_60	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_60	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_59;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_59	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_59	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_58;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_58	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_58	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_57;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_57	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_57	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_56;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_56	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_56	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_55;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_55	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_55	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_54;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_54	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_54	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_53;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_53	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_53	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_52;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_52	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_52	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_51;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_51	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_51	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_50;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_50	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_50	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_49;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_49	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_49	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_48;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_48	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_48	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_47;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_47	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_47	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_46;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_46	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_46	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_45;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_45	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_45	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_44;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_44	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_44	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_43;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_43	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_43	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_42;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_42	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_42	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_41;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_41	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_41	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_40;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_40	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_40	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_39;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_39	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_39	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_38;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_38	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_38	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_37;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_37	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_37	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_36;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_36	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_36	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_35;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_35	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_35	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_34;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_34	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_34	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_33;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_33	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_33	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_32;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_32	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_32	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_31;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_31	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_31	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_30;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_30	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_30	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_29;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_29	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_29	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_28;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_28	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_28	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_27;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_27	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_27	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_26;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_26	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_26	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_25;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_25	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_25	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_24;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_24	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_24	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_23;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_23	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_23	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_22;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_22	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_22	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_21;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_21	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_21	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_20;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_20	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_20	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_19;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_19	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_19	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_18;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_18	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_18	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_17;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_17	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_17	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_16;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_16	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_16	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_15;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_15	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_15	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_14;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_14	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_14	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_13;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_13	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_13	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_12;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_12	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_12	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_11;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_11	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_11	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_10;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_10	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_10	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_9;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_9	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_9	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_8;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_8	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_8	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_7;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_7	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_7	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_6;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_6	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_6	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_5;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_5	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_5	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_4;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_4	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_4	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_3;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_3	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_3	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_2	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_2	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SHOW INDEX FROM ar_1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+ar_1	0	PRIMARY	1	a	A	1	NULL	NULL		BTREE		
+ar_1	1	bkey	1	b	A	1	NULL	NULL	YES	BTREE		
+SET SESSION tokudb_auto_analyze = @orig_auto_analyze;
+SET SESSION tokudb_analyze_in_background = @orig_in_background;
+SET SESSION tokudb_analyze_mode = @orig_mode;
+SET SESSION tokudb_analyze_throttle = @orig_throttle;
+SET SESSION tokudb_analyze_time = @orig_time;

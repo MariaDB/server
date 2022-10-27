@@ -1,0 +1,82 @@
+--source include/not_embedded.inc
+--source include/have_file_key_management.inc
+
+--echo #
+--echo # MDEV-13416 mariabackup fails with EFAULT "Bad Address"
+--echo #
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+
+let $targetdir_old=$MYSQLTEST_VARDIR/tmp/backup_1;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir_old;
+--enable_result_log
+--source include/shutdown_mysqld.inc
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+my $file= "$ENV{MYSQLD_DATADIR}/ibdata1";
+open(FILE, "+<", $file) or die "Unable to open $file\n";
+binmode FILE;
+my $ps= $ENV{INNODB_PAGE_SIZE};
+my $page;
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+substr($page,26,8) = pack("NN", 4096, ~1024);
+my $polynomial = 0x82f63b78; # CRC-32C
+my $full_crc32 = unpack("N",substr($page,54,4)) & 0x10; # FIL_SPACE_FLAGS
+if ($full_crc32)
+{
+    my $ck = mycrc32(substr($page, 0, $ps-4), 0, $polynomial);
+    substr($page, $ps-4, 4) = pack("N", $ck);
+}
+sysseek(FILE, 0, 0) || die "Unable to rewind $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close(FILE) || die "Unable to close $file\n";
+EOF
+
+--remove_files_wildcard $MYSQLD_DATADIR ib_logfile*
+
+--source include/start_mysqld.inc
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--let SEARCH_PATTERN= InnoDB: New log files created, LSN=175964\d{8}
+--source include/search_pattern_in_file.inc
+
+CREATE TABLE t(i INT) ENGINE=INNODB ENCRYPTED=YES;
+INSERT INTO t VALUES(1);
+
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+INSERT INTO t VALUES(2);
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+--source include/restart_and_restore.inc
+--enable_result_log
+SELECT * FROM t;
+FLUSH TABLE t FOR EXPORT;
+copy_file $_datadir/test/t.ibd $_datadir/test/t_copy.ibd;
+copy_file $_datadir/test/t.cfg $_datadir/test/t_copy.cfg;
+UNLOCK TABLES;
+ALTER TABLE t DISCARD TABLESPACE;
+move_file $_datadir/test/t_copy.ibd $_datadir/test/t.ibd;
+move_file $_datadir/test/t_copy.cfg $_datadir/test/t.cfg;
+ALTER TABLE t IMPORT TABLESPACE;
+FLUSH TABLE t FOR EXPORT;
+copy_file $_datadir/test/t.ibd $_datadir/test/t_copy.ibd;
+copy_file $_datadir/test/t.cfg $_datadir/test/t_copy.cfg;
+UNLOCK TABLES;
+ALTER TABLE t DISCARD TABLESPACE;
+move_file $_datadir/test/t_copy.ibd $_datadir/test/t.ibd;
+move_file $_datadir/test/t_copy.cfg $_datadir/test/t.cfg;
+ALTER TABLE t IMPORT TABLESPACE;
+DROP TABLE t;
+rmdir $targetdir;
+let $targetdir= $targetdir_old;
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+--source include/restart_and_restore.inc
+rmdir $targetdir_old;

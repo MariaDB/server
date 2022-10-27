@@ -1,0 +1,44 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+#
+# Test innodb read only
+#
+
+create sequence s1 cache 2 engine=innodb;
+
+--let $restart_parameters= --innodb-read-only
+--source include/restart_mysqld.inc
+
+connection default;
+show global variables like 'innodb_read_only';
+use test;
+set session binlog_format= row;
+
+--echo ###########################################
+--echo read_only create error.
+--echo ###########################################
+
+show global variables like 'innodb_read_only';
+use test;
+
+--error ER_CANT_CREATE_TABLE
+create sequence s2 cache 5 engine=innodb;
+
+--echo ###########################################
+--echo read_only query error.
+--echo ###########################################
+--error ER_OPEN_AS_READONLY
+select next value for s1;
+--error ER_OPEN_AS_READONLY
+select next value for s1;
+--error ER_OPEN_AS_READONLY
+select next value for s1;
+
+select * from s1;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+select * from s1;
+select next value for s1;
+select * from s1;
+drop sequence s1;

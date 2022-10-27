@@ -1,0 +1,31 @@
+#
+# wsrep_replicate_myisam
+#
+# save the initial value
+SET @wsrep_replicate_myisam_global_saved = @@global.wsrep_replicate_myisam;
+# default
+SELECT @@global.wsrep_replicate_myisam;
+@@global.wsrep_replicate_myisam
+0
+SELECT @@session.wsrep_replicate_myisam;
+ERROR HY000: Variable 'wsrep_replicate_myisam' is a GLOBAL variable
+
+# scope and valid values
+SET @@global.wsrep_replicate_myisam=OFF;
+SELECT @@global.wsrep_replicate_myisam;
+@@global.wsrep_replicate_myisam
+0
+SET @@global.wsrep_replicate_myisam=ON;
+SELECT @@global.wsrep_replicate_myisam;
+@@global.wsrep_replicate_myisam
+1
+
+# invalid values
+SET @@global.wsrep_replicate_myisam=NULL;
+ERROR 42000: Variable 'wsrep_replicate_myisam' can't be set to the value of 'NULL'
+SET @@global.wsrep_replicate_myisam='junk';
+ERROR 42000: Variable 'wsrep_replicate_myisam' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_replicate_myisam = @wsrep_replicate_myisam_global_saved;
+# End of test

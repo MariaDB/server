@@ -1,0 +1,59 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+connection node_1;
+connection node_2;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_dirty_reads = 1;
+SELECT f1 FROM t1;
+f1
+1
+USE test;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+LOCK TABLE t1 WRITE;
+UNLOCK TABLES;
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+PREPARE stmt_select FROM 'SELECT f1 FROM t1';
+EXECUTE stmt_select;
+f1
+1
+PREPARE stmt_update FROM 'UPDATE t1 SET f1 = f1 + f1';
+SET GLOBAL wsrep_dirty_reads = 1;
+SET GLOBAL wsrep_sync_wait = 0;
+SET GLOBAL wsrep_dirty_reads = 0;
+SET GLOBAL wsrep_sync_wait = 15;
+SET SESSION wsrep_dirty_reads = 1;
+INSERT INTO t1 SELECT * FROM t1;
+ERROR 08S01: WSREP has not yet prepared node for application use
+DELETE FROM t1;
+ERROR 08S01: WSREP has not yet prepared node for application use
+UPDATE t1 SET f1 = f1 + 1;
+ERROR 08S01: WSREP has not yet prepared node for application use
+DROP TABLE t1;
+ERROR 08S01: WSREP has not yet prepared node for application use
+EXECUTE stmt_update;
+ERROR 08S01: WSREP has not yet prepared node for application use
+SET SESSION wsrep_dirty_reads = 0;
+SELECT * FROM t1;
+ERROR 08S01: WSREP has not yet prepared node for application use
+EXECUTE stmt_select;
+ERROR 08S01: WSREP has not yet prepared node for application use
+SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST;
+COUNT(*) > 0
+1
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+connection node_1;
+connection node_2;
+DROP TABLE t1;

@@ -1,0 +1,58 @@
+connection node_2;
+connection node_1;
+#
+# MDEV-7222: Cluster Node Crash at CREATE DEFINER statement
+#
+USE test;
+CREATE DEFINER=CURRENT_USER VIEW v1 AS SELECT 1;
+DROP VIEW v1;
+#
+# MDEV-8464 : ALTER VIEW not replicated in some cases
+#
+# On node_1
+connection node_1;
+USE test;
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+CREATE DEFINER=CURRENT_USER VIEW v1 AS SELECT * FROM t1;
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM t1;
+CREATE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t1;
+CREATE ALGORITHM=UNDEFINED DEFINER=CURRENT_USER VIEW v4 AS SELECT * FROM t1;
+# On node_2
+connection node_2;
+USE test;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`i` AS `i` from `t1`	latin1	latin1_swedish_ci
+SHOW CREATE VIEW v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`i` AS `i` from `t1`	latin1	latin1_swedish_ci
+SHOW CREATE VIEW v3;
+View	Create View	character_set_client	collation_connection
+v3	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`i` AS `i` from `t1`	latin1	latin1_swedish_ci
+SHOW CREATE VIEW v4;
+View	Create View	character_set_client	collation_connection
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t1`.`i` AS `i` from `t1`	latin1	latin1_swedish_ci
+# On node_1
+connection node_1;
+ALTER ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1;
+ALTER ALGORITHM=UNDEFINED VIEW v2 AS SELECT * FROM t1;
+ALTER DEFINER=CURRENT_USER VIEW v3 AS SELECT * FROM t1;
+ALTER ALGORITHM=TEMPTABLE DEFINER=CURRENT_USER VIEW v4 AS SELECT * FROM t1;
+# On node_2
+connection node_2;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`i` AS `i` from `t1`	latin1	latin1_swedish_ci
+SHOW CREATE VIEW v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`i` AS `i` from `t1`	latin1	latin1_swedish_ci
+SHOW CREATE VIEW v3;
+View	Create View	character_set_client	collation_connection
+v3	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`i` AS `i` from `t1`	latin1	latin1_swedish_ci
+SHOW CREATE VIEW v4;
+View	Create View	character_set_client	collation_connection
+v4	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t1`.`i` AS `i` from `t1`	latin1	latin1_swedish_ci
+# Cleanup
+DROP VIEW v1, v2, v3, v4;
+DROP TABLE t1;
+# End of tests

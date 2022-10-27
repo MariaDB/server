@@ -1,0 +1,56 @@
+include/master-slave.inc
+[connection master]
+#
+# Bug mdev-485: unexpected failure with replication of DROP/ALTER table
+#               when RBR is on
+#
+CREATE TABLE t1 ( a int, b int ) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (2,20), (1,20), (3,30);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+DROP TABLE t1;
+connection slave;
+connection master;
+CREATE TABLE t1 ( a int, b int, INDEX idx1(b) ) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (2,20), (1,20), (3,30);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+DROP INDEX idx1 ON t1;
+connection slave;
+connection master;
+DROP TABLE t1;
+CREATE TABLE t1 ( a int, b int, INDEX idx1(b) ) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (2,20), (1,20), (3,30);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ALTER TABLE t1 DROP COLUMN b;
+connection slave;
+connection master;
+DROP TABLE t1;
+CREATE TABLE t1 ( a int, b int, INDEX idx1(b) ) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (2,20), (1,20), (3,30);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ALTER TABLE t1 RENAME to s;
+connection slave;
+connection master;
+DROP TABLE s;
+CREATE TABLE t1 ( a int, b int, INDEX idx1(b) ) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (2,20), (1,20), (3,30);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ALTER TABLE t1 CHANGE COLUMN b c int ;
+connection slave;
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

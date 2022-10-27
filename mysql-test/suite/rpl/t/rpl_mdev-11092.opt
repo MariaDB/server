@@ -1,0 +1,1 @@
+--binlog_checksum=1 --binlog-annotate-row-events=1

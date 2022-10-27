@@ -1,0 +1,30 @@
+#
+# Single table specific update/delete tests (mysql_update and mysql_delete)
+#
+--source include/have_innodb.inc
+
+
+--echo #
+--echo # Bug #53742: UPDATEs have no effect after applying patch for bug 36569
+--echo #
+
+CREATE TABLE t1 (
+  pk INT NOT NULL AUTO_INCREMENT,
+  c1_idx CHAR(1) DEFAULT 'y',
+  c2 INT,
+  PRIMARY KEY (pk),
+  INDEX c1_idx (c1_idx)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (), (), (), ();
+
+SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
+UPDATE t1 SET c2 = 0 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
+SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
+SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC;
+
+DELETE FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
+SELECT * FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC;
+
+DROP TABLE t1;
+

@@ -1,0 +1,67 @@
+--source include/have_rocksdb.inc
+
+# 
+# ZEROFILL column attribute 
+#
+
+let $extra_col_opts = ZEROFILL;
+
+--echo ########################
+--echo # Fixed point columns (NUMERIC, DECIMAL)
+--echo ########################
+
+--source type_fixed.inc
+
+CREATE TABLE t1 (
+  a DECIMAL ZEROFILL,
+  b NUMERIC ZEROFILL,
+  PRIMARY KEY (a)
+) ENGINE=rocksdb;
+
+SHOW COLUMNS IN t1;
+
+INSERT INTO t1 (a,b) VALUES (1.1,1234);
+SELECT a,b FROM t1;
+DROP TABLE t1;
+
+--echo ########################
+--echo # Floating point columns (FLOAT, DOUBLE)
+--echo ########################
+
+--source type_float.inc
+
+CREATE TABLE t1 (
+  a DOUBLE ZEROFILL,
+  b FLOAT ZEROFILL,
+  PRIMARY KEY (b)
+) ENGINE=rocksdb;
+
+SHOW COLUMNS IN t1;
+
+INSERT INTO t1 (a,b) VALUES (1,1234.5);
+SELECT a,b FROM t1;
+DROP TABLE t1;
+
+--echo ########################
+--echo # INT columns
+--echo ########################
+
+--source type_int.inc
+
+CREATE TABLE t1 (
+  t TINYINT ZEROFILL,
+  s SMALLINT ZEROFILL,
+  m MEDIUMINT ZEROFILL,
+  i INT ZEROFILL,
+  b BIGINT ZEROFILL,
+  PRIMARY KEY (b)
+) ENGINE=rocksdb; 
+
+SHOW COLUMNS IN t1;
+
+INSERT INTO t1 (t,s,m,i,b) VALUES (1,10,100,1000,0);
+SELECT t,s,m,i,b FROM t1;
+DROP TABLE t1;
+
+--let $extra_col_opts =
+

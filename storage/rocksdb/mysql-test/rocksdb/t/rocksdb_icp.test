@@ -1,0 +1,44 @@
+--source include/have_rocksdb.inc
+
+
+let $cf_name=cf1;
+
+--source include/rocksdb_icp.inc
+
+--echo #
+--echo # Issue #67: Inefficient index condition pushdown
+--echo #
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+  pk int not null primary key,
+  key1 bigint(20) unsigned,
+  col1 int,
+  key (key1)
+) engine=rocksdb;
+
+insert into t1 
+select 
+  A.a+10*B.a+100*C.a,
+  A.a+10*B.a+100*C.a,
+  1234
+from t0 A, t0 B, t0 C;
+
+set @count=0;
+let $save_query= 
+set @count_diff =(select (value - @count) from information_schema.rocksdb_perf_context 
+     where table_schema=database() and table_name='t1' and stat_type='INTERNAL_KEY_SKIPPED_COUNT');
+
+--replace_column 9 #
+explain 
+select * from t1 force index(key1) where key1=1;
+
+eval $save_query;
+select * from t1 force index(key1) where key1=1;
+eval $save_query;
+--echo # The following must be =1, or in any case not 999:
+select @count_diff as "INTERNAL_KEY_SKIPPED_COUNT increment";
+
+drop table t0,t1;
+

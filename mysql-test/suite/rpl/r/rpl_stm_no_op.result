@@ -1,0 +1,71 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+create database mysqltest;
+connection master;
+drop database if exists mysqltest;
+Warnings:
+Note	1008	Can't drop database 'mysqltest'; database doesn't exist
+connection slave;
+show tables from mysqltest;
+ERROR 42000: Unknown database 'mysqltest'
+connection slave;
+create table t1 (a int);
+connection master;
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+connection slave;
+select * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+connection master;
+create table t1 (a int, b int);
+connection slave;
+insert into t1 values(1,1);
+connection master;
+delete from t1;
+connection slave;
+select * from t1;
+a	b
+insert into t1 values(1,1);
+connection master;
+insert into t1 values(2,1);
+update t1 set a=2;
+connection slave;
+select * from t1;
+a	b
+2	1
+2	1
+connection master;
+create table t2 (a int, b int);
+delete from t1;
+insert into t1 values(1,1);
+insert into t2 values(1,1);
+connection slave;
+update t1 set a=2;
+connection master;
+UPDATE t1, t2 SET t1.a = t2.a;
+connection slave;
+select * from t1;
+a	b
+1	1
+select * from t2;
+a	b
+1	1
+connection master;
+delete from t1;
+delete from t2;
+connection slave;
+insert into t1 values(1,1);
+insert into t2 values(1,1);
+connection master;
+DELETE t1.*, t2.* from t1, t2;
+connection slave;
+select * from t1;
+a	b
+select * from t2;
+a	b
+connection master;
+drop table t1, t2;
+connection slave;
+include/rpl_end.inc

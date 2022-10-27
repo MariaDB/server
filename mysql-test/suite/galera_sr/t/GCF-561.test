@@ -1,0 +1,72 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test the effect of DDL on a concurrent SR transaction
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t1 VALUES (2, 2);
+INSERT INTO t1 VALUES (3, 3);
+INSERT INTO t1 VALUES (4, 4);
+INSERT INTO t1 VALUES (5, 5);
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1;
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 5 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_5 FROM mysql.wsrep_streaming_log;
+
+ALTER TABLE t1 DROP COLUMN f2;
+
+# SR applied before the DDL is no longer visible
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+# Transaction can not continue due to DDL, implicit ROLLBACK
+--error ER_LOCK_DEADLOCK
+INSERT INTO t1 VALUES (6, 6);
+
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+
+# DDL is now in effect
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+INSERT INTO t1 VALUES (6, 6);
+
+# But it should be possible to reissue the transaction
+
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+set global wsrep_sync_wait=15;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SELECT COUNT(*) AS EXPECT_5 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
+
+DROP TABLE t1;

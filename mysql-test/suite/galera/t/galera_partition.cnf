@@ -1,0 +1,18 @@
+!include ../galera_4nodes.cnf
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=10M;gmcast.segment=1'
+wsrep_slave_threads=10
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=10M;gmcast.segment=1'
+wsrep_slave_threads=10
+
+[mysqld.3]
+wsrep_provider_options='base_port=@mysqld.3.#galera_port;gcache.size=10M;gmcast.segment=2'
+wsrep_slave_threads=10
+
+[mysqld.4]
+wsrep_provider_options='base_port=@mysqld.4.#galera_port;gcache.size=10M;gmcast.segment=3'
+wsrep_slave_threads=10
+

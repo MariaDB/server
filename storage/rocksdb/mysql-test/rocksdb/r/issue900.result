@@ -1,0 +1,11 @@
+CREATE TABLE t1(c1 VARCHAR(1) CHARACTER SET 'utf8' COLLATE 'utf8_bin', c2 YEAR, c3 REAL(1,0) UNSIGNED, PRIMARY KEY(c1)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES(0,'0','0');
+INSERT INTO t1 VALUES('{0}','0','0');
+Warnings:
+Warning	1265	Data truncated for column 'c1' at row 1
+INSERT INTO t1 VALUES('1','0','1');
+ALTER TABLE t1 ADD INDEX(c3), ADD UNIQUE (c3);
+ERROR 23000: Duplicate entry '0' for key 'c3_2'
+SELECT c3 FROM t1 FORCE INDEX(c3) ORDER BY c3;
+ERROR 42000: Key 'c3' doesn't exist in table 't1'
+DROP TABLE t1;

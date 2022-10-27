@@ -1,0 +1,9 @@
+set global tcp_keepalive_time = 1;
+set global tcp_keepalive_interval =1;
+set global tcp_keepalive_probes=1;
+connect con1,"127.0.0.1",root,,test,$MASTER_MYPORT,;
+disconnect con1;
+connection default;
+set global tcp_keepalive_time= default;
+set global tcp_keepalive_interval= default;
+set global tcp_keepalive_probes=default;

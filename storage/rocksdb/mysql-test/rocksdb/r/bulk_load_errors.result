@@ -1,0 +1,100 @@
+CREATE TABLE t1(pk INT, PRIMARY KEY(pk)) ENGINE=ROCKSDB;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(10);
+INSERT INTO t1 VALUES(11);
+INSERT INTO t1 VALUES(9);
+ERROR HY000: Rows must be inserted in primary key order during bulk load operation
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+pk
+10
+11
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(20);
+INSERT INTO t1 VALUES(21);
+SET rocksdb_bulk_load=0;
+ERROR HY000: Rows inserted during bulk load must not overlap existing rows
+SHOW VARIABLES LIKE 'rocksdb_bulk_load';
+Variable_name	Value
+rocksdb_bulk_load	OFF
+call mtr.add_suppression('finalizing last SST file while setting bulk loading variable');
+SELECT * FROM t1;
+pk
+10
+11
+FOUND 1 /RocksDB: Error [0-9]+ finalizing last SST file while setting bulk loading variable/ in rocksdb.bulk_load_errors.1.err
+connect  con1,localhost,root,,;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(20);
+INSERT INTO t1 VALUES(21);
+connection default;
+disconnect con1;
+SELECT * FROM t1;
+pk
+10
+11
+FOUND 1 /RocksDB: Error [0-9]+ finalizing last SST file while disconnecting/ in rocksdb.bulk_load_errors.2.err
+TRUNCATE TABLE t1;
+SET rocksdb_bulk_load_allow_unsorted=1;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(100);
+INSERT INTO t1 VALUES(101);
+INSERT INTO t1 VALUES(99);
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+pk
+99
+100
+101
+TRUNCATE TABLE t1;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(201);
+INSERT INTO t1 VALUES(200);
+INSERT INTO t1 VALUES(202);
+INSERT INTO t1 VALUES(201);
+ERROR 23000: Failed to insert the record: the key already exists
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1;
+pk
+200
+201
+202
+SET rocksdb_bulk_load_allow_unsorted=DEFAULT;
+DROP TABLE t1;
+CREATE TABLE t1(c1 INT KEY) ENGINE=ROCKSDB;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES (),(),();
+ERROR HY000: Rows must be inserted in primary key order during bulk load operation
+SET rocksdb_bulk_load=0;
+DROP TABLE t1;
+SET @orig_table_open_cache=@@global.table_open_cache;
+CREATE TABLE t1(a INT AUTO_INCREMENT, b INT, PRIMARY KEY (a)) ENGINE=ROCKSDB DEFAULT CHARSET=latin1;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES(13, 0);
+INSERT INTO t1 VALUES(2, 'test 2');
+Warnings:
+Warning	1366	Incorrect integer value: 'test 2' for column `test`.`t1`.`b` at row 1
+INSERT INTO t1 VALUES(@id, @arg04);
+SET @@global.table_open_cache=FALSE;
+Warnings:
+Warning	1292	Truncated incorrect table_open_cache value: '0'
+INSERT INTO t1 VALUES(51479+0.333333333,1);
+DROP TABLE t1;
+SET @@global.table_open_cache=@orig_table_open_cache;
+FOUND 1 /RocksDB: Error [0-9]+ finalizing bulk load while closing handler/ in rocksdb.bulk_load_errors.3.err
+# restart
+CREATE TABLE t1 (pk INT, PRIMARY KEY (pk)) ENGINE=ROCKSDB;
+CREATE TABLE t2 (pk INT, PRIMARY KEY (pk)) ENGINE=ROCKSDB;
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES (1), (2);
+INSERT INTO t2 VALUES (1), (2);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (3);
+ERROR HY000: Rows inserted during bulk load must not overlap existing rows
+SET rocksdb_bulk_load=0;
+DROP TABLE t1;
+DROP TABLE t2;

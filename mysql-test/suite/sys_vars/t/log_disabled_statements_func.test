@@ -1,0 +1,61 @@
+SET @old_log_output=                @@global.log_output;
+SET @old_log_disable_statements=    @@global.log_disabled_statements;
+
+
+CREATE TABLE t1 (i INT PRIMARY KEY AUTO_INCREMENT, j VARCHAR(255) ) ENGINE=MyISAM;
+insert into t1 (j) values ('a'),('b'),('c'),('d');
+
+# enable slow logging to table
+SET GLOBAL log_output = 'file,table';
+
+DELIMITER $;
+CREATE PROCEDURE slow()
+BEGIN
+  SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b';
+  SELECT count(*) from t1 where j>'a';
+END
+$
+
+DELIMITER ;$
+
+select @@log_disabled_statements;
+TRUNCATE TABLE mysql.general_log;
+check table t1;
+CALL slow();
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part2';
+
+--echo -->
+SELECT argument FROM mysql.general_log where command_type <> "Close stmt" and command_type <> "Prepare" and argument not like "%general_log%";
+--echo <--
+
+TRUNCATE TABLE mysql.general_log;
+SET SESSION log_disabled_statements="";
+check table t1;
+CALL slow();
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part3';
+
+--echo -->
+SELECT argument FROM mysql.general_log where command_type <> "Close stmt" and command_type <> "Prepare" and argument not like "%general_log%";
+--echo <--
+
+TRUNCATE TABLE mysql.general_log;
+SET SESSION log_disabled_statements="sp,slave";
+check table t1;
+CALL slow();
+SELECT count(if(sleep(1) >= 0,0,NULL)) from t1 where j>'b and part4';
+
+--echo -->
+SELECT argument FROM mysql.general_log where command_type <> "Close stmt" and command_type <> "Prepare" and argument not like "%general_log%";
+--echo <--
+
+DROP TABLE t1;
+DROP PROCEDURE slow;
+
+#
+# Restore setup
+#
+TRUNCATE TABLE mysql.general_log;
+SET @@global.log_output=              @old_log_output;
+SET @@global.log_disabled_statements= @old_log_disable_statements;
+
+

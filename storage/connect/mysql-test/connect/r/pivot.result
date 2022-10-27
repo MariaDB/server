@@ -1,0 +1,251 @@
+#
+# Testing the PIVOT table type
+#
+CREATE TABLE expenses (
+Who  CHAR(10) NOT NULL,
+Week INT(2) NOT NULL,
+What CHAR(12) NOT NULL,
+Amount DOUBLE(8,2))
+ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='expenses.txt' ENDING=2;
+SELECT * FROM expenses;
+Who	Week	What	Amount
+Joe	3	Beer	18.00
+Beth	4	Food	17.00
+Janet	5	Beer	14.00
+Joe	3	Food	12.00
+Joe	4	Beer	19.00
+Janet	5	Car	12.00
+Joe	3	Food	19.00
+Beth	4	Beer	15.00
+Janet	5	Beer	19.00
+Joe	3	Car	20.00
+Joe	4	Beer	16.00
+Beth	5	Food	12.00
+Beth	3	Beer	16.00
+Joe	4	Food	17.00
+Joe	5	Beer	14.00
+Janet	3	Car	19.00
+Joe	4	Food	17.00
+Beth	5	Beer	20.00
+Janet	3	Food	18.00
+Joe	4	Beer	14.00
+Joe	5	Food	12.00
+Janet	3	Beer	18.00
+Janet	4	Car	17.00
+Janet	5	Food	12.00
+#
+# Pivoting from What
+#
+CREATE TABLE pivex (
+Who  CHAR(10) NOT NULL,
+Week INT(2) NOT NULL,
+Beer DOUBLE(8,2) FLAG=1,
+Car  DOUBLE(8,2) FLAG=1,
+Food DOUBLE(8,2) FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=expenses;
+ALTER TABLE pivex OPTION_LIST='port=PORT';
+SELECT * FROM pivex;
+Who	Week	Beer	Car	Food
+Beth	3	16.00	0.00	0.00
+Beth	4	15.00	0.00	17.00
+Beth	5	20.00	0.00	12.00
+Janet	3	18.00	19.00	18.00
+Janet	4	0.00	17.00	0.00
+Janet	5	33.00	12.00	12.00
+Joe	3	18.00	20.00	31.00
+Joe	4	49.00	0.00	34.00
+Joe	5	14.00	0.00	12.00
+#
+# Restricting the columns in a Pivot Table
+#
+ALTER TABLE pivex DROP COLUMN week;
+SELECT * FROM pivex;
+Who	Beer	Car	Food
+Beth	51.00	0.00	29.00
+Janet	51.00	48.00	30.00
+Joe	81.00	20.00	77.00
+#
+# Using a source definition
+#
+DROP TABLE pivex;
+CREATE TABLE pivex (
+Who  CHAR(10) NOT NULL,
+Week INT(2) NOT NULL,
+Beer DOUBLE(8,2) FLAG=1,
+Car  DOUBLE(8,2) FLAG=1,
+Food DOUBLE(8,2) FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT
+SRCDEF='select who, week, what, sum(amount) as amount from expenses where week in (4,5) group by who, week, what';
+Warnings:
+Warning	1105	Cannot check looping reference
+ALTER TABLE pivex OPTION_LIST='PivotCol=what,FncCol=amount,port=PORT';
+SELECT * FROM pivex;
+Who	Week	Beer	Car	Food
+Beth	4	15.00	0.00	17.00
+Beth	5	20.00	0.00	12.00
+Janet	4	0.00	17.00	0.00
+Janet	5	33.00	12.00	12.00
+Joe	4	49.00	0.00	34.00
+Joe	5	14.00	0.00	12.00
+#
+# Pivoting from Week
+#
+DROP TABLE pivex;
+CREATE TABLE pivex (
+Who  CHAR(10) NOT NULL,
+What CHAR(12) NOT NULL,
+`3` DOUBLE(8,2) FLAG=1,
+`4` DOUBLE(8,2) FLAG=1,
+`5` DOUBLE(8,2) FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=expenses;
+ALTER TABLE pivex OPTION_LIST='PivotCol=Week,port=PORT';
+SELECT * FROM pivex;
+Who	What	3	4	5
+Beth	Beer	16.00	15.00	20.00
+Beth	Food	0.00	17.00	12.00
+Janet	Beer	18.00	0.00	33.00
+Janet	Car	19.00	17.00	12.00
+Janet	Food	18.00	0.00	12.00
+Joe	Beer	18.00	49.00	14.00
+Joe	Car	20.00	0.00	0.00
+Joe	Food	31.00	34.00	12.00
+#
+# Using scalar functions and expresssions
+#
+DROP TABLE pivex;
+CREATE TABLE pivex (
+Who  CHAR(10) NOT NULL,
+What CHAR(12) NOT NULL,
+First  DOUBLE(8,2) FLAG=1,
+Middle DOUBLE(8,2) FLAG=1,
+Last   DOUBLE(8,2) FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT
+SRCDEF='select who, what, case when week=3 then ''First'' when week=5 then ''Last'' else ''Middle'' end as wk, sum(amount) * 6.56 as amnt from expenses group by who, what, wk';
+Warnings:
+Warning	1105	Cannot check looping reference
+ALTER TABLE pivex OPTION_LIST='PivotCol=wk,FncCol=amnt,port=PORT';
+SELECT * FROM pivex;
+Who	What	First	Middle	Last
+Beth	Beer	104.96	98.40	131.20
+Beth	Food	0.00	111.52	78.72
+Janet	Beer	118.08	0.00	216.48
+Janet	Car	124.64	111.52	78.72
+Janet	Food	118.08	0.00	78.72
+Joe	Beer	118.08	321.44	91.84
+Joe	Car	131.20	0.00	0.00
+Joe	Food	203.36	223.04	78.72
+DROP TABLE pivex;
+DROP TABLE expenses;
+#
+# Make the PETS table
+#
+CREATE TABLE pets (
+Name VARCHAR(12) NOT NULL,
+Race CHAR(6) NOT NULL,
+Number INT NOT NULL) ENGINE=MYISAM;
+INSERT INTO pets VALUES('John','dog',2);
+INSERT INTO pets VALUES('Bill','cat',1);
+INSERT INTO pets VALUES('Mary','dog',1);
+INSERT INTO pets VALUES('Mary','cat',1);
+INSERT INTO pets VALUES('Lisbeth','rabbit',2);
+INSERT INTO pets VALUES('Kevin','cat',2);
+INSERT INTO pets VALUES('Kevin','bird',6);
+INSERT INTO pets VALUES('Donald','dog',1);
+INSERT INTO pets VALUES('Donald','fish',3);
+SELECT * FROM pets;
+Name	Race	Number
+John	dog	2
+Bill	cat	1
+Mary	dog	1
+Mary	cat	1
+Lisbeth	rabbit	2
+Kevin	cat	2
+Kevin	bird	6
+Donald	dog	1
+Donald	fish	3
+#
+# Pivot the PETS table
+#
+CREATE TABLE pivet (
+name VARCHAR(12) NOT NULL,
+dog    INT NOT NULL DEFAULT 0 FLAG=1,
+cat    INT NOT NULL DEFAULT 0 FLAG=1,
+rabbit INT NOT NULL DEFAULT 0 FLAG=1,
+bird   INT NOT NULL DEFAULT 0 FLAG=1,
+fish   INT NOT NULL DEFAULT 0 FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+SELECT * FROM pivet;
+name	dog	cat	rabbit	bird	fish
+John	2	0	0	0	0
+Bill	0	1	0	0	0
+Mary	1	1	0	0	0
+Lisbeth	0	0	2	0	0
+Kevin	0	2	0	6	0
+Donald	1	0	0	0	3
+DROP TABLE pivet;
+#
+# Testing the "data" column list
+#
+CREATE TABLE pivet (
+name VARCHAR(12) NOT NULL,
+dog  INT NOT NULL DEFAULT 0 FLAG=1,
+cat  INT NOT NULL DEFAULT 0 FLAG=1)
+ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+SELECT * FROM pivet;
+ERROR HY000: Got error 122 'Cannot find matching column' from CONNECT
+ALTER TABLE pivet OPTION_LIST='PivotCol=race,groupby=1,accept=1';
+SELECT * FROM pivet;
+name	dog	cat
+John	2	0
+Bill	0	1
+Mary	1	1
+Lisbeth	0	0
+Kevin	0	2
+Donald	1	0
+DROP TABLE pivet;
+#
+# Adding a "dump" column
+#
+CREATE TABLE pivet (
+name VARCHAR(12) NOT NULL,
+dog   INT NOT NULL DEFAULT 0 FLAG=1,
+cat   INT NOT NULL DEFAULT 0 FLAG=1,
+other INT NOT NULL DEFAULT 0 FLAG=2)
+ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=1';
+SELECT * FROM pivet;
+name	dog	cat	other
+John	2	0	0
+Bill	0	1	0
+Mary	1	1	0
+Lisbeth	0	0	2
+Kevin	0	2	6
+Donald	1	0	3
+DROP TABLE pivet;
+DROP TABLE pets;
+#
+# MDEV-5734
+#
+CREATE TABLE fruit (
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`name` varchar(32) NOT NULL,
+`cnt` int(11) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=latin1;
+INSERT INTO fruit VALUES (1,'apple',1),(2,'banana',1),(3,'apple',2),(4,'cherry',4),(5,'durazno',2);
+SELECT * FROM fruit;
+id	name	cnt
+1	apple	1
+2	banana	1
+3	apple	2
+4	cherry	4
+5	durazno	2
+CREATE TABLE fruit_pivot ENGINE=CONNECT TABLE_TYPE=pivot TABNAME=fruit;
+SELECT * FROM fruit_pivot;
+id	apple	banana	cherry	durazno
+1	1	0	0	0
+2	0	1	0	0
+3	2	0	0	0
+4	0	0	4	0
+5	0	0	0	2
+DROP TABLE fruit_pivot;
+DROP TABLE fruit;

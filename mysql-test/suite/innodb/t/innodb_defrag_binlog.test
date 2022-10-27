@@ -1,0 +1,21 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/big_test.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1(a int not null primary key auto_increment, b varchar(256), key second(b)) engine=innodb;
+
+insert into t1 values (1, REPEAT("a", 256));
+insert into t1 values (2, REPEAT("a", 256));
+optimize table t1;
+
+drop table t1;
+
+--source include/show_binlog_events.inc
+
+--source include/rpl_end.inc

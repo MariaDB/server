@@ -1,0 +1,21 @@
+#
+# Test that a two-node cluster has distinct values for wsrep_local_index for its nodes
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE wsrep_local_indexes (wsrep_local_index INTEGER);
+INSERT INTO wsrep_local_indexes VALUES ((SELECT variable_value FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE variable_name = 'wsrep_local_index'));
+
+--connection node_2
+INSERT INTO wsrep_local_indexes VALUES ((SELECT variable_value FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE variable_name = 'wsrep_local_index'));
+
+
+--connection node_1
+SELECT COUNT(*) = 2 FROM wsrep_local_indexes;
+SELECT COUNT(DISTINCT wsrep_local_index) = 2 FROM wsrep_local_indexes;
+SELECT COUNT(*) = 0 FROM wsrep_local_indexes WHERE wsrep_local_index NOT IN (0, 1);
+
+DROP TABLE wsrep_local_indexes; 

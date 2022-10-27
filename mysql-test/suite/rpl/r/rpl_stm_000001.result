@@ -1,0 +1,84 @@
+include/master-slave.inc
+[connection master]
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+create table t1 (word char(20) not null);
+load data infile '../../std_data/words.dat' into table t1;
+load data local infile 'MYSQL_TEST_DIR/std_data/words.dat' into table t1;
+select * from t1 limit 10;
+word
+Aarhus
+Aaron
+Ababa
+aback
+abaft
+abandon
+abandoned
+abandoning
+abandonment
+abandons
+connection slave;
+stop slave;
+connection master;
+create temporary table tmp select * from mysql.global_priv where host="localhost" and user="root";
+set password for root@"localhost" = password('foo');
+connection slave;
+start slave;
+connection master;
+replace into mysql.global_priv select * from tmp;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. REPLACE... SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are replaced. This order cannot be predicted and may differ on master and the slave
+drop temporary table tmp;
+flush privileges;
+create table t3(n int);
+insert into t3 values(1),(2);
+connection slave;
+select * from t3;
+n
+1
+2
+select sum(length(word)) from t1;
+sum(length(word))
+1022
+connection master;
+drop table t1,t3;
+connection slave;
+connection master;
+create table t1 (n int);
+connection slave;
+connection master;
+reset master;
+connection slave;
+stop slave;
+reset slave;
+connection master;
+connection slave;
+lock tables t1 read;
+start slave;
+connection master;
+include/sync_slave_io_with_master.inc
+unlock tables;
+connection master;
+create table t2(id int);
+insert into t2 values(connection_id());
+connection master1;
+create temporary table t3(n int);
+insert into t3 select get_lock('crash_lock%20C', 1) from t2;
+connection master;
+update t1 set n = n + get_lock('crash_lock%20C', 2);
+connection master1;
+select (@id := id) - id from t2;
+(@id := id) - id
+0
+kill @id;
+drop table t2;
+drop temporary table t3;
+connection master;
+Got one of the listed errors
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1927]
+select count(*) from t1;
+count(*)
+5000
+connection master1;
+drop table t1;
+include/rpl_end.inc

@@ -1,0 +1,27 @@
+alter_tablespace     : Not supported
+autoinc_secondary    : Not supported
+create_table         : MDEV-12914 - Engine for temporary tables which are implicitly created as RocksDB is substituted silently
+delete_low_prio      : Not supported
+foreign_keys         : Not supported
+fulltext_search      : Not supported
+handler              : Not supported
+index_enable_disable : Not supported
+insert_delayed       : Not supported
+insert_high_prio     : Not supported
+insert_low_prio      : Not supported
+lock                 : MDEV-13148 - LOCK TABLE on RocksDB table fails with a bogus error message
+lock_concurrent      : MDEV-13148 - LOCK TABLE on RocksDB table fails with a bogus error message
+optimize_table       : MDEV-13148 - LOCK TABLE on RocksDB table fails with a bogus error message
+repair_table         : MDEV-13148 - LOCK TABLE on RocksDB table fails with a bogus error message
+select_high_prio     : Not supported
+show_engine          : SHOW ENGINE produces different number of lines depending on previous tests
+show_table_status    : MDEV-13152 - Indeterministic row number in SHOW TABLE STATUS on RocksDB table
+tbl_opt_data_dir     : Not supported
+tbl_opt_index_dir    : Not supported
+type_binary_indexes  : MDEV-16387 - Wrong execution plan
+type_spatial         : Not supported
+type_spatial_indexes : Not supported
+update_low_prio      : Not supported
+update_ignore        : MDEV-13151 - Indeterministic results of multi-table update on RocksDB tables
+update_multi         : MDEV-13151 - Indeterministic results of multi-table update on RocksDB tables
+vcol                 : Not supported

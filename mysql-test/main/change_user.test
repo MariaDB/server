@@ -1,0 +1,151 @@
+# This test is checking that old password authentication works
+set global secure_auth=0;
+#
+# functional change user tests
+#
+create user test_nopw;
+grant select on test.* to test_nopw;
+create user test_oldpw identified by password "09301740536db389";
+grant select on test.* to test_oldpw;
+create user test_newpw identified by "newpw";
+grant select on test.* to test_newpw;
+
+select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
+
+#
+# massaging the data for tests to pass in the embedded server,
+# that has authentication completely disabled or, if enabled, can
+# only do new auth (20-byte scramble).
+#
+
+change_user test_nopw;
+--replace_result <@> <test_nopw@%> @> @localhost>
+select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
+
+#
+# embedded with enabled privilege control cannot do plugin negotiation.
+# that is, it cannot try to authenticate with a new scramble, receive a request
+# to switch to an old scramble, and retry with an old scramble.
+# As a result, it cannot change to a user that has old scramble and
+# and it stays logged as a previous user - test_nopw in this test file.
+# For the embedded with auth we replace nopw with oldpw in the results.
+#
+let $repl = `select if(version() like '%embedded%' and user() like '%nopw%', 'nopw', 'oldpw')`;
+
+change_user test_oldpw, oldpw;
+--replace_result <@> <test_oldpw@%> @> @localhost> $repl oldpw
+select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
+change_user test_newpw, newpw;
+--replace_result <@> <test_newpw@%> @> @localhost>
+select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
+change_user root;
+--replace_result <@> <root@localhost> @> @localhost>
+select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
+
+change_user test_nopw,,test;
+--replace_result <@> <test_nopw@%> @> @localhost>
+select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
+change_user test_oldpw,oldpw,test;
+--replace_result <@> <test_oldpw@%> @> @localhost> $repl oldpw
+select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
+change_user test_newpw,newpw,test;
+--replace_result <@> <test_newpw@%> @> @localhost>
+select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
+change_user root,,test;
+--replace_result <@> <root@localhost> @> @localhost>
+select concat('<', user(), '>'), concat('<', current_user(), '>'), database();
+
+drop user test_nopw;
+drop user test_oldpw;
+drop user test_newpw;
+
+#
+# Bug#20023 mysql_change_user() resets the value of SQL_BIG_SELECTS
+# The replace's are here to fix things for 32 bit systems
+#
+
+--echo Bug#20023
+SELECT @@session.sql_big_selects;
+# The exact value depends on the server build flags
+--replace_result 18446744073709551615 HA_POS_ERROR 4294967295 HA_POS_ERROR
+SELECT @@global.max_join_size;
+--echo change_user
+--change_user
+SELECT @@session.sql_big_selects;
+# The exact value depends on the server build flags
+--replace_result 18446744073709551615 HA_POS_ERROR 4294967295 HA_POS_ERROR
+SELECT @@global.max_join_size;
+SET @@global.max_join_size = 10000;
+SET @@session.max_join_size = default;
+--echo change_user
+--change_user
+SELECT @@session.sql_big_selects;
+# On some machines the following will result into a warning
+--disable_warnings
+SET @@global.max_join_size = 18446744073709551615;
+--enable_warnings
+SET @@session.max_join_size = default;
+--echo change_user
+--change_user
+SELECT @@session.sql_big_selects;
+--replace_result 4294967295 18446744073709551615
+SELECT @@global.max_join_size;
+--replace_result 4294967295 18446744073709551615
+SELECT @@session.max_join_size;
+
+#
+# Bug#31418 User locks misfunctioning after mysql_change_user()
+#
+
+--echo Bug#31418
+SELECT IS_FREE_LOCK('bug31418');
+SELECT IS_USED_LOCK('bug31418');
+SELECT GET_LOCK('bug31418', 1);
+SELECT IS_USED_LOCK('bug31418') = CONNECTION_ID();
+--echo change_user
+--change_user
+SELECT IS_FREE_LOCK('bug31418');
+SELECT IS_USED_LOCK('bug31418');
+
+#
+# Bug#31222: com_% global status counters behave randomly with
+# mysql_change_user.
+#
+
+FLUSH STATUS;
+
+--disable_result_log
+--disable_query_log
+
+let $i = 100;
+begin;
+while ($i)
+{
+  dec $i;
+  SELECT 1;
+}
+commit;
+
+--enable_query_log
+--enable_result_log
+
+let $before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_select',Value,1);
+
+--change_user
+
+let $after= query_get_value(SHOW GLOBAL STATUS LIKE 'com_select',Value,1);
+
+if ($after != $before){
+  SHOW GLOBAL STATUS LIKE 'com_select';
+  die The value of com_select changed during change_user;
+}
+echo Value of com_select did not change;
+
+set global secure_auth=default;
+
+set timestamp=unix_timestamp('2010-10-10 10:10:10');
+select now();
+select year(now()) > 2011;
+--echo change_user
+--change_user
+select year(now()) > 2011;

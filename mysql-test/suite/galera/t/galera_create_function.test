@@ -1,0 +1,53 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test CREATE FUNCTION
+#
+
+--connection node_1
+CREATE USER 'user1';
+
+CREATE
+DEFINER = 'user1'
+FUNCTION f1 (param INTEGER)
+RETURNS VARCHAR(200)
+COMMENT 'f1_comment'
+LANGUAGE SQL
+NOT DETERMINISTIC
+MODIFIES SQL DATA
+SQL SECURITY DEFINER
+RETURN 'abc';
+GRANT EXECUTE ON FUNCTION f1 TO user1;
+
+CREATE
+DEFINER = CURRENT_USER
+FUNCTION f2 (param VARCHAR(100))
+RETURNS INTEGER
+DETERMINISTIC
+NO SQL
+SQL SECURITY INVOKER
+RETURN 123;
+
+--connection node_1
+SHOW CREATE FUNCTION f1;
+
+--connection node_2
+# Work around codership/mysql-wsrep#228 - SHOW CREATE FUNCTION not covered by wsrep_sync_wait
+SELECT 1 FROM DUAL;
+SHOW CREATE FUNCTION f1;
+
+--connection node_1
+SHOW CREATE FUNCTION f2;
+
+--connection node_2
+SHOW CREATE FUNCTION f2;
+
+SELECT f1(1) = 'abc';
+SELECT f2('abc') = 123;
+
+--connection node_1
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+
+DROP USER 'user1';

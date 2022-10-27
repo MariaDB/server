@@ -1,0 +1,61 @@
+# MDEV-16266 Reload SSL certificate
+# This test reloads server SSL certs FLUSH SSL, and checks that 
+# 1. old SSL connections (that existed before FLUSH) still work and use old certificate
+# 2. new SSL connection use new certificate
+# 3. if FLUSH SSL runs into error, SSL is still functioning
+# SWtatus variable Ssl_server_not_after is used to tell the old certificate from new.
+
+
+source include/have_ssl_communication.inc;
+
+# Restart server with cert. files located in temp directory
+# We are going to remove / replace them within the test, 
+# so we can't use the ones in std_data directly.
+
+let $ssl_cert=$MYSQLTEST_VARDIR/tmp/ssl_cert.pem;
+let $ssl_key=$MYSQLTEST_VARDIR/tmp/ssl_key.pem;
+
+copy_file $MYSQL_TEST_DIR/std_data/server-key.pem $ssl_key;
+copy_file $MYSQL_TEST_DIR/std_data/server-cert.pem $ssl_cert;
+
+let $restart_parameters=--ssl-key=$ssl_key --ssl-cert=$ssl_cert;
+--source include/kill_mysqld.inc
+--source include/start_mysqld.inc
+
+connect  ssl_con,localhost,root,,,,,SSL;
+SELECT VARIABLE_VALUE INTO @ssl_not_after FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after';
+let $ssl_not_after=`SELECT @ssl_not_after`;
+
+remove_file $ssl_cert;
+remove_file $ssl_key;
+
+--echo # Use a different certificate ("Not after" certificate field changed)
+copy_file $MYSQL_TEST_DIR/std_data/server-new-key.pem $ssl_key;
+copy_file $MYSQL_TEST_DIR/std_data/server-new-cert.pem $ssl_cert;
+
+FLUSH SSL;
+
+--echo # Check new certificate used by new connection
+exec $MYSQL --ssl  -e  "SELECT IF(VARIABLE_VALUE <> '$ssl_not_after', 'OK', 'FAIL') as Result FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after'";
+
+--echo # Check that existing SSL connection still works, and uses old certificate, even if new one is loaded in FLUSH SSL
+connection ssl_con;
+SELECT IF(VARIABLE_VALUE=@ssl_not_after,'OK','FAIL') as Result FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_server_not_after';
+
+disconnect ssl_con;
+connection default;
+
+SELECT VARIABLE_NAME NAME, VARIABLE_VALUE VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Ssl_accepts', 'Ssl_finished_accepts');
+FLUSH SSL;
+#Check that accepts are zeroed by FLUSH SSL.
+SELECT VARIABLE_NAME NAME, VARIABLE_VALUE VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME in ('Ssl_accepts', 'Ssl_finished_accepts');
+
+--echo # Cleanup
+remove_file $ssl_cert;
+remove_file $ssl_key;
+# restart with usuall SSL
+let $restart_parameters=;
+--source include/kill_mysqld.inc
+--source include/start_mysqld.inc
+
+

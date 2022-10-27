@@ -1,0 +1,13 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+log_slave_updates
+rocksdb_enable_2pc=OFF
+rocksdb_wal_recovery_mode=2
+
+[mysqld.2]
+relay_log_recovery=1
+relay_log_info_repository=TABLE
+log_slave_updates
+rocksdb_enable_2pc=OFF
+rocksdb_wal_recovery_mode=2

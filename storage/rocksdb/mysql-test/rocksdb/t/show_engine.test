@@ -1,0 +1,103 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+
+--source include/restart_mysqld.inc
+
+#
+# SHOW ENGINE STATUS command
+# Checking that the command doesn't produce an error.
+# If it starts producing an actual result, the result file
+# will need to be updated, and possibly masked.
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+DROP TABLE IF EXISTS t3;
+DROP TABLE IF EXISTS t4;
+--enable_warnings
+
+CREATE TABLE t1 (i INT, PRIMARY KEY (i) COMMENT 'cf_t1') ENGINE = ROCKSDB;
+CREATE TABLE t2 (j INT, PRIMARY KEY (j) COMMENT 'rev:cf_t2') ENGINE = ROCKSDB;
+CREATE TABLE t3 (k INT, PRIMARY KEY (k) COMMENT 'cf_t1') ENGINE = ROCKSDB;
+
+# With partition based column family creation we now expect all the partitions
+# to belong to a default column family because mapping wasn't specified in
+# this case.
+CREATE TABLE t4 (l INT, PRIMARY KEY (l) COMMENT 'cf_t4') ENGINE = ROCKSDB
+    PARTITION BY KEY(l) PARTITIONS 4;
+
+SET @save.rocksdb_max_background_jobs= @@global.rocksdb_max_background_jobs;
+SET GLOBAL rocksdb_max_background_jobs= 1;
+
+INSERT INTO t1 VALUES (1), (2), (3);
+SELECT COUNT(*) FROM t1;
+
+INSERT INTO t2 VALUES (1), (2), (3), (4);
+SELECT COUNT(*) FROM t2;
+
+INSERT INTO t4 VALUES (1), (2), (3), (4), (5);
+SELECT COUNT(*) FROM t4;
+
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+SET GLOBAL rocksdb_compact_cf="cf_t1";
+--replace_column 2 # 3 #
+SHOW ENGINE rocksdb STATUS;
+
+# Fetch data from information schema as well
+--replace_column 3 #
+SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_CFSTATS;
+
+--replace_column 2 #
+SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_DBSTATS;
+
+SELECT TABLE_SCHEMA, TABLE_NAME, PARTITION_NAME, COUNT(STAT_TYPE)
+FROM INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT
+WHERE TABLE_SCHEMA = 'test'
+GROUP BY TABLE_NAME, PARTITION_NAME;
+
+--replace_column 3 #
+SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_CF_OPTIONS;
+ 
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+DROP TABLE t4;
+
+SHOW ENGINE rocksdb MUTEX;
+# For SHOW ALL MUTEX even the number of lines is volatile, so the result logging is disabled
+--disable_result_log
+SHOW ENGINE ALL MUTEX;
+--enable_result_log
+
+# The output from SHOW ENGINE ROCKSDB TRANSACTION STATUS has some
+# non-deterministic results.  Replace the timestamp with 'TIMESTAMP', the
+# number of seconds active with 'NUM', the thread id with 'TID' and the thread
+# pointer with 'PTR'.  This test may fail in the future if it is being run in
+# parallel with other tests as the number of snapshots would then be greater
+# than expected.  We may need to turn off the result log if that is the case.
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+#select sleep(10);
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}/TIMESTAMP/ /(ACTIVE) [0-9]+ /\1 NUM / /(thread id) [0-9]+/\1 TID/ /0x[0-9a-f]+/PTR/ /(query id) [0-9]+/\1 QID/ /(root) [a-z ]+/\1 ACTION/
+SHOW ENGINE rocksdb TRANSACTION STATUS;
+
+ROLLBACK;
+
+# Check if explicit snapshots are correctly populated
+START TRANSACTION WITH SHARED ROCKSDB SNAPSHOT;
+--replace_column 2 # 3 #
+SHOW ENGINE rocksdb STATUS;
+ROLLBACK;
+CREATE EXPLICIT rocksdb SNAPSHOT;
+--replace_column 2 # 3 #
+SHOW ENGINE rocksdb STATUS;
+RELEASE EXPLICIT rocksdb SNAPSHOT;
+--replace_column 2 # 3 #
+SHOW ENGINE rocksdb STATUS;
+
+
+# Restore old values
+SET GLOBAL rocksdb_max_background_jobs= @save.rocksdb_max_background_jobs;

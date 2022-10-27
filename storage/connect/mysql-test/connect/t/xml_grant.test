@@ -1,0 +1,8 @@
+-- source include/not_embedded.inc
+-- source windows.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+let $TABLE_OPTIONS=TABLE_TYPE=XML OPTION_LIST='xmlsup=domdoc,rownode=row';
+let $FILE_EXT=XML;
+--source grant.inc

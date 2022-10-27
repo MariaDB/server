@@ -1,0 +1,18 @@
+drop table if exists books;
+create table books(title varchar(255), published tinyint);
+insert into books values ("MySQL", 1);
+insert into books values ("groonga", 1);
+insert into books values ("mroonga", 0);
+select count(*) from books where published = 0;
+count(*)
+1
+select count(*) from books where published = 1;
+count(*)
+2
+select count(*) from books where published != 2;
+count(*)
+3
+select count(*) from books where published != 1;
+count(*)
+1
+drop table books;

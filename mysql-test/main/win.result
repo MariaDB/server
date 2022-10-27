@@ -1,0 +1,3962 @@
+drop table if exists t1,t2;
+drop view if exists v1;
+# ########################################################################
+# # Parser tests
+# ########################################################################
+#
+#  Check what happens when one attempts to use window function without OVER clause
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2);
+select row_number() from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'from t1' at line 1
+select rank() from t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'from t1' at line 1
+# Attempt to use window function in the WHERE clause
+select * from t1 where 1=rank() over (order by a);
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+select * from t1 where 1>row_number() over (partition by b order by a);
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+drop table t1;
+# ########################################################################
+# # Functionality tests
+# ########################################################################
+#
+#  Check if ROW_NUMBER() works in basic cases
+create table t1(a int, b int, x char(32));
+insert into t1 values (2, 10, 'xx');
+insert into t1 values (2, 10, 'zz');
+insert into t1 values (2, 20, 'yy');
+insert into t1 values (3, 10, 'xxx');
+insert into t1 values (3, 20, 'vvv');
+select a, row_number() over (partition by a order by b) from t1;
+a	row_number() over (partition by a order by b)
+2	1
+2	2
+2	3
+3	1
+3	2
+select a, b, x, row_number() over (partition by a order by x) from t1;
+a	b	x	row_number() over (partition by a order by x)
+2	10	xx	1
+2	20	yy	2
+2	10	zz	3
+3	20	vvv	1
+3	10	xxx	2
+drop table t1;
+create table t1 (pk int primary key, a int, b int);
+insert into t1 values
+(1, 10, 22),
+(2, 11, 21),
+(3, 12, 20),
+(4, 13, 19),
+(5, 14, 18);
+select
+pk, a, b,
+row_number() over (order by a),
+row_number() over (order by b)
+from t1
+order by b;
+pk	a	b	row_number() over (order by a)	row_number() over (order by b)
+5	14	18	5	1
+4	13	19	4	2
+3	12	20	3	3
+2	11	21	2	4
+1	10	22	1	5
+drop table t1;
+#
+# Try RANK() function
+#
+create table t2 (
+pk int primary key,
+a int
+);
+insert into t2 values
+( 1 , 0),
+( 2 , 0),
+( 3 , 1),
+( 4 , 1),
+( 8 , 2),
+( 5 , 2),
+( 6 , 2),
+( 7 , 2),
+( 9 , 4),
+(10 , 4);
+select pk, a, rank() over (order by a) from t2;
+pk	a	rank() over (order by a)
+1	0	1
+10	4	9
+2	0	1
+3	1	3
+4	1	3
+5	2	5
+6	2	5
+7	2	5
+8	2	5
+9	4	9
+select pk, a, rank() over (order by a desc) from t2;
+pk	a	rank() over (order by a desc)
+1	0	9
+10	4	1
+2	0	9
+3	1	7
+4	1	7
+5	2	3
+6	2	3
+7	2	3
+8	2	3
+9	4	1
+drop table t2;
+#
+# Try Aggregates as window functions. With frames.
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (pk int, c int);
+insert into t1 select a+1,1 from t0;
+update t1 set c=2 where pk not in (1,2,3,4);
+select * from t1;
+pk	c
+1	1
+2	1
+3	1
+4	1
+5	2
+6	2
+7	2
+8	2
+9	2
+10	2
+select
+pk, c,
+count(*) over (partition by c order by pk
+rows between 2 preceding and 2 following) as CNT
+from t1;
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select
+pk, c,
+count(*) over (partition by c order by pk
+rows between 1 preceding and 2 following) as CNT
+from t1;
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	3
+4	1	2
+5	2	3
+6	2	4
+7	2	4
+8	2	4
+9	2	3
+10	2	2
+select
+pk, c,
+count(*) over (partition by c order by pk
+rows between 2 preceding and current row) as CNT
+from t1;
+pk	c	CNT
+1	1	1
+2	1	2
+3	1	3
+4	1	3
+5	2	1
+6	2	2
+7	2	3
+8	2	3
+9	2	3
+10	2	3
+select
+pk,c,
+count(*) over (partition by c order by pk rows
+between 1 following and 2 following) as CNT
+from t1;
+pk	c	CNT
+1	1	2
+2	1	2
+3	1	1
+4	1	0
+5	2	2
+6	2	2
+7	2	2
+8	2	2
+9	2	1
+10	2	0
+select
+pk,c,
+count(*) over (partition by c order by pk rows
+between 2 preceding and 1 preceding) as CNT
+from t1;
+pk	c	CNT
+1	1	0
+2	1	1
+3	1	2
+4	1	2
+5	2	0
+6	2	1
+7	2	2
+8	2	2
+9	2	2
+10	2	2
+select
+pk, c,
+count(*) over (partition by c order by pk
+rows between current row and 1 following) as CNT
+from t1;
+pk	c	CNT
+1	1	2
+2	1	2
+3	1	2
+4	1	1
+5	2	2
+6	2	2
+7	2	2
+8	2	2
+9	2	2
+10	2	1
+# Check ORDER BY DESC
+select
+pk, c,
+count(*) over (partition by c order by pk desc
+rows between 2 preceding and 2 following) as CNT
+from t1;
+pk	c	CNT
+4	1	3
+3	1	4
+2	1	4
+1	1	3
+10	2	3
+9	2	4
+8	2	5
+7	2	5
+6	2	4
+5	2	3
+drop table t0,t1;
+#
+# Resolution of window names
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (pk int, c int);
+insert into t1 select a+1,1 from t0;
+update t1 set c=2 where pk not in (1,2,3,4);
+select * from t1;
+pk	c
+1	1
+2	1
+3	1
+4	1
+5	2
+6	2
+7	2
+8	2
+9	2
+10	2
+select
+pk, c,
+count(*) over w1 as CNT
+from t1
+window w1 as (partition by c order by pk
+rows between 2 preceding and 2 following);
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select
+pk, c,
+count(*) over (w1 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c order by pk);
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select
+pk, c,
+count(*) over (w1 order by pk rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c);
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select
+pk, c,
+count(*) over (w2 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c), w2 as (w1 order by pk);
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select
+pk, c,
+count(*) over w3 as CNT
+from t1
+window
+w1 as (partition by c),
+w2 as (w1 order by pk),
+w3 as (w2 rows between 2 preceding and 2 following);
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+select
+pk, c,
+count(*) over w as CNT
+from t1
+window w1 as (partition by c order by pk
+rows between 2 preceding and 2 following);
+ERROR HY000: Window specification with name 'w' is not defined
+select
+pk, c,
+count(*) over (w2 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c), w1 as (order by pk);
+ERROR HY000: Multiple window specifications with the same name 'w1'
+select
+pk, c,
+count(*) over (w2 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c), w2 as (w partition by c order by pk);
+ERROR HY000: Window specification with name 'w' is not defined
+select
+pk, c,
+count(*) over (w2 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c), w2 as (w1 partition by c order by pk);
+ERROR HY000: Window specification referencing another one 'w1' cannot contain partition list
+select
+pk, c,
+count(*) over (w2 rows between 2 preceding and 2 following) as CNT
+from t1
+window w1 as (partition by c order by pk), w2 as (w1 order by pk);
+ERROR HY000: Referenced window specification 'w1' already contains order list
+select
+pk, c,
+count(*) over w3 as CNT
+from t1
+window
+w1 as (partition by c),
+w2 as (w1 order by pk rows between 3 preceding and 2 following),
+w3 as (w2 rows between 2 preceding and 2 following);
+ERROR HY000: Referenced window specification 'w2' cannot contain window frame
+select
+pk, c,
+count(*) over w1 as CNT
+from t1
+window w1 as (partition by c order by pk
+rows between unbounded following and 2 following);
+ERROR HY000: Unacceptable combination of window frame bound specifications
+select
+pk, c,
+count(*) over (w1 rows between 2 preceding and unbounded preceding) as CNT
+from t1
+window w1 as (partition by c order by pk);
+ERROR HY000: Unacceptable combination of window frame bound specifications
+select
+pk, c,
+count(*) over (w1 order by pk rows between current row and 2 preceding) as CNT
+from t1
+window w1 as (partition by c);
+ERROR HY000: Unacceptable combination of window frame bound specifications
+select
+pk, c,
+count(*) over (w2 rows between 2 following and current row) as CNT
+from t1
+window w1 as (partition by c), w2 as (w1 order by pk);
+ERROR HY000: Unacceptable combination of window frame bound specifications
+select
+pk, c
+from t1 where rank() over w1 > 2
+window w1 as (partition by c order by pk);
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+select
+c, max(pk) as m
+from t1
+group by c + rank() over w1
+window w1 as (order by m);
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+select
+c, max(pk) as m, rank() over w1 as r
+from t1
+group by c+r
+window w1 as (order by m);
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+select
+c, max(pk) as m, rank() over w1 as r
+from t1
+group by c having c+r > 3
+window w1 as (order by m);
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+select
+c, max(pk) as m, rank() over w1 as r,
+rank() over (partition by r+1 order by m)
+from t1
+group by c
+window w1 as (order by m);
+ERROR HY000: Window function is not allowed in window specification
+select
+c, max(pk) as m, rank() over w1 as r,
+rank() over (partition by m order by r)
+from t1
+group by c
+window w1 as (order by m);
+ERROR HY000: Window function is not allowed in window specification
+select
+c, max(pk) as m, rank() over w1 as r, dense_rank() over w2 as dr
+from t1
+group by c
+window w1 as (order by m), w2 as (partition by r order by m);
+ERROR HY000: Window function is not allowed in window specification
+select
+pk, c,
+row_number() over (partition by c order by pk
+range between unbounded preceding and current row) as r
+from t1;
+ERROR HY000: Window frame is not allowed with 'row_number'
+select
+pk, c,
+rank() over w1 as r
+from t1
+window w1 as (partition by c order by pk
+rows between 2 preceding and 2 following);
+ERROR HY000: Window frame is not allowed with 'rank'
+select
+pk, c,
+dense_rank() over (partition by c order by pk
+rows between 1 preceding and 1 following) as r
+from t1;
+ERROR HY000: Window frame is not allowed with 'dense_rank'
+select
+pk, c,
+rank() over w1 as r
+from t1
+window w1 as (partition by c);
+ERROR HY000: No order list in window specification for 'rank'
+select
+pk, c,
+dense_rank() over (partition by c) as r
+from t1;
+ERROR HY000: No order list in window specification for 'dense_rank'
+drop table t0,t1;
+#
+# MDEV-9634: Window function produces incorrect value
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (part_id int, pk int, a int);
+insert into t2 select
+if(a<5, 0, 1), a, if(a<5, NULL, 1) from t0;
+select * from t2;
+part_id	pk	a
+0	0	NULL
+0	1	NULL
+0	2	NULL
+0	3	NULL
+0	4	NULL
+1	5	1
+1	6	1
+1	7	1
+1	8	1
+1	9	1
+select
+part_id, pk, a,
+count(a) over (partition by part_id order by pk
+rows between 1 preceding and 1 following) as CNT
+from t2;
+part_id	pk	a	CNT
+0	0	NULL	0
+0	1	NULL	0
+0	2	NULL	0
+0	3	NULL	0
+0	4	NULL	0
+1	5	1	2
+1	6	1	3
+1	7	1	3
+1	8	1	3
+1	9	1	2
+drop table t0, t2;
+#
+#  RANGE-type bounds
+#
+create table t3 (
+pk int,
+val int
+);
+insert into t3 values
+(0, 1),
+(1, 1),
+(2, 1),
+(3, 2),
+(4, 2),
+(5, 2),
+(6, 2);
+select
+val,
+count(val) over (order by val
+range between current row and
+current row)
+as CNT
+from t3;
+val	CNT
+1	3
+1	3
+1	3
+2	4
+2	4
+2	4
+2	4
+insert into t3 values
+(7, 3),
+(8, 3);
+select
+val,
+count(val) over (order by val
+range between current row and
+current row)
+as CNT
+from t3;
+val	CNT
+1	3
+1	3
+1	3
+2	4
+2	4
+2	4
+2	4
+3	2
+3	2
+drop table t3;
+# Now, check with PARTITION BY
+create table t4 (
+part_id int,
+pk int,
+val int
+);
+insert into t4 values
+(1234, 100, 1),
+(1234, 101, 1),
+(1234, 102, 1),
+(1234, 103, 2),
+(1234, 104, 2),
+(1234, 105, 2),
+(1234, 106, 2),
+(1234, 107, 3),
+(1234, 108, 3),
+(5678, 200, 1),
+(5678, 201, 1),
+(5678, 202, 1),
+(5678, 203, 2),
+(5678, 204, 2),
+(5678, 205, 2),
+(5678, 206, 2),
+(5678, 207, 3),
+(5678, 208, 3);
+select
+part_id,
+val,
+count(val) over (partition by part_id
+order by val
+range between current row and
+current row)
+as CNT
+from t4;
+part_id	val	CNT
+1234	1	3
+1234	1	3
+1234	1	3
+1234	2	4
+1234	2	4
+1234	2	4
+1234	2	4
+1234	3	2
+1234	3	2
+5678	1	3
+5678	1	3
+5678	1	3
+5678	2	4
+5678	2	4
+5678	2	4
+5678	2	4
+5678	3	2
+5678	3	2
+#
+# Try RANGE UNBOUNDED PRECEDING | FOLLOWING
+#
+select
+part_id,
+val,
+count(val) over (partition by part_id
+order by val
+range between unbounded preceding and
+current row)
+as CNT
+from t4;
+part_id	val	CNT
+1234	1	3
+1234	1	3
+1234	1	3
+1234	2	7
+1234	2	7
+1234	2	7
+1234	2	7
+1234	3	9
+1234	3	9
+5678	1	3
+5678	1	3
+5678	1	3
+5678	2	7
+5678	2	7
+5678	2	7
+5678	2	7
+5678	3	9
+5678	3	9
+select
+part_id,
+val,
+count(val) over (partition by part_id
+order by val
+range between current row and
+unbounded following)
+as CNT
+from t4;
+part_id	val	CNT
+1234	1	9
+1234	1	9
+1234	1	9
+1234	2	6
+1234	2	6
+1234	2	6
+1234	2	6
+1234	3	2
+1234	3	2
+5678	1	9
+5678	1	9
+5678	1	9
+5678	2	6
+5678	2	6
+5678	2	6
+5678	2	6
+5678	3	2
+5678	3	2
+select
+part_id,
+val,
+count(val) over (partition by part_id
+order by val
+range between unbounded preceding and
+unbounded following)
+as CNT
+from t4;
+part_id	val	CNT
+1234	1	9
+1234	1	9
+1234	1	9
+1234	2	9
+1234	2	9
+1234	2	9
+1234	2	9
+1234	3	9
+1234	3	9
+5678	1	9
+5678	1	9
+5678	1	9
+5678	2	9
+5678	2	9
+5678	2	9
+5678	2	9
+5678	3	9
+5678	3	9
+drop table t4;
+#
+# MDEV-9695: Wrong window frame when using RANGE BETWEEN N FOLLOWING AND PRECEDING
+#
+create table t1 (pk int, a int, b int);
+insert into t1 values
+( 1 , 0, 1),
+( 2 , 0, 2),
+( 3 , 1, 4),
+( 4 , 1, 8),
+( 5 , 2, 32),
+( 6 , 2, 64),
+( 7 , 2, 128),
+( 8 , 2, 16);
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) as bit_or
+from t1;
+pk	a	b	bit_or
+1	0	1	3
+2	0	2	3
+3	1	4	12
+4	1	8	12
+5	2	32	96
+6	2	64	224
+7	2	128	208
+8	2	16	144
+# Extra ROWS n PRECEDING tests
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING) as bit_or
+from t1;
+pk	a	b	bit_or
+1	0	1	0
+2	0	2	1
+3	1	4	0
+4	1	8	4
+5	2	32	0
+6	2	64	32
+7	2	128	64
+8	2	16	128
+drop table t1;
+create table t2 (
+pk int,
+a int,
+b int
+);
+insert into t2 values
+( 1, 0, 1),
+( 2, 0, 2),
+( 3, 0, 4),
+( 4, 0, 8),
+( 5, 1, 16),
+( 6, 1, 32),
+( 7, 1, 64),
+( 8, 1, 128),
+( 9, 2, 256),
+(10, 2, 512),
+(11, 2, 1024),
+(12, 2, 2048);
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING) as bit_or
+from t2;
+pk	a	b	bit_or
+1	0	1	0
+2	0	2	1
+3	0	4	2
+4	0	8	4
+5	1	16	0
+6	1	32	16
+7	1	64	32
+8	1	128	64
+9	2	256	0
+10	2	512	256
+11	2	1024	512
+12	2	2048	1024
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 2 PRECEDING AND 2 PRECEDING) as bit_or
+from t2;
+pk	a	b	bit_or
+1	0	1	0
+2	0	2	0
+3	0	4	1
+4	0	8	2
+5	1	16	0
+6	1	32	0
+7	1	64	16
+8	1	128	32
+9	2	256	0
+10	2	512	0
+11	2	1024	256
+12	2	2048	512
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) as bit_or
+from t2;
+pk	a	b	bit_or
+1	0	1	0
+2	0	2	1
+3	0	4	3
+4	0	8	6
+5	1	16	0
+6	1	32	16
+7	1	64	48
+8	1	128	96
+9	2	256	0
+10	2	512	256
+11	2	1024	768
+12	2	2048	1536
+# Check CURRENT ROW
+select pk, a, b,
+bit_or(b) over (partition by a order by pk ROWS BETWEEN CURRENT ROW AND CURRENT ROW) as bit_or
+from t2;
+pk	a	b	bit_or
+1	0	1	1
+2	0	2	2
+3	0	4	4
+4	0	8	8
+5	1	16	16
+6	1	32	32
+7	1	64	64
+8	1	128	128
+9	2	256	256
+10	2	512	512
+11	2	1024	1024
+12	2	2048	2048
+drop table t2;
+#
+# Try RANGE PRECEDING|FOLLWING n
+#
+create table t1 (
+part_id int,
+pk int,
+a int
+);
+insert into t1 values
+(10, 1, 1),
+(10, 2, 2),
+(10, 3, 4),
+(10, 4, 8),
+(10, 5,26),
+(10, 6,27),
+(10, 7,40),
+(10, 8,71),
+(10, 9,72);
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING
+AND 10 FOLLOWING) as cnt
+from t1;
+pk	a	cnt
+1	1	4
+2	2	4
+3	4	4
+4	8	4
+5	26	6
+6	27	6
+7	40	7
+8	71	9
+9	72	9
+select
+pk, a,
+count(a) over (ORDER BY a DESC
+RANGE BETWEEN UNBOUNDED PRECEDING
+AND 10 FOLLOWING) as cnt
+from t1;
+pk	a	cnt
+9	72	2
+8	71	2
+7	40	3
+6	27	5
+5	26	5
+4	8	9
+3	4	9
+2	2	9
+1	1	9
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING
+AND 1 FOLLOWING) as cnt
+from t1;
+pk	a	cnt
+1	1	2
+2	2	2
+3	4	3
+4	8	4
+5	26	6
+6	27	6
+7	40	7
+8	71	9
+9	72	9
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING
+AND 10 PRECEDING) as cnt
+from t1;
+pk	a	cnt
+1	1	0
+2	2	0
+3	4	0
+4	8	0
+5	26	4
+6	27	4
+7	40	6
+8	71	7
+9	72	7
+select
+pk, a,
+count(a) over (ORDER BY a DESC
+RANGE BETWEEN UNBOUNDED PRECEDING
+AND 10 PRECEDING) as cnt
+from t1;
+pk	a	cnt
+9	72	0
+8	71	0
+7	40	2
+6	27	3
+5	26	3
+4	8	5
+3	4	5
+2	2	5
+1	1	5
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING
+AND 1 PRECEDING) as cnt
+from t1;
+pk	a	cnt
+1	1	0
+2	2	1
+3	4	2
+4	8	3
+5	26	4
+6	27	5
+7	40	6
+8	71	7
+9	72	8
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN 1 PRECEDING
+AND CURRENT ROW) as cnt
+from t1;
+pk	a	cnt
+1	1	1
+2	2	2
+3	4	1
+4	8	1
+5	26	1
+6	27	2
+7	40	1
+8	71	1
+9	72	2
+select
+pk, a,
+count(a) over (ORDER BY a DESC
+RANGE BETWEEN 1 PRECEDING
+AND CURRENT ROW) as cnt
+from t1;
+pk	a	cnt
+9	72	1
+8	71	2
+7	40	1
+6	27	1
+5	26	2
+4	8	1
+3	4	1
+2	2	1
+1	1	2
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN 1 FOLLOWING
+AND 3 FOLLOWING) as cnt
+from t1;
+pk	a	cnt
+1	1	2
+2	2	1
+3	4	0
+4	8	0
+5	26	1
+6	27	0
+7	40	0
+8	71	1
+9	72	0
+# Try CURRENT ROW with[out] DESC
+select
+pk, a,
+count(a) over (ORDER BY a
+RANGE BETWEEN CURRENT ROW
+AND 1 FOLLOWING) as cnt
+from t1;
+pk	a	cnt
+1	1	2
+2	2	1
+3	4	1
+4	8	1
+5	26	2
+6	27	1
+7	40	1
+8	71	2
+9	72	1
+select
+pk, a,
+count(a) over (order by a desc
+range between current row
+and 1 following) as cnt
+from t1;
+pk	a	cnt
+9	72	2
+8	71	1
+7	40	1
+6	27	2
+5	26	1
+4	8	1
+3	4	1
+2	2	2
+1	1	1
+insert into t1 select 22, pk, a from t1;
+select
+part_id, pk, a,
+count(a) over (PARTITION BY part_id
+ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING
+AND 10 FOLLOWING) as cnt
+from t1;
+part_id	pk	a	cnt
+10	1	1	4
+10	2	2	4
+10	3	4	4
+10	4	8	4
+10	5	26	6
+10	6	27	6
+10	7	40	7
+10	8	71	9
+10	9	72	9
+22	1	1	4
+22	2	2	4
+22	3	4	4
+22	4	8	4
+22	5	26	6
+22	6	27	6
+22	7	40	7
+22	8	71	9
+22	9	72	9
+select
+pk, a,
+count(a) over (PARTITION BY part_id
+ORDER BY a
+RANGE BETWEEN UNBOUNDED PRECEDING
+AND 1 PRECEDING) as cnt
+from t1;
+pk	a	cnt
+1	1	0
+2	2	1
+3	4	2
+4	8	3
+5	26	4
+6	27	5
+7	40	6
+8	71	7
+9	72	8
+1	1	0
+2	2	1
+3	4	2
+4	8	3
+5	26	4
+6	27	5
+7	40	6
+8	71	7
+9	72	8
+drop table t1;
+# Try a RANGE frame over non-integer datatype:
+create table t1 (
+col1 int,
+a decimal(5,3)
+);
+insert into t1 values (1, 0.45);
+insert into t1 values (1, 0.5);
+insert into t1 values (1, 0.55);
+insert into t1 values (1, 1.21);
+insert into t1 values (1, 1.22);
+insert into t1 values (1, 3.33);
+select
+a,
+count(col1) over (order by a
+range between 0.1 preceding
+and 0.1 following)
+from t1;
+a	count(col1) over (order by a
+range between 0.1 preceding
+and 0.1 following)
+0.450	3
+0.500	3
+0.550	3
+1.210	2
+1.220	2
+3.330	1
+drop table t1;
+#
+# RANGE-type frames and NULL values
+#
+create table t1 (
+pk int,
+a int,
+b int
+);
+insert into t1 values (1, NULL,1);
+insert into t1 values (2, NULL,1);
+insert into t1 values (3, NULL,1);
+insert into t1 values (4, 10 ,1);
+insert into t1 values (5, 11 ,1);
+insert into t1 values (6, 12 ,1);
+insert into t1 values (7, 13 ,1);
+insert into t1 values (8, 14 ,1);
+select
+pk, a,
+count(b) over (order by a
+range between 2 preceding
+and 2 following) as CNT
+from t1
+order by a, pk;
+pk	a	CNT
+1	NULL	3
+2	NULL	3
+3	NULL	3
+4	10	3
+5	11	4
+6	12	5
+7	13	4
+8	14	3
+drop table t1;
+#
+#  Try ranges that have bound1 > bound2.  The standard actually allows them
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (pk int, c int);
+insert into t1 select a+1,1 from t0;
+update t1 set c=2 where pk not in (1,2,3,4);
+select * from t1;
+pk	c
+1	1
+2	1
+3	1
+4	1
+5	2
+6	2
+7	2
+8	2
+9	2
+10	2
+select
+pk, c,
+count(*) over (partition by c
+order by pk
+rows between 1 preceding
+and 2 preceding)
+as cnt
+from t1;
+pk	c	cnt
+1	1	0
+2	1	0
+3	1	0
+4	1	0
+5	2	0
+6	2	0
+7	2	0
+8	2	0
+9	2	0
+10	2	0
+select
+pk, c,
+sum(c) over (partition by c
+order by pk
+rows between 1 preceding
+and 2 preceding)
+as sum
+from t1;
+pk	c	sum
+1	1	NULL
+2	1	NULL
+3	1	NULL
+4	1	NULL
+5	2	NULL
+6	2	NULL
+7	2	NULL
+8	2	NULL
+9	2	NULL
+10	2	NULL
+select
+pk, c,
+sum(c) over (partition by c
+order by pk
+rows between 2 following
+and 1 following)
+as sum
+from t1;
+pk	c	sum
+1	1	NULL
+2	1	NULL
+3	1	NULL
+4	1	NULL
+5	2	NULL
+6	2	NULL
+7	2	NULL
+8	2	NULL
+9	2	NULL
+10	2	NULL
+select
+pk, c,
+count(*) over (partition by c
+order by pk
+range between 1 preceding
+and 2 preceding)
+as cnt
+from t1;
+pk	c	cnt
+1	1	0
+2	1	0
+3	1	0
+4	1	0
+5	2	0
+6	2	0
+7	2	0
+8	2	0
+9	2	0
+10	2	0
+drop table t0, t1;
+#
+# Error checking for frame bounds
+#
+create table t1 (a int, b int, c varchar(32));
+insert into t1 values (1,1,'foo');
+insert into t1 values (2,2,'bar');
+select
+count(*) over (order by a,b
+range between unbounded preceding and current row)
+from t1;
+ERROR HY000: RANGE-type frame requires ORDER BY clause with single sort key
+select
+count(*) over (order by c
+range between unbounded preceding and current row)
+from t1;
+ERROR HY000: Numeric datatype is required for RANGE-type frame
+select
+count(*) over (order by a
+range between 'abcd' preceding and current row)
+from t1;
+ERROR HY000: Numeric datatype is required for RANGE-type frame
+select
+count(*) over (order by a
+range between current row and 'foo' following)
+from t1;
+ERROR HY000: Numeric datatype is required for RANGE-type frame
+# Try range frame with invalid bounds
+select
+count(*) over (order by a
+rows between 0.5 preceding and current row)
+from t1;
+ERROR HY000: Integer is required for ROWS-type frame
+select
+count(*) over (order by a
+rows between current row and 3.14 following)
+from t1;
+ERROR HY000: Integer is required for ROWS-type frame
+#
+# EXCLUDE clause is parsed but not supported
+#
+select
+count(*) over (order by a
+rows between 1 preceding and 1 following
+exclude current row)
+from t1;
+ERROR HY000: Frame exclusion is not supported yet
+select
+count(*) over (order by a
+range between 1 preceding and 1 following
+exclude ties)
+from t1;
+ERROR HY000: Frame exclusion is not supported yet
+select
+count(*) over (order by a
+range between 1 preceding and 1 following
+exclude group)
+from t1;
+ERROR HY000: Frame exclusion is not supported yet
+select
+count(*) over (order by a
+rows between 1 preceding and 1 following
+exclude no others)
+from t1;
+count(*) over (order by a
+rows between 1 preceding and 1 following
+exclude no others)
+2
+2
+drop table t1;
+#
+#  Window function in grouping query
+#
+create table t1 (
+username  varchar(32),
+amount int
+);
+insert into t1 values
+('user1',1),
+('user1',5),
+('user1',3),
+('user2',10),
+('user2',20),
+('user2',30);
+select
+username,
+sum(amount) as s,
+rank() over (order by s desc)
+from t1
+group by username;
+username	s	rank() over (order by s desc)
+user1	9	2
+user2	60	1
+drop table t1;
+#
+#  mdev-9719: Window function in prepared statement
+#
+create table t1(a int, b int, x char(32));
+insert into t1 values (2, 10, 'xx');
+insert into t1 values (2, 10, 'zz');
+insert into t1 values (2, 20, 'yy');
+insert into t1 values (3, 10, 'xxx');
+insert into t1 values (3, 20, 'vvv');
+prepare stmt from 'select a, row_number() over (partition by a order by b) from t1';
+execute stmt;
+a	row_number() over (partition by a order by b)
+2	1
+2	2
+2	3
+3	1
+3	2
+drop table t1;
+#
+#  mdev-9754: Window name resolution in prepared statement
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (pk int, c int);
+insert into t1 select a+1,1 from t0;
+update t1 set c=2 where pk not in (1,2,3,4);
+select * from t1;
+pk	c
+1	1
+2	1
+3	1
+4	1
+5	2
+6	2
+7	2
+8	2
+9	2
+10	2
+prepare stmt from
+'select
+  pk, c,
+  count(*) over w1 as CNT
+from t1
+window w1 as (partition by c order by pk
+              rows between 2 preceding and 2 following)';
+execute stmt;
+pk	c	CNT
+1	1	3
+2	1	4
+3	1	4
+4	1	3
+5	2	3
+6	2	4
+7	2	5
+8	2	5
+9	2	4
+10	2	3
+drop table t0,t1;
+#
+# EXPLAIN FORMAT=JSON support for window functions
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+explain format=json select rank() over (order by a) from t0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "t0.a"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+create table t1 (a int, b int, c int);
+insert into t1 select a,a,a from t0;
+explain format=json
+select
+a,
+rank() over (order by sum(b))
+from t1
+group by a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "sort_key": "t1.a",
+      "window_functions_computation": {
+        "sorts": {
+          "filesort": {
+            "sort_key": "sum(t1.b)"
+          }
+        },
+        "temporary_table": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+explain format=json
+select
+a,
+rank() over (order by sum(b))
+from t1
+group by a
+order by null;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "sum(t1.b)"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+#
+# Check how window function works together with GROUP BY and HAVING
+#
+select b,max(a) as MX, rank() over (order by b) from t1 group by b having MX in (3,5,7);
+b	MX	rank() over (order by b)
+3	3	1
+5	5	2
+7	7	3
+explain format=json
+select b,max(a) as MX, rank() over (order by b) from t1 group by b having MX in (3,5,7);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "having_condition": "MX in (3,5,7)",
+    "filesort": {
+      "sort_key": "t1.b",
+      "window_functions_computation": {
+        "sorts": {
+          "filesort": {
+            "sort_key": "t1.b"
+          }
+        },
+        "temporary_table": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+drop table t1;
+drop table t0;
+#
+# Building ordering index for window functions
+#
+create table t1 (
+pk int primary key,
+a int,
+b int,
+c  int
+);
+insert into t1 values
+(101 , 0, 10, 1),
+(102 , 0, 10, 2),
+(103 , 1, 10, 3),
+(104 , 1, 10, 4),
+(108 , 2, 10, 5),
+(105 , 2, 20, 6),
+(106 , 2, 20, 7),
+(107 , 2, 20, 8),
+(109 , 4, 20, 9),
+(110 , 4, 20, 10),
+(111 , 5, NULL, 11),
+(112 , 5, 1, 12),
+(113 , 5, NULL, 13),
+(114 , 5, NULL, 14),
+(115 , 5, NULL, 15),
+(116 , 6, 1, NULL),
+(117 , 6, 1, 10),
+(118 , 6, 1, 1),
+(119 , 6, 1, NULL),
+(120 , 6, 1, NULL),
+(121 , 6, 1, NULL),
+(122 , 6, 1, 2),
+(123 , 6, 1, 20),
+(124 , 6, 1, -10),
+(125 , 6, 1, NULL),
+(126 , 6, 1, NULL),
+(127 , 6, 1, NULL);
+select sum(b) over (partition by a order by b,pk
+rows between unbounded preceding  and current row) as c1,
+avg(b) over (w1 rows between 1 preceding and 1 following) as c2,
+sum(c) over (w2 rows between 1 preceding and 1 following) as c5,
+avg(b) over (w1 rows between 5 preceding and 5 following) as c3,
+sum(b) over (w1 rows between 1 preceding and 1 following) as c4
+from t1
+window w1 as (partition by a order by b,pk),
+w2 as (partition by b order by c,pk);
+c1	c2	c5	c3	c4
+1	1.0000	42	1.0000	1
+1	1.0000	NULL	1.0000	2
+10	1.0000	NULL	1.0000	3
+10	10.0000	3	10.0000	20
+10	10.0000	9	10.0000	20
+10	15.0000	9	17.5000	30
+11	1.0000	NULL	1.0000	3
+12	1.0000	-10	1.0000	2
+2	1.0000	24	1.0000	3
+20	10.0000	12	10.0000	20
+20	10.0000	6	10.0000	20
+20	20.0000	27	20.0000	40
+3	1.0000	-7	1.0000	3
+30	16.6667	13	17.5000	50
+4	1.0000	NULL	1.0000	3
+40	20.0000	19	20.0000	40
+5	1.0000	NULL	1.0000	3
+50	20.0000	21	17.5000	60
+6	1.0000	NULL	1.0000	3
+7	1.0000	13	1.0000	3
+70	20.0000	24	17.5000	40
+8	1.0000	32	1.0000	3
+9	1.0000	-9	1.0000	3
+NULL	1.0000	29	1.0000	1
+NULL	NULL	24	1.0000	NULL
+NULL	NULL	38	1.0000	NULL
+NULL	NULL	42	1.0000	NULL
+drop table t1;
+#
+# MDEV-9848: Window functions: reuse sorting and/or scanning
+#
+create table t1 (a int, b int, c int);
+insert into t1 values
+(1,3,1),
+(2,2,1),
+(3,1,1);
+#  Check using counters
+flush status;
+select
+rank() over (partition by c order by a),
+rank() over (partition by c order by b)
+from t1;
+rank() over (partition by c order by a)	rank() over (partition by c order by b)
+1	3
+2	2
+3	1
+show status like '%sort%';
+Variable_name	Value
+Sort_merge_passes	0
+Sort_priority_queue_sorts	0
+Sort_range	0
+Sort_rows	6
+Sort_scan	2
+flush status;
+select
+rank() over (partition by c order by a),
+rank() over (partition by c order by a)
+from t1;
+rank() over (partition by c order by a)	rank() over (partition by c order by a)
+1	1
+2	2
+3	3
+show status like '%sort%';
+Variable_name	Value
+Sort_merge_passes	0
+Sort_priority_queue_sorts	0
+Sort_range	0
+Sort_rows	3
+Sort_scan	1
+explain format=json
+select
+rank() over (partition by c order by a),
+rank() over (partition by c order by a)
+from t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "t1.c, t1.a"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+explain format=json
+select
+rank() over (order by a),
+row_number() over (order by a)
+from t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "t1.a"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+explain format=json
+select
+rank() over (partition by c order by a),
+count(*) over (partition by c)
+from t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "t1.c, t1.a"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+explain format=json
+select
+count(*) over (partition by c),
+rank() over (partition by c order by a)
+from t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "t1.c, t1.a"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+drop table t1;
+#
+# MDEV-9847: Window functions: crash with big_tables=1
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+set @tmp=@@big_tables;
+set big_tables=1;
+select rank() over (order by a) from t1;
+rank() over (order by a)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+set big_tables=@tmp;
+drop table t1;
+#
+# Check if "ORDER BY window_func" works
+#
+create table t1 (s1 int, s2 char(5));
+insert into t1 values (1,'a');
+insert into t1 values (null,null);
+insert into t1 values (1,null);
+insert into t1 values (null,'a');
+insert into t1 values (2,'b');
+insert into t1 values (-1,'');
+explain format=json
+select *, row_number() over (order by s1, s2) as X from t1 order by X desc;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "filesort": {
+      "sort_key": "row_number() over ( order by t1.s1,t1.s2) desc",
+      "window_functions_computation": {
+        "sorts": {
+          "filesort": {
+            "sort_key": "t1.s1, t1.s2"
+          }
+        },
+        "temporary_table": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 6,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+select *, row_number() over (order by s1, s2) as X from t1 order by X desc;
+s1	s2	X
+2	b	6
+1	a	5
+1	NULL	4
+-1		3
+NULL	a	2
+NULL	NULL	1
+drop table t1;
+#
+# Try window functions that are not directly present in the select list
+#
+create table t1 (a int, b int);
+insert into t1 values
+(1,3),
+(2,2),
+(3,1);
+select
+a, b,
+rank() over (order by a), rank() over (order by b),
+rank() over (order by a) - rank() over (order by b) as diff
+from
+t1;
+a	b	rank() over (order by a)	rank() over (order by b)	diff
+1	3	1	3	-2
+2	2	2	2	0
+3	1	3	1	2
+drop table t1;
+create table t1 (i int);
+insert into t1 values (1),(2);
+SELECT MAX(i) OVER (PARTITION BY (i)) FROM t1;
+MAX(i) OVER (PARTITION BY (i))
+1
+2
+drop table t1;
+#
+# Check the 0 in ROWS 0 PRECEDING
+#
+create table t1 (
+part_id int,
+pk int,
+a int
+);
+insert into t1 values (1, 1, 1);
+insert into t1 values (1, 2, 2);
+insert into t1 values (1, 3, 4);
+insert into t1 values (1, 4, 8);
+select
+pk, a,
+sum(a) over (order by pk rows between 0 preceding and current row)
+from t1;
+pk	a	sum(a) over (order by pk rows between 0 preceding and current row)
+1	1	1
+2	2	2
+3	4	4
+4	8	8
+select
+pk, a,
+sum(a) over (order by pk rows between 1 preceding and 0 preceding)
+from t1;
+pk	a	sum(a) over (order by pk rows between 1 preceding and 0 preceding)
+1	1	1
+2	2	3
+3	4	6
+4	8	12
+insert into t1 values (200, 1, 1);
+insert into t1 values (200, 2, 2);
+insert into t1 values (200, 3, 4);
+insert into t1 values (200, 4, 8);
+select
+part_id, pk, a,
+sum(a) over (partition by part_id order by pk rows between 0 preceding and current row)
+from t1;
+part_id	pk	a	sum(a) over (partition by part_id order by pk rows between 0 preceding and current row)
+1	1	1	1
+1	2	2	2
+1	3	4	4
+1	4	8	8
+200	1	1	1
+200	2	2	2
+200	3	4	4
+200	4	8	8
+select
+part_id, pk, a,
+sum(a) over (partition by part_id order by pk rows between 1 preceding and 0 preceding)
+from t1;
+part_id	pk	a	sum(a) over (partition by part_id order by pk rows between 1 preceding and 0 preceding)
+1	1	1	1
+1	2	2	3
+1	3	4	6
+1	4	8	12
+200	1	1	1
+200	2	2	3
+200	3	4	6
+200	4	8	12
+drop table t1;
+#
+# MDEV-9780, The "DISTINCT must not bet converted into GROUP BY when
+#                 window functions are present" part
+#
+create table t1 (part_id int, a int);
+insert into t1 values
+(100, 1),
+(100, 2),
+(100, 2),
+(100, 3),
+(2000, 1),
+(2000, 2),
+(2000, 3),
+(2000, 3),
+(2000, 3);
+select          rank() over (partition by part_id order by a) from t1;
+rank() over (partition by part_id order by a)
+1
+2
+2
+4
+1
+2
+3
+3
+3
+select distinct rank() over (partition by part_id order by a) from t1;
+rank() over (partition by part_id order by a)
+1
+2
+4
+3
+explain format=json
+select distinct rank() over (partition by part_id order by a) from t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "duplicate_removal": {
+      "window_functions_computation": {
+        "sorts": {
+          "filesort": {
+            "sort_key": "t1.part_id, t1.a"
+          }
+        },
+        "temporary_table": {
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 9,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+drop table t1;
+#
+# MDEV-9893: Window functions with different ORDER BY lists,
+#            one of these lists containing an expression
+#
+create table t1 (s1 int, s2 char(5));
+insert into t1 values (1,'a');
+insert into t1 values (null,null);
+insert into t1 values (3,null);
+insert into t1 values (4,'a');
+insert into t1 values (2,'b');
+insert into t1 values (-1,'');
+select
+*,
+ROW_NUMBER() OVER (order by s1),
+CUME_DIST() OVER (order by -s1)
+from t1;
+s1	s2	ROW_NUMBER() OVER (order by s1)	CUME_DIST() OVER (order by -s1)
+-1		2	1.0000000000
+1	a	3	0.8333333333
+2	b	4	0.6666666667
+3	NULL	5	0.5000000000
+4	a	6	0.3333333333
+NULL	NULL	1	0.1666666667
+drop table t1;
+#
+# MDEV-9925: Wrong result with aggregate function as a window function
+#
+create table t1 (i int);
+insert into t1 values (1),(2);
+select i, sum(i) over (partition by i) from t1;
+i	sum(i) over (partition by i)
+1	1
+2	2
+drop table t1;
+#
+# MDEV-9922: Assertion `!join->only_const_tables() && fsort' failed in int create_sort_index
+#
+create view v1 as select 1 as i;
+select rank() over (order by i) from v1;
+rank() over (order by i)
+1
+drop view v1;
+#
+# MDEV-10097: Assertion `count > 0' failed in Item_sum_sum::add_helper(bool)
+#
+CREATE TABLE `orders` (
+`o_orderkey` int(11) NOT NULL,
+`o_custkey` int(11) DEFAULT NULL,
+PRIMARY KEY (`o_orderkey`)
+) DEFAULT CHARSET=latin1;
+INSERT INTO `orders` VALUES (59908,242);
+INSERT INTO `orders` VALUES (59940,238);
+SELECT o_custkey, avg(o_custkey) OVER (PARTITION BY abs(o_custkey)
+ORDER BY o_custkey
+RANGE BETWEEN 15 FOLLOWING
+AND 15 FOLLOWING) from orders;
+o_custkey	avg(o_custkey) OVER (PARTITION BY abs(o_custkey)
+ORDER BY o_custkey
+RANGE BETWEEN 15 FOLLOWING
+AND 15 FOLLOWING)
+238	NULL
+242	NULL
+DROP table orders;
+#
+# MDEV-10842: window functions with the same order column
+#             but different directions
+#
+create table t1 (
+pk int primary key,
+a int,
+b int,
+c char(10)
+);
+insert into t1 values
+( 1, 0, 1, 'one'),
+( 2, 0, 2, 'two'),
+( 3, 0, 3, 'three'),
+( 4, 1, 1, 'one'),
+( 5, 1, 1, 'two'),
+( 6, 1, 2, 'three'),
+( 7, 2, NULL, 'n_one'),
+( 8, 2, 1,    'n_two'),
+( 9, 2, 2,    'n_three'),
+(10, 2, 0,    'n_four'),
+(11, 2, 10,   NULL);
+select pk,
+row_number() over (order by pk desc) as r_desc,
+row_number() over (order by pk asc) as r_asc
+from t1;
+pk	r_desc	r_asc
+11	1	11
+10	2	10
+9	3	9
+8	4	8
+7	5	7
+6	6	6
+5	7	5
+4	8	4
+3	9	3
+2	10	2
+1	11	1
+drop table t1;
+#
+# MDEV-10874: two window functions with compatible sorting
+#
+create table t1 (
+pk int primary key,
+a int,
+b int,
+c char(10),
+d decimal(10, 3),
+e real
+);
+insert into t1 values
+( 1, 0, 1,    'one',    0.1,  0.001),
+( 2, 0, 2,    'two',    0.2,  0.002),
+( 3, 0, 3,    'three',  0.3,  0.003),
+( 4, 1, 2,    'three',  0.4,  0.004),
+( 5, 1, 1,    'two',    0.5,  0.005),
+( 6, 1, 1,    'one',    0.6,  0.006),
+( 7, 2, NULL, 'n_one',  0.5,  0.007),
+( 8, 2, 1,    'n_two',  NULL, 0.008),
+( 9, 2, 2,    NULL,     0.7,  0.009),
+(10, 2, 0,    'n_four', 0.8,  0.010),
+(11, 2, 10,   NULL,     0.9,  NULL);
+select pk, a, d,
+sum(d) over (partition by a order by pk
+ROWS between 1 preceding and current row) as sum_1, 
+sum(d) over (order by a 
+ROWS BETWEEN 1 preceding and 2 following) as sum_2
+from t1;
+pk	a	d	sum_1	sum_2
+1	0	0.100	0.100	0.600
+2	0	0.200	0.300	1.000
+3	0	0.300	0.500	1.400
+4	1	0.400	0.400	1.800
+5	1	0.500	0.900	2.000
+6	1	0.600	1.100	1.600
+7	2	0.500	0.500	1.800
+8	2	NULL	0.500	2.000
+9	2	0.700	0.700	2.400
+10	2	0.800	1.500	2.400
+11	2	0.900	1.700	1.700
+explain format=json
+select pk, a, d,
+sum(d) over (partition by a order by pk
+ROWS between 1 preceding and current row) as sum_1, 
+sum(d) over (order by a 
+ROWS BETWEEN 1 preceding and 2 following) as sum_2
+from t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "t1.a, t1.pk"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 11,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+select pk, a, d,
+sum(d) over (partition by a order by pk desc
+ROWS between 1 preceding and current row) as sum_1, 
+sum(d) over (order by a 
+ROWS BETWEEN 1 preceding and 2 following) as sum_2
+from t1;
+pk	a	d	sum_1	sum_2
+3	0	0.300	0.300	0.600
+2	0	0.200	0.500	1.200
+1	0	0.100	0.300	1.400
+6	1	0.600	0.600	1.600
+5	1	0.500	1.100	2.400
+4	1	0.400	0.900	2.600
+11	2	0.900	0.900	2.800
+10	2	0.800	1.700	2.400
+9	2	0.700	1.500	2.000
+8	2	NULL	0.700	1.200
+7	2	0.500	0.500	0.500
+drop table t1;
+#
+# MDEV-9941: two window functions with compatible partitions 
+#
+create table t1 (
+a int,
+b int,
+c int
+);
+insert into t1 values 
+(10, 1, 1),
+(10, 3, 10),
+(10, 1, 10),
+(10, 3, 100),
+(10, 5, 1000),
+(10, 1, 100);
+explain format=json
+select 
+a,b,c,
+row_number() over (partition by a),
+row_number() over (partition by a, b)
+from t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "t1.a, t1.b"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 6,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+drop table t1;
+#
+# MDEV-10815: Window Function Expressions Wrong Results
+#
+create table t(a decimal(35,10), b int);
+insert into t(a,b) values(1,1);
+insert into t(a,b) values(2,1);
+insert into t(a,b) values(0,1);
+insert into t(a,b) values(1,  2);
+insert into t(a,b) values(1.5,2);
+insert into t(a,b) values(3,  2);
+insert into t(a,b) values(4.5,2);
+select a, b,
+sum(t.a) over (partition by t.b order by a) as simple_sum,
+sum(t.a) over (partition by t.b order by a) + 1 as sum_and_const,
+sum(t.b) over (partition by t.b order by a) + sum(t.a) over (partition by t.b order by a) as sum_and_sum
+from t
+order by t.b, t.a;
+a	b	simple_sum	sum_and_const	sum_and_sum
+0.0000000000	1	0.0000000000	1.0000000000	1.0000000000
+1.0000000000	1	1.0000000000	2.0000000000	3.0000000000
+2.0000000000	1	3.0000000000	4.0000000000	6.0000000000
+1.0000000000	2	1.0000000000	2.0000000000	3.0000000000
+1.5000000000	2	2.5000000000	3.5000000000	6.5000000000
+3.0000000000	2	5.5000000000	6.5000000000	11.5000000000
+4.5000000000	2	10.0000000000	11.0000000000	18.0000000000
+drop table t;
+#
+# MDEV-10669: Crash in SELECT with window function used
+#
+create table t(a decimal(35,10), b int);
+insert into t(a,b) values(1,1);
+insert into t(a,b) values(2,1);
+insert into t(a,b) values(0,1);
+SELECT (CASE WHEN sum(t.a) over (partition by t.b)=0 THEN null ELSE null END) AS a FROM t;
+a
+NULL
+NULL
+NULL
+SELECT ifnull(((t.a) / CASE WHEN sum(t.a) over(partition by t.b) =0 then null else null end) ,0) from t;
+ifnull(((t.a) / CASE WHEN sum(t.a) over(partition by t.b) =0 then null else null end) ,0)
+0.00000000000000
+0.00000000000000
+0.00000000000000
+SELECT sum(t.a) over (partition by t.b order by a),
+sqrt(ifnull((sum(t.a) over (partition by t.b order by a)), 0))
+from t;
+sum(t.a) over (partition by t.b order by a)	sqrt(ifnull((sum(t.a) over (partition by t.b order by a)), 0))
+0.0000000000	0
+1.0000000000	1
+3.0000000000	1.7320508075688772
+drop table t;
+#
+# MDEV-10868: view definitions with window functions
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (pk int, c int);
+insert into t1 select a+1,1 from t0;
+update t1 set c=2 where pk not in (1,2,3,4);
+select * from t1;
+pk	c
+1	1
+2	1
+3	1
+4	1
+5	2
+6	2
+7	2
+8	2
+9	2
+10	2
+select pk, c, c/count(*) over (partition by c order by pk
+rows between 1 preceding and 2 following) as CNT
+from t1;
+pk	c	CNT
+1	1	0.3333
+2	1	0.2500
+3	1	0.3333
+4	1	0.5000
+5	2	0.6667
+6	2	0.5000
+7	2	0.5000
+8	2	0.5000
+9	2	0.6667
+10	2	1.0000
+create view v1 as select pk, c, c/count(*) over (partition by c order by pk
+rows between 1 preceding and 2 following) as CNT
+from t1;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`pk` AS `pk`,`t1`.`c` AS `c`,`t1`.`c` / count(0) over ( partition by `t1`.`c` order by `t1`.`pk` rows between 1 preceding  and 2 following ) AS `CNT` from `t1`	latin1	latin1_swedish_ci
+select * from v1;
+pk	c	CNT
+1	1	0.3333
+2	1	0.2500
+3	1	0.3333
+4	1	0.5000
+5	2	0.6667
+6	2	0.5000
+7	2	0.5000
+8	2	0.5000
+9	2	0.6667
+10	2	1.0000
+select pk, c, c/count(*) over w1 as CNT from t1
+window w1 as (partition by c order by pk rows between 1 preceding and 2 following);
+pk	c	CNT
+1	1	0.3333
+2	1	0.2500
+3	1	0.3333
+4	1	0.5000
+5	2	0.6667
+6	2	0.5000
+7	2	0.5000
+8	2	0.5000
+9	2	0.6667
+10	2	1.0000
+create view v2 as select pk, c, c/count(*) over w1 as CNT from t1
+window w1 as (partition by c order by pk rows between 1 preceding and 2 following);
+show create view v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`pk` AS `pk`,`t1`.`c` AS `c`,`t1`.`c` / count(0) over ( partition by `t1`.`c` order by `t1`.`pk` rows between 1 preceding  and 2 following ) AS `CNT` from `t1`	latin1	latin1_swedish_ci
+select * from v2;
+pk	c	CNT
+1	1	0.3333
+2	1	0.2500
+3	1	0.3333
+4	1	0.5000
+5	2	0.6667
+6	2	0.5000
+7	2	0.5000
+8	2	0.5000
+9	2	0.6667
+10	2	1.0000
+select pk, c, c/count(*) over w1 as CNT from t1
+window w1 as (partition by c order by pk rows unbounded preceding);
+pk	c	CNT
+1	1	1.0000
+2	1	0.5000
+3	1	0.3333
+4	1	0.2500
+5	2	2.0000
+6	2	1.0000
+7	2	0.6667
+8	2	0.5000
+9	2	0.4000
+10	2	0.3333
+create view v3 as select pk, c, c/count(*) over w1 as CNT from t1
+window w1 as (partition by c order by pk rows unbounded preceding);
+show create view v3;
+View	Create View	character_set_client	collation_connection
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`pk` AS `pk`,`t1`.`c` AS `c`,`t1`.`c` / count(0) over ( partition by `t1`.`c` order by `t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `CNT` from `t1`	latin1	latin1_swedish_ci
+select * from v3;
+pk	c	CNT
+1	1	1.0000
+2	1	0.5000
+3	1	0.3333
+4	1	0.2500
+5	2	2.0000
+6	2	1.0000
+7	2	0.6667
+8	2	0.5000
+9	2	0.4000
+10	2	0.3333
+select pk, c, c/count(*) over (partition by c order by pk
+range between 3 preceding and current row) as CNT
+from t1;
+pk	c	CNT
+1	1	1.0000
+2	1	0.5000
+3	1	0.3333
+4	1	0.2500
+5	2	2.0000
+6	2	1.0000
+7	2	0.6667
+8	2	0.5000
+9	2	0.5000
+10	2	0.5000
+create view v4 as select pk, c, c/count(*) over (partition by c order by pk
+range between 3 preceding and current row) as CNT
+from t1;
+show create view v4;
+View	Create View	character_set_client	collation_connection
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t1`.`pk` AS `pk`,`t1`.`c` AS `c`,`t1`.`c` / count(0) over ( partition by `t1`.`c` order by `t1`.`pk` range between 3 preceding  and  current row ) AS `CNT` from `t1`	latin1	latin1_swedish_ci
+select * from v4;
+pk	c	CNT
+1	1	1.0000
+2	1	0.5000
+3	1	0.3333
+4	1	0.2500
+5	2	2.0000
+6	2	1.0000
+7	2	0.6667
+8	2	0.5000
+9	2	0.5000
+10	2	0.5000
+drop view v1,v2,v3,v4;
+drop table t0,t1;
+#
+# MDEV-10875: window function in subquery
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3),(1);
+CREATE TABLE t2 (c VARCHAR(8));
+INSERT INTO t2 VALUES ('foo'),('bar'),('foo');
+SELECT COUNT(*) OVER (PARTITION BY c) FROM t2;
+COUNT(*) OVER (PARTITION BY c)
+1
+2
+2
+SELECT * FROM t1 WHERE i IN ( SELECT COUNT(*) OVER (PARTITION BY c) FROM t2 );
+i
+1
+DROP TABLE t1, t2;
+#
+# MDEV-9976: window function without PARTITION BY and ORDER BY
+#
+CREATE TABLE t1  (id int, a int);
+INSERT INTO t1 VALUES
+(1,1000), (2,1100), (3,1800), (4,1500), (5,1700), (6,1200),
+(7,2000), (8,2100), (9,1600);
+SELECT id, sum(a) OVER (PARTITION BY id 
+ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+FROM t1;
+id	sum(a) OVER (PARTITION BY id 
+1	1000
+2	1100
+3	1800
+4	1500
+5	1700
+6	1200
+7	2000
+8	2100
+9	1600
+ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+SELECT id, sum(a) OVER (ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+FROM t1;
+id	sum(a) OVER (ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING)
+1	14000
+2	13000
+3	5900
+4	10700
+5	7600
+6	11900
+7	4100
+8	2100
+9	9200
+DROP TABLE t1;
+#
+# MDEV-11867: window function with aggregation
+#             over the result of grouping
+#
+create table t1 (
+username  varchar(32),
+amount int
+);
+insert into t1 values
+('user1',1),
+('user1',5),
+('user1',3),
+('user2',10),
+('user2',20),
+('user2',30);
+select username, sum(amount) as s, avg(sum(amount)) over (order by s desc)
+from t1
+group by username;
+username	s	avg(sum(amount)) over (order by s desc)
+user1	9	34.5000
+user2	60	60.0000
+select username, sum(amount), avg(sum(amount)) over (order by sum(amount) desc)
+from t1
+group by username;
+username	sum(amount)	avg(sum(amount)) over (order by sum(amount) desc)
+user1	9	34.5000
+user2	60	60.0000
+drop table t1;
+#
+# MDEV-11594: window function over implicit grouping
+#
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2);
+select sum(id) over (order by sum(id)) from t1;
+sum(id) over (order by sum(id))
+1
+select sum(sum(id)) over (order by sum(id)) from t1;
+sum(sum(id)) over (order by sum(id))
+8
+drop table t1;
+#
+# MDEV-9923: integer constant in order by list 
+#            of window specification
+#
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2);
+select rank() over (order by 1) from t1;
+rank() over (order by 1)
+1
+1
+1
+1
+select rank() over (order by 2) from t1;
+rank() over (order by 2)
+1
+1
+1
+1
+select rank() over (partition by id order by 2) from t1;
+rank() over (partition by id order by 2)
+1
+1
+1
+1
+drop table t1;
+#
+# MDEV-10660: view using a simple window function 
+#
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2);
+create view v1(id,rnk) as
+select id, rank() over (order by id) from t1;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`id` AS `id`,rank() over ( order by `t1`.`id`) AS `rnk` from `t1`	latin1	latin1_swedish_ci
+select id, rank() over (order by id) from t1;
+id	rank() over (order by id)
+1	1
+2	2
+2	2
+3	4
+select * from v1;
+id	rnk
+1	1
+2	2
+2	2
+3	4
+drop view v1;
+drop table t1;
+#
+# MDEV-11138: window function in the query without tables 
+#
+select row_number() over ();
+row_number() over ()
+1
+select count(*) over ();
+count(*) over ()
+1
+select sum(5) over ();
+sum(5) over ()
+5
+select row_number() over (), sum(5) over ();
+row_number() over ()	sum(5) over ()
+1	5
+select row_number() over (order by 2);
+row_number() over (order by 2)
+1
+select row_number() over (partition by 2);
+row_number() over (partition by 2)
+1
+select row_number() over (partition by 4 order by 1+2);
+row_number() over (partition by 4 order by 1+2)
+1
+#
+# MDEV-11999: execution of prepared statement for  
+#             tableless query with window functions
+#
+prepare stmt from
+"select row_number() over (partition by 4 order by 1+2)";
+execute stmt;
+row_number() over (partition by 4 order by 1+2)
+1
+execute stmt;
+row_number() over (partition by 4 order by 1+2)
+1
+deallocate prepare stmt;
+#
+# MDEV-11745: window function with min/max 
+#
+create table t1 (i int, b int);
+insert into t1 values
+(1,1),(2,1),(3,1),(4,4),(5,4),(6,4),(7,8),(8,8),(9,8),(10,8);
+select b, min(i) over (partition by b) as f 
+from t1 as tt
+order by i;
+b	f
+1	1
+1	1
+1	1
+4	4
+4	4
+4	4
+8	7
+8	7
+8	7
+8	7
+select b, min(i) over (partition by b) as f 
+from (select * from t1) as tt
+order by i;
+b	f
+1	1
+1	1
+1	1
+4	4
+4	4
+4	4
+8	7
+8	7
+8	7
+8	7
+select b, min(i+10) over (partition by b) as f 
+from t1 as tt
+order by i;
+b	f
+1	11
+1	11
+1	11
+4	14
+4	14
+4	14
+8	17
+8	17
+8	17
+8	17
+select b, min(i) over (partition by b) as f 
+from (select i+10 as i, b from t1) as tt
+order by i;
+b	f
+1	11
+1	11
+1	11
+4	14
+4	14
+4	14
+8	17
+8	17
+8	17
+8	17
+select b, min(i+20) over (partition by b) as f 
+from (select i+10 as i, b from t1) as tt
+order by i;
+b	f
+1	31
+1	31
+1	31
+4	34
+4	34
+4	34
+8	37
+8	37
+8	37
+8	37
+select b, max(i) over (partition by b) as f 
+from t1 as tt
+order by i;
+b	f
+1	3
+1	3
+1	3
+4	6
+4	6
+4	6
+8	10
+8	10
+8	10
+8	10
+select b, max(i) over (partition by b) as f 
+from (select * from t1) as tt
+order by i;
+b	f
+1	3
+1	3
+1	3
+4	6
+4	6
+4	6
+8	10
+8	10
+8	10
+8	10
+select b, max(i+10) over (partition by b) as f 
+from t1 as tt
+order by i;
+b	f
+1	13
+1	13
+1	13
+4	16
+4	16
+4	16
+8	20
+8	20
+8	20
+8	20
+select b, max(i) over (partition by b) as f 
+from (select i+10 as i, b from t1) as tt
+order by i;
+b	f
+1	13
+1	13
+1	13
+4	16
+4	16
+4	16
+8	20
+8	20
+8	20
+8	20
+select b, max(i+20) over (partition by b) as f 
+from (select i+10 as i, b from t1) as tt
+order by i;
+b	f
+1	33
+1	33
+1	33
+4	36
+4	36
+4	36
+8	40
+8	40
+8	40
+8	40
+select max(i), max(i), sum(i), count(i)
+from t1 as tt
+group by b;
+max(i)	max(i)	sum(i)	count(i)
+3	3	6	3
+6	6	15	3
+10	10	34	4
+select max(i), min(sum(i)) over (partition by count(i)) f
+from t1 as tt
+group by b;
+max(i)	f
+3	6
+6	6
+10	34
+select max(i), min(sum(i)) over (partition by count(i)) f
+from (select * from t1) as tt
+group by b;
+max(i)	f
+3	6
+6	6
+10	34
+select max(i+10), min(sum(i)+10) over (partition by count(i)) f
+from t1 as tt
+group by b;
+max(i+10)	f
+13	16
+16	16
+20	44
+select max(i), max(i), sum(i), count(i)
+from (select i+10 as i, b from t1) as tt
+group by b;
+max(i)	max(i)	sum(i)	count(i)
+13	13	36	3
+16	16	45	3
+20	20	74	4
+select max(i), min(sum(i)) over (partition by count(i)) f
+from (select i+10 as i, b from t1) as tt
+group by b;
+max(i)	f
+13	36
+16	36
+20	74
+select max(i), min(i), min(max(i)-min(i)) over (partition by count(i)) f
+from (select i+10 as i, b from t1) as tt
+group by b;
+max(i)	min(i)	f
+13	11	2
+16	14	2
+20	17	3
+drop table t1;
+#
+# MDEV-12015: window function over select with WHERE  
+#             that is always FALSE
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3), (1), (2);
+SELECT i, ROW_NUMBER() OVER () FROM t1 WHERE 1 = 2;
+i	ROW_NUMBER() OVER ()
+SELECT i, COUNT(*) OVER () FROM t1 WHERE 1 = 2;
+i	COUNT(*) OVER ()
+DROP TABLE t1;
+#
+# MDEV-12051: window function in query with implicit grouping 
+#             on always empty set
+#
+create table t1 (a int, b varchar(8));
+insert into t1 values (1,'foo'),(2,'bar');
+select max(a), row_number() over () from t1 where a > 10;
+max(a)	row_number() over ()
+NULL	1
+select max(a), sum(max(a)) over () from t1 where a > 10;
+max(a)	sum(max(a)) over ()
+NULL	NULL
+select max(a), sum(max(a)) over (partition by max(a)) from t1 where a > 10;
+max(a)	sum(max(a)) over (partition by max(a))
+NULL	NULL
+select max(a), row_number() over () from t1 where 1 = 2;
+max(a)	row_number() over ()
+NULL	1
+select max(a), sum(max(a)) over () from t1 where 1 = 2;
+max(a)	sum(max(a)) over ()
+NULL	NULL
+select max(a), sum(max(a)) over (partition by max(a)) from t1 where 1 = 2;
+max(a)	sum(max(a)) over (partition by max(a))
+NULL	NULL
+select max(a), row_number() over () from t1 where 1 = 2
+having max(a) is not null;
+max(a)	row_number() over ()
+select max(a), sum(max(a)) over () from t1 where 1 = 2
+having max(a) is not null;
+max(a)	sum(max(a)) over ()
+drop table t1;
+#
+# MDEV-10885: window function in query with implicit grouping 
+#             with constant condition evaluated to false
+#
+CREATE TABLE t1 (a INT, b VARCHAR(8));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+CREATE TABLE t2 (c INT);
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t3 (d INT);
+INSERT INTO t3 VALUES (5),(6);
+SELECT MAX(a), ROW_NUMBER() OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+MAX(a)	ROW_NUMBER() OVER (PARTITION BY MAX(a))
+NULL	1
+SELECT MAX(a), COUNT(MAX(a)) OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+MAX(a)	COUNT(MAX(a)) OVER (PARTITION BY MAX(a))
+NULL	0
+SELECT MAX(a), SUM(MAX(a)) OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+MAX(a)	SUM(MAX(a)) OVER (PARTITION BY MAX(a))
+NULL	NULL
+SELECT MAX(a), ROW_NUMBER() OVER (PARTITION BY MAX(a)) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) )
+HAVING MAX(a) IS NOT NULL;
+MAX(a)	ROW_NUMBER() OVER (PARTITION BY MAX(a))
+SELECT a, MAX(a), ROW_NUMBER() OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+a	MAX(a)	ROW_NUMBER() OVER (PARTITION BY b)
+NULL	NULL	1
+SELECT a, COUNT(a), AVG(a) OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+a	COUNT(a)	AVG(a) OVER (PARTITION BY b)
+NULL	0	NULL
+SELECT a, MAX(a), AVG(a) OVER (PARTITION BY b) FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE c IN ( SELECT MAX(d) FROM t3 ) );
+a	MAX(a)	AVG(a) OVER (PARTITION BY b)
+NULL	NULL	NULL
+DROP TABLE t1,t2,t3;
+#
+# MDEV-10859: Wrong result of aggregate window function in query
+#                  with HAVING and no ORDER BY
+#
+create table empsalary (depname varchar(32), empno smallint primary key, salary int);
+insert into empsalary values
+('develop', 1, 5000), ('develop', 2, 4000),('sales', 3, '6000'),('sales', 4, 5000);
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary;
+depname	empno	salary	avg(salary) OVER (PARTITION BY depname)
+develop	1	5000	4500.0000
+develop	2	4000	4500.0000
+sales	3	6000	5500.0000
+sales	4	5000	5500.0000
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary ORDER BY depname;
+depname	empno	salary	avg(salary) OVER (PARTITION BY depname)
+develop	1	5000	4500.0000
+develop	2	4000	4500.0000
+sales	3	6000	5500.0000
+sales	4	5000	5500.0000
+#
+# These last 2 should have the same row results, ignoring order.
+#
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary HAVING empno > 1;
+depname	empno	salary	avg(salary) OVER (PARTITION BY depname)
+develop	2	4000	4000.0000
+sales	3	6000	5500.0000
+sales	4	5000	5500.0000
+SELECT depname, empno, salary, avg(salary) OVER (PARTITION BY depname) FROM empsalary HAVING empno > 1 ORDER BY depname;
+depname	empno	salary	avg(salary) OVER (PARTITION BY depname)
+develop	2	4000	4000.0000
+sales	3	6000	5500.0000
+sales	4	5000	5500.0000
+drop table empsalary;
+#
+# MDEV-11868: min(distinct) over () returns wrong value
+#
+create table TDEC (CDEC int, RNUM int);
+create view VDEC as select * from TDEC;
+insert into TDEC (CDEC) values (null),(-1),(0),(1),(0),(10);
+select TDEC.CDEC, min(TDEC.CDEC) over () from TDEC;
+CDEC	min(TDEC.CDEC) over ()
+NULL	-1
+-1	-1
+0	-1
+0	-1
+1	-1
+10	-1
+select VDEC.CDEC, min(VDEC.CDEC) over () from VDEC;
+CDEC	min(VDEC.CDEC) over ()
+NULL	-1
+-1	-1
+0	-1
+0	-1
+1	-1
+10	-1
+select TDEC.CDEC, max(TDEC.CDEC) over () from TDEC;
+CDEC	max(TDEC.CDEC) over ()
+NULL	10
+-1	10
+0	10
+0	10
+1	10
+10	10
+select VDEC.CDEC, max(VDEC.CDEC) over () from VDEC;
+CDEC	max(VDEC.CDEC) over ()
+NULL	10
+-1	10
+0	10
+0	10
+1	10
+10	10
+select TDEC.CDEC, min(distinct TDEC.CDEC) over () from TDEC;
+CDEC	min(distinct TDEC.CDEC) over ()
+NULL	-1
+-1	-1
+0	-1
+0	-1
+1	-1
+10	-1
+select VDEC.CDEC, min(distinct VDEC.CDEC) over () from VDEC;
+CDEC	min(distinct VDEC.CDEC) over ()
+NULL	-1
+-1	-1
+0	-1
+0	-1
+1	-1
+10	-1
+select TDEC.CDEC, max(distinct TDEC.CDEC) over () from TDEC;
+CDEC	max(distinct TDEC.CDEC) over ()
+NULL	10
+-1	10
+0	10
+0	10
+1	10
+10	10
+select VDEC.CDEC, max(distinct VDEC.CDEC) over () from VDEC;
+CDEC	max(distinct VDEC.CDEC) over ()
+NULL	10
+-1	10
+0	10
+0	10
+1	10
+10	10
+#
+# These should be removed once support for them is added.
+#
+select TDEC.CDEC, count(distinct TDEC.CDEC) over () from TDEC;
+ERROR 42000: This version of MariaDB doesn't yet support 'COUNT(DISTINCT) aggregate as window function'
+select VDEC.CDEC, count(distinct VDEC.CDEC) over () from VDEC;
+ERROR 42000: This version of MariaDB doesn't yet support 'COUNT(DISTINCT) aggregate as window function'
+select TDEC.CDEC, sum(distinct TDEC.CDEC) over () from TDEC;
+ERROR 42000: This version of MariaDB doesn't yet support 'SUM(DISTINCT) aggregate as window function'
+select VDEC.CDEC, sum(distinct VDEC.CDEC) over () from VDEC;
+ERROR 42000: This version of MariaDB doesn't yet support 'SUM(DISTINCT) aggregate as window function'
+select TDEC.CDEC, avg(distinct TDEC.CDEC) over () from TDEC;
+ERROR 42000: This version of MariaDB doesn't yet support 'AVG(DISTINCT) aggregate as window function'
+select VDEC.CDEC, avg(distinct VDEC.CDEC) over () from VDEC;
+ERROR 42000: This version of MariaDB doesn't yet support 'AVG(DISTINCT) aggregate as window function'
+select TDEC.CDEC, GROUP_CONCAT(TDEC.CDEC) over () from TDEC;
+ERROR 42000: This version of MariaDB doesn't yet support 'GROUP_CONCAT() aggregate as window function'
+select VDEC.CDEC, GROUP_CONCAT(distinct VDEC.CDEC) over () from VDEC;
+ERROR 42000: This version of MariaDB doesn't yet support 'GROUP_CONCAT() aggregate as window function'
+drop table TDEC;
+drop view VDEC;
+#
+# MDEV-10700: 10.2.2 windowing function returns incorrect result
+#
+create table t(a int,b int, c int , d int);
+insert into t(a,b,c,d) values(1, rand(10)*1000, rand(10)*1000, rand(10)*1000);
+insert into t(a,b,c,d) values(1, rand(10)*1000, rand(10)*1000, rand(10)*1000);
+replace into t(a,b,c,d) select 1, rand(10)*1000, rand(10)*1000, rand(10)*1000 from t t1, t t2, t t3, t t4, t t5, t t6, t t7, t t8, t t9, t t10, t t11, t t12, t t13, t t14, t t15, t t16, t t17;
+select count(distinct s) from (select sum(d) over(partition by a,b,c) as s from t) Z where s > 0;
+count(distinct s)
+993
+select count(distinct s) from (select sum(d) as s from t group by a,b,c) Z where s > 0;
+count(distinct s)
+993
+select count(distinct s) from (select sum(d) over(partition by a,b) as s from t) Z where s > 0;
+count(distinct s)
+993
+select count(distinct s) from (select sum(d) as s from t group by a,b) Z where s > 0;
+count(distinct s)
+993
+select count(distinct s) from (select sum(d) over(partition by a) as s from t) Z where s > 0;
+count(distinct s)
+1
+select count(distinct s) from (select sum(d) as s from t group by a) Z where s > 0;
+count(distinct s)
+1
+drop table t;
+#
+# MDEV-9924: window function in query with group by optimized away 
+#
+create table t1 (i int);
+insert into t1 values (2),(3),(1);
+select row_number() over () from t1 group by 1+2;
+row_number() over ()
+1
+select max(i), row_number() over () from t1 group by 1+2;
+max(i)	row_number() over ()
+3	1
+select rank() over (order by max(i)) from t1 group by 1+2;
+rank() over (order by max(i))
+1
+select i, row_number() over () from t1 group by 1+2;
+i	row_number() over ()
+2	1
+select i, rank() over (order by i) rnk from t1 group by 1+2;
+i	rnk
+2	1
+drop table t1;
+#
+# MDEV-11907: window function as the second operand of division
+#
+create table t1 (pk int, c int);
+insert into t1 values (1,1),(2,1),(3,1),(4,1),(5,2);
+set @sql_mode_save= @@sql_mode;
+set sql_mode='ERROR_FOR_DIVISION_BY_ZERO';
+select pk, c, c/count(*) over 
+(partition by c order by pk
+rows between 1 preceding and 2 following) as CNT
+from t1;
+pk	c	CNT
+1	1	0.3333
+2	1	0.2500
+3	1	0.3333
+4	1	0.5000
+5	2	2.0000
+show warnings;
+Level	Code	Message
+set sql_mode=@sql_mode_save;
+drop table t1;
+#
+# MDEV-12336: several functions over a window function 
+#
+create table t1 (name varchar(10), cnt int);
+insert into t1 values ('Fred', 23), ('Fred', 35), ('Joe', 10);
+select q.name, q.row_cnt, 
+round( 100 * ( q.row_cnt /
+sum(q.row_cnt) over
+( 
+order by q.name 
+rows between
+unbounded preceding and
+unbounded following
+)
+),2
+) pct_of_total
+from 
+( 
+select name, count(*) row_cnt, sum(cnt) sum_cnt 
+from t1 
+group by 1
+) q;
+name	row_cnt	pct_of_total
+Fred	2	66.67
+Joe	1	33.33
+drop table t1;
+#
+# MDEV-11990: window function over min/max aggregation
+#
+create table t1 (id int);
+insert into t1 values (1), (2), (3), (2), (4), (2);
+select sum(max(id)) over (order by max(id)) from t1;
+sum(max(id)) over (order by max(id))
+4
+explain
+select sum(max(id)) over (order by max(id)) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary
+create index idx on t1(id);
+select sum(max(id)) over (order by max(id)) from t1;
+sum(max(id)) over (order by max(id))
+4
+explain
+select sum(max(id)) over (order by max(id)) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+select sum(max(id)) over (order by max(id)) from t1 where id < 3;
+sum(max(id)) over (order by max(id))
+2
+select count(max(id)) over (order by max(id)) from t1 where id < 3;
+count(max(id)) over (order by max(id))
+1
+select max(id), rank() over (order by max(id)) from t1 where id < 3;
+max(id)	rank() over (order by max(id))
+2	1
+drop table t1;
+#
+# main.win failure post MDEV-12336
+#
+create table t(a decimal(35,10), b int);
+insert into t values (1, 10), (2, 20), (3, 30);
+prepare stmt from "SELECT (CASE WHEN sum(t.a) over (partition by t.b)=1 THEN 1000 ELSE 300 END) AS a FROM t";
+execute stmt;
+a
+1000
+300
+300
+drop table t;
+#
+# MDEV-12851 case with window functions query crashes server
+#
+create table t1(dt datetime);
+insert into t1 values ('2017-05-17'), ('2017-05-18');
+select dt,
+case when (max(dt) over (order by dt rows between 1 following and 1 following) is null)
+then '9999-12-31 12:00:00'
+       else max(dt) over (order by dt rows between 1 following and 1 following)
+end x,
+case when (max(dt) over (order by dt rows between 1 following and 1 following) is not null)
+then '9999-12-31 12:00:00'
+       else max(dt) over (order by dt rows between 1 following and 1 following)
+end x
+from t1;
+dt	x	x
+2017-05-17 00:00:00	2017-05-18 00:00:00	9999-12-31 12:00:00
+2017-05-18 00:00:00	9999-12-31 12:00:00	NULL
+drop table t1;
+create table t1(i int);
+insert into t1 values (null),(1),(2);
+select max(i) over (order by i),
+max(i) over (order by i) is null,
+max(i) over (order by i) is not null
+from t1;
+max(i) over (order by i)	max(i) over (order by i) is null	max(i) over (order by i) is not null
+NULL	1	0
+1	0	1
+2	0	1
+drop table t1;
+#
+# MDEV-13189: Window functions crash when using INTERVAL function
+#
+create table t1(i int);
+insert into t1 values (1),(2),(10),(20),(30);
+select sum(i) over (order by i), interval(sum(i) over (order by i), 10, 20)
+from t1;
+sum(i) over (order by i)	interval(sum(i) over (order by i), 10, 20)
+1	0
+3	0
+13	1
+33	2
+63	2
+drop table t1;
+#
+# MDEV-13352: Server crashes in st_join_table::remove_duplicates
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+ROW_NUMBER() OVER()	i
+SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+ROW_NUMBER() OVER()	i
+DROP TABLE t1;
+#
+# MDEV-13344: Server crashes in in AGGR_OP::put_record on subquery 
+#             with window function and constant table
+# (Testcase only)
+#
+CREATE TABLE t1 (c CHAR(8)) ENGINE=MyISAM;
+INSERT IGNORE INTO t1 VALUES ('foo');
+SELECT ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1);
+('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1)
+0
+DROP TABLE t1;
+#
+# MDEV-13351: Server crashes in st_select_lex::set_explain_type upon UNION with window function 
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT Nth_value(i,1) OVER() FROM t1 
+UNION ALL 
+( SELECT Nth_value(i,2) OVER() FROM t1 LIMIT 0 )
+;
+Nth_value(i,1) OVER()
+1
+1
+DROP TABLE t1;
+#
+# A regression after MDEV-13351:
+# MDEV-13374 : Server crashes in first_linear_tab / st_select_lex::set_explain_type 
+#              upon UNION with aggregate function	
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+SELECT i AS fld FROM t1 UNION SELECT COUNT(*) AS fld FROM t1;
+fld
+1
+2
+DROP TABLE t1;
+#
+# MDEV-13240 Wrong warning with MAX(datetime_field) OVER (...)
+#
+CREATE TABLE t1 (dt DATETIME);
+INSERT INTO t1 VALUES ('2017-05-17');
+SELECT MAX(dt) OVER (ORDER BY dt ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING) FROM t1;
+MAX(dt) OVER (ORDER BY dt ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING)
+NULL
+DROP TABLE t1;
+#
+# MDEV-13358 FIRST_VALUE throws SQL Error (1292): Incorrect datetime value
+#
+CREATE TABLE IF NOT EXISTS `fv_test` (
+`SOME_DATE` datetime NOT NULL
+);
+INSERT INTO `fv_test` (`SOME_DATE`) VALUES ('2017-07-20 12:47:56');
+CREATE TABLE fv_result
+SELECT
+FIRST_VALUE(SOME_DATE) OVER(ORDER BY SOME_DATE DESC) AS somedate
+FROM fv_test;
+SHOW CREATE TABLE fv_result;
+Table	Create Table
+fv_result	CREATE TABLE `fv_result` (
+  `somedate` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM fv_result;
+somedate
+2017-07-20 12:47:56
+DROP TABLE fv_test, fv_result;
+#
+# MDEV-13649: Server crashes in set_field_to_null_with_conversions or in Field::set_notnull
+#
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (0),(1),(2);
+SELECT LEAD(a) OVER (PARTITION BY a ORDER BY a) as lead,
+a AND LEAD(a) OVER (PARTITION BY a ORDER BY a) AS a_and_lead_part
+FROM t1;
+lead	a_and_lead_part
+NULL	0
+NULL	NULL
+NULL	NULL
+SELECT a OR LEAD(a) OVER (ORDER BY a) AS a_or_lead_order
+FROM t1
+ORDER BY a;
+a_or_lead_order
+1
+1
+1
+SELECT a AND LEAD(a) OVER (ORDER BY a) AS a_and_lead_order
+FROM t1
+ORDER BY a;
+a_and_lead_order
+0
+1
+NULL
+SELECT a XOR LEAD(a) OVER (ORDER BY a) AS a_xor_lead_order
+FROM t1
+ORDER BY a;
+a_xor_lead_order
+1
+0
+NULL
+SELECT NOT LEAD(a) OVER (ORDER BY a) AS not_lead_order
+FROM t1
+ORDER BY a;
+not_lead_order
+0
+0
+NULL
+SELECT LEAD(a) OVER (ORDER BY a) is not null AS is_not_null_lead_order
+FROM t1
+ORDER BY a;
+is_not_null_lead_order
+1
+1
+0
+drop table t1;
+#
+# MDEV-13354: Server crashes in find_field_in_tables upon PS with window function and subquery
+#
+CREATE TABLE t1 (i INT, a char);
+INSERT INTO t1 VALUES (1, 'a'),(2, 'b');
+PREPARE stmt FROM "SELECT row_number() over (partition by i order by i), i FROM (SELECT * from t1) as sq";
+EXECUTE stmt;
+row_number() over (partition by i order by i)	i
+1	1
+1	2
+DROP TABLE t1;
+#
+# MDEV-13384: "window" seems like a reserved column name but it's not listed as one
+#
+# Currently we allow window as an identifier, except for table aliases.
+#
+CREATE TABLE door (id INT, window VARCHAR(10));
+SELECT id
+FROM door as window;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'window' at line 2
+SELECT id, window
+FROM door;
+id	window
+SELECT id, window
+FROM door as window;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'window' at line 2
+DROP TABLE door;
+#
+# MDEV-13352: Server crashes in st_join_table::remove_duplicates
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT DISTINCT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+ROW_NUMBER() OVER()	i
+SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
+ROW_NUMBER() OVER()	i
+DROP TABLE t1;
+#
+# MDEV-15853: Assertion `tab->filesort_result == 0' failed
+#
+CREATE TABLE t1 ( a1 int);
+insert into t1 values (1),(2),(3);
+CREATE TABLE t2 (b1 int, a1 int, a2 int);
+insert into t2 values (1,2,3),(2,3,4),(3,4,5);
+SELECT COUNT(DISTINCT t2.a2),
+rank() OVER (ORDER BY t2.b1)
+FROM t2 ,t1 GROUP BY t2.b1 ORDER BY t1.a1;
+COUNT(DISTINCT t2.a2)	rank() OVER (ORDER BY t2.b1)
+1	1
+1	2
+1	3
+DROP TABLE t1,t2;
+#
+# MDEV-16990: server crashes in base_list_iterator::next
+#
+CREATE TABLE t1(i int);
+insert into t1 values (1),(2);
+SELECT DISTINCT row_number() OVER (), MAX(1) FROM t1;
+row_number() OVER ()	MAX(1)
+1	1
+SELECT DISTINCT BIT_AND(0)  OVER (), MAX(1) FROM t1;
+BIT_AND(0)  OVER ()	MAX(1)
+0	1
+drop table t1;
+#
+# MDEV-17525: Window functions not working in ONLY_FULL_GROUP_BY mode
+#
+CREATE TABLE t1 (name CHAR(10), test CHAR(10), score TINYINT);
+INSERT INTO t1 VALUES
+('Chun', 'SQL', 75), ('Chun', 'Tuning', 73),
+('Esben', 'SQL', 43), ('Esben', 'Tuning', 31),
+('Kaolin', 'SQL', 56), ('Kaolin', 'Tuning', 88),
+('Tatiana', 'SQL', 87), ('Tatiana', 'Tuning', 83);
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode = 'ONLY_FULL_GROUP_BY';
+SELECT name, test, score,
+AVG(score) OVER (PARTITION BY test) AS average_by_test
+FROM t1
+ORDER BY test, name;
+name	test	score	average_by_test
+Chun	SQL	75	65.2500
+Esben	SQL	43	65.2500
+Kaolin	SQL	56	65.2500
+Tatiana	SQL	87	65.2500
+Chun	Tuning	73	68.7500
+Esben	Tuning	31	68.7500
+Kaolin	Tuning	88	68.7500
+Tatiana	Tuning	83	68.7500
+set @@sql_mode= @save_sql_mode;
+SELECT name, test, score,
+AVG(score) OVER (PARTITION BY test) AS average_by_test
+FROM t1
+ORDER BY test, name;
+name	test	score	average_by_test
+Chun	SQL	75	65.2500
+Esben	SQL	43	65.2500
+Kaolin	SQL	56	65.2500
+Tatiana	SQL	87	65.2500
+Chun	Tuning	73	68.7500
+Esben	Tuning	31	68.7500
+Kaolin	Tuning	88	68.7500
+Tatiana	Tuning	83	68.7500
+drop table t1;
+#
+# MDEV-12575: Server crash in AGGR_OP::put_record or in JOIN_CACHE::free
+# or Invalid write in JOIN::make_aggr_tables_info
+#
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)  order by 1+2;
+BIT_OR(100) OVER ()
+100
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM (
+SELECT
+ROW_NUMBER() OVER(), i, sum(i)
+FROM t1
+WHERE 1=0
+limit 0
+) AS sq;
+ROW_NUMBER() OVER()	i	sum(i)
+SELECT * FROM (
+SELECT
+ROW_NUMBER() OVER(), i, sum(i)
+FROM t1
+WHERE 1=0
+GROUP BY i
+) AS sq;
+ROW_NUMBER() OVER()	i	sum(i)
+drop table t1;
+create table t1 (a int);
+explain
+select distinct 1, row_number() over (order by 1) from t1 where a=0 group by a with rollup;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+select distinct 1, row_number() over (order by 1) from t1 where a=0 group by a with rollup;
+1	row_number() over (order by 1)
+drop table t1;
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
+HAVING @A := 'qwerty';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100) WITH ROLLUP
+HAVING @A := 'qwerty';
+BIT_OR(100) OVER ()
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)
+HAVING @A := 'qwerty';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+SELECT DISTINCT BIT_OR(100) OVER () FROM dual
+GROUP BY LEFT('2018-08-24', 100)
+HAVING @A := 'qwerty';
+BIT_OR(100) OVER ()
+create table t1 (a int);
+explain
+SELECT DISTINCT BIT_OR(100) OVER () FROM t1
+GROUP BY LEFT('2018-08-24', 100) having 1=1 limit 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
+drop table t1;
+#
+# MDEV-13170: Database service (MySQL) stops after update with trigger
+#
+CREATE TABLE t1 ( t1_id int, point_id int, ml_id int,  UNIQUE KEY t1_ml_u (ml_id,point_id)) ;
+INSERT INTO t1 VALUES (1,1,8884),(2,1,8885);
+CREATE TABLE t2 ( db_time datetime, au_nr int, col_id int, new_val int);
+CREATE TABLE t3 (id1 int, id2 int, d1 int);
+CREATE  TRIGGER t1_aurtrg AFTER UPDATE ON t1 FOR EACH ROW begin
+CREATE OR REPLACE TEMPORARY TABLE trg_u AS
+WITH l AS
+(SELECT a.*,
+Max(t2.col_id) over (PARTITION BY a.d1),
+Max(t2.new_val) over (PARTITION BY a.d1)
+FROM
+(SELECT d1 , id1, id2  FROM t3) a
+JOIN t2  ON (a.d1=t2.db_time AND a.id1=t2.au_nr))
+SELECT 1;
+END;//
+update t1 set ml_id=8884 where point_id=1;
+ERROR 23000: Duplicate entry '8884-1' for key 't1_ml_u'
+update t1 set ml_id=8884 where point_id=1;
+ERROR 23000: Duplicate entry '8884-1' for key 't1_ml_u'
+drop table t1, t2,t3;
+CREATE TABLE t1 (i INT, a char);
+INSERT INTO t1 VALUES (1, 'a'),(2, 'b');
+create view v1 as select * from t1;
+PREPARE stmt FROM "SELECT i, row_number() over (partition by i order by i) FROM v1";
+execute stmt;
+i	row_number() over (partition by i order by i)
+1	1
+2	1
+deallocate prepare stmt;
+drop table t1;
+drop view v1;
+#
+# MDEV-17676: Assertion `inited==NONE || (inited==RND && scan)' failed in handler::ha_rnd_init
+#
+CREATE TABLE t1 (b1 text NOT NULL);
+INSERT INTO t1 VALUES  ('2'),('1');
+EXPLAIN
+SELECT DISTINCT MIN(b1) OVER () FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary
+SELECT DISTINCT MIN(b1) OVER () FROM t1;
+MIN(b1) OVER ()
+1
+drop table t1;
+#
+# MDEV-15424: Unreasonal SQL Error (1356) on select from view
+#
+create table t1 (id int, n1 int);
+insert into t1 values (1,1), (2,1), (3,2), (4,4);
+create view v1 as SELECT ifnull(max(n1) over (partition by n1),'aaa') FROM t1;
+explain select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary
+select * from v1;
+ifnull(max(n1) over (partition by n1),'aaa')
+1
+1
+2
+4
+drop table t1;
+drop view v1;
+#
+# MDEV-18431: Select max + row_number giving incorrect result
+#
+create table t1 (id int, v int);
+insert into t1 values (1, 1), (1,2), (1,3), (2, 1), (2, 2);
+select e.id,
+(select max(t1.v) from t1 where t1.id=e.id) as a,
+row_number() over (partition by e.id order by e.v) as b,
+(select max(t1.v) from t1 where t1.id=e.id) + (row_number() over (partition by e.id order by e.v)) as sum_a_b
+from t1 e;
+id	a	b	sum_a_b
+1	3	1	4
+1	3	2	5
+1	3	3	6
+2	2	1	3
+2	2	2	4
+drop table t1;
+#
+# MDEV-15837: Assertion `item1->type() == Item::FIELD_ITEM && item2->type() == Item::FIELD_ITEM'
+# failed in compare_order_elements function
+#
+CREATE TABLE t1 (a1 int);
+insert into t1 values (1),(2),(3);
+SELECT  rank() OVER (ORDER BY 1), ROW_NUMBER() OVER (ORDER BY (EXPORT_SET(5,'Y','N',',',4))) FROM t1;
+rank() OVER (ORDER BY 1)	ROW_NUMBER() OVER (ORDER BY (EXPORT_SET(5,'Y','N',',',4)))
+1	1
+1	2
+1	3
+drop table t1;
+#
+# MDEV-17781: Server crashes in next_linear_tab
+#
+CREATE TABLE t1 (i1 int);
+explain
+(SELECT AVG(0) OVER (), MAX('2') FROM t1)
+UNION ALL
+(SELECT AVG(0) OVER (), MAX('2') FROM t1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+(SELECT AVG(0) OVER (), MAX('2') FROM t1)
+UNION ALL
+(SELECT AVG(0) OVER (), MAX('2') FROM t1);
+AVG(0) OVER ()	MAX('2')
+0.0000	NULL
+0.0000	NULL
+drop table t1;
+#
+# MDEV-14791: Crash with order by expression containing window functions
+#
+CREATE TABLE t1 (b1 int, b2 int);
+INSERT INTO t1 VALUES (1,1),(0,0);
+explain
+SELECT b1 from t1 order by row_number() over (ORDER BY b2) + 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+SELECT b1 from t1 order by row_number() over (ORDER BY b2) + 1;
+b1
+0
+1
+explain
+SELECT b1 from t1 order by row_number() over (ORDER BY b2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+SELECT b1 from t1 order by row_number() over (ORDER BY b2);
+b1
+0
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a int, b int, c int);
+INSERT INTO t1 VALUES (2,3,207), (1,21,909), (7,13,312), (8,64,248);
+explain
+SELECT * FROM t1 ORDER BY max(t1.a) over (partition by c);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+SELECT * FROM t1 ORDER BY max(t1.a) over (partition by c);
+a	b	c
+1	21	909
+2	3	207
+7	13	312
+8	64	248
+explain
+SELECT max(t1.a) over (partition by c) as x, b, c from t1 order by max(t1.a) over (partition by c);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+SELECT max(t1.a) over (partition by c) as x, b, c from t1 order by max(t1.a) over (partition by c);
+x	b	c
+1	21	909
+2	3	207
+7	13	312
+8	64	248
+drop table t1;
+#
+# MDEV-18373: DENSE_RANK is not calculated correctly
+#
+create table t1 (a int, b int);
+insert into t1 values (60, 1515),(60, 2000),(70, 2000),(55, 1600);
+select b, dense_rank() over (order by sum(a)) from t1 group by  b;
+b	dense_rank() over (order by sum(a))
+1515	2
+1600	1
+2000	3
+select b, dense_rank() over (order by sum(a)+1) from t1 group by  b;
+b	dense_rank() over (order by sum(a)+1)
+1515	2
+1600	1
+2000	3
+select b, row_number() over (partition by sum(a)) from t1 group by b;
+b	row_number() over (partition by sum(a))
+1515	1
+1600	1
+2000	1
+select b, row_number() over (partition by sum(a)+1) from t1 group by b;
+b	row_number() over (partition by sum(a)+1)
+1515	1
+1600	1
+2000	1
+drop table t1;
+#
+# MDEV-18015: Assertion `global_status_var.global_memory_used == 0' failed when using UDF,
+# window functions and views
+#
+create table t1 (id int, n1 int);
+insert into t1 values (1,1),(2,1),(3,2),(4,4);
+explain
+select max(n1) over (partition by 'abc') from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary
+select max(n1) over (partition by 'abc') from t1;
+max(n1) over (partition by 'abc')
+4
+4
+4
+4
+explain
+select rank() over (partition by 'abc' order by 'xyz') from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using temporary
+select rank() over (partition by 'abc' order by 'xyz') from t1;
+rank() over (partition by 'abc' order by 'xyz')
+1
+1
+1
+1
+drop table t1;
+#
+# MDEV-19380: ASAN heap-use-after-free in Protocol::net_store_data
+#
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT (SELECT MIN('foo') OVER() FROM t1 LIMIT 1) as x;
+x
+foo
+drop table t1;
+#
+# MDEV-16579: Wrong result of query using DISTINCT COUNT(*) OVER (*)
+#
+CREATE TABLE t1 (i int) ;
+INSERT INTO t1 VALUES (1),(0),(1),(2),(0),(1),(2),(1),(2);
+SELECT  DISTINCT COUNT(*) OVER (), MOD(MIN(i),2) FROM t1 GROUP BY i ;
+COUNT(*) OVER ()	MOD(MIN(i),2)
+3	0
+3	1
+drop table t1;
+#
+# MDEV-21318: Wrong results with window functions and implicit grouping
+#
+CREATE TABLE t1 (a INT);
+#
+#  With empty const table
+#  The expected result here is 1, NULL
+#
+explain
+SELECT row_number() over(), sum(1) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found; Using temporary
+SELECT row_number() over(), sum(1) FROM t1;
+row_number() over()	sum(1)
+1	NULL
+insert into t1 values (2);
+#
+#  Const table has 1 row, but still impossible where
+#  The expected result here is 1, NULL
+#
+EXPLAIN SELECT row_number() over(), sum(1) FROM t1 where a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+SELECT row_number() over(), sum(1) FROM t1 where a=1;
+row_number() over()	sum(1)
+1	NULL
+#
+#  Impossible HAVING
+#  Empty result is expected
+#
+EXPLAIN SELECT row_number() over(), sum(1) FROM t1 where a=1 having 1=0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+SELECT row_number() over(), sum(1) FROM t1 where a=1 having 1=0;
+row_number() over()	sum(1)
+#
+#  const table has 1 row, no impossible where
+#  The expected result here is 1, 2
+#
+EXPLAIN SELECT row_number() over(), sum(a) FROM t1 where a=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	Using temporary
+SELECT row_number() over(), sum(a) FROM t1 where a=2;
+row_number() over()	sum(a)
+1	2
+drop table t1;
+#
+# Impossible Where
+#
+create table t1(a int);
+insert into t1 values (1);
+#
+# Expected result is NULL, 0, NULL
+#
+EXPLAIN SELECT MAX(a) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+SELECT MAX(a) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+MAX(a) OVER ()	COUNT(a)	abs(a)
+NULL	0	NULL
+#
+# Expected result is 1, 0, NULL
+#
+EXPLAIN
+SELECT MAX(1) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+SELECT MAX(1) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+MAX(1) OVER ()	COUNT(a)	abs(a)
+1	0	NULL
+drop table t1;
+#
+# MDEV-22461: JOIN::make_aggr_tables_info(): Assertion `select_options & (1ULL << 17)' failed.
+#
+CREATE TEMPORARY TABLE t0 (a INT PRIMARY KEY ) ;
+INSERT INTO t0 VALUES (1),(2),(3);
+SELECT a FROM t0
+WHERE a < 8
+GROUP BY 1.5
+WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
+a
+1
+SELECT a, ROW_NUMBER() OVER v2
+FROM t0
+WHERE a < 8
+GROUP BY 1.5
+WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
+a	ROW_NUMBER() OVER v2
+1	1
+drop table t0;
+#
+# MDEV-16230:Server crashes when Analyze format=json is run with a window function with
+# empty PARTITION BY and ORDER BY clauses
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+ANALYZE FORMAT=JSON SELECT row_number() OVER() FROM t1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "window_functions_computation": {
+      "sorts": {
+        "filesort": {
+          "sort_key": "`row_number() OVER()`",
+          "r_loops": 1,
+          "r_total_time_ms": "REPLACED",
+          "r_used_priority_queue": false,
+          "r_output_rows": 3,
+          "r_buffer_size": "REPLACED"
+        }
+      },
+      "temporary_table": {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 3,
+          "r_rows": 3,
+          "r_total_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    }
+  }
+}
+SELECT row_number() OVER() FROM t1;
+row_number() OVER()
+1
+2
+3
+DROP TABLE t1;
+#
+# MDEV-22984: Throw an error when arguments to window functions are window functions
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+SELECT NTILE(MAX(a) OVER (PARTITION BY a)) OVER (PARTITION BY a ORDER BY b) FROM t1;
+ERROR HY000: Window functions can not be used as arguments to group functions.
+SELECT FIRST_VALUE(MAX(a) OVER (PARTITION BY a)) OVER (ORDER BY a) AS x FROM t1 GROUP BY a;
+ERROR HY000: Window functions can not be used as arguments to group functions.
+DROP TABLE t1;
+#
+# MDEV-12059: Assertion `precision > 0' failed with a window function or window aggregate function
+#
+CREATE TABLE t1 (d DECIMAL(1,0) UNSIGNED);
+INSERT INTO t1 VALUES (1),(2);
+SELECT MIN(d) OVER () FROM t1;
+MIN(d) OVER ()
+1
+1
+DROP TABLE t1;
+#
+# MDEV-22463: Element_type &Bounds_checked_array<Item *>::operator[](size_t) [Element_type = Item *]:
+# Assertion `n < m_size' failed
+#
+CREATE TABLE t1 (a INT, b INT, c INT, d INT, e INT, f INT, g int, h INT, i INT);
+INSERT INTO t1 SELECT seq,seq,seq,seq, seq,seq,seq,seq,seq FROM seq_1_to_5;
+SELECT ROW_NUMBER() OVER w2 FROM t1 WINDOW w2 AS (PARTITION BY -1,0,1,2,3,4,5,6);
+ROW_NUMBER() OVER w2
+1
+2
+3
+4
+5
+SELECT a FROM t1 ORDER BY ROW_NUMBER() OVER (PARTITION BY -1,1,0,2,3,4,5,6,7,8);
+a
+1
+2
+3
+4
+5
+SELECT a,b FROM t1 WINDOW w2 AS (PARTITION BY -1,1,0,2,3,4);
+a	b
+1	1
+2	2
+3	3
+4	4
+5	5
+SELECT ROW_NUMBER() OVER w2 FROM t1 WINDOW w2 AS (PARTITION BY -1,0,1,2,3,4,5,6);
+ROW_NUMBER() OVER w2
+1
+2
+3
+4
+5
+DROP TABLE t1;
+#
+# MDEV-18916: crash in Window_spec::print_partition() with decimals
+#
+SELECT cast((rank() over w1) as decimal (53,56));
+ERROR 42000: Too big scale 56 specified for 'rank() over w1'. Maximum is 38
+SELECT cast((rank() over w1) as decimal (53,30));
+ERROR HY000: Window specification with name 'w1' is not defined
+#
+# MDEV-15180: server crashed with NTH_VALUE()
+#
+CREATE TABLE t1 (i1 int, a int);
+INSERT INTO t1 VALUES (1, 1), (2, 2),(3, 3);
+CREATE TABLE t2 (i2 int);
+INSERT INTO t2 VALUES (1),(2),(5),(1),(7),(4),(3);
+CREATE VIEW v1 AS (SELECT * FROM t1,t2 WHERE t1.i1=t2.i2) ;
+SELECT NTH_VALUE(i1, i1) OVER (PARTITION BY i1) FROM v1;
+NTH_VALUE(i1, i1) OVER (PARTITION BY i1)
+1
+1
+NULL
+NULL
+DROP VIEW v1;
+DROP TABLE t1,t2;
+#
+# MDEV-25032 Window functions without column references get removed from ORDER BY
+#
+create table t1 (id int, score double);
+insert into t1 values
+(1, 5),
+(1, 6),
+(1, 6),
+(1, 6),
+(1, 7),
+(1, 8.1),
+(1, 9),
+(1, 10);
+select id, row_number() over () rn
+from t1
+order by rn desc;
+id	rn
+1	8
+1	7
+1	6
+1	5
+1	4
+1	3
+1	2
+1	1
+drop table t1;
+#
+# End of 10.2 tests
+#
+#
+# MDEV-16489 when lead() returns null on a datetime field, the result is treated as the literal string '[NULL]'
+#
+CREATE TABLE t1 (d datetime);
+INSERT INTO t1 VALUES ('2018-01-01 00:00:00'),('2018-02-01 00:00:00');
+SELECT *, LEAD(d) OVER (ORDER BY d) AS x FROM t1;
+d	x
+2018-01-01 00:00:00	2018-02-01 00:00:00
+2018-02-01 00:00:00	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (d time);
+INSERT INTO t1 VALUES ('00:00:01'),('00:00:02');
+SELECT *, LEAD(d) OVER (ORDER BY d) AS x FROM t1;
+d	x
+00:00:01	00:00:02
+00:00:02	NULL
+DROP TABLE t1;
+#
+# MDEV-20351 Window function BIT_OR() OVER (..) return a wrong data type
+#
+CREATE TABLE t1 (pk INT, a INT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (1, 0, 1), (2, 0, 18446744073709551615);
+CREATE TABLE t2 AS
+SELECT pk, a, bit_or(b) AS bit_or FROM t1 GROUP BY pk;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `pk` int(11) DEFAULT NULL,
+  `a` int(11) DEFAULT NULL,
+  `bit_or` bigint(21) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+pk	a	b
+1	0	1
+2	0	18446744073709551615
+DROP TABLE t2;
+CREATE OR REPLACE TABLE t2 AS
+SELECT pk, a, BIT_OR(b) OVER (PARTITION BY a ORDER BY pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS bit_or
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `pk` int(11) DEFAULT NULL,
+  `a` int(11) DEFAULT NULL,
+  `bit_or` bigint(21) unsigned NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t2;
+pk	a	bit_or
+1	0	18446744073709551615
+2	0	18446744073709551615
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#
+#
+# MDEV-16722: Assertion `type() != NULL_ITEM' failed
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+SELECT  row_number() OVER (order by a) FROM t1  order by NAME_CONST('myname',NULL);
+row_number() OVER (order by a)
+1
+2
+3
+drop table t1;

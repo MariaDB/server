@@ -1,0 +1,50 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(255)) Engine=InnoDB;
+CREATE PROCEDURE insert_proc ()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+BEGIN
+GET DIAGNOSTICS CONDITION 1 @errno = MYSQL_ERRNO;
+END;
+INSERT INTO t1 VALUES (1, 'node 1'),(2, 'node 1');
+INSERT INTO t1 VALUES (3, 'node 1');
+END|
+SET GLOBAL wsrep_slave_threads = 2;
+SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
+connection node_2;
+INSERT INTO t1 VALUES (1, 'node 2');;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+CALL insert_proc ();;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL DEBUG_DBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+connection node_2;
+connection node_1;
+SELECT @errno = 1213;
+@errno = 1213
+1
+SELECT * FROM t1;
+f1	f2
+1	node 2
+3	node 1
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	node 2
+3	node 1
+connection node_1;
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+DROP TABLE t1;
+DROP PROCEDURE insert_proc;
+SET GLOBAL debug_dbug = NULL;
+SET debug_sync='RESET';
+SELECT @@debug_sync;
+@@debug_sync
+ON - current signal: ''

@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS ranges;
+CREATE TABLE ranges (
+id int PRIMARY KEY,
+start timestamp DEFAULT '2016-04-21 00:00:00',
+end timestamp DEFAULT '2016-04-22 00:00:00',
+UNIQUE KEY range_key(start, end)
+);
+INSERT INTO ranges VALUES (1, "2010-01-01 00:00:00", "2012-10-05 23:59:59");
+SELECT * FROM ranges;
+id	start	end
+1	2010-01-01 00:00:00	2012-10-05 23:59:59
+DELETE FROM ranges WHERE id = 1;
+INSERT INTO ranges VALUES (1, "2010-01-01 00:00:00", "2012-10-05 23:59:59");
+SELECT * FROM ranges;
+id	start	end
+1	2010-01-01 00:00:00	2012-10-05 23:59:59
+DROP TABLE ranges;

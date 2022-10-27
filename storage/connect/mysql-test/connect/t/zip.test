@@ -1,0 +1,136 @@
+--source have_zip.inc
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file $MTR_SUITE_DIR/std_data/bios.json $MYSQLD_DATADIR/test/bios.json
+
+--echo #
+--echo # Testing zipped DOS tables
+--echo #
+CREATE TABLE t1 (
+digit INT(3) NOT NULL,
+letter CHAR(16) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='newdos.zip'
+OPTION_LIST='ENTRY=new1.dos' ZIPPED=1;
+INSERT INTO t1 VALUES(1,'One'),(2,'Two'),(3,'Three'),(4,'Four'),(5,'Five'),(6,'Six'),(7,'Seven'),(8,'Eight'),(9,'Nine'),(10,'Ten');
+SELECT * FROM t1;
+
+CREATE TABLE t2 (
+digit INT(3) NOT NULL,
+letter CHAR(16) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='newdos.zip'
+OPTION_LIST='ENTRY=new2.dos,APPEND=1' ZIPPED=1;
+INSERT INTO t2 VALUES(11,'Eleven'),(12,'Twelve'),(13,'Thirteen'),(14,'Fourteen'),(15,'Fiften'),(16,'Sixteen'),(17,'Seventeen'),(18,'Eighteen'),(19,'Nineteen'),(20,'Twenty');
+SELECT * FROM t2;
+
+CREATE TABLE t3 (
+digit INT(3) NOT NULL,
+letter CHAR(16) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='newdos.zip'
+OPTION_LIST='MULENTRIES=1' ZIPPED=1;
+SELECT * FROM t3;
+
+CREATE TABLE t4 (
+fn VARCHAR(256)NOT NULL,
+cmpsize BIGINT NOT NULL FLAG=1,
+uncsize BIGINT NOT NULL FLAG=2,
+method INT NOT NULL FLAG=3)
+ENGINE=CONNECT TABLE_TYPE=ZIP FILE_NAME='newdos.zip';
+SELECT * FROM t4;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # Testing zipped CSV tables
+--echo #
+CREATE TABLE t1 (
+digit INT(3) NOT NULL,
+letter CHAR(16) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='newcsv.zip'
+OPTION_LIST='ENTRY=new1.csv' HEADER=1 ZIPPED=1;
+INSERT INTO t1 VALUES(1,'One'),(2,'Two'),(3,'Three'),(4,'Four'),(5,'Five'),(6,'Six'),(7,'Seven'),(8,'Eight'),(9,'Nine'),(10,'Ten');
+SELECT * FROM t1;
+
+# Test discovery
+CREATE TABLE td1
+ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='newcsv.zip'
+OPTION_LIST='ENTRY=new1.csv' HEADER=1 ZIPPED=1;
+SELECT * FROM td1;
+DROP TABLE td1;
+
+CREATE TABLE t2 (
+digit INT(3) NOT NULL,
+letter CHAR(16) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='newcsv.zip'
+OPTION_LIST='ENTRY=new2.csv,APPEND=1' HEADER=1 ZIPPED=1;
+INSERT INTO t2 VALUES(11,'Eleven'),(12,'Twelve'),(13,'Thirteen'),(14,'Fourteen'),(15,'Fiften'),(16,'Sixteen'),(17,'Seventeen'),(18,'Eighteen'),(19,'Nineteen'),(20,'Twenty');
+SELECT * FROM t2;
+
+CREATE TABLE t3
+ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='newcsv.zip'
+OPTION_LIST='MULENTRIES=1' HEADER=1 ZIPPED=1;
+SELECT * FROM t3;
+
+CREATE TABLE t4 (
+fn VARCHAR(256)NOT NULL,
+cmpsize BIGINT NOT NULL FLAG=1,
+uncsize BIGINT NOT NULL FLAG=2,
+method INT NOT NULL FLAG=3)
+ENGINE=CONNECT TABLE_TYPE=ZIP FILE_NAME='newcsv.zip';
+SELECT * FROM t4;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # Testing zipped JSON tables
+--echo #
+CREATE TABLE t1 (
+_id INT(2) NOT NULL,
+name_first CHAR(9) NOT NULL JPATH='$.name.first',
+name_aka CHAR(4) DEFAULT NULL JPATH='$.name.aka',
+name_last CHAR(10) NOT NULL JPATH='$.name.last',
+title CHAR(12) DEFAULT NULL,
+birth CHAR(20) DEFAULT NULL,
+death CHAR(20) DEFAULT NULL,
+contribs CHAR(50) NOT NULL JPATH='$.contribs',
+awards_award CHAR(42) DEFAULT NULL JPATH='$.awards.award',
+awards_year CHAR(4) DEFAULT NULL JPATH='$.awards.year',
+awards_by CHAR(38) DEFAULT NULL JPATH='$.awards.by'
+) ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='bios.zip' OPTION_LIST='ENTRY=bios.json,LOAD=bios.json' ZIPPED=YES;
+SELECT * FROM t1;
+
+# Test discovery
+CREATE TABLE t2
+ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='bios.zip' ZIPPED=1
+OPTION_LIST='DEPTH=5';
+SELECT * FROM t2;
+
+CREATE TABLE t3 (
+_id INT(2) NOT NULL,
+firstname CHAR(9) NOT NULL JPATH='$.name.first',
+aka CHAR(4) DEFAULT NULL JPATH='$.name.aka',
+lastname CHAR(10) NOT NULL JPATH='$.name.last',
+title CHAR(12) DEFAULT NULL,
+birth date DEFAULT NULL date_format="YYYY-DD-MM'T'hh:mm:ss'Z'",
+death date DEFAULT NULL date_format="YYYY-DD-MM'T'hh:mm:ss'Z'",
+contribs CHAR(64) NOT NULL JPATH='$.contribs.[", "]',
+award CHAR(42) DEFAULT NULL JPATH='$.awards[*].award',
+year CHAR(4) DEFAULT NULL JPATH='$.awards[*].year',
+`by` CHAR(38) DEFAULT NULL JPATH='$.awards[*].by'
+) ENGINE=CONNECT TABLE_TYPE='json' FILE_NAME='bios.zip' ZIPPED=YES;
+SELECT * FROM t3 WHERE _id = 1;
+
+CREATE TABLE t4 (
+fn VARCHAR(256)NOT NULL,
+cmpsize BIGINT NOT NULL FLAG=1,
+uncsize BIGINT NOT NULL FLAG=2,
+method INT NOT NULL FLAG=3)
+ENGINE=CONNECT TABLE_TYPE=ZIP FILE_NAME='bios.zip';
+SELECT * FROM t4;
+DROP TABLE t1,t2,t3,t4;
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/newdos.zip
+--remove_file $MYSQLD_DATADIR/test/newcsv.zip
+--remove_file $MYSQLD_DATADIR/test/bios.zip
+--remove_file $MYSQLD_DATADIR/test/bios.json
+

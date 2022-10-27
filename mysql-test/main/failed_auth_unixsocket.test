@@ -1,0 +1,29 @@
+--source include/have_unix_socket.inc
+
+#
+# MDEV-3909 remote user enumeration
+# unix_socket tests
+#
+create table global_priv_backup select * from mysql.global_priv;
+update mysql.global_priv set priv=json_insert(priv, '$.plugin', 'unix_socket');
+delete from mysql.global_priv where user != 'root';
+flush privileges;
+
+# Make sure that the replace works, even if $USER is 'user' or something else
+# that matches other parts of the error message.
+let $replace=Access denied for user '$USER';
+
+--echo connect(localhost,USER,,test,MASTER_PORT,MASTER_SOCKET);
+--replace_result $replace "Access denied for user 'USER'"
+--disable_query_log
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+connect (fail,localhost,$USER);
+--enable_query_log
+
+--replace_result $replace "Access denied for user 'USER'"
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+change_user $USER;
+
+replace mysql.global_priv select * from global_priv_backup;
+flush privileges;
+drop table global_priv_backup;

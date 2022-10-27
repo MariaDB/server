@@ -1,0 +1,89 @@
+-- source include/have_innodb.inc
+set default_storage_engine=innodb;
+create or replace table dept (
+  dept_id int(10) primary key, 
+  name varchar(100)
+)
+with system versioning;
+
+create or replace table emp (
+  emp_id int(10) primary key,
+  dept_id int(10),
+  name varchar(100),
+  salary int(10),
+  constraint `dept-emp-fk`
+    foreign key (dept_id) references dept (dept_id)
+		on delete restrict
+		on update restrict
+) 
+with system versioning;
+
+select now() into @ts_0;
+
+insert into dept (dept_id, name) values (10, "accounting");
+commit;
+
+select row_start into @ts_1 from dept where dept_id=10;
+
+insert into emp (emp_id, name, salary, dept_id) values (1, "bill", 1000, 10);
+commit;
+
+select row_start into @ts_2 from emp where name="bill";
+
+select * from emp;
+
+update emp set salary=2000 where name="bill";
+commit;
+
+select row_start into @ts_3 from emp where name="bill";
+
+select * from emp;
+select * from emp for system_time as of timestamp @ts_2;
+select * from emp for system_time as of timestamp @ts_3;
+select * from emp e, dept d
+where d.dept_id = 10
+  and d.dept_id = e.dept_id;
+
+select * from
+  emp for system_time from timestamp @ts_1 to timestamp @ts_2 e,
+  dept for system_time from timestamp @ts_1 to timestamp @ts_2 d
+where d.dept_id = 10
+  and d.dept_id = e.dept_id;
+
+set statement system_versioning_asof=@ts_0 for
+select * from emp e, dept d
+where d.dept_id = 10
+  and d.dept_id = e.dept_id;
+
+set statement system_versioning_asof=@ts_1 for
+select * from emp e, dept d
+where d.dept_id = 10
+  and d.dept_id = e.dept_id;
+
+set statement system_versioning_asof=@ts_2 for
+select * from emp e, dept d
+where d.dept_id = 10
+  and d.dept_id = e.dept_id;
+
+set statement system_versioning_asof=@ts_3 for
+select * from emp e, dept d
+where d.dept_id = 10
+  and d.dept_id = e.dept_id;
+
+drop table emp, dept;
+
+#
+# MDEV-16804 SYSTEM VERSIONING columns not showing as GENERATED
+#
+create table t1 (
+  a timestamp(6),
+  b timestamp(6) generated always as (a + interval 1 day),
+  c timestamp(6) generated always as (a + interval 1 month) stored,
+  d timestamp(6) generated always as row start,
+  e timestamp(6) generated always as row end,
+  period for system_time(d,e)
+) with system versioning;
+show columns from t1;
+query_vertical select table_catalog,table_schema,table_name,column_name,ordinal_position,column_default,is_nullable,data_type,character_maximum_length,character_octet_length,numeric_precision,numeric_scale,datetime_precision,character_set_name,collation_name,column_type,column_key,extra,column_comment,is_generated,generation_expression,'---' from information_schema.columns where table_name='t1';
+drop table t1;
+

@@ -1,0 +1,32 @@
+CREATE TABLE t1 (
+path VARCHAR(256) NOT NULL flag=1,
+fname VARCHAR(256) NOT NULL,
+ftype CHAR(4) NOT NULL,
+size DOUBLE(12,0) NOT NULL flag=5
+) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.txt'
+  OPTION_LIST='subdir=1';
+SELECT * FROM t1;
+path	fname	ftype	size
+SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
+fname	ftype	size
+boys	.txt	282
+boys2	.txt	282
+boyswin	.txt	288
+ALTER TABLE t1 OPTION_LIST='subdir=0';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `path` varchar(256) NOT NULL `flag`=1,
+  `fname` varchar(256) NOT NULL,
+  `ftype` char(4) NOT NULL,
+  `size` double(12,0) NOT NULL `flag`=5
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DIR `FILE_NAME`='*.txt' `OPTION_LIST`='subdir=0'
+SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
+fname	ftype	size
+boys	.txt	282
+boyswin	.txt	288
+INSERT INTO t1 VALUES ('','','','');
+ERROR 22007: Incorrect double value: '' for column `test`.`t1`.`size` at row 1
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.txt';
+ERROR HY000: Cannot get column info for table type DIR

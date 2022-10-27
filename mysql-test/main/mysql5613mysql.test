@@ -1,0 +1,120 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # MDEV-4819 Upgrade from MySQL 5.6 does not work
+--echo # Testing that we can open system tables created in MySQL-5.6 (5.6.13)
+--echo #
+
+
+--copy_file std_data/mysql5613mysql/columns_priv.frm $MYSQLD_DATADIR/test/columns_priv.frm
+--copy_file std_data/mysql5613mysql/columns_priv.MYD $MYSQLD_DATADIR/test/columns_priv.MYD
+--copy_file std_data/mysql5613mysql/columns_priv.MYI $MYSQLD_DATADIR/test/columns_priv.MYI
+SHOW CREATE TABLE columns_priv;
+SELECT * FROM columns_priv LIMIT 0;
+DROP TABLE columns_priv;
+
+--copy_file std_data/mysql5613mysql/db.frm $MYSQLD_DATADIR/test/db.frm
+--copy_file std_data/mysql5613mysql/db.MYD $MYSQLD_DATADIR/test/db.MYD
+--copy_file std_data/mysql5613mysql/db.MYI $MYSQLD_DATADIR/test/db.MYI
+SHOW CREATE TABLE db;
+SELECT * FROM db LIMIT 0;
+DROP TABLE db;
+
+
+--copy_file std_data/mysql5613mysql/event.frm $MYSQLD_DATADIR/test/event.frm
+--copy_file std_data/mysql5613mysql/event.MYD $MYSQLD_DATADIR/test/event.MYD
+--copy_file std_data/mysql5613mysql/event.MYI $MYSQLD_DATADIR/test/event.MYI
+SHOW CREATE TABLE event;
+SELECT * FROM event LIMIT 0;
+DROP TABLE event;
+
+--copy_file std_data/mysql5613mysql/func.frm $MYSQLD_DATADIR/test/func.frm
+--copy_file std_data/mysql5613mysql/func.MYD $MYSQLD_DATADIR/test/func.MYD
+--copy_file std_data/mysql5613mysql/func.MYI $MYSQLD_DATADIR/test/func.MYI
+SHOW CREATE TABLE func;
+SELECT * FROM func LIMIT 0;
+DROP TABLE func;
+
+--copy_file std_data/mysql5613mysql/plugin.frm $MYSQLD_DATADIR/test/plugin.frm
+--copy_file std_data/mysql5613mysql/plugin.MYD $MYSQLD_DATADIR/test/plugin.MYD
+--copy_file std_data/mysql5613mysql/plugin.MYI $MYSQLD_DATADIR/test/plugin.MYI
+SHOW CREATE TABLE plugin;
+SELECT * FROM plugin LIMIT 0;
+DROP TABLE plugin;
+
+--copy_file std_data/mysql5613mysql/proc.frm $MYSQLD_DATADIR/test/proc.frm
+--copy_file std_data/mysql5613mysql/proc.MYD $MYSQLD_DATADIR/test/proc.MYD
+--copy_file std_data/mysql5613mysql/proc.MYI $MYSQLD_DATADIR/test/proc.MYI
+SHOW CREATE TABLE proc;
+SELECT * FROM proc LIMIT 0;
+DROP TABLE proc;
+
+--copy_file std_data/mysql5613mysql/procs_priv.frm $MYSQLD_DATADIR/test/procs_priv.frm
+--copy_file std_data/mysql5613mysql/procs_priv.MYD $MYSQLD_DATADIR/test/procs_priv.MYD
+--copy_file std_data/mysql5613mysql/procs_priv.MYI $MYSQLD_DATADIR/test/procs_priv.MYI
+SHOW CREATE TABLE procs_priv;
+SELECT * FROM procs_priv LIMIT 0;
+DROP TABLE procs_priv;
+
+--copy_file std_data/mysql5613mysql/proxies_priv.frm $MYSQLD_DATADIR/test/proxies_priv.frm
+--copy_file std_data/mysql5613mysql/proxies_priv.MYD $MYSQLD_DATADIR/test/proxies_priv.MYD
+--copy_file std_data/mysql5613mysql/proxies_priv.MYI $MYSQLD_DATADIR/test/proxies_priv.MYI
+SHOW CREATE TABLE proxies_priv;
+SELECT * FROM proxies_priv LIMIT 0;
+DROP TABLE proxies_priv;
+
+--copy_file std_data/mysql5613mysql/servers.frm $MYSQLD_DATADIR/test/servers.frm
+--copy_file std_data/mysql5613mysql/servers.MYD $MYSQLD_DATADIR/test/servers.MYD
+--copy_file std_data/mysql5613mysql/servers.MYI $MYSQLD_DATADIR/test/servers.MYI
+SHOW CREATE TABLE servers;
+SELECT * FROM servers LIMIT 0;
+DROP TABLE servers;
+
+--copy_file std_data/mysql5613mysql/tables_priv.frm $MYSQLD_DATADIR/test/tables_priv.frm
+--copy_file std_data/mysql5613mysql/tables_priv.MYD $MYSQLD_DATADIR/test/tables_priv.MYD
+--copy_file std_data/mysql5613mysql/tables_priv.MYI $MYSQLD_DATADIR/test/tables_priv.MYI
+SHOW CREATE TABLE tables_priv;
+SELECT * FROM tables_priv LIMIT 0;
+DROP TABLE tables_priv;
+
+--copy_file std_data/mysql5613mysql/time_zone_leap_second.frm $MYSQLD_DATADIR/test/time_zone_leap_second.frm
+--copy_file std_data/mysql5613mysql/time_zone_leap_second.MYD $MYSQLD_DATADIR/test/time_zone_leap_second.MYD
+--copy_file std_data/mysql5613mysql/time_zone_leap_second.MYI $MYSQLD_DATADIR/test/time_zone_leap_second.MYI
+SHOW CREATE TABLE time_zone_leap_second;
+SELECT * FROM time_zone_leap_second LIMIT 0;
+DROP TABLE time_zone_leap_second;
+
+--copy_file std_data/mysql5613mysql/time_zone.frm $MYSQLD_DATADIR/test/time_zone.frm
+--copy_file std_data/mysql5613mysql/time_zone.MYD $MYSQLD_DATADIR/test/time_zone.MYD
+--copy_file std_data/mysql5613mysql/time_zone.MYI $MYSQLD_DATADIR/test/time_zone.MYI
+SHOW CREATE TABLE time_zone;
+SELECT * FROM time_zone LIMIT 0;
+DROP TABLE time_zone;
+
+--copy_file std_data/mysql5613mysql/time_zone_name.frm $MYSQLD_DATADIR/test/time_zone_name.frm
+--copy_file std_data/mysql5613mysql/time_zone_name.MYD $MYSQLD_DATADIR/test/time_zone_name.MYD
+--copy_file std_data/mysql5613mysql/time_zone_name.MYI $MYSQLD_DATADIR/test/time_zone_name.MYI
+SHOW CREATE TABLE time_zone_name;
+SELECT * FROM time_zone_name LIMIT 0;
+DROP TABLE time_zone_name;
+
+--copy_file std_data/mysql5613mysql/time_zone_transition.frm $MYSQLD_DATADIR/test/time_zone_transition.frm
+--copy_file std_data/mysql5613mysql/time_zone_transition.MYD $MYSQLD_DATADIR/test/time_zone_transition.MYD
+--copy_file std_data/mysql5613mysql/time_zone_transition.MYI $MYSQLD_DATADIR/test/time_zone_transition.MYI
+SHOW CREATE TABLE time_zone_transition;
+SELECT * FROM time_zone_transition LIMIT 0;
+DROP TABLE time_zone_transition;
+
+--copy_file std_data/mysql5613mysql/time_zone_transition_type.frm $MYSQLD_DATADIR/test/time_zone_transition_type.frm
+--copy_file std_data/mysql5613mysql/time_zone_transition_type.MYD $MYSQLD_DATADIR/test/time_zone_transition_type.MYD
+--copy_file std_data/mysql5613mysql/time_zone_transition_type.MYI $MYSQLD_DATADIR/test/time_zone_transition_type.MYI
+SHOW CREATE TABLE time_zone_transition_type;
+SELECT * FROM time_zone_transition_type LIMIT 0;
+DROP TABLE time_zone_transition_type;
+
+--copy_file std_data/mysql5613mysql/user.frm $MYSQLD_DATADIR/test/user.frm
+--copy_file std_data/mysql5613mysql/user.MYD $MYSQLD_DATADIR/test/user.MYD
+--copy_file std_data/mysql5613mysql/user.MYI $MYSQLD_DATADIR/test/user.MYI
+SHOW CREATE TABLE user;
+SELECT * FROM user LIMIT 0;
+DROP TABLE user;

@@ -1,0 +1,60 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+SET DEBUG_SYNC= 'RESET';
+SET DEBUG_SYNC = 'alter_table_before_open_tables SIGNAL before_open_tables WAIT_FOR continue';
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;;
+connection node_1a;
+SET DEBUG_SYNC= 'now WAIT_FOR before_open_tables';
+SET wsrep_retry_autocommit=0;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM t2;
+COUNT(*) = 0
+1
+INSERT INTO t1 VALUES (1);;
+connection node_1c;
+SET SESSION wsrep_sync_wait = 0;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 0 FROM t2;
+COUNT(*) = 0
+1
+INSERT INTO t2 VALUES (1);
+COMMIT;;
+connection node_1b;
+SET SESSION wsrep_sync_wait = 0;
+SELECT COUNT(*) = 0 FROM t2;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'Commit';
+COUNT(*) = 1
+1
+SET DEBUG_SYNC= 'now SIGNAL continue';
+connection node_1a;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1c;
+connection node_1;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 1 FROM t2;
+COUNT(*) = 1
+1
+SET debug_sync='RESET';
+connection node_2;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 1 FROM t2;
+COUNT(*) = 1
+1
+DROP TABLE t1;
+DROP TABLE t2;

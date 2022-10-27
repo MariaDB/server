@@ -1,0 +1,237 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE connect;
+connection slave;
+CREATE DATABASE connect;
+connection slave;
+CREATE TABLE t1 (a int, b char(10));
+INSERT INTO t1 VALUES (NULL,NULL),(0,'test00'),(1,'test01'),(2,'test02'),(3,'test03');
+SELECT * FROM t1;
+a	b
+NULL	NULL
+0	test00
+1	test01
+2	test02
+3	test03
+#
+# Testing errors
+#
+connection master;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://unknown@127.0.0.1:SLAVE_PORT/test/t1';
+ERROR HY000: (1045) Access denied for user 'unknown'@'localhost' (using password: NO)
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/unknown/t1';
+ERROR HY000: (1049) Unknown database 'unknown'
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+OPTION_LIST='host=127.0.0.1,user=root,port=SLAVE_PORT' DBNAME='unknown' TABNAME='t1';
+ERROR HY000: (1049) Unknown database 'unknown'
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/unknown';
+ERROR HY000: (1146) Table 'test.unknown' doesn't exist [SHOW FULL COLUMNS FROM `unknown` FROM test]
+SHOW CREATE TABLE t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `y` char(10) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`=MYSQL
+SELECT * FROM t1;
+ERROR HY000: Got error 174 '(1054) Unknown column 'x' in 'field list' [SELECT `x`, `y` FROM `t1`]' from CONNECT
+DROP TABLE t1;
+CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
+connection slave;
+ALTER TABLE t1 RENAME t1backup;
+connection master;
+SELECT * FROM t1;
+ERROR HY000: Got error 174 '(1146) Table 'test.t1' doesn't exist [SELECT `a`, `b` FROM `t1`]' from CONNECT
+connection slave;
+ALTER TABLE t1backup RENAME t1;
+connection master;
+DROP TABLE t1;
+#
+# Testing SELECT, etc.
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` char(10) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`='MYSQL'
+SELECT * FROM t1;
+a	b
+NULL	NULL
+0	test00
+1	test01
+2	test02
+3	test03
+DROP TABLE t1;
+CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1'
+  OPTION_LIST='host=127.0.0.1,user=root,port=SLAVE_PORT';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` char(10) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=127.0.0.1,user=root,port=SLAVE_PORT'
+SELECT * FROM t1;
+a	b
+NULL	NULL
+0	test00
+1	test01
+2	test02
+3	test03
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL, b CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=MYSQL
+OPTION_LIST='host=127.0.0.1,user=root,port=SLAVE_PORT';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` char(10) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `OPTION_LIST`='host=127.0.0.1,user=root,port=SLAVE_PORT'
+SELECT * FROM t1;
+a	b
+0	
+0	test00
+1	test01
+2	test02
+3	test03
+DROP TABLE t1;
+CREATE TABLE t1 (a char(10), b int) ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`=MYSQL
+SELECT * FROM t1;
+a	b
+NULL	NULL
+0	0
+1	0
+2	0
+3	0
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+#
+# Testing numeric data types
+#
+CREATE TABLE t1 (a tinyint, b smallint, c mediumint, d int, e bigint, f float, g double, h decimal(20,5));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyint(4) DEFAULT NULL,
+  `b` smallint(6) DEFAULT NULL,
+  `c` mediumint(9) DEFAULT NULL,
+  `d` int(11) DEFAULT NULL,
+  `e` bigint(20) DEFAULT NULL,
+  `f` float DEFAULT NULL,
+  `g` double DEFAULT NULL,
+  `h` decimal(20,5) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES(100,3333,41235,1234567890,235000000000,3.14159265,3.14159265,3141.59265);
+connection master;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+OPTION_LIST='host=127.0.0.1,user=root,port=SLAVE_PORT';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` tinyint(4) DEFAULT NULL,
+  `b` smallint(6) DEFAULT NULL,
+  `c` int(9) DEFAULT NULL,
+  `d` int(11) DEFAULT NULL,
+  `e` bigint(20) DEFAULT NULL,
+  `f` double DEFAULT NULL,
+  `g` double DEFAULT NULL,
+  `h` decimal(20,5) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `OPTION_LIST`='host=127.0.0.1,user=root,port=SLAVE_PORT'
+SELECT * FROM t1;
+a	b	c	d	e	f	g	h
+100	3333	41235	1234567890	235000000000	3.14159	3.14159265	3141.59265
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+#
+# Testing character data types
+#
+CREATE TABLE t1 (a char(12), b varchar(12));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(12) DEFAULT NULL,
+  `b` varchar(12) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES('Welcome','Hello, World');
+SELECT * FROM t1;
+a	b
+Welcome	Hello, World
+connection master;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(12) DEFAULT NULL,
+  `b` varchar(12) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT' `TABLE_TYPE`='MYSQL'
+SELECT * FROM t1;
+a	b
+Welcome	Hello, World
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+#
+# Testing temporal data types
+#
+CREATE TABLE t1 (a date, b datetime, c time, d timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, e year);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` date DEFAULT NULL,
+  `b` datetime DEFAULT NULL,
+  `c` time DEFAULT NULL,
+  `d` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `e` year(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT IGNORE INTO t1 VALUES('2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'c' at row 1
+Warning	1265	Data truncated for column 'e' at row 1
+SELECT * FROM t1;
+a	b	c	d	e
+2003-05-27	2003-05-27 10:45:23	10:45:23	2003-05-27 10:45:23	2003
+connection master;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` date DEFAULT NULL,
+  `b` datetime DEFAULT NULL,
+  `c` time DEFAULT NULL,
+  `d` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `e` year(4) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT' `TABLE_TYPE`='MYSQL'
+SELECT * FROM t1;
+a	b	c	d	e
+2003-05-27	2003-05-27 10:45:23	10:45:23	2003-05-27 10:45:23	2003
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+connection master;
+DROP TABLE IF EXISTS connect.t1;
+DROP DATABASE IF EXISTS connect;
+connection slave;
+DROP TABLE IF EXISTS connect.t1;
+DROP DATABASE IF EXISTS connect;

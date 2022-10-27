@@ -1,0 +1,25 @@
+DROP TABLE IF EXISTS memos;
+FLUSH STATUS;
+SET NAMES UTF8;
+CREATE TABLE memos (
+id INT UNSIGNED,
+content TEXT,
+FULLTEXT INDEX(content),
+KEY(id)
+) DEFAULT CHARSET UTF8;
+INSERT INTO memos VALUES(1, "Today is fine.");
+INSERT INTO memos VALUES(2, "Today's lucky item is flower!");
+INSERT INTO memos VALUES(3, "I will do something today!");
+INSERT INTO memos VALUES(4, "I don't want to anything today...");
+INSERT INTO memos VALUES(5, "I'm sleepy today.");
+SELECT * FROM memos
+WHERE MATCH(content) AGAINST("today" IN BOOLEAN MODE) AND
+id BETWEEN 2 AND 4
+ORDER BY id LIMIT 1,2;
+id	content
+3	I will do something today!
+4	I don't want to anything today...
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	1
+DROP TABLE memos;

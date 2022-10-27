@@ -1,0 +1,46 @@
+#
+# MDEV-7285 SERVER: CREATE OR REPLACE and CREATE IF NOT EXISTS
+#
+CREATE SERVER IF NOT EXISTS server1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'user1', HOST 'localhost', DATABASE 'test0');
+SELECT server_name, username, db FROM mysql.servers;
+server_name	username	db
+server1	user1	test0
+CREATE SERVER IF NOT EXISTS server1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'user2', HOST 'localhost', DATABASE 'test1');
+Warnings:
+Note	1476	The foreign server, server1, you are trying to create already exists
+SELECT server_name, username, db FROM mysql.servers;
+server_name	username	db
+server1	user1	test0
+CREATE OR REPLACE SERVER server1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'user3', HOST 'localhost', DATABASE 'test2');
+SELECT server_name, username, db FROM mysql.servers;
+server_name	username	db
+server1	user3	test2
+DROP SERVER IF EXISTS server1;
+SELECT server_name, username, db FROM mysql.servers;
+server_name	username	db
+DROP SERVER IF EXISTS server1;
+CREATE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test0');
+CREATE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test1');
+ERROR HY000: The foreign server, server_1, you are trying to create already exists
+CREATE SERVER IF NOT EXISTS server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
+Warnings:
+Note	1476	The foreign server, server_1, you are trying to create already exists
+SELECT server_name, username, db FROM mysql.servers;
+server_name	username	db
+server_1	mysqltest_1	test0
+CREATE OR REPLACE SERVER IF NOT EXISTS server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test3');
+ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
+CREATE OR REPLACE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test4');
+SELECT server_name, username, db FROM mysql.servers;
+server_name	username	db
+server_1	mysqltest_1	test4
+DROP SERVER server_1;
+CREATE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'Remote', HOST 'Server.Example.Com', DATABASE 'test');
+SELECT Host FROM mysql.servers WHERE Server_Name = 'server_1';
+Host
+Server.Example.Com
+ALTER SERVER server_1 OPTIONS(HOST 'Server.Example.Org');
+SELECT Host FROM mysql.servers WHERE Server_Name = 'server_1';
+Host
+Server.Example.Org
+DROP SERVER server_1;

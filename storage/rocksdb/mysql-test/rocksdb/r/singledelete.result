@@ -1,0 +1,86 @@
+CREATE TABLE t1 (id INT, value int, PRIMARY KEY (id), INDEX (value)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1,1);
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+select case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end
+true
+select case when variable_value-@d < 10 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+case when variable_value-@d < 10 then 'true' else 'false' end
+true
+CREATE TABLE t2 (id INT, value int, PRIMARY KEY (id), INDEX (value)) ENGINE=RocksDB;
+INSERT INTO t2 VALUES (1,1);
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+optimize table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	optimize	status	OK
+select case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end
+true
+select case when variable_value-@d > 9000 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+case when variable_value-@d > 9000 then 'true' else 'false' end
+true
+CREATE TABLE t3 (id INT, value int, PRIMARY KEY (id)) ENGINE=RocksDB;
+INSERT INTO t3 VALUES (1,1);
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+optimize table t3;
+Table	Op	Msg_type	Msg_text
+test.t3	optimize	status	OK
+select case when variable_value-@s = 0 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+case when variable_value-@s = 0 then 'true' else 'false' end
+true
+select case when variable_value-@d > 9000 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+case when variable_value-@d > 9000 then 'true' else 'false' end
+true
+CREATE TABLE t4 (id INT, PRIMARY KEY (id)) ENGINE=RocksDB;
+INSERT INTO t4 VALUES (1);
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+optimize table t4;
+Table	Op	Msg_type	Msg_text
+test.t4	optimize	status	OK
+select case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end
+true
+select case when variable_value-@d < 10 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+case when variable_value-@d < 10 then 'true' else 'false' end
+true
+CREATE TABLE t5 (id1 INT, id2 INT, PRIMARY KEY (id1, id2), INDEX(id2)) ENGINE=RocksDB;
+INSERT INTO t5 VALUES (1, 1);
+select variable_value into @s from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+select variable_value into @d from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+optimize table t5;
+Table	Op	Msg_type	Msg_text
+test.t5	optimize	status	OK
+select case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_singledelete';
+case when variable_value-@s > 5 and variable_value-@s < 100 then 'true' else 'false' end
+true
+select case when variable_value-@d < 10 then 'true' else 'false' end from information_schema.global_status where variable_name='rocksdb_number_sst_entry_delete';
+case when variable_value-@d < 10 then 'true' else 'false' end
+true
+CREATE TABLE t6 (
+pk VARCHAR(64) COLLATE latin1_swedish_ci PRIMARY KEY
+) ENGINE=RocksDB;
+INSERT INTO t6 VALUES ('a');
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+SELECT * FROM t6;
+pk
+a
+UPDATE t6 SET pk='A' WHERE pk='a';
+SELECT * FROM t6;
+pk
+A
+DELETE FROM t6 where pk='A';
+SELECT should return nothing;
+SELECT * FROM t6;
+pk
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+SELECT should return nothing;
+SELECT * FROM t6;
+pk
+DROP TABLE t1, t2, t3, t4, t5, t6;

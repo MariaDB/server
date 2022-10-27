@@ -1,0 +1,36 @@
+#
+# MW-328 Fix unnecessary/silent BF aborts
+# 
+
+#
+# Make sure an unrelated SELECT following a BF-aborted query never 
+# gets the deadlock error
+#
+
+--source include/galera_cluster.inc
+--source include/force_restart.inc
+--source suite/galera/t/MW-328-header.inc
+
+--connection node_2
+--let $count = 100
+
+SET SESSION wsrep_retry_autocommit = 0;
+
+--disable_query_log
+
+while ($count)
+{
+  --error 0,1213
+  INSERT IGNORE INTO t2 SELECT f2 FROM t1;
+
+  --disable_result_log
+  --error 0
+  SELECT 1 FROM DUAL;
+  --enable_result_log
+
+  --dec $count
+}
+
+--enable_query_log
+
+--source suite/galera/t/MW-328-footer.inc

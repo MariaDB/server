@@ -1,0 +1,20 @@
+# run mysql_client_test with performance schema
+
+# No need to run this with embedded server
+-- source include/not_embedded.inc
+
+# need to have the dynamic loading turned on for the client plugin tests
+--source include/have_plugin_auth.inc
+
+SET @old_slow_query_log= @@global.slow_query_log;
+
+call mtr.add_suppression(" Error reading file './client_test_db/test_frm_bug.frm'");
+call mtr.add_suppression(" IP address .* could not be resolved");
+--exec echo "$MYSQL_CLIENT_TEST" > $MYSQLTEST_VARDIR/log/mysql_client_test_comp.out.log 2>&1
+--exec $MYSQL_CLIENT_TEST --getopt-ll-test=25600M >> $MYSQLTEST_VARDIR/log/mysql_client_test_comp.out.log 2>&1
+
+# End of test
+echo ok;
+
+# Restore state changed by mysql_test_run
+SET @@global.slow_query_log= @old_slow_query_log;

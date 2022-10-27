@@ -1,0 +1,7 @@
+!include my.cnf
+
+[mysqld.1]
+binlog_checksum=NONE
+
+[mysqld.2]
+binlog_checksum=NONE

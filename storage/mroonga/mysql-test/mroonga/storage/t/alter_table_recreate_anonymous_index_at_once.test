@@ -1,0 +1,48 @@
+# Copyright(C) 2013 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS diaries;
+--enable_warnings
+
+CREATE TABLE diaries (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title TEXT,
+  body TEXT,
+  FULLTEXT INDEX (body)
+) DEFAULT CHARSET UTF8;
+
+INSERT INTO diaries (title, body) VALUES ("survey", "will start groonga!");
+INSERT INTO diaries (title, body) VALUES ("survey", "will start mroonga!");
+
+SELECT * FROM diaries;
+SELECT * FROM diaries
+  WHERE MATCH (body) AGAINST ("+groonga" IN BOOLEAN MODE);
+
+ALTER TABLE diaries
+  DROP INDEX body,
+  ADD FULLTEXT INDEX (body);
+
+SELECT * FROM diaries;
+SELECT * FROM diaries
+  WHERE MATCH (body) AGAINST ("+groonga" IN BOOLEAN MODE);
+
+DROP TABLE diaries;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

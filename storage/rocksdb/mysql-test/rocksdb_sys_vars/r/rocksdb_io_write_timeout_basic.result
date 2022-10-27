@@ -1,0 +1,86 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(10);
+INSERT INTO valid_values VALUES(100);
+INSERT INTO valid_values VALUES(0);
+INSERT INTO valid_values VALUES(42);
+INSERT INTO valid_values VALUES(142);
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+INSERT INTO invalid_values VALUES('\'bbb\'');
+SET @start_global_value = @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+SELECT @start_global_value;
+@start_global_value
+0
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_IO_WRITE_TIMEOUT to 10"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT   = 10;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+10
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT = DEFAULT;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+0
+"Trying to set variable @@global.ROCKSDB_IO_WRITE_TIMEOUT to 100"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT   = 100;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+100
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT = DEFAULT;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+0
+"Trying to set variable @@global.ROCKSDB_IO_WRITE_TIMEOUT to 0"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT   = 0;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT = DEFAULT;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+0
+"Trying to set variable @@global.ROCKSDB_IO_WRITE_TIMEOUT to 42"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT   = 42;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+42
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT = DEFAULT;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+0
+"Trying to set variable @@global.ROCKSDB_IO_WRITE_TIMEOUT to 142"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT   = 142;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+142
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT = DEFAULT;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+0
+"Trying to set variable @@session.ROCKSDB_IO_WRITE_TIMEOUT to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_IO_WRITE_TIMEOUT   = 444;
+ERROR HY000: Variable 'rocksdb_io_write_timeout' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_IO_WRITE_TIMEOUT to 'aaa'"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+0
+"Trying to set variable @@global.ROCKSDB_IO_WRITE_TIMEOUT to 'bbb'"
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT   = 'bbb';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+0
+SET @@global.ROCKSDB_IO_WRITE_TIMEOUT = @start_global_value;
+SELECT @@global.ROCKSDB_IO_WRITE_TIMEOUT;
+@@global.ROCKSDB_IO_WRITE_TIMEOUT
+0
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

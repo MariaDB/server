@@ -1,0 +1,119 @@
+set global innodb_lock_wait_timeout=42;
+connect  a,localhost,root,,;
+connect  b,localhost,root,,;
+connection a;
+select @@innodb_lock_wait_timeout;
+@@innodb_lock_wait_timeout
+42
+set innodb_lock_wait_timeout=1;
+select @@innodb_lock_wait_timeout;
+@@innodb_lock_wait_timeout
+1
+connection b;
+select @@innodb_lock_wait_timeout;
+@@innodb_lock_wait_timeout
+42
+set global innodb_lock_wait_timeout=347;
+select @@innodb_lock_wait_timeout;
+@@innodb_lock_wait_timeout
+42
+set innodb_lock_wait_timeout=10;
+select @@innodb_lock_wait_timeout;
+@@innodb_lock_wait_timeout
+10
+connect  c,localhost,root,,;
+connection c;
+select @@innodb_lock_wait_timeout;
+@@innodb_lock_wait_timeout
+347
+disconnect c;
+connection a;
+SET @connection_b_id = <connection_b_id>;
+create table t1(a int primary key)engine=innodb;
+begin;
+insert into t1 values(1),(2),(3);
+connection b;
+select * from t1 for update;
+connection a;
+commit;
+connection b;
+a
+1
+2
+3
+connection a;
+begin;
+insert into t1 values(4);
+connection b;
+set innodb_lock_wait_timeout=3;
+select * from t1 for update;
+connection a;
+commit;
+connection b;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect b;
+connection a;
+disconnect a;
+connection default;
+drop table t1;
+set global innodb_lock_wait_timeout=<initial_timeout>;
+#
+# MDEV-11379 - AliSQL: [Feature] Issue#8: SELECT FOR UPDATE WAIT
+#
+CREATE TABLE t1 (c1 INT, c2 INT) ENGINE=InnoDB;
+INSERT INTO t1 (c1,c2) values (1,1),(2,2),(3,3),(4,4);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE c1=4 FOR UPDATE NOWAIT;
+ERROR HY000: View's SELECT contains a '[NO]WAIT' clause
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 0;
+ERROR HY000: View's SELECT contains a '[NO]WAIT' clause
+CREATE PROCEDURE p1() SELECT * FROM t1 WHERE c1=4 FOR UPDATE NOWAIT;
+ERROR 0A000: [NO]WAIT is not allowed in stored procedures
+CREATE PROCEDURE p1() SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 0;
+ERROR 0A000: [NO]WAIT is not allowed in stored procedures
+connect con1,localhost,root,,;
+LOCK TABLE t1 WRITE;
+connect con2,localhost,root,,;
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE c1=4 FOR UPDATE NOWAIT';
+EXECUTE stmt;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DEALLOCATE PREPARE stmt;
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 0';
+EXECUTE stmt;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+DEALLOCATE PREPARE stmt;
+connection con1;
+INSERT INTO t1 VALUES(5,5);
+UNLOCK TABLES;
+set AUTOCOMMIT=0;
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE;
+connection con2;
+set AUTOCOMMIT=0;
+SET INNODB_LOCK_WAIT_TIMEOUT=1;
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 0;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+UPDATE t1 SET c2=5 WHERE c1=4;
+COMMIT;
+set AUTOCOMMIT=0;
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE;
+c1	c2
+4	5
+connection con2;
+set AUTOCOMMIT=0;
+SET INNODB_LOCK_WAIT_TIMEOUT=1;
+SELECT * FROM t1 WHERE c1=4 FOR UPDATE WAIT 10;
+connection con1;
+COMMIT;
+connection con2;
+disconnect con1;
+disconnect con2;
+connection default;
+DROP TABLE t1;

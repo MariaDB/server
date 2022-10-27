@@ -1,0 +1,193 @@
+--source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
+
+--echo #
+--echo # MDEV-16917: do not use splitting for derived with join cache
+--echo #
+
+CREATE TABLE t1 (
+  n1 int(10) NOT NULL,
+  n2 int(10) NOT NULL,
+  c1 char(1) NOT NULL,
+  KEY c1 (c1),
+  KEY n1_c1_n2 (n1,c1,n2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0, 2, 'a'), (1, 3, 'a');
+
+ANALYZE TABLE t1;
+
+Let $q=
+SELECT t1.n1 FROM t1, (SELECT n1, n2 FROM t1 WHERE c1 = 'a' GROUP BY n1) as t
+  WHERE t.n1 = t1.n1 AND t.n2 = t1.n2 AND c1 = 'a' GROUP BY n1;
+
+eval EXPLAIN $q;
+eval $q;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17211: splittable materialized derived joining 3 tables with
+--echo #             GROUP BY list containing fields from 2 of them
+--echo #
+
+CREATE TABLE t1 (
+  id1 int, i1 int, id2 int,
+  PRIMARY KEY (id1), KEY (i1), KEY (id2)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1,1);
+
+CREATE TABLE t2 (id2 int, i2 int) ENGINE=InnoDB;
+INSERT INTO t2  VALUES (1, 1);
+
+CREATE TABLE t3 (id3 int, i3 int, PRIMARY KEY (id3)) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1,1);
+
+let $q=
+SELECT id3
+  FROM (SELECT t3.id3, t2.i2, t1.id2  FROM t3,t1,t2
+          WHERE t3.i3=t1.id1 AND t2.id2=t1.id2
+            GROUP BY t3.id3, t1.id2) AS t,
+        t2
+    WHERE t2.id2=t.id2;
+
+eval EXPLAIN $q;
+eval $q;
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # Bug mdev-17381: equi-join of derived table with join_cache_level=4
+--echo #
+
+CREATE TABLE t1 (
+  id int NOT NULL,
+  amount decimal DEFAULT NULL,
+PRIMARY KEY (id)
+) ENGINE=INNODB;
+
+CREATE TABLE t2 (
+  id int NOT NULL,
+  name varchar(50) DEFAULT NULL,
+PRIMARY KEY (id)
+) ENGINE=INNODB;
+
+INSERT INTO t1 VALUES
+(1, 10.0000), (2, 20.0000), (3, 30.0000), (4, 40.0000),
+(5, NULL), (6, NULL), (7, 70.0000), (8, 80.0000);
+
+INSERT INTO t2 VALUES
+(1,'A'), (2,'B'), (3,'C'), (4,'D'), (5, NULL), (6, NULL),
+(7,'E'), (8,'F'), (9,'G'), (10,'H'), (11, NULL), (12, NULL);
+
+set join_cache_level=4;
+
+let $q=
+SELECT t2.id,t2.name,t.total_amt
+  FROM  t2
+        LEFT JOIN
+        (SELECT id, sum(amount) total_amt FROM t1 GROUP BY id) AS t
+        ON t2.id=t.id
+  WHERE t2.id < 3;
+
+eval $q;
+eval EXPLAIN $q;
+
+set join_cache_level=default;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Bug mdev-18467: join of grouping view and a base table as inner operand
+--echo #                 of left join with on condition containing impossible range
+--echo #
+
+create table t1 (f1 int, f2 int, key(f2)) engine=InnoDB;
+insert into t1 values (3,33), (7,77), (1,11);
+
+create table t2 (f1 int, f2 int, primary key (f1)) engine=InnoDB;
+insert into t2 values (3,33), (9,99), (1,11);
+
+create view v1 as
+  select f1, max(f2) as f2 from t2 group by f1;
+
+let $q=
+select t.f2
+  from t1
+       left join
+       (v1 join t1 as t on v1.f1=t.f1 and t.f2 = null)
+       on t1.f1=t.f1;
+
+eval $q;
+eval explain $q;
+eval set statement optimizer_switch='split_materialized=off' for explain $q;
+
+drop view v1;
+
+drop table t1,t2;
+
+--echo #
+--echo #  MDEV-23723: Crash when test_if_skip_sort_order() is checked for derived table subject to split
+--echo #
+CREATE TABLE t1 (a INT, b INT, KEY (a), KEY (a,b)) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT, KEY (c)) ENGINE=InnoDB;
+
+SELECT * FROM t1 t1a JOIN t1 t1b;
+
+INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t1 VALUES (1,2),(3,4),(5,6),(7,8),(9,10),(11,12);
+
+let $query=
+EXPLAIN
+SELECT *
+FROM
+  t1 JOIN
+  (SELECT t1.a, t1.b FROM t1, t2 WHERE t1.b = t2.c GROUP BY t1.a, t1.b) as dt
+WHERE
+  t1.a = dt.a;
+
+eval set statement optimizer_switch='split_materialized=off' for $query;
+eval set statement optimizer_switch='split_materialized=on' for  $query;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Bug mdev-25714: usage non-splitting covering index is cheaper than
+--echo #                 usage of the best splitting index for one group
+--echo #
+
+create table t1 (
+  id int not null, itemid int not null, index idx (itemid)
+) engine=innodb;
+insert into t1 values (1, 2), (2,2), (4,2), (4,2), (0,3), (3,3);
+create table t2 (id int not null) engine=innodb;
+insert into t2 values (2);
+create table t3 (
+  id int not null, itemid int not null, userid int not null, primary key (id),
+  index idx1 (userid, itemid), index idx2 (itemid)
+) engine innodb;
+insert into t3 values (1,1,1), (2,1,1), (3,2,1), (4,2,1), (5,3,1);
+set use_stat_tables='never';
+set optimizer_use_condition_selectivity=1;
+analyze table t1,t2,t3;
+
+let $q=
+select t1.id, t1.itemid, dt.id, t2.id
+  from t1,
+  (select itemid, max(id) as id from t3 where userid = 1 group by itemid) dt,
+  t2
+    where t1.id = dt.id and t1.itemid = dt.itemid and t2.id=t1.itemid;
+
+set optimizer_switch='split_materialized=on';
+eval explain $q;
+eval $q;
+
+set optimizer_switch='split_materialized=off';
+eval explain $q;
+eval $q;
+
+drop table t1,t2,t3;
+set optimizer_switch='split_materialized=default';
+set use_stat_tables=default;
+set optimizer_use_condition_selectivity=default;
+
+--echo # End of 10.3 tests

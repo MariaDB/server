@@ -1,0 +1,13 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+wsrep_debug=1
+
+[sst]
+encrypt-format=openssl
+encrypt=1
+encrypt-algo=aes-256-ctr
+encrypt-key=4FA92C5873672E20FB163A0BCB2BB4A4
+transferfmt=@ENV.MTR_GALERA_TFMT

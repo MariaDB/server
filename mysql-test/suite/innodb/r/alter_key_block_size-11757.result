@@ -1,0 +1,50 @@
+create table t1 (
+id1 bigint(20) not null,
+id2 bigint(20) not null,
+primary key (id1),
+unique key id2 (id2)
+) engine=innodb row_format=compressed key_block_size=8;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id1` bigint(20) NOT NULL,
+  `id2` bigint(20) NOT NULL,
+  PRIMARY KEY (`id1`),
+  UNIQUE KEY `id2` (`id2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8
+SET innodb_strict_mode=ON;
+alter table t1 row_format=dynamic;
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'KEY_BLOCK_SIZE'
+SET innodb_strict_mode=OFF;
+alter table t1 row_format=dynamic;
+Warnings:
+Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=8 unless ROW_FORMAT=COMPRESSED.
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id1` bigint(20) NOT NULL,
+  `id2` bigint(20) NOT NULL,
+  PRIMARY KEY (`id1`),
+  UNIQUE KEY `id2` (`id2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC KEY_BLOCK_SIZE=8
+SET innodb_strict_mode=ON;
+alter table t1 key_block_size=0;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id1` bigint(20) NOT NULL,
+  `id2` bigint(20) NOT NULL,
+  PRIMARY KEY (`id1`) KEY_BLOCK_SIZE=8,
+  UNIQUE KEY `id2` (`id2`) KEY_BLOCK_SIZE=8
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+alter table t1 drop primary key, add primary key (id1),
+drop key id2, add unique (id2);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id1` bigint(20) NOT NULL,
+  `id2` bigint(20) NOT NULL,
+  PRIMARY KEY (`id1`),
+  UNIQUE KEY `id2` (`id2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+drop table t1;

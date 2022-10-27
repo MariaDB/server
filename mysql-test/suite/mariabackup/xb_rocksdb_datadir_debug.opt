@@ -1,0 +1,1 @@
+--plugin-load=$HA_ROCKSDB_SO --loose-rocksdb-datadir=$MYSQLTEST_VARDIR/tmp/rocksdb_datadir

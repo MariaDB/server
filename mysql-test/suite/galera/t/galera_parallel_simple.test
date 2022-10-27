@@ -1,0 +1,67 @@
+#
+# Test that SHOW PROCESSLIST reports that two slave threads have been involved in applying
+# two independent transactions
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+
+CREATE TABLE t1 (id INT) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT) ENGINE=InnoDB;
+
+--connection node_2
+
+# Wait until above DDL's are replicated
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+
+SET GLOBAL wsrep_slave_threads = 2;
+
+LOCK TABLE t1 WRITE;
+
+--connection node_1
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+
+INSERT INTO t1 select * from t1;
+INSERT INTO t2 select * from t2;
+
+INSERT INTO t1 select * from t1;
+INSERT INTO t2 select * from t2;
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for table metadata lock%';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'committing%';
+--source include/wait_condition.inc
+
+UNLOCK TABLES;
+
+SET SESSION wsrep_sync_wait = 15;
+
+SELECT COUNT(*) as expect_20 FROM t1;
+SELECT COUNT(*) as expect_20 FROM t2;
+
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;
+
+DROP TABLE t1;
+DROP TABLE t2;

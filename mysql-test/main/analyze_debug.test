@@ -1,0 +1,13 @@
+
+--source include/have_debug.inc
+
+SET @save_use_stat_tables= @@use_stat_tables;
+SET use_stat_tables= PREFERABLY;
+CREATE TABLE t1 (a int);
+insert into t1 values (1),(2),(3);
+
+SET STATEMENT debug_dbug="d,fail_2call_open_only_one_table" for
+ANALYZE TABLE t1;
+
+drop table t1;
+SET use_stat_tables= @save_use_stat_tables;

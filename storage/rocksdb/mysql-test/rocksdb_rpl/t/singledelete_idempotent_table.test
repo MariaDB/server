@@ -1,0 +1,44 @@
+
+--source include/have_binlog_format_row.inc
+--source include/have_rocksdb.inc
+--source include/master-slave.inc
+#--source include/have_gtid.inc
+--source include/not_valgrind.inc
+
+# This is a test case for issue#655 -- SingleDelete on Primary Key may
+# cause extra rows than Secondary Keys
+
+connection master;
+--disable_warnings
+drop table if exists r1;
+--enable_warnings
+create table r1 (id1 int, id2 int, primary key (id1, id2), index i (id2)) engine=rocksdb;
+insert into r1 values (1, 1000);
+set sql_log_bin=0;
+delete from r1 where id1=1 and id2=1000;
+set sql_log_bin=1;
+
+sync_slave_with_master;
+connection slave;
+set global rocksdb_force_flush_memtable_now=1;
+
+connection master;
+# same key insert on slave. Since slave sets rbr_idempotent_tables, the insert
+# is converted to update with the same key. MyRocks should call SD and Put for the key
+insert into r1 values (1, 1000);
+sync_slave_with_master;
+
+connection slave;
+delete r1 from r1 force index (i) where id2=1000;
+select id1,id2 from r1 force index (primary);
+select id2 from r1 force index (i);
+set global rocksdb_compact_cf='default';
+select id1,id2 from r1 force index (primary);
+select id2 from r1 force index (i);
+
+connection master;
+drop table r1;
+
+--source include/rpl_end.inc
+
+

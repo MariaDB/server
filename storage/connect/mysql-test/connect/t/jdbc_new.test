@@ -1,0 +1,183 @@
+#
+# This test is run against a remote MySQL server
+#
+connect (master,127.0.0.1,root,,test,$MASTER_MYPORT,);
+connect (slave,127.0.0.1,root,,test,$SLAVE_MYPORT,);
+connection master;
+
+-- source windows.inc
+-- source jdbconn.inc
+
+connection slave;
+SET GLOBAL time_zone='+1:00';
+
+CREATE TABLE t1 (a int, b char(10));
+INSERT INTO t1 VALUES (NULL,NULL),(0,'test00'),(1,'test01'),(2,'test02'),(3,'test03');
+SELECT * FROM t1;
+
+--echo #
+--echo # Testing errors
+--echo #
+connection master;
+SET GLOBAL time_zone='+1:00';
+
+# Bad user name
+# Suppress "mysql_real_connect failed:" (printed in _DEBUG build)
+--replace_result $SLAVE_MYPORT SLAVE_PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=unknown';
+
+# Bad database name
+--replace_result $SLAVE_MYPORT SLAVE_PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/unknown?user=root';
+
+# Bad table name
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+--error ER_UNKNOWN_ERROR
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME='unknown'
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=root';
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t1;
+
+# Bad column name
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=JDBC
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=root';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+--error ER_GET_ERRMSG
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# The remote table disappeared
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=JDBC
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=root';
+
+connection slave;
+ALTER TABLE t1 RENAME t1backup;
+
+connection master;
+--error ER_GET_ERRMSG
+SELECT * FROM t1;
+
+connection slave;
+ALTER TABLE t1backup RENAME t1;
+
+connection master;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing SELECT, etc.
+--echo #
+
+# Automatic table structure
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=root';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# Explicit table structure
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME='t1'
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=root';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# Explicit table structure: remote NULL, local NOT NULL
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (a INT NOT NULL, b CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=JDBC
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=root';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# Explicit table structure with wrong column types
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (a char(10), b int) ENGINE=CONNECT TABLE_TYPE=JDBC
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=root';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+connection slave;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing numeric data types
+--echo #
+
+# TODO: mediumint is converted to int, float is converted to double, decimal is converted to double
+CREATE TABLE t1 (a tinyint, b smallint, c mediumint, d int, e bigint, f float, g double, h decimal(20,5));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES(100,3333,41235,1234567890,235000000000,3.14159265,3.14159265,3141.59265);
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=root';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+connection slave;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing character data types
+--echo #
+
+CREATE TABLE t1 (a char(12), b varchar(12));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES('Welcome','Hello, World');
+SELECT * FROM t1;
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=root';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+connection slave;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing temporal data types
+--echo #
+
+CREATE TABLE t1 (a date, b datetime, c time, d timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, e year);
+SHOW CREATE TABLE t1;
+INSERT IGNORE INTO t1 VALUES('2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23');
+SELECT * FROM t1;
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
+  CONNECTION='jdbc:mysql://127.0.0.1:$SLAVE_MYPORT/test?user=root';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+connection slave;
+DROP TABLE t1;
+SET GLOBAL time_zone=SYSTEM;
+
+connection master;
+SET GLOBAL time_zone=SYSTEM;
+-- source jdbconn_cleanup.inc
+

@@ -1,0 +1,48 @@
+--source include/master-slave.inc
+
+--echo # Part 1 - initial creation
+connection master;
+CREATE DATABASE db1;
+USE db1;
+CREATE TABLE t1 (val INT);
+CREATE TRIGGER val_sum BEFORE INSERT ON t1 FOR EACH ROW SET @sum = @sum + NEW.val + 1;
+SET @sum=0;
+INSERT INTO t1 VALUES (10), (20), (30);
+SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Master FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
+sync_slave_with_master;
+SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Slave FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
+
+--echo # Part 2 - CREATE IF NOT EXISTS (on a existing trigger)
+connection master;
+CREATE TRIGGER IF NOT EXISTS val_sum AFTER INSERT ON t1 FOR EACH ROW SET @sum = @sum + NEW.val + 2;
+SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Master FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
+sync_slave_with_master;
+SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Slave FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
+
+--echo # Part 3 - CREATE OR REPLACE (on a existing trigger)
+connection master;
+CREATE OR REPLACE TRIGGER val_sum BEFORE INSERT ON t1 FOR EACH ROW SET @sum = @sum + NEW.val + 3;
+SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Master FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
+sync_slave_with_master;
+SELECT ACTION_STATEMENT AS ACTION_STATEMENT_Slave FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='val_sum';
+
+--echo # Clearing up
+connection master;
+DROP TRIGGER val_sum;
+DROP TABLE t1;
+DROP TRIGGER IF EXISTS val_sum;
+
+--error ER_TRG_DOES_NOT_EXIST
+DROP TRIGGER random_trigger;
+DROP DATABASE db1;
+
+--error ER_NO_DB_ERROR
+DROP TRIGGER IF EXISTS val_sum;
+
+--echo # Syncing slave with master
+sync_slave_with_master;
+
+--error ER_TRG_DOES_NOT_EXIST
+DROP TRIGGER val_sum;
+
+--source include/rpl_end.inc

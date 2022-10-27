@@ -1,0 +1,163 @@
+############## mysql-test\t\mysql56_temporal_format_basic.test ################
+#                                                                             #
+# Variable Name: mysql56_temporal_format                                      #
+# Scope: GLOBAL                                                               #
+# Access Type: Dynamic                                                        #
+# Data Type: boolean                                                          #
+# Default Value: OFF                                                          #
+# Range:                                                                      #
+#                                                                             #
+# Creation Date: 2014-08-27                                                   #
+#                                                                             #
+# Description: Test Cases of Dynamic System Variable mysql56_temporal_format  #
+#              that checks the behavior of this variable in the following ways#
+#              * Default Value                                                #
+#              * Valid & Invalid values                                       #
+#              * Scope & Access method                                        #
+#              * Data Integrity                                               #
+#                                                                             #
+###############################################################################
+
+--source include/load_sysvars.inc
+######################################################################## 
+#                    START OF mysql56_temporal_format TESTS            #
+######################################################################## 
+
+
+###########################################################################
+# Saving initial value of mysql56_temporal_format in a temporary variable #
+###########################################################################
+
+SET @start_value = @@global.mysql56_temporal_format;
+SELECT @start_value;
+
+
+--echo '#--------------------FN_DYNVARS_030_01------------------------#'
+#############################################################
+#    Display the DEFAULT value of mysql56_temporal_format   #
+#############################################################
+
+SET @@global.mysql56_temporal_format = ON;
+SET @@global.mysql56_temporal_format = DEFAULT;
+SELECT @@global.mysql56_temporal_format;
+
+
+--echo '#---------------------FN_DYNVARS_030_02-------------------------#'
+############################################### 
+#     Verify default value of variable        #
+############################################### 
+
+SET @@global.mysql56_temporal_format = @start_value;
+SELECT @@global.mysql56_temporal_format;
+
+
+--echo '#--------------------FN_DYNVARS_030_03------------------------#'
+################################################################
+# Change the value of mysql56_temporal_format to a valid value #
+################################################################
+
+SET @@global.mysql56_temporal_format = ON;
+SELECT @@global.mysql56_temporal_format;
+SET @@global.mysql56_temporal_format = OFF;
+SELECT @@global.mysql56_temporal_format;
+SET @@global.mysql56_temporal_format = 0;
+SELECT @@global.mysql56_temporal_format;
+SET @@global.mysql56_temporal_format = 1;
+SELECT @@global.mysql56_temporal_format;
+
+
+--echo '#--------------------FN_DYNVARS_030_04-------------------------#'
+########################################################################### 
+# Change the value of mysql56_temporal_format to invalid value            #
+########################################################################### 
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = 2;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = -1;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = TRUEF;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = TRUE_F;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = FALSE0;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = OON;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = ONN;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = OOFF;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = 0FF;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = ' ';
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = " ";
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.mysql56_temporal_format = '';
+
+
+--echo '#-------------------FN_DYNVARS_030_05----------------------------#'
+########################################################################### 
+# Test if accessing session mysql56_temporal_format gives error           #
+########################################################################### 
+
+--Error ER_GLOBAL_VARIABLE
+SET @@session.mysql56_temporal_format = 1;
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.mysql56_temporal_format;
+
+
+--echo '#----------------------FN_DYNVARS_030_06------------------------#'
+####################################################################
+# Check if the value in GLOBAL Tables matches values in variable   #
+####################################################################
+
+SELECT IF(@@global.mysql56_temporal_format, "ON", "OFF") = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='mysql56_temporal_format';
+
+
+--echo '#---------------------FN_DYNVARS_030_07----------------------#'
+################################################################### 
+#      Check if TRUE and FALSE values can be used on variable     #
+################################################################### 
+
+SET @@global.mysql56_temporal_format = TRUE;
+SELECT @@global.mysql56_temporal_format;
+SET @@global.mysql56_temporal_format = FALSE;
+SELECT @@global.mysql56_temporal_format;
+
+
+--echo '#---------------------FN_DYNVARS_030_08----------------------#'
+###############################################################################
+#    Check if accessing variable without SCOPE points to same global variable #
+###############################################################################
+
+SET @@global.mysql56_temporal_format = 1;
+SELECT @@mysql56_temporal_format = @@global.mysql56_temporal_format;
+
+--echo '#---------------------FN_DYNVARS_030_09----------------------#'
+############################################################################# 
+# Check if mysql56_temporal_format can be accessed with and without @@ sign #
+#############################################################################
+
+--Error ER_GLOBAL_VARIABLE
+SET mysql56_temporal_format = 1;
+--Error ER_UNKNOWN_TABLE
+SELECT global.mysql56_temporal_format;
+--Error ER_BAD_FIELD_ERROR
+SELECT mysql56_temporal_format = @@session.mysql56_temporal_format;
+
+
+##############################  
+#   Restore initial value    #
+##############################
+
+SET @@global.mysql56_temporal_format = @start_value;
+SELECT @@global.mysql56_temporal_format;
+
+
+#############################################################
+# END OF mysql56_temporal_format TESTS                      #
+#############################################################

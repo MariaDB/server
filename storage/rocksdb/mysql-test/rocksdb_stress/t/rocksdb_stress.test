@@ -1,0 +1,33 @@
+# basic stress tests for myrocks, just runs the load generator without any crashes
+
+# Don't test this under valgrind, memory leaks will occur
+--disable_warnings
+--source include/not_valgrind.inc
+--source include/have_rocksdb.inc
+--source include/master-slave.inc
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+# create the actual table
+CREATE TABLE t1(id INT PRIMARY KEY,
+               thread_id INT NOT NULL,
+               request_id BIGINT UNSIGNED NOT NULL,
+               update_count INT UNSIGNED NOT NULL DEFAULT 0,
+               zero_sum INT DEFAULT 0,
+               msg VARCHAR(1024),
+               msg_length int,
+               msg_checksum varchar(128),
+               auto_inc BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+               KEY(auto_inc),
+               KEY msg_i(msg(255), zero_sum))
+ENGINE=RocksDB DEFAULT CHARSET=latin1 COLLATE=latin1_bin;
+
+--let $table = t1
+--let $num_loaders = 8
+--let $num_checkers = 2
+--let $num_records = 200
+--let $max_records = 100000
+--let $num_requests = 10000
+--let $reap_delay = 0
+
+--source include/rocksdb_stress.inc

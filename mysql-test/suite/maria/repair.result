@@ -1,0 +1,40 @@
+CREATE TABLE t1 (i INT) ENGINE=Aria TRANSACTIONAL=1;
+INSERT t1 VALUES (1);
+LOCK TABLE t1 WRITE;
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+SELECT * FROM INFORMATION_SCHEMA.TABLES;
+SELECT * FROM t1;
+i
+1
+UNLOCK TABLES;
+DROP TABLE t1;
+CREATE TABLE t1 (i INT) ENGINE=Aria TRANSACTIONAL=1;
+INSERT t1 VALUES (1);
+LOCK TABLE t1 WRITE;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+SELECT * FROM INFORMATION_SCHEMA.TABLES;
+SELECT * FROM t1;
+i
+1
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# MDEV-23824 SIGSEGV in end_io_cache on REPAIR LOCAL TABLE for Aria table
+#
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1);
+SET max_session_mem_used=50000;
+REPAIR LOCAL TABLE t1 USE_FRM;
+Table	Op	Msg_type	Msg_text
+t1	repair	error	Failed to open partially repaired table
+Warnings:
+Error	1290	The MariaDB server is running with the --max-thread-mem-used=50000 option so it cannot execute this statement
+REPAIR LOCAL TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	Error	The MariaDB server is running with the --max-thread-mem-used=50000 option so it cannot execute this statement
+test.t1	repair	error	Corrupt
+DROP TABLE t1;

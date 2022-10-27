@@ -1,0 +1,14 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(1024);
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+SET @start_global_value = @@global.ROCKSDB_CREATE_MISSING_COLUMN_FAMILIES;
+SELECT @start_global_value;
+@start_global_value
+0
+"Trying to set variable @@global.ROCKSDB_CREATE_MISSING_COLUMN_FAMILIES to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_CREATE_MISSING_COLUMN_FAMILIES   = 444;
+ERROR HY000: Variable 'rocksdb_create_missing_column_families' is a read only variable
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

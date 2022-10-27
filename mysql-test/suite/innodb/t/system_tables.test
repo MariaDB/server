@@ -1,0 +1,12 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-10775 System table in InnoDB format allowed in MariaDB could lead to crash
+#
+alter table mysql.time_zone_name engine=InnoDB;
+create table envois3 (starttime datetime) engine=InnoDB;
+insert envois3 values ('2008-08-11 22:43:00');
+--source include/restart_mysqld.inc
+select convert_tz(starttime,'UTC','Europe/Moscow') starttime from envois3;
+drop table envois3;
+alter table mysql.time_zone_name engine=Aria;

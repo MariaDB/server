@@ -1,0 +1,60 @@
+#
+# Test the case where a duplicate key error happens in the middle of an SR transaction
+#
+
+--source include/galera_cluster.inc
+
+CREATE TABLE t1 (f1 BLOB) ENGINE=InnoDB;
+CREATE UNIQUE INDEX i1 ON t1 (f1(512));
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+SET SESSION wsrep_trx_fragment_size = 1024;
+
+INSERT INTO t1 VALUES (REPEAT('a', 512));
+INSERT INTO t1 VALUES (REPEAT('b', 512));
+INSERT INTO t1 VALUES (REPEAT('c', 512));
+INSERT INTO t1 VALUES (REPEAT('d', 512));
+INSERT INTO t1 VALUES (REPEAT('e', 512));
+INSERT INTO t1 VALUES (REPEAT('f', 512));
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+# Deadlock error instead of dupkey since the transaction is SR,
+# and the statement has already replicated a fragment (which
+# makes statement rollback unsafe).
+--error ER_LOCK_DEADLOCK
+INSERT INTO t1 VALUES (REPEAT('g', 1024)),(REPEAT('c', 512));
+
+# Confirm that the wsrep_schema table is now empty, as it was a full transaction rollback
+
+--connection node_1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--connection node_2
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+# Confirm that the transaction can be restarted on either node
+
+--connection node_1
+INSERT INTO t1 VALUES (REPEAT('d', 512));
+INSERT INTO t1 VALUES (REPEAT('e', 512));
+INSERT INTO t1 VALUES (REPEAT('f', 512));
+COMMIT;
+
+--connection node_2
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (REPEAT('a', 512));
+INSERT INTO t1 VALUES (REPEAT('b', 512));
+INSERT INTO t1 VALUES (REPEAT('c', 512));
+COMMIT;
+
+--connection node_1
+SELECT COUNT(*) = 6 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 6 FROM t1;
+
+DROP TABLE t1;

@@ -1,0 +1,208 @@
+--source include/innodb_page_size.inc
+--source include/have_partition.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
+
+#
+# MMDEV-8386: MariaDB creates very big tmp file and hangs on xtradb
+#
+drop database if exists moodle19;
+create database moodle19;
+use moodle19;
+
+CREATE TABLE `mdl_course_modules` (
+  `id` bigint(10) NOT NULL AUTO_INCREMENT,
+  `course` bigint(10) NOT NULL DEFAULT '0',
+  `module` bigint(10) NOT NULL DEFAULT '0',
+  `instance` bigint(10) NOT NULL DEFAULT '0',
+  `section` bigint(10) NOT NULL DEFAULT '0',
+  `idnumber` varchar(100) DEFAULT NULL,
+  `added` bigint(10) NOT NULL DEFAULT '0',
+  `delay` varchar(10) NOT NULL DEFAULT '0',
+  `score` smallint(4) NOT NULL DEFAULT '0',
+  `indent` mediumint(5) NOT NULL DEFAULT '0',
+  `visible` tinyint(1) NOT NULL DEFAULT '1',
+  `checkboxesforprereqs` tinyint(1) NOT NULL DEFAULT '0',
+  `stylewhencomplete` varchar(200) DEFAULT '',
+  `checkboxforcomplete` tinyint(1) NOT NULL DEFAULT '0',
+  `stylewhenlocked` varchar(200) DEFAULT 'locked',
+  `visiblewhenlocked` tinyint(1) NOT NULL DEFAULT '1',
+  `visibleold` tinyint(1) NOT NULL DEFAULT '1',
+  `groupmode` smallint(4) NOT NULL DEFAULT '0',
+  `groupingid` bigint(10) NOT NULL DEFAULT '0',
+  `groupmembersonly` smallint(4) NOT NULL DEFAULT '0',
+  `completion` tinyint(1) NOT NULL DEFAULT '0',
+  `completiongradeitemnumber` bigint(10) DEFAULT NULL,
+  `completionview` tinyint(1) NOT NULL DEFAULT '0',
+  `completionexpected` bigint(10) NOT NULL DEFAULT '0',
+  `availablefrom` bigint(10) NOT NULL DEFAULT '0',
+  `availableuntil` bigint(10) NOT NULL DEFAULT '0',
+  `showavailability` tinyint(1) NOT NULL DEFAULT '0',
+  `showdescription` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `mdl_courmodu_vis_ix` (`visible`),
+  KEY `mdl_courmodu_cou_ix` (`course`),
+  KEY `mdl_courmodu_mod_ix` (`module`),
+  KEY `mdl_courmodu_ins_ix` (`instance`),
+  KEY `mdl_courmodu_idncou_ix` (`idnumber`,`course`),
+  KEY `mdl_courmodu_gro_ix` (`groupingid`)
+) ENGINE=InnoDB AUTO_INCREMENT=447023 DEFAULT CHARSET=utf8 COMMENT='course_modules table retrofitted from MySQL';
+
+let $num= 2701;
+--disable_query_log
+--echo # Inserting $num rows into the table...
+while ($num) 
+{
+  eval INSERT INTO mdl_course_modules VALUES ($num,4,5,5,24,NULL,1141569781,'',0,0,1,0,'',0,'locked',1,1,0,0,0,0,NULL,0,0,0,0,0,0);
+  dec $num;
+}
+--enable_query_log
+ALTER TABLE moodle19.mdl_course_modules ADD stefantest LONGTEXT CHARACTER SET utf8 COLLATE utf8_general_ci AFTER showdescription;
+
+drop database moodle19;
+
+#
+# Mdev-9469: Incorrect key file on alter table
+#
+use test;
+
+CREATE TABLE `w_findispmon05u` (
+`atpkey` INT(11) NOT NULL DEFAULT '0',
+`atzo05` INT(11) NULL DEFAULT NULL,
+`pos` BIGINT(21) NULL DEFAULT NULL,
+`f5BnvB` INT(9) NULL DEFAULT NULL,
+`f5atbvb` INT(11) NULL DEFAULT NULL,
+`f5atbwmg` INT(11) NULL DEFAULT NULL,
+`f5pBneu` BIGINT(12) NULL DEFAULT NULL,
+`atbwdt` INT(11) NULL DEFAULT NULL,
+`atbwzt` INT(11) NULL DEFAULT NULL,
+`atbart` VARCHAR(10) NULL DEFAULT NULL
+)
+COLLATE='utf8_general_ci'
+ENGINE=InnoDB;
+ALTER TABLE `w_findispmon05u`
+CHANGE COLUMN `atpkey` `f5atpkey` INT(11) NOT NULL DEFAULT '0' FIRST,
+CHANGE COLUMN `atzo05` `f5atzo05` INT(11) NULL DEFAULT NULL AFTER `f5atpkey`,
+CHANGE COLUMN `atbwdt` `f5atbwdt` INT(11) NULL DEFAULT NULL AFTER `f5pBneu`,
+CHANGE COLUMN `atbwzt` `f5atbwzt` INT(11) NULL DEFAULT NULL AFTER `f5atbwdt`,
+CHANGE COLUMN `atbart` `f5atbart` VARCHAR(10) NULL DEFAULT NULL AFTER `f5atbwzt`,
+ADD INDEX `atpkey` (`f5atpkey`),
+ADD INDEX `inatkey` (`f5atzo05`, `pos`),
+ADD INDEX `pos` (`pos`, `f5atzo05`);
+
+SHOW WARNINGS;
+SHOW CREATE TABLE `w_findispmon05u`;
+
+DROP TABLE `w_findispmon05u`;
+
+CREATE TABLE t (
+        a INT NOT NULL,
+        b INT NOT NULL,
+        PRIMARY KEY (a)
+) ENGINE=INNODB;
+
+ALTER TABLE t
+        CHANGE COLUMN b c INT NOT NULL,
+        ADD UNIQUE INDEX (c);
+
+SHOW WARNINGS;
+SHOW CREATE TABLE t;
+
+# this should fail
+--error 1072
+ALTER TABLE t
+        CHANGE COLUMN c b INT NOT NULL,
+        ADD UNIQUE INDEX (c);
+
+DROP TABLE t;
+
+#
+# Check Foreign Keys
+#
+CREATE TABLE parent (
+        a INT NOT NULL,
+        b INT NOT NULL,
+        PRIMARY KEY (a)
+) ENGINE=INNODB;
+
+CREATE TABLE child (
+        a INT NOT NULL,
+        b INT NOT NULL,
+        PRIMARY KEY (a)
+) ENGINE=INNODB;
+
+ALTER TABLE child
+        CHANGE COLUMN b c INT NOT NULL,
+        ADD FOREIGN KEY (c) REFERENCES parent(a);
+
+SHOW WARNINGS;
+
+SHOW CREATE TABLE child;
+
+DROP TABLE child, parent;
+
+#
+# MDEV-10535: ALTER TABLE causes standalone/wsrep cluster crash
+#
+CREATE TABLE IF NOT EXISTS ticket (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    mask VARCHAR(16) DEFAULT '' NOT NULL,
+    subject VARCHAR(255)  DEFAULT '' NOT NULL,
+    is_closed TINYINT(1) UNSIGNED DEFAULT 0 NOT NULL,
+    is_deleted TINYINT(1) UNSIGNED DEFAULT 0 NOT NULL,
+    team_id INT UNSIGNED DEFAULT 0 NOT NULL,
+    category_id INT UNSIGNED DEFAULT 0 NOT NULL,
+    first_message_id INT UNSIGNED DEFAULT 0 NOT NULL,
+    created_date INT UNSIGNED,
+    updated_date INT UNSIGNED,
+    due_date INT UNSIGNED,
+    first_wrote_address_id INT UNSIGNED NOT NULL DEFAULT 0,
+    last_wrote_address_id INT UNSIGNED NOT NULL DEFAULT 0,
+    spam_score DECIMAL(4,4) NOT NULL DEFAULT 0,
+    spam_training VARCHAR(1) NOT NULL DEFAULT '',
+    interesting_words VARCHAR(255) NOT NULL DEFAULT '',
+    next_action VARCHAR(255) NOT NULL DEFAULT '',
+    PRIMARY KEY (id)
+) ENGINE=InnoDB;
+ 
+ALTER TABLE ticket 
+    CHANGE COLUMN team_id group_id INT UNSIGNED NOT NULL DEFAULT 0,
+    CHANGE COLUMN category_id bucket_id INT UNSIGNED NOT NULL DEFAULT 0,
+    ADD COLUMN org_id INT UNSIGNED NOT NULL DEFAULT 0, 
+    ADD INDEX org_id (org_id);
+
+SHOW CREATE TABLE ticket;
+
+DROP TABLE ticket;
+
+#
+# MDEV-13838: Wrong result after altering a partitioned table
+#
+
+CREATE TABLE t (
+id bigint(20) unsigned NOT NULL auto_increment,
+d date NOT NULL, 
+a bigint(20) unsigned NOT NULL,
+b smallint(5) unsigned DEFAULT NULL,
+PRIMARY KEY (id,d)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_general_cs STATS_SAMPLE_PAGES=2
+PARTITION BY RANGE COLUMNS(d)
+(
+PARTITION p20170914 VALUES LESS THAN ('2017-09-15') ENGINE = InnoDB,
+PARTITION p99991231 VALUES LESS THAN (MAXVALUE) ENGINE = InnoDB);
+
+insert into t(d,a,b) values ('2017-09-15',rand()*10000,rand()*10);
+insert into t(d,a,b) values ('2017-09-15',rand()*10000,rand()*10);
+
+replace into t(d,a,b) select '2017-09-15',rand()*10000,rand()*10 from t t1, t t2, t t3, t t4;
+
+select count(*) from t where d ='2017-09-15';
+
+ALTER TABLE t CHANGE b c smallint(5) unsigned , ADD KEY idx_d_a (d, a);
+SHOW CREATE TABLE t;
+analyze table t;
+
+select count(*) from t where d ='2017-09-15';
+select count(*) from t force index(primary) where d ='2017-09-15';
+
+DROP TABLE t;

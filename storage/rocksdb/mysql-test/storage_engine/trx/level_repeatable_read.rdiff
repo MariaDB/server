@@ -1,0 +1,35 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/level_repeatable_read.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/level_repeatable_read.reject	2017-06-22 20:33:13.935543284 +0300
+@@ -24,8 +24,7 @@
+ SELECT a FROM t1;
+ a
+ INSERT INTO t1 (a) SELECT a+100 FROM t1;
+-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+-# WARNING: Statement ended with errno 1205, errname 'ER_LOCK_WAIT_TIMEOUT'. 
++# WARNING: Statement ended with errno 0, errname ''. 
+ #          If it differs from the result file, it might indicate a problem.
+ SELECT a FROM t1;
+ a
+@@ -47,22 +46,16 @@
+ #          If it differs from the result file, it might indicate a problem.
+ SELECT a FROM t1;
+ a
+-201
+-202
+ COMMIT;
+ SELECT a FROM t1;
+ a
+ 1
+ 2
+-201
+-202
+ connection con2;
+ SELECT a FROM t1;
+ a
+ 1
+ 2
+-201
+-202
+ connection default;
+ disconnect con1;
+ disconnect con2;

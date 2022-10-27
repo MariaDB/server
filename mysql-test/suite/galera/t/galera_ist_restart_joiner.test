@@ -1,0 +1,111 @@
+#
+# Test that a joiner performing IST can be killed and restarted with no adverse consequences.
+# This is achieved by using the recv_IST_after_apply_trx Galera dbug sync point to block IST after 
+# one transaction has been applied. When IST blocks, we kill and restart the joiner
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+# This could cause out of storage if run /dev/shm
+--source include/big_test.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a'), (3, 'a'), (4, 'a'), (5, 'a'),(6, 'a');
+
+# Disconnect node #2
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+--source suite/galera/include/galera_stop_replication.inc
+
+--connection node_1
+UPDATE t1 SET f2 = 'b' WHERE f1 > 1;
+
+# Wait until node #1 has left
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
+
+--connection node_2
+# Write file to make mysql-test-run.pl expect the crash, but don't start it
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--exec echo "wait" > $_expect_file_name
+
+--let KILL_NODE_PIDFILE = `SELECT @@pid_file`
+
+# ... and restart provider to force IST
+--echo Loading wsrep_provider ...
+--disable_query_log
+# Make sure IST will block ...
+--let $galera_sync_point = recv_IST_after_apply_trx
+--source include/galera_set_sync_point.inc
+--eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig';
+--enable_query_log
+
+SET SESSION wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'recv_IST_after_apply_trx' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
+--source include/wait_condition.inc
+SET SESSION wsrep_on=ON;
+
+--connection node_1
+# Perform DML while IST is in progress
+UPDATE t1 SET f2 = 'd' WHERE f1 > 3;
+
+# Kill node #2 while IST is in progress
+--connection node_2
+
+# Kill the connected server
+--disable_reconnect
+
+--perl
+        my $pid_filename = $ENV{'KILL_NODE_PIDFILE'};
+        my $mysqld_pid = `cat $pid_filename`;
+        chomp($mysqld_pid);
+        system("kill -9 $mysqld_pid");
+        exit(0);
+EOF
+
+--source include/wait_until_disconnected.inc
+
+--connection node_1
+--source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Perform DML while node #2 is down
+UPDATE t1 SET f2 = 'e' WHERE f1 > 4;
+
+--connection node_2
+
+--let $galera_wsrep_recover_server_id=2
+--source suite/galera/include/galera_wsrep_recover.inc
+
+--echo Starting server ...
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_1
+UPDATE t1 SET f2 = 'f' WHERE f1 > 5;
+SELECT * FROM t1;
+
+--connection node_2
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc
+

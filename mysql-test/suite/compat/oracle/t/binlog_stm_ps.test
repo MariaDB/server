@@ -1,0 +1,57 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10801 sql_mode: dynamic SQL placeholders
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+SET @a=10, @b=20;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (?,?)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:a,:b)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:aaa,:bbb)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:"a",:"b")';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:"aaa",:"bbb")';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:1,:2)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:222,:111)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:0,:65535)';
+EXECUTE stmt USING @a, @b;
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (:65535,:0)';
+EXECUTE stmt USING @a, @b;
+SELECT * FROM t1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-16095 Oracle-style placeholder inside GROUP BY..WITH ROLLUP breaks replication
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1985-05-13'),('1989-12-24');
+CREATE TABLE t2 (d DATE, c BIGINT);
+DELIMITER $$;
+BEGIN
+  EXECUTE IMMEDIATE 'INSERT INTO t2 SELECT d, COUNT(*) FROM t1 GROUP BY d, :param' USING 1;
+  EXECUTE IMMEDIATE 'INSERT INTO t2 SELECT d, COUNT(*) FROM t1 GROUP BY d, :param WITH ROLLUP' USING 1;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1,t2;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

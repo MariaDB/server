@@ -1,0 +1,53 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+
+CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES('test');
+CREATE DATABASE db;
+
+--connection node_2
+--let $expected_position_uuid = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_uuid'`
+--let $expected_position_seqno = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--let $expected_position = $expected_position_uuid:$expected_position_seqno
+
+--echo Shutting down server 2 ...
+--source include/shutdown_mysqld.inc
+
+--echo Recovering server 2 ...
+--let $galera_wsrep_recover_server_id=2
+--source suite/galera/include/galera_wsrep_recover.inc
+
+if ($galera_wsrep_start_position != $expected_position)
+{
+  die(Expected position: $expected_position, found $galera_wsrep_start_position);
+}
+
+--echo Restarting server ...
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--source include/wait_until_ready.inc
+
+--connection node_1
+DROP TABLE t1;
+DROP DATABASE db;
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--source include/wait_until_connected_again.inc
+
+# Restore original auto_increment_offset values.
+--let $node_2=node_2a
+--source include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc
+
+

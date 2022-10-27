@@ -1,0 +1,7 @@
+source include/have_tokudb.inc;
+# Tokutek
+# Test that the default storage engine is TokuDB
+
+SELECT @@global.default_storage_engine;
+SELECT @@session.default_storage_engine;
+

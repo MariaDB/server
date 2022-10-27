@@ -1,0 +1,13 @@
+###################################
+# Wrapper for rpl_row_log.test    #
+# Added wrapper so that MyISAM &  #
+# Innodb         could all use the#
+# Same test.
+###################################
+-- source include/have_binlog_format_row.inc
+-- source include/have_innodb.inc
+-- source include/master-slave.inc
+let $engine_type=InnoDB;
+-- source include/rpl_log.test
+
+--source include/rpl_end.inc

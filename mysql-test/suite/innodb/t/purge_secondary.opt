@@ -1,0 +1,3 @@
+--innodb-sys-tablestats
+--innodb_buffer_pool_size=5M
+--innodb_monitor_enable=module_buffer

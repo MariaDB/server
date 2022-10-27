@@ -1,0 +1,85 @@
+--source include/not_embedded.inc
+--source have_federatedx.inc
+--source suite/versioning/engines.inc
+--source suite/versioning/common.inc
+
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t1 (
+  x int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval create or replace table tf engine=FEDERATED connection='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t1';
+--replace_result $MASTER_MYPORT MASTER_MYPORT $sys_datatype_expl SYS_TYPE 19710101000000 "'1971-01-01 00:00:00.000000'" " NOT NULL" ""
+show create table tf;
+--echo # INSERT
+insert into t1 values (1);
+select * from tf;
+insert into tf (x) values (2);
+select * from t1;
+select * from tf;
+
+--echo # UPDATE
+update tf set x= x + 2;
+select *, check_row(row_start, row_end) from t1 for system_time all
+order by x;
+
+--echo # DELETE
+delete from tf;
+select *, check_row(row_start, row_end) from t1 for system_time all
+order by x;
+select * from tf;
+
+--echo # MDEV-15966: Behavior for TRUNCATE versioned table is not documented
+--echo # and not covered by tests
+--echo # As of standard, TRUNCATE on versioned tables is forbidden
+--error ER_GET_ERRMSG
+truncate tf;
+
+delete history from t1;
+select * from t1 for system_time all;
+
+--echo # REPLACE
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t2 (
+  id int primary key, y int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval create or replace table t2f engine=FEDERATED connection='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t2';
+insert t2f (id, y) values (1, 2);
+replace t2f (id, y) values (1, 3);
+select *, check_row(row_start, row_end) from t2 for system_time all
+order by y;
+
+--echo # VIEW
+create or replace view vt1 as select * from tf;
+insert into vt1 values (3);
+update vt1 set x= x + 1;
+select *, check_row(row_start, row_end) from t1 for system_time all
+order by x;
+delete from vt1;
+select *, check_row(row_start, row_end) from t1 for system_time all
+order by x;
+
+--echo # multi-UPDATE
+delete from t1;
+delete history from t1;
+delete from t2;
+delete history from t2;
+insert into t1 values (1);
+insert into t2 values (2, 2);
+update tf, t2f set tf.x= 11, t2f.y= 22;
+select *, check_row(row_start, row_end) from t1 for system_time all
+order by x;
+select *, check_row(row_start, row_end) from t2 for system_time all
+order by y;
+
+drop view vt1;
+drop tables t1, t2, t2f, tf;
+
+--source suite/versioning/common_finish.inc

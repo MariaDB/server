@@ -1,0 +1,5 @@
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+SELECT GET_LOCK('LOCK1',0);
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;
+SELECT RELEASE_LOCK('LOCK1');
+SELECT lock_mode, lock_duration, lock_type, table_schema, table_name FROM information_schema.metadata_lock_info;

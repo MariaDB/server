@@ -1,0 +1,172 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int);
+create table t2 (c1 int);
+create table t3 (c1 int);
+drop table t1,t2,t3;
+create table t1 (c1 int, c2 int, c3 int);
+create table t2 (c1 int primary key, c2 int, c3 int);
+drop table t1,t2;
+create table t1 (c1 bit);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	bit(1)	YES		NULL	
+drop table t1;
+create table t1 (c1 tinyint);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	tinyint(4)	YES		NULL	
+drop table t1;
+create table t1 (c1 smallint);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	smallint(6)	YES		NULL	
+drop table t1;
+create table t1 (c1 mediumint);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	mediumint(9)	YES		NULL	
+drop table t1;
+create table t1 (c1 int);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	int(11)	YES		NULL	
+drop table t1;
+create table t1 (c1 bigint);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	bigint(20)	YES		NULL	
+drop table t1;
+create table t1 (c1 double);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	double	YES		NULL	
+drop table t1;
+create table t1 (c1 float);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	float	YES		NULL	
+drop table t1;
+create table t1 (c1 decimal);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	decimal(10,0)	YES		NULL	
+drop table t1;
+create table t1 (c1 date);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	date	YES		NULL	
+drop table t1;
+create table t1 (c1 time);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	time	YES		NULL	
+drop table t1;
+create table t1 (c1 timestamp);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	timestamp	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+drop table t1;
+create table t1 (c1 datetime);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	datetime	YES		NULL	
+drop table t1;
+create table t1 (c1 year);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	year(4)	YES		NULL	
+drop table t1;
+create table t1 (c1 char(10));
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	char(10)	YES		NULL	
+drop table t1;
+create table t1 (c1 varchar(10));
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	varchar(10)	YES		NULL	
+drop table t1;
+create table t1 (c1 binary(10));
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	binary(10)	YES		NULL	
+drop table t1;
+create table t1 (c1 varbinary(10));
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	varbinary(10)	YES		NULL	
+drop table t1;
+create table t1 (c1 tinyblob);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	tinyblob	YES		NULL	
+drop table t1;
+create table t1 (c1 blob);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	blob	YES		NULL	
+drop table t1;
+create table t1 (c1 mediumblob);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	mediumblob	YES		NULL	
+drop table t1;
+create table t1 (c1 longblob);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	longblob	YES		NULL	
+drop table t1;
+create table t1 (c1 tinytext);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	tinytext	YES		NULL	
+drop table t1;
+create table t1 (c1 text);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	text	YES		NULL	
+drop table t1;
+create table t1 (c1 mediumtext);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	mediumtext	YES		NULL	
+drop table t1;
+create table t1 (c1 longtext);
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	longtext	YES		NULL	
+drop table t1;
+create table t1 (c1 enum("yes","no"));
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	enum('yes','no')	YES		NULL	
+drop table t1;
+create table t1 (c1 set("A","B","AB","O"));
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	set('A','B','AB','O')	YES		NULL	
+drop table t1;
+create table t1 (c1 int, `_id` int) engine = mroonga;
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	int(11)	YES		NULL	
+_id	int(11)	YES		NULL	
+drop table t1;
+create table t1 (c1 int, `_score` float) engine = mroonga;
+ERROR HY000: [column][create] name can't start with '_' and contains only 0-9, A-Z, a-z, #, @, - or _: <_score>
+create table t1 (c1 int, `_id` text) engine = mroonga;
+ERROR HY000: _id must be numeric data type
+create table t1 (c1 int, `_id` int, index(`_id`)) engine = mroonga;
+ERROR HY000: only hash index can be defined for _id
+create table t1 (_id int, c1 int, primary key (_id));
+ERROR HY000: only hash index can be defined for _id
+create table t1 (_id int, c1 int, primary key (_id) using hash);
+drop table t1;
+create table t1 (_id int, c1 int, unique key (_id));
+ERROR HY000: only hash index can be defined for _id
+create table t1 (_id int, c1 int, unique key (_id) using hash);
+drop table t1;
+create table t1 (_id int, c1 int, key (_id));
+ERROR HY000: only hash index can be defined for _id
+create table t1 (_id int, c1 int, key (_id) using hash);
+drop table t1;

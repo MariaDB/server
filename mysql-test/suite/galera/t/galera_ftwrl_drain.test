@@ -1,0 +1,69 @@
+#
+# Test the following sequence of events:
+#
+# 1. issue a remote transaction
+# 2. applier is blocked from applying the transaction locally using apply_monitor_slave_enter_sync
+# 3. FTWRL is issued and blocks in ApplyOrder>::drain_common
+# 4. applier is unblocked
+# 5. remote transaction is applied
+# 6. FTWRL is granted
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_2
+
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+
+# Wait until applier has blocked
+--source include/galera_wait_sync_point.inc
+
+SELECT COUNT(*) = 0 FROM t1;
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--send FLUSH TABLES WITH READ LOCK;
+
+--connection node_2
+--sleep 1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Init' AND INFO = 'FLUSH TABLES WITH READ LOCK'
+--source include/wait_condition.inc
+
+--source include/galera_clear_sync_point.inc
+--source include/galera_signal_sync_point.inc
+
+--connection node_2a
+--reap
+
+--connection node_2
+
+SET SESSION lock_wait_timeout = 1;
+SET SESSION innodb_lock_wait_timeout=1;
+SET SESSION wait_timeout=1;
+
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1 VALUES (2);
+
+--connection node_2a
+UNLOCK TABLES;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+INSERT INTO t1 VALUES (3);
+
+--connection node_1
+SELECT COUNT(*) = 2 FROM t1;
+DROP TABLE t1;

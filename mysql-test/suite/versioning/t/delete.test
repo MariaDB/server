@@ -1,0 +1,112 @@
+source suite/versioning/engines.inc;
+source suite/versioning/common.inc;
+
+--echo # Basic + delete from view
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create or replace table t1(
+    XNo int unsigned,
+    sys_start $sys_datatype_expl as row start invisible,
+    sys_end $sys_datatype_expl as row end invisible,
+    period for system_time (sys_start, sys_end))
+  with system versioning;
+
+insert into t1(XNo) values(0);
+insert into t1(XNo) values(1);
+insert into t1(XNo) values(2);
+insert into t1(XNo) values(3);
+insert into t1(XNo) values(4);
+insert into t1(XNo) values(5);
+insert into t1(XNo) values(6);
+insert into t1(XNo) values(7);
+insert into t1(XNo) values(8);
+insert into t1(XNo) values(9);
+replace_result $sys_datatype_max MAXVAL;
+eval select XNo, sys_end < $sys_datatype_max from t1 for system_time all;
+delete from t1 where XNo = 0;
+delete from t1 where XNo = 1;
+delete from t1 where XNo > 5;
+create view vt1 as select XNo from t1;
+select XNo as XNo_vt1 from vt1;
+delete from vt1 where XNo = 3;
+select XNo as XNo_vt1 from vt1;
+drop view vt1;
+drop table t1;
+
+--echo # Check sys_start, sys_end
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create or replace table t1(
+    x int,
+    sys_start $sys_datatype_expl as row start invisible,
+    sys_end $sys_datatype_expl as row end invisible,
+    period for system_time (sys_start, sys_end))
+  with system versioning;
+
+insert into t1(x) values (1);
+select sys_start into @sys_start from t1;
+delete from t1;
+select * from t1;
+select x = 1 as A, sys_start = @sys_start as B, sys_end > sys_start as C from t1 for system_time all;
+drop table t1;
+
+--echo # Multi-delete
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create or replace table t1(
+    x int,
+    y int,
+    sys_start $sys_datatype_expl as row start invisible,
+    sys_end $sys_datatype_expl as row end invisible,
+    period for system_time (sys_start, sys_end))
+  with system versioning;
+create or replace table t2 like t1;
+insert into t1(x, y) values (1, 1), (2, 2), (3, 3), (14, 4);
+insert into t2(x, y) values (11, 1), (12, 2), (13, 32), (14, 4);
+delete t1, t2 from t1 join t2 where t1.y = 3 and t2.y = 32;
+select x as t1_x from t1;
+select x as t2_x from t2;
+delete t1, t2 from t1 join t2 where t1.x = t2.x;
+select x as t1_x from t1;
+select x as t2_x from t2;
+select x as t1_x_all from t1 for system_time all;
+select x as t2_x_all from t2 for system_time all;
+drop table t1;
+drop table t2;
+
+--echo # Update + delete
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+update t1 set x= 2;
+delete from t1;
+select x from t1 for system_time all;
+drop table t1;
+
+--echo #
+--echo # MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+--echo #
+create or replace table t1 (a int) with system versioning;
+replace into t1 values (1), (2);
+create or replace trigger tr before delete on t1 for each row delete from xx;
+create or replace procedure pr() delete from t1;
+--error ER_NO_SUCH_TABLE
+call pr;
+--error ER_NO_SUCH_TABLE
+call pr;
+drop procedure pr;
+drop trigger tr;
+drop table t1;
+
+--echo #
+--echo # MDEV-21138 Assertion `col->ord_part' or `f.col->ord_part' failed in row_build_index_entry_low
+--echo #
+create table t1 (
+  f1 int, f2 text, f3 int, fulltext (f2), key(f1), key(f3),
+  foreign key r (f3) references t1 (f1) on delete set null)
+with system versioning engine innodb;
+insert into t1 values (1, repeat('a', 8193), 1), (1, repeat('b', 8193), 1);
+select f1, f3, check_row_ts(row_start, row_end) from t1;
+delete from t1;
+select f1, f3, check_row_ts(row_start, row_end) from t1 for system_time all;
+
+# cleanup
+drop table t1;
+
+--source suite/versioning/common_finish.inc

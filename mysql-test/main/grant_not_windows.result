@@ -1,0 +1,8 @@
+set names utf8;
+create user юзер_юзер@localhost;
+grant select on test.* to юзер_юзер@localhost;
+user()
+юзер_юзер@localhost
+revoke all on test.* from юзер_юзер@localhost;
+drop user юзер_юзер@localhost;
+set names default;

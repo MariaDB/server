@@ -1,0 +1,135 @@
+-- source include/have_innodb.inc
+-- source include/have_file_key_management_plugin.inc
+# test uses restart
+-- source include/not_embedded.inc
+
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
+CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB;
+CREATE TABLE t3 (id INT, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
+CREATE TABLE t4 (id INT, a VARCHAR(255)) engine=InnoDB;
+CREATE TABLE t5 (id INT NOT NULL PRIMARY KEY, a TEXT(500), b VARCHAR(255), FULLTEXT(b)) ENGINE=InnoDB encrypted=yes;
+CREATE TABLE t6 (id INT, a TEXT(500), b VARCHAR(255), FULLTEXT(b)) ENGINE=InnoDB;
+CREATE TABLE t7 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB row_format=compressed encrypted=yes;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into t1 values (current_num,repeat('foobar',12));
+    insert into t2 values (current_num,repeat('tempsecret', 12));
+    insert into t3 values (current_num,repeat('barfoo',42));
+    insert into t4 values (current_num,repeat('repeat',42));
+    insert into t5 values (current_num,substring('A BC DEF GHIJ KLM NOPQRS TUV WXYZ 012 3456789', rand()*36+1, 100), repeat('author new',22));
+    insert into t6 values (current_num,substring('A BC DEF GHIJ KLM NOPQRS TUV WXYZ 012 3456789', rand()*36+1, 100), repeat('mangled old',22));
+    insert into t7 values (current_num,repeat('mysql',42));
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(1500);
+commit;
+set autocommit=1;
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+--source include/wait_condition.inc
+--let $MYSQLD_DATADIR=`select @@datadir`
+
+--source include/shutdown_mysqld.inc
+
+--let SEARCH_RANGE = 10000000
+--let SEARCH_PATTERN=foobar
+--echo # t1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t1.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=tempsecret
+--echo # t2 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t2.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=barfoo
+--echo # t3 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t3.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=repeat
+--echo # t4 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t4.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=author
+--echo # t5 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t5.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=mangled
+--echo # t6 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t6.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=mysql
+--echo # t7 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t7.ibd
+-- source include/search_pattern_in_file.inc
+
+-- source include/start_mysqld.inc
+
+SET GLOBAL innodb_file_per_table = ON;
+
+ALTER TABLE t1 ADD COLUMN b int default 2;
+ALTER TABLE t2 ADD COLUMN b int default 2;
+ALTER TABLE t7 ADD COLUMN b int default 2;
+ALTER TABLE t1 ADD KEY a(a), ADD KEY b(b);
+ALTER TABLE t2 ADD KEY a(a), ADD KEY b(b);
+ALTER TABLE t3 ADD COLUMN c int default 5;
+ALTER TABLE t4 ADD COLUMN c int default 5;
+ALTER TABLE t3 ADD KEY (a), ADD KEY c(c);
+ALTER TABLE t4 ADD KEY (a), ADD KEY c(c);
+ALTER TABLE t5 ADD FULLTEXT(a);
+ALTER TABLE t6 ADD FULLTEXT(a);
+ALTER TABLE t7 ADD KEY a(a), ADD key b(b);
+
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+SHOW CREATE TABLE t3;
+SHOW CREATE TABLE t4;
+SHOW CREATE TABLE t5;
+SHOW CREATE TABLE t6;
+SHOW CREATE TABLE t7;
+
+--source include/shutdown_mysqld.inc
+
+--let SEARCH_PATTERN=foobar
+--echo # t1 yes on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t1.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=tempsecret
+--echo # t2 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t2.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=barfoo
+--echo # t3 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t3.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=repeat
+--echo # t4 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t4.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=author
+--echo # t5 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t5.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=mangled
+--echo # t6 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t6.ibd
+-- source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=mysql
+--echo # t7 ... on expecting NOT FOUND
+-- let SEARCH_FILE=$MYSQLD_DATADIR/test/t7.ibd
+-- source include/search_pattern_in_file.inc
+
+-- source include/start_mysqld.inc
+
+DROP PROCEDURE innodb_insert_proc;
+DROP TABLE t1, t2, t3, t4, t5, t6, t7;

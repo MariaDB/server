@@ -1,0 +1,7 @@
+--source include/not_embedded.inc
+# A smoke test for tcp_nodelay option
+SET tcp_nodelay=0;
+SET tcp_nodelay=1;
+SET tcp_nodelay=default;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL tcp_nodelay=0;

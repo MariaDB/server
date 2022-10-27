@@ -1,0 +1,85 @@
+#
+# Various test cases for IO_CACHE tempfiles (file==-1) encryption
+#
+source include/have_file_key_management_plugin.inc;
+source include/have_sequence.inc;
+
+# Row binlog format to fill binlog cache faster
+source include/have_binlog_format_row.inc;
+
+source include/have_innodb.inc;
+
+select @@encrypt_tmp_files;
+
+#
+# MyISAM messing around with IO_CACHE::file
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES(1),(2);
+DELETE FROM t1 WHERE a=1;
+OPTIMIZE TABLE t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+#
+# filesort, my_b_pread, seeks in READ_CACHE
+#
+create table t1 (v varchar(10), c char(10), t text, key(v), key(c), key(t(10)));
+insert into t1 (v) select concat(char(ascii('a')+s2.seq),repeat(' ',s1.seq))
+  from seq_0_to_9 as s1, seq_0_to_26 as s2;
+update t1 set c=v, t=v;
+select sql_big_result t,count(t) from t1 group by t limit 10;
+drop table t1;
+
+reset master;
+set @save_binlog_cache_size=@@global.binlog_cache_size;
+set global binlog_cache_size=8192;
+
+connect con1, localhost, root;
+
+#
+# Test the last half-filled block:
+# first write 3 blocks, then reinit the file and write one full and one
+# partial block. reading the second time must stop in the middle of the
+# second block, and NOT read till EOF.
+#
+create table t1 (a text) engine=innodb;
+start transaction;
+insert t1 select repeat(seq, 1000) from seq_1_to_15;
+commit;
+start transaction;
+insert t1 select repeat(seq, 1000) from seq_1_to_8;
+commit;
+
+disconnect con1;
+connect con2, localhost, root;
+
+#
+# Test reinit_io_cache(WRITE_CACHE) with non-zero seek_offset:
+# Start a transaction, write until the cache goes to disk,
+# create a savepoint, write more blocks to disk, rollback to savepoint.
+#
+create table t2 (a text) engine=innodb;
+start transaction;
+insert t2 select repeat(seq, 1000) from seq_1_to_15;
+savepoint foo;
+insert t2 select repeat(seq, 1000) from seq_16_to_30;
+rollback to savepoint foo;
+insert t2 select repeat(seq, 1000) from seq_31_to_40;
+commit;
+
+disconnect con2;
+connection default;
+
+flush binary logs;
+
+drop table t1, t2;
+
+set @@global.binlog_cache_size=@save_binlog_cache_size;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 | $MYSQL;
+
+select left(a, 10) from t1;
+select left(a, 10) from t2;
+drop table t1, t2;

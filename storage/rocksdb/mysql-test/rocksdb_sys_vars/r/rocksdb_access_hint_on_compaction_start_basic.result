@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_ACCESS_HINT_ON_COMPACTION_START;
+SELECT @start_global_value;
+@start_global_value
+1
+"Trying to set variable @@global.ROCKSDB_ACCESS_HINT_ON_COMPACTION_START to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_ACCESS_HINT_ON_COMPACTION_START   = 444;
+ERROR HY000: Variable 'rocksdb_access_hint_on_compaction_start' is a read only variable

@@ -1,0 +1,8 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SET a=1;
+DROP TABLE t1;
+connection slave;
+include/rpl_end.inc

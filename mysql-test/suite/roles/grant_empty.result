@@ -1,0 +1,16 @@
+grant '' to foo@localhost;
+ERROR OP000: Invalid role specification ``
+create user ''@localhost;
+create role r1;
+grant r1 to ''@localhost;
+connect  con1,localhost,nonexisting_user,,;
+select current_user;
+current_user
+@localhost
+show grants;
+Grants for @localhost
+GRANT `r1` TO ``@`localhost`
+GRANT USAGE ON *.* TO ``@`localhost`
+connection default;
+drop role r1;
+drop user ''@localhost;

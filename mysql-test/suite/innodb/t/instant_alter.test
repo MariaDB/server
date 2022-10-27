@@ -1,0 +1,939 @@
+--source include/innodb_page_size.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-11369: Instant ADD COLUMN for InnoDB
+--echo #
+
+SET @saved_allowance = @@GLOBAL.innodb_instant_alter_column_allowed;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
+
+call mtr.add_suppression("Cannot add field `.*` in table `test`.`.*` because after adding it, the row size is");
+
+let $format= `SELECT CASE WHEN @@GLOBAL.innodb_page_size>16384
+THEN 'DYNAMIC' ELSE 'COMPRESSED' END`;
+CREATE TABLE t(a INT UNIQUE)ENGINE=InnoDB ROW_FORMAT=COMPACT;
+eval ALTER TABLE t ADD e INT, ROW_FORMAT=$format;
+INSERT INTO t SET a=1;
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
+--enable_info
+ALTER TABLE t ADD b INT NOT NULL, ALGORITHM=COPY;
+ALTER TABLE t ADD c INT NOT NULL, FORCE;
+--disable_info
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+--enable_info
+ALTER TABLE t ADD d INT NOT NULL;
+--disable_info
+SELECT * FROM t;
+SHOW CREATE TABLE t;
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+DROP TABLE t;
+
+connect analyze, localhost, root;
+connection default;
+SET timestamp = 42;
+SET time_zone='+03:00';
+SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
+
+let $format= 3;
+let $redundant_4k= `SELECT @@GLOBAL.innodb_page_size=4096`;
+while ($format) {
+let $engine= `SELECT CONCAT('ENGINE=InnoDB ROW_FORMAT=',CASE $format
+WHEN 1 THEN 'DYNAMIC'
+WHEN 2 THEN 'COMPACT'
+ELSE 'REDUNDANT' END)`;
+
+eval CREATE TABLE t1
+(id INT PRIMARY KEY, c2 INT UNIQUE,
+ c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
+ SPATIAL INDEX(c3)) $engine;
+
+INSERT INTO t1 (id, c2) values(1,1);
+SELECT id,c2,ST_AsText(c3) c3 FROM t1;
+
+--enable_info
+ALTER TABLE t1 ADD COLUMN (
+  d1 INT, d2 INT UNSIGNED DEFAULT 10, d3 VARCHAR(20) NOT NULL DEFAULT 'abcde',
+  d4 TIMESTAMP NOT NULL DEFAULT current_timestamp());
+ALTER TABLE t1 ADD INDEX(d3);
+--disable_info
+
+BEGIN;
+UPDATE t1 SET d3='';
+ROLLBACK;
+SELECT id,c2,ST_AsText(c3) c3, d1, d2, d3, d4 FROM t1;
+INSERT INTO t1 (id) VALUES(2),(3),(4),(5),(6);
+
+--enable_info
+ALTER TABLE t1 CHANGE d1 d1 INT DEFAULT 5, CHANGE d2 d2 INT DEFAULT 15,
+CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'fghij',
+CHANGE d4 dfour TIMESTAMP NOT NULL DEFAULT now();
+--disable_info
+
+UPDATE t1 SET d3='foo' WHERE id = 2;
+UPDATE t1 SET d3=DEFAULT WHERE id = 4;
+INSERT INTO t1 SET id = 7;
+SELECT id,c2,ST_AsText(c3) c3, d1, d2, d3, dfour FROM t1;
+CHECK TABLE t1;
+
+# add virtual columns
+--enable_info
+ALTER TABLE t1 ADD COLUMN e1 INT AS (id * 3);
+ALTER TABLE t1 ADD COLUMN e2 VARCHAR(30) AS (d3);
+ALTER TABLE t1 ADD COLUMN e3 INT AS (id * 2);
+
+# instant alter
+ALTER TABLE t1 CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'foobar',
+ADD COLUMN (d5 CHAR(20) DEFAULT 'hijkl', d6 INT DEFAULT -12345, d7 INT),
+DROP INDEX d3;
+--disable_info
+
+INSERT INTO t1 SET id = 8;
+
+# Updating a column by extending an existing record
+UPDATE t1 SET d3 = 'yyyyy' WHERE id = 1;
+
+# Updating an already materialized column
+UPDATE t1 SET d3 = 'xxxxx' WHERE id = 2;
+
+# transaction rollback
+BEGIN;
+UPDATE t1 SET d3 = 'xxxxx' WHERE id = 3;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 3;
+ROLLBACK;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 3;
+
+# NULL to NULL, no change
+BEGIN;
+UPDATE t1 SET d7 = NULL WHERE ID = 5;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET d7 = NULL, d6 = 10 WHERE id = 5;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 5;
+ROLLBACK;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 5;
+
+# add virtual stored columns; not instant
+--enable_info
+ALTER TABLE t1 ADD COLUMN (f1 VARCHAR(20) AS (concat('x', e2)) STORED);
+
+# instant add
+ALTER TABLE t1 ADD COLUMN (d8 VARCHAR(20) DEFAULT 'omnopq');
+--disable_info
+
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7, f1, d8 FROM t1;
+SHOW CREATE TABLE t1;
+
+--enable_info
+ALTER TABLE t1
+CHANGE c2 c2 INT DEFAULT 42,
+CHANGE d1 d1 INT DEFAULT 1,
+CHANGE d2 d2 INT DEFAULT 20,
+CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'boofar';
+--disable_info
+INSERT INTO t1 SET id=9;
+--enable_info
+ALTER TABLE t1 DROP c3;
+--disable_info
+
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+eval CREATE TABLE t2
+(id INT primary key, c1 VARCHAR(4000),
+ p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+ SPATIAL INDEX(p))
+$engine;
+
+BEGIN;
+INSERT INTO t2 SET id=1, c1=REPEAT('a', 4000);
+INSERT INTO t2 SET id=2, c1=REPEAT('a', 4000), p=ST_GeomFromText('POINT(1 1)');
+COMMIT;
+
+--enable_info
+ALTER TABLE t2 ADD COLUMN d1 VARCHAR(2000) DEFAULT REPEAT('asdf',500);
+--disable_info
+SELECT id, c1, ST_AsText(p) p, d1 FROM t2;
+
+# inplace update, rollback
+BEGIN;
+UPDATE t2 SET c1 = repeat(id, 4000);
+
+connection analyze;
+ANALYZE TABLE t2;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+connection default;
+
+ROLLBACK;
+connection analyze;
+ANALYZE TABLE t2;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+connection default;
+
+# non-inplace update. Rollback MUST NOT materialize off-page columns.
+BEGIN;
+UPDATE t2 SET d1 = repeat(id, 200);
+connection analyze;
+ANALYZE TABLE t2;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+connection default;
+ROLLBACK;
+connection analyze;
+ANALYZE TABLE t2;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+connection default;
+
+if ($redundant_4k)
+{
+--error ER_TOO_BIG_ROWSIZE
+ALTER TABLE t2 DROP p;
+SET innodb_strict_mode = OFF;
+}
+--enable_info
+ALTER TABLE t2 DROP p;
+--disable_info
+if ($redundant_4k)
+{
+SET innodb_strict_mode = ON;
+}
+SELECT * FROM t2;
+
+# datetime
+eval CREATE TABLE t3
+(id INT PRIMARY KEY, c2 INT UNSIGNED NOT NULL UNIQUE,
+ c3 POLYGON NOT NULL DEFAULT ST_PolyFromText('POLYGON((1 1,2 2,3 3,1 1))'),
+ SPATIAL INDEX(c3))
+$engine;
+INSERT INTO t3(id,c2) VALUES(1,1),(2,2),(3,3);
+SELECT id, c2, ST_AsText(c3) c3 FROM t3;
+--enable_info
+ALTER TABLE t3 ADD COLUMN
+(c4 DATETIME DEFAULT current_timestamp(),
+ c5 TIMESTAMP NOT NULL DEFAULT current_timestamp(),
+ c6 POINT);
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6 FROM t3;
+ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
+ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
+--disable_info
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
+
+--enable_info
+ALTER TABLE t3 ADD COLUMN t TEXT CHARSET utf8
+DEFAULT 'The quick brown fox jumps over the lazy dog';
+
+if ($redundant_4k)
+{
+--error ER_TOO_BIG_ROWSIZE
+ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
+SET innodb_strict_mode = OFF;
+}
+ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
+--error ER_NO_DEFAULT_FOR_FIELD
+INSERT INTO t3 SET id=4;
+INSERT INTO t3 SET id=4, c2=0, b=0xf09f98b1;
+
+SET innodb_strict_mode = OFF;
+ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
+CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
+--disable_info
+INSERT INTO t3 SET id=5, c2=9;
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8, phrase, b FROM t3;
+--enable_info
+ALTER TABLE t3 DROP c3, DROP c7;
+--disable_info
+SELECT * FROM t3;
+
+eval CREATE TABLE t4
+(id INT, foo INT DEFAULT 0, c1 VARCHAR(4000),
+ p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+ PRIMARY KEY(id,foo))
+$engine;
+
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000)), (2, REPEAT('a', 4000));
+ALTER TABLE t4 ADD COLUMN d1 INT;
+
+BEGIN;
+UPDATE t4 SET c1 = repeat('1', 4000), foo=1 WHERE id=1;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000));
+UPDATE t4 SET c1 = repeat('2', 4000), foo=1 WHERE id=2;
+ROLLBACK;
+
+BEGIN;
+UPDATE t4 SET d1 = 1,foo=2 WHERE id=1;
+INSERT INTO t4 (id,foo,c1) VALUES (1, 1, REPEAT('1', 4000));
+COMMIT;
+
+eval CREATE TABLE big
+(id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
+ p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
+$engine;
+BEGIN;
+INSERT INTO big
+SET id=1, c1=REPEAT('a', 200), c2=REPEAT('b', 200), c3=REPEAT('c', 159);
+SET @i:=1;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+COMMIT;
+connection analyze;
+ANALYZE TABLE big;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+connection default;
+--enable_info
+ALTER TABLE big ADD COLUMN
+(d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+ d3 TIMESTAMP NOT NULL DEFAULT current_timestamp ON UPDATE current_timestamp);
+--disable_info
+CHECKSUM TABLE big;
+BEGIN;
+INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
+INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
+CHECKSUM TABLE big;
+connection analyze;
+ANALYZE TABLE big;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+connection default;
+ROLLBACK;
+CHECKSUM TABLE big;
+connection analyze;
+ANALYZE TABLE big;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+connection default;
+
+--source include/wait_all_purged.inc
+DROP TABLE t1,t2,t3,t4,big;
+
+# MDEV-14837 Duplicate primary keys are allowed after ADD COLUMN / UPDATE
+eval CREATE TABLE t1 (a VARCHAR(1) PRIMARY KEY) $engine;
+INSERT INTO t1 SET a='a';
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 0;
+UPDATE t1 SET b = 1;
+--error ER_DUP_ENTRY
+INSERT INTO t1 SET a='a';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# MDEV-16065 Assertion failed in btr_pcur_restore_position_func on UPDATE
+eval CREATE TABLE t1 (a INT, b VARCHAR(8), PRIMARY KEY(b,a)) $engine;
+INSERT INTO t1 VALUES (1,'foo');
+ALTER TABLE t1 ADD COLUMN c INT;
+UPDATE t1 SET c = 1;
+UPDATE t1 SET c = 2;
+DROP TABLE t1;
+
+# MDEV-16830 Crash in ALTER TABLE DROP FOREIGN KEY
+eval CREATE TABLE t1 (a INT PRIMARY KEY) $engine;
+eval CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY(b) REFERENCES t1(a))
+$engine;
+INSERT INTO t1 SET a=1;
+INSERT INTO t2 SET b=1;
+ALTER TABLE t2 ADD COLUMN a INT, DROP FOREIGN KEY t2_ibfk_1;
+ALTER TABLE t2 ADD INDEX(a);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD COLUMN b INT, ADD FOREIGN KEY(a) REFERENCES t2(a),
+ALGORITHM=INSTANT;
+SET foreign_key_checks=0;
+ALTER TABLE t1 ADD COLUMN b INT, ADD FOREIGN KEY(a) REFERENCES t2(a),
+ALGORITHM=INSTANT;
+ALTER TABLE t2 ADD CONSTRAINT fk FOREIGN KEY(b) REFERENCES t1(a),
+ALGORITHM=INSTANT;
+SET foreign_key_checks=1;
+ALTER TABLE t2 COMMENT 'domestic keys only', DROP FOREIGN KEY fk;
+ALTER TABLE t1 DROP FOREIGN KEY t1_ibfk_1;
+ALTER TABLE t1 ADD COLUMN big BLOB NOT NULL
+DEFAULT REPEAT('a', @@GLOBAL.innodb_page_size * .75);
+CHECK TABLE t2, t1;
+DROP TABLE t2, t1;
+
+#
+# MDEV-17483 Insert on delete-marked record can wrongly inherit old values
+# for instantly added column
+#
+
+eval CREATE TABLE t1 (a INT PRIMARY KEY) $engine;
+INSERT INTO t1 SET a = 1;
+ALTER TABLE t1 ADD COLUMN b TEXT;
+BEGIN;
+UPDATE t1 SET b = REPEAT('1', 32768);
+UPDATE t1 SET a = 2;
+INSERT INTO t1 SET a = 1;
+SELECT a,LENGTH(b) FROM t1;
+DELETE FROM t1;
+COMMIT;
+--source include/wait_all_purged.inc
+DROP TABLE t1;
+
+#
+# MDEV-20066 Wrong value on instantly added column after DELETE and UPDATE
+#
+
+eval CREATE TABLE t1(a INT PRIMARY KEY) $engine;
+INSERT INTO t1 VALUES (7);
+
+ALTER TABLE t1 ADD COLUMN c INT NOT NULL DEFAULT 0;
+ALTER TABLE t1 ADD INDEX (c);
+
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t1 VALUES (4,0),(7,77);
+COMMIT;
+BEGIN;
+DELETE FROM t1 WHERE a=7;
+UPDATE t1 SET a=7;
+COMMIT;
+SELECT * FROM t1 FORCE INDEX(PRIMARY);
+SELECT * FROM t1 FORCE INDEX(c);
+DELETE FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+# MDEV-21172 Memory leak during ADD PRIMARY KEY
+
+SET innodb_strict_mode = ON;
+eval CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) $engine;
+ALTER TABLE t1 ADD d TEXT;
+--error 0,ER_TOO_BIG_ROWSIZE
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+# Exploit MDEV-17468 to force the table definition to be reloaded
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
+
+# MDEV-20950 innodb_instant_alter_column_allowed
+eval CREATE TABLE t1 (a INT PRIMARY KEY) $engine;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+--enable_info
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+--disable_info
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
+--enable_info
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+--disable_info
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
+
+# MDEV-15562 Instant DROP/ADD/reorder columns
+
+eval CREATE TABLE t1 (a INT, b INT UNIQUE) $engine;
+INSERT INTO t1 (a) VALUES (NULL), (NULL);
+ALTER TABLE t1 DROP a, ADD COLUMN a INT;
+DELETE FROM t1;
+BEGIN;INSERT INTO t1 SET a=NULL;ROLLBACK;
+DELETE FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (a INT PRIMARY KEY, t VARCHAR(33101) NOT NULL) $engine;
+INSERT INTO t1 VALUES(347,'');
+ALTER TABLE t1 DROP COLUMN t, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (a INT) $engine;
+INSERT INTO t1() VALUES();
+ALTER TABLE t1 ADD COLUMN b INT FIRST, ADD COLUMN c INT AFTER b;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (t TEXT) $engine;
+SET @t=REPEAT('x',@@innodb_page_size / 2);
+INSERT INTO t1 VALUES (@t),(@t),(@t),(@t),(@t),(@t),(NULL),(@t),(@t),(@t),(@t);
+ALTER TABLE t1 ADD COLUMN a INT FIRST;
+UPDATE t1 SET a = 0;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (t TEXT) $engine;
+INSERT INTO t1 SET t = @x;
+ALTER TABLE t1 DROP COLUMN t, ADD COLUMN i INT NOT NULL DEFAULT 1;
+ALTER TABLE t1 ADD COLUMN t TEXT;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# MDEV-17735 Assertion failure in row_parse_int() on first ADD/DROP COLUMN
+# when an AUTO_INCREMENT column is not in PRIMARY KEY
+#
+eval CREATE TABLE t1 (a INT AUTO_INCREMENT, b INT, KEY(a)) $engine;
+INSERT INTO t1 SET a=NULL;
+ALTER TABLE t1 DROP COLUMN b;
+ALTER TABLE t1 ADD COLUMN c INT NOT NULL DEFAULT 42;
+INSERT INTO t1 SET a=NULL;
+UPDATE t1 SET a=a+2;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (i INT) $engine;
+INSERT INTO t1 SET i=1;
+ALTER TABLE t1 ADD COLUMN b BIT FIRST;
+ALTER TABLE t1 ADD COLUMN v INT AS (i) VIRTUAL;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# MDEV-17721 Corrupted data dictionary after instant DROP COLUMN
+eval CREATE TABLE t1 (ts TIMESTAMP) $engine;
+ALTER TABLE t1 ADD COLUMN f VARCHAR(8), ADD COLUMN dt DATETIME;
+ALTER TABLE t1 ADD COLUMN b BIT, DROP COLUMN f, ADD COLUMN t TIME FIRST;
+ALTER TABLE t1 ADD COLUMN ts2 TIMESTAMP;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (f1 INT, f2 INT, f3 INT) $engine;
+INSERT INTO t1 VALUES (4,4,4);
+ALTER TABLE t1 DROP f1, DROP f2, ADD f4 INT, ADD f5 INT;
+DELETE FROM t1;
+ALTER TABLE t1 DROP COLUMN f4;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (f1 INT, f2 INT, f3 INT) $engine;
+ALTER TABLE t1 DROP f2, ADD COLUMN f4 INT;
+ALTER TABLE t1 DROP f4;
+ALTER TABLE t1 DROP f1;
+DROP TABLE t1;
+
+# MDEV-17901 Crash after instant DROP COLUMN of AUTO_INCREMENT column
+eval CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) $engine;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 () VALUES (),();
+SELECT * FROM t1;
+# Adding AUTO_INCREMENT column will always require rebuild.
+ALTER TABLE t1 ADD COLUMN id INT NOT NULL AUTO_INCREMENT FIRST, ADD KEY(id);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# MDEV-18149 Crash after DROP COLUMN of AUTO_INCREMENT column on nonempty table
+eval CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) $engine;
+INSERT INTO t1 SET f=NULL;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 SET f=NULL;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# MDEV-18076/MDEV-18077 Crash on AUTO_INCREMENT column after instant DROP
+eval CREATE TABLE t1(f INT, k INT NOT NULL AUTO_INCREMENT, KEY(k)) $engine;
+ALTER TABLE t1 DROP COLUMN f;
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+
+eval CREATE TABLE t1(pk INT PRIMARY KEY, f INT, k INT AUTO_INCREMENT, KEY(k))
+$engine;
+ALTER TABLE t1 DROP COLUMN f;
+INSERT INTO t1 (pk) VALUES (1);
+DROP TABLE t1;
+
+# MDEV-17763 Assertion `len == 20U' failed in rec_convert_dtuple_to_rec_comp
+# upon DROP COLUMN
+eval CREATE TABLE t1 (
+ pk INT PRIMARY KEY,
+ f1 INT,
+ f2 CHAR(255),
+ f3 BIGINT,
+ f4 INT,
+ f5 CHAR(255),
+ f6 CHAR(255),
+ f7 CHAR(255) NOT NULL,
+ f8 INT,
+ f9 CHAR(10)
+) $engine;
+
+INSERT INTO t1 VALUES
+  (1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a'),
+  (2, 2, 'b', 2, 2, 'b', 'b', 'b', 2, 'b'),
+  (3, 3, 'c', 3, 3, 'c', 'c', 'c', 3, 'c'),
+  (4, 4, 'd', 4, 4, 'd', 'd', 'd', 4, 'd'),
+  (5, 5, 'e', 5, 5, 'e', 'e', 'e', 5, 'e'),
+  (6, 6, 'f', 6, 6, 'f', 'f', 'f', 6, 'f'),
+  (7, 7, 'g', 7, 7, 'g', 'g', 'g', 7, 'g'),
+  (8, 8, 'h', 8, 8, 'h', 'h', 'h', 8, 'h'),
+  (9, 9, 'i', 9, 9, 'i', 'i', 'i', 9, 'i'),
+  (10, 0, 'j', 0, 0, 'j', 'j', 'j', 0, 'j'),
+  (11, 1, 'k', 1, 1, 'k', 'k', 'k', 1, 'k'),
+  (12, 2, 'l', 2, 2, 'l', 'l', 'l', 2, 'l'),
+  (13, 3, 'm', 3, 3, 'm', 'm', 'm', 3, 'm'),
+  (14, 4, 'n', 4, 4, 'n', 'n', 'n', 4, 'n'),
+  (15, 5, 'o', 5, 5, 'o', 'o', 'o', 5, 'o');
+
+DELETE FROM t1 WHERE pk=1;
+--source include/wait_all_purged.inc
+INSERT INTO t1 VALUES
+  (1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a');
+ALTER TABLE t1 DROP COLUMN f1;
+DROP TABLE t1;
+
+# MDEV-17820 Assertion failures on DROP COLUMN
+eval CREATE TABLE t1 (
+  pk INT PRIMARY KEY,
+  f1 INT, f2 CHAR(32) NOT NULL,
+  f3 INT NOT NULL, f4 INT NOT NULL, f5 INT, f6 CHAR(32) NOT NULL,
+  f7 CHAR(32), f8 CHAR(32)
+) $engine;
+
+INSERT INTO t1 VALUES
+  (1,9,'',2,88,88,'','',''),(2,48,'',8,68,92,'','',''),
+  (3,41,'',56,84,37,'','',''),(4,NULL,'',6,6,NULL,'','',''),
+  (5,52,'',37,44,20,'','',''),(6,44,'',53,4,NULL,'','',''),
+  (7,24,'',54,8,54,'','',''),(8,80,'',3,52,20,'','',''),
+  (9,71,'',34,32,NULL,'','',''),(10,14,'',6,64,88,'','',''),
+  (11,48,'',8,25,42,'','',''),(12,16,'',8,7,NULL,'','',''),
+  (13,NULL,'',22,0,95,'','',''),(14,4,'',72,48,NULL,'','',''),
+  (15,4,'',5,64,2,'','',''),(16,NULL,'',9,40,30,'','',''),
+  (17,92,'',48,2,NULL,'','',''),(18,36,'',48,51,7,'','',''),
+  (19,NULL,'',80,96,NULL,'','',''),(20,96,'',9,80,NULL,'','',''),
+  (21,50,'',16,40,NULL,'','',''),(22,NULL,'',7,84,8,'','',''),
+  (23,28,'',93,80,NULL,'','',''),(24,31,'',40,38,NULL,'','',''),
+  (25,85,'',8,5,88,'','',''),(26,66,'',8,32,4,'','',''),
+  (51,52,'',6,92,15,'','',''),(52,77,'',24,24,28,'','',''),
+  (53,8,'',75,31,NULL,'','',''),(54,48,'',5,8,1,'','',''),
+  (55,90,'',56,12,5,'','',''),(56,92,'',4,9,88,'','',''),
+  (57,83,'',23,40,72,'','',''),(58,7,'',4,40,32,'','',''),
+  (59,28,'',2,3,32,'','',''),(60,16,'',80,4,NULL,'','',''),
+  (61,44,'',88,24,NULL,'','',''),(62,4,'',5,25,3,'','',''),
+  (63,NULL,'',7,24,76,'','',''),(64,0,'',13,40,73,'','',''),
+  (101,NULL,'',1,49,75,'','',''),(102,34,'',10,17,20,'','',''),
+  (103,8,'',2,2,NULL,'','',''),(104,12,'',44,48,52,'','',''),
+  (105,8,'',4,19,38,'','',''),(106,20,'',6,80,9,'','',''),
+  (107,72,'',72,16,56,'','',''),(108,76,'',98,24,21,'','',''),
+  (109,67,'',16,91,NULL,'','',''),(110,72,'',72,3,48,'','',''),
+  (151,8,'',3,86,NULL,'','',''),(152,NULL,'',52,72,0,'','',''),
+  (153,NULL,'',46,30,92,'','',''),(154,80,'',1,40,48,'','',''),
+  (155,24,'',68,68,8,'','',''),(156,85,'',85,72,60,'','',''),
+  (157,7,'',7,12,6,'','',''),(158,NULL,'',48,48,80,'','',''),
+  (159,12,'',0,36,0,'','',''),(160,2,'',6,52,NULL,'','',''),
+  (201,0,'',1,3,NULL,'','',''),(202,NULL,'',3,53,14,'','',''),
+  (203,84,'',6,20,NULL,'','',''),(204,38,'',25,13,88,'','',''),
+  (205,1,'',2,69,5,'','',''),(206,7,'',60,22,NULL,'','',''),
+  (207,NULL,'',5,4,NULL,'','',''),(251,7,'',0,4,40,'','',''),
+  (252,4,'',16,8,NULL,'','',''),(253,14,'',60,12,99,'','',''),
+  (254,84,'',68,16,5,'','',''),(255,3,'',70,36,61,'','',''),
+  (256,7,'',18,48,NULL,'','',''),(257,NULL,'',68,53,NULL,'','',''),
+  (258,29,'',52,16,64,'','',''),(259,NULL,'',80,92,40,'','',''),
+  (301,68,'',1,48,48,'','',''),(302,2,'',1,1,32,'','',''),
+  (303,44,'',60,96,16,'','',''),(304,32,'',52,64,32,'','',''),
+  (305,88,'',37,72,NULL,'','',''),(306,5,'',35,60,20,'','',''),
+  (307,35,'',4,48,NULL,'','',''),(308,4,'',92,44,80,'','',''),
+  (351,48,'',60,4,40,'','',''),(352,7,'',9,61,13,'','',''),
+  (353,0,'',5,93,53,'','',''),(354,7,'',1,20,NULL,'','',''),
+  (355,84,'',5,48,96,'','',''),(356,NULL,'',39,92,36,'','',''),
+  (357,88,'',9,76,44,'','',''),(358,66,'',34,67,80,'','',''),
+  (359,8,'',8,52,NULL,'','',''),(360,3,'',53,83,NULL,'','',''),
+  (361,23,'',44,9,48,'','',''),(362,4,'',0,54,48,'','',''),
+  (363,75,'',66,76,52,'','','');
+
+ALTER TABLE t1 ADD COLUMN x VARCHAR(255) DEFAULT ' foobar ';
+UPDATE t1 SET f1 = 0;
+ALTER TABLE t1 DROP COLUMN x;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (f1 VARCHAR(1), f2 VARCHAR(2)) $engine;
+ALTER TABLE t1 MODIFY f2 VARCHAR (8) FIRST;
+DROP TABLE t1;
+
+# MDEV-18035 Failing assertion on DELETE
+eval CREATE TABLE t1 (a INT UNIQUE, b INT UNIQUE, PRIMARY KEY(a,b)) $engine;
+ALTER TABLE t1 DROP PRIMARY KEY;
+ALTER TABLE t1 CHANGE COLUMN a a INT;
+DELETE FROM t1 WHERE a = NULL OR a IS NULL;
+DROP TABLE t1;
+
+# MDEV-18048 Failing assertion on ALTER
+eval CREATE TABLE t1 (a INT, b INT, c INT NOT NULL, d INT,
+e INT, f INT, g INT, h INT, j INT) $engine;
+ALTER TABLE t1 MODIFY COLUMN c INT, MODIFY COLUMN a INT AFTER b;
+DROP TABLE t1;
+
+# MDEV-18649 Failing assertion on ALTER for ROW_FORMAT=REDUNDANT
+eval CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL) $engine;
+INSERT INTO t1 VALUES (0,0);
+ALTER TABLE t1 MODIFY a INT AFTER b;
+# Exploit MDEV-17468 to force the table definition to be reloaded
+ALTER TABLE t1 ADD COLUMN v INT AS (a) VIRTUAL;
+ALTER TABLE t1 MODIFY b INT NOT NULL AFTER a;
+DROP TABLE t1;
+
+# MDEV-18033/MDEV-18034 Failing assertion on ALTER
+eval CREATE TABLE t1 (a INT NOT NULL) $engine;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 ADD COLUMN b INT;
+ALTER TABLE t1 MODIFY COLUMN a INT NULL;
+DROP TABLE t1;
+
+# MDEV-18160/MDEV-18162 Failing assertion on ALTER
+eval CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT) $engine;
+INSERT INTO t1 SET a=1;
+ALTER TABLE t1 DROP c;
+ALTER TABLE t1 DROP b, ADD v INT AS (a);
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT, d INT) $engine;
+INSERT INTO t1 SET a=1;
+ALTER TABLE t1 DROP c;
+ALTER TABLE t1 DROP b, ADD v INT AS (a);
+DROP TABLE t1;
+
+# MDEV-18218 Assertion `0' failed in btr_page_reorganize_low upon DROP COLUMN
+eval CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, b BLOB NOT NULL) $engine;
+INSERT INTO t1 VALUES (1,10,REPEAT('foobar',2000));
+ALTER TABLE t1 DROP COLUMN b;
+INSERT INTO t1 VALUES (2,20);
+# this evicts and reloads the table definition until MDEV-17468 is fixed
+ALTER TABLE t1 ADD COLUMN vpk INT AS (pk);
+# this would load wrong metadata from the previous DROP COLUMN b, causing a crash
+ALTER TABLE t1 DROP COLUMN i;
+DROP TABLE t1;
+
+# MDEV-18315 Assertion instant.fields[i].col->same_format(*fields[i].col)
+# failed in dict_index_t::instant_add_field
+eval CREATE TABLE t1 (a INT, b INT) $engine;
+INSERT INTO t1 VALUES (1,1);
+ALTER TABLE t1 ADD f DATE AFTER a;
+ALTER TABLE t1 DROP b, DROP f;
+DROP TABLE t1;
+
+# MDEV-18316 Assertion is_added() failed in dict_col_t::instant_value
+eval CREATE TABLE t1 (a INT, b INT) $engine;
+INSERT INTO t1 VALUES (1,1);
+ALTER TABLE t1 ADD COLUMN f INT AFTER a;
+ALTER TABLE t1 DROP b, DROP f;
+DROP TABLE t1;
+
+# MDEV-18579 Assertion !ctx->online || num_fts_index == 0
+eval CREATE TABLE t1(t TEXT NOT NULL, FULLTEXT(t)) $engine;
+ALTER TABLE t1 MODIFY COLUMN t TEXT;
+DROP TABLE t1;
+
+# MDEV-18598 Assertions and wrong results after MDEV-15563 extending INT
+eval CREATE TABLE t1 (f TINYINT, g SMALLINT UNSIGNED) $engine;
+INSERT INTO t1 VALUES(127,6502),(-128,33101);
+--enable_info
+ALTER TABLE t1 MODIFY f SMALLINT DEFAULT 12345,
+MODIFY g BIGINT UNSIGNED DEFAULT 1234567;
+--disable_info
+SELECT * FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (f BIT(8)) $engine;
+INSERT INTO t1 VALUES (b'10000000'),(b'00000001');
+--enable_info
+ALTER TABLE t1 MODIFY f BIT(16);
+--disable_info
+INSERT INTO t1 VALUES (b'1000000010101111'),(b'10000000');
+SELECT HEX(f) FROM t1;
+--error ER_WARN_DATA_OUT_OF_RANGE
+ALTER TABLE t1 MODIFY f SMALLINT;
+--enable_info
+ALTER TABLE t1 MODIFY f SMALLINT UNSIGNED;
+--disable_info
+SELECT * FROM t1;
+--error ER_DATA_TOO_LONG
+ALTER TABLE t1 MODIFY f BIT;
+--error ER_DATA_TOO_LONG
+ALTER TABLE t1 MODIFY f BIT(15);
+DELETE FROM t1 LIMIT 3;
+--enable_info
+ALTER TABLE t1 MODIFY f BIT(15);
+ALTER TABLE t1 MODIFY f BIT(8);
+--disable_info
+SELECT HEX(f) FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (b BIT NOT NULL) $engine DEFAULT CHARSET utf16;
+INSERT INTO t1 SET b=b'1';
+--enable_info
+ALTER TABLE t1 CHANGE b c BIT NOT NULL;
+--disable_info
+SELECT HEX(c) FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (c VARCHAR(10) NOT NULL DEFAULT 'scary') $engine;
+INSERT INTO t1() VALUES();
+--enable_info
+ALTER TABLE t1 ADD f TINYINT NOT NULL DEFAULT -42;
+ALTER TABLE t1 MODIFY f MEDIUMINT NOT NULL DEFAULT 64802,
+MODIFY c VARCHAR(20) NOT NULL DEFAULT 'gory',
+ADD d DATETIME;
+--disable_info
+INSERT INTO t1() VALUES();
+INSERT INTO t1 (c,f,d) VALUES ('fury', -8388608, now());
+SELECT * FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (t TINYINT PRIMARY KEY, m MEDIUMINT UNIQUE) $engine;
+SELECT table_id INTO @table_id1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+INSERT INTO t1 VALUES (-42, -123456);
+--enable_info
+ALTER TABLE t1 CHANGE t s SMALLINT;
+SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
+ALTER TABLE t1 CHANGE m i INT;
+SELECT table_id INTO @table_id3 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+--disable_info
+SELECT @table_id1 = @table_id2, @table_id2 = @table_id3;
+INSERT IGNORE INTO t1 VALUES (0, -123456);
+REPLACE INTO t1 VALUES(-42, 123456);
+INSERT IGNORE INTO t1 VALUES(32768, 2147483648);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (a SERIAL, b INT, c TINYINT UNIQUE) $engine;
+INSERT INTO t1 (c) VALUES(1),(2),(3);
+--enable_info
+ALTER TABLE t1 MODIFY c BIGINT;
+--disable_info
+UPDATE t1 SET b=1 WHERE c=2;
+UPDATE t1 SET c=4 WHERE a=3;
+UPDATE t1 SET b=2 WHERE c>3;
+--error ER_DUP_ENTRY
+UPDATE t1 SET c=c+1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# MDEV-18719 Assertion (c.prtype ^ o->prtype) & ... failed on ALTER TABLE
+eval CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(1)) $engine;
+INSERT INTO t1 VALUES(1,'a');
+ALTER TABLE t1 MODIFY b VARCHAR(256), ADD COLUMN c INT;
+INSERT INTO t1 VALUES(2,'bah',3);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# MDEV-21088 Table cannot be loaded after instant ADD/DROP COLUMN
+eval CREATE TABLE t1(a CHAR(5) CHARACTER SET utf8 PRIMARY KEY) $engine;
+INSERT INTO t1 VALUES('barf');
+ALTER TABLE t1 ADD b INT FIRST, ALGORITHM=INSTANT;
+# this evicts and reloads the table definition until MDEV-17468 is fixed
+ALTER TABLE t1 ADD vb INT AS (b);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# MDEV-21148 Assertion failure index->n_core_fields + n_add >= index->n_fields
+eval CREATE TABLE t1 (a INT, b TEXT, PRIMARY KEY(b(9))) $engine;
+ALTER TABLE t1 ADD COLUMN c TEXT FIRST;
+ALTER TABLE t1 ADD COLUMN d TEXT GENERATED ALWAYS AS (SUBSTR(b,1,499)) FIRST;
+DROP TABLE t1;
+
+eval CREATE TABLE t1(a CHAR(5), b INT, c CHAR(1), d CHAR(1), PRIMARY KEY(a,b))
+DEFAULT CHARACTER SET utf8 $engine;
+INSERT INTO t1 SET a='fubar',b=42;
+ALTER TABLE t1 DROP c, DROP d, ALGORITHM=INSTANT;
+# this evicts and reloads the table definition until MDEV-17468 is fixed
+ALTER TABLE t1 ADD vb INT AS (b);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+eval CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) $engine;
+ALTER TABLE t1 MODIFY b INT FIRST;
+DROP TABLE t1;
+
+dec $format;
+let $redundant_4k= 0;
+}
+disconnect analyze;
+
+--echo #
+--echo # MDEV-22465: DROP COLUMN is wrongly claimed to be ALGORITHM=INSTANT
+--echo #
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+ALTER TABLE t1 DROP b, ALGORITHM=NOCOPY;
+DROP TABLE t1;
+
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
+SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
+
+--echo #
+--echo # MDEV-18266: Changing an index comment unnecessarily rebuilds index
+--echo #
+
+CREATE TABLE t1(a INT, b INT) ENGINE=INNODB;
+CREATE INDEX i1 ON t1(a) COMMENT 'comment1';
+ALTER TABLE t1 DROP INDEX i1, ADD INDEX i1(a) COMMENT 'comment2', ALGORITHM=INSTANT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25057 Assertion `n_fields < dtuple_get_n_fields(entry)'
+--echo #		failed in dtuple_convert_big_rec
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+		 a CHAR(255) NOT NULL,
+		 b CHAR(255) NOT NULL, c INT) ENGINE=InnoDB CHARSET utf32;
+ALTER TABLE t1 DROP c;
+INSERT INTO t1(a, b) SELECT '', '' FROM seq_1_to_16;
+SELECT COUNT(*) FROM t1;
+# Cleanup
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25630 Rollback of instant operation adds wrong
+--echo # 	column to secondary index
+--echo #
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT, f4 INT,
+		 PRIMARY KEY(f1, f4),
+		 KEY(f2))ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INT, f2 INT, PRIMARY KEY(f1),
+		 FOREIGN KEY fk (f2) REFERENCES t2(f1)
+		)ENGINE=InnoDB;
+
+ALTER TABLE t1 ADD f5 INT;
+SET FOREIGN_KEY_CHECKS=0;
+--error ER_FK_FAIL_ADD_SYSTEM
+ALTER TABLE t1 DROP COLUMN f3, ADD FOREIGN KEY fk (f1)
+	REFERENCES x(x);
+ALTER TABLE t1 DROP COLUMN f5;
+SHOW CREATE TABLE t1;
+DROP TABLE t1, t2;

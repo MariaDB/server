@@ -1,0 +1,57 @@
+include/master-slave.inc
+[connection master]
+******** [ MASTER ] ********
+CREATE DATABASE BUG_37656;
+use BUG_37656;
+show databases like 'BUG_37656';
+Database (BUG_37656)
+BUG_37656
+connection slave;
+******** [ SLAVE ] ********
+show databases like 'bug_37656';
+Database (bug_37656)
+bug_37656
+connection master;
+******** [ MASTER ] ********
+CREATE TABLE T1 (a int);
+CREATE TABLE T2 (b int) ENGINE=InnoDB;
+CREATE TABLE T3 (txt TEXT);
+show tables;
+Tables_in_BUG_37656
+T1
+T2
+T3
+connection slave;
+******** [ SLAVE ] ********
+use bug_37656;
+show tables;
+Tables_in_bug_37656
+t2
+t3
+CREATE TABLE t1 (a INT);
+connection master;
+******** [ MASTER ] ********
+use BUG_37656;
+INSERT INTO T1 VALUES (1);
+INSERT INTO T2 VALUES (1);
+LOAD DATA INFILE '../../std_data/words.dat' INTO TABLE BUG_37656.T3;
+connection slave;
+******** [ SLAVE ] ********
+include/diff_tables.inc [master:BUG_37656.T2, slave:bug_37656.t2]
+include/diff_tables.inc [master:BUG_37656.T3, slave:bug_37656.t3]
+connection master;
+******** [ MASTER ] ********
+DROP DATABASE BUG_37656;
+connection slave;
+connection master;
+CREATE DATABASE B50653;
+USE B50653;
+CREATE PROCEDURE b50653_proc() BEGIN SELECT 1; END;
+connection slave;
+connection master;
+DROP PROCEDURE b50653_proc;
+connection slave;
+connection master;
+DROP DATABASE B50653;
+connection slave;
+include/rpl_end.inc

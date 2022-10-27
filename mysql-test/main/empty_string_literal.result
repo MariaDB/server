@@ -1,0 +1,210 @@
+USE test;
+#
+# MDEV-14013 : sql_mode=EMPTY_STRING_IS_NULL
+#
+set @mode='EMPTY_STRING_IS_NULL';
+SET SESSION character_set_connection=latin2;
+SET SESSION character_set_client=cp1250;
+#
+# Test litteral
+#
+SET sql_mode=@mode;
+select @@sql_mode;
+@@sql_mode
+EMPTY_STRING_IS_NULL
+SELECT '',CHARSET(''), null, CHARSET(null), CAST(null as char(10)), CHARSET(CAST(null as char(10))), 'x', CHARSET('x');
+NULL	CHARSET('')	NULL	CHARSET(null)	CAST(null as char(10))	CHARSET(CAST(null as char(10)))	x	CHARSET('x')
+NULL	latin2	NULL	binary	NULL	latin2	x	latin2
+SELECT CHARSET(NULLIF('','')),NULLIF('','');
+CHARSET(NULLIF('',''))	NULLIF('','')
+latin2	NULL
+SET sql_mode=default;
+SELECT '',CHARSET(''), null, CHARSET(null), CAST(null as char(10)), CHARSET(CAST(null as char(10))), 'x', CHARSET('x');
+	CHARSET('')	NULL	CHARSET(null)	CAST(null as char(10))	CHARSET(CAST(null as char(10)))	x	CHARSET('x')
+	latin2	NULL	binary	NULL	latin2	x	latin2
+SELECT CHARSET(NULLIF('','')),NULLIF('','');
+CHARSET(NULLIF('',''))	NULLIF('','')
+latin2	NULL
+#
+# Test NCHAR litteral
+#
+SET sql_mode=@mode;
+SELECT N'',CHARSET(N''), N'x', CHARSET(N'x');
+NULL	CHARSET(N'')	x	CHARSET(N'x')
+NULL	utf8	x	utf8
+SELECT CHARSET(NULLIF(N'',N'')),NULLIF(N'',N'');
+CHARSET(NULLIF(N'',N''))	NULLIF(N'',N'')
+utf8	NULL
+SET sql_mode=default;
+SELECT N'',CHARSET(N''), N'x', CHARSET(N'x');
+	CHARSET(N'')	x	CHARSET(N'x')
+	utf8	x	utf8
+SELECT CHARSET(NULLIF(N'',N'')),NULLIF(N'',N'');
+CHARSET(NULLIF(N'',N''))	NULLIF(N'',N'')
+utf8	NULL
+#
+# Test CHARSET prefix litteral
+#
+SET sql_mode=@mode;
+SELECT _cp1250 '',CHARSET(_cp1250 ''), _cp1250 'x', CHARSET(_cp1250 'x');
+NULL	CHARSET(_cp1250 '')	x	CHARSET(_cp1250 'x')
+NULL	cp1250	x	cp1250
+SELECT CHARSET(NULLIF(_cp1250 '',_cp1250 '')),NULLIF(_cp1250 '',_cp1250 '');
+CHARSET(NULLIF(_cp1250 '',_cp1250 ''))	NULLIF(_cp1250 '',_cp1250 '')
+cp1250	NULL
+SET sql_mode=default;
+SELECT _cp1250 '',CHARSET(_cp1250 ''), _cp1250 'x', CHARSET(_cp1250 'x');
+	CHARSET(_cp1250 '')	x	CHARSET(_cp1250 'x')
+	cp1250	x	cp1250
+SELECT CHARSET(NULLIF(_cp1250 '',_cp1250 '')),NULLIF(_cp1250 '',_cp1250 '');
+CHARSET(NULLIF(_cp1250 '',_cp1250 ''))	NULLIF(_cp1250 '',_cp1250 '')
+cp1250	NULL
+SET sql_mode=@mode;
+#
+# Test litteral concat
+#
+SELECT 'a' 'b';
+a
+ab
+SELECT 'a' '';
+a
+a
+SELECT '' 'b';
+b
+b
+SELECT '' '';
+NULL
+NULL
+SELECT '' 'b' 'c';
+b
+bc
+SELECT '' '' 'c';
+c
+c
+SELECT 'a' '' 'c';
+a
+ac
+SELECT 'a' '' '';
+a
+a
+SELECT '' '' '';
+NULL
+NULL
+SELECT '' '' '',CHARSET('' '' '');
+NULL	CHARSET('' '' '')
+NULL	latin2
+SELECT _latin1'' '' '',CHARSET(_latin1'' '' '');
+NULL	CHARSET(_latin1'' '' '')
+NULL	latin1
+SELECT N'' '' '',CHARSET(N'' '' '');
+NULL	CHARSET(N'' '' '')
+NULL	utf8
+#
+# UNION - implicit group by
+#
+SELECT 1, null
+UNION
+SELECT 1 , ''
+ORDER BY 1;
+1	NULL
+1	NULL
+SELECT 1, null
+UNION
+SELECT 1 , N''
+ORDER BY 1;
+1	NULL
+1	NULL
+SELECT 1, null
+UNION
+SELECT 1 , _cp1250 ''
+ORDER BY 1;
+1	NULL
+1	NULL
+SELECT NULLIF(_cp1250 '',_cp1250 '')
+UNION
+SELECT NULLIF(N'',N'');
+NULLIF(_cp1250 '',_cp1250 '')
+NULL
+SELECT 1 , _latin2 ''
+UNION
+SELECT 1 , _cp1250 '';
+ERROR HY000: Illegal mix of collations (latin2_general_ci,IGNORABLE) and (cp1250_general_ci,IGNORABLE) for operation 'UNION'
+SELECT 1, null
+UNION
+SELECT 1 , ''
+UNION
+SELECT 1 , N'';
+1	NULL
+1	NULL
+CREATE TABLE t1 (c1 INT,c2 VARCHAR(10));
+INSERT INTO t1 VALUES (1,'one');
+INSERT INTO t1 VALUES (1,'');
+INSERT INTO t1 VALUES (1,null);
+#
+# Test in a view
+#
+CREATE VIEW v1
+AS SELECT c1, c2
+FROM t1
+UNION
+SELECT c1 , ''
+         FROM t1
+ORDER BY 1,2;
+SELECT * FROM v1;
+c1	c2
+1	NULL
+1	one
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`c1` AS `c1`,`t1`.`c2` AS `c2` from `t1` union select `t1`.`c1` AS `c1`,NULL AS `NULL` from `t1` order by 1,2	cp1250	latin2_general_ci
+DROP VIEW v1;
+DROP TABLE t1;
+EXPLAIN EXTENDED SELECT '';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select NULL AS `NULL`
+EXPLAIN EXTENDED SELECT _latin1'';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select NULL AS `NULL`
+EXPLAIN EXTENDED SELECT N'';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select NULL AS `NULL`
+EXPLAIN EXTENDED SELECT '' '';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select NULL AS `NULL`
+#
+# MDEV-20763 Table corruption or Assertion `btr_validate_index(index, 0, false)' failed in row_upd_sec_index_entry with virtual column and EMPTY_STRING_IS_NULL SQL mode
+#
+create table t1 (a int, b binary(1) generated always as (''), key(a,b));
+insert into t1 (a) values (1);
+set sql_mode= default;
+flush tables;
+update t1 set a = 2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` binary(1) GENERATED ALWAYS AS (NULL) VIRTUAL,
+  KEY `a` (`a`,`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a int, b binary(1) generated always as (''), key(a,b));
+insert into t1 (a) values (1);
+set sql_mode= 'empty_string_is_null';
+flush tables;
+update t1 set a = 2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` binary(1) GENERATED ALWAYS AS ('') VIRTUAL,
+  KEY `a` (`a`,`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;

@@ -1,0 +1,39 @@
+#
+# MW-328 Fix unnecessary/silent BF aborts
+#
+
+#
+# Test that non-Galera deadlock error still behaves as expected
+#
+
+--source include/galera_cluster.inc
+
+CREATE TABLE t1 (i INT) ENGINE = InnoDB;
+INSERT INTO t1 (i) VALUES(1);
+
+CREATE TABLE t2 (i INT) ENGINE = InnoDB;
+
+# Create a deadlock situation
+
+--connection node_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+SELECT * FROM t1 WHERE i = 1 LOCK IN SHARE MODE;
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+--send INSERT IGNORE INTO t2 SELECT * FROM t1 WHERE i = 1 FOR UPDATE;
+
+--connection node_1
+--sleep 2
+DELETE FROM t1 WHERE i = 1;
+COMMIT;
+
+# We expect that ER_LOCK_DEADLOCK will be delivered even though it was a INSERT INGORE statement
+--connection node_1a
+--error ER_LOCK_DEADLOCK
+--reap
+
+DROP TABLE t1, t2;

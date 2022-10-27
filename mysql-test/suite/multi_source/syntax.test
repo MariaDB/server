@@ -1,0 +1,75 @@
+# Test multi master syntax
+
+--source include/not_embedded.inc
+--source include/master-slave.inc
+
+# Check syntax of multi source replication
+
+show slave status;
+show slave '' status;
+show all slaves status;
+
+--echo #
+--echo # Check error handling
+--echo #
+
+--error WARN_NO_MASTER_INFO
+show slave 'qqq' status;
+--error WARN_NO_MASTER_INFO
+show slave 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' status;
+--error ER_WRONG_ARGUMENTS
+show slave 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' status;
+--error ER_WRONG_ARGUMENTS
+change master 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' to master_host='dummy';
+
+--error WARN_NO_MASTER_INFO
+start slave 'qqq';
+--error WARN_NO_MASTER_INFO
+stop slave 'qqq';
+--error WARN_NO_MASTER_INFO
+flush slave 'qqq';
+--error WARN_NO_MASTER_INFO
+reset slave 'qqq';
+
+select master_pos_wait('master-bin.999999',0,2,'qqq');
+select master_pos_wait('master-bin.999999',0,2,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc');
+
+save_master_pos;
+connection slave;
+sync_with_master 0,'';
+sync_with_master 0 ,'';
+sync_with_master 0, '';
+
+--echo #
+--echo # checking usage of default_master_connection;
+--echo #
+select @@default_master_connection;
+
+--error 1238
+select @@global.default_master_connection;
+--error 1228
+set @@global.default_master_connection='qqq';
+--error 1231
+set @@default_master_connection='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+select @@default_master_connection;
+set @@default_master_connection='qqq';
+select @@default_master_connection;
+show variables like "default_master_connection";
+
+--error WARN_NO_MASTER_INFO
+show slave status;
+select master_pos_wait('master-bin.999999',0,2);
+set @@default_master_connection='';
+select master_pos_wait('master-bin.999999',0,2);
+
+set @@default_master_connection='';
+
+--echo #
+--echo # checking variables
+--echo #
+show status like "Slave_running";
+set @@default_master_connection='qqq';
+show status like "Slave_running";
+set @@default_master_connection='';
+
+--source include/rpl_end.inc

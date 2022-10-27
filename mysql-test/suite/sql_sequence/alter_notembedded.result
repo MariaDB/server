@@ -1,0 +1,38 @@
+#
+# GRANT
+#
+create database s_db;
+create sequence s_db.s1;
+grant select on s_db.s1 to normal_1@'%' identified by 'pass';
+connect m_normal_1, localhost, normal_1, pass, s_db;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+select nextval(s1);
+ERROR 42000: INSERT command denied to user 'normal_1'@'localhost' for table 's1'
+show create sequence s1;
+Table	Create Table
+s1	CREATE SEQUENCE `s1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+alter sequence s1 restart 50;
+ERROR 42000: ALTER command denied to user 'normal_1'@'localhost' for table 's1'
+connection default;
+grant insert on s_db.s1 to normal_1@'%';
+connection m_normal_1;
+select nextval(s1);
+nextval(s1)
+1
+alter sequence s1 restart 50;
+ERROR 42000: ALTER command denied to user 'normal_1'@'localhost' for table 's1'
+connection default;
+grant alter on s_db.s1 to normal_1@'%';
+connection m_normal_1;
+alter sequence s1 restart 50;
+select nextval(s1);
+nextval(s1)
+50
+drop sequence s1;
+ERROR 42000: DROP command denied to user 'normal_1'@'localhost' for table 's1'
+connection default;
+disconnect m_normal_1;
+drop database s_db;
+drop user normal_1@'%';

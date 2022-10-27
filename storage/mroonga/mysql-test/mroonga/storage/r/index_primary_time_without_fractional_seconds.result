@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS running_records;
+CREATE TABLE running_records (
+time TIME PRIMARY KEY,
+title TEXT
+) DEFAULT CHARSET UTF8;
+INSERT INTO running_records (time, title)
+VALUES ("01:00:00", "normal condition");
+INSERT INTO running_records (time, title)
+VALUES ("12:23:34", "bad condition");
+INSERT INTO running_records (time, title)
+VALUES ("-838:59:59", "record failure");
+SELECT * FROM running_records;
+time	title
+-838:59:59	record failure
+01:00:00	normal condition
+12:23:34	bad condition
+SELECT * FROM running_records
+WHERE time BETWEEN "00:59:59" AND "12:23:34";
+time	title
+01:00:00	normal condition
+12:23:34	bad condition
+DROP TABLE running_records;

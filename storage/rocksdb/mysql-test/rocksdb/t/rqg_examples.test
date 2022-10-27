@@ -1,0 +1,12 @@
+--source include/have_rocksdb.inc
+# Don't run the RQG tests with --rpc_protocol because the connections and
+# queries will be coming from Perl where we don't have any ability to
+# specify the query attributes needed for the RPC protocol.
+--source include/not_rpc_protocol.inc
+
+# RQG's examples test
+let $TESTDIR = examples;
+let $GRAMMAR_FILES = example.yy;
+let $DATA_FILE = example.zz;
+
+--source rqg.inc

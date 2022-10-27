@@ -1,0 +1,21 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+Killing server ...
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait = DEFAULT;
+connection node_2;
+connection node_2a;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE
+2
+DROP TABLE t1;

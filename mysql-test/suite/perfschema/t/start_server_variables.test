@@ -1,0 +1,11 @@
+# Tests for PERFORMANCE_SCHEMA
+
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+
+--source ../include/start_server_common.inc
+
+# This has a stable output, printing the result:
+show variables where
+    `Variable_name` != "performance_schema_max_statement_classes" and
+    `Variable_name` like "performance_schema%";

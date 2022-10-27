@@ -1,0 +1,65 @@
+#
+#BUG#11752315 : STOP SLAVE UNABLE TO COMPLETE WHEN SLAVE THREAD IS TRYING 
+#               TO RECONNECT TO 
+#
+# ==== Purpose ====
+#
+#Tests that the slave does not go to a sleep for a long duration after the 
+#master is killed and we do a START_SLAVE and STOP_SLAVE.
+#
+# ==== Method ====
+#
+#This is a new functionality of having an interruptable sleep of the slave.
+#We find the thread id for the slave thread. On finding the thread ID of the 
+#slave thread we kill the slave thread. A successful kill in less than 60 sec 
+#should serve the purpose of checking the functionality.
+#
+
+--source include/have_log_bin.inc
+--source include/master-slave.inc
+
+connection slave;
+--let $connection_id=`SELECT id FROM information_schema.processlist where state LIKE 'Waiting for master to send event'`
+
+if(!$connection_id)
+{
+  # Something went wrong (timing)
+  # Show process list so that we can debug. In this case we will abort with
+  # wrong result
+  -- echo "Could not find connect id. Dumping process list for debugging"
+  SELECT * FROM information_schema.processlist;
+  exit;
+}
+
+set @time_before_kill := (select CURRENT_TIMESTAMP);
+
+--echo [Time before the query]
+--echo [Connection ID of the slave I/O thread found]
+
+--replace_regex /kill [0-9]*/kill <connection_id>/
+--eval kill $connection_id
+--source include/wait_for_slave_io_to_stop.inc
+
+set @time_after_kill := (select CURRENT_TIMESTAMP);
+
+--echo [Time after the query]
+
+if(`select TIMESTAMPDIFF(SECOND,@time_after_kill, @time_before_kill) > 60`)
+{
+--echo # assert : The difference between the timestamps 'time_after_kill' and 'time_before_kill' should be less than 60sec.
+--die
+}
+--echo [Killing of the slave IO thread was successful]
+
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+
+# Ensure that the slave io thread started properly
+connection master;
+create table t1 (a int primary key);
+sync_slave_with_master;
+connection master;
+drop table t1;
+
+# End of test
+--source include/rpl_end.inc

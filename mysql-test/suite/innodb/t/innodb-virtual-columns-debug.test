@@ -1,0 +1,27 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+#
+# MDEV-17005 ASAN heap-use-after-free in innobase_get_computed_value
+#
+CREATE TABLE t1 (a INT, b INT AS (a), KEY(b)) ENGINE=InnoDB;
+
+INSERT INTO t1 () VALUES (),();
+--connect (con1,localhost,root,,test)
+ALTER TABLE t1 ADD COLUMN x INT as (a), add key(x), ALGORITHM=COPY;
+SET debug_sync= "ib_open_after_dict_open SIGNAL delete_open WAIT_FOR another_open";
+--send
+DELETE FROM t1;
+--connection default
+SET debug_sync= "now WAIT_FOR delete_open";
+SELECT a FROM t1;
+SET debug_sync= "now SIGNAL another_open";
+--connection con1
+--reap
+
+# Cleanup
+--disconnect con1
+--connection default
+SET debug_sync= "RESET";
+DROP TABLE t1;

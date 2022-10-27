@@ -1,0 +1,28 @@
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT) ENGINE=InnoDB;
+CREATE TABLE t3 (c INT) ENGINE=InnoDB;
+CREATE TRIGGER tr BEFORE INSERT ON t3 FOR EACH ROW BEGIN SAVEPOINT sv; INSERT INTO t2 VALUES (0); END $$
+START TRANSACTION;
+DELETE FROM t1;
+connect  con1,localhost,root,,test;
+START TRANSACTION;
+INSERT INTO t2 VALUES (2);
+UPDATE t2 SET b = b+1;
+INSERT INTO t1 VALUES (1);
+connection default;
+COMMIT;
+connection con1;
+COMMIT;
+disconnect con1;
+connection default;
+SELECT * FROM t1;
+a
+1
+SELECT * FROM t2;
+b
+3
+SELECT * FROM t3;
+c
+DROP TABLE t1, t2, t3;
+DROP TRIGGER tr;
+ERROR HY000: Trigger does not exist

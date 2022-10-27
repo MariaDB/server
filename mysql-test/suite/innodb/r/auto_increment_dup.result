@@ -1,0 +1,167 @@
+set global transaction isolation level repeatable read;
+CREATE TABLE t1(
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+k INT,
+c CHAR(1),
+UNIQUE KEY(k)) ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `k` int(11) DEFAULT NULL,
+  `c` char(1) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `k` (`k`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+#
+# Sequential execution
+#
+INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1';
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+#
+# 1 duplicate
+#
+INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+affected rows: 4
+info: Records: 3  Duplicates: 1  Warnings: 0
+#
+# 5 rows, consecutive auto_inc values
+#
+SELECT * FROM t1 order by k;
+id	k	c
+1	1	NULL
+2	2	2
+3	3	NULL
+4	4	NULL
+5	5	NULL
+affected rows: 5
+DROP TABLE t1;
+affected rows: 0
+CREATE TABLE t1(
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+k INT,
+c CHAR(1),
+UNIQUE KEY(k)) ENGINE=InnoDB;
+affected rows: 0
+#
+# Sequential execution 2
+#
+INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+#
+# 1 duplicate
+#
+INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1';
+affected rows: 4
+info: Records: 3  Duplicates: 1  Warnings: 0
+#
+# 5 rows, consecutive auto_inc values
+#
+SELECT * FROM t1 order by k;
+id	k	c
+4	1	NULL
+1	2	1
+5	3	NULL
+2	4	NULL
+3	5	NULL
+affected rows: 5
+DROP TABLE t1;
+affected rows: 0
+CREATE TABLE t1(
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+k INT,
+c CHAR(1),
+UNIQUE KEY(k)) ENGINE=InnoDB;
+affected rows: 0
+#
+# Parallel execution
+#
+connect con2, localhost, root;
+SET DEBUG_SYNC='now WAIT_FOR write_row_done';
+connect con1, localhost, root;
+SET DEBUG_SYNC='ha_write_row_end SIGNAL write_row_done WAIT_FOR continue';
+affected rows: 0
+INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1';
+connection con2;
+affected rows: 0
+SET DEBUG_SYNC='execute_command_after_close_tables SIGNAL continue';
+affected rows: 0
+INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+connection con1;
+#
+# 2 duplicates
+#
+affected rows: 4
+info: Records: 3  Duplicates: 1  Warnings: 0
+connection default;
+#
+# 3 rows
+#
+SELECT * FROM t1 order by k;
+id	k	c
+1	1	NULL
+4	2	1
+2	3	NULL
+5	4	NULL
+6	5	NULL
+affected rows: 5
+INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+affected rows: 6
+info: Records: 3  Duplicates: 3  Warnings: 0
+SELECT * FROM t1 order by k;
+id	k	c
+1	1	NULL
+4	2	2
+2	3	NULL
+5	4	2
+6	5	2
+affected rows: 5
+disconnect con1;
+disconnect con2;
+connection default;
+DROP TABLE t1;
+#
+# Parallel test with read_committed
+#
+set global transaction isolation level read committed;
+drop table if exists t1;
+CREATE TABLE t1(
+id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+k INT,
+c CHAR(1),
+UNIQUE KEY(k)) ENGINE=InnoDB;
+connect con1, localhost, root;
+SET DEBUG_SYNC='ha_write_row_end SIGNAL continue2 WAIT_FOR continue1';
+affected rows: 0
+INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1';
+connect con2, localhost, root;
+SET DEBUG_SYNC='ha_write_row_start WAIT_FOR continue2';
+affected rows: 0
+SET DEBUG_SYNC='after_mysql_insert SIGNAL continue1';
+affected rows: 0
+INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+disconnect con2;
+connection con1;
+affected rows: 4
+info: Records: 3  Duplicates: 1  Warnings: 0
+SET DEBUG_SYNC='RESET';
+#
+# 5 rows, gap in autoinc values
+#
+SELECT * FROM t1 ORDER BY k;
+id	k	c
+1	1	NULL
+4	2	1
+2	3	NULL
+5	4	NULL
+6	5	NULL
+disconnect con1;
+connection default;
+DROP TABLE t1;
+set global transaction isolation level repeatable read;

@@ -1,0 +1,96 @@
+connection node_2;
+connection node_1;
+#
+# MDEV-6924 : Server crashed on CREATE TABLE ... SELECT
+#
+SET @wsrep_forced_binlog_format_saved=@@GLOBAL.wsrep_forced_binlog_format;
+SET @@GLOBAL.wsrep_forced_binlog_format=STATEMENT;
+SHOW VARIABLES LIKE '%log%bin%';
+Variable_name	Value
+log_bin	OFF
+log_bin_basename	
+log_bin_compress	OFF
+log_bin_compress_min_len	256
+log_bin_index	
+log_bin_trust_function_creators	ON
+sql_log_bin	ON
+USE test;
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TEMPORARY TABLE `t1_temp` AS SELECT * FROM `t1` WHERE i = 1;
+SELECT * FROM t1;
+i
+1
+SELECT * FROM t1_temp;
+i
+1
+DROP TABLE t1;
+SET @@GLOBAL.wsrep_forced_binlog_format=@wsrep_forced_binlog_format_saved;
+#
+# MDEV-7673: CREATE TABLE SELECT fails on Galera cluster
+#
+connection node_1;
+CREATE TABLE t1 (i INT) ENGINE=INNODB DEFAULT CHARSET=utf8 SELECT 1 as i;
+SELECT * FROM t1;
+i
+1
+connection node_2;
+SELECT * FROM t1;
+i
+1
+DROP TABLE t1;
+#
+# MDEV-8166 : Adding index on new table from select crashes Galera
+# cluster
+#
+connection node_1;
+CREATE TABLE t1(i int(11) NOT NULL DEFAULT '0') ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO t1(i) VALUES (1), (2), (3);
+CREATE TABLE t2 (i INT) SELECT i FROM t1;
+ALTER TABLE t2 ADD INDEX idx(i);
+SELECT * FROM t2;
+i
+1
+2
+3
+connection node_2;
+SELECT * FROM t2;
+i
+1
+2
+3
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `i` int(11) DEFAULT NULL,
+  KEY `idx` (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1, t2;
+#
+# MDEV-9853: WSREP says it cannot get fake InnoDB transaction ID
+# followed by segmentation fault
+#
+CREATE TABLE `t1`(`c1` INT) ENGINE=INNODB;
+SET autocommit=0;
+CREATE TABLE `t2` (`c1` INT) ENGINE=INNODB SELECT * FROM t1;
+COMMIT;
+SET autocommit=1;
+DROP TABLE t1, t2;
+#
+# MDEV-10235: Deadlock in CREATE TABLE ... AS SELECT .. if result set
+# is empty in Galera
+#
+connection node_1;
+CREATE TABLE t1(c1 INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t2 AS SELECT * FROM t1 WHERE c1=2;
+connection node_2;
+SELECT * FROM t1;
+c1
+1
+SELECT * FROM t2;
+c1
+DROP TABLE t1, t2;
+disconnect node_2;
+disconnect node_1;
+# End of tests

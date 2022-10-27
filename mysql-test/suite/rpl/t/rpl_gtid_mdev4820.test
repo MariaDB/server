@@ -1,0 +1,118 @@
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--connection server_2
+--source include/stop_slave.inc
+SET @slave_old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+SET @master_old_strict= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+--source include/stop_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+--let $old_gtid_pos= `SELECT @@GLOBAL.gtid_current_pos`
+RESET MASTER;
+--replace_result $old_gtid_pos OLD_GTID_POS
+eval SET GLOBAL gtid_slave_pos= '$old_gtid_pos';
+
+--connection server_2
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (4);
+--source include/save_master_gtid.inc
+
+--connection server_2
+SET sql_log_bin= 0;
+CALL mtr.add_suppression("The binlog on the master is missing the GTID");
+SET sql_log_bin= 1;
+--let $slave_io_errno=1236
+--source include/wait_for_slave_io_error.inc
+
+STOP SLAVE SQL_THREAD;
+--replace_result $old_gtid_pos OLD_GTID_POS
+eval SET GLOBAL gtid_slave_pos= '$old_gtid_pos';
+
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+RESET MASTER;
+SET GLOBAL gtid_slave_pos= '0-2-10';
+
+--connection server_1
+--replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_2,
+     master_user= 'root', master_use_gtid=CURRENT_POS;
+START SLAVE;
+
+--connection server_2
+INSERT INTO t1 VALUES (11);
+--save_master_pos
+
+--connection server_1
+SET sql_log_bin= 0;
+CALL mtr.add_suppression("which is not in the master's binlog. Since the master's binlog contains GTIDs with higher sequence numbers, it probably means that the slave has diverged");
+SET sql_log_bin= 1;
+--let $slave_io_errno=1236
+--source include/wait_for_slave_io_error.inc
+
+--connection server_1
+STOP SLAVE SQL_THREAD;
+SET GLOBAL gtid_slave_pos= '0-2-10';
+SET GLOBAL gtid_strict_mode= 0;
+--source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+--let $old_gtid_pos= `SELECT @@GLOBAL.gtid_current_pos`
+INSERT INTO t1 VALUES (12);
+--save_master_pos
+
+--connection server_2
+INSERT INTO t1 VALUES (22);
+--replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_1,
+     master_user= 'root', master_use_gtid=CURRENT_POS;
+START SLAVE;
+SET sql_log_bin= 0;
+CALL mtr.add_suppression("which is not in the master's binlog. Since the master's binlog contains GTIDs with higher sequence numbers, it probably means that the slave has diverged");
+SET sql_log_bin= 1;
+--let $slave_io_errno=1236
+--source include/wait_for_slave_io_error.inc
+STOP SLAVE SQL_THREAD;
+SET GLOBAL gtid_strict_mode= 0;
+CHANGE MASTER TO master_use_gtid=SLAVE_POS;
+--replace_result $old_gtid_pos OLD_GTID_POS
+eval SET GLOBAL gtid_slave_pos= '$old_gtid_pos';
+--source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+# Clean up.
+--connection server_2
+SET GLOBAL gtid_strict_mode= @slave_old_strict;
+
+--connection server_1
+DROP TABLE t1;
+SET GLOBAL gtid_strict_mode= @master_old_strict;
+
+--source include/rpl_end.inc

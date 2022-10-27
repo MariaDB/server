@@ -1,0 +1,250 @@
+# TBF - difference in row level logging
+-- source include/have_binlog_format_mixed_or_statement.inc
+-- source include/master-slave.inc
+
+--connection slave
+set sql_log_bin=0;
+create database y;
+set sql_log_bin=1;
+
+--connection master
+--disable_warnings
+drop database if exists mysqltest1;
+drop database if exists x;
+--enable_warnings
+create database mysqltest1;
+set sql_log_bin=0;
+create database x;
+set sql_log_bin=1;
+
+use mysqltest1;
+create table t1 (a int);
+insert into t1 values(9);
+use x;
+create table t1 (a int);
+insert into t1 values(9);
+select * from mysqltest1.t1;
+select * from x.t1;
+sync_slave_with_master;
+#TODO no it is no empty
+show databases like 'mysqltest1'; # should be empty
+select * from test.t1;
+select * from y.t1;
+# cleanup
+connection master;
+use mysqltest1;
+drop table t1;
+drop database mysqltest1;
+sync_slave_with_master;
+
+#
+# BUG#6353:
+#   Option --replicate-rewrite-db should work together with LOAD DATA INFILE
+#
+
+connection slave;
+--disable_warnings
+drop database if exists rewrite;
+--enable_warnings
+create database rewrite;
+
+connection master;
+use test;
+create table t1 (a date, b date, c date not null, d date);
+load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',';
+load data infile '../../std_data/loaddata1.dat' into table t1 fields terminated by ',' IGNORE 2 LINES;
+sync_slave_with_master;
+
+connection slave;
+select * from rewrite.t1;
+
+connection master;
+truncate table t1;
+load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',' LINES STARTING BY ',' (b,c,d);
+sync_slave_with_master;
+
+connection slave;
+select * from rewrite.t1;
+
+connection master;
+drop table t1;
+create table t1 (a text, b text);
+load data infile '../../std_data/loaddata2.dat' into table t1 fields terminated by ',' enclosed by '''';
+sync_slave_with_master;
+
+connection slave;
+select concat('|',a,'|'), concat('|',b,'|') from rewrite.t1;
+
+connection master;
+drop table t1;
+create table t1 (a int, b char(10));
+load data infile '../../std_data/loaddata3.dat' into table t1 fields terminated by '' enclosed by '' ignore 1 lines;
+sync_slave_with_master;
+
+connection slave;
+select * from rewrite.t1;
+
+connection master;
+truncate table t1;
+load data infile '../../std_data/loaddata4.dat' into table t1 fields terminated by '' enclosed by '' lines terminated by '' ignore 1 lines;
+sync_slave_with_master;
+
+connection slave;
+# The empty line last comes from the end line field in the file
+select * from rewrite.t1;
+
+set sql_log_bin= 0;
+drop database rewrite;
+set sql_log_bin= 1;
+
+connection master;
+set sql_log_bin= 0;
+drop table t1;
+set sql_log_bin= 1;
+
+# End of 4.1 tests
+
+--echo
+--echo ****
+--echo **** Bug #46861 Auto-closing of temporary tables broken by replicate-rewrite-db
+--echo ****
+--echo
+
+--echo ****
+--echo **** Preparing the environment
+--echo ****
+connection master;
+
+connect (con_temp_03,127.0.0.1,root,,test,$MASTER_MYPORT,);
+connect (con_temp_02,127.0.0.1,root,,test,$MASTER_MYPORT,);
+connect (con_temp_01,127.0.0.1,root,,test,$MASTER_MYPORT,);
+
+connection master;
+SET sql_log_bin= 0;
+CREATE DATABASE database_master_temp_01;
+CREATE DATABASE database_master_temp_02;
+CREATE DATABASE database_master_temp_03;
+SET sql_log_bin= 1;
+
+connection slave;
+SET sql_log_bin= 0;
+CREATE DATABASE database_slave_temp_01;
+CREATE DATABASE database_slave_temp_02;
+CREATE DATABASE database_slave_temp_03;
+SET sql_log_bin= 1;
+
+--echo
+--echo ****
+--echo **** Creating temporary tables on different databases with different connections
+--echo ****
+--echo **** con_temp_01 --> creates 
+--echo ****                  t_01_01_temp on database_master_temp_01
+--echo ****
+--echo **** con_temp_02 --> creates 
+--echo ****                  t_01_01_temp on database_master_temp_01
+--echo ****                  t_02_01_temp, t_02_02_temp on database_master_temp_02
+--echo ****
+--echo **** con_temp_02 --> creates 
+--echo ****                  t_01_01_temp on database_master_temp_01
+--echo ****                  t_02_01_temp, t_02_02_temp on database_master_temp_02
+--echo ****                  t_03_01_temp, t_03_02_temp, t_03_03_temp on database_master_temp_03
+--echo ****
+
+connection con_temp_01;
+USE database_master_temp_01;
+CREATE TEMPORARY TABLE t_01_01_temp(a int);
+INSERT INTO t_01_01_temp VALUES(1);
+
+connection con_temp_02;
+USE database_master_temp_01;
+CREATE TEMPORARY TABLE t_01_01_temp(a int);
+INSERT INTO t_01_01_temp VALUES(1);
+USE database_master_temp_02;
+CREATE TEMPORARY TABLE t_02_01_temp(a int);
+INSERT INTO t_02_01_temp VALUES(1);
+CREATE TEMPORARY TABLE t_02_02_temp(a int);
+INSERT INTO t_02_02_temp VALUES(1);
+
+connection con_temp_03;
+USE database_master_temp_01;
+CREATE TEMPORARY TABLE t_01_01_temp(a int);
+INSERT INTO t_01_01_temp VALUES(1);
+USE database_master_temp_02;
+CREATE TEMPORARY TABLE t_02_01_temp(a int);
+INSERT INTO t_02_01_temp VALUES(1);
+CREATE TEMPORARY TABLE t_02_02_temp(a int);
+INSERT INTO t_02_02_temp VALUES(1);
+USE database_master_temp_03;
+CREATE TEMPORARY TABLE t_03_01_temp(a int);
+INSERT INTO t_03_01_temp VALUES(1);
+CREATE TEMPORARY TABLE t_03_02_temp(a int);
+INSERT INTO t_03_02_temp VALUES(1);
+CREATE TEMPORARY TABLE t_03_03_temp(a int);
+INSERT INTO t_03_03_temp VALUES(1);
+
+--echo
+--echo **** Dropping the connections
+--echo **** We want to SHOW BINLOG EVENTS, to know what was logged. But there is no
+--echo **** guarantee that logging of the terminated con1 has been done yet.a  To be 
+--echo **** sure that logging has been done, we use a user lock.
+--echo
+connection master;
+sync_slave_with_master;
+connection slave;
+show status like 'Slave_open_temp_tables';
+
+connection master;
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+connection con_temp_01;
+select get_lock("con_01",10);
+connection master;
+disconnect con_temp_01;
+select get_lock("con_01",10);
+
+connection con_temp_02;
+select get_lock("con_02",10);
+connection master;
+disconnect con_temp_02;
+select get_lock("con_02",10);
+
+connection con_temp_03;
+select get_lock("con_03",10);
+connection master;
+disconnect con_temp_03;
+select get_lock("con_03",10);
+
+--echo
+--echo **** Checking the binary log and temporary tables
+--echo
+connection master;
+sync_slave_with_master;
+connection slave;
+show status like 'Slave_open_temp_tables';
+
+connection master;
+--source include/show_binlog_events.inc
+
+--echo ****
+--echo **** Cleaning up the test case
+--echo ****
+connection master;
+SET sql_log_bin= 0;
+DROP DATABASE database_master_temp_01;
+DROP DATABASE database_master_temp_02;
+DROP DATABASE database_master_temp_03;
+DROP DATABASE x;
+SET sql_log_bin= 1;
+
+connection slave;
+SET sql_log_bin= 0;
+DROP DATABASE database_slave_temp_01;
+DROP DATABASE database_slave_temp_02;
+DROP DATABASE database_slave_temp_03;
+DROP DATABASE y;
+SET sql_log_bin= 1;
+
+connection master;
+sync_slave_with_master;
+
+# end of 5.0 tests
+--source include/rpl_end.inc

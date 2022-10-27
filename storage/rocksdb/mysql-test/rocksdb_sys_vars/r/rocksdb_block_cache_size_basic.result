@@ -1,0 +1,85 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(65536);
+INSERT INTO valid_values VALUES(1024);
+INSERT INTO valid_values VALUES(1*1024*1024);
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+INSERT INTO invalid_values VALUES('\'bbb\'');
+INSERT INTO invalid_values VALUES('\'-1\'');
+INSERT INTO invalid_values VALUES('\'101\'');
+INSERT INTO invalid_values VALUES('\'484436\'');
+SET @start_global_value = @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+SELECT @start_global_value;
+@start_global_value
+536870912
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_BLOCK_CACHE_SIZE to 65536"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE   = 65536;
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+65536
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE = DEFAULT;
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+536870912
+"Trying to set variable @@global.ROCKSDB_BLOCK_CACHE_SIZE to 1024"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE   = 1024;
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+1024
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE = DEFAULT;
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+536870912
+"Trying to set variable @@global.ROCKSDB_BLOCK_CACHE_SIZE to 1048576"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE   = 1048576;
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+1048576
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE = DEFAULT;
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+536870912
+"Trying to set variable @@session.ROCKSDB_BLOCK_CACHE_SIZE to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_BLOCK_CACHE_SIZE   = 444;
+ERROR HY000: Variable 'rocksdb_block_cache_size' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_BLOCK_CACHE_SIZE to 'aaa'"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+536870912
+"Trying to set variable @@global.ROCKSDB_BLOCK_CACHE_SIZE to 'bbb'"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE   = 'bbb';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+536870912
+"Trying to set variable @@global.ROCKSDB_BLOCK_CACHE_SIZE to '-1'"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE   = '-1';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+536870912
+"Trying to set variable @@global.ROCKSDB_BLOCK_CACHE_SIZE to '101'"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE   = '101';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+536870912
+"Trying to set variable @@global.ROCKSDB_BLOCK_CACHE_SIZE to '484436'"
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE   = '484436';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+536870912
+SET @@global.ROCKSDB_BLOCK_CACHE_SIZE = @start_global_value;
+SELECT @@global.ROCKSDB_BLOCK_CACHE_SIZE;
+@@global.ROCKSDB_BLOCK_CACHE_SIZE
+536870912
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

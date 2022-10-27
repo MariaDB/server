@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-19535 sql_mode=ORACLE: 'SELECT INTO @var FOR UPDATE' does not lock the table
+--echo #
+
+SET sql_mode='ORACLE';
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (1);
+START TRANSACTION;
+SELECT a AS a_con1 FROM t1 INTO @a FOR UPDATE;
+
+--connect(con2,localhost,root,,)
+SET sql_mode='ORACLE';
+START TRANSACTION;
+--send SELECT a AS a_con2 FROM t1 INTO @a FOR UPDATE;
+
+--connection default
+UPDATE t1 SET a=a+100;
+COMMIT;
+
+--connection con2
+--reap
+SELECT a AS con2 FROM t1;
+COMMIT;
+
+--connection default
+DROP TABLE t1;

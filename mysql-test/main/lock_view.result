@@ -1,0 +1,265 @@
+create database mysqltest1;
+create database mysqltest2;
+create database mysqltest3;
+create user invoker@localhost;
+create user definer@localhost;
+grant select,show view on mysqltest1.* to invoker@localhost;
+grant select,show view on mysqltest1.* to definer@localhost;
+grant select,show view on mysqltest2.* to invoker@localhost;
+grant select,show view on mysqltest2.* to definer@localhost;
+grant select,show view on mysqltest3.* to invoker@localhost;
+grant select on performance_schema.* to definer@localhost;
+create table mysqltest1.t1 (a int);
+create definer=definer@localhost view mysqltest2.v2 as select * from mysqltest1.t1;
+create definer=definer@localhost view mysqltest3.v3 as select * from mysqltest2.v2;
+create definer=definer@localhost view mysqltest3.v3is as select schema_name from information_schema.schemata order by schema_name;
+create definer=definer@localhost view mysqltest3.v3ps as select user from performance_schema.users where current_connections>0 order by user;
+create definer=definer@localhost view mysqltest3.v3nt as select 1;
+create definer=definer@localhost sql security invoker view mysqltest3.v3i as select * from mysqltest1.t1;
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET latin1 */;
+
+USE `mysqltest1`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin1 */;
+
+USE `mysqltest2`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+/*!50001 CREATE TABLE `v2` (
+  `a` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest3` /*!40100 DEFAULT CHARACTER SET latin1 */;
+
+USE `mysqltest3`;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+/*!50001 CREATE TABLE `v3` (
+  `a` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+/*!50001 CREATE TABLE `v3i` (
+  `a` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+/*!50001 CREATE TABLE `v3is` (
+  `schema_name` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+/*!50001 CREATE TABLE `v3nt` (
+  `1` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+/*!50001 CREATE TABLE `v3ps` (
+  `user` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
+
+USE `mysqltest1`;
+
+USE `mysqltest2`;
+/*!50001 DROP TABLE IF EXISTS `v2`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = latin1 */;
+/*!50001 SET character_set_results     = latin1 */;
+/*!50001 SET collation_connection      = latin1_swedish_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `v2` AS select `mysqltest1`.`t1`.`a` AS `a` from `mysqltest1`.`t1` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+
+USE `mysqltest3`;
+/*!50001 DROP TABLE IF EXISTS `v3`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = latin1 */;
+/*!50001 SET character_set_results     = latin1 */;
+/*!50001 SET collation_connection      = latin1_swedish_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `v3` AS select `v2`.`a` AS `a` from `mysqltest2`.`v2` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+/*!50001 DROP TABLE IF EXISTS `v3i`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = latin1 */;
+/*!50001 SET character_set_results     = latin1 */;
+/*!50001 SET collation_connection      = latin1_swedish_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY INVOKER */
+/*!50001 VIEW `v3i` AS select `mysqltest1`.`t1`.`a` AS `a` from `mysqltest1`.`t1` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+/*!50001 DROP TABLE IF EXISTS `v3is`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = latin1 */;
+/*!50001 SET character_set_results     = latin1 */;
+/*!50001 SET collation_connection      = latin1_swedish_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `v3is` AS select `information_schema`.`schemata`.`SCHEMA_NAME` AS `schema_name` from `information_schema`.`schemata` order by `information_schema`.`schemata`.`SCHEMA_NAME` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+/*!50001 DROP TABLE IF EXISTS `v3nt`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = latin1 */;
+/*!50001 SET character_set_results     = latin1 */;
+/*!50001 SET collation_connection      = latin1_swedish_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `v3nt` AS select 1 AS `1` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+/*!50001 DROP TABLE IF EXISTS `v3ps`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = latin1 */;
+/*!50001 SET character_set_results     = latin1 */;
+/*!50001 SET collation_connection      = latin1_swedish_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `v3ps` AS select `performance_schema`.`users`.`USER` AS `user` from `performance_schema`.`users` where `performance_schema`.`users`.`CURRENT_CONNECTIONS` > 0 order by `performance_schema`.`users`.`USER` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+connect inv,localhost,invoker;
+lock table mysqltest3.v3 write;
+ERROR 42000: Access denied for user 'invoker'@'localhost' to database 'mysqltest3'
+disconnect inv;
+connection default;
+grant lock tables on mysqltest3.* to invoker@localhost;
+connect inv,localhost,invoker;
+show create view mysqltest3.v3;
+View	Create View	character_set_client	collation_connection
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest3`.`v3` AS select `v2`.`a` AS `a` from `mysqltest2`.`v2`	latin1	latin1_swedish_ci
+show create view mysqltest3.v3is;
+View	Create View	character_set_client	collation_connection
+v3is	CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest3`.`v3is` AS select `information_schema`.`schemata`.`SCHEMA_NAME` AS `schema_name` from `information_schema`.`schemata` order by `information_schema`.`schemata`.`SCHEMA_NAME`	latin1	latin1_swedish_ci
+show create view mysqltest3.v3ps;
+View	Create View	character_set_client	collation_connection
+v3ps	CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest3`.`v3ps` AS select `performance_schema`.`users`.`USER` AS `user` from `performance_schema`.`users` where `performance_schema`.`users`.`CURRENT_CONNECTIONS` > 0 order by `performance_schema`.`users`.`USER`	latin1	latin1_swedish_ci
+show create view mysqltest3.v3nt;
+View	Create View	character_set_client	collation_connection
+v3nt	CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest3`.`v3nt` AS select 1 AS `1`	latin1	latin1_swedish_ci
+show create view mysqltest3.v3i;
+View	Create View	character_set_client	collation_connection
+v3i	CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY INVOKER VIEW `mysqltest3`.`v3i` AS select `mysqltest1`.`t1`.`a` AS `a` from `mysqltest1`.`t1`	latin1	latin1_swedish_ci
+lock table mysqltest3.v3 write;
+ERROR HY000: View 'mysqltest3.v3' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+lock table mysqltest3.v3i write;
+ERROR HY000: View 'mysqltest3.v3i' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+lock table mysqltest3.v3is write;
+select * from mysqltest3.v3is;
+schema_name
+information_schema
+mysqltest1
+mysqltest2
+performance_schema
+test
+lock table mysqltest3.v3ps write;
+select * from mysqltest3.v3ps;
+user
+NULL
+invoker
+root
+lock table mysqltest3.v3nt write;
+select * from mysqltest3.v3nt;
+1
+1
+disconnect inv;
+connection default;
+grant lock tables on mysqltest2.* to invoker@localhost;
+connect inv,localhost,invoker;
+lock table mysqltest3.v3 write;
+ERROR HY000: View 'mysqltest3.v3' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+lock table mysqltest3.v3i write;
+ERROR HY000: View 'mysqltest3.v3i' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+disconnect inv;
+connection default;
+grant lock tables on mysqltest1.* to definer@localhost;
+connect inv,localhost,invoker;
+lock table mysqltest3.v3 write;
+select * from mysqltest3.v3;
+a
+lock table mysqltest3.v3i write;
+ERROR HY000: View 'mysqltest3.v3i' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+disconnect inv;
+connection default;
+grant lock tables on mysqltest1.* to invoker@localhost;
+connect inv,localhost,invoker;
+lock table mysqltest3.v3i write;
+select * from mysqltest3.v3i;
+a
+disconnect inv;
+connection default;
+drop user invoker@localhost;
+drop user definer@localhost;
+drop database mysqltest1;
+drop database mysqltest2;
+drop database mysqltest3;
+#
+# MDEV-24331 mysqldump fails with "Got error: 1356" if the database contains a view with a subquery
+#
+create user u1@localhost;
+grant all privileges on test.* to u1@localhost;
+connect con1,localhost,u1;
+use test;
+create table t1 (id int not null);
+create view v1 as select * from (select * from t1) dt;
+lock table v1 read;
+disconnect con1;
+connection default;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
+/*!50001 CREATE TABLE `v1` (
+  `id` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
+/*!50001 DROP TABLE IF EXISTS `v1`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = latin1 */;
+/*!50001 SET character_set_results     = latin1 */;
+/*!50001 SET collation_connection      = latin1_swedish_ci */;
+/*!50001 CREATE ALGORITHM=UNDEFINED */
+/*!50013 DEFINER=`u1`@`localhost` SQL SECURITY DEFINER */
+/*!50001 VIEW `v1` AS select `dt`.`id` AS `id` from (select `test`.`t1`.`id` AS `id` from `test`.`t1`) `dt` */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
+drop view v1;
+drop table t1;
+drop user u1@localhost;

@@ -1,0 +1,109 @@
+create table t1 (a mediumint unsigned not null, primary key(a)) engine='InnoDB' 
+partition by key (a) (
+partition pa1 max_rows=20 min_rows=2,
+partition pa2 max_rows=30 min_rows=3,
+partition pa3 max_rows=30 min_rows=4,
+partition pa4 max_rows=40 min_rows=2);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` mediumint(8) unsigned NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
+ PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
+ PARTITION `pa3` MAX_ROWS = 30 MIN_ROWS = 4 ENGINE = InnoDB,
+ PARTITION `pa4` MAX_ROWS = 40 MIN_ROWS = 2 ENGINE = InnoDB)
+insert into t1 values (16777215), (16777214), (16777213), (16777212), (1), (2), (65535);
+select * from t1;
+a
+1
+16777212
+16777213
+16777214
+16777215
+2
+65535
+select * from t1 where a=16777213;
+a
+16777213
+delete from t1 where a=16777213;
+select * from t1;
+a
+1
+16777212
+16777214
+16777215
+2
+65535
+drop table t1;
+create table t2 (a mediumint unsigned not null, primary key(a)) engine='InnoDB' 
+partition by key (a) partitions 8;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` mediumint(8) unsigned NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+PARTITIONS 8
+insert into t2 values (16777215), (16777214), (16777213), (16777212);
+select * from t2;
+a
+16777212
+16777213
+16777214
+16777215
+select * from t2 where a=16777213;
+a
+16777213
+delete from t2 where a=16777213;
+select * from t2;
+a
+16777212
+16777214
+16777215
+delete from t2;
+1024 inserts;
+select count(*) from t2;
+count(*)
+1024
+drop table t2;
+create table t3 (a mediumint not null, primary key(a)) engine='InnoDB' 
+partition by key (a) partitions 7;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` mediumint(9) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+PARTITIONS 7
+insert into t3 values (8388607), (8388606), (8388605), (8388604), (-8388608), (-8388607), (1), (-1), (0);
+select * from t3;
+a
+-1
+-8388607
+-8388608
+0
+1
+8388604
+8388605
+8388606
+8388607
+select * from t3 where a=8388605;
+a
+8388605
+delete from t3 where a=8388605;
+select * from t3;
+a
+-1
+-8388607
+-8388608
+0
+1
+8388604
+8388606
+8388607
+drop table t3;

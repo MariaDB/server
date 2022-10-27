@@ -1,0 +1,37 @@
+#
+# GCF-609 SR: Assertion wsrep_apply_cb on slave after master causes a duplicate key error
+#
+
+--source include/galera_cluster.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_1
+SET SESSION wsrep_trx_fragment_size=1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+--connection node_2
+SET SESSION wsrep_trx_fragment_size=1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
+INSERT INTO t1 VALUES (31),(32),(33);
+
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COMMIT;
+
+--connection node_2
+COMMIT;
+SELECT * FROM t1;
+
+--connection node_1
+SELECT * FROM t1;
+
+DROP TABLE t1;

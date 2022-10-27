@@ -1,0 +1,2452 @@
+drop table if exists t1, t2, t3, t4;
+drop view if exists v1;
+drop database if exists mysqltest;
+drop function if exists f1;
+drop function if exists f2;
+drop procedure if exists p1;
+connect  addconroot1, localhost, root,,;
+connect  addconroot2, localhost, root,,;
+connect  addconwithoutdb, localhost, root,,*NO-ONE*;
+connection default;
+create table t1 (i int);
+create trigger trg before insert on t1 for each row set @a:=1;
+set @a:=0;
+select @a;
+@a
+0
+insert into t1 values (1);
+select @a;
+@a
+1
+drop trigger trg;
+create trigger trg before insert on t1 for each row set @a:=new.i;
+insert into t1 values (123);
+select @a;
+@a
+123
+drop trigger trg;
+drop table t1;
+create table t1 (i int not null, j int);
+create trigger trg before insert on t1 for each row 
+begin 
+if isnull(new.j) then
+set new.j:= new.i * 10;
+end if;
+end|
+insert into t1 (i) values (1)|
+insert into t1 (i,j) values (2, 3)|
+select * from t1|
+i	j
+1	10
+2	3
+drop trigger trg|
+drop table t1|
+create table t1 (i int not null primary key);
+create trigger trg after insert on t1 for each row 
+set @a:= if(@a,concat(@a, ":", new.i), new.i);
+set @a:="";
+insert into t1 values (2),(3),(4),(5);
+select @a;
+@a
+2:3:4:5
+drop trigger trg;
+drop table t1;
+create table t1 (aid int not null primary key, balance int not null default 0);
+insert into t1 values (1, 1000), (2,3000);
+create trigger trg before update on t1 for each row 
+begin
+declare loc_err varchar(255);
+if abs(new.balance - old.balance) > 1000 then
+set new.balance:= old.balance;
+set loc_err := concat("Too big change for aid = ", new.aid);
+set @update_failed:= if(@update_failed, concat(@a, ":", loc_err), loc_err);
+end if;
+end|
+set @update_failed:=""|
+update t1 set balance=1500|
+select @update_failed;
+select * from t1|
+@update_failed
+Too big change for aid = 2
+aid	balance
+1	1500
+2	3000
+drop trigger trg|
+drop table t1|
+create table t1 (i int);
+insert into t1 values (1),(2),(3),(4);
+create trigger trg after update on t1 for each row 
+set @total_change:=@total_change + new.i - old.i;
+set @total_change:=0;
+update t1 set i=3;
+select @total_change;
+@total_change
+2
+drop trigger trg;
+drop table t1;
+create table t1 (i int);
+insert into t1 values (1),(2),(3),(4);
+create trigger trg before delete on t1 for each row 
+set @del_sum:= @del_sum + old.i;
+set @del_sum:= 0;
+delete from t1 where i <= 3;
+select @del_sum;
+@del_sum
+6
+drop trigger trg;
+drop table t1;
+create table t1 (i int);
+insert into t1 values (1),(2),(3),(4);
+create trigger trg after delete on t1 for each row set @del:= 1;
+set @del:= 0;
+delete from t1 where i <> 0;
+select @del;
+@del
+1
+drop trigger trg;
+drop table t1;
+create table t1 (i int, j int);
+create trigger trg1 before insert on t1 for each row 
+begin
+if new.j > 10 then
+set new.j := 10;
+end if;
+end|
+create trigger trg2 before update on t1 for each row 
+begin
+if old.i % 2 = 0 then
+set new.j := -1;
+end if;
+end|
+create trigger trg3 after update on t1 for each row 
+begin
+if new.j = -1 then
+set @fired:= "Yes";
+end if;
+end|
+set @fired:="";
+insert into t1 values (1,2),(2,3),(3,14);
+select @fired;
+@fired
+
+select * from t1;
+i	j
+1	2
+2	3
+3	10
+update t1 set j= 20;
+select @fired;
+@fired
+Yes
+select * from t1;
+i	j
+1	20
+2	-1
+3	20
+drop trigger trg1;
+drop trigger trg2;
+drop trigger trg3;
+drop table t1;
+create table t1 (id int not null primary key, data int);
+create trigger t1_bi before insert on t1 for each row
+set @log:= concat(@log, "(BEFORE_INSERT: new=(id=", new.id, ", data=", new.data,"))");
+create trigger t1_ai after insert on t1 for each row
+set @log:= concat(@log, "(AFTER_INSERT: new=(id=", new.id, ", data=", new.data,"))");
+create trigger t1_bu before update on t1 for each row
+set @log:= concat(@log, "(BEFORE_UPDATE: old=(id=", old.id, ", data=", old.data,
+") new=(id=", new.id, ", data=", new.data,"))");
+create trigger t1_au after update on t1 for each row
+set @log:= concat(@log, "(AFTER_UPDATE: old=(id=", old.id, ", data=", old.data,
+") new=(id=", new.id, ", data=", new.data,"))");
+create trigger t1_bd before delete on t1 for each row
+set @log:= concat(@log, "(BEFORE_DELETE: old=(id=", old.id, ", data=", old.data,"))");
+create trigger t1_ad after delete on t1 for each row
+set @log:= concat(@log, "(AFTER_DELETE: old=(id=", old.id, ", data=", old.data,"))");
+set @log:= "";
+insert into t1 values (1, 1);
+select @log;
+@log
+(BEFORE_INSERT: new=(id=1, data=1))(AFTER_INSERT: new=(id=1, data=1))
+set @log:= "";
+insert ignore t1 values (1, 2);
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+select @log;
+@log
+(BEFORE_INSERT: new=(id=1, data=2))
+set @log:= "";
+insert into t1 (id, data) values (1, 3), (2, 2) on duplicate key update data= data + 1;
+select @log;
+@log
+(BEFORE_INSERT: new=(id=1, data=3))(BEFORE_UPDATE: old=(id=1, data=1) new=(id=1, data=2))(AFTER_UPDATE: old=(id=1, data=1) new=(id=1, data=2))(BEFORE_INSERT: new=(id=2, data=2))(AFTER_INSERT: new=(id=2, data=2))
+set @log:= "";
+replace t1 values (1, 4), (3, 3);
+select @log;
+@log
+(BEFORE_INSERT: new=(id=1, data=4))(BEFORE_DELETE: old=(id=1, data=2))(AFTER_DELETE: old=(id=1, data=2))(AFTER_INSERT: new=(id=1, data=4))(BEFORE_INSERT: new=(id=3, data=3))(AFTER_INSERT: new=(id=3, data=3))
+drop trigger t1_bd;
+drop trigger t1_ad;
+set @log:= "";
+replace t1 values (1, 5);
+select @log;
+@log
+(BEFORE_INSERT: new=(id=1, data=5))(AFTER_INSERT: new=(id=1, data=5))
+drop table t1;
+create table t1 (id int primary key, data varchar(10), fk int);
+create table t2 (event varchar(100));
+create table t3 (id int primary key);
+create trigger t1_ai after insert on t1 for each row 
+insert into t2 values (concat("INSERT INTO t1 id=", new.id, " data='", new.data, "'"));
+insert into t1 (id, data) values (1, "one"), (2, "two");
+select * from t1;
+id	data	fk
+1	one	NULL
+2	two	NULL
+select * from t2;
+event
+INSERT INTO t1 id=1 data='one'
+INSERT INTO t1 id=2 data='two'
+drop trigger t1_ai;
+create trigger t1_bi before insert on t1 for each row
+begin
+if exists (select id from t3 where id=new.fk) then
+insert into t2 values (concat("INSERT INTO t1 id=", new.id, " data='", new.data, "' fk=", new.fk));
+else
+insert into t2 values (concat("INSERT INTO t1 FAILED id=", new.id, " data='", new.data, "' fk=", new.fk));
+set new.id= NULL;
+end if;
+end|
+insert into t3 values (1);
+insert into t1 values (4, "four", 1), (5, "five", 2);
+Warnings:
+Warning	1048	Column 'id' cannot be null
+select * from t1;
+id	data	fk
+1	one	NULL
+2	two	NULL
+4	four	1
+0	five	2
+select * from t2;
+event
+INSERT INTO t1 id=1 data='one'
+INSERT INTO t1 id=2 data='two'
+INSERT INTO t1 id=4 data='four' fk=1
+INSERT INTO t1 FAILED id=5 data='five' fk=2
+drop table t1, t2, t3;
+create table t1 (id int primary key, data varchar(10));
+create table t2 (seq int);
+insert into t2 values (10);
+create function f1 () returns int return (select max(seq) from t2);
+create trigger t1_bi before insert on t1 for each row
+begin
+if new.id > f1() then
+set new.id:= f1();
+end if;
+end|
+insert into t1 values (1, "first");
+insert into t1 values (f1(), "max");
+select * from t1;
+id	data
+1	first
+10	max
+drop table t1, t2;
+drop function f1;
+create table t1 (id int primary key, fk_t2 int);
+create table t2 (id int primary key, fk_t3 int);
+create table t3 (id int primary key);
+insert into t1 values (1,1), (2,1), (3,2);
+insert into t2 values (1,1), (2,2);
+insert into t3 values (1), (2);
+create trigger t3_ad after delete on t3 for each row
+delete from t2 where fk_t3=old.id;
+create trigger t2_ad after delete on t2 for each row
+delete from t1 where fk_t2=old.id;
+delete from t3 where id = 1;
+select * from t1 left join (t2 left join t3 on t2.fk_t3 = t3.id) on t1.fk_t2 = t2.id;
+id	fk_t2	id	fk_t3	id
+3	2	2	2	2
+drop table t1, t2, t3;
+create table t1 (id int primary key, copy int);
+create table t2 (id int primary key, data int);
+insert into t2 values (1,1), (2,2);
+create trigger t1_bi before insert on t1 for each row
+set new.copy= (select data from t2 where id = new.id);
+create trigger t1_bu before update on t1 for each row
+set new.copy= (select data from t2 where id = new.id);
+insert into t1 values (1,3), (2,4), (3,3);
+update t1 set copy= 1 where id = 2;
+select * from t1;
+id	copy
+1	1
+2	2
+3	NULL
+drop table t1, t2;
+create table t1 (i int);
+create table t3 (i int);
+create trigger trg before insert on t1 for each row set @a:= old.i;
+ERROR HY000: There is no OLD row in on INSERT trigger
+create trigger trg before delete on t1 for each row set @a:= new.i;
+ERROR HY000: There is no NEW row in on DELETE trigger
+create trigger trg before update on t1 for each row set old.i:=1;
+ERROR HY000: Updating of OLD row is not allowed in trigger
+create trigger trg before delete on t1 for each row set new.i:=1;
+ERROR HY000: There is no NEW row in on DELETE trigger
+create trigger trg after update on t1 for each row set new.i:=1;
+ERROR HY000: Updating of NEW row is not allowed in after trigger
+create trigger trg before update on t1 for each row set new.j:=1;
+ERROR 42S22: Unknown column 'j' in 'NEW'
+create trigger trg before update on t1 for each row set @a:=old.j;
+ERROR 42S22: Unknown column 'j' in 'OLD'
+create trigger trg before insert on t2 for each row set @a:=1;
+ERROR 42S02: Table 'test.t2' doesn't exist
+create trigger trg before insert on t1 for each row set @a:=1;
+create trigger trg after insert on t1 for each row set @a:=1;
+ERROR HY000: Trigger 'test.trg' already exists
+create trigger trg2 before insert on t1 for each row set @a:=1;
+drop trigger trg2;
+create trigger trg before insert on t3 for each row set @a:=1;
+ERROR HY000: Trigger 'test.trg' already exists
+create trigger trg2 before insert on t3 for each row set @a:=1;
+drop trigger trg2;
+drop trigger trg;
+drop trigger trg;
+ERROR HY000: Trigger does not exist
+create view v1 as select * from t1;
+create trigger trg before insert on v1 for each row set @a:=1;
+ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
+drop view v1;
+drop table t1;
+drop table t3;
+create temporary table t1 (i int);
+create trigger trg before insert on t1 for each row set @a:=1;
+ERROR HY000: Trigger's 't1' is view or temporary table
+drop table t1;
+create table t1 (x1col char);
+create trigger tx1 before insert on t1 for each row set new.x1col = 'x';
+insert into t1 values ('y');
+drop trigger tx1;
+drop table t1;
+create table t1 (i int) engine=myisam;
+insert into t1 values (1), (2);
+create trigger trg1 before delete on t1 for each row set @del_before:= @del_before + old.i;
+create trigger trg2 after delete on t1 for each row set @del_after:= @del_after + old.i;
+set @del_before:=0, @del_after:= 0;
+delete from t1;
+select @del_before, @del_after;
+@del_before	@del_after
+3	3
+drop trigger trg1;
+drop trigger trg2;
+drop table t1;
+create table t1 (a int);
+create trigger trg1 before insert on t1 for each row set new.a= 10;
+drop table t1;
+create table t1 (a int);
+insert into t1 values ();
+select * from t1;
+a
+NULL
+drop table t1;
+create database mysqltest;
+use mysqltest;
+create table t1 (i int);
+create trigger trg1 before insert on t1 for each row set @a:= 1;
+drop database mysqltest;
+use test;
+create database mysqltest;
+create table mysqltest.t1 (i int);
+create trigger trg1 before insert on mysqltest.t1 for each row set @a:= 1;
+ERROR HY000: Trigger in wrong schema
+use mysqltest;
+create trigger test.trg1 before insert on t1 for each row set @a:= 1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+drop database mysqltest;
+use test;
+create table t1 (i int, j int default 10, k int not null, key (k));
+create table t2 (i int);
+insert into t1 (i, k) values (1, 1);
+insert into t2 values (1);
+create trigger trg1 before update on t1 for each row set @a:= @a + new.j - old.j;
+create trigger trg2 after update on t1 for each row set @b:= "Fired";
+set @a:= 0, @b:= "";
+update t1, t2 set j = j + 10 where t1.i = t2.i;
+select @a, @b;
+@a	@b
+10	Fired
+insert into t1 values (2, 13, 2);
+insert into t2 values (2);
+set @a:= 0, @b:= "";
+update t1, t2 set j = j + 15 where t1.i = t2.i and t1.k >= 2;
+select @a, @b;
+@a	@b
+15	Fired
+create trigger trg3 before delete on t1 for each row set @c:= @c + old.j;
+create trigger trg4 before delete on t2 for each row set @d:= @d + old.i;
+create trigger trg5 after delete on t1 for each row set @e:= "After delete t1 fired";
+create trigger trg6 after delete on t2 for each row set @f:= "After delete t2 fired";
+set @c:= 0, @d:= 0, @e:= "", @f:= "";
+delete t1, t2 from t1, t2 where t1.i = t2.i;
+select @c, @d, @e, @f;
+@c	@d	@e	@f
+48	3	After delete t1 fired	After delete t2 fired
+drop table t1, t2;
+create table t1 (i int, j int default 10)|
+create table t2 (i int)|
+insert into t2 values (1), (2)|
+create trigger trg1 before insert on t1 for each row 
+begin
+if new.i = 1 then
+set new.j := 1;
+end if;
+end|
+create trigger trg2 after insert on t1 for each row set @a:= 1|
+set @a:= 0|
+insert into t1 (i) select * from t2|
+select * from t1|
+i	j
+1	1
+2	10
+select @a|
+@a
+1
+drop table t1, t2|
+create table t1 (i int, j int, k int);
+create trigger trg1 before insert on t1 for each row set new.k = new.i;
+create trigger trg2 after insert on t1 for each row set @b:= "Fired";
+set @b:="";
+load data infile '../../std_data/rpl_loaddata.dat' into table t1 (@a, i);
+select *, @b from t1;
+i	j	k	@b
+10	NULL	10	Fired
+15	NULL	15	Fired
+set @b:="";
+load data infile '../../std_data/loaddata5.dat' into table t1 fields terminated by '' enclosed by '' (i, j);
+Warnings:
+Note	1265	Data truncated for column 'i' at row 1
+Note	1265	Data truncated for column 'j' at row 1
+Note	1265	Data truncated for column 'i' at row 2
+Note	1265	Data truncated for column 'j' at row 2
+Note	1265	Data truncated for column 'i' at row 3
+Note	1265	Data truncated for column 'j' at row 3
+select *, @b from t1;
+i	j	k	@b
+10	NULL	10	Fired
+15	NULL	15	Fired
+1	2	1	Fired
+3	4	3	Fired
+5	6	5	Fired
+drop table t1;
+create table t1 (i int, at int, k int, key(k)) engine=myisam;
+create table t2 (i int);
+insert into t1 values (1, 1, 1);
+insert into t2 values (1), (2), (3);
+create trigger ai after insert on t1 for each row set @a:= new.at;
+create trigger au after update on t1 for each row set @a:= new.at;
+create trigger ad after delete on t1 for each row set @a:= old.at;
+alter table t1 drop column at;
+select * from t1;
+i	k
+1	1
+insert into t1 values (2, 1);
+ERROR 42S22: Unknown column 'at' in 'NEW'
+select * from t1;
+i	k
+1	1
+2	1
+update t1 set k = 2 where i = 2;
+ERROR 42S22: Unknown column 'at' in 'NEW'
+select * from t1;
+i	k
+1	1
+2	2
+delete from t1 where i = 2;
+ERROR 42S22: Unknown column 'at' in 'OLD'
+select * from t1;
+i	k
+1	1
+load data infile '../../std_data/loaddata5.dat' into table t1 fields terminated by '' enclosed by '' (i, k);
+ERROR 42S22: Unknown column 'at' in 'NEW'
+select * from t1;
+i	k
+1	1
+1	2
+insert into t1 select 3, 3;
+ERROR 42S22: Unknown column 'at' in 'NEW'
+select * from t1;
+i	k
+1	1
+1	2
+3	3
+update t1, t2 set k = k + 10 where t1.i = t2.i;
+ERROR 42S22: Unknown column 'at' in 'NEW'
+select * from t1;
+i	k
+1	11
+1	2
+3	3
+update t1, t2 set k = k + 10 where t1.i = t2.i and k < 3;
+ERROR 42S22: Unknown column 'at' in 'NEW'
+select * from t1;
+i	k
+1	11
+1	12
+3	3
+delete t1, t2 from t1 straight_join t2 where t1.i = t2.i;
+ERROR 42S22: Unknown column 'at' in 'OLD'
+select * from t1;
+i	k
+1	12
+3	3
+delete t2, t1 from t2 straight_join t1 where t1.i = t2.i;
+ERROR 42S22: Unknown column 'at' in 'OLD'
+select * from t1;
+i	k
+3	3
+alter table t1 add primary key (i);
+insert into t1 values (3, 4) on duplicate key update k= k + 10;
+ERROR 42S22: Unknown column 'at' in 'NEW'
+select * from t1;
+i	k
+3	13
+replace into t1 values (3, 3);
+ERROR 42S22: Unknown column 'at' in 'OLD'
+select * from t1;
+i	k
+drop table t1, t2;
+create table t1 (i int, bt int, k int, key(k)) engine=myisam;
+create table t2 (i int);
+insert into t1 values (1, 1, 1), (2, 2, 2);
+insert into t2 values (1), (2), (3);
+create trigger bi before insert on t1 for each row set @a:= new.bt;
+create trigger bu before update on t1 for each row set @a:= new.bt;
+create trigger bd before delete on t1 for each row set @a:= old.bt;
+alter table t1 drop column bt;
+insert into t1 values (3, 3);
+ERROR 42S22: Unknown column 'bt' in 'NEW'
+select * from t1;
+i	k
+1	1
+2	2
+update t1 set i = 2;
+ERROR 42S22: Unknown column 'bt' in 'NEW'
+select * from t1;
+i	k
+1	1
+2	2
+delete from t1;
+ERROR 42S22: Unknown column 'bt' in 'OLD'
+select * from t1;
+i	k
+1	1
+2	2
+load data infile '../../std_data/loaddata5.dat' into table t1 fields terminated by '' enclosed by '' (i, k);
+ERROR 42S22: Unknown column 'bt' in 'NEW'
+select * from t1;
+i	k
+1	1
+2	2
+insert into t1 select 3, 3;
+ERROR 42S22: Unknown column 'bt' in 'NEW'
+select * from t1;
+i	k
+1	1
+2	2
+update t1, t2 set k = k + 10 where t1.i = t2.i;
+ERROR 42S22: Unknown column 'bt' in 'NEW'
+select * from t1;
+i	k
+1	1
+2	2
+update t1, t2 set k = k + 10 where t1.i = t2.i and k < 2;
+ERROR 42S22: Unknown column 'bt' in 'NEW'
+select * from t1;
+i	k
+1	1
+2	2
+delete t1, t2 from t1 straight_join t2 where t1.i = t2.i;
+ERROR 42S22: Unknown column 'bt' in 'OLD'
+select * from t1;
+i	k
+1	1
+2	2
+delete t2, t1 from t2 straight_join t1 where t1.i = t2.i;
+ERROR 42S22: Unknown column 'bt' in 'OLD'
+select * from t1;
+i	k
+1	1
+2	2
+alter table t1 add primary key (i);
+drop trigger bi;
+insert into t1 values (2, 4) on duplicate key update k= k + 10;
+ERROR 42S22: Unknown column 'bt' in 'NEW'
+select * from t1;
+i	k
+1	1
+2	2
+replace into t1 values (2, 4);
+ERROR 42S22: Unknown column 'bt' in 'OLD'
+select * from t1;
+i	k
+1	1
+2	2
+drop table t1, t2;
+drop function if exists bug5893;
+create table t1 (col1 int, col2 int);
+insert into t1 values (1, 2);
+create function bug5893 () returns int return 5;
+create trigger t1_bu before update on t1 for each row set new.col1= bug5893();
+drop function bug5893;
+update t1 set col2 = 4;
+ERROR 42000: FUNCTION test.bug5893 does not exist
+drop trigger t1_bu;
+drop table t1;
+set sql_mode='ansi';
+create table t1 ("t1 column" int);
+create trigger t1_bi before insert on t1 for each row set new."t1 column" = 5;
+set sql_mode="";
+insert into t1 values (0);
+create trigger t1_af after insert on t1 for each row set @a=10;
+insert into t1 values (0);
+select * from t1;
+t1 column
+5
+5
+select @a;
+@a
+10
+show triggers;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+t1_bi	INSERT	t1	set new."t1 column" = 5	BEFORE	#	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+t1_af	INSERT	t1	set @a=10	AFTER	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+drop table t1;
+set sql_mode="traditional";
+create table t1 (a date);
+insert into t1 values ('2004-01-00');
+ERROR 22007: Incorrect date value: '2004-01-00' for column `test`.`t1`.`a` at row 1
+set sql_mode="";
+create trigger t1_bi before insert on t1 for each row set new.a = '2004-01-00';
+set sql_mode="traditional";
+insert into t1 values ('2004-01-01');
+select * from t1;
+a
+2004-01-00
+set sql_mode=default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show triggers;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+t1_bi	INSERT	t1	set new.a = '2004-01-00'	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+drop table t1;
+create table t1 (id int);
+create trigger t1_ai after insert on t1 for each row reset query cache;
+ERROR 0A000: RESET is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row reset master;
+ERROR 0A000: RESET is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row reset slave;
+ERROR 0A000: RESET is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row flush hosts;
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row flush tables with read lock;
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row flush logs;
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row flush status;
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row flush slave;
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row flush master;
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row flush des_key_file;
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row flush user_resources;
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row flush tables;
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+create trigger t1_ai after insert on t1 for each row flush privileges;
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure if exists p1;
+create trigger t1_ai after insert on t1 for each row call p1();
+create procedure p1() flush tables;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() reset query cache;
+insert into t1 values (0);
+ERROR 0A000: RESET is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() reset master;
+insert into t1 values (0);
+ERROR 0A000: RESET is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() reset slave;
+insert into t1 values (0);
+ERROR 0A000: RESET is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() flush hosts;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() flush privileges;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() flush tables with read lock;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() flush tables;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() flush logs;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() flush status;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() flush slave;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() flush master;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() flush des_key_file;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+create procedure p1() flush user_resources;
+insert into t1 values (0);
+ERROR 0A000: FLUSH is not allowed in stored function or trigger
+drop procedure p1;
+drop table t1;
+create table t1 (id int, data int, username varchar(16));
+insert into t1 (id, data) values (1, 0);
+create trigger t1_whoupdated before update on t1 for each row
+begin
+declare user varchar(32);
+declare i int;
+select user() into user;
+set NEW.username = user;
+select count(*) from ((select 1) union (select 2)) as d1 into i;
+end|
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+update t1 set data = 1;
+connection addconroot1;
+update t1 set data = 2;
+connection default;
+drop table t1;
+create table t1 (c1 int, c2 datetime);
+create trigger tr1 before insert on t1 for each row 
+begin 
+set new.c2= '2004-04-01';
+select 'hello';
+end|
+ERROR 0A000: Not allowed to return a result set from a trigger
+insert into t1 (c1) values (1),(2),(3);
+select * from t1;
+c1	c2
+1	NULL
+2	NULL
+3	NULL
+drop procedure if exists bug11587;
+create procedure bug11587(x char(16))
+begin
+select "hello";
+select "hello again";
+end|
+create trigger tr1 before insert on t1 for each row 
+begin 
+call bug11587();
+set new.c2= '2004-04-02';
+end|
+insert into t1 (c1) values (4),(5),(6);
+ERROR 0A000: Not allowed to return a result set from a trigger
+select * from t1;
+c1	c2
+1	NULL
+2	NULL
+3	NULL
+drop procedure bug11587;
+drop table t1;
+create table t1 (f1 integer);
+create table t2 (f2 integer);
+create trigger t1_ai after insert on t1
+for each row insert into t2 values (new.f1+1);
+create trigger t2_ai after insert on t2
+for each row insert into t1 values (new.f2+1);
+set @SAVE_SP_RECURSION_LEVELS=@@max_sp_recursion_depth;
+set @@max_sp_recursion_depth=100;
+insert into t1 values (1);
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+set @@max_sp_recursion_depth=@SAVE_SP_RECURSION_LEVELS;
+select * from t1;
+f1
+1
+select * from t2;
+f2
+2
+drop trigger t1_ai;
+drop trigger t2_ai;
+create trigger t1_bu before update on t1
+for each row insert into t1 values (2);
+update t1 set f1= 10;
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+select * from t1;
+f1
+1
+drop trigger t1_bu;
+create trigger t1_bu before update on t1
+for each row delete from t1 where f1=new.f1;
+update t1 set f1= 10;
+ERROR HY000: Can't update table 't1' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+select * from t1;
+f1
+1
+drop trigger t1_bu;
+create trigger t1_bi before insert on t1
+for each row set new.f1=(select sum(f1) from t1);
+insert into t1 values (3);
+select * from t1;
+f1
+1
+1
+drop trigger t1_bi;
+drop tables t1, t2;
+create table t1 (id int);
+create table t2 (id int);
+create trigger t1_bi before insert on t1 for each row insert into t2 values (new.id);
+prepare stmt1 from "insert into t1 values (10)";
+create procedure p1() insert into t1 values (10);
+call p1();
+drop trigger t1_bi;
+execute stmt1;
+call p1();
+deallocate prepare stmt1;
+drop procedure p1;
+create table t3 (id int);
+create trigger t1_bi after insert on t1 for each row insert into t2 values (new.id);
+prepare stmt1 from "insert into t1 values (10)";
+create procedure p1() insert into t1 values (10);
+call p1();
+drop trigger t1_bi;
+create trigger t1_bi after insert on t1 for each row insert into t3 values (new.id);
+execute stmt1;
+call p1();
+deallocate prepare stmt1;
+drop procedure p1;
+drop table t1, t2, t3;
+create table t1 (a int);
+CREATE PROCEDURE `p1`()
+begin
+insert into t1 values (1);
+end//
+create trigger trg before insert on t1 for each row 
+begin 
+declare done int default 0;
+set done= not done;
+end//
+CALL p1();
+drop procedure p1;
+drop table t1;
+connection addconwithoutdb;
+create trigger t1_bi before insert on test.t1 for each row set @a:=0;
+ERROR 3D000: No database selected
+create trigger test.t1_bi before insert on t1 for each row set @a:=0;
+ERROR 42S02: Table 'test.t1' doesn't exist
+drop trigger t1_bi;
+ERROR 3D000: No database selected
+connection default;
+create table t1 (id int);
+create trigger t1_bi before insert on t1 for each row set @a:=new.id;
+create trigger t1_ai after insert on test.t1 for each row set @b:=new.id;
+insert into t1 values (101);
+select @a, @b;
+@a	@b
+101	101
+select trigger_schema, trigger_name, event_object_schema,
+event_object_table, action_statement from information_schema.triggers
+where event_object_schema = 'test';
+trigger_schema	trigger_name	event_object_schema	event_object_table	action_statement
+test	t1_bi	test	t1	set @a:=new.id
+test	t1_ai	test	t1	set @b:=new.id
+rename table t1 to t2;
+insert into t2 values (102);
+select @a, @b;
+@a	@b
+102	102
+select trigger_schema, trigger_name, event_object_schema,
+event_object_table, action_statement from information_schema.triggers
+where event_object_schema = 'test';
+trigger_schema	trigger_name	event_object_schema	event_object_table	action_statement
+test	t1_bi	test	t2	set @a:=new.id
+test	t1_ai	test	t2	set @b:=new.id
+alter table t2 rename to t3;
+insert into t3 values (103);
+select @a, @b;
+@a	@b
+103	103
+select trigger_schema, trigger_name, event_object_schema,
+event_object_table, action_statement from information_schema.triggers
+where event_object_schema = 'test';
+trigger_schema	trigger_name	event_object_schema	event_object_table	action_statement
+test	t1_bi	test	t3	set @a:=new.id
+test	t1_ai	test	t3	set @b:=new.id
+alter table t3 rename to t4, add column val int default 0;
+insert into t4 values (104, 1);
+select @a, @b;
+@a	@b
+104	104
+select trigger_schema, trigger_name, event_object_schema,
+event_object_table, action_statement from information_schema.triggers
+where event_object_schema = 'test';
+trigger_schema	trigger_name	event_object_schema	event_object_table	action_statement
+test	t1_bi	test	t4	set @a:=new.id
+test	t1_ai	test	t4	set @b:=new.id
+drop trigger t1_bi;
+drop trigger t1_ai;
+drop table t4;
+create database mysqltest;
+use mysqltest;
+create table t1 (id int);
+create trigger t1_bi before insert on t1 for each row set @a:=new.id;
+insert into t1 values (101);
+select @a;
+@a
+101
+select trigger_schema, trigger_name, event_object_schema,
+event_object_table, action_statement from information_schema.triggers
+where event_object_schema = 'test' or event_object_schema = 'mysqltest';
+trigger_schema	trigger_name	event_object_schema	event_object_table	action_statement
+mysqltest	t1_bi	mysqltest	t1	set @a:=new.id
+rename table t1 to test.t2;
+ERROR HY000: Trigger in wrong schema
+insert into t1 values (102);
+select @a;
+@a
+102
+select trigger_schema, trigger_name, event_object_schema,
+event_object_table, action_statement from information_schema.triggers
+where event_object_schema = 'test' or event_object_schema = 'mysqltest';
+trigger_schema	trigger_name	event_object_schema	event_object_table	action_statement
+mysqltest	t1_bi	mysqltest	t1	set @a:=new.id
+drop trigger test.t1_bi;
+ERROR HY000: Trigger does not exist
+alter table t1 rename to test.t1;
+ERROR HY000: Trigger in wrong schema
+insert into t1 values (103);
+select @a;
+@a
+103
+select trigger_schema, trigger_name, event_object_schema,
+event_object_table, action_statement from information_schema.triggers
+where event_object_schema = 'test' or event_object_schema = 'mysqltest';
+trigger_schema	trigger_name	event_object_schema	event_object_table	action_statement
+mysqltest	t1_bi	mysqltest	t1	set @a:=new.id
+drop trigger test.t1_bi;
+ERROR HY000: Trigger does not exist
+alter table t1 rename to test.t1, add column val int default 0;
+ERROR HY000: Trigger in wrong schema
+insert into t1 values (104);
+select @a;
+@a
+104
+select trigger_schema, trigger_name, event_object_schema,
+event_object_table, action_statement from information_schema.triggers
+where event_object_schema = 'test' or event_object_schema = 'mysqltest';
+trigger_schema	trigger_name	event_object_schema	event_object_table	action_statement
+mysqltest	t1_bi	mysqltest	t1	set @a:=new.id
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop trigger test.t1_bi;
+ERROR HY000: Trigger does not exist
+drop trigger t1_bi;
+drop table t1;
+drop database mysqltest;
+use test;
+create table t1 (id int);
+create trigger t1_bi before insert on t1 for each row set @a:=new.id;
+create trigger t1_ai after insert on t1 for each row set @b:=new.id;
+insert into t1 values (101);
+select @a, @b;
+@a	@b
+101	101
+select trigger_schema, trigger_name, event_object_schema,
+event_object_table, action_statement from information_schema.triggers
+where event_object_schema = 'test';
+trigger_schema	trigger_name	event_object_schema	event_object_table	action_statement
+test	t1_bi	test	t1	set @a:=new.id
+test	t1_ai	test	t1	set @b:=new.id
+rename table t1 to t2;
+ERROR HY000: Can't create/write to file './test/t1_ai.TRN~' (Errcode: 13 "Permission denied")
+insert into t1 values (102);
+select @a, @b;
+@a	@b
+102	102
+select trigger_schema, trigger_name, event_object_schema,
+event_object_table, action_statement from information_schema.triggers
+where event_object_schema = 'test';
+trigger_schema	trigger_name	event_object_schema	event_object_table	action_statement
+test	t1_bi	test	t1	set @a:=new.id
+test	t1_ai	test	t1	set @b:=new.id
+drop trigger t1_bi;
+drop trigger t1_ai;
+drop table t1;
+create table t1 (i int);
+create trigger t1_bi before insert on t1 for each row return 0;
+ERROR 42000: RETURN is only allowed in a FUNCTION
+insert into t1 values (1);
+drop table t1;
+create table t1 (a varchar(64), b int);
+create table t2 like t1;
+create trigger t1_ai after insert on t1 for each row
+set @a:= (select max(a) from t1);
+insert into t1 (a) values
+("Twas"),("brillig"),("and"),("the"),("slithy"),("toves"),
+("Did"),("gyre"),("and"),("gimble"),("in"),("the"),("wabe");
+create trigger t2_ai after insert on t2 for each row
+set @a:= (select max(a) from t2);
+insert into t2 select * from t1;
+load data infile '../../std_data/words.dat' into table t1 (a);
+drop trigger t1_ai;
+drop trigger t2_ai;
+create function f1() returns int return (select max(b) from t1);
+insert into t1 values
+("All",f1()),("mimsy",f1()),("were",f1()),("the",f1()),("borogoves",f1()),
+("And",f1()),("the",f1()),("mome", f1()),("raths",f1()),("outgrabe",f1());
+create function f2() returns int return (select max(b) from t2);
+insert into t2 select a, f2() from t1;
+load data infile '../../std_data/words.dat' into table t1 (a) set b:= f1();
+drop function f1;
+drop function f2;
+drop table t1, t2;
+create table t1(i int not null, j int not null, n numeric(15,2), primary key(i,j));
+create table t2(i int not null, n numeric(15,2), primary key(i));
+create trigger t1_ai after insert on t1 for each row
+begin
+declare sn numeric(15,2);
+select sum(n) into sn from t1 where i=new.i;
+replace into t2 values(new.i, sn);
+end|
+insert into t1 values
+(1,1,10.00),(1,2,10.00),(1,3,10.00),(1,4,10.00),(1,5,10.00),
+(1,6,10.00),(1,7,10.00),(1,8,10.00),(1,9,10.00),(1,10,10.00),
+(1,11,10.00),(1,12,10.00),(1,13,10.00),(1,14,10.00),(1,15,10.00);
+select * from t1;
+i	j	n
+1	1	10.00
+1	2	10.00
+1	3	10.00
+1	4	10.00
+1	5	10.00
+1	6	10.00
+1	7	10.00
+1	8	10.00
+1	9	10.00
+1	10	10.00
+1	11	10.00
+1	12	10.00
+1	13	10.00
+1	14	10.00
+1	15	10.00
+select * from t2;
+i	n
+1	150.00
+drop tables t1, t2;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+conn_id INT,
+trigger_conn_id INT
+);
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+SET NEW.trigger_conn_id = CONNECTION_ID();
+INSERT INTO t1 (conn_id, trigger_conn_id) VALUES (CONNECTION_ID(), -1);
+connect  con1,localhost,root,,;
+INSERT INTO t1 (conn_id, trigger_conn_id) VALUES (CONNECTION_ID(), -1);
+connection default;
+disconnect con1;
+SELECT * FROM t1 WHERE conn_id != trigger_conn_id;
+conn_id	trigger_conn_id
+DROP TRIGGER t1_bi;
+DROP TABLE t1;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (i1 INT);
+SET @save_sql_mode=@@sql_mode;
+SET SQL_MODE='';
+CREATE TRIGGER t1_ai AFTER INSERT ON t1 FOR EACH ROW
+SET @x = 5/0;
+SET SQL_MODE='traditional';
+CREATE TRIGGER t1_au AFTER UPDATE ON t1 FOR EACH ROW
+SET @x = 5/0;
+SET @x=1;
+INSERT INTO t1 VALUES (@x);
+SELECT @x;
+@x
+NULL
+SET @x=2;
+UPDATE t1 SET i1 = @x;
+SELECT @x;
+@x
+NULL
+SET SQL_MODE='';
+SET @x=3;
+INSERT INTO t1 VALUES (@x);
+SELECT @x;
+@x
+NULL
+SET @x=4;
+UPDATE t1 SET i1 = @x;
+SELECT @x;
+@x
+NULL
+SET @@sql_mode=@save_sql_mode;
+DROP TRIGGER t1_ai;
+DROP TRIGGER t1_au;
+DROP TABLE t1;
+DROP TABLE IF EXISTS t1;
+DROP PROCEDURE IF EXISTS p1;
+DROP PROCEDURE IF EXISTS p2;
+CREATE TABLE t1 (i1 INT);
+INSERT INTO t1 VALUES (3);
+CREATE PROCEDURE p1(OUT i1 INT) DETERMINISTIC NO SQL SET i1 = 5;
+CREATE PROCEDURE p2(INOUT i1 INT) DETERMINISTIC NO SQL SET i1 = i1 * 7;
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+CALL p1(NEW.i1);
+CALL p2(NEW.i1);
+END//
+UPDATE t1 SET i1 = 11 WHERE i1 = 3;
+DROP TRIGGER t1_bu;
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+INSERT INTO t1 VALUES (13);
+CREATE PROCEDURE p1(OUT i1 INT) DETERMINISTIC NO SQL SET @a = 17;
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW
+CALL p1(OLD.i1);
+UPDATE t1 SET i1 = 19 WHERE i1 = 13;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+DROP TRIGGER t1_bu;
+DROP PROCEDURE p1;
+INSERT INTO t1 VALUES (23);
+CREATE PROCEDURE p1(INOUT i1 INT) DETERMINISTIC NO SQL SET @a = i1 * 29;
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW
+CALL p1(OLD.i1);
+UPDATE t1 SET i1 = 31 WHERE i1 = 23;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+DROP TRIGGER t1_bu;
+DROP PROCEDURE p1;
+INSERT INTO t1 VALUES (37);
+CREATE PROCEDURE p1(OUT i1 INT) DETERMINISTIC NO SQL SET @a = 41;
+CREATE TRIGGER t1_au AFTER UPDATE ON t1 FOR EACH ROW
+CALL p1(NEW.i1);
+UPDATE t1 SET i1 = 43 WHERE i1 = 37;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+DROP TRIGGER t1_au;
+DROP PROCEDURE p1;
+INSERT INTO t1 VALUES (47);
+CREATE PROCEDURE p1(INOUT i1 INT) DETERMINISTIC NO SQL SET @a = i1 * 49;
+CREATE TRIGGER t1_au AFTER UPDATE ON t1 FOR EACH ROW
+CALL p1(NEW.i1);
+UPDATE t1 SET i1 = 51 WHERE i1 = 47;
+ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+DROP TRIGGER t1_au;
+DROP PROCEDURE p1;
+SELECT * FROM t1;
+i1
+35
+13
+23
+43
+51
+DROP TABLE t1;
+create trigger wont_work after update on mysql.user for each row
+begin
+set @a:= 1;
+end|
+ERROR HY000: Triggers can not be created on system tables
+use mysql|
+create trigger wont_work after update on event for each row
+begin
+set @a:= 1;
+end|
+ERROR HY000: Triggers can not be created on system tables
+use test|
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+CREATE TABLE t1(c INT);
+CREATE TABLE t2(c INT);
+CREATE DEFINER=longer_than_80_456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789@localhost
+TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a = 1;
+ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345...' is too long for user name (should be no longer than 80)
+CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
+TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW SET @a = 2;
+ERROR HY000: String '1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY' is too long for host name (should be no longer than 60)
+DROP TABLE t1;
+DROP TABLE t2;
+drop table if exists t1;
+drop table if exists t2;
+drop table if exists t3;
+drop table if exists t4;
+SET @save_sql_mode=@@sql_mode;
+SET sql_mode='TRADITIONAL'|
+create table t1 (id int(10) not null primary key, v int(10) )|
+create table t2 (id int(10) not null primary key, v int(10) )|
+create table t3 (id int(10) not null primary key, v int(10) )|
+create table t4 (c int)|
+create trigger t4_bi before insert on t4 for each row set @t4_bi_called:=1|
+create trigger t4_bu before update on t4 for each row set @t4_bu_called:=1|
+insert into t1 values(10, 10)|
+set @a:=1/0|
+Warnings:
+Warning	1365	Division by 0
+select 1/0 from t1|
+1/0
+NULL
+Warnings:
+Warning	1365	Division by 0
+create trigger t1_bi before insert on t1 for each row set @a:=1/0|
+insert into t1 values(20, 20)|
+drop trigger t1_bi|
+create trigger t1_bi before insert on t1 for each row
+begin
+insert into t2 values (new.id, new.v);
+update t2 set v=v+1 where id= new.id;
+replace t3 values (new.id, 0);
+update t2, t3 set t2.v=new.v, t3.v=new.v where t2.id=t3.id;
+create temporary table t5 select * from t1;
+delete from t5;
+insert into t5 select * from t1;
+insert into t4 values (0);
+set @check= (select count(*) from t5);
+update t4 set c= @check;
+drop temporary table t5;
+set @a:=1/0;
+end|
+set @check=0, @t4_bi_called=0, @t4_bu_called=0|
+insert into t1 values(30, 30)|
+select @check, @t4_bi_called, @t4_bu_called|
+@check	@t4_bi_called	@t4_bu_called
+2	1	1
+SET @@sql_mode=@save_sql_mode;
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+drop table if exists t1;
+create table t1 (i int, j int key);
+insert into t1 values (1,1), (2,2), (3,3);
+create trigger t1_bu before update on t1 for each row
+set new.j = new.j + 10;
+update t1 set i= i+ 10 where j > 2;
+select * from t1;
+i	j
+1	1
+2	2
+13	13
+drop table t1;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+CREATE TABLE t2 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+CREATE TRIGGER trg_t1 BEFORE DELETE on t1 FOR EACH ROW 
+INSERT INTO t2 VALUES (OLD.a);
+FLUSH STATUS;
+TRUNCATE t1;
+SHOW STATUS LIKE 'handler_delete';
+Variable_name	Value
+Handler_delete	0
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+0
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+DELETE FROM t2;
+FLUSH STATUS;
+DELETE FROM t1;
+SHOW STATUS LIKE 'handler_delete';
+Variable_name	Value
+Handler_delete	8
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+8
+DROP TRIGGER trg_t1;
+DROP TABLE t1,t2;
+drop table if exists t1;
+drop function if exists f1;
+create table t1 (i int);
+create function f1() returns int return 10;
+create trigger t1_bi before insert on t1 for each row set @a:= f1() + 10;
+insert into t1 values ();
+select @a;
+@a
+20
+connection addconroot1;
+insert into t1 values ();
+select @a;
+@a
+20
+connection default;
+drop table t1;
+drop function f1;
+drop table if exists t1;
+create table t1(a int, b varchar(50));
+drop trigger not_a_trigger;
+ERROR HY000: Trigger does not exist
+drop trigger if exists not_a_trigger;
+Warnings:
+Note	1360	Trigger does not exist
+create trigger t1_bi before insert on t1
+for each row set NEW.b := "In trigger t1_bi";
+insert into t1 values (1, "a");
+drop trigger if exists t1_bi;
+insert into t1 values (2, "b");
+drop trigger if exists t1_bi;
+Warnings:
+Note	1360	Trigger does not exist
+insert into t1 values (3, "c");
+select * from t1;
+a	b
+1	In trigger t1_bi
+2	b
+3	c
+drop table t1;
+CREATE TABLE t1 (
+id int NOT NULL DEFAULT '0',
+a  varchar(10) NOT NULL,
+b  varchar(10),
+c  varchar(10),
+d  timestamp NOT NULL,
+PRIMARY KEY (id, a)
+);
+CREATE TABLE t2 (
+fubar_id         int unsigned NOT NULL DEFAULT '0',
+last_change_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+PRIMARY KEY  (fubar_id)
+);
+CREATE TRIGGER fubar_change
+AFTER UPDATE ON t1
+FOR EACH ROW
+BEGIN
+INSERT INTO t2 (fubar_id, last_change_time)
+SELECT DISTINCT NEW.id AS fubar_id, NOW() AS last_change_time
+FROM t1 WHERE (id = NEW.id) AND (OLD.c != NEW.c)
+ON DUPLICATE KEY UPDATE
+last_change_time =
+IF((fubar_id = NEW.id)AND(OLD.c != NEW.c),NOW(),last_change_time);
+END
+|
+INSERT INTO t1 (id,a, b,c,d) VALUES
+(1,'a','b','c',now()),(2,'a','b','c',now());
+UPDATE t1 SET c='Bang!' WHERE id=1;
+SELECT fubar_id FROM t2;
+fubar_id
+1
+DROP TABLE t1,t2;
+DROP TABLE IF EXISTS bug21825_A;
+DROP TABLE IF EXISTS bug21825_B;
+CREATE TABLE bug21825_A (id int(10));
+CREATE TABLE bug21825_B (id int(10));
+CREATE TRIGGER trgA AFTER INSERT ON bug21825_A
+FOR EACH ROW
+BEGIN
+INSERT INTO bug21825_B (id) values (1);
+END//
+INSERT INTO bug21825_A (id) VALUES (10);
+INSERT INTO bug21825_A (id) VALUES (20);
+DROP TABLE bug21825_B;
+DELETE FROM bug21825_A WHERE id = 20;
+DROP TABLE bug21825_A;
+DROP TABLE IF EXISTS bug22580_t1;
+DROP PROCEDURE IF EXISTS bug22580_proc_1;
+DROP PROCEDURE IF EXISTS bug22580_proc_2;
+CREATE TABLE bug22580_t1 (a INT, b INT);
+CREATE PROCEDURE bug22580_proc_2()
+BEGIN
+DROP TABLE IF EXISTS bug22580_tmp;
+CREATE TEMPORARY TABLE bug22580_tmp (a INT);
+DROP TABLE bug22580_tmp;
+END||
+CREATE PROCEDURE bug22580_proc_1()
+BEGIN
+CALL bug22580_proc_2();
+END||
+CREATE TRIGGER t1bu BEFORE UPDATE ON bug22580_t1
+FOR EACH ROW 
+BEGIN
+CALL bug22580_proc_1();
+END||
+INSERT INTO bug22580_t1 VALUES (1,1);
+DROP TABLE bug22580_t1;
+DROP PROCEDURE bug22580_proc_1;
+DROP PROCEDURE bug22580_proc_2;
+DROP TRIGGER IF EXISTS trg27006_a_update;
+DROP TRIGGER IF EXISTS trg27006_a_insert;
+CREATE TABLE t1 (
+`id` int(10) unsigned NOT NULL auto_increment,
+`val` varchar(10) NOT NULL,
+PRIMARY KEY  (`id`)
+);
+CREATE TABLE t2 like t1;
+CREATE TRIGGER trg27006_a_insert AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+insert into t2 values (NULL,new.val);
+END |
+CREATE TRIGGER trg27006_a_update AFTER UPDATE ON t1 FOR EACH ROW
+BEGIN
+insert into t2 values (NULL,new.val);
+END |
+INSERT INTO t1(val) VALUES ('test1'),('test2');
+SELECT * FROM t1;
+id	val
+1	test1
+2	test2
+SELECT * FROM t2;
+id	val
+1	test1
+2	test2
+INSERT INTO t1 VALUES (2,'test2') ON DUPLICATE KEY UPDATE val=VALUES(val);
+INSERT INTO t1 VALUES (2,'test3') ON DUPLICATE KEY UPDATE val=VALUES(val);
+INSERT INTO t1 VALUES (3,'test4') ON DUPLICATE KEY UPDATE val=VALUES(val);
+SELECT * FROM t1;
+id	val
+1	test1
+2	test3
+3	test4
+SELECT * FROM t2;
+id	val
+1	test1
+2	test2
+3	test3
+4	test4
+DROP TRIGGER trg27006_a_insert;
+DROP TRIGGER trg27006_a_update;
+drop table t1,t2;
+drop table if exists t1, t2, t3;
+create table t1 (i int);
+create trigger t1_bi before insert on t1 for each row set new.i = 7;
+create trigger t1_ai after insert on t1 for each row set @a := 7;
+create table t2 (j int);
+insert into t2 values (1), (2);
+set @a:="";
+insert into t1 select * from t2;
+select * from t1;
+i
+7
+7
+select @a;
+@a
+7
+drop trigger t1_bi;
+drop trigger t1_ai;
+create table t3 (isave int);
+create trigger t1_bi before insert on t1 for each row insert into t3 values (new.i);
+insert into t1 select * from t2;
+select * from t1;
+i
+7
+7
+1
+2
+select * from t3;
+isave
+1
+2
+drop table t1, t2, t3;
+disconnect addconroot1;
+disconnect addconroot2;
+disconnect addconwithoutdb;
+
+Bug#28502 Triggers that update another innodb table will block
+on X lock unnecessarily
+
+Ensure we do not open and lock tables for triggers we do not fire.
+
+drop table if exists t1, t2;
+drop trigger if exists trg_bug28502_au;
+create table t1 (id int, count int);
+create table t2 (id int);
+create trigger trg_bug28502_au before update on t2
+for each row
+begin
+if (new.id is not null) then
+update t1 set count= count + 1 where id = old.id;
+end if;
+end|
+insert into t1 (id, count) values (1, 0);
+lock table t1 write;
+connect  connection_insert, localhost, root, , test, , ;
+connection connection_insert;
+insert into t2 set id=1;
+connection default;
+unlock tables;
+update t2 set id=1 where id=1;
+select * from t1;
+id	count
+1	1
+select * from t2;
+id
+1
+drop table t1, t2;
+disconnect connection_insert;
+
+Additionally, provide test coverage for triggers and 
+all MySQL data changing commands.
+
+drop table if exists t1, t2, t1_op_log;
+drop view if exists v1;
+drop trigger if exists trg_bug28502_bi;
+drop trigger if exists trg_bug28502_ai;
+drop trigger if exists trg_bug28502_bu;
+drop trigger if exists trg_bug28502_au;
+drop trigger if exists trg_bug28502_bd;
+drop trigger if exists trg_bug28502_ad;
+create table t1 (id int primary key auto_increment, operation varchar(255));
+create table t2 (id int primary key);
+create table t1_op_log(operation varchar(255));
+create view v1 as select * from t1;
+create trigger trg_bug28502_bi before insert on t1
+for each row
+insert into t1_op_log (operation)
+values (concat("Before INSERT, new=", new.operation));
+create trigger trg_bug28502_ai after insert on t1
+for each row
+insert into t1_op_log (operation)
+values (concat("After INSERT, new=", new.operation));
+create trigger trg_bug28502_bu before update on t1
+for each row
+insert into t1_op_log (operation)
+values (concat("Before UPDATE, new=", new.operation,
+", old=", old.operation));
+create trigger trg_bug28502_au after update on t1
+for each row
+insert into t1_op_log (operation)
+values (concat("After UPDATE, new=", new.operation,
+", old=", old.operation));
+create trigger trg_bug28502_bd before delete on t1
+for each row
+insert into t1_op_log (operation)
+values (concat("Before DELETE, old=", old.operation));
+create trigger trg_bug28502_ad after delete on t1
+for each row
+insert into t1_op_log (operation)
+values (concat("After DELETE, old=", old.operation));
+insert into t1 (operation) values ("INSERT");
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	INSERT
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT
+After INSERT, new=INSERT
+truncate t1_op_log;
+update t1 set operation="UPDATE" where id=@id;
+select * from t1;
+id	operation
+1	UPDATE
+select * from t1_op_log;
+operation
+Before UPDATE, new=UPDATE, old=INSERT
+After UPDATE, new=UPDATE, old=INSERT
+truncate t1_op_log;
+delete from t1 where id=@id;
+select * from t1;
+id	operation
+select * from t1_op_log;
+operation
+Before DELETE, old=UPDATE
+After DELETE, old=UPDATE
+truncate t1;
+truncate t1_op_log;
+insert into t1 (id, operation) values
+(NULL, "INSERT ON DUPLICATE KEY UPDATE, inserting a new key")
+on duplicate key update id=NULL, operation="Should never happen";
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	INSERT ON DUPLICATE KEY UPDATE, inserting a new key
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT ON DUPLICATE KEY UPDATE, inserting a new key
+After INSERT, new=INSERT ON DUPLICATE KEY UPDATE, inserting a new key
+truncate t1_op_log;
+insert into t1 (id, operation) values
+(@id, "INSERT ON DUPLICATE KEY UPDATE, the key value is the same")
+on duplicate key update id=NULL,
+operation="INSERT ON DUPLICATE KEY UPDATE, updating the duplicate";
+select * from t1;
+id	operation
+0	INSERT ON DUPLICATE KEY UPDATE, updating the duplicate
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT ON DUPLICATE KEY UPDATE, the key value is the same
+Before UPDATE, new=INSERT ON DUPLICATE KEY UPDATE, updating the duplicate, old=INSERT ON DUPLICATE KEY UPDATE, inserting a new key
+After UPDATE, new=INSERT ON DUPLICATE KEY UPDATE, updating the duplicate, old=INSERT ON DUPLICATE KEY UPDATE, inserting a new key
+truncate t1;
+truncate t1_op_log;
+replace into t1 values (NULL, "REPLACE, inserting a new key");
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	REPLACE, inserting a new key
+select * from t1_op_log;
+operation
+Before INSERT, new=REPLACE, inserting a new key
+After INSERT, new=REPLACE, inserting a new key
+truncate t1_op_log;
+replace into t1 values (@id, "REPLACE, deleting the duplicate");
+select * from t1;
+id	operation
+1	REPLACE, deleting the duplicate
+select * from t1_op_log;
+operation
+Before INSERT, new=REPLACE, deleting the duplicate
+Before DELETE, old=REPLACE, inserting a new key
+After DELETE, old=REPLACE, inserting a new key
+After INSERT, new=REPLACE, deleting the duplicate
+truncate t1;
+truncate t1_op_log;
+insert into t1
+select NULL, "CREATE TABLE ... SELECT, inserting a new key";
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	CREATE TABLE ... SELECT, inserting a new key
+select * from t1_op_log;
+operation
+Before INSERT, new=CREATE TABLE ... SELECT, inserting a new key
+After INSERT, new=CREATE TABLE ... SELECT, inserting a new key
+truncate t1_op_log;
+replace into t1
+select @id, "CREATE TABLE ... REPLACE SELECT, deleting a duplicate key";
+select * from t1;
+id	operation
+1	CREATE TABLE ... REPLACE SELECT, deleting a duplicate key
+select * from t1_op_log;
+operation
+Before INSERT, new=CREATE TABLE ... REPLACE SELECT, deleting a duplicate key
+Before DELETE, old=CREATE TABLE ... SELECT, inserting a new key
+After DELETE, old=CREATE TABLE ... SELECT, inserting a new key
+After INSERT, new=CREATE TABLE ... REPLACE SELECT, deleting a duplicate key
+truncate t1;
+truncate t1_op_log;
+insert into t1 (id, operation)
+select NULL, "INSERT ... SELECT, inserting a new key";
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	INSERT ... SELECT, inserting a new key
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT ... SELECT, inserting a new key
+After INSERT, new=INSERT ... SELECT, inserting a new key
+truncate t1_op_log;
+insert into t1 (id, operation)
+select @id,
+"INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate"
+on duplicate key update id=NULL,
+operation="INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate";
+select * from t1;
+id	operation
+0	INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate
+Before UPDATE, new=INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate, old=INSERT ... SELECT, inserting a new key
+After UPDATE, new=INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate, old=INSERT ... SELECT, inserting a new key
+truncate t1;
+truncate t1_op_log;
+replace into t1 (id, operation)
+select NULL, "REPLACE ... SELECT, inserting a new key";
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	REPLACE ... SELECT, inserting a new key
+select * from t1_op_log;
+operation
+Before INSERT, new=REPLACE ... SELECT, inserting a new key
+After INSERT, new=REPLACE ... SELECT, inserting a new key
+truncate t1_op_log;
+replace into t1 (id, operation)
+select @id, "REPLACE ... SELECT, deleting a duplicate";
+select * from t1;
+id	operation
+1	REPLACE ... SELECT, deleting a duplicate
+select * from t1_op_log;
+operation
+Before INSERT, new=REPLACE ... SELECT, deleting a duplicate
+Before DELETE, old=REPLACE ... SELECT, inserting a new key
+After DELETE, old=REPLACE ... SELECT, inserting a new key
+After INSERT, new=REPLACE ... SELECT, deleting a duplicate
+truncate t1;
+truncate t1_op_log;
+insert into t1 (id, operation) values (1, "INSERT for multi-DELETE");
+insert into t2 (id) values (1);
+delete t1.*, t2.* from t1, t2 where t1.id=1;
+select * from t1;
+id	operation
+select * from t2;
+id
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT for multi-DELETE
+After INSERT, new=INSERT for multi-DELETE
+Before DELETE, old=INSERT for multi-DELETE
+After DELETE, old=INSERT for multi-DELETE
+truncate t1;
+truncate t2;
+truncate t1_op_log;
+insert into t1 (id, operation) values (1, "INSERT for multi-UPDATE");
+insert into t2 (id) values (1);
+update t1, t2 set t1.id=2, operation="multi-UPDATE" where t1.id=1;
+update t1, t2
+set t2.id=3, operation="multi-UPDATE, SET for t2, but the trigger is fired" where t1.id=2;
+select * from t1;
+id	operation
+2	multi-UPDATE, SET for t2, but the trigger is fired
+select * from t2;
+id
+3
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT for multi-UPDATE
+After INSERT, new=INSERT for multi-UPDATE
+Before UPDATE, new=multi-UPDATE, old=INSERT for multi-UPDATE
+After UPDATE, new=multi-UPDATE, old=INSERT for multi-UPDATE
+Before UPDATE, new=multi-UPDATE, SET for t2, but the trigger is fired, old=multi-UPDATE
+After UPDATE, new=multi-UPDATE, SET for t2, but the trigger is fired, old=multi-UPDATE
+truncate table t1;
+truncate table t2;
+truncate table t1_op_log;
+
+Now do the same but use a view instead of the base table.
+
+insert into v1 (operation) values ("INSERT");
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	INSERT
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT
+After INSERT, new=INSERT
+truncate t1_op_log;
+update v1 set operation="UPDATE" where id=@id;
+select * from t1;
+id	operation
+1	UPDATE
+select * from t1_op_log;
+operation
+Before UPDATE, new=UPDATE, old=INSERT
+After UPDATE, new=UPDATE, old=INSERT
+truncate t1_op_log;
+delete from v1 where id=@id;
+select * from t1;
+id	operation
+select * from t1_op_log;
+operation
+Before DELETE, old=UPDATE
+After DELETE, old=UPDATE
+truncate t1;
+truncate t1_op_log;
+insert into v1 (id, operation) values
+(NULL, "INSERT ON DUPLICATE KEY UPDATE, inserting a new key")
+on duplicate key update id=NULL, operation="Should never happen";
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	INSERT ON DUPLICATE KEY UPDATE, inserting a new key
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT ON DUPLICATE KEY UPDATE, inserting a new key
+After INSERT, new=INSERT ON DUPLICATE KEY UPDATE, inserting a new key
+truncate t1_op_log;
+insert into v1 (id, operation) values
+(@id, "INSERT ON DUPLICATE KEY UPDATE, the key value is the same")
+on duplicate key update id=NULL,
+operation="INSERT ON DUPLICATE KEY UPDATE, updating the duplicate";
+select * from t1;
+id	operation
+0	INSERT ON DUPLICATE KEY UPDATE, updating the duplicate
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT ON DUPLICATE KEY UPDATE, the key value is the same
+Before UPDATE, new=INSERT ON DUPLICATE KEY UPDATE, updating the duplicate, old=INSERT ON DUPLICATE KEY UPDATE, inserting a new key
+After UPDATE, new=INSERT ON DUPLICATE KEY UPDATE, updating the duplicate, old=INSERT ON DUPLICATE KEY UPDATE, inserting a new key
+truncate t1;
+truncate t1_op_log;
+replace into v1 values (NULL, "REPLACE, inserting a new key");
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	REPLACE, inserting a new key
+select * from t1_op_log;
+operation
+Before INSERT, new=REPLACE, inserting a new key
+After INSERT, new=REPLACE, inserting a new key
+truncate t1_op_log;
+replace into v1 values (@id, "REPLACE, deleting the duplicate");
+select * from t1;
+id	operation
+1	REPLACE, deleting the duplicate
+select * from t1_op_log;
+operation
+Before INSERT, new=REPLACE, deleting the duplicate
+Before DELETE, old=REPLACE, inserting a new key
+After DELETE, old=REPLACE, inserting a new key
+After INSERT, new=REPLACE, deleting the duplicate
+truncate t1;
+truncate t1_op_log;
+insert into v1
+select NULL, "CREATE TABLE ... SELECT, inserting a new key";
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	CREATE TABLE ... SELECT, inserting a new key
+select * from t1_op_log;
+operation
+Before INSERT, new=CREATE TABLE ... SELECT, inserting a new key
+After INSERT, new=CREATE TABLE ... SELECT, inserting a new key
+truncate t1_op_log;
+replace into v1
+select @id, "CREATE TABLE ... REPLACE SELECT, deleting a duplicate key";
+select * from t1;
+id	operation
+1	CREATE TABLE ... REPLACE SELECT, deleting a duplicate key
+select * from t1_op_log;
+operation
+Before INSERT, new=CREATE TABLE ... REPLACE SELECT, deleting a duplicate key
+Before DELETE, old=CREATE TABLE ... SELECT, inserting a new key
+After DELETE, old=CREATE TABLE ... SELECT, inserting a new key
+After INSERT, new=CREATE TABLE ... REPLACE SELECT, deleting a duplicate key
+truncate t1;
+truncate t1_op_log;
+insert into v1 (id, operation)
+select NULL, "INSERT ... SELECT, inserting a new key";
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	INSERT ... SELECT, inserting a new key
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT ... SELECT, inserting a new key
+After INSERT, new=INSERT ... SELECT, inserting a new key
+truncate t1_op_log;
+insert into v1 (id, operation)
+select @id,
+"INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate"
+on duplicate key update id=NULL,
+operation="INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate";
+select * from t1;
+id	operation
+0	INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate
+Before UPDATE, new=INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate, old=INSERT ... SELECT, inserting a new key
+After UPDATE, new=INSERT ... SELECT ... ON DUPLICATE KEY UPDATE, updating a duplicate, old=INSERT ... SELECT, inserting a new key
+truncate t1;
+truncate t1_op_log;
+replace into v1 (id, operation)
+select NULL, "REPLACE ... SELECT, inserting a new key";
+set @id=last_insert_id();
+select * from t1;
+id	operation
+1	REPLACE ... SELECT, inserting a new key
+select * from t1_op_log;
+operation
+Before INSERT, new=REPLACE ... SELECT, inserting a new key
+After INSERT, new=REPLACE ... SELECT, inserting a new key
+truncate t1_op_log;
+replace into v1 (id, operation)
+select @id, "REPLACE ... SELECT, deleting a duplicate";
+select * from t1;
+id	operation
+1	REPLACE ... SELECT, deleting a duplicate
+select * from t1_op_log;
+operation
+Before INSERT, new=REPLACE ... SELECT, deleting a duplicate
+Before DELETE, old=REPLACE ... SELECT, inserting a new key
+After DELETE, old=REPLACE ... SELECT, inserting a new key
+After INSERT, new=REPLACE ... SELECT, deleting a duplicate
+truncate t1;
+truncate t1_op_log;
+insert into v1 (id, operation) values (1, "INSERT for multi-DELETE");
+insert into t2 (id) values (1);
+delete v1.*, t2.* from v1, t2 where v1.id=1;
+select * from t1;
+id	operation
+select * from t2;
+id
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT for multi-DELETE
+After INSERT, new=INSERT for multi-DELETE
+Before DELETE, old=INSERT for multi-DELETE
+After DELETE, old=INSERT for multi-DELETE
+truncate t1;
+truncate t2;
+truncate t1_op_log;
+insert into v1 (id, operation) values (1, "INSERT for multi-UPDATE");
+insert into t2 (id) values (1);
+update v1, t2 set v1.id=2, operation="multi-UPDATE" where v1.id=1;
+update v1, t2
+set t2.id=3, operation="multi-UPDATE, SET for t2, but the trigger is fired" where v1.id=2;
+select * from t1;
+id	operation
+2	multi-UPDATE, SET for t2, but the trigger is fired
+select * from t2;
+id
+3
+select * from t1_op_log;
+operation
+Before INSERT, new=INSERT for multi-UPDATE
+After INSERT, new=INSERT for multi-UPDATE
+Before UPDATE, new=multi-UPDATE, old=INSERT for multi-UPDATE
+After UPDATE, new=multi-UPDATE, old=INSERT for multi-UPDATE
+Before UPDATE, new=multi-UPDATE, SET for t2, but the trigger is fired, old=multi-UPDATE
+After UPDATE, new=multi-UPDATE, SET for t2, but the trigger is fired, old=multi-UPDATE
+drop view v1;
+drop table t1, t2, t1_op_log;
+
+Bug#27248 Triggers: error if insert affects temporary table
+
+The bug was fixed by the fix for Bug#26141
+
+drop table if exists t1;
+drop temporary table if exists t2;
+create table t1 (s1 int);
+create temporary table t2 (s1 int);
+create trigger t1_bi before insert on t1 for each row insert into t2 values (0);
+create trigger t1_bd before delete on t1 for each row delete from t2;
+insert into t1 values (0);
+insert into t1 values (0);
+select * from t1;
+s1
+0
+0
+select * from t2;
+s1
+0
+0
+delete from t1;
+select * from t1;
+s1
+select * from t2;
+s1
+drop table t1;
+drop temporary table t2;
+#------------------------------------------------------------------------
+# Bug#39953 Triggers are not working properly with multi table updates
+#------------------------------------------------------------------------
+DROP TABLE IF EXISTS t1;
+DROP TRIGGER IF EXISTS t_insert;
+DROP TABLE IF EXISTS t2;
+CREATE TABLE t1 (a int, date_insert timestamp, PRIMARY KEY (a));
+INSERT INTO t1 (a) VALUES (2),(5);
+CREATE TABLE t2 (a int, b int, PRIMARY KEY (a));
+CREATE TRIGGER t_insert AFTER INSERT ON t2 FOR EACH ROW BEGIN UPDATE t1,t2 SET
+date_insert=NOW() WHERE t1.a=t2.b AND t2.a=NEW.a; END |
+INSERT INTO t2 (a,b) VALUES (1,2);
+DROP TRIGGER t_insert;
+CREATE TRIGGER t_insert AFTER INSERT ON t2 FOR EACH ROW BEGIN UPDATE t1,t2 SET
+date_insert=NOW(),b=b+1 WHERE t1.a=t2.b AND t2.a=NEW.a; END |
+INSERT INTO t2 (a,b) VALUES (3,5);
+ERROR HY000: Can't update table 't2' in stored function/trigger because it is already used by statement which invoked this stored function/trigger
+DROP TABLE t1;
+DROP TRIGGER t_insert;
+DROP TABLE t2;
+# End of 5.0 tests
+drop table if exists table_25411_a;
+drop table if exists table_25411_b;
+create table table_25411_a(a int);
+create table table_25411_b(b int);
+create trigger trg_25411a_ai after insert on table_25411_a
+for each row
+insert into table_25411_b select new.*;
+select * from table_25411_a;
+a
+insert into table_25411_a values (1);
+ERROR 42S02: Unknown table 'test.new'
+select * from table_25411_a;
+a
+1
+drop table table_25411_a;
+drop table table_25411_b;
+DROP TRIGGER IF EXISTS trg;
+SHOW CREATE TRIGGER trg;
+ERROR HY000: Trigger does not exist
+drop table if exists t1;
+create table t1 (i int, j int);
+create trigger t1_bi before insert on t1 for each row begin end;
+create trigger t1_bi before insert on t1 for each row begin end;
+ERROR HY000: Trigger 'test.t1_bi' already exists
+create trigger t1_bi2 before insert on t1 for each row begin end;
+drop trigger t1_bi;
+drop trigger t1_bi2;
+drop trigger t1_bi;
+ERROR HY000: Trigger does not exist
+lock tables t1 read;
+create trigger t1_bi before insert on t1 for each row begin end;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+create trigger t1_bi before insert on t1 for each row begin end;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+drop trigger t1_bi;
+ERROR HY000: Trigger does not exist
+unlock tables;
+create trigger t1_bi before insert on t1 for each row begin end;
+lock tables t1 read;
+create trigger t1_bi before insert on t1 for each row begin end;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+drop trigger t1_bi;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+unlock tables;
+drop trigger t1_bi;
+lock tables t1 write;
+create trigger b1_bi before insert on t1 for each row set new.i = new.i + 10;
+insert into t1 values (10, 10);
+drop trigger b1_bi;
+insert into t1 values (10, 10);
+select * from t1;
+i	j
+20	10
+10	10
+unlock tables;
+drop table t1;
+drop table if exists t1, t2;
+drop trigger if exists trg1;
+drop trigger if exists trg2;
+create table t1 (a int);
+create table t2 (b int);
+create trigger trg1 after update on t1 for each row set @a= @a+1;
+create trigger trg2 after update on t2 for each row set @b= @b+1;
+insert into t1 values (1), (2), (3);
+insert into t2 values (1), (2), (3);
+set @a= 0;
+set @b= 0;
+update t1, t2 set t1.a= t1.a, t2.b= t2.b;
+select @a, @b;
+@a	@b
+3	3
+update t1, t2 set t1.a= t2.b, t2.b= t1.a;
+select @a, @b;
+@a	@b
+6	6
+update t1 set a= a;
+select @a, @b;
+@a	@b
+9	6
+update t2 set b= b;
+select @a, @b;
+@a	@b
+9	9
+update t1 set a= 1;
+select @a, @b;
+@a	@b
+12	9
+update t2 set b= 1;
+select @a, @b;
+@a	@b
+12	12
+drop trigger trg1;
+drop trigger trg2;
+drop table t1, t2;
+CREATE TABLE t1 ( a INT, b INT );
+CREATE TABLE t2 ( a INT AUTO_INCREMENT KEY, b INT );
+INSERT INTO t1 (a) VALUES (1);
+CREATE TRIGGER tr1
+BEFORE INSERT ON t2
+FOR EACH ROW 
+BEGIN 
+UPDATE a_nonextisting_table SET a = 1;
+END//
+CREATE TABLE IF NOT EXISTS t2 ( a INT, b INT ) SELECT a, b FROM t1;
+Warnings:
+Note	1050	Table 't2' already exists
+SELECT * FROM t2;
+a	b
+DROP TABLE t1, t2;
+#
+# Bug#51650 crash with user variables and triggers
+#
+DROP TRIGGER IF EXISTS trg1;
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1 (b VARCHAR(50) NOT NULL);
+CREATE TABLE t2 (a VARCHAR(10) NOT NULL DEFAULT '');
+CREATE TRIGGER trg1 AFTER INSERT ON t2
+FOR EACH ROW BEGIN
+SELECT 1 FROM t1 c WHERE
+(@bug51650 IS NULL OR @bug51650 != c.b) AND c.b = NEW.a LIMIT 1 INTO @foo;
+END//
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+SET @bug51650 = 1;
+INSERT IGNORE INTO t2 VALUES();
+INSERT IGNORE INTO t1 SET b = '777';
+INSERT IGNORE INTO t2 SET a = '111';
+SET @bug51650 = 1;
+INSERT IGNORE INTO t2 SET a = '777';
+DROP TRIGGER trg1;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (id INT NOT NULL);
+CREATE TABLE t2 (id INT NOT NULL);
+INSERT t1 VALUES (1),(2),(3);
+UPDATE IGNORE t1 SET id=NULL;
+Warnings:
+Warning	1048	Column 'id' cannot be null
+Warning	1048	Column 'id' cannot be null
+Warning	1048	Column 'id' cannot be null
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW
+INSERT INTO t2 VALUES (3);
+UPDATE t1 SET id=NULL;
+Warnings:
+Warning	1048	Column 'id' cannot be null
+Warning	1048	Column 'id' cannot be null
+Warning	1048	Column 'id' cannot be null
+DROP TRIGGER t1_bu;
+DROP TABLE t1,t2;
+#
+# Bug#50755: Crash if stored routine def contains version comments
+#
+DROP DATABASE IF EXISTS db1;
+DROP TRIGGER IF EXISTS trg1;
+DROP TABLE IF EXISTS t1, t2;
+CREATE DATABASE db1;
+USE db1;
+CREATE TABLE t1 (b INT);
+CREATE TABLE t2 (a INT);
+CREATE TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERT/*!INTO*/t1 VALUES (1);
+# Used to crash
+SHOW TRIGGERS IN db1;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+trg1	INSERT	t2	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERTINTOt1 VALUES (1)	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	latin1_swedish_ci
+INSERT INTO t2 VALUES (1);
+ERROR 42000: Trigger 'trg1' has an error in its body: 'You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VALUES (1)' at line 1'
+SELECT * FROM t1;
+b
+# Work around Bug#45235
+DROP DATABASE db1;
+USE test;
+# End of 5.1 tests.
+create table t1 (i int);
+create table t2 (i int);
+flush tables;
+flush status;
+CREATE DEFINER=`root`@`localhost` TRIGGER trg AFTER DELETE ON t1 FOR EACH ROW BEGIN DELETE FROM t2 WHERE t2.i = OLD.i; END //
+insert into t1 values (1),(2);
+insert into t2 values (1),(2);
+delete from t1 where i=1;
+show status like 'Opened_tables';
+Variable_name	Value
+Opened_tables	6
+select * from t1;
+i
+2
+select * from t2;
+i
+2
+drop table t1,t2;
+# End of 5.2 tests.
+#
+# Bug#34453 Can't change size of file (Errcode: 1224)
+#
+DROP TRIGGER IF EXISTS t1_bi;
+DROP TRIGGER IF EXISTS t1_bd;
+DROP TABLE IF EXISTS t1;
+DROP TEMPORARY TABLE IF EXISTS t2;
+CREATE TABLE t1 (s1 INT);
+CREATE TEMPORARY TABLE t2 (s1 INT);
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (0);
+CREATE TRIGGER t1_bd BEFORE DELETE ON t1 FOR EACH ROW DELETE FROM t2;
+INSERT INTO t1 VALUES (0);
+INSERT INTO t1 VALUES (0);
+SELECT * FROM t1;
+s1
+0
+0
+SELECT * FROM t2;
+s1
+0
+0
+# Reported to give ERROR 14 (HY000): 
+# Can't change size of file (Errcode: 1224)
+# on Windows 
+DELETE FROM t1;
+DROP TABLE t1;
+DROP TEMPORARY TABLE t2;
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
+DROP TRIGGER IF EXISTS trg1;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+DECLARE a CHAR;
+SELECT 'ab' INTO a;
+SELECT 'ab' INTO a;
+SELECT 'a' INTO a;
+END|
+INSERT INTO t1 VALUES (1);
+DROP TRIGGER trg1;
+DROP TABLE t1;
+DROP TRIGGER IF EXISTS trg1;
+DROP TRIGGER IF EXISTS trg2;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+DECLARE trg1 CHAR;
+SELECT 'ab' INTO trg1;
+END|
+CREATE TRIGGER trg2 AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+DECLARE trg2 CHAR;
+SELECT 'ab' INTO trg2;
+END|
+SET sql_mode = DEFAULT;
+INSERT INTO t1 VALUES (0);
+SELECT * FROM t1;
+a
+0
+SHOW WARNINGS;
+Level	Code	Message
+INSERT INTO t1 VALUES (1),(2);
+DROP TRIGGER trg1;
+DROP TRIGGER trg2;
+DROP TABLE t1;
+#
+# Bug #46747 "Crash in MDL_ticket::upgrade_shared_lock_to_exclusive
+#             on TRIGGER + TEMP table".
+#
+drop trigger if exists t1_bi;
+drop temporary table if exists t1;
+drop table if exists t1;
+create table t1 (i int);
+create trigger t1_bi before insert on t1 for each row set @a:=1;
+# Create temporary table which shadows base table with trigger.
+create temporary table t1 (j int);
+# Dropping of trigger should succeed.
+drop trigger t1_bi;
+select trigger_name from information_schema.triggers
+where event_object_schema = 'test' and event_object_table = 't1';
+trigger_name
+# Clean-up.
+drop temporary table t1;
+drop table t1;
+#
+# Bug #12362125: SP INOUT HANDLING IS BROKEN FOR TEXT TYPE.
+#
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1(c TEXT);
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+DECLARE v TEXT;
+SET v = 'aaa';
+SET NEW.c = v;
+END|
+INSERT INTO t1 VALUES('qazwsxedc');
+SELECT c FROM t1;
+c
+aaa
+DROP TABLE t1;
+
+# End of 5.5 tests.
+#
+# BUG #910083: materialized subquery in a trigger
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='materialization=on';
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (b int);
+CREATE TRIGGER tr AFTER UPDATE ON t1 FOR EACH ROW
+UPDATE t2 SET b = (SELECT COUNT(a) FROM t1);
+INSERT INTO t1
+VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO t2
+VALUES (0),(0),(0),(0),(0),(0),(0),(0),(0);
+UPDATE t1 SET a = 3;
+connect con1,localhost,root,,;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+9
+disconnect con1;
+connection default;
+SELECT * FROM t2;
+b
+9
+9
+9
+9
+9
+9
+9
+9
+9
+UPDATE t1 SET a = 2;
+SELECT * FROM t2;
+b
+9
+9
+9
+9
+9
+9
+9
+9
+9
+SET optimizer_switch=@save_optimizer_switch;
+DROP TRIGGER tr;
+DROP TABLE t1, t2;
+# End of 5.3 tests.
+set time_zone="+00:00";
+SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
+CREATE TABLE t1 (c CHAR(1) NOT NULL);
+CREATE TRIGGER t1_bi
+BEFORE INSERT
+ON t1
+FOR EACH ROW
+BEGIN
+SET NEW.c = 'www';
+END;
+|
+SET @@session.sql_mode = default;
+INSERT INTO t1 VALUES ('a');
+ERROR 22001: Data too long for column 'c' at row 1
+show create trigger t1_bi;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_bi	STRICT_TRANS_TABLES,STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi
+BEFORE INSERT
+ON t1
+FOR EACH ROW
+BEGIN
+SET NEW.c = 'www';
+END	latin1	latin1_swedish_ci	latin1_swedish_ci	2001-01-01 10:20:30.00
+DROP TRIGGER t1_bi;
+DROP TABLE t1;
+SET TIMESTAMP=DEFAULT;
+set time_zone= @@global.time_zone;
+#
+# MDEV-13936: Server crashes in Time_and_counter_tracker::incr_loops
+#
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE RAND() > 0.5;
+CREATE TABLE t2 (a int);
+CREATE TABLE t3 (a int);
+create trigger trg after insert on t2 for each row
+INSERT INTO t3 SELECT MAX(i) FROM v1 UNION SELECT MAX(i) FROM v1;
+drop table t1;
+insert into t2 value (2);
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1 (i INT);
+insert into t2 value (2);
+DROP VIEW v1;
+DROP TABLE t1,t2,t3;
+#
+# MDEV-16093
+# Assertion `global_status_var.global_memory_used == 0' failed or
+# bytes lost after inserting into table with non-null blob and trigger
+#
+CREATE TABLE t1 (b BLOB NOT NULL);
+CREATE TRIGGER tr BEFORE UPDATE ON t1 FOR EACH ROW BEGIN END;
+INSERT INTO t1 VALUES ('foo');
+DROP TABLE t1;
+#
+# End of 10.1 tests.
+#
+create table t1 (i int);
+create trigger tr1 after insert on t1 for each row set @a=@a+1;
+create trigger tr2 after insert on t1 for each row set @a=@a+1;
+create trigger tr3 after insert on t1 for each row set @a=@a+1;
+flush status;
+show status like 'Executed_triggers';
+Variable_name	Value
+Executed_triggers	0
+set @a=0;
+insert into t1 values (1);
+show status like 'Executed_triggers';
+Variable_name	Value
+Executed_triggers	3
+select @a;
+@a
+3
+drop table t1;
+create table t1 (i int);
+set time_zone="+0:00";
+SET TIMESTAMP=UNIX_TIMESTAMP('2016-01-01 10:10:10.33');
+select now(2);
+now(2)
+2016-01-01 10:10:10.33
+create or replace trigger tr1 after insert on t1 for each row set @a=@a+1;
+SET TIMESTAMP=UNIX_TIMESTAMP('2016-01-01 10:10:10.99');
+select now(2);
+now(2)
+2016-01-01 10:10:10.99
+create or replace trigger tr2 after insert on t1 for each row set @a=@a+1;
+select now(2);
+now(2)
+2016-01-01 10:10:10.99
+select trigger_name, action_order, created from information_schema.triggers 
+where event_object_table = 't1' and trigger_schema='test';
+trigger_name	action_order	created
+tr1	1	2016-01-01 10:10:10.33
+tr2	2	2016-01-01 10:10:10.99
+drop table t1;
+set time_zone= @@global.time_zone;
+# MDEV-12992: Increasing memory consumption
+with each invocation of trigger
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (b INT);
+CREATE TRIGGER tr 
+AFTER UPDATE ON t1 FOR EACH ROW SELECT (SELECT b FROM t2) INTO @x;
+# Running 20000 queries
+DROP TABLE t1,t2;
+#
+# MDEV-19188 Server Crash When Using a Trigger With A Number of Virtual Columns on INSERT/UPDATE
+#
+CREATE TABLE t1 (
+virt1 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt2 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt3 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt4 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt5 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt6 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt7 INT GENERATED ALWAYS AS (0) VIRTUAL,
+virt8 INT GENERATED ALWAYS AS (0) VIRTUAL
+);
+INSERT INTO t1 () VALUES ();
+CREATE TRIGGER t1_trigger BEFORE INSERT ON t1 FOR EACH ROW BEGIN END;
+INSERT INTO t1 () VALUES ();
+DROP TABLE t1;
+#
+# End of 10.2 tests
+#
+#
+# MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
+#
+CREATE TABLE t1 (a INT, b INT, total INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1
+FOR EACH ROW
+BEGIN
+DECLARE va TYPE OF t1.a DEFAULT NEW.a;
+DECLARE vb TYPE OF t1.b DEFAULT NEW.b;
+SET NEW.total:= va + vb;
+END;
+$$
+INSERT INTO t1 (a,b) VALUES (10, 20);
+SELECT * FROM t1;
+a	b	total
+10	20	30
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#

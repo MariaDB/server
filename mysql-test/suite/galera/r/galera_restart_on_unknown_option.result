@@ -1,0 +1,50 @@
+connection node_2;
+connection node_1;
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("unknown option '--galera-unknown-option'");
+connection node_1;
+connection node_2;
+connection node_2;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a'), (3, 'a');
+SELECT * FROM t1;
+f1	f2
+1	a
+2	a
+3	a
+Shutting down server ...
+connection node_1;
+UPDATE t1 SET f2 = 'b' WHERE f1 > 1;
+UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	b
+3	c
+connection node_2;
+Starting server ...
+Starting server ...
+SELECT * FROM t1;
+f1	f2
+1	a
+2	b
+3	c
+Shutting down server ...
+connection node_1;
+UPDATE t1 SET f2 = 'd' WHERE f1 > 1;
+UPDATE t1 SET f2 = 'd' WHERE f1 > 2;
+SELECT * FROM t1;
+f1	f2
+1	a
+2	d
+3	d
+connection node_2;
+Starting server ...
+Starting server ...
+SELECT * FROM t1;
+f1	f2
+1	a
+2	d
+3	d
+connection node_1;
+DROP TABLE t1;

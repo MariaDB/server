@@ -1,0 +1,20 @@
+--- suite/storage_engine/type_set_indexes.result	2017-03-12 04:38:50.000000000 +0200
++++ suite/storage_engine/type_set_indexes.reject	2017-12-12 20:37:16.187332305 +0200
+@@ -97,7 +97,7 @@
+ Warning	1265	Data truncated for column 'b' at row 7
+ EXPLAIN SELECT a FROM t1 WHERE FIND_IN_SET('Europe',a) > 0;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-#	#	#	#	#	a	#	#	#	#
++#	#	#	#	#	NULL	#	#	#	#
+ SELECT a FROM t1 WHERE FIND_IN_SET('Europe',a) > 0;
+ a
+ Africa,Europe,Asia
+@@ -124,7 +124,7 @@
+ Warning	1265	Data truncated for column 'b' at row 7
+ EXPLAIN SELECT DISTINCT a, b FROM t1 ORDER BY b DESC, a;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-#	#	#	#	#	b_a	#	#	#	#
++#	#	#	#	#	NULL	#	#	#	#
+ SELECT DISTINCT a, b FROM t1 ORDER BY b DESC, a;
+ a	b
+ 	test1,test3

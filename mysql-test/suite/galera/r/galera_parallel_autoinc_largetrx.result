@@ -1,0 +1,40 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER) Engine=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) Engine=InnoDB;
+connection node_2;
+set session wsrep_sync_wait=15;
+SET GLOBAL wsrep_slave_threads = 4;
+connection node_1;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;;
+connection node_1a;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;;
+connection node_2;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;;
+connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+30000
+SELECT COUNT(DISTINCT f1) FROM t1;
+COUNT(DISTINCT f1)
+30000
+connection node_1a;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+30000
+SELECT COUNT(DISTINCT f1) FROM t1;
+COUNT(DISTINCT f1)
+30000
+connection node_2;
+disconnect node_1a;
+SELECT COUNT(*) AS EXPECT_30000 FROM t1;
+EXPECT_30000
+30000
+SELECT COUNT(DISTINCT f1) AS  EXPECT_30000 FROM t1;
+EXPECT_30000
+30000
+connection default;
+DROP TABLE t1;
+DROP TABLE ten;

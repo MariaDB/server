@@ -1,0 +1,43 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
+INSERT INTO t1 (f1) SELECT 000000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+connection node_2;
+SELECT COUNT(*) = 100000 FROM t1;
+COUNT(*) = 100000
+1
+SET GLOBAL wsrep_desync = TRUE;
+SET SESSION wsrep_on = FALSE;
+ALTER TABLE t1 ADD PRIMARY KEY (f1);
+SET SESSION wsrep_on = TRUE;
+SET GLOBAL wsrep_desync = FALSE;
+INSERT INTO t1 (f1) SELECT 100000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3.f1) + (10 * a4.f1) + a5.f1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4, ten AS a5;
+SELECT COUNT(*) = 200000 FROM t1;
+COUNT(*) = 200000
+1
+SELECT MAX(f1) =  199999 FROM t1;
+MAX(f1) =  199999
+1
+connection node_1;
+SELECT COUNT(*) = 200000 FROM t1;
+COUNT(*) = 200000
+1
+SELECT MAX(f1) =  199999 FROM t1;
+MAX(f1) =  199999
+1
+SET GLOBAL wsrep_desync = TRUE;
+SET SESSION wsrep_on = FALSE;
+ALTER TABLE t1 ADD PRIMARY KEY (f1);
+SET SESSION wsrep_on = TRUE;
+SET GLOBAL wsrep_desync = FALSE;
+connection node_2;
+INSERT INTO t1 (f1) VALUES (1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+connection node_1;
+INSERT INTO t1 (f1) VALUES (100);
+ERROR 23000: Duplicate entry '100' for key 'PRIMARY'
+DROP TABLE t1;
+DROP TABLE ten;

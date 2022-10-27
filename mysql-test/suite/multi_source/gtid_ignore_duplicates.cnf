@@ -1,0 +1,28 @@
+!include my.cnf
+
+[mysqld.1]
+log-slave-updates
+loose-innodb
+binlog-format=mixed
+
+[mysqld.2]
+log-slave-updates
+loose-innodb
+binlog-format=mixed
+
+[mysqld.3]
+log-bin=server3-bin
+log-slave-updates
+loose-innodb
+binlog-format=mixed
+
+[mysqld.4]
+server-id=4
+log-bin=server4-bin
+log-slave-updates
+loose-innodb
+binlog-format=mixed
+
+[ENV]
+SERVER_MYPORT_4=		@mysqld.4.port
+SERVER_MYSOCK_4=		@mysqld.4.socket

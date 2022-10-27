@@ -1,0 +1,2 @@
+--let $force_slave_mysql56_temporal_format=false;
+--source rpl_temporal_mysql56_to_mariadb.test

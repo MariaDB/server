@@ -1,0 +1,173 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+
+#
+# Test multiple mysql.gtid_slave_posXXX tables with multiple master connections
+#
+
+--connect (slave1,127.0.0.1,root,,,$SERVER_MYPORT_3)
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (master2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+
+--connection slave1
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval CHANGE MASTER 'slave1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval CHANGE MASTER 'slave2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+set default_master_connection = 'slave1';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'slave2';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+
+
+--connection master1
+SET GLOBAL gtid_domain_id= 1;
+SET SESSION gtid_domain_id= 1;
+CREATE TABLE t3 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, "initial");
+INSERT INTO t3 VALUES (101, "initial 1");
+--source include/save_master_gtid.inc
+
+--connection master2
+SET GLOBAL gtid_domain_id= 2;
+SET SESSION gtid_domain_id= 2;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1, "initial");
+
+
+--connection slave1
+--source include/sync_with_master_gtid.inc
+
+--connection master2
+--source include/save_master_gtid.inc
+
+--connection slave1
+--source include/sync_with_master_gtid.inc
+
+
+--echo *** Add an innodb gtid_slave_pos table. It is not used yet as slaves are already running ***
+
+SET sql_log_bin=0;
+CREATE TABLE mysql.gtid_slave_pos_innodb LIKE mysql.gtid_slave_pos;
+ALTER TABLE mysql.gtid_slave_pos_innodb ENGINE=InnoDB;
+SET sql_log_bin=0;
+
+--connection master1
+INSERT INTO t3 VALUES (102, "secondary");
+--source include/save_master_gtid.inc
+
+--connection slave1
+--source include/sync_with_master_gtid.inc
+SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos_innodb GROUP BY domain_id;
+
+--echo *** Restart one slave thread, the other keeps running. Now the new table is used ***
+--connection slave1
+set default_master_connection = 'slave1';
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+# Send through a transaction on the slave1 connection, to be sure that it has
+# had time to update the state with the new table.
+--connection master1
+INSERT INTO t1 VALUES (2, "followup");
+--source include/save_master_gtid.inc
+--connection slave1
+--source include/sync_with_master_gtid.inc
+
+--connection master2
+INSERT INTO t2 VALUES (2, "secondary2");
+--source include/save_master_gtid.inc
+
+--connection slave1
+--source include/sync_with_master_gtid.inc
+SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos_innodb GROUP BY domain_id;
+
+--echo *** Remove a gtid_slave_posXXX table, restart one slave ***
+--echo *** Get a warning that the change is not yet picked up ***
+--echo *** See that updates fail due to trying to use the missing table ***
+--connection slave1
+SET sql_log_bin=0;
+DROP TABLE mysql.gtid_slave_pos_innodb;
+SET sql_log_bin=1;
+set default_master_connection = 'slave2';
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+CALL mtr.add_suppression("The table mysql.gtid_slave_pos_innodb was removed.");
+
+--connection master2
+INSERT INTO t2 VALUES (3, "tertiary 2");
+
+--connection slave1
+--let $slave_sql_errno= 1942
+--source include/wait_for_slave_sql_error.inc
+SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+
+--echo *** Stop both slaves, see that the drop of mysql.gtid_slave_pos_innodb is now picked up ***
+--connection slave1
+set default_master_connection = 'slave1';
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+set default_master_connection = 'slave2';
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+set default_master_connection = 'slave1';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+# Send through a transaction on the slave1 connection, to be sure that it has
+# had time to update the state with the new table.
+--connection master1
+INSERT INTO t1 VALUES (3, "more stuff");
+--source include/save_master_gtid.inc
+--connection slave1
+--source include/sync_with_master_gtid.inc
+set default_master_connection = 'slave2';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+--connection master2
+--source include/save_master_gtid.inc
+--connection slave1
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+
+
+# Cleanup.
+--connection master1
+DROP TABLE t1;
+DROP TABLE t3;
+
+--connection master2
+DROP TABLE t2;
+
+--connection slave1
+SET GLOBAL gtid_domain_id=0;
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.tables WHERE table_name IN ("t1", "t2", "t3") AND table_schema = "test"
+--source include/wait_condition.inc
+--sorted_result
+STOP ALL SLAVES;
+--source include/reset_master_slave.inc
+--disconnect slave1
+
+
+--connection master1
+SET GLOBAL gtid_domain_id=0;
+--source include/reset_master_slave.inc
+--disconnect master1
+
+--connection master2
+SET GLOBAL gtid_domain_id=0;
+--source include/reset_master_slave.inc
+--disconnect master2

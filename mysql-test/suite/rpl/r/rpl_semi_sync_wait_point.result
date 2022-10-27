@@ -1,0 +1,165 @@
+#
+# Preparation
+#
+CREATE TABLE t1 (i INT NOT NULL, PRIMARY KEY (i)) ENGINE=InnoDB;
+RESET MASTER;
+SET @@global.rpl_semi_sync_master_timeout = 60000;
+SET @@global.rpl_semi_sync_master_wait_no_slave = 1;
+# It's okay to see "Killed" but we should not see "Timeout" in the log.
+call mtr.add_suppression("Killed waiting for reply of binlog");
+call mtr.add_suppression("Run function 'after_commit' in plugin 'rpl_semi_sync_master' failed");
+call mtr.add_suppression("Run function 'after_sync' in plugin 'rpl_semi_sync_master' failed");
+#
+# Test wait point = AFTER_COMMIT
+#
+SET @@global.rpl_semi_sync_master_wait_point = AFTER_COMMIT;
+# Make another connection to INSERT from.
+connect  other,localhost,root,,;
+connection other;
+connection default;
+SET GLOBAL rpl_semi_sync_master_enabled = 1;
+# Go ahead and send the INSERT; it should block.
+connection other;
+INSERT INTO t1 (i) VALUES (1);
+connection default;
+# The INSERT thread should now be waiting.
+SELECT state AS should_be_waiting
+FROM information_schema.processlist WHERE id = @other_connection_id;
+should_be_waiting
+Waiting for semi-sync ACK from slave
+# The insert should be visible to other threads
+SELECT * FROM t1 ORDER BY 1;
+i
+1
+# Kill the waiting thread; it should die immediately.
+KILL @other_connection_id;
+# Collect the error from the INSERT thread; it should be disconnected.
+connection other;
+Got one of the listed errors
+connection default;
+# Wait for INSERT thread to actually disappear (KILL closes connection
+# before thread actually finishes its processing).
+# The INSERT thread should now be gone.
+SELECT state AS should_be_empty_set
+FROM information_schema.processlist WHERE id = @other_connection_id;
+should_be_empty_set
+# The insert is still there
+SELECT * FROM t1 ORDER BY 1;
+i
+1
+connection default;
+disconnect other;
+# Make another connection to INSERT from.
+connect  other,localhost,root,,;
+connection other;
+connection default;
+# Go ahead and send the INSERT; it should block.
+connection other;
+INSERT INTO t1 (i) VALUES (2);
+connection default;
+# The INSERT thread should now be waiting.
+SELECT state AS should_be_waiting
+FROM information_schema.processlist WHERE id = @other_connection_id;
+should_be_waiting
+Waiting for semi-sync ACK from slave
+# The insert should be visible to other threads
+SELECT * FROM t1 ORDER BY 1;
+i
+1
+2
+# Now restart server
+# restart
+# Done restarting server
+# Reset setting that were lost in restart
+SET @@global.rpl_semi_sync_master_timeout = 60000;
+SET @@global.rpl_semi_sync_master_wait_no_slave = 1;
+# Check that row is still there
+SELECT * FROM t1 ORDER BY 1;
+i
+1
+2
+disconnect other;
+#
+# Test wait point = AFTER_SYNC
+#
+SET @@global.rpl_semi_sync_master_wait_point = AFTER_SYNC;
+# Make another connection to INSERT from.
+connect  other,localhost,root,,;
+connection other;
+connection default;
+SET GLOBAL rpl_semi_sync_master_enabled = 1;
+# Go ahead and send the INSERT; it should block.
+connection other;
+INSERT INTO t1 (i) VALUES (3);
+connection default;
+# The INSERT thread should now be waiting.
+SELECT state AS should_be_waiting
+FROM information_schema.processlist WHERE id = @other_connection_id;
+should_be_waiting
+Waiting for semi-sync ACK from slave
+# The insert should NOT be visible to other threads
+SELECT * FROM t1 ORDER BY 1;
+i
+1
+2
+# Kill the waiting thread; it should die immediately.
+KILL @other_connection_id;
+# Collect the error from the INSERT thread; it should be disconnected.
+connection other;
+Got one of the listed errors
+connection default;
+# Wait for INSERT thread to actually disappear (KILL closes connection
+# before thread actually finishes its processing).
+# The INSERT thread should now be gone.
+SELECT state AS should_be_empty_set
+FROM information_schema.processlist WHERE id = @other_connection_id;
+should_be_empty_set
+# The row inserted is there
+SELECT * FROM t1 ORDER BY 1;
+i
+1
+2
+3
+connection default;
+disconnect other;
+# Make another connection to INSERT from.
+connect  other,localhost,root,,;
+connection other;
+connection default;
+# Go ahead and send the INSERT; it should block.
+connection other;
+INSERT INTO t1 (i) VALUES (4);
+connection default;
+# The INSERT thread should now be waiting.
+SELECT state AS should_be_waiting
+FROM information_schema.processlist WHERE id = @other_connection_id;
+should_be_waiting
+Waiting for semi-sync ACK from slave
+# The insert should NOT be visible to other threads
+SELECT * FROM t1 ORDER BY 1;
+i
+1
+2
+3
+# Now restart server
+# restart
+# Done restarting server
+# Reset setting that were lost in restart
+SET @@global.rpl_semi_sync_master_timeout = 60000;
+SET @@global.rpl_semi_sync_master_wait_no_slave = 1;
+# But the row inserted is there
+SELECT * FROM t1 ORDER BY 1;
+i
+1
+2
+3
+4
+disconnect other;
+#
+# Cleanup
+#
+SET GLOBAL rpl_semi_sync_master_enabled = 0;
+DROP TABLE t1;
+SET @@global.rpl_semi_sync_master_timeout = 10000;
+SET @@global.rpl_semi_sync_master_wait_no_slave = 1;
+SET @@global.rpl_semi_sync_master_wait_point = AFTER_COMMIT;

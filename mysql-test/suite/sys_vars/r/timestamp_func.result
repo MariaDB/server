@@ -1,0 +1,26 @@
+connect  con1,localhost,root,,;
+SELECT date(now()) = date(sysdate());
+date(now()) = date(sysdate())
+1
+SET @@session.timestamp = 1100000000;
+SELECT date(now()) != date(sysdate());
+date(now()) != date(sysdate())
+1
+connect  con0,localhost,root,,;
+SELECT @@session.timestamp != 1100000000;
+@@session.timestamp != 1100000000
+1
+SET @@session.timestamp = 1000000000;
+SELECT date(now()) != date(sysdate());
+date(now()) != date(sysdate())
+1
+connection con1;
+SELECT @@session.timestamp != 1000000000;
+@@session.timestamp != 1000000000
+1
+SELECT @@session.timestamp = 1100000000;
+@@session.timestamp = 1100000000
+1
+connection default;
+disconnect con0;
+disconnect con1;

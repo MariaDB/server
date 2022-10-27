@@ -1,0 +1,30 @@
+set global auto_increment_increment= 2, auto_increment_offset= 2;
+create sequence s start with -3 minvalue= -1000 increment 0;
+select nextval(s);
+nextval(s)
+-2
+select nextval(s);
+nextval(s)
+0
+flush tables;
+select nextval(s);
+nextval(s)
+1998
+drop sequence s;
+set global auto_increment_increment= 2, auto_increment_offset= 1;
+create sequence s start with -3 minvalue= -1000 increment 0;
+select nextval(s);
+nextval(s)
+-3
+select nextval(s);
+nextval(s)
+-1
+select nextval(s);
+nextval(s)
+1
+flush tables;
+select nextval(s);
+nextval(s)
+1997
+drop sequence s;
+set global auto_increment_increment= default, auto_increment_offset= default;

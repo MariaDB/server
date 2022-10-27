@@ -1,0 +1,114 @@
+--source inc.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+
+--query_vertical select * from information_schema.engines where engine='sequence'
+
+set sql_quote_show_create=0;
+
+show create table seq_1_to_15_step_2;
+--error ER_NO_SUCH_TABLE
+show create table seq_1_to_15_step;
+--error ER_NO_SUCH_TABLE
+show create table seq_1_to_15_st;
+show create table seq_1_to_15;
+show create table seq_1_to_1;
+--error ER_NO_SUCH_TABLE
+show create table seq_1_to_;
+--error ER_NO_SUCH_TABLE
+show create table seq_1_t;
+--error ER_NO_SUCH_TABLE
+show create table seq_1;
+--error ER_NO_SUCH_TABLE
+show create table seq_;
+--error ER_NO_SUCH_TABLE
+show create table se;
+--error ER_GET_ERRNO
+show create table seq_1_to_15_step_0;
+
+#
+# MDEV-5735 Selecting from SEQUENCE table with negative number hangs server
+#
+--error ER_NO_SUCH_TABLE
+show create table `seq_-1_to_15`;
+--error ER_NO_SUCH_TABLE
+show create table `seq_1_to_+2`;
+
+# simple select
+select * from seq_1_to_15_step_2;
+select * from seq_1_to_15;
+select * from seq_1_to_1;
+# backwards
+select * from seq_15_to_1;
+select * from seq_15_to_1_step_2;
+
+# step > |to - from|
+select * from seq_1_to_15_step_12345;
+select * from seq_15_to_1_step_12345;
+explain select * from seq_15_to_1_step_12345;
+
+--sorted_result
+show open tables from test;
+show tables;
+# row estimates
+explain select * from seq_1_to_15_step_2;
+explain select * from seq_1_to_15_step_2 where seq > 10;
+explain select * from seq_1_to_15_step_2 where seq between  4 and  9;
+explain select * from seq_1_to_15_step_2 where seq between 20 and 30;
+explain select * from seq_1_to_15_step_2 where seq between  4 and  6;
+explain select * from seq_1_to_15_step_2 where seq between  4 and  5;
+explain select * from seq_1_to_15_step_2 where seq between  4 and  4;
+explain select * from seq_1_to_15_step_2 where seq between  5 and  5;
+
+# join
+create table t1 (a int, aa int, b varchar(100));
+insert t1 select seq, seq*seq, if (seq % 2, 'odd', 'even') from seq_1_to_20;
+select * from t1;
+select aa, b from t1, seq_1_to_20_step_3 as seq where a=seq;
+# adding more rows, example
+insert t1
+  select seq, seq*seq, if (seq % 2, 'odd', 'even') from seq_1_to_30
+    where seq > (select max(a) from t1);
+select * from t1;
+drop table t1;
+
+# Prime Numbers from 2 to 50 :)
+select seq from seq_2_to_50 s1 where 0 not in
+  (select s1.seq % s2.seq from seq_2_to_50 s2 where s2.seq <= sqrt(s1.seq));
+explain select seq from seq_2_to_50 s1 where 0 not in
+  (select s1.seq % s2.seq from seq_2_to_50 s2 where s2.seq <= sqrt(s1.seq));
+
+# Years of XX-th century where 28th of February was Monday
+select year(dt) from
+  (select '1901-02-28' + interval seq year as dt from seq_0_to_99) as seqdt
+  where weekday(dt) = 0;
+
+# transactions and XA
+create table t1 (a int) engine=innodb;
+reset master;
+start transaction;
+# No warning about "accesses nontransactional table"
+insert t1 select * from seq_1_to_10;
+savepoint s1;
+insert t1 select * from seq_11_to_20;
+rollback to savepoint s1;
+commit;
+select count(*) from t1;
+# must show Xid event
+let $binlog_limit= 10; 
+--source include/show_binlog_events.inc
+drop table t1;
+
+#
+# MDEV-4449 SEQUENCE depends on TEST_SQL_DISCOVERY for discovering tables upon DDL
+#
+drop table seq_1_to_1;
+
+#
+# MDEV-4451 Attempt to write-lock a SEQUENCE table with log-bin enabled causes ER_BINLOG_ROW_ENGINE_AND_STMT_ENGINE
+#
+set binlog_format=statement;
+lock table seq_1_to_2 write;
+set binlog_format=row;
+lock table seq_1_to_2 write;
+

@@ -1,0 +1,10 @@
+#
+# Test Galera as a slave to a MariaDB master using GTIDs
+#
+# suite/galera/galera_2nodes_as_slave.cnf describes the setup of the nodes
+# suite/galera/t/galera_as_slave_gtid.cnf has the GTID options
+#
+# In addition to performing DDL and DML, we check that the gtid of the master is preserved inside the cluster
+#
+
+--source galera_as_slave_gtid.inc

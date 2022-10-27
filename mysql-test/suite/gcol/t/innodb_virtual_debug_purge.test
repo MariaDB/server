@@ -1,0 +1,377 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+--source include/have_partition.inc
+
+set default_storage_engine=innodb;
+set @old_dbug=@@global.debug_dbug;
+# Ensure that the history list length will actually be decremented by purge.
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
+CREATE TABLE `t` (
+  `a` BLOB,
+  `b` BLOB,
+  `c` BLOB GENERATED ALWAYS AS (CONCAT(a,b)) VIRTUAL,
+  `h` VARCHAR(10) DEFAULT NULL,
+  `i` int
+) ENGINE=InnoDB;
+
+INSERT INTO t VALUES (REPEAT('g', 16000), REPEAT('x', 16000), DEFAULT, "kk", 1);
+INSERT INTO t VALUES (REPEAT('a', 16000), REPEAT('b', 16000), DEFAULT, "mm", 2);
+
+CREATE INDEX idx ON t(c(100));
+
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
+UPDATE t SET a = REPEAT('m', 16000) WHERE a like "aaa%";
+--source ../../innodb/include/wait_all_purged.inc
+SET global debug_dbug=@old_dbug;
+DROP TABLE t;
+
+CREATE TABLE t (
+  a TINYBLOB,
+  b TINYBLOB,
+  c TINYBLOB GENERATED ALWAYS AS (CONCAT(a,b)) VIRTUAL,
+  h VARCHAR(10) DEFAULT NULL,
+  i INT
+) ROW_FORMAT=COMPACT ENGINE=InnoDB;
+
+INSERT INTO t VALUES (REPEAT('g', 100), REPEAT('x', 100), DEFAULT, "kk", 1);
+INSERT INTO t VALUES (REPEAT('a', 100), REPEAT('b', 100), DEFAULT, "mm", 2);
+
+CREATE INDEX idx ON t(c(100));
+
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
+UPDATE t SET a = REPEAT('m', 100) WHERE a like "aaa%";
+--source ../../innodb/include/wait_all_purged.inc
+SET global debug_dbug=@old_dbug;
+DROP TABLE t;
+
+
+CREATE TABLE t1 (
+    id INT NOT NULL,
+    store_id INT NOT NULL,
+    x INT GENERATED ALWAYS AS (id + store_id)
+)
+PARTITION BY RANGE (store_id) (
+    PARTITION p0 VALUES LESS THAN (6),
+    PARTITION p1 VALUES LESS THAN (11),
+    PARTITION p2 VALUES LESS THAN (16),
+    PARTITION p3 VALUES LESS THAN (21)
+);
+
+insert into t1 values(1, 2, default);
+insert into t1 values(3, 4, default);
+
+insert into t1 values(3, 12, default);
+insert into t1 values(4, 18, default);
+
+CREATE INDEX idx ON t1(x);
+
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
+UPDATE t1 SET id = 10 WHERE id = 1;
+--source ../../innodb/include/wait_all_purged.inc
+SET global debug_dbug=@old_dbug;
+DROP TABLE t1;
+
+#
+# BUG#22082762 RE-ENABLE SUPPORT FOR ADDING VIRTUAL INDEX WHILE DROPPING VIRTUAL COLUMN
+#
+--source include/count_sessions.inc
+
+connect (con1,localhost,root,,);
+connection default;
+
+# Test adding virtual index on newly added virtual column
+CREATE TABLE t1 (a INT, b INT);
+
+INSERT INTO t1(a, b) VALUES (1, 1), (2, 2), (3, 3);
+
+connection con1;
+--echo # disable purge
+CREATE TABLE t0 (a INT) ENGINE=InnoDB;
+BEGIN; SELECT * FROM t0;
+
+connection default;
+DELETE FROM t1 WHERE a = 1;
+
+UPDATE t1 SET a = 4, b = 4 WHERE a = 3;
+
+INSERT INTO t1(a, b) VALUES (5, 5);
+
+SET DEBUG_SYNC= 'inplace_after_index_build SIGNAL uncommitted WAIT_FOR purged';
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t1 ADD COLUMN c INT GENERATED ALWAYS AS(a+b), ADD INDEX idx (c), ALGORITHM=INPLACE, LOCK=NONE;
+send ALTER TABLE t1 ADD COLUMN c INT GENERATED ALWAYS AS(a+b), ADD INDEX idx (c), ALGORITHM=INPLACE, LOCK=SHARED;
+
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR uncommitted';
+
+--echo # enable purge
+COMMIT;
+
+--echo # wait for purge to process the deleted records.
+--source ../../innodb/include/wait_all_purged.inc
+
+SET DEBUG_SYNC= 'now SIGNAL purged';
+
+connection default;
+--echo /* connection default */ ALTER TABLE t1 ADD COLUMN c INT GENERATED ALWAYS AS(a+b), ADD INDEX idx (c), ALGORITHM=INPLACE, LOCK=SHARED;
+--reap
+SHOW CREATE TABLE t1;
+
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+# Test adding index on existing virtual column
+CREATE TABLE t1 (a INT, b INT, c INT GENERATED ALWAYS AS(a+b));
+
+INSERT INTO t1(a, b) VALUES (1, 1), (2, 2), (3, 3), (4, 4);
+
+connection con1;
+--echo # disable purge
+BEGIN; SELECT * FROM t0;
+
+connection default;
+DELETE FROM t1 WHERE a = 1;
+
+UPDATE t1 SET a = 2, b = 2 WHERE a = 5;
+
+INSERT INTO t1(a, b) VALUES (6, 6);
+
+SET DEBUG_SYNC= 'inplace_after_index_build SIGNAL uncommitted WAIT_FOR purged';
+send ALTER TABLE t1 ADD INDEX idx (c), ALGORITHM=INPLACE, LOCK=NONE;
+
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR uncommitted';
+
+DELETE FROM t1 WHERE a = 3;
+
+UPDATE t1 SET a = 7, b = 7 WHERE a = 4;
+
+INSERT INTO t1(a, b) VALUES (8, 8);
+
+--echo # enable purge
+COMMIT;
+
+--echo # wait for purge to process the deleted/updated records.
+let $wait_all_purged=2;
+--source ../../innodb/include/wait_all_purged.inc
+let $wait_all_purged=0;
+
+SET DEBUG_SYNC= 'now SIGNAL purged';
+
+disconnect con1;
+
+connection default;
+--echo /* connection default */ ALTER TABLE t1 ADD INDEX idx (c), ALGORITHM=INPLACE, LOCK=NONE;
+--reap
+SHOW CREATE TABLE t1;
+
+SELECT * FROM t1;
+
+DROP TABLE t0, t1;
+
+#
+# test MDLs with purge
+#
+create table t (a blob, b blob, c blob as (concat(a,b)), h varchar(10), index (c(100)));
+insert t(a,b,h) values (repeat('g', 16000), repeat('x', 16000), "kk");
+insert t(a,b,h) values (repeat('a', 16000), repeat('b', 16000), "mm");
+set global debug_dbug="d,ib_purge_virtual_index_callback";
+connect(prevent_purge, localhost, root);
+start transaction with consistent snapshot;
+connection default;
+update t set a = repeat('m', 16000) where a like "aaa%";
+connect(lock_table, localhost, root);
+lock table t write;
+connection prevent_purge;
+commit;
+connection default;
+--source ../../innodb/include/wait_all_purged.inc
+disconnect lock_table;
+start transaction with consistent snapshot;
+commit;
+--source ../../innodb/include/wait_all_purged.inc
+set global debug_dbug=@old_dbug;
+drop table t;
+
+--echo #
+--echo # MDEV-15165 InnoDB purge for index on virtual column
+--echo # is trying to access an incomplete record
+--echo #
+CREATE TABLE t1(
+ u INT PRIMARY KEY, b BLOB, ug INT GENERATED ALWAYS AS (u) VIRTUAL,
+ INDEX bug(b(100),ug)
+) ENGINE=InnoDB;
+INSERT INTO t1 (u,b) VALUES(1,REPEAT('a',16384));
+connection prevent_purge;
+start transaction with consistent snapshot;
+connection default;
+DELETE FROM t1;
+SET DEBUG_SYNC='blob_write_middle SIGNAL halfway WAIT_FOR purged';
+send INSERT INTO t1 (u,b) VALUES(1,REPEAT('a',16384));
+connection prevent_purge;
+SET DEBUG_SYNC='now WAIT_FOR halfway';
+COMMIT;
+--source ../../innodb/include/wait_all_purged.inc
+SET DEBUG_SYNC='now SIGNAL purged';
+
+connection default;
+reap;
+DROP TABLE t1;
+
+CREATE TABLE t1 (y YEAR, vy YEAR AS (y) VIRTUAL UNIQUE, pk INT PRIMARY KEY)
+ENGINE=InnoDB;
+
+INSERT INTO t1 (pk,y) VALUES (1,2022);
+CREATE TABLE t2(f1 INT NOT NULL, PRIMARY KEY(f1))ENGINE=InnoDB;
+
+SET GLOBAL debug_dbug = 'd,ib_purge_virtual_index_callback';
+
+BEGIN;
+INSERT INTO t2(f1) VALUES(1);
+connection prevent_purge;
+SET DEBUG_SYNC=RESET;
+start transaction with consistent snapshot;
+connection default;
+COMMIT;
+
+connect(truncate,localhost,root,,);
+REPLACE INTO t1(pk, y) SELECT pk,y FROM t1;
+send TRUNCATE TABLE t1;
+
+connection prevent_purge;
+COMMIT;
+SET DEBUG_SYNC='now SIGNAL purge_start';
+disconnect prevent_purge;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR purge_start';
+--source ../../innodb/include/wait_all_purged.inc
+SET GLOBAL debug_dbug=@old_dbug;
+
+connection truncate;
+reap;
+disconnect truncate;
+
+connection default;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-16222 Assertion `0' failed in row_purge_remove_sec_if_poss_leaf
+--echo # on table with virtual columns and indexes
+--echo #
+
+--source suite/innodb/include/wait_all_purged.inc
+--let $datadir= `select @@datadir`
+SET @saved_dbug= @@GLOBAL.debug_dbug;
+set global debug_dbug= "d,ib_purge_virtual_mdev_16222_1,ib_purge_virtual_mdev_16222_2";
+
+create table t1 (
+  pk serial, vb tinyblob as (b) virtual, b tinyblob,
+  primary key(pk), index (vb(64)))
+engine innodb;
+
+insert ignore into t1 (b) values ('foo');
+
+select * into outfile 'load.data' from t1;
+load data infile 'load.data' replace into table t1;
+
+set debug_sync= "now WAIT_FOR latch_released";
+set global debug_dbug= @saved_dbug;
+drop table t1;
+--remove_file $datadir/test/load.data
+
+set debug_sync= "now SIGNAL drop_started WAIT_FOR got_no_such_table";
+
+create table t1 (
+  pk serial, vb tinyblob as (b) virtual, b tinyblob,
+  primary key(pk), index (vb(64)))
+engine innodb;
+
+insert ignore into t1 (b) values ('foo');
+
+select * into outfile 'load.data' from t1;
+load data infile 'load.data' replace into table t1;
+
+set debug_sync= "now WAIT_FOR got_no_such_table";
+
+# FIXME: Race condition here:
+# 1. purge thread goes into sending got_no_such_table
+# 2. test thread finishes debug_sync= "RESET" below
+# 3. purge thread sends got_no_such_table
+set global debug_dbug= @saved_dbug;
+
+# cleanup
+drop table t1;
+--remove_file $datadir/test/load.data
+
+--source include/wait_until_count_sessions.inc
+set debug_sync=reset;
+
+--echo #
+--echo # MDEV-18546 ASAN heap-use-after-free
+--echo # in innobase_get_computed_value / row_purge
+--echo #
+
+CREATE TABLE t1 (
+  pk INT AUTO_INCREMENT,
+  b BIT(15),
+  v BIT(15) AS (b) VIRTUAL,
+  PRIMARY KEY(pk),
+  UNIQUE(v)
+) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (b) VALUES
+  (NULL),(b'011'),(b'000110100'),
+  (b'01101101010'),(b'01111001001011'),(NULL);
+
+SET GLOBAL innodb_debug_sync = "ib_clust_v_col_before_row_allocated "
+                               "SIGNAL before_row_allocated "
+                               "WAIT_FOR flush_unlock";
+SET GLOBAL innodb_debug_sync = "ib_open_after_dict_open "
+                               "SIGNAL purge_open "
+                               "WAIT_FOR select_open";
+
+# In 10.2 trx_undo_roll_ptr_is_insert(t_roll_ptr) condition never pass in purge,
+# so this condition is forced to pass in row_vers_old_has_index_entry
+set global debug_dbug= "d,ib_purge_virtual_index_callback";
+
+# The purge starts from REPLACE command. To avoid possible race, separate
+# connection is used.
+--connect(purge_waiter,localhost,root)
+--send
+SET debug_sync= "now WAIT_FOR before_row_allocated";
+
+--connection default
+REPLACE INTO t1 (pk, b) SELECT pk, b FROM t1;
+
+--connection purge_waiter
+# Now we will definitely catch ib_clust_v_col_before_row_allocated
+--reap
+--connection default
+--disconnect purge_waiter
+
+# purge hangs on the sync point. table is purged, ref_count is set to 0
+FLUSH TABLES;
+
+# Avoid hang on repeating purge.
+# Reset Will be applied after first record is purged
+SET GLOBAL innodb_debug_sync = reset;
+
+SET debug_sync= "now SIGNAL flush_unlock WAIT_FOR purge_open";
+
+# Avoid hang on repeating purge
+SET GLOBAL innodb_debug_sync = reset;
+
+# select unblocks purge thread
+SET debug_sync= "ib_open_after_dict_open SIGNAL select_open";
+SELECT * FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+SET debug_sync= reset;
+set global debug_dbug= @old_dbug;
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

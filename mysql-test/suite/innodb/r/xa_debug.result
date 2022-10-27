@@ -1,0 +1,362 @@
+call mtr.add_suppression("Found 50 prepared XA transactions");
+create table t1 (a int) engine=innodb;
+insert into t1 values(1);
+connect  con$trial, localhost, root,,;
+xa start 'test50';
+insert into t1 values(1);
+xa end 'test50';
+xa prepare 'test50';
+connect  con$trial, localhost, root,,;
+xa start 'test49';
+insert into t1 values(1);
+xa end 'test49';
+xa prepare 'test49';
+connect  con$trial, localhost, root,,;
+xa start 'test48';
+insert into t1 values(1);
+xa end 'test48';
+xa prepare 'test48';
+connect  con$trial, localhost, root,,;
+xa start 'test47';
+insert into t1 values(1);
+xa end 'test47';
+xa prepare 'test47';
+connect  con$trial, localhost, root,,;
+xa start 'test46';
+insert into t1 values(1);
+xa end 'test46';
+xa prepare 'test46';
+connect  con$trial, localhost, root,,;
+xa start 'test45';
+insert into t1 values(1);
+xa end 'test45';
+xa prepare 'test45';
+connect  con$trial, localhost, root,,;
+xa start 'test44';
+insert into t1 values(1);
+xa end 'test44';
+xa prepare 'test44';
+connect  con$trial, localhost, root,,;
+xa start 'test43';
+insert into t1 values(1);
+xa end 'test43';
+xa prepare 'test43';
+connect  con$trial, localhost, root,,;
+xa start 'test42';
+insert into t1 values(1);
+xa end 'test42';
+xa prepare 'test42';
+connect  con$trial, localhost, root,,;
+xa start 'test41';
+insert into t1 values(1);
+xa end 'test41';
+xa prepare 'test41';
+connect  con$trial, localhost, root,,;
+xa start 'test40';
+insert into t1 values(1);
+xa end 'test40';
+xa prepare 'test40';
+connect  con$trial, localhost, root,,;
+xa start 'test39';
+insert into t1 values(1);
+xa end 'test39';
+xa prepare 'test39';
+connect  con$trial, localhost, root,,;
+xa start 'test38';
+insert into t1 values(1);
+xa end 'test38';
+xa prepare 'test38';
+connect  con$trial, localhost, root,,;
+xa start 'test37';
+insert into t1 values(1);
+xa end 'test37';
+xa prepare 'test37';
+connect  con$trial, localhost, root,,;
+xa start 'test36';
+insert into t1 values(1);
+xa end 'test36';
+xa prepare 'test36';
+connect  con$trial, localhost, root,,;
+xa start 'test35';
+insert into t1 values(1);
+xa end 'test35';
+xa prepare 'test35';
+connect  con$trial, localhost, root,,;
+xa start 'test34';
+insert into t1 values(1);
+xa end 'test34';
+xa prepare 'test34';
+connect  con$trial, localhost, root,,;
+xa start 'test33';
+insert into t1 values(1);
+xa end 'test33';
+xa prepare 'test33';
+connect  con$trial, localhost, root,,;
+xa start 'test32';
+insert into t1 values(1);
+xa end 'test32';
+xa prepare 'test32';
+connect  con$trial, localhost, root,,;
+xa start 'test31';
+insert into t1 values(1);
+xa end 'test31';
+xa prepare 'test31';
+connect  con$trial, localhost, root,,;
+xa start 'test30';
+insert into t1 values(1);
+xa end 'test30';
+xa prepare 'test30';
+connect  con$trial, localhost, root,,;
+xa start 'test29';
+insert into t1 values(1);
+xa end 'test29';
+xa prepare 'test29';
+connect  con$trial, localhost, root,,;
+xa start 'test28';
+insert into t1 values(1);
+xa end 'test28';
+xa prepare 'test28';
+connect  con$trial, localhost, root,,;
+xa start 'test27';
+insert into t1 values(1);
+xa end 'test27';
+xa prepare 'test27';
+connect  con$trial, localhost, root,,;
+xa start 'test26';
+insert into t1 values(1);
+xa end 'test26';
+xa prepare 'test26';
+connect  con$trial, localhost, root,,;
+xa start 'test25';
+insert into t1 values(1);
+xa end 'test25';
+xa prepare 'test25';
+connect  con$trial, localhost, root,,;
+xa start 'test24';
+insert into t1 values(1);
+xa end 'test24';
+xa prepare 'test24';
+connect  con$trial, localhost, root,,;
+xa start 'test23';
+insert into t1 values(1);
+xa end 'test23';
+xa prepare 'test23';
+connect  con$trial, localhost, root,,;
+xa start 'test22';
+insert into t1 values(1);
+xa end 'test22';
+xa prepare 'test22';
+connect  con$trial, localhost, root,,;
+xa start 'test21';
+insert into t1 values(1);
+xa end 'test21';
+xa prepare 'test21';
+connect  con$trial, localhost, root,,;
+xa start 'test20';
+insert into t1 values(1);
+xa end 'test20';
+xa prepare 'test20';
+connect  con$trial, localhost, root,,;
+xa start 'test19';
+insert into t1 values(1);
+xa end 'test19';
+xa prepare 'test19';
+connect  con$trial, localhost, root,,;
+xa start 'test18';
+insert into t1 values(1);
+xa end 'test18';
+xa prepare 'test18';
+connect  con$trial, localhost, root,,;
+xa start 'test17';
+insert into t1 values(1);
+xa end 'test17';
+xa prepare 'test17';
+connect  con$trial, localhost, root,,;
+xa start 'test16';
+insert into t1 values(1);
+xa end 'test16';
+xa prepare 'test16';
+connect  con$trial, localhost, root,,;
+xa start 'test15';
+insert into t1 values(1);
+xa end 'test15';
+xa prepare 'test15';
+connect  con$trial, localhost, root,,;
+xa start 'test14';
+insert into t1 values(1);
+xa end 'test14';
+xa prepare 'test14';
+connect  con$trial, localhost, root,,;
+xa start 'test13';
+insert into t1 values(1);
+xa end 'test13';
+xa prepare 'test13';
+connect  con$trial, localhost, root,,;
+xa start 'test12';
+insert into t1 values(1);
+xa end 'test12';
+xa prepare 'test12';
+connect  con$trial, localhost, root,,;
+xa start 'test11';
+insert into t1 values(1);
+xa end 'test11';
+xa prepare 'test11';
+connect  con$trial, localhost, root,,;
+xa start 'test10';
+insert into t1 values(1);
+xa end 'test10';
+xa prepare 'test10';
+connect  con$trial, localhost, root,,;
+xa start 'test9';
+insert into t1 values(1);
+xa end 'test9';
+xa prepare 'test9';
+connect  con$trial, localhost, root,,;
+xa start 'test8';
+insert into t1 values(1);
+xa end 'test8';
+xa prepare 'test8';
+connect  con$trial, localhost, root,,;
+xa start 'test7';
+insert into t1 values(1);
+xa end 'test7';
+xa prepare 'test7';
+connect  con$trial, localhost, root,,;
+xa start 'test6';
+insert into t1 values(1);
+xa end 'test6';
+xa prepare 'test6';
+connect  con$trial, localhost, root,,;
+xa start 'test5';
+insert into t1 values(1);
+xa end 'test5';
+xa prepare 'test5';
+connect  con$trial, localhost, root,,;
+xa start 'test4';
+insert into t1 values(1);
+xa end 'test4';
+xa prepare 'test4';
+connect  con$trial, localhost, root,,;
+xa start 'test3';
+insert into t1 values(1);
+xa end 'test3';
+xa prepare 'test3';
+connect  con$trial, localhost, root,,;
+xa start 'test2';
+insert into t1 values(1);
+xa end 'test2';
+xa prepare 'test2';
+connect  con$trial, localhost, root,,;
+xa start 'test1';
+insert into t1 values(1);
+xa end 'test1';
+xa prepare 'test1';
+connection default;
+FLUSH TABLES;
+xa recover;
+formatID	gtrid_length	bqual_length	data
+1	5	0	test1
+1	5	0	test2
+1	5	0	test3
+1	5	0	test4
+1	5	0	test5
+1	5	0	test6
+1	5	0	test7
+1	5	0	test8
+1	5	0	test9
+1	6	0	test10
+1	6	0	test11
+1	6	0	test12
+1	6	0	test13
+1	6	0	test14
+1	6	0	test15
+1	6	0	test16
+1	6	0	test17
+1	6	0	test18
+1	6	0	test19
+1	6	0	test20
+1	6	0	test21
+1	6	0	test22
+1	6	0	test23
+1	6	0	test24
+1	6	0	test25
+1	6	0	test26
+1	6	0	test27
+1	6	0	test28
+1	6	0	test29
+1	6	0	test30
+1	6	0	test31
+1	6	0	test32
+1	6	0	test33
+1	6	0	test34
+1	6	0	test35
+1	6	0	test36
+1	6	0	test37
+1	6	0	test38
+1	6	0	test39
+1	6	0	test40
+1	6	0	test41
+1	6	0	test42
+1	6	0	test43
+1	6	0	test44
+1	6	0	test45
+1	6	0	test46
+1	6	0	test47
+1	6	0	test48
+1	6	0	test49
+1	6	0	test50
+xa recover;
+formatID	gtrid_length	bqual_length	data
+1	5	0	test1
+1	5	0	test2
+1	5	0	test3
+1	5	0	test4
+1	5	0	test5
+1	5	0	test6
+1	5	0	test7
+1	5	0	test8
+1	5	0	test9
+1	6	0	test10
+1	6	0	test11
+1	6	0	test12
+1	6	0	test13
+1	6	0	test14
+1	6	0	test15
+1	6	0	test16
+1	6	0	test17
+1	6	0	test18
+1	6	0	test19
+1	6	0	test20
+1	6	0	test21
+1	6	0	test22
+1	6	0	test23
+1	6	0	test24
+1	6	0	test25
+1	6	0	test26
+1	6	0	test27
+1	6	0	test28
+1	6	0	test29
+1	6	0	test30
+1	6	0	test31
+1	6	0	test32
+1	6	0	test33
+1	6	0	test34
+1	6	0	test35
+1	6	0	test36
+1	6	0	test37
+1	6	0	test38
+1	6	0	test39
+1	6	0	test40
+1	6	0	test41
+1	6	0	test42
+1	6	0	test43
+1	6	0	test44
+1	6	0	test45
+1	6	0	test46
+1	6	0	test47
+1	6	0	test48
+1	6	0	test49
+1	6	0	test50
+xa recover;
+formatID	gtrid_length	bqual_length	data
+drop table t1;

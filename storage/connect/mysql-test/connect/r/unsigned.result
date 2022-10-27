@@ -1,0 +1,61 @@
+#
+# Testing unsigned types
+#
+DROP TABLE IF EXISTS t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+CREATE TABLE t1 (
+a TINYINT UNSIGNED NOT NULL,
+b SMALLINT ZEROFILL NOT NULL,
+c INT UNSIGNED NOT NULL,
+d BIGINT UNSIGNED NOT NULL,
+e CHAR(32) NOT NULL DEFAULT '???') ENGINE=CONNECT TABLE_TYPE=FIX;
+Warnings:
+Warning	1105	No file name. Table will use t1.fix
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+a	tinyint(3) unsigned	NO		NULL	
+b	smallint(5) unsigned zerofill	NO		NULL	
+c	int(10) unsigned	NO		NULL	
+d	bigint(20) unsigned	NO		NULL	
+e	char(32)	NO		???	
+INSERT INTO t1(a,b,c,d) VALUES(255,65535,4294967295,18446744073709551615);
+SELECT * FROM t1;
+a	b	c	d	e
+255	65535	4294967295	18446744073709551615	???
+UPDATE t1 SET e = d;
+SELECT * FROM t1;
+a	b	c	d	e
+255	65535	4294967295	18446744073709551615	18446744073709551615
+UPDATE IGNORE t1 SET c = d;
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 1
+SELECT * FROM t1;
+a	b	c	d	e
+255	65535	4294967295	18446744073709551615	18446744073709551615
+UPDATE IGNORE t1 SET c = e;
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 1
+SELECT * FROM t1;
+a	b	c	d	e
+255	65535	4294967295	18446744073709551615	18446744073709551615
+UPDATE t1 SET d = e;
+SELECT * FROM t1;
+a	b	c	d	e
+255	65535	4294967295	18446744073709551615	18446744073709551615
+DROP TABLE IF EXISTS t2;
+Warnings:
+Note	1051	Unknown table 'test.t2'
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME=t1;
+DESCRIBE t2;
+Field	Type	Null	Key	Default	Extra
+a	tinyint(3) unsigned	NO		NULL	
+b	smallint(5) unsigned zerofill	NO		NULL	
+c	int(10) unsigned	NO		NULL	
+d	bigint(20) unsigned	NO		NULL	
+e	char(32)	NO		NULL	
+SELECT * FROM t2;
+a	b	c	d	e
+255	65535	4294967295	18446744073709551615	18446744073709551615
+DROP TABLE t2;
+DROP TABLE t1;

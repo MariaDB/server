@@ -1,0 +1,75 @@
+--source include/have_rocksdb.inc
+
+let MYSQLD_DATADIR= `SELECT @@datadir`;
+let file= $MYSQL_TMP_DIR/cf_configs.cnf;
+
+# create new column families with no configs in cf_configs.cnf file
+
+create table t1 (a int,
+                primary key (a) comment 'cf1') engine=rocksdb;
+create table t2 (a int,
+                primary key (a) comment 'cf2') engine=rocksdb;
+create table t3 (a int,
+                primary key (a) comment 'z') engine=rocksdb;
+
+insert into t1 values (1);
+insert into t2 values (2);
+insert into t3 values (2);
+
+# restart with new column families in DB
+
+--source include/restart_mysqld.inc
+
+# check column family options in log -- should be all default settings
+
+--echo
+--echo Default options for all column families:
+--echo
+select cf_name, option_type, value
+  from information_schema.rocksdb_cf_options
+  where option_type in ('WRITE_BUFFER_SIZE',
+                        'TARGET_FILE_SIZE_BASE',
+                        'MAX_BYTES_FOR_LEVEL_MULTIPLIER')
+  order by cf_name, option_type;
+# restart with cf configs for cf1 and cf2
+
+--let $restart_parameters=--rocksdb_override_cf_options=cf1={write_buffer_size=8m;target_file_size_base=2m};cf2={write_buffer_size=16m;max_bytes_for_level_multiplier=8};z={target_file_size_base=4m};
+--source include/restart_mysqld.inc
+
+# check column family options in log -- should reflect individual settings
+
+--echo
+--echo Individualized options for column families:
+--echo
+select cf_name, option_type, value
+  from information_schema.rocksdb_cf_options
+  where option_type in ('WRITE_BUFFER_SIZE',
+                        'TARGET_FILE_SIZE_BASE',
+                        'MAX_BYTES_FOR_LEVEL_MULTIPLIER')
+  order by cf_name, option_type;
+
+# syntax error in options (no equal sign)
+
+--exec echo "restart:--rocksdb_override_cf_options=cf1" > $_expect_file_name
+--error 1
+--source include/wait_until_connected_again.inc
+
+# invalid cf option config (no curly braces)
+
+--exec echo "restart:--rocksdb_override_cf_options=cf1=write_buffer_size=8m" > $_expect_file_name
+--error 1
+--source include/wait_until_connected_again.inc
+
+# invalid cf option config (cf listed twice)
+
+--exec echo "restart:--rocksdb_override_cf_options=cf1={write_buffer_size=8m};cf1={target_file_size_base=2m}" > $_expect_file_name
+--error 1
+--source include/wait_until_connected_again.inc
+
+# clean up
+
+--source include/restart_mysqld.inc
+
+--echo
+drop table t1,t2,t3;
+

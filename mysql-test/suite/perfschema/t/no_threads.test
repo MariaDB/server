@@ -1,0 +1,57 @@
+# Tests for PERFORMANCE_SCHEMA
+
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+--source include/not_threadpool.inc
+
+
+# Setup : in this main thread
+
+update performance_schema.setup_instruments set enabled='NO';
+update performance_schema.setup_consumers set enabled='YES';
+update performance_schema.setup_instruments set enabled='YES'
+  where name like "wait/synch/mutex/mysys/THR_LOCK_myisam";
+
+--disable_warnings
+drop table if exists test.t1;
+--enable_warnings
+
+truncate table performance_schema.events_waits_current;
+truncate table performance_schema.events_waits_history;
+truncate table performance_schema.events_waits_history_long;
+
+show variables like "thread_handling";
+
+# Code to test : in this main thread
+
+create table test.t1(a int) engine=MYISAM;
+
+show variables like "performance_schema";
+show variables like "performance_schema_max_thread%";
+
+# Verification : in this main thread
+
+select count(*) from performance_schema.threads
+  where name like "thread/sql/main";
+
+select count(*) from performance_schema.threads
+  where name like "thread/sql/OneConnection";
+
+select event_name, operation,
+  left(source, locate(":", source)) as short_source
+  from performance_schema.events_waits_current;
+
+select event_name, operation,
+  left(source, locate(":", source)) as short_source
+  from performance_schema.events_waits_history;
+
+select event_name, operation,
+  left(source, locate(":", source)) as short_source
+  from performance_schema.events_waits_history_long;
+
+# Cleanup
+
+update performance_schema.setup_instruments set enabled='YES';
+
+drop table test.t1;
+

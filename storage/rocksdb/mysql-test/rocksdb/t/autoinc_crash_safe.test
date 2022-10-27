@@ -1,0 +1,9 @@
+--source include/have_rocksdb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+create table t (i int primary key auto_increment) engine=rocksdb;
+
+--source include/autoinc_crash_safe.inc
+
+--source include/rpl_end.inc

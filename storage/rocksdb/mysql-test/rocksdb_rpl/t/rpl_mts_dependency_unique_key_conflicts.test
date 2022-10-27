@@ -1,0 +1,64 @@
+# RocksDB clone of rpl_mts.rpl_mts_dependency_unique_key_conflicts
+source include/have_rocksdb.inc;
+source include/have_debug_sync.inc;
+source include/master-slave.inc;
+
+connection slave;
+source include/stop_slave.inc;
+set @save.slave_parallel_workers= @@global.slave_parallel_workers;
+set @save.slave_use_idempotent_for_recovery= @@global.slave_use_idempotent_for_recovery;
+set @save.mts_dependency_replication= @@global.mts_dependency_replication;
+set @save.mts_dependency_order_commits= @@global.mts_dependency_order_commits;
+set @save.debug= @@global.debug;
+set @@global.slave_parallel_workers= 2;
+set @@global.slave_use_idempotent_for_recovery= YES;
+set @@global.mts_dependency_replication= STMT;
+set @@global.mts_dependency_order_commits= false;
+set @@global.debug= '+d,dbug.dep_wait_before_update_execution';
+source include/start_slave.inc;
+
+connection master;
+create table t1 (a int primary key, b int unique key) engine = rocksdb;
+insert into t1 values(1, 1);
+source include/sync_slave_sql_with_master.inc;
+source include/stop_slave.inc;
+
+connection master;
+update t1 set b = 2 where a = 1; # this will stall on slave due to dbug_sync
+insert into t1 values(2, 1); # this should wait for the update to finish
+
+connection slave;
+source include/start_slave.inc;
+# wait till one of the workers reach the point just before execution of update
+set debug_sync="now wait_for signal.reached";
+
+# wait till the other worker is waiting after executing the table map for the
+# insert
+let $wait_condition=
+    select count(*)= 1 from information_schema.processlist
+      where state = 'Waiting for dependencies to be satisfied';
+source include/wait_condition.inc;
+
+select * from t1;
+set debug_sync="now signal signal.done";
+
+connection master;
+source include/sync_slave_sql_with_master.inc;
+
+connection slave;
+select * from t1;
+
+# Cleanup
+connection master;
+drop table t1;
+source include/sync_slave_sql_with_master.inc;
+connection slave;
+source include/stop_slave.inc;
+set @@global.slave_parallel_workers= @save.slave_parallel_workers;
+set @@global.mts_dependency_replication= @save.mts_dependency_replication;
+set @@global.slave_use_idempotent_for_recovery= @save.slave_use_idempotent_for_recovery;
+set @@global.mts_dependency_order_commits= @save.mts_dependency_order_commits;
+set @@global.debug= @save.debug;
+source include/start_slave.inc;
+
+source include/rpl_end.inc;

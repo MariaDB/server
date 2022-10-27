@@ -1,0 +1,1 @@
+--connect (child2_2, localhost, root, , , $CHILD2_2_MYPORT, $CHILD2_2_MYSOCK)

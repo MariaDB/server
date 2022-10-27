@@ -1,0 +1,60 @@
+#
+# wsrep_sst_receive_address
+#
+# save the initial value
+SET @wsrep_sst_receive_address_global_saved = @@global.wsrep_sst_receive_address;
+# default
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+AUTO
+
+# scope
+SELECT @@session.wsrep_sst_receive_address;
+ERROR HY000: Variable 'wsrep_sst_receive_address' is a GLOBAL variable
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+AUTO
+
+# valid values
+SET @@global.wsrep_sst_receive_address=AUTO;
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+AUTO
+SET @@global.wsrep_sst_receive_address=default;
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+AUTO
+SET @@global.wsrep_sst_receive_address='192.168.2.254';
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+192.168.2.254
+
+# invalid values
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+192.168.2.254
+SET @@global.wsrep_sst_receive_address=NULL;
+ERROR 42000: Variable 'wsrep_sst_receive_address' can't be set to the value of 'NULL'
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+192.168.2.254
+SET @@global.wsrep_sst_receive_address='OFF';
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+OFF
+SET @@global.wsrep_sst_receive_address=ON;
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+ON
+SET @@global.wsrep_sst_receive_address='';
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+
+SET @@global.wsrep_sst_receive_address='junk';
+SELECT @@global.wsrep_sst_receive_address;
+@@global.wsrep_sst_receive_address
+junk
+
+# restore the initial value
+SET @@global.wsrep_sst_receive_address = @wsrep_sst_receive_address_global_saved;
+# End of test

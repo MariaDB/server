@@ -1,0 +1,53 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/not_windows.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+########################################################################################
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+call mtr.add_suppression("Slave SQL: The incident LOST_EVENTS occurred on the master. .*");
+
+let $old_max_binlog_cache_size= query_get_value(SHOW VARIABLES LIKE "max_binlog_cache_size", Value, 1);
+let $old_binlog_cache_size= query_get_value(SHOW VARIABLES LIKE "binlog_cache_size", Value, 1);
+let $old_max_binlog_stmt_cache_size= query_get_value(SHOW VARIABLES LIKE "max_binlog_stmt_cache_size", Value, 1);
+let $old_binlog_stmt_cache_size= query_get_value(SHOW VARIABLES LIKE "binlog_stmt_cache_size", Value, 1);
+
+SET GLOBAL max_binlog_cache_size = 4096;
+SET GLOBAL binlog_cache_size = 4096;
+SET GLOBAL max_binlog_stmt_cache_size = 4096;
+SET GLOBAL binlog_stmt_cache_size = 4096;
+disconnect master;
+connect (master,127.0.0.1,root,,test,$MASTER_MYPORT,);
+
+CREATE TABLE t1(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=MYISAM;
+
+let $data = `select concat('"', repeat('a',2000), '"')`;
+
+connection master;
+
+--disable_query_log
+--error ER_BINLOG_ROW_LOGGING_FAILED
+eval INSERT INTO t1 (a, data) VALUES (2,
+       CONCAT($data, $data, $data, $data, $data, $data));
+--enable_query_log
+
+# Incident event
+# 1590=ER_SLAVE_INCIDENT
+--let $slave_sql_errno= 1590
+--source include/wait_for_slave_sql_error_and_skip.inc
+
+connection master;
+
+--replace_result $old_max_binlog_cache_size ORIGINAL_VALUE
+--eval SET GLOBAL max_binlog_cache_size= $old_max_binlog_cache_size
+--replace_result $old_binlog_cache_size ORIGINAL_VALUE
+--eval SET GLOBAL binlog_cache_size= $old_binlog_cache_size
+--replace_result $old_max_binlog_stmt_cache_size ORIGINAL_VALUE
+--eval SET GLOBAL max_binlog_stmt_cache_size= $old_max_binlog_stmt_cache_size
+--replace_result $old_binlog_stmt_cache_size ORIGINAL_VALUE
+--eval SET GLOBAL binlog_stmt_cache_size= $old_binlog_stmt_cache_size
+
+DROP TABLE t1;
+
+--source include/rpl_end.inc

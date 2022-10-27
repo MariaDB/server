@@ -1,0 +1,61 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+set sql_mode="";
+
+--echo # Test 7: Check privileges required.
+--echo #
+
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a INT) engine= InnoDB;
+GRANT RELOAD, SELECT, LOCK TABLES ON *.* TO user1@localhost;
+GRANT CREATE, DROP ON *.* TO user2@localhost;
+GRANT RELOAD, SELECT ON *.* TO user3@localhost;
+GRANT SELECT, LOCK TABLES ON *.* TO user4@localhost;
+GRANT RELOAD, LOCK TABLES ON *.* TO user5@localhost;
+
+--connect(con1, localhost, user1)
+FLUSH TABLE db1.t1 FOR EXPORT;
+UNLOCK TABLES;
+--disconnect con1
+--source include/wait_until_disconnected.inc
+
+--connection default
+
+--connect(con1, localhost, user2)
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+FLUSH TABLE db1.t1 FOR EXPORT;
+--disconnect con1
+--source include/wait_until_disconnected.inc
+
+--connection default
+
+--connect(con1, localhost, user3)
+--error ER_DBACCESS_DENIED_ERROR
+FLUSH TABLE db1.t1 FOR EXPORT;
+--disconnect con1
+--source include/wait_until_disconnected.inc
+
+--connection default
+
+--connect(con1, localhost, user4)
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+FLUSH TABLE db1.t1 FOR EXPORT;
+--disconnect con1
+--source include/wait_until_disconnected.inc
+
+--connection default
+
+--connect(con1, localhost, user5)
+--error ER_TABLEACCESS_DENIED_ERROR
+FLUSH TABLE db1.t1 FOR EXPORT;
+--disconnect con1
+--source include/wait_until_disconnected.inc
+
+--connection default
+DROP USER user1@localhost, user2@localhost, user3@localhost,
+          user4@localhost, user5@localhost;
+DROP TABLE db1.t1;
+DROP DATABASE db1;
+
+--echo # End of 5.6 tests

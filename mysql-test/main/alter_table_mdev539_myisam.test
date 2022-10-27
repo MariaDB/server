@@ -1,0 +1,7 @@
+
+--echo #
+set @@storage_engine= MyISAM;
+
+--source include/alter_table_mdev539.inc
+
+set @@storage_engine= default;

@@ -1,0 +1,102 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+CREATE TABLE t1 (a INT, b INT, c INT);
+CREATE TABLE t2 (a INT, b INT, c INT);
+connection slave;
+ALTER TABLE t1 ENGINE=BLACKHOLE;
+connection master;
+INSERT INTO t2 VALUES (1,9,1), (2,9,2), (3,9,3), (4,9,4);
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1,1,1),(2,1,2),(3,1,3),(4,1,4);
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 1;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+DELETE FROM t1 WHERE a % 2 = 0 AND b = 1;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+INSERT INTO t1 SELECT * FROM t2;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+ALTER TABLE t1 ADD PRIMARY KEY pk_t1 (a,b);
+Warnings:
+Warning	1280	Name 'pk_t1' ignored for PRIMARY key.
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1,2,1),(2,2,2),(3,2,3),(4,2,4);
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 2;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+DELETE FROM t1 WHERE a % 2 = 0 AND b = 2;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+ALTER TABLE t1 DROP PRIMARY KEY, ADD KEY key_t1 (a);
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (1,3,1),(2,3,2),(3,3,3),(4,3,4);
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+UPDATE t1 SET c = 2*c WHERE a % 2 = 0 AND b = 3;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+DELETE FROM t1 WHERE a % 2 = 0 AND b = 3;
+connection slave;
+# Expect 0
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+>>> Something was written to binary log <<<
+connection master;
+DROP TABLE t1,t2;
+connection slave;
+include/rpl_end.inc

@@ -1,0 +1,34 @@
+include/master-slave.inc
+[connection master]
+connection master;
+call mtr.add_suppression("Timeout waiting for reply of binlog");
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+SET @@GLOBAL.rpl_semi_sync_master_timeout=100;
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL.replicate_events_marked_for_skip=FILTER_ON_MASTER;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled = 1;
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (a INT) ENGINE=innodb;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug="d,dbug_master_binlog_over_2GB";
+SET @@SESSION.skip_replication=1;
+INSERT INTO t1 SET a=1;
+SET @@SESSION.skip_replication=0;
+INSERT INTO t1 SET a=0;
+SET @@GLOBAL.debug_dbug="";
+FLUSH LOGS;
+connection slave;
+connection master;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+SET @@GLOBAL.rpl_semi_sync_master_timeout = 10000;
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 0;
+connection master;
+DROP TABLE t1;
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL.rpl_semi_sync_slave_enabled = 0;
+SET @@GLOBAL.replicate_events_marked_for_skip = REPLICATE;
+include/start_slave.inc
+include/rpl_end.inc

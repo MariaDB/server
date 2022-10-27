@@ -1,0 +1,4 @@
+connection node_2;
+connection node_1;
+XA START 'trx';
+ERROR 42000: This version of MariaDB doesn't yet support 'XA transactions with Galera replication'

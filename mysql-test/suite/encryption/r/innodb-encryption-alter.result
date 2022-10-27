@@ -1,0 +1,112 @@
+SET GLOBAL innodb_encrypt_tables = ON;
+SET GLOBAL innodb_encryption_threads = 4;
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=NO ENCRYPTION_KEY_ID=4;
+Warnings:
+Warning	140	InnoDB: ENCRYPTED=NO implies ENCRYPTION_KEY_ID=1
+DROP TABLE t1;
+set @save_global = @@GLOBAL.innodb_default_encryption_key_id;
+set innodb_default_encryption_key_id = 99;
+Warnings:
+Warning	1210	innodb_default_encryption_key=99 is not available
+set global innodb_default_encryption_key_id = 99;
+Warnings:
+Warning	1210	innodb_default_encryption_key=99 is not available
+set global innodb_default_encryption_key_id = @save_global;
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+SHOW WARNINGS;
+Level	Code	Message
+Warning	140	InnoDB: ENCRYPTION_KEY_ID 99 not available
+Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=YES;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+SHOW WARNINGS;
+Level	Code	Message
+Warning	140	InnoDB: ENCRYPTION_KEY_ID 99 not available
+Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+set innodb_default_encryption_key_id = 4;
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=YES;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `c` varchar(256) DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `ENCRYPTED`=YES `ENCRYPTION_KEY_ID`=4
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `c` varchar(256) DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `ENCRYPTION_KEY_ID`=4
+CREATE TABLE t2 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNODB ENCRYPTED=NO ENCRYPTION_KEY_ID=1;
+ALTER TABLE t1 ENCRYPTION_KEY_ID=99;
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTION_KEY_ID'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	140	InnoDB: ENCRYPTION_KEY_ID 99 not available
+Error	1478	Table storage engine 'InnoDB' does not support the create option 'ENCRYPTION_KEY_ID'
+set innodb_default_encryption_key_id = 1;
+drop table t1,t2;
+SET GLOBAL innodb_encrypt_tables=OFF;
+CREATE TABLE t1 (a int not null primary key) engine=innodb;
+ALTER TABLE t1 ENCRYPTION_KEY_ID=4;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `ENCRYPTION_KEY_ID`=4
+DROP TABLE t1;
+CREATE TABLE t2 (a int not null primary key) engine=innodb;
+ALTER TABLE t2 ENCRYPTION_KEY_ID=4, ALGORITHM=COPY;
+SHOW WARNINGS;
+Level	Code	Message
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `ENCRYPTION_KEY_ID`=4
+CREATE TABLE t3 (a int not null primary key) engine=innodb ENCRYPTION_KEY_ID=4;
+DROP TABLE t3;
+SET GLOBAL innodb_encrypt_tables='FORCE';
+CREATE TABLE t1 (a int primary key) engine=innodb encrypted=no;
+ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+SHOW WARNINGS;
+Level	Code	Message
+Warning	140	InnoDB: ENCRYPTED=NO cannot be used with innodb_encrypt_tables=FORCE
+Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+FLUSH TABLES;
+create table t1(f1 int not null, f2 int not null)engine=innodb encrypted=yes;
+insert into t1 values(1, 2), (2, 3), (4, 5), (5, 6), (7, 8);
+insert into t1 select * from t1;
+BEGIN;
+INSERT INTO t2 VALUES (1);
+connect con1, localhost, root;
+SET DEBUG_SYNC = 'row_log_table_apply2_before SIGNAL done WAIT_FOR ever';
+alter table t1 force;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR done';
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+COMMIT;
+disconnect con1;
+select * from t1;
+f1	f2
+1	2
+2	3
+4	5
+5	6
+7	8
+1	2
+2	3
+4	5
+5	6
+7	8
+drop table t1,t2;

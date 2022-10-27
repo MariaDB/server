@@ -1,0 +1,160 @@
+--source include/have_rocksdb.inc
+
+--source include/have_partition.inc
+
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+--echo # Tests for MyRocks + partitioning
+
+--echo #
+--echo # MyRocks Issue #70: Server crashes in Rdb_key_def::get_primary_key_tuple
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, KEY(f2)) ENGINE=RocksDB 
+PARTITION BY HASH(pk) PARTITIONS 2;
+INSERT INTO t1 VALUES (1, 6, NULL), (2, NULL, 1);
+
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT) ENGINE=RocksDB;
+INSERT INTO t2 VALUES (1, 1), (2, 1);
+
+SELECT f1 FROM t1 WHERE f2 = ( SELECT f1 FROM t2 WHERE pk = 2 );
+
+drop table t1,t2;
+
+--echo #
+--echo # Issue#105: key_info[secondary_key].actual_key_parts does not include primary key on partitioned tables
+--echo #
+CREATE TABLE t1 (
+ id INT PRIMARY KEY,
+ a set ('a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z')  CHARACTER SET utf8,
+ b set ('a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z')  CHARACTER SET utf8 default null,
+ c set ('a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z')  CHARACTER SET utf8 not null,
+ INDEX (a),
+ INDEX (b),
+ INDEX (c)
+) ENGINE=RocksDB PARTITION BY key (id) partitions 2;
+
+INSERT INTO t1 (id, b) VALUES (28, 3);
+UPDATE t1 SET id=8 WHERE c < 8 LIMIT 1;
+check table t1;
+drop table t1;
+
+--echo # 
+--echo #  Issue #105, another testcase
+--echo # 
+create table t1 (
+  pk int primary key,
+  col1 int,
+  col2 int,
+  key (col1) comment 'rev:cf_issue105'
+) engine=rocksdb partition by hash(pk) partitions 2;
+
+insert into t1 values (1,10,10);
+insert into t1 values (2,10,10);
+
+insert into t1 values (11,20,20);
+insert into t1 values (12,20,20);
+
+set @tmp_rfirr= @@rocksdb_force_index_records_in_range;
+set rocksdb_force_index_records_in_range= 12;
+
+--replace_column 9 #
+explain select * from t1 force index(col1) where col1=10;
+select * from t1 force index(col1) where col1=10;
+select * from t1 use index () where col1=10;
+
+set rocksdb_force_index_records_in_range= @tmp_rfirr;
+
+drop table t1;
+
+--echo #
+--echo # Issue #108: Index-only scans do not work for partitioned tables and extended keys
+--echo #
+create table t1 (
+  pk int primary key,
+  col1 int,
+  col2 int,
+  key (col1)
+) engine=rocksdb partition by hash(pk) partitions 2;
+
+insert into t1 values (1,10,10);
+insert into t1 values (2,10,10);
+
+insert into t1 values (11,20,20);
+insert into t1 values (12,20,20);
+--echo # The following must use "Using index"
+explain select pk from t1 force index(col1) where col1=10;
+
+drop table t1;
+
+--echo #
+--echo # Issue #214: subqueries cause crash
+--echo #
+create TABLE t1(a int,b int,c int,primary key(a,b))
+    partition by list (b*a) (partition x1 values in (1) tablespace ts1,
+                             partition x2 values in (3,11,5,7) tablespace ts2,
+                             partition x3 values in (16,8,5+19,70-43) tablespace ts3);
+create table t2(b binary(2));
+set session optimizer_switch='materialization=off';
+insert into t1(a,b) values(1,7);
+select a from t1 where a in (select a from t1 where a in (select b from t2));
+
+drop table t1, t2;
+
+--echo #
+--echo # Issue #260: altering name to invalid value leaves table unaccessible
+--echo #
+CREATE TABLE t1 (c1 INT NOT NULL, c2 CHAR(5)) PARTITION BY HASH(c1) PARTITIONS 4;
+INSERT INTO t1 VALUES(1,'a');
+--replace_result \\ /
+--error ER_ERROR_ON_RENAME
+RENAME TABLE t1 TO db3.t3;
+SELECT * FROM t1;
+SHOW TABLES;
+# try it again to the same database
+RENAME TABLE t1 TO test.t3;
+SELECT * FROM t3;
+SHOW TABLES;
+# now try it again but with another existing database
+CREATE DATABASE db3;
+USE test;
+RENAME TABLE t3 to db3.t2;
+USE db3;
+SELECT * FROM t2;
+SHOW TABLES;
+# cleanup
+DROP TABLE t2;
+use test;
+DROP DATABASE db3;
+
+--echo #
+--echo # MDEV-13153 Assertion `global_status_var.global_memory_used == 0 ' 
+--echo #            failed upon server restart with partitioned RocksDB table
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=RocksDB PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1 (a) VALUES (1),(2);
+ALTER TABLE t1 ADD PARTITION PARTITIONS 2;
+--source include/restart_mysqld.inc
+SELECT 1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15245: Assertion `false' failed in myrocks::ha_rocksdb::position
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1),(2);
+# partitioning
+CREATE TABLE t2 (b INT) ENGINE=RocksDB 
+PARTITION BY RANGE(b) 
+(PARTITION p0 VALUES LESS THAN (1), 
+ PARTITION p1 VALUES LESS THAN MAXVALUE);
+
+
+INSERT INTO t2 VALUES (NULL),(0);
+CREATE ALGORITHM = MERGE VIEW v1 AS SELECT t2.* FROM t1, t2;
+UPDATE v1 SET b = 5;
+
+drop view v1;
+drop table t1,t2;
+

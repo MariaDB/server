@@ -1,0 +1,55 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT1S";
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+SELECT MAX(id) FROM t1;
+MAX(id)
+1
+connection node_1;
+INSERT INTO t1 VALUES (2);
+connection node_2;
+SELECT MAX(id) FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+FLUSH QUERY CACHE;
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+SET DEBUG_SYNC = "RESET";
+connection node_1;
+INSERT INTO t1 VALUES (3);
+connection node_2;
+SELECT MAX(id) FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+connection node_1;
+INSERT INTO t1 VALUES (4);
+connection node_2;
+SELECT MAX(id) FROM t1;
+MAX(id)
+4
+FLUSH STATUS;
+SELECT MAX(id) FROM t1;
+MAX(id)
+4
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+VARIABLE_VALUE = 1
+1
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+connection node_1;
+INSERT INTO t1 VALUES (5);
+connection node_2;
+SELECT MAX(id) FROM t1 ;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+connection node_2;
+MAX(id)
+5
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'Qcache_hits';
+VARIABLE_VALUE = 1
+1

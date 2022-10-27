@@ -1,0 +1,53 @@
+drop table if exists t1;
+create table t1 (c1 int auto_increment, primary key(c1));
+insert into t1 values(null);
+select c1 from t1 order by c1 desc limit 1;
+c1
+1
+insert into t1 values(null);
+select c1 from t1 order by c1 desc limit 1;
+c1
+2
+insert into t1 values(10);
+select c1 from t1 order by c1 desc limit 1;
+c1
+10
+insert into t1 values(null);
+select c1 from t1 order by c1 desc limit 1;
+c1
+11
+insert into t1 values(6);
+select c1 from t1 order by c1 desc limit 1;
+c1
+11
+insert into t1 values(null);
+select c1 from t1 order by c1 desc limit 1;
+c1
+12
+drop table t1;
+create table t1 (c1 int, c2 int auto_increment, primary key(c1), key idx1(c2));
+insert into t1 values(1, null);
+select * from t1 order by c2 desc limit 1;
+c1	c2
+1	1
+insert into t1 values(2, null);
+select * from t1 order by c2 desc limit 1;
+c1	c2
+2	2
+insert into t1 values(3, 10);
+select * from t1 order by c2 desc limit 1;
+c1	c2
+3	10
+insert into t1 values(4, null);
+select * from t1 order by c2 desc limit 1;
+c1	c2
+4	11
+insert into t1 values(5, 6);
+select * from t1 order by c2 desc limit 1;
+c1	c2
+4	11
+insert into t1 values(6, null);
+select * from t1 order by c2 desc limit 1;
+c1	c2
+6	12
+drop table t1;

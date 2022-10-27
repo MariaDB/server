@@ -1,0 +1,32 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
+connection node_1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+COMMIT;
+connection node_2;
+wsrep_last_committed_diff
+1
+connection node_2;
+connection node_1;
+START TRANSACTION READ ONLY;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+COMMIT;
+connection node_2;
+wsrep_last_committed_diff
+1
+connection node_1;
+START TRANSACTION;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+COMMIT;
+connection node_2;
+wsrep_last_committed_diff
+1
+DROP TABLE t1;

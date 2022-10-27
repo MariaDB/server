@@ -1,0 +1,5 @@
+#
+# MDEV-3816 init-file stops getting executed if a long enough line is encountered; on a debug version, assertion `! is_set() || can_overwrite_status' fails
+#
+select count(*) from t4;
+

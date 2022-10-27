@@ -1,0 +1,49 @@
+SET GLOBAL innodb_flush_log_at_trx_commit=3;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb;
+INSERT INTO t1 VALUES (0);
+connect con1,localhost,root,,;
+connect con2,localhost,root,,;
+connect con3,localhost,root,,;
+connection con1;
+SET DEBUG_SYNC= "commit_after_get_LOCK_log SIGNAL con1_waiting WAIT_FOR con3_queued";
+SET DEBUG_SYNC= "commit_loop_entry_commit_ordered SIGNAL con1_loop WAIT_FOR con1_loop_cont";
+INSERT INTO t1 VALUES (1);
+connection con2;
+SET DEBUG_SYNC= "now WAIT_FOR con1_waiting";
+SET DEBUG_SYNC= "commit_after_prepare_ordered SIGNAL con2_queued";
+SET DEBUG_SYNC= "commit_loop_entry_commit_ordered SIGNAL con1_loop WAIT_FOR con1_loop_cont";
+INSERT INTO t1 VALUES (2);
+connection con3;
+SET DEBUG_SYNC= "now WAIT_FOR con2_queued";
+SET DEBUG_SYNC= "commit_after_prepare_ordered SIGNAL con3_queued";
+SET DEBUG_SYNC= "commit_loop_entry_commit_ordered SIGNAL con1_loop WAIT_FOR con1_loop_cont";
+INSERT INTO t1 VALUES (3);
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con1_loop";
+SET DEBUG_SYNC= "now SIGNAL con1_loop_cont";
+SET DEBUG_SYNC= "now WAIT_FOR con1_loop";
+SET DEBUG_SYNC= "now SIGNAL con1_loop_cont";
+SET DEBUG_SYNC= "now WAIT_FOR con1_loop";
+SELECT * FROM t1 ORDER BY a;
+a
+0
+1
+2
+connection con1;
+connection con2;
+connection default;
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+SELECT 1;
+Got one of the listed errors
+connection con3;
+Got one of the listed errors
+connection default;
+SELECT * FROM t1 ORDER BY a;
+a
+0
+1
+2
+3
+InnoDB: Last binlog file './master-bin.000001', position <pos>
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;

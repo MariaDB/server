@@ -1,0 +1,62 @@
+--source include/have_rocksdb.inc
+--source include/have_direct_io.inc
+
+call mtr.add_suppression("rocksdb");
+call mtr.add_suppression("Aborting");
+
+--echo # This shows that RocksDB plugin is loaded:
+select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
+
+# Issue221
+# Turning on both --rocksdb-allow-mmap-reads and --rocksdb-use-direct-reads
+# caused an assertion in RocksDB. Now it should not be allowed and ROCKSDB
+# plugin will not load in such configuration.
+#
+--let LOG=$MYSQLTEST_VARDIR/tmp/use_direct_reads_writes.err
+--let SEARCH_FILE=$LOG
+
+--echo Checking direct reads
+--let $_mysqld_option=--log-error=$LOG --rocksdb_use_direct_reads=1 --rocksdb_allow_mmap_reads=1
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_invalid_option.inc
+
+--let SEARCH_PATTERN=enable both use_direct_reads
+--source include/search_pattern_in_file.inc
+--remove_file $LOG
+
+
+# Repeat with direct-writes
+--echo Checking direct writes
+--let $_mysqld_option=--log-error=$LOG --rocksdb_use_direct_io_for_flush_and_compaction=1 --rocksdb_allow_mmap_writes=1
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_invalid_option.inc
+
+--let SEARCH_PATTERN=enable both use_direct_io_for_flush_and_compaction
+--source include/search_pattern_in_file.inc
+--remove_file $LOG
+
+
+# Verify invalid direct-writes and --rocksdb_flush_log_at_trx_commit combination at startup fails
+--echo Checking rocksdb_flush_log_at_trx_commit
+--let $_mysqld_option=--log-error=$LOG --rocksdb_flush_log_at_trx_commit=1 --rocksdb_allow_mmap_writes=1
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_invalid_option.inc
+
+--let SEARCH_PATTERN=rocksdb_flush_log_at_trx_commit needs to be
+--source include/search_pattern_in_file.inc
+--remove_file $LOG
+
+
+# Verify rocksdb_flush_log_at_trx_commit cannot be changed if direct writes are used
+--echo Validate flush_log settings when direct writes is enabled
+--let $_mysqld_option=--rocksdb_flush_log_at_trx_commit=0 --rocksdb_allow_mmap_writes=1
+--source include/restart_mysqld_with_option.inc
+
+set global rocksdb_flush_log_at_trx_commit=0;
+--error ER_WRONG_VALUE_FOR_VAR
+set global rocksdb_flush_log_at_trx_commit=1;
+--error ER_WRONG_VALUE_FOR_VAR
+set global rocksdb_flush_log_at_trx_commit=2;
+
+# Cleanup
+--source include/restart_mysqld.inc

@@ -1,0 +1,19 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+binlog_format=row
+gtid_mode=ON
+enforce_gtid_consistency
+log_slave_updates
+binlog_row_image=FULL
+rocksdb_read_free_rpl=PK_SK
+rocksdb_strict_collation_check=0
+[mysqld.2]
+binlog_format=row
+gtid_mode=ON
+enforce_gtid_consistency
+log_slave_updates
+binlog_row_image=FULL
+rocksdb_read_free_rpl=PK_SK
+rocksdb_strict_collation_check=0
+

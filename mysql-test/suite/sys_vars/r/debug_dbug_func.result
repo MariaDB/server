@@ -1,0 +1,103 @@
+SET @old_debug = @@GLOBAL.debug_dbug;
+SET debug_dbug= 'T';
+select @@debug_dbug;
+@@debug_dbug
+T
+SET debug_dbug= '+P';
+select @@debug_dbug;
+@@debug_dbug
+P:T
+SET debug_dbug= '-P';
+select @@debug_dbug;
+@@debug_dbug
+T
+SELECT @@session.debug_dbug, @@global.debug_dbug;
+@@session.debug_dbug	@@global.debug_dbug
+T	
+SET SESSION debug_dbug= '';
+SELECT @@session.debug_dbug, @@global.debug_dbug;
+@@session.debug_dbug	@@global.debug_dbug
+	
+#
+# Bug #52629: memory leak from sys_var_thd_dbug in 
+#  binlog.binlog_write_error
+#
+SET GLOBAL debug_dbug='d,injecting_fault_writing';
+SELECT @@global.debug_dbug;
+@@global.debug_dbug
+d,injecting_fault_writing
+SET GLOBAL debug_dbug='';
+SELECT @@global.debug_dbug;
+@@global.debug_dbug
+
+SET GLOBAL debug_dbug=@old_debug;
+#
+# Bug #56709: Memory leaks at running the 5.1 test suite
+# 
+SET @old_local_debug = @@debug_dbug;
+SET @@debug_dbug='d,foo';
+SELECT @@debug_dbug;
+@@debug_dbug
+d,foo
+SET @@debug_dbug='';
+SELECT @@debug_dbug;
+@@debug_dbug
+
+SET @@debug_dbug= @old_local_debug;
+End of 5.1 tests
+#
+# Bug#46165 server crash in dbug
+#
+SET @old_globaldebug = @@global.debug_dbug;
+SET @old_sessiondebug= @@session.debug_dbug;
+# Test 1 - Bug test case, single connection
+SET GLOBAL  debug_dbug= '+O,MYSQL_TMP_DIR/bug46165.1.trace';
+SET SESSION debug_dbug= '-d:-t:-i';
+SET GLOBAL  debug_dbug= '';
+SET SESSION debug_dbug= '';
+# Test 2 - Bug test case, two connections
+connection default;
+SET GLOBAL  debug_dbug= '+O,MYSQL_TMP_DIR/bug46165.2.trace';
+SET SESSION debug_dbug= '-d:-t:-i';
+connect  con1, localhost, root;
+SET GLOBAL  debug_dbug= '';
+connection default;
+SET SESSION debug_dbug= '';
+connection con1;
+disconnect con1;
+connection default;
+SET GLOBAL  debug_dbug= '';
+# Test 3 - Active session trace file on disconnect
+connect  con1, localhost, root;
+SET GLOBAL  debug_dbug= '+O,MYSQL_TMP_DIR/bug46165.3.trace';
+SELECT @@global.debug_dbug, @@session.debug_dbug;
+@@global.debug_dbug	@@session.debug_dbug
+O,MYSQL_TMP_DIR/bug46165.3.trace	O,MYSQL_TMP_DIR/bug46165.3.trace
+SET SESSION debug_dbug= '+T';
+SELECT @@global.debug_dbug, @@session.debug_dbug;
+@@global.debug_dbug	@@session.debug_dbug
+O,MYSQL_TMP_DIR/bug46165.3.trace	O,MYSQL_TMP_DIR/bug46165.3.trace:T
+SET GLOBAL  debug_dbug= '';
+SELECT @@global.debug_dbug, @@session.debug_dbug;
+@@global.debug_dbug	@@session.debug_dbug
+	O,MYSQL_TMP_DIR/bug46165.3.trace:T
+disconnect con1;
+# Test 4 - Active session trace file on two connections
+connection default;
+SET GLOBAL  debug_dbug= '+O,MYSQL_TMP_DIR/bug46165.4.trace';
+SET SESSION debug_dbug= '-d:-t:-i';
+connect  con1, localhost, root;
+SET SESSION debug_dbug= '-d:-t:-i';
+SET GLOBAL  debug_dbug= '';
+SET SESSION debug_dbug= '';
+connection default;
+SET SESSION debug_dbug= '';
+connection con1;
+disconnect con1;
+connection default;
+# Test 5 - Different trace files
+SET SESSION debug_dbug= '+O,MYSQL_TMP_DIR/bug46165.5.trace';
+SET SESSION debug_dbug= '+O,MYSQL_TMP_DIR/bug46165.6.trace';
+SET SESSION debug_dbug= '-O';
+SET GLOBAL  debug_dbug= @old_globaldebug;
+SET SESSION debug_dbug= @old_sessiondebug;

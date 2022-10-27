@@ -1,0 +1,98 @@
+include/master-slave.inc
+[connection master]
+connection master;
+drop table if exists t1;
+connection master;
+create procedure save_read_stats()
+begin
+/*select rows_requested into @rq from information_schema.table_statistics
+where table_schema=database() and table_name='t1';*/
+select rows_read into @rr_is from information_schema.table_statistics
+where table_schema=database() and table_name='t1';
+select variable_value into @rr from information_schema.global_status
+where variable_name='rocksdb_rows_read';
+select variable_value into @ru from information_schema.global_status
+where variable_name='rocksdb_rows_updated';
+select variable_value into @rd from information_schema.global_status
+where variable_name='rocksdb_rows_deleted';
+end//
+create procedure get_read_stats()
+begin
+/*select rows_requested - @rq as rows_requested from
+information_schema.table_statistics
+where table_schema=database() and table_name='t1';*/
+select rows_read - @rr_is as rows_read_userstat from
+information_schema.table_statistics
+where table_schema=database() and table_name='t1';
+select variable_value - @rr as rows_read from
+information_schema.global_status
+where variable_name='rocksdb_rows_read';
+select variable_value - @ru as rows_updated from
+information_schema.global_status
+where variable_name='rocksdb_rows_updated';
+select variable_value - @rd as rows_deleted from
+information_schema.global_status
+where variable_name='rocksdb_rows_deleted';
+end//
+create table t1 (id int primary key, value int);
+insert into t1 values (1,1), (2,2), (3,3), (4,4), (5,5);
+include/sync_slave_sql_with_master.inc
+connection slave;
+call save_read_stats();
+connection master;
+update t1 set value=value+1 where id=1;
+update t1 set value=value+1 where id=3;
+select * from t1;
+id	value
+1	2
+2	2
+3	4
+4	4
+5	5
+include/sync_slave_sql_with_master.inc
+connection slave;
+call get_read_stats();
+rows_read_userstat
+2
+rows_read
+2
+rows_updated
+2
+rows_deleted
+0
+select * from t1;
+id	value
+1	2
+2	2
+3	4
+4	4
+5	5
+call save_read_stats();
+connection master;
+delete from t1 where id in (4,5);
+select * from t1;
+id	value
+1	2
+2	2
+3	4
+include/sync_slave_sql_with_master.inc
+connection slave;
+call get_read_stats();
+rows_read_userstat
+2
+rows_read
+2
+rows_updated
+0
+rows_deleted
+2
+select * from t1;
+id	value
+1	2
+2	2
+3	4
+connection master;
+drop table t1;
+drop procedure save_read_stats;
+drop procedure get_read_stats;
+include/rpl_end.inc

@@ -1,0 +1,8 @@
+CREATE TABLE t(a varchar(60)) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+SHOW VARIABLES like 'log_bin';
+Variable_name	Value
+log_bin	ON
+FOUND 1 /Last binlog file .*, position .*/ in current_test
+# expect FOUND
+DROP TABLE t;

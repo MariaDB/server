@@ -1,0 +1,37 @@
+include/master-slave.inc
+[connection master]
+include/sync_slave_sql_with_master.inc
+SET @start_max_connections= @@global.max_connections;
+SET @start_init_slave= @@global.init_slave;
+SET NAMES utf8;
+SET @@global.init_slave = 'SET @@global.max_connections = @@global.max_connections + 1 -- комментарий';
+DROP TABLE IF EXISTS t1;
+CREATE TEMPORARY TABLE t1 AS SELECT @@global.init_slave AS my_column;
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+my_column	varchar(74)	YES		NULL	
+select length(my_column) from t1;
+length(my_column)
+85
+DROP TABLE t1;
+SELECT @@global.init_slave = 'SET @@global.max_connections = @@global.max_connections + 1 -- комментарий';
+@@global.init_slave = 'SET @@global.max_connections = @@global.max_connections + 1 -- комментарий'
+1
+Expect 1
+include/assert.inc [@@global.max_connections = @start_max_connections]
+include/restart_slave.inc
+connection master;
+include/sync_slave_sql_with_master.inc
+include/assert.inc [@@global.max_connections = @start_max_connections + 1]
+SET @@global.init_slave = "SET @a=5";
+include/restart_slave.inc
+SHOW VARIABLES LIKE 'init_slave';
+Variable_name	Value
+init_slave	SET @a=5
+SELECT @a;
+@a
+NULL
+Expect NULL
+SET @@global.max_connections= @start_max_connections;
+SET @@global.init_slave= @start_init_slave;
+include/rpl_end.inc

@@ -1,0 +1,186 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+test select 1
+connection master_1;
+SELECT 1;
+1
+1
+connection child2_1;
+SELECT 1;
+1
+1
+
+create table select test
+connection child2_1;
+CHILD2_1_DROP_TABLES
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+DROP TABLE IF EXISTS tbl_a;
+CREATE TABLE tbl_a (
+col_a INT NOT NULL AUTO_INCREMENT,
+col_b VARCHAR(20) DEFAULT 'defg',
+col_c INT NOT NULL DEFAULT 100,
+PRIMARY KEY(col_a)
+) MASTER_1_ENGINE MASTER_1_AUTO_INCREMENT_2_1 MASTER_1_COMMENT_2_1
+SHOW CREATE TABLE tbl_a;
+Table	Create Table
+tbl_a	CREATE TABLE `tbl_a` (
+  `col_a` int(11) NOT NULL AUTO_INCREMENT,
+  `col_b` varchar(20) DEFAULT 'defg',
+  `col_c` int(11) NOT NULL DEFAULT 100,
+  PRIMARY KEY (`col_a`)
+) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+INSERT INTO tbl_a () VALUES ();
+INSERT INTO tbl_a () VALUES ();
+SHOW CREATE TABLE tbl_a;
+Table	Create Table
+tbl_a	CREATE TABLE `tbl_a` (
+  `col_a` int(11) NOT NULL AUTO_INCREMENT,
+  `col_b` varchar(20) DEFAULT 'defg',
+  `col_c` int(11) NOT NULL DEFAULT 100,
+  PRIMARY KEY (`col_a`)
+) ENGINE=SPIDER DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+ALTER TABLE tbl_a MODIFY col_c MEDIUMINT NOT NULL DEFAULT 100;
+SHOW CREATE TABLE tbl_a;
+Table	Create Table
+tbl_a	CREATE TABLE `tbl_a` (
+  `col_a` int(11) NOT NULL AUTO_INCREMENT,
+  `col_b` varchar(20) DEFAULT 'defg',
+  `col_c` mediumint(9) NOT NULL DEFAULT 100,
+  PRIMARY KEY (`col_a`)
+) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+RENAME TABLE tbl_a TO tbl_x;
+SHOW CREATE TABLE tbl_x;
+Table	Create Table
+tbl_x	CREATE TABLE `tbl_x` (
+  `col_a` int(11) NOT NULL AUTO_INCREMENT,
+  `col_b` varchar(20) DEFAULT 'defg',
+  `col_c` mediumint(9) NOT NULL DEFAULT 100,
+  PRIMARY KEY (`col_a`)
+) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+RENAME TABLE tbl_x TO tbl_a;
+SHOW CREATE TABLE tbl_a;
+Table	Create Table
+tbl_a	CREATE TABLE `tbl_a` (
+  `col_a` int(11) NOT NULL AUTO_INCREMENT,
+  `col_b` varchar(20) DEFAULT 'defg',
+  `col_c` mediumint(9) NOT NULL DEFAULT 100,
+  PRIMARY KEY (`col_a`)
+) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+INSERT INTO tbl_a () VALUES ();
+INSERT INTO tbl_a () VALUES ();
+SHOW CREATE TABLE tbl_a;
+Table	Create Table
+tbl_a	CREATE TABLE `tbl_a` (
+  `col_a` int(11) NOT NULL AUTO_INCREMENT,
+  `col_b` varchar(20) DEFAULT 'defg',
+  `col_c` mediumint(9) NOT NULL DEFAULT 100,
+  PRIMARY KEY (`col_a`)
+) ENGINE=SPIDER AUTO_INCREMENT=3 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+MASTER_1_AUTO_INCREMENT1
+SHOW CREATE TABLE tbl_a;
+Table	Create Table
+tbl_a	CREATE TABLE `tbl_a` (
+  `col_a` int(11) NOT NULL AUTO_INCREMENT,
+  `col_b` varchar(20) DEFAULT 'defg',
+  `col_c` mediumint(9) NOT NULL DEFAULT 100,
+  PRIMARY KEY (`col_a`)
+) ENGINE=SPIDER AUTO_INCREMENT=30 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+INSERT INTO tbl_a () VALUES ();
+INSERT INTO tbl_a () VALUES ();
+SHOW CREATE TABLE tbl_a;
+Table	Create Table
+tbl_a	CREATE TABLE `tbl_a` (
+  `col_a` int(11) NOT NULL AUTO_INCREMENT,
+  `col_b` varchar(20) DEFAULT 'defg',
+  `col_c` mediumint(9) NOT NULL DEFAULT 100,
+  PRIMARY KEY (`col_a`)
+) ENGINE=SPIDER AUTO_INCREMENT=5 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+MASTER_1_AUTO_INCREMENT2
+SHOW CREATE TABLE tbl_a;
+Table	Create Table
+tbl_a	CREATE TABLE `tbl_a` (
+  `col_a` int(11) NOT NULL AUTO_INCREMENT,
+  `col_b` varchar(20) DEFAULT 'defg',
+  `col_c` mediumint(9) NOT NULL DEFAULT 100,
+  PRIMARY KEY (`col_a`)
+) ENGINE=SPIDER AUTO_INCREMENT=20 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+INSERT INTO tbl_a () VALUES ();
+INSERT INTO tbl_a () VALUES ();
+SHOW CREATE TABLE tbl_a;
+Table	Create Table
+tbl_a	CREATE TABLE `tbl_a` (
+  `col_a` int(11) NOT NULL AUTO_INCREMENT,
+  `col_b` varchar(20) DEFAULT 'defg',
+  `col_c` mediumint(9) NOT NULL DEFAULT 100,
+  PRIMARY KEY (`col_a`)
+) ENGINE=SPIDER AUTO_INCREMENT=7 DEFAULT CHARSET=latin1 COMMENT='database "auto_test_remote", table "tbl_a", srv "s_2_1", aim "0"'
+
+select test
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT * FROM tbl_a;
+col_a	col_b	col_c
+1	def	10
+2	def	10
+3	def	10
+4	def	10
+5	def	10
+6	def	10
+7	def	10
+8	def	10
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select t0.`col_a` `col_a`,t0.`col_b` `col_b`,t0.`col_c` `col_c` from `auto_test_remote`.`tbl_a` t0
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT col_a, col_b, col_c FROM tbl_a ORDER BY col_a;
+col_a	col_b	col_c
+1	def	10
+2	def	10
+3	def	10
+4	def	10
+5	def	10
+6	def	10
+7	def	10
+8	def	10
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

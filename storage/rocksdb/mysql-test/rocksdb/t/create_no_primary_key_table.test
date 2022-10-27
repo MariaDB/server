@@ -1,0 +1,63 @@
+USE mysql;
+CREATE TABLE mysql_table (a INT) ENGINE=ROCKSDB;
+-- error ER_BLOCK_NO_PRIMARY_KEY
+CREATE TABLE test.mysql_table (a INT) ENGINE=ROCKSDB;
+USE test;
+-- error ER_BLOCK_NO_PRIMARY_KEY
+CREATE TABLE mysql_table (a INT) ENGINE=ROCKSDB;
+-- error ER_BLOCK_NO_PRIMARY_KEY
+CREATE TABLE IF NOT EXISTS mysql_table_2 (a INT) ENGINE=ROCKSDB;
+-- error ER_TABLE_MUST_HAVE_COLUMNS  
+CREATE TABLE mysql_table_no_cols ENGINE=ROCKSDB;
+CREATE TABLE mysql.mysql_table_2 (a INT) ENGINE=ROCKSDB;
+
+CREATE TABLE mysql_primkey (a INT PRIMARY KEY, b INT, c INT, d INT, INDEX (c)) ENGINE=ROCKSDB;
+ALTER TABLE mysql_primkey DROP b, DROP a, ADD (f INT PRIMARY KEY);
+-- error ER_BLOCK_NO_PRIMARY_KEY
+ALTER TABLE mysql_primkey DROP PRIMARY KEY;
+
+CREATE TABLE mysql_primkey2 (a INT PRIMARY KEY, b INT, c INT) ENGINE=ROCKSDB;
+ALTER TABLE mysql_primkey2 DROP b;
+ALTER TABLE mysql_primkey2 ADD (b INT);
+-- error ER_BLOCK_NO_PRIMARY_KEY
+ALTER TABLE mysql_primkey2 DROP c, DROP A;
+
+CREATE TABLE mysql_primkey3 (a INT PRIMARY KEY, b INT, c INT, INDEX indexonb (b), INDEX indexonc (c)) ENGINE=ROCKSDB;
+ALTER TABLE mysql_primkey3 DROP INDEX indexonb;
+ALTER TABLE mysql_primkey3 DROP c;
+ALTER TABLE mysql_primkey3 DROP PRIMARY KEY, ADD PRIMARY KEY(b);
+
+CREATE TABLE mysql_primkey4(a INT, b INT, PRIMARY KEY(a), INDEX si (a, b)) ENGINE=ROCKSDB;
+DROP INDEX si ON mysql_primkey4;
+-- error ER_BLOCK_NO_PRIMARY_KEY
+DROP INDEX `PRIMARY` ON mysql_primkey4;
+
+ALTER TABLE mysql.mysql_table ADD PRIMARY KEY (a);
+ALTER TABLE mysql.mysql_table DROP PRIMARY KEY;
+
+SET default_storage_engine=ROCKSDB;
+-- error ER_BLOCK_NO_PRIMARY_KEY
+CREATE TABLE mysql_noeng(a INT, b INT);
+
+# Disable no_engine_substitution
+SET sql_mode="";
+-- error ER_BLOCK_NO_PRIMARY_KEY
+CREATE TABLE mysql_noeng_sub(a INT, b INT) ENGINE=BOGUS_ENGINE;
+
+CREATE TABLE mysql_primkey5 LIKE mysql_primkey;
+
+SET @@global.block_create_no_primary_key = false;
+CREATE TABLE mysql_no_primkey (a INT) ENGINE=ROCKSDB;
+SET @@global.block_create_no_primary_key = true;
+-- error ER_BLOCK_NO_PRIMARY_KEY
+CREATE TABLE mysql_block_no_primkey LIKE mysql_no_primkey;
+
+DROP TABLE mysql_primkey;
+DROP TABLE mysql_primkey2;
+DROP TABLE mysql_primkey3;
+DROP TABLE mysql_primkey4;
+DROP TABLE mysql_primkey5;
+DROP TABLE mysql_no_primkey;
+USE mysql;
+DROP TABLE mysql_table;
+DROP TABLE mysql_table_2;

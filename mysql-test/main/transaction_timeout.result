@@ -1,0 +1,51 @@
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+# Test idle_transaction_timeout
+connect  c0,localhost,root,,test,,;
+SHOW VARIABLES LIKE 'idle_%transaction_timeout';
+Variable_name	Value
+idle_readonly_transaction_timeout	0
+idle_transaction_timeout	0
+idle_write_transaction_timeout	0
+SET autocommit=0;
+SET idle_transaction_timeout=1;
+BEGIN;
+SELECT * FROM t1;
+a
+SELECT * FROM t1;
+Got one of the listed errors
+disconnect c0;
+# Test idle_readonly_transaction_timeout
+connect  c1,localhost,root,,test,,;
+SHOW VARIABLES LIKE 'idle_%transaction_timeout';
+Variable_name	Value
+idle_readonly_transaction_timeout	0
+idle_transaction_timeout	0
+idle_write_transaction_timeout	0
+SET autocommit=0;
+SET idle_readonly_transaction_timeout=1;
+BEGIN;
+SELECT * FROM t1;
+a
+SELECT * FROM t1;
+Got one of the listed errors
+disconnect c1;
+# Test idle_write_transaction_timeout
+connect  c2,localhost,root,,test,,;
+SHOW VARIABLES LIKE 'idle_%transaction_timeout';
+Variable_name	Value
+idle_readonly_transaction_timeout	0
+idle_transaction_timeout	0
+idle_write_transaction_timeout	0
+SET autocommit=0;
+SET idle_write_transaction_timeout=1;
+BEGIN;
+SELECT * FROM t1;
+a
+SELECT * FROM t1;
+a
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+Got one of the listed errors
+disconnect c2;
+connection default;
+DROP TABLE t1;

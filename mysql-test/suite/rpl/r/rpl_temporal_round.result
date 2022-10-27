@@ -1,0 +1,50 @@
+include/master-slave.inc
+[connection master]
+SET sql_mode=TIME_ROUND_FRACTIONAL;
+SET time_zone='+00:00';
+SET timestamp=UNIX_TIMESTAMP('2010-12-31 23:59:59.999999');
+CREATE TABLE t1 (id SERIAL, a TIMESTAMP(4));
+INSERT INTO t1 (a) VALUES (now(6));
+INSERT INTO t1 (a) VALUES ('2011-01-01 23:59:59.999999');
+CREATE TABLE t2 (id SERIAL, a DATETIME(4));
+INSERT INTO t2 (a) VALUES (now(6));
+INSERT INTO t2 (a) VALUES ('2011-01-01 23:59:59.999999');
+CREATE TABLE t3 (id SERIAL, a TIME(4));
+INSERT INTO t3 (a) VALUES (now(6));
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+INSERT INTO t3 (a) VALUES ('2011-01-01 23:59:59.999999');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SELECT * FROM t1;
+id	a
+1	2011-01-01 00:00:00.0000
+2	2011-01-02 00:00:00.0000
+SELECT * FROM t2;
+id	a
+1	2011-01-01 00:00:00.0000
+2	2011-01-02 00:00:00.0000
+SELECT * FROM t3;
+id	a
+1	24:00:00.0000
+2	24:00:00.0000
+connection slave;
+connection slave;
+SET time_zone='+00:00';
+SELECT * FROM t1;
+id	a
+1	2011-01-01 00:00:00.0000
+2	2011-01-02 00:00:00.0000
+SELECT * FROM t2;
+id	a
+1	2011-01-01 00:00:00.0000
+2	2011-01-02 00:00:00.0000
+SELECT * FROM t3;
+id	a
+1	24:00:00.0000
+2	24:00:00.0000
+connection master;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+include/rpl_end.inc

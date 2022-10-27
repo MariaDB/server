@@ -1,0 +1,77 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file $MTR_SUITE_DIR/std_data/Testbal.dat $MYSQLD_DATADIR/test/Testbal.dat
+
+--echo #
+--echo # Testing errors
+--echo #
+CREATE TABLE t1
+(
+  ID INT NOT NULL
+) Engine=CONNECT TABLE_TYPE=BIN FILE_NAME='nonexistent.txt';
+--replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
+# TODO: check why this is needed for Windows
+--replace_result Open(rt) Open(rb)
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET time_zone='+00:00';
+CREATE TABLE t1
+(
+  fig INT(4) NOT NULL FIELD_FORMAT='C',
+  name CHAR(10) NOT NULL,
+  birth DATE NOT NULL,
+  id CHAR(5) NOT NULL FIELD_FORMAT='S',
+  salary DOUBLE(9,2) NOT NULL DEFAULT 0.00 FIELD_FORMAT='F',
+  dept INT(4) NOT NULL FIELD_FORMAT='S'
+) ENGINE=CONNECT TABLE_TYPE=BIN BLOCK_SIZE=5 FILE_NAME='Testbal.dat' OPTION_LIST='Endian=Little';
+SELECT * FROM t1;
+
+--error ER_GET_ERRMSG
+INSERT INTO t1 VALUES (55555,'RONALD','1980-02-26','3333',4444.44,555);
+INSERT INTO t1 VALUES (5555,'RONALD','1980-02-26','3333',4444.44,555);
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Testing READONLY tables
+--echo #
+CREATE TABLE t1
+(
+  fig INT(4) NOT NULL FIELD_FORMAT='C',
+  name CHAR(10) NOT NULL,
+  birth DATE NOT NULL,
+  id CHAR(5) NOT NULL FIELD_FORMAT='S',
+  salary DOUBLE(9,2) NOT NULL DEFAULT 0.00 FIELD_FORMAT='F',
+  dept INT(4) NOT NULL FIELD_FORMAT='S'
+) ENGINE=CONNECT TABLE_TYPE=BIN READONLY=Yes FILE_NAME='Testbal.dat' OPTION_LIST='Endian=Little';
+--error ER_OPEN_AS_READONLY
+INSERT INTO t1 VALUES (7777,'BILL','1973-06-30',4444,5555.555,777);
+ALTER TABLE t1 READONLY=NO;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (7777,'BILL','1973-06-30',4444,5555.555,777);
+SELECT * FROM t1;
+ALTER TABLE t1 READONLY=YES;
+SHOW CREATE TABLE t1;
+--error ER_OPEN_AS_READONLY
+INSERT INTO t1 VALUES (7777,'BILL','1973-06-30',4444,5555.555,777);
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that the underlying file is created
+--echo #
+CREATE TABLE t1
+(
+  c CHAR(4) NOT NULL FIELD_FORMAT='C'
+) ENGINE=CONNECT TABLE_TYPE=BIN FILE_NAME='bin2.dat';
+INSERT INTO t1 VALUES (10),(20),(300),(4000);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/Testbal.dat
+--remove_file $MYSQLD_DATADIR/test/bin2.dat

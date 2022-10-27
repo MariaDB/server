@@ -1,0 +1,82 @@
+#!/bin/bash
+# Copyright (c) 2015, Daniel Black. All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
+#
+# PURPOSE:
+#
+# Used to generate a mariadb.service file based on the current mysql/mariadb settings
+#
+# This is to assist distro maintainers in migrating to systemd service definations from
+# a user mysqld_safe settings in the my.cnf files.
+#
+# Redirect output to user directory like /etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf
+
+tz_old=$TZ
+
+. /usr/bin/mysqld_safe --dry-run
+
+echo "# converted using $0"
+echo "#"
+echo
+
+echo '[Service]'
+
+echo
+
+
+if [[ ( "$user" != "root" && "$user" != "mysql" ) || "${SET_USER}" == 1 ]]; then
+  echo User=$user
+fi
+
+
+[ -n "${open_files}" ] && echo LimitNOFILE=$open_files
+[ -n "${core_file_size}" ] && echo LimitCORE=$core_file_size
+[[ "${niceness}" -gt 0 ]] && echo Nice=$niceness
+[ "${TZ}" != "${tz_old}" ] && echo Environment=\"TZ=${TZ}\"
+
+if [ -n "$mysqld_ld_preload" ]; then
+  new_text="$mysqld_ld_preload"
+  [ -n "$LD_PRELOAD" ] && new_text="$new_text $LD_PRELOAD"
+  echo Environment=\"LD_PRELOAD=`shell_quote_string "$new_text"`\"
+fi
+
+if [ -n "$mysqld_ld_library_path" ]; then
+  new_text="$mysqld_ld_library_path"
+  [ -n "$LD_LIBRARY_PATH" ] && new_text="$new_text:$LD_LIBRARY_PATH"
+  echo Environment=\"LD_LIBRARY_PATH=`shell_quote_string "$new_text"`\"
+fi
+
+if [[ $want_syslog -eq 1 ]]; then
+  echo StandardOutput=syslog
+  echo StandardError=syslog
+  echo SyslogFacility=daemon
+  echo SyslogLevel=err
+  echo SyslogIdentifier=${syslog_tag_mysqld}
+fi
+
+if [[ "${flush_caches}" -gt 0  ]]; then
+  echo ExecStartPre=/usr/bin/sync
+  echo ExecStartPre=/usr/sbin/sysctl -q -w vm.drop_caches=3
+fi
+
+if [[ "${numa_interleave}" -gt 0 ]]; then
+  echo
+  echo ExecStart=/usr/bin/numactl --interleave=all ${cmd} '${MYSQLD_OPTS}'
+  echo
+fi
+
+if [ -n "${CRASH_SCRIPT}" ]; then
+  echo FailureAction=${CRASH_SCRIPT}
+fi

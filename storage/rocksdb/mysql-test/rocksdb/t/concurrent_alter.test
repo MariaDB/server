@@ -1,0 +1,39 @@
+--source include/have_rocksdb.inc
+
+# Bash
+--source include/not_windows.inc
+
+#
+# Generate concurrent requests to alter a table using mysqlslap
+#
+
+--disable_warnings
+DROP DATABASE IF EXISTS mysqlslap;
+--enable_warnings
+
+CREATE DATABASE mysqlslap;
+
+use mysqlslap;
+
+CREATE TABLE a1 (a int, b int) ENGINE=ROCKSDB;
+INSERT INTO a1 VALUES (1, 1);
+
+--write_file $MYSQL_TMP_DIR/concurrent_alter.sh
+$MYSQL_SLAP --silent --delimiter=";" --query="alter table a1 add index bx(b); alter table a1 drop index bx" --concurrency=1 --iterations=25 &
+$MYSQL_SLAP --silent --delimiter=";" --query="alter table a1 add index ax(a); alter table a1 drop index ax" --concurrency=1 --iterations=25 &
+sleep 2
+$MYSQL_SLAP --silent --delimiter=";" --query="select * from a1 where a=1" --concurrency=16 --iterations=1000 &
+$MYSQL_SLAP --silent --delimiter=";" --query="select * from a1 where b=1" --concurrency=16 --iterations=1000
+sleep 2
+$MYSQL_SLAP --silent --delimiter=";" --query="select * from a1 where a=1" --concurrency=16 --iterations=1000 &
+$MYSQL_SLAP --silent --delimiter=";" --query="select * from a1 where b=1" --concurrency=16 --iterations=1000
+wait
+EOF
+
+--exec sh $MYSQL_TMP_DIR/concurrent_alter.sh
+
+let $server_charset=`select @@character_set_server`;
+--replace_result $server_charset DEFAULT_CHARSET
+SHOW CREATE TABLE a1;
+
+DROP DATABASE mysqlslap;

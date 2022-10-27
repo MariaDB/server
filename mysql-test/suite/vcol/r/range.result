@@ -1,0 +1,9 @@
+create table t1 (pk int, i int, v int as (i*2) virtual, primary key (pk), key (v)) engine=myisam;
+insert into t1 (pk,i) values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
+create table t2 (a int, b int) engine=myisam;
+insert into t2 values (1,2),(2,4);
+select * from t1 inner join t2 on ( t2.b = t1.v or t2.a = t1.pk );
+pk	i	v	a	b
+1	1	2	1	2
+2	2	4	2	4
+drop table t1, t2;

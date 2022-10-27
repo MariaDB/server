@@ -1,0 +1,10 @@
+SET GLOBAL mroonga_query_log_file = "groonga-query.log";
+SET GLOBAL mroonga_log_file = "groonga-query-log.log";
+SET GLOBAL mroonga_query_log_file = "groonga-query.log";
+SHOW GLOBAL VARIABLES LIKE "mroonga_query_log_file";
+Variable_name	Value
+mroonga_query_log_file	groonga-query.log
+log file is changed: <groonga.log> -> <groonga-query-log.log>
+query log file isn't changed because the requested path isn't different: <groonga-query.log>
+SET GLOBAL mroonga_query_log_file = DEFAULT;
+SET GLOBAL mroonga_log_file = DEFAULT;

@@ -1,0 +1,24 @@
+# Generic tests for servers (do not require FEDERATED)
+set sql_mode="";
+
+--echo #
+--echo # MDEV-4594 - CREATE SERVER crashes embedded
+--echo #
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(HOST 'localhost');
+SELECT * FROM mysql.servers;
+DROP SERVER s1;
+
+CREATE SERVER s1 FOREIGN DATA WRAPPER foo OPTIONS(USER 'bar');
+SELECT * FROM mysql.servers;
+DROP SERVER s1;
+
+--error ER_CANT_CREATE_FEDERATED_TABLE
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(USER 'bar');
+
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(HOST 'bar');
+SELECT * FROM mysql.servers;
+DROP SERVER s1;
+
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(SOCKET 'bar');
+SELECT * FROM mysql.servers;
+DROP SERVER s1;

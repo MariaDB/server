@@ -1,0 +1,194 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key, c2 text, fulltext index ft (c2)) COMMENT = 'engine "myisam"';
+insert into t1 values (1, "hoge hoge");
+insert into t1 values (2, "fuga fuga");
+insert into t1 values (3, "moge moge");
+select * from t1;
+c1	c2
+1	hoge hoge
+2	fuga fuga
+3	moge moge
+flush tables;
+select * from t1;
+c1	c2
+1	hoge hoge
+2	fuga fuga
+3	moge moge
+drop table t1;
+create table t1 (c1 int primary key, c2 int, c3 text, fulltext index ft(c3)) COMMENT = 'engine "myisam"';
+insert into t1 values(1,10,"aa ii uu ee oo");
+insert into t1 values(2,20,"ka ki ku ke ko");
+insert into t1 values(3,30,"sa si su se so");
+insert into t1 values(4,40,"ta ti tu te to");
+insert into t1 values(5,50,"aa ii uu ee oo");
+select * from t1;
+c1	c2	c3
+1	10	aa ii uu ee oo
+2	20	ka ki ku ke ko
+3	30	sa si su se so
+4	40	ta ti tu te to
+5	50	aa ii uu ee oo
+select * from t1 where match(c3) against("su") order by c1;
+c1	c2	c3
+3	30	sa si su se so
+select * from t1 where match(c3) against("ii") order by c1;
+c1	c2	c3
+1	10	aa ii uu ee oo
+5	50	aa ii uu ee oo
+select * from t1 where match(c3) against("+su" in boolean mode) order by c1;
+c1	c2	c3
+3	30	sa si su se so
+select * from t1 where match(c3) against("+ii" in boolean mode) order by c1;
+c1	c2	c3
+1	10	aa ii uu ee oo
+5	50	aa ii uu ee oo
+drop table t1;
+set names utf8;
+create table t1 (c1 int primary key, c2 varchar(255), c3 text, fulltext index(c2), fulltext index(c3)) default charset utf8 COMMENT = 'engine "myisam"';
+insert into t1 values(1, "明日の富士山の天気について","あああああああ");
+insert into t1 values(2, "いいいいい","明日の富士山の天気は分かりません");
+insert into t1 values(3, "dummy", "dummy");
+select * from t1;
+c1	c2	c3
+1	明日の富士山の天気について	あああああああ
+2	いいいいい	明日の富士山の天気は分かりません
+3	dummy	dummy
+select * from t1 where match(c2) against("富士山") order by c1;
+c1	c2	c3
+1	明日の富士山の天気について	あああああああ
+select * from t1 where match(c3) against("富士山") order by c1;
+c1	c2	c3
+2	いいいいい	明日の富士山の天気は分かりません
+drop table t1;
+create table t1 (c1 int primary key, c2 varchar(100), fulltext index(c2)) default charset utf8 COMMENT = 'engine "myisam"';
+create table t2 (c1 int primary key, c2 text, fulltext index(c2)) default charset utf8 COMMENT = 'engine "myisam"';
+insert into t1 values (1, "aa ii uu ee oo");
+insert into t1 values (2, "ka ki ku ke ko");
+insert into t1 values (3, "aa ii ii ii oo");
+insert into t1 values (4, "sa si su se so");
+insert into t1 values (5, "ta ti ii ii to");
+insert into t2 (c1,c2) select c1,c2 from t1;
+select * from t1;
+c1	c2
+1	aa ii uu ee oo
+2	ka ki ku ke ko
+3	aa ii ii ii oo
+4	sa si su se so
+5	ta ti ii ii to
+select * from t2;
+c1	c2
+1	aa ii uu ee oo
+2	ka ki ku ke ko
+3	aa ii ii ii oo
+4	sa si su se so
+5	ta ti ii ii to
+select * from t1 where c1=3;
+c1	c2
+3	aa ii ii ii oo
+select * from t2 where c1=3;
+c1	c2
+3	aa ii ii ii oo
+select * from t1 where c1>3 order by c1 desc;
+c1	c2
+5	ta ti ii ii to
+4	sa si su se so
+select * from t2 where c1>3 order by c1 asc;
+c1	c2
+4	sa si su se so
+5	ta ti ii ii to
+select * from t1 where c2>"s" order by c2 desc;
+c1	c2
+5	ta ti ii ii to
+4	sa si su se so
+select * from t2 where c2>"s" order by c1 asc;
+c1	c2
+4	sa si su se so
+5	ta ti ii ii to
+select *,match(c2) against("ii") from t1 where match(c2) against("ii") order by match(c2) against("ii") desc;
+c1	c2	match(c2) against("ii")
+3	aa ii ii ii oo	524289
+5	ta ti ii ii to	349526
+1	aa ii uu ee oo	174763
+select *,match(c2) against("ii") from t2 where match(c2) against("ii") order by match(c2) against("ii") asc;
+c1	c2	match(c2) against("ii")
+1	aa ii uu ee oo	174763
+5	ta ti ii ii to	349526
+3	aa ii ii ii oo	524289
+select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
+c1	c2	match(c2) against("ii")
+3	aa ii ii ii oo	524289
+5	ta ti ii ii to	349526
+1	aa ii uu ee oo	174763
+select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
+c1	c2	match(c2) against("ii")
+3	aa ii ii ii oo	524289
+5	ta ti ii ii to	349526
+1	aa ii uu ee oo	174763
+drop table t1,t2;
+create table t1 (c1 int primary key, c2 int, c3 text, fulltext index ft(c3)) COMMENT = 'engine "myisam"';
+insert into t1 values(1,10,"aa ii uu ee oo");
+insert into t1 values(2,10,"ka ki ku ke ko");
+insert into t1 values(3,10,"aa ii uu ee oo");
+insert into t1 values(4,10,"ka ki ku ke ko");
+insert into t1 values(5,20,"aa ii uu ee oo");
+insert into t1 values(6,20,"ka ki ku ke ko");
+insert into t1 values(7,20,"aa ii uu ee oo");
+insert into t1 values(8,20,"ka ki ku ke ko");
+select * from t1;
+c1	c2	c3
+1	10	aa ii uu ee oo
+2	10	ka ki ku ke ko
+3	10	aa ii uu ee oo
+4	10	ka ki ku ke ko
+5	20	aa ii uu ee oo
+6	20	ka ki ku ke ko
+7	20	aa ii uu ee oo
+8	20	ka ki ku ke ko
+select *,match(c3) against("uu") from t1 where match(c3) against("uu") order by c1;
+c1	c2	c3	match(c3) against("uu")
+1	10	aa ii uu ee oo	131073
+3	10	aa ii uu ee oo	131073
+5	20	aa ii uu ee oo	131073
+7	20	aa ii uu ee oo	131073
+select * from t1 where not match(c3) against("uu");
+c1	c2	c3
+2	10	ka ki ku ke ko
+4	10	ka ki ku ke ko
+6	20	ka ki ku ke ko
+8	20	ka ki ku ke ko
+select *,match(c3) against("dummy") from t1 where match(c3) against("dummy");
+c1	c2	c3	match(c3) against("dummy")
+select * from t1 where not match(c3) against("dummy");
+c1	c2	c3
+1	10	aa ii uu ee oo
+2	10	ka ki ku ke ko
+3	10	aa ii uu ee oo
+4	10	ka ki ku ke ko
+5	20	aa ii uu ee oo
+6	20	ka ki ku ke ko
+7	20	aa ii uu ee oo
+8	20	ka ki ku ke ko
+select * from t1 where c1 = 4 and not match(c3) against("uu");
+c1	c2	c3
+4	10	ka ki ku ke ko
+select * from t1 where c1 <= 4 and not match(c3) against("uu");
+c1	c2	c3
+2	10	ka ki ku ke ko
+4	10	ka ki ku ke ko
+select * from t1 where c1 > 4 and not match(c3) against("uu");
+c1	c2	c3
+6	20	ka ki ku ke ko
+8	20	ka ki ku ke ko
+select * from t1 where c2 = 10 and not match(c3) against("uu");
+c1	c2	c3
+2	10	ka ki ku ke ko
+4	10	ka ki ku ke ko
+select * from t1 where c2 >= 15 and not match(c3) against("uu");
+c1	c2	c3
+6	20	ka ki ku ke ko
+8	20	ka ki ku ke ko
+select * from t1 where c2 < 15 and not match(c3) against("uu");
+c1	c2	c3
+2	10	ka ki ku ke ko
+4	10	ka ki ku ke ko
+drop table t1;

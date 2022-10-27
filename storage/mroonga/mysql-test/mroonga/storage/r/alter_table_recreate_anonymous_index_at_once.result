@@ -1,0 +1,29 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+body TEXT,
+FULLTEXT INDEX (body)
+) DEFAULT CHARSET UTF8;
+INSERT INTO diaries (title, body) VALUES ("survey", "will start groonga!");
+INSERT INTO diaries (title, body) VALUES ("survey", "will start mroonga!");
+SELECT * FROM diaries;
+id	title	body
+1	survey	will start groonga!
+2	survey	will start mroonga!
+SELECT * FROM diaries
+WHERE MATCH (body) AGAINST ("+groonga" IN BOOLEAN MODE);
+id	title	body
+1	survey	will start groonga!
+ALTER TABLE diaries
+DROP INDEX body,
+ADD FULLTEXT INDEX (body);
+SELECT * FROM diaries;
+id	title	body
+1	survey	will start groonga!
+2	survey	will start mroonga!
+SELECT * FROM diaries
+WHERE MATCH (body) AGAINST ("+groonga" IN BOOLEAN MODE);
+id	title	body
+1	survey	will start groonga!
+DROP TABLE diaries;

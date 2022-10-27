@@ -1,0 +1,69 @@
+source include/not_embedded.inc;
+
+create role r1;
+create user u1;
+grant r1 to u1;
+
+#CHECK IF GRANTS ARE UPDATED ON GRANT
+--sorted_result
+show grants for u1;
+
+create user u2;
+
+#CHECK THAT GRANTS ARE UPDATED ON ACL_USERS CHANGE
+--sorted_result
+show grants for u1;
+--sorted_result
+show grants for u2;
+--sorted_result
+select * from mysql.roles_mapping;
+
+revoke r1 from u1;
+#TEST ERROR MESSAGE
+--error ER_CANNOT_REVOKE_ROLE
+revoke r1 from u1;
+--sorted_result
+show grants for u1;
+--sorted_result
+select * from mysql.roles_mapping;
+
+# granting twice is ok
+grant r1 to u1;
+grant r1 to u1;
+--sorted_result
+show grants for u1;
+--sorted_result
+select * from mysql.roles_mapping;
+
+drop role r1;
+--sorted_result
+show grants for u1;
+--sorted_result
+select * from mysql.roles_mapping;
+
+create role r1;
+grant r1 to u1;
+--sorted_result
+select * from mysql.roles_mapping;
+
+drop user u1;
+--error ER_NONEXISTING_GRANT
+show grants for u1;
+--sorted_result
+select * from mysql.roles_mapping;
+
+drop role r1;
+drop user u2;
+
+#
+# MDEV-8614 Assertion `status == 0' failed in add_role_user_mapping_action on RENAME USER
+#
+create user foo@localhost;
+grant create user on *.* to foo@localhost;
+--connect (con1, localhost, foo,,)
+create role look, isp, xxx, ppp;
+rename user current_user to nnnn@'%';
+drop role look, isp, xxx, ppp;
+connection default;
+disconnect con1;
+drop user nnnn@'%';

@@ -1,0 +1,263 @@
+#
+# Test of SET with space
+#
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (a set (' ','a','b') not null);
+show create table t1;
+drop table t1;
+create table t1 (a set (' ','a','b ') not null default 'b ');
+show create table t1;
+drop table t1;
+CREATE TABLE t1 (   user varchar(64) NOT NULL default '',   path varchar(255) NOT NULL default '',   privilege   set('select','RESERVED30','RESERVED29','RESERVED28','RESERVED27','RESERVED26',   'RESERVED25','RESERVED24','data.delete','RESERVED22','RESERVED21',   'RESERVED20','data.insert.none','data.insert.approve',   'data.insert.delete','data.insert.move','data.insert.propose',   'data.insert.reject','RESERVED13','RESERVED12','RESERVED11','RESERVED10',   'RESERVED09','data.update','RESERVED07','RESERVED06','RESERVED05',   'RESERVED04','metadata.delete','metadata.put','RESERVED01','RESERVED00')   NOT NULL default '',   KEY user (user)   ) ENGINE=MyISAM CHARSET=utf8;
+DROP TABLE t1;
+
+#
+# Check that SET is case sensitive with a binary collation
+#
+set names latin1;
+create table t1 (s set ('a','A') character set latin1 collate latin1_bin);
+show create table t1;
+insert into t1 values ('a'),('a,A'),('A,a'),('A');
+select s from t1 order by s;
+select s from t1 order by concat(s);
+drop table t1;
+
+#
+# Check that SET honors a more complex collation correctly
+#
+CREATE TABLE t1 (c set('ae','oe','ue','ss') collate latin1_german2_ci);
+INSERT INTO t1 VALUES ('ä'),('ö'),('ü'),('ß');
+INSERT INTO t1 VALUES ('ae'),('oe'),('ue'),('ss');
+INSERT INTO t1 VALUES ('ä,ö,ü,ß');
+INSERT INTO t1 VALUES ('ae,oe,ue,ss');
+SELECT c FROM t1 ORDER BY c;
+SELECT c FROM t1 ORDER BY concat(c);
+DROP TABLE t1;
+
+# End of 4.1 tests
+
+#
+# Bug#27069 set with identical elements are created
+#
+--error 1097
+create table t1(f1
+set('1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17',
+'18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33',
+'34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49',
+'50','51','52','53','54','55','56','57','58','59','60','61','62','63','64','128'));
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+create table t1(f1
+set('1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17',
+'18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33',
+'34','35','36','37','38','39','40','41','42','43','44','45','46','47','48','49',
+'50','51','52','53','54','55','56','57','58','59','60','61','62','63','64','1'));
+show create table t1;
+drop table t1;
+
+#
+# Bug#15409: Columns with SET datatype with 64-element sets
+#            may not be updated with integers
+#
+
+let $i=64;
+let $s='$i';
+dec $i;
+while ($i) {
+  let $s='$i',$s;
+  dec $i;
+}
+--eval CREATE TABLE t1(c set($s))
+INSERT INTO t1 VALUES(7); 
+INSERT INTO t1 VALUES(9223372036854775808);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Bug #38701: Crash in String::append when inserting duplicate empty strings
+# an uft8 SET col
+#
+
+CREATE TABLE t1 (
+        set_unique_utf8 set ('a','b','c','d','e','f','g','h','i','j','k','l',
+                             'm','n','o','p','q','r','s','t','u','v','w','x',
+                             'y','z') CHARACTER SET utf8,
+        unique (set_unique_utf8)
+);
+
+INSERT INTO t1 ( set_unique_utf8 ) VALUES ( '' );
+--error ER_DUP_ENTRY 
+INSERT INTO t1 ( set_unique_utf8 ) VALUES ( '' );
+
+DROP TABLE t1;
+
+
+--echo End of 5.0 tests
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-6950 Bad results with joins comparing DATE and INT/ENUM/VARCHAR columns
+--echo #
+
+CREATE TABLE t1 (c1 DATE PRIMARY KEY);
+INSERT INTO t1 VALUES ('2001-01-01');
+CREATE TABLE t2 (c1 SET('2001-01-01','2001/01/01'));
+INSERT INTO t2 VALUES ('2001-01-01');
+INSERT INTO t2 VALUES ('2001/01/01');
+SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1=t2.c1;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
+EXPLAIN SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1=t2.c1;
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1=t2.c1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-6978 Bad results with join comparing case insensitive VARCHAR/ENUM/SET expression to a _bin ENUM column
+--echo #
+CREATE TABLE t1 (c1 ENUM('a') CHARACTER SET latin1 PRIMARY KEY);
+INSERT INTO t1 VALUES ('a');
+CREATE TABLE t2 (c1 SET('a','A') CHARACTER SET latin1 COLLATE latin1_bin);
+INSERT INTO t2 VALUES ('a'),('A');
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+DROP TABLE IF EXISTS t1,t2;
+
+CREATE TABLE t1 (c1 SET('a') CHARACTER SET latin1 PRIMARY KEY);
+INSERT INTO t1 VALUES ('a');
+CREATE TABLE t2 (c1 SET('a','A') CHARACTER SET latin1 COLLATE latin1_bin);
+INSERT INTO t2 VALUES ('a'),('A');
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+DROP TABLE IF EXISTS t1,t2;
+
+CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET latin1 PRIMARY KEY);
+INSERT INTO t1 VALUES ('a');
+CREATE TABLE t2 (c1 SET('a','A') CHARACTER SET latin1 COLLATE latin1_bin);
+INSERT INTO t2 VALUES ('a'),('A');
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+DROP TABLE IF EXISTS t1,t2;
+
+--echo #
+--echo # MDEV-6993 Bad results with join comparing DECIMAL and ENUM/SET columns
+--echo #
+CREATE TABLE t1 (c1 DECIMAL(10,1) PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (c1 SET('a','b'));
+INSERT INTO t2 VALUES ('a'),('b');
+SELECT t1.* FROM t1 NATURAL JOIN t2;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1 NATURAL JOIN t2;
+SELECT t1.* FROM t1 LEFT OUTER JOIN t2 USING (c1);
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a DECIMAL(10,1), b SET('1','2'));
+INSERT INTO t1 (a) VALUES (1),(2);
+UPDATE t1 SET b=a;
+SELECT * FROM t1;
+ALTER TABLE t1 MODIFY a SET('1','2');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8729 Wrong result for SELECT..WHERE HEX(enum_column)='61' AND enum_column='a '
+--echo #
+CREATE TABLE t1 (a SET('a','A') CHARACTER SET latin1 COLLATE latin1_bin);
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE a='a ';
+SELECT * FROM t1 WHERE HEX(a)='61';
+SELECT * FROM t1 WHERE HEX(a)='61' AND a='a ';
+--echo # Can't propagate the equality into HEX(a), because binary collations still ignore trailing spaces
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE HEX(a)='61' AND a='a ';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a SET('a','a ') CHARACTER SET BINARY);
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT * FROM t1 WHERE a='a ';
+SELECT * FROM t1 WHERE HEX(a)='61';
+SELECT * FROM t1 WHERE HEX(a)='61' AND a='a';
+SELECT * FROM t1 WHERE HEX(a)='61' AND a='a ';
+--echo # Ok to propagate the equality into HEX(a), because "CHARACTER SET BINARY" does not ignore trailing spaces
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE HEX(a)='61' AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE HEX(a)='61' AND a='a ';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12432 Range optimizer for ENUM and SET does not return "Impossible WHERE" in some case
+--echo #
+
+CREATE TABLE t1 (a SET('a','b','c','1'),KEY(a));
+INSERT INTO t1 VALUES ('a'),('b'),('c'),('1');
+EXPLAIN SELECT * FROM t1 WHERE a='xx';
+EXPLAIN SELECT * FROM t1 WHERE a='99999999';
+EXPLAIN SELECT * FROM t1 WHERE a=100.1e0;
+EXPLAIN SELECT * FROM t1 WHERE a=100;
+EXPLAIN SELECT * FROM t1 WHERE a=100.1;
+EXPLAIN SELECT * FROM t1 WHERE a='100';
+EXPLAIN SELECT * FROM t1 WHERE a='1x';
+EXPLAIN SELECT * FROM t1 WHERE a='1.0';
+EXPLAIN SELECT * FROM t1 WHERE a='1.1';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11155 Bad error message when creating a SET column with comma and non-ASCII characters
+--echo #
+
+SET NAMES utf8;
+--error ER_ILLEGAL_VALUE_FOR_TYPE
+CREATE TABLE t1 (a SET('a,bÃ¼'));
+
+--echo #
+--echo # MDEV-23323 Rounding functions return a wrong data type for a BIT, ENUM, SET argument
+--echo #
+
+CREATE TABLE t1 (a SET('999999999999999999999999999999999999999999999999999999999999'));
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 AS
+  SELECT a, FLOOR(a), CEILING(a), TRUNCATE(a,0), ROUND(a) FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP TABLE t1;

@@ -1,0 +1,196 @@
+--source include/have_rocksdb.inc
+
+#
+# Range access test for RocksDB storage engine
+#
+select * from information_schema.engines where engine = 'rocksdb';
+
+--disable_warnings
+drop table if exists t0,t1,t2,t3,t4,t5;
+--enable_warnings
+create table t0 (a int) engine=myisam;
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int) engine=myisam;
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+
+create table t2 (
+  pk int not null,
+  a  int not null,
+  b  int not null,
+  primary key(pk),
+  key(a) comment 'rev:cf1'
+) engine=rocksdb;
+
+# 10 pk values for each value of a...
+insert into t2 select A.a, FLOOR(A.a/10), A.a from t1 A;
+
+--echo #
+--echo # HA_READ_KEY_EXACT tests
+--echo #
+
+--echo # Original failure was here:
+--replace_column 9 #
+explain
+select * from t2 force index (a) where a=0;
+select * from t2 force index (a) where a=0;
+
+--echo # The rest are for code coverage:
+--replace_column 9 #
+explain
+select * from t2 force index (a) where a=2;
+select * from t2 force index (a) where a=2;
+
+--replace_column 9 #
+explain 
+select * from t2 force index (a) where a=3 and pk=33;
+select * from t2 force index (a) where a=3 and pk=33;
+
+select * from t2 force index (a) where a=99 and pk=99;
+select * from t2 force index (a) where a=0 and pk=0;
+select * from t2 force index (a) where a=-1;
+select * from t2 force index (a) where a=-1 and pk in (101,102);
+select * from t2 force index (a) where a=100 and pk in (101,102);
+
+
+--echo #
+--echo # #36: Range in form tbl.key >= const doesn't work in reverse column family
+--echo #
+--replace_column 9 #
+explain
+select count(*) from t2 force index (a) where a>=0 and a <=1;
+select count(*) from t2 force index (a) where a>=0 and a <=1;
+
+--replace_column 9 #
+explain
+select count(*) from t2 force index (a) where a>=-1 and a <=1;
+select count(*) from t2 force index (a) where a>=-1 and a <=1;
+
+--replace_column 9 #
+explain
+select * from t2 force index (a) where a=0 and pk>=3;
+select * from t2 force index (a) where a=0 and pk>=3;
+
+--echo # Try edge cases where we fall over the end of the table
+create table t3 like t2;
+insert into t3 select * from t2;
+
+select * from t3 where pk>=1000000;
+select * from t2 where pk>=1000000;
+
+--echo #
+--echo # #42: Range in form tbl.key > const doesn't work in reverse column family
+--echo #
+--replace_column 9 #
+explain
+select count(*) from t2 force index (a) where a>0;
+select count(*) from t2 force index (a) where a>0;
+
+--replace_column 9 #
+explain
+select count(*) from t2 force index (a) where a>99;
+select count(*) from t2 force index (a) where a>99;
+
+select * from t2 where pk>1000000;
+select * from t3 where pk>1000000;
+
+--replace_column 9 #
+explain
+select count(*) from t2 force index (a) where a=2 and pk>25;
+select count(*) from t2 force index (a) where a=2 and pk>25;
+
+
+select * from t2 force index (a) where a>-10 and a < 1;
+select * from t3 force index (a) where a>-10 and a < 1;
+
+
+--echo # 
+--echo # #46: index_read_map(HA_READ_BEFORE_KEY) does not work in reverse column family
+--echo #
+select max(a) from t2 where a < 2;
+select max(a) from t2 where a < -1;
+
+select max(pk) from t2 where a=3 and pk < 6;
+
+select max(pk) from t2 where pk < 200000;
+select max(pk) from t2 where pk < 20;
+
+select max(a) from t3 where a < 2;
+select max(a) from t3 where a < -1;
+select max(pk) from t3 where pk < 200000;
+select max(pk) from t3 where pk < 20;
+
+select max(pk) from t2 where a=3 and pk < 33;
+select max(pk) from t3 where a=3 and pk < 33;
+
+--echo #
+--echo # #48: index_read_map(HA_READ_PREFIX_LAST) does not work in reverse CF
+--echo #
+
+--echo # Tests for search_flag=HA_READ_PREFIX_LAST_OR_PREV
+--echo # Note: the next explain has "Using index condition" in fb/mysql-5.6
+--echo #       but "Using where" in MariaDB because the latter does not 
+--echo #       support ICP over reverse scans.
+--replace_column 9 #
+explain
+select * from t2 where a between 99 and 2000 order by a desc;
+select * from t2 where a between 99 and 2000 order by a desc;
+
+select max(a) from t2 where a <=10;
+select max(a) from t2 where a <=-4;
+
+select max(pk) from t2 where a=5 and pk <=55;
+select max(pk) from t2 where a=5 and pk <=55555;
+select max(pk) from t2 where a=5 and pk <=0;
+
+select max(pk) from t2 where pk <=-1;
+select max(pk) from t2 where pk <=999999;
+select max(pk) from t3 where pk <=-1;
+select max(pk) from t3 where pk <=999999;
+
+--echo #
+--echo # Tests for search_flag=HA_READ_PREFIX_LAST
+--echo #
+
+create table t4 (
+  pk int primary key,
+  a int, 
+  b int,
+  c int,
+  key(a,b,c)
+) engine=rocksdb;
+
+insert into t4 select pk,pk,pk,pk from t2 where pk < 100;
+
+--replace_column 9 #
+explain 
+select * from t4 where a=1 and b in (1) order by c desc;
+select * from t4 where a=1 and b in (1) order by c desc;
+
+--replace_column 9 #
+explain 
+select * from t4 where a=5 and b in (4) order by c desc;
+select * from t4 where a=5 and b in (4) order by c desc;
+
+--echo # HA_READ_PREFIX_LAST for reverse-ordered CF
+create table t5 (
+  pk int primary key,
+  a int, 
+  b int,
+  c int,
+  key(a,b,c) comment 'rev:cf2'
+) engine=rocksdb;
+
+insert into t5 select pk,pk,pk,pk from t2 where pk < 100;
+
+--replace_column 9 #
+explain 
+select * from t5 where a=1 and b in (1) order by c desc;
+select * from t5 where a=1 and b in (1) order by c desc;
+
+--replace_column 9 #
+explain 
+select * from t5 where a=5 and b in (4) order by c desc;
+select * from t5 where a=5 and b in (4) order by c desc;
+
+drop table t0,t1,t2,t3,t4,t5;

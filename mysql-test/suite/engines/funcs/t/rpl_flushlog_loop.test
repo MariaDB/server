@@ -1,0 +1,37 @@
+# Testing if "flush logs" command bouncing resulting in logs created in a loop 
+# in case of bi-directional replication
+-- source include/master-slave.inc
+
+#
+#  Start replication master -> slave 
+#
+connection slave;
+
+--source include/stop_slave.inc
+
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval change master to master_host='127.0.0.1',master_user='root',
+ master_password='',master_port=$MASTER_MYPORT;
+--source include/start_slave.inc
+#
+#  Start replication slave -> master
+#
+connection master;
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval change master to master_host='127.0.0.1',master_user='root',
+ master_password='',master_port=$SLAVE_MYPORT;
+--source include/start_slave.inc
+
+#
+#  Flush logs of slave
+#
+flush logs;
+sleep 5;
+
+#
+#  Show status of slave
+#
+--let $status_items= Slave_IO_Running, Slave_SQL_Running, Last_SQL_Errno, Last_SQL_Error, Exec_Master_Log_Pos
+--source include/stop_slave.inc
+--source include/rpl_end.inc

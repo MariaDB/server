@@ -1,0 +1,117 @@
+-- source include/innodb_page_size.inc
+-- source include/have_file_key_management_plugin.inc
+
+SET @saved_file_per_table = @@global.innodb_file_per_table;
+SET @saved_checksum_algorithm = @@global.innodb_checksum_algorithm;
+SET @saved_encrypt_tables = @@global.innodb_encrypt_tables;
+SET @saved_encryption_threads = @@global.innodb_encryption_threads;
+SET @saved_encryption_key_id = @@global.innodb_default_encryption_key_id;
+
+SET GLOBAL innodb_file_per_table = ON;
+SET GLOBAL innodb_encrypt_tables = ON;
+SET GLOBAL innodb_encryption_threads = 4;
+
+call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_(crc32|none|innodb)\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"(innodb|none|crc32)\"");
+
+SET GLOBAL innodb_checksum_algorithm = innodb;
+SET GLOBAL innodb_default_encryption_key_id=4;
+
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+
+# ROW_FORMAT=COMPRESSED is unavailable with innodb_page_size=32k or 64k
+let $row_format_compressed= `select case when @@global.innodb_page_size>16384
+then 'ROW_FORMAT=DYNAMIC' else 'ROW_FORMAT=COMPRESSED' end`;
+
+let $from = 3;
+while ($from)
+{
+dec $from;
+let checksum = `select case $from
+               when 0 then 'none'
+               when 1 then 'innodb'
+               when 2 then 'crc32'
+               end`;
+eval SET GLOBAL innodb_checksum_algorithm=$checksum;
+
+eval create table tce_$checksum(a serial, b blob, index(b(10))) engine=innodb
+$row_format_compressed encrypted=yes;
+eval create table tc_$checksum(a serial, b blob, index(b(10))) engine=innodb
+$row_format_compressed encrypted=no;
+eval create table te_$checksum(a serial, b blob, index(b(10))) engine=innodb
+encrypted=yes;
+eval create table t_$checksum(a serial, b blob, index(b(10))) engine=innodb
+encrypted=no;
+eval create table tpe_$checksum(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=yes;
+eval create table tp_$checksum(a serial, b blob, index(b(10))) engine=innodb
+page_compressed=yes encrypted=no;
+
+begin;
+eval insert into tce_$checksum(b) values (repeat('secret',20));
+eval insert into tc_$checksum(b) values (repeat('secret',20));
+eval insert into te_$checksum(b) values (repeat('secret',20));
+eval insert into t_$checksum(b) values (repeat('secret',20));
+eval insert into tpe_$checksum(b) values (repeat('secret',20));
+eval insert into tp_$checksum(b) values (repeat('secret',20));
+commit;
+
+eval FLUSH TABLES tce_$checksum, tc_$checksum, te_$checksum,
+t_$checksum, tpe_$checksum, tp_$checksum FOR EXPORT;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+my @tables = ("tce_", "tc_", "te_", "t_", "tpe_", "tp_");
+ib_backup_tablespaces("test", map{ $_ . $ENV{checksum} } @tables);
+EOF
+--list_files $MYSQLD_DATADIR/test
+UNLOCK TABLES;
+
+let $to = 3;
+while ($to)
+{
+dec $to;
+let $tocksum = `select case $to
+               when 0 then 'none'
+               when 1 then 'innodb'
+               when 2 then 'crc32'
+               end`;
+
+eval SET GLOBAL innodb_checksum_algorithm=$tocksum;
+
+eval ALTER TABLE tce_$checksum DISCARD TABLESPACE;
+eval ALTER TABLE tc_$checksum DISCARD TABLESPACE;
+eval ALTER TABLE te_$checksum DISCARD TABLESPACE;
+eval ALTER TABLE t_$checksum DISCARD TABLESPACE;
+eval ALTER TABLE tpe_$checksum DISCARD TABLESPACE;
+eval ALTER TABLE tp_$checksum DISCARD TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+my @tables = ("tce_", "tc_", "te_", "t_", "tpe_", "tp_");
+ib_restore_tablespaces("test", map{ $_ . $ENV{checksum} } @tables);
+EOF
+
+eval ALTER TABLE tce_$checksum IMPORT TABLESPACE;
+eval update tce_$checksum set b=substr(b,1);
+eval ALTER TABLE tc_$checksum IMPORT TABLESPACE;
+eval update tc_$checksum set b=substr(b,1);
+eval ALTER TABLE te_$checksum IMPORT TABLESPACE;
+eval update te_$checksum set b=substr(b,1);
+eval ALTER TABLE t_$checksum IMPORT TABLESPACE;
+eval update t_$checksum set b=substr(b,1);
+eval ALTER TABLE tpe_$checksum IMPORT TABLESPACE;
+eval update tpe_$checksum set b=substr(b,1);
+eval ALTER TABLE tp_$checksum IMPORT TABLESPACE;
+eval update tp_$checksum set b=substr(b,1);
+}
+
+eval CHECK TABLE tce_$checksum, tc_$checksum, te_$checksum,
+t_$checksum, tpe_$checksum, tp_$checksum;
+eval DROP TABLE tce_$checksum, tc_$checksum, te_$checksum,
+t_$checksum, tpe_$checksum, tp_$checksum;
+}
+
+SET GLOBAL innodb_file_per_table = @saved_file_per_table;
+SET GLOBAL innodb_checksum_algorithm = @saved_checksum_algorithm;
+SET GLOBAL innodb_encrypt_tables = @saved_encrypt_tables;
+SET GLOBAL innodb_encryption_threads = @saved_encryption_threads;
+SET GLOBAL innodb_default_encryption_key_id = @saved_encryption_key_id;

@@ -1,0 +1,38 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/update.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/update.reject	2017-06-22 19:29:57.267567148 +0300
+@@ -29,20 +29,23 @@
+ SAVEPOINT spt1;
+ UPDATE t1 SET b = '';
+ ROLLBACK TO SAVEPOINT spt1;
++ERROR HY000: MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows.
+ UPDATE t1 SET b = 'upd' WHERE a = 10050;
++ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+ COMMIT;
++ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+ SELECT a,b FROM t1;
+ a	b
+-10050	upd
+-10050	upd
+-51	update2
+-51	update2
+-52	update2
+-52	update2
+-53	update2
+-53	update2
+-54	update2
+-54	update2
+-55	update2
+-55	update2
++10050	NULL
++10050	NULL
++51	NULL
++51	NULL
++52	NULL
++52	NULL
++53	NULL
++53	NULL
++54	NULL
++54	NULL
++55	NULL
++55	NULL
+ DROP TABLE t1;

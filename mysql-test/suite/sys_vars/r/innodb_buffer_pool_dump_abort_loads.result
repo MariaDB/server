@@ -1,0 +1,98 @@
+
+# innodb_buffer_pool_load_incomplete defaults 0
+SELECT variable_name, variable_value
+FROM information_schema.global_status
+WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_incomplete';
+variable_name	variable_value
+INNODB_BUFFER_POOL_LOAD_INCOMPLETE	OFF
+
+# populate with data
+CREATE TABLE t1 (
+c01 blob, c02 blob, c03 blob, c04 blob, c05 blob,
+c06 blob, c07 blob, c08 blob, c09 blob, c10 blob,
+c11 blob, c12 blob, c13 blob, c14 blob, c15 blob,
+c16 blob, c17 blob, c18 blob, c19 blob, c20 blob,
+c21 blob, c22 blob, c23 blob, c24 blob, c25 blob,
+c26 blob, c27 blob, c28 blob, c29 blob, c30 blob,
+c31 blob, c32 blob, c33 blob, c34 blob, c35 blob,
+c36 blob, c37 blob, c38 blob, c39 blob, c40 blob,
+c41 blob, c42 blob, c43 blob, c44 blob, c45 blob,
+c46 blob, c47 blob, c48 blob, c49 blob, c50 blob,
+c51 blob, c52 blob, c53 blob, c54 blob, c55 blob,
+c56 blob, c57 blob, c58 blob, c59 blob, c60 blob,
+c61 blob, c62 blob, c63 blob, c64 blob
+) ROW_FORMAT=dynamic;
+SET @a = repeat('a', 16 * 1024);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a
+);
+SET GLOBAL innodb_buffer_pool_dump_now=1;
+
+# Restart server
+# restart
+
+# Abort after 16 pages
+SET GLOBAL innodb_buffer_pool_load_pages_abort=16,
+GLOBAL innodb_buffer_pool_load_now=1,
+GLOBAL innodb_buffer_pool_dump_at_shutdown=1;
+SELECT variable_name, SUBSTR(variable_value, 1, 38) as VALUE
+FROM information_schema.global_status
+WHERE LOWER(variable_name) IN ('innodb_buffer_pool_load_incomplete','innodb_buffer_pool_load_status')
+ORDER BY variable_name;
+variable_name	VALUE
+INNODB_BUFFER_POOL_LOAD_INCOMPLETE	ON
+INNODB_BUFFER_POOL_LOAD_STATUS	Buffer pool(s) load aborted on request
+
+# Restart server
+# restart
+
+# Load buffer pool
+SET GLOBAL innodb_buffer_pool_load_now=1;
+
+# Should be more than previous as we didn't overwrite our save file
+select count(*) > Previous_loaded as Loaded_more from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE;;
+Loaded_more
+1
+
+# Successful, so innodb_buffer_pool_load_incomplete should be FALSE
+SELECT variable_name, SUBSTR(variable_value, 1, 33) as VALUE
+FROM information_schema.global_status
+WHERE LOWER(variable_name) IN ('innodb_buffer_pool_load_incomplete','innodb_buffer_pool_load_status')
+ORDER BY variable_name;
+variable_name	VALUE
+INNODB_BUFFER_POOL_LOAD_INCOMPLETE	OFF
+INNODB_BUFFER_POOL_LOAD_STATUS	Buffer pool(s) load completed at 
+
+# innodb_buffer_pool_dump_now=1 should reset the innodb_buffer_pool_load_incomplete status
+SET GLOBAL innodb_buffer_pool_dump_now=1;
+SELECT variable_name, SUBSTR(variable_value, 1, 33) as VALUE
+FROM information_schema.global_status
+WHERE LOWER(variable_name) IN ('innodb_buffer_pool_load_incomplete', 'innodb_buffer_pool_dump_status');
+variable_name	VALUE
+INNODB_BUFFER_POOL_DUMP_STATUS	Buffer pool(s) dump completed at 
+INNODB_BUFFER_POOL_LOAD_INCOMPLETE	OFF
+
+# Restart server
+# restart
+
+# Load buffer pool
+SET GLOBAL innodb_buffer_pool_load_now=1;
+
+# Should be same amount
+select abs(Previously_dumped - count(*)) <= 2 as Loaded_about_same_size from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE;;
+Loaded_about_same_size
+1
+
+# Clean up
+DROP TABLE t1;

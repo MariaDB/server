@@ -1,0 +1,10 @@
+Warnings:
+Warning	1105	No file name. Table will use t1.xml
+create table t1 (i int) engine=Connect table_type=XML option_list='xmlsup=libxml2';
+Warnings:
+Warning	1105	No file name. Table will use t1.xml
+select * from information_schema.tables where table_schema='test' and create_options like '%table_type=XML%';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+Warnings:
+Warning	1296	Got error 174 'File t1.xml not found' from CONNECT
+drop table t1;

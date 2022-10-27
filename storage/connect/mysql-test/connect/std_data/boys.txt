@@ -1,0 +1,6 @@
+John        Boston     25/01/1986   02/06/2010
+Henry       Boston     07/06/1987   01/04/2008
+George      San Jose   10/08/1981   02/06/2010
+Sam         Chicago    22/11/1979   10/10/2007
+James       Dallas     13/05/1992   14/12/2009
+Bill        Boston     11/09/1986   10/02/2008

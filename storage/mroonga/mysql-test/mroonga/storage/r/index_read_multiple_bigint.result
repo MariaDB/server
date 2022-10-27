@@ -1,0 +1,38 @@
+DROP TABLE IF EXISTS ids;
+CREATE TABLE ids (
+id BIGINT,
+value BIGINT,
+KEY (id, value)
+);
+INSERT INTO ids VALUES ( -1,  16);
+INSERT INTO ids VALUES ( -2,   8);
+INSERT INTO ids VALUES ( -4,   4);
+INSERT INTO ids VALUES ( -8,   2);
+INSERT INTO ids VALUES (-16,   1);
+INSERT INTO ids VALUES ( 16,  -1);
+INSERT INTO ids VALUES (  8,  -2);
+INSERT INTO ids VALUES (  4,  -4);
+INSERT INTO ids VALUES (  2,  -8);
+INSERT INTO ids VALUES (  1, -16);
+SELECT * FROM ids;
+id	value
+-16	1
+-8	2
+-4	4
+-2	8
+-1	16
+1	-16
+2	-8
+4	-4
+8	-2
+16	-1
+SELECT * FROM ids WHERE id BETWEEN -4 AND 8;
+id	value
+-4	4
+-2	8
+-1	16
+1	-16
+2	-8
+4	-4
+8	-2
+DROP TABLE ids;

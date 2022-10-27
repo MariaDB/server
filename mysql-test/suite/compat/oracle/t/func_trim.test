@@ -1,0 +1,77 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-15664 sql_mode=ORACLE: Make TRIM return NULL instead of empty string
+--echo #
+
+SELECT TRIM('abc'), TRIM('abc ')||'.', '.'||TRIM(' abc ')||'.', TRIM('  '), TRIM(NULL), TRIM(SPACE(0)),TRIM(SPACE(10)) FROM dual;
+
+SELECT TRIM(TRAILING 'abc' FROM 'abc');
+SELECT TRIM(TRAILING 'abc' FROM 'abc ');
+SELECT TRIM(TRAILING 'abc' FROM ' abc');
+
+SELECT TRIM(LEADING 'abc' FROM 'abc');
+SELECT TRIM(LEADING 'abc' FROM 'abc ');
+SELECT TRIM(LEADING 'abc' FROM ' abc');
+
+SELECT TRIM(BOTH 'abc' FROM 'abc');
+SELECT TRIM(BOTH 'abc' FROM 'abc ');
+SELECT TRIM(BOTH 'abc' FROM ' abc');
+
+SELECT RTRIM('abc'), RTRIM('abc ')||'.', RTRIM(' abc ')||'.', RTRIM('  '), RTRIM(NULL), RTRIM(SPACE(0)),RTRIM(SPACE(10)) FROM dual;
+SELECT LTRIM('abc'), LTRIM('abc '), LTRIM(' abc '), LTRIM('  '), LTRIM(NULL), LTRIM(SPACE(0)),LTRIM(SPACE(10)) FROM dual;
+
+CREATE TABLE t1 (c1 VARCHAR(10),ord INTEGER);
+INSERT INTO t1 VALUES ('abc',1);
+INSERT INTO t1 VALUES (SPACE(0),2);
+INSERT INTO t1 VALUES ('',3);
+INSERT INTO t1 VALUES (' ',4);
+INSERT INTO t1 VALUES ('      ',5);
+INSERT INTO t1 VALUES ('   a     ',6);
+INSERT INTO t1 VALUES ('aa',7);
+INSERT INTO t1 VALUES ('aabb',8);
+INSERT INTO t1 VALUES ('bbaa',9);
+INSERT INTO t1 VALUES ('aabbaa',10);
+
+SELECT ord,'['||c1||']','.'||COALESCE(TRIM(LEADING 'a' FROM c1),'NULL')||'.' FROM t1 ORDER BY ord;
+SELECT ord,'['||c1||']','.'||COALESCE(TRIM(TRAILING 'a' FROM c1),'NULL')||'.' FROM t1 ORDER BY ord;
+SELECT ord,'['||c1||']','.'||COALESCE(TRIM(BOTH 'a' FROM c1),'NULL')||'.' FROM t1 ORDER BY ord;
+SELECT ord,'['||c1||']',COALESCE(LTRIM(c1),'NULL') FROM t1 ORDER BY ord;
+SELECT ord,'['||c1||']',COALESCE(RTRIM(c1),'NULL')||'.' FROM t1 ORDER BY ord;
+
+EXPLAIN EXTENDED SELECT TRIM('abc'),
+                        TRIM(BOTH 'a' FROM 'abc'),
+                        TRIM(LEADING 'a' FROM 'abc'),
+                        TRIM(TRAILING 'a' FROM 'abc') ;
+
+EXPLAIN EXTENDED SELECT RTRIM('abc'),
+                        LTRIM('abc');
+
+
+CREATE VIEW v1 AS SELECT ord,TRIM('abc'),RTRIM('abc'),LTRIM('abc'),
+                         '['||c1||']',
+                         TRIM(LEADING 'a' FROM c1),
+                         TRIM(TRAILING 'a' FROM c1),
+                         TRIM(BOTH 'a' FROM c1),
+                         LTRIM(c1),
+                         RTRIM(c1)
+                  FROM t1 ORDER BY ord ;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(10) NOT NULL);
+CREATE TABLE t2 AS SELECT TRIM(LEADING 'a' FROM c1) AS C1,
+                          TRIM(TRAILING 'a' FROM c1) AS C2,
+                          TRIM(BOTH 'a' FROM c1) AS C3,
+                          LTRIM(c1) AS C4,
+                          RTRIM(c1) AS C5
+        FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE trim_oracle (trim_oracle int);
+DROP TABLE trim_oracle;

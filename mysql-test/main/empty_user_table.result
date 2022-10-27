@@ -1,0 +1,16 @@
+create table t1 as select * from mysql.global_priv;
+truncate table mysql.global_priv;
+flush privileges;
+connect(localhost,u1,,test,MASTER_PORT,MASTER_SOCKET);
+connect  fail,localhost,u1;
+Got one of the listed errors
+insert mysql.global_priv select * from t1;
+drop table t1;
+flush privileges;
+# switching from mysql.global_priv to mysql.user
+truncate table mysql.user;
+flush privileges;
+connect(localhost,u1,,test,MASTER_PORT,MASTER_SOCKET);
+connect  fail,localhost,u1;
+Got one of the listed errors
+# switching back from mysql.user to mysql.global_priv

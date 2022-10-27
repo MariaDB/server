@@ -1,0 +1,57 @@
+--source include/have_sequence.inc
+
+
+--echo #
+--echo # MDEV-23318 Assertion `cache_empty(keycache)' failed in
+--echo # prepare_resize_simple_key_cache
+--echo #
+
+SET @buffer_size.save= @@key_buffer_size;
+SET GLOBAL key_buffer_size= 134217728;
+SET myisam_repair_threads= 6;
+
+CREATE TABLE t1 (
+    pk INT AUTO_INCREMENT,
+    a INTEGER,
+    b DATE,
+    c VARCHAR(1),
+    d BLOB,
+    PRIMARY KEY (pk),
+    KEY (a),
+    KEY (b),
+    KEY (c, a),
+    UNIQUE (d)
+) ENGINE=MyISAM;
+ 
+INSERT INTO t1 (a,b,c) SELECT seq, '2020-12-12', 'x' FROM seq_1_to_20;
+
+ALTER TABLE t1 DISABLE KEYS;
+SET GLOBAL c.key_buffer_size= 13700864;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+INSERT INTO t1 SELECT 1;
+SET  GLOBAL c.key_buffer_size= 0;
+DROP TABLE t1;
+ 
+SET GLOBAL key_buffer_size= 134217728;
+
+CREATE TABLE t1 (
+    pk INT AUTO_INCREMENT,
+    a INTEGER,
+    b DATE,
+    c VARCHAR(1),
+    d VARBINARY(40982),
+    PRIMARY KEY (pk),
+    KEY (a),
+    KEY (b),
+    KEY (c, a),
+    UNIQUE (d)
+) ENGINE=MyISAM;
+INSERT INTO t1 (a,b,c) SELECT seq, '2020-12-12', 'x' FROM seq_1_to_20;
+ALTER TABLE t1 DISABLE KEYS;
+SET GLOBAL c.key_buffer_size= 13700864;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+INSERT INTO t1 SELECT 1;
+SET  GLOBAL c.key_buffer_size= 0;
+
+DROP TABLE t1;
+SET GLOBAL key_buffer_size= @buffer_size.save;

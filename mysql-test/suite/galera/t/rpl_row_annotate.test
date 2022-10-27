@@ -1,0 +1,45 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo # On node_2
+--connection node_2
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+
+--echo # On node_1
+--connection node_1
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+CREATE TABLE t1(i INT)ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+DELETE FROM t1 WHERE i = 1;
+
+--echo # On node_2
+--connection node_2
+INSERT INTO t1 VALUES(2);
+DELETE FROM t1 WHERE i = 2;
+
+--echo # On node_1
+--connection node_1
+--source include/binlog_start_pos.inc
+let $start_pos= `select @binlog_start_pos`;
+--replace_column 2 # 5 #
+--replace_result $start_pos <start_pos>
+--replace_regex /table_id: [0-9]+/table_id: #/ /\/\* xid=.* \*\//\/* xid= *\//
+--eval SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM $start_pos
+
+--echo # On node_2
+--connection node_2
+--source include/binlog_start_pos.inc
+let $start_pos= `select @binlog_start_pos`;
+--replace_column 2 # 5 #
+--replace_result $start_pos <start_pos>
+--replace_regex /table_id: [0-9]+/table_id: #/ /\/\* xid=.* \*\//\/* xid= *\//
+--eval SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM $start_pos
+
+# Cleanup
+DROP TABLE t1;
+
+--echo # End of test

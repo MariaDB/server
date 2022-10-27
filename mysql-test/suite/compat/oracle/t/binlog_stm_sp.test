@@ -1,0 +1,219 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--disable_query_log
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-10914 ROW data type for stored routine variables
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec ROW(a INT,b INT);
+BEGIN
+  rec.a:=100;
+  rec.b:=200;
+  INSERT INTO t1 VALUES (rec.a,rec.b);
+  INSERT INTO t1 VALUES (10, rec=ROW(100,200));
+  INSERT INTO t1 VALUES (10, ROW(100,200)=rec);
+  INSERT INTO t1 SELECT 10, 20 FROM DUAL WHERE rec=ROW(100,200);
+  INSERT INTO t1 SELECT 10, 21 FROM DUAL WHERE ROW(100,200)=rec;
+  rec.a:=NULL;
+  INSERT INTO t1 VALUES (11, rec=ROW(100,200));
+  INSERT INTO t1 VALUES (11, rec=ROW(100,201));
+  INSERT INTO t1 VALUES (11, ROW(100,200)=rec);
+  INSERT INTO t1 VALUES (11, ROW(100,201)=rec);
+  INSERT INTO t1 SELECT 11, 20 FROM DUAL WHERE rec=ROW(100,200);
+  INSERT INTO t1 SELECT 11, 21 FROM DUAL WHERE ROW(100,200)=rec;
+  rec.b:=NULL;
+  INSERT INTO t1 VALUES (12, rec=ROW(100,200));
+  INSERT INTO t1 VALUES (12, ROW(100,200)=rec);
+  INSERT INTO t1 SELECT 12, 20 FROM DUAL WHERE rec=ROW(100,200);
+  INSERT INTO t1 SELECT 12, 21 FROM DUAL WHERE ROW(100,200)=rec;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+--echo #
+--echo # Testing ROW fields in LIMIT
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(10);
+CREATE TABLE t2 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+AS
+  a INT:= 1;
+  rec ROW(a INT);
+BEGIN
+  rec.a:= 1;
+  INSERT INTO t2 SELECT 1 FROM t1 LIMIT a;
+  INSERT INTO t2 SELECT 2 FROM t1 LIMIT rec.a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP TABLE t1,t2;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+--echo #
+--echo # End of MDEV-10914 ROW data type for stored routine variables
+--echo #
+
+
+--echo #
+--echo #  MDEV-12133 sql_mode=ORACLE: table%ROWTYPE in variable declarations
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec t1%ROWTYPE;
+BEGIN
+  rec.a:=100;
+  rec.b:=200;
+  SELECT rec=ROW(100,200) AS true1, ROW(100,200)=rec AS true2;
+  INSERT INTO t1 VALUES (rec.a,rec.b);
+  INSERT INTO t1 VALUES (10, rec=ROW(100,200));
+  INSERT INTO t1 VALUES (10, ROW(100,200)=rec);
+  INSERT INTO t1 SELECT 10, 20 FROM DUAL WHERE rec=ROW(100,200);
+  INSERT INTO t1 SELECT 10, 21 FROM DUAL WHERE ROW(100,200)=rec;
+  rec.a:=NULL;
+  INSERT INTO t1 VALUES (11, rec=ROW(100,200));
+  INSERT INTO t1 VALUES (11, rec=ROW(100,201));
+  INSERT INTO t1 VALUES (11, ROW(100,200)=rec);
+  INSERT INTO t1 VALUES (11, ROW(100,201)=rec);
+  INSERT INTO t1 SELECT 11, 20 FROM DUAL WHERE rec=ROW(100,200);
+  INSERT INTO t1 SELECT 11, 21 FROM DUAL WHERE ROW(100,200)=rec;
+  rec.b:=NULL;
+  INSERT INTO t1 VALUES (12, rec=ROW(100,200));
+  INSERT INTO t1 VALUES (12, ROW(100,200)=rec);
+  INSERT INTO t1 SELECT 12, 20 FROM DUAL WHERE rec=ROW(100,200);
+  INSERT INTO t1 SELECT 12, 21 FROM DUAL WHERE ROW(100,200)=rec;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+--echo #
+--echo # MDEV-12291 Allow ROW variables as SELECT INTO targets
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10, 'b10');
+CREATE TABLE t2 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec1 ROW(a INT, b VARCHAR(32));
+BEGIN
+  SELECT * INTO rec1 FROM t1;
+  INSERT INTO t2 VALUES (rec1.a, rec1.b);
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+FLUSH LOGS;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10, 'b10');
+CREATE TABLE t2 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  rec1 t1%ROWTYPE;
+BEGIN
+  SELECT * INTO rec1 FROM t1;
+  INSERT INTO t2 VALUES (rec1.a, rec1.b);
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+FLUSH LOGS;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10, 'b10');
+CREATE TABLE t2 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1
+AS
+  CURSOR cur1 IS SELECT * FROM t1;
+  rec1 cur1%ROWTYPE;
+BEGIN
+  SELECT * INTO rec1 FROM t1;
+  INSERT INTO t2 VALUES (rec1.a, rec1.b);
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+--echo #
+--echo # MDEV-16020 SP variables inside GROUP BY..WITH ROLLUP break replication
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1985-05-13'),('1989-12-24');
+CREATE TABLE t2 (d DATE, c BIGINT);
+DELIMITER $$;
+DECLARE
+  var INT;
+BEGIN
+  INSERT INTO t2 SELECT d, COUNT(*) FROM t1 GROUP BY d, var;
+  INSERT INTO t2 SELECT d, COUNT(*) FROM t1 GROUP BY d, var WITH ROLLUP;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1,t2;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

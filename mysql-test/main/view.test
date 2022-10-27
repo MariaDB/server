@@ -1,0 +1,6565 @@
+--source include/have_partition.inc
+# Save the initial number of concurrent sessions.
+--source include/count_sessions.inc
+--source include/default_optimizer_switch.inc
+
+SET optimizer_switch='outer_join_with_cache=off';
+
+#
+# some basic test of views and its functionality
+#
+
+# create view on nonexistent table
+-- error ER_NO_SUCH_TABLE
+create view v1 (c,d) as select a,b from t1;
+
+create temporary table t1 (a int, b int);
+# view on temporary table
+-- error ER_VIEW_SELECT_TMPTABLE
+create view v1 (c) as select b+1 from t1;
+drop table t1;
+
+create table t1 (a int, b int);
+insert into t1 values (1,2), (1,3), (2,4), (2,5), (3,10);
+
+# view with variable
+-- error ER_VIEW_SELECT_VARIABLE
+create view v1 (c,d) as select a,b+@@global.max_user_connections from t1;
+-- error ER_VIEW_SELECT_VARIABLE
+create view v1 (c,d) as select a,b from t1
+  where a = @@global.max_user_connections;
+
+# simple view
+create view v1 (c) as select b+1 from t1;
+select c from v1;
+select is_updatable from information_schema.views where table_name='v1';
+
+# temporary table should not hide table of view
+create temporary table t1 (a int, b int);
+# this is empty
+select * from t1;
+# but this based on normal t1
+select c from v1;
+show create table v1;
+show create view v1;
+-- error ER_WRONG_OBJECT
+show create view t1;
+drop table t1;
+
+# try to use fields from underlying table
+-- error ER_BAD_FIELD_ERROR
+select a from v1;
+-- error ER_BAD_FIELD_ERROR
+select v1.a from v1;
+-- error ER_BAD_FIELD_ERROR
+select b from v1;
+-- error ER_BAD_FIELD_ERROR
+select v1.b from v1;
+
+# view with different algorithms (explain output differs)
+explain extended select c from v1;
+create algorithm=temptable view v2 (c) as select b+1 from t1;
+show create view v2;
+select c from v2;
+explain extended select c from v2;
+
+# try to use underlying table fields in VIEW creation process
+-- error ER_BAD_FIELD_ERROR
+create view v3 (c) as select a+1 from v1;
+-- error ER_BAD_FIELD_ERROR
+create view v3 (c) as select b+1 from v1;
+
+
+# VIEW on VIEW test with mixing different algorithms on different order
+create view v3 (c) as select c+1 from v1;
+select c from v3;
+explain extended select c from v3;
+create algorithm=temptable view v4 (c) as select c+1 from v2;
+select c from v4;
+explain extended select c from v4;
+create view v5 (c) as select c+1 from v2;
+select c from v5;
+explain extended select c from v5;
+create algorithm=temptable view v6 (c) as select c+1 from v1;
+select c from v6;
+explain extended select c from v6;
+
+# show table/table status test
+show tables;
+show full tables;
+--replace_column 8 # 12 # 13 # 14 # 19 #
+show table status;
+
+drop view v1,v2,v3,v4,v5,v6;
+
+#
+# alter/create view test
+#
+
+# view with subqueries of different types
+create view v1 (c,d,e,f) as select a,b,
+a in (select a+2 from t1), a = all (select a from t1) from t1;
+create view v2 as select c, d from v1;
+select * from v1;
+select * from v2;
+
+# try to create VIEW with name of existing VIEW
+-- error ER_TABLE_EXISTS_ERROR
+create view v1 (c,d,e,f) as select a,b, a in (select a+2 from t1), a = all (select a from t1) from t1;
+
+# 'or replace' should work in this case
+create or replace view v1 (c,d,e,f) as select a,b, a in (select a+2 from t1), a = all (select a from t1) from t1;
+
+# try to ALTER unexisting VIEW
+drop view v2;
+-- error ER_NO_SUCH_TABLE
+alter view v2 as select c, d from v1;
+
+# 'or replace' on unexisting view
+create or replace view v2 as select c, d from v1;
+
+# alter view on existing view
+alter view v1 (c,d) as select a,max(b) from t1 group by a;
+
+# check that created view works
+select * from v1;
+select * from v2;
+
+# try to drop nonexistent VIEW
+--error ER_UNKNOWN_VIEW
+drop view v100;
+
+# try to drop table with DROP VIEW
+-- error ER_WRONG_OBJECT
+drop view t1;
+
+# try to drop VIEW with DROP TABLE
+-- error ER_IT_IS_A_VIEW
+drop table v1;
+
+# try to drop table with DROP VIEW
+
+drop view v1,v2;
+drop table t1;
+
+#
+# outer left join with merged views
+#
+create table t1 (a int);
+insert into t1 values (1), (2), (3);
+
+create view v1 (a) as select a+1 from t1;
+create view v2 (a) as select a-1 from t1;
+
+select * from t1 natural left join v1;
+select * from v2 natural left join t1;
+select * from v2 natural left join v1;
+
+drop view v1, v2;
+drop table t1;
+
+
+#
+# DISTINCT option for VIEW
+#
+create table t1 (a int);
+insert into t1 values (1), (2), (3), (1), (2), (3);
+create view v1 as select distinct a from t1;
+select * from v1;
+explain select * from v1;
+select * from t1;
+drop view v1;
+drop table t1;
+
+#
+# syntax compatibility
+#
+create table t1 (a int);
+-- error ER_VIEW_NONUPD_CHECK
+create view v1 as select distinct a from t1 WITH CHECK OPTION;
+create view v1 as select a from t1 WITH CHECK OPTION;
+create view v2 as select a from t1 WITH CASCADED CHECK OPTION;
+create view v3 as select a from t1 WITH LOCAL CHECK OPTION;
+drop view v3 RESTRICT;
+drop view v2 CASCADE;
+drop view v1;
+drop table t1;
+
+#
+# aliases
+#
+create table t1 (a int, b int);
+insert into t1 values (1,2), (1,3), (2,4), (2,5), (3,10);
+create view v1 (c) as select b+1 from t1;
+select test.c from v1 test;
+create algorithm=temptable view v2 (c) as select b+1 from t1;
+select test.c from v2 test;
+select test1.* from v1 test1, v2 test2 where test1.c=test2.c;
+select test2.* from v1 test1, v2 test2 where test1.c=test2.c;
+drop table t1;
+drop view v1,v2;
+
+#
+# LIMIT clause test
+#
+create table t1 (a int);
+insert into t1 values (1), (2), (3), (4);
+create view v1 as select a+1 from t1 order by 1 desc limit 2;
+select * from v1;
+explain select * from v1;
+drop view v1;
+drop table t1;
+
+#
+# CREATE ... SELECT view test
+#
+create table t1 (a int);
+insert into t1 values (1), (2), (3), (4);
+create view v1 as select a+1 from t1;
+create table t2 select * from v1;
+show columns from t2;
+select * from t2;
+drop view v1;
+drop table t1,t2;
+
+#
+# simple view + simple update
+#
+create table t1 (a int, b int, primary key(a));
+insert into t1 values (10,2), (20,3), (30,4), (40,5), (50,10);
+create view v1 (a,c) as select a, b+1 from t1;
+create algorithm=temptable view v2 (a,c) as select a, b+1 from t1;
+select is_updatable from information_schema.views where table_name='v2';
+select is_updatable from information_schema.views where table_name='v1';
+# try to update expression
+-- error ER_NONUPDATEABLE_COLUMN
+update v1 set c=a+c;
+# try to update VIEW with forced TEMPORARY TABLE algorithm
+-- error ER_NON_UPDATABLE_TABLE
+update v2 set a=a+c;
+# updatable field of updateable view
+update v1 set a=a+c;
+select * from v1;
+select * from t1;
+drop table t1;
+drop view v1,v2;
+
+#
+# simple view + simple multi-update
+#
+create table t1 (a int, b int, primary key(a));
+insert into t1 values (10,2), (20,3), (30,4), (40,5), (50,10);
+create table t2 (x int);
+insert into t2 values (10), (20);
+create view v1 (a,c) as select a, b+1 from t1;
+create algorithm=temptable view v2 (a,c) as select a, b+1 from t1;
+# try to update expression
+-- error ER_NONUPDATEABLE_COLUMN
+update t2,v1 set v1.c=v1.a+v1.c where t2.x=v1.a;
+# try to update VIEW with forced TEMPORARY TABLE algorithm
+-- error ER_NON_UPDATABLE_TABLE
+update t2,v2 set v2.a=v2.v2.a+c where t2.x=v2.a;
+# updatable field of updateable view
+update t2,v1 set v1.a=v1.a+v1.c where t2.x=v1.a;
+select * from v1;
+select * from t1;
+drop table t1,t2;
+drop view v1,v2;
+
+#
+# MERGE VIEW with WHERE clause
+#
+create table t1 (a int, b int, primary key(b));
+insert into t1 values (1,20), (2,30), (3,40), (4,50), (5,100);
+create view v1 (c) as select b from t1 where a<3;
+# simple select and explaint to be sure that it is MERGE
+select * from v1;
+explain extended select * from v1;
+# update test
+update v1 set c=c+1;
+select * from t1;
+# join of such VIEWs test
+create view v2 (c) as select b from t1 where a>=3;
+select * from v1, v2;
+drop view v1, v2;
+drop table t1;
+
+#
+# simple view + simple delete
+#
+create table t1 (a int, b int, primary key(a));
+insert into t1 values (1,2), (2,3), (3,4), (4,5), (5,10);
+create view v1 (a,c) as select a, b+1 from t1;
+create algorithm=temptable view v2 (a,c) as select a, b+1 from t1;
+# try to update VIEW with forced TEMPORARY TABLE algorithm
+-- error ER_NON_UPDATABLE_TABLE
+delete from v2 where c < 4;
+# updatable field of updateable view
+delete from v1 where c < 4;
+select * from v1;
+select * from t1;
+drop table t1;
+drop view v1,v2;
+
+#
+# simple view + simple multi-delete
+#
+create table t1 (a int, b int, primary key(a));
+insert into t1 values (1,2), (2,3), (3,4), (4,5), (5,10);
+create table t2 (x int);
+insert into t2 values (1), (2), (3), (4);
+create view v1 (a,c) as select a, b+1 from t1;
+create algorithm=temptable view v2 (a,c) as select a, b+1 from t1;
+# try to update VIEW with forced TEMPORARY TABLE algorithm
+-- error ER_NON_UPDATABLE_TABLE
+delete v2 from t2,v2 where t2.x=v2.a;
+# updatable field of updateable view
+delete v1 from t2,v1 where t2.x=v1.a;
+select * from v1;
+select * from t1;
+drop table t1,t2;
+drop view v1,v2;
+
+#
+# key presence check
+#
+create table t1 (a int, b int, c int, primary key(a,b));
+insert into t1 values (10,2,-1), (20,3,-2), (30,4,-3), (40,5,-4), (50,10,-5);
+create view v1 (x,y) as select a, b from t1;
+create view v2 (x,y) as select a, c from t1;
+set updatable_views_with_limit=NO;
+update v1 set x=x+1;
+update v2 set x=x+1;
+update v1 set x=x+1 limit 1;
+-- error ER_NON_UPDATABLE_TABLE
+update v2 set x=x+1 limit 1;
+set updatable_views_with_limit=YES;
+update v1 set x=x+1 limit 1;
+update v2 set x=x+1 limit 1;
+set updatable_views_with_limit=DEFAULT;
+show variables like "updatable_views_with_limit";
+select * from t1;
+drop table t1;
+drop view v1,v2;
+
+#
+# simple insert
+#
+create table t1 (a int, b int, c int, primary key(a,b));
+insert into t1 values (10,2,-1), (20,3,-2);
+create view v1 (x,y,z) as select c, b, a from t1;
+create view v2 (x,y) as select b, a from t1;
+create view v3 (x,y,z) as select b, a, b from t1;
+create view v4 (x,y,z) as select c+1, b, a from t1;
+create algorithm=temptable view v5 (x,y,z) as select c, b, a from t1;
+# try insert to VIEW with fields duplicate
+-- error ER_NON_INSERTABLE_TABLE
+insert into v3 values (-60,4,30);
+# try insert to VIEW with expression in SELECT list
+-- error ER_NON_INSERTABLE_TABLE
+insert into v4 values (-60,4,30);
+# try insert to VIEW using temporary table algorithm
+-- error ER_NON_INSERTABLE_TABLE
+insert into v5 values (-60,4,30);
+insert into v1 values (-60,4,30);
+insert into v1 (z,y,x) values (50,6,-100);
+insert into v2 values (5,40);
+select * from t1;
+drop table t1;
+drop view v1,v2,v3,v4,v5;
+
+#
+# insert ... select
+#
+create table t1 (a int, b int, c int, primary key(a,b));
+insert into t1 values (10,2,-1), (20,3,-2);
+create table t2 (a int, b int, c int, primary key(a,b));
+insert into t2 values (30,4,-60);
+create view v1 (x,y,z) as select c, b, a from t1;
+create view v2 (x,y) as select b, a from t1;
+create view v3 (x,y,z) as select b, a, b from t1;
+create view v4 (x,y,z) as select c+1, b, a from t1;
+create algorithm=temptable view v5 (x,y,z) as select c, b, a from t1;
+# try insert to VIEW with fields duplicate
+-- error ER_NON_INSERTABLE_TABLE
+insert into v3 select c, b, a from t2;
+# try insert to VIEW with expression in SELECT list
+-- error ER_NON_INSERTABLE_TABLE
+insert into v4 select c, b, a from t2;
+# try insert to VIEW using temporary table algorithm
+-- error ER_NON_INSERTABLE_TABLE
+insert into v5 select c, b, a from t2;
+insert into v1 select c, b, a from t2;
+insert into v1 (z,y,x) select a+20,b+2,-100 from t2;
+insert into v2 select b+1, a+10 from t2;
+select * from t1;
+drop table t1, t2;
+drop view v1,v2,v3,v4,v5;
+
+#
+# outer join based on VIEW with WHERE clause
+#
+create table t1 (a int, primary key(a));
+insert into t1 values (1), (2), (3);
+create view v1 (x) as select a from t1 where a > 1;
+select t1.a, v1.x from t1 left join v1 on (t1.a= v1.x);
+drop table t1;
+drop view v1;
+
+#
+# merging WHERE condition on VIEW on VIEW
+#
+create table t1 (a int, primary key(a));
+insert into t1 values (1), (2), (3), (200);
+create view v1 (x) as select a from t1 where a > 1;
+create view v2 (y) as select x from v1 where x < 100;
+select * from v2;
+drop table t1;
+drop view v1,v2;
+
+#
+# VIEW on non-updatable view
+#
+create table t1 (a int, primary key(a));
+insert into t1 values (1), (2), (3), (200);
+create ALGORITHM=TEMPTABLE view v1 (x) as select a from t1;
+create view v2 (y) as select x from v1;
+-- error ER_NON_UPDATABLE_TABLE
+update v2 set y=10 where y=2;
+drop table t1;
+drop view v1,v2;
+
+#
+# auto_increment field out of VIEW
+#
+create table t1 (a int not null auto_increment, b int not null, primary key(a), unique(b));
+create view v1 (x) as select b from t1;
+insert into v1 values (1);
+select last_insert_id();
+insert into t1 (b) values (2);
+select last_insert_id();
+select * from t1;
+drop view v1;
+drop table t1;
+
+#
+# VIEW fields quoting
+#
+set sql_mode='ansi';
+create table t1 ("a*b" int);
+create view v1 as select "a*b" from t1;
+show create view v1;
+drop view v1;
+drop table t1;
+set sql_mode=default;
+
+#
+# VIEW without tables
+#
+create table t1 (t_column int);
+create view v1 as select 'a';
+select * from v1, t1;
+drop view v1;
+drop table t1;
+
+#
+# quote mark inside table name
+#
+create table `t1a``b` (col1 char(2));
+create view v1 as select * from `t1a``b`;
+select * from v1;
+describe v1;
+drop view v1;
+drop table `t1a``b`;
+
+#
+# Changing of underlying table
+#
+create table t1 (col1 char(5),col2 char(5));
+create view v1 as select * from t1;
+drop table t1;
+create table t1 (col1 char(5),newcol2 char(5));
+-- error ER_VIEW_INVALID
+insert into v1 values('a','aa');
+drop table t1;
+-- error ER_VIEW_INVALID
+select * from v1;
+drop view v1;
+
+#
+# check of duplication of column names
+#
+-- error ER_DUP_FIELDNAME
+create view v1 (a,a) as select 'a','a';
+
+#
+# updatablity should be transitive
+#
+create table t1 (col1 int,col2 char(22));
+insert into t1 values(5,'Hello, world of views');
+create view v1 as select * from t1;
+create view v2 as select * from v1;
+update v2 set col2='Hello, view world';
+select is_updatable from information_schema.views;
+select * from t1;
+drop view v2, v1;
+drop table t1;
+
+#
+# check 'use index' on view with temporary table
+#
+create table t1 (a int, b int);
+create view v1 as select a, sum(b) from t1 group by a;
+--error ER_KEY_DOES_NOT_EXITS
+select b from v1 use index (some_index) where b=1;
+drop view v1;
+drop table t1;
+
+#
+# using VIEW fields several times in query resolved via temporary tables
+#
+create table t1 (col1 char(5),col2 char(5));
+create view v1 (col1,col2) as select col1,col2 from t1;
+insert into v1 values('s1','p1'),('s1','p2'),('s1','p3'),('s1','p4'),('s2','p1'),('s3','p2'),('s4','p4');
+select distinct first.col2 from t1 first where first.col2 in (select second.col2 from t1 second where second.col1<>first.col1);
+select distinct first.col2 from v1 first where first.col2 in (select second.col2 from t1 second where second.col1<>first.col1);
+drop view v1;
+drop table t1;
+
+#
+# Test of view updatability in prepared statement
+#
+create table t1 (a int);
+create view v1 as select a from t1;
+insert into t1 values (1);
+
+#update
+SET @v0 = '2';
+PREPARE stmt FROM 'UPDATE v1 SET a = ?';
+EXECUTE stmt USING @v0;
+DEALLOCATE PREPARE stmt;
+
+#insert without field list
+SET @v0 = '3';
+PREPARE stmt FROM 'insert into v1 values (?)';
+EXECUTE stmt USING @v0;
+DEALLOCATE PREPARE stmt;
+
+#insert with field list
+SET @v0 = '4';
+PREPARE stmt FROM 'insert into v1 (a) values (?)';
+EXECUTE stmt USING @v0;
+DEALLOCATE PREPARE stmt;
+
+select * from t1;
+
+drop view v1;
+drop table t1;
+
+#
+# error on preparation
+#
+-- error ER_NO_TABLES_USED
+CREATE VIEW v02 AS SELECT * FROM DUAL;
+SHOW TABLES;
+
+#
+# EXISTS with UNION VIEW
+#
+CREATE VIEW v1 AS SELECT EXISTS (SELECT 1 UNION SELECT 2);
+select * from v1;
+drop view v1;
+
+#
+# using VIEW where table is required
+#
+create table t1 (col1 int,col2 char(22));
+create view v1 as select * from t1;
+-- error ER_WRONG_OBJECT
+create index i1 on v1 (col1);
+drop view v1;
+drop table t1;
+
+#
+# connection_id(), pi(), current_user(), version() representation test
+#
+CREATE VIEW v1 (f1,f2,f3,f4) AS SELECT connection_id(), pi(), current_user(), version();
+SHOW CREATE VIEW v1;
+drop view v1;
+
+#
+# VIEW built over UNION
+#
+create table t1 (s1 int);
+create table t2 (s2 int);
+insert into t1 values (1), (2);
+insert into t2 values (2), (3);
+create view v1 as select * from t1,t2 union all select * from t1,t2;
+select * from v1;
+drop view v1;
+drop tables t1, t2;
+
+#
+# Aggregate functions in view list
+#
+create table t1 (col1 int);
+insert into t1 values (1);
+create view v1 as select count(*) from t1;
+insert into t1 values (null);
+select * from v1;
+drop view v1;
+drop table t1;
+
+#
+# Showing VIEW with VIEWs in subquery
+#
+create table t1 (a int);
+create table t2 (a int);
+create view v1 as select a from t1;
+create view v2 as select a from t2 where a in (select a from v1);
+show create view v2;
+drop view v2, v1;
+drop table t1, t2;
+
+#
+# SHOW VIEW view with name with spaces
+#
+CREATE VIEW `v 1` AS select 5 AS `5`;
+show create view `v 1`;
+drop view `v 1`;
+
+#
+# Removing database with .frm archives
+#
+create database mysqltest;
+create table mysqltest.t1 (a int, b int);
+create view mysqltest.v1 as select a from mysqltest.t1;
+alter view mysqltest.v1 as select b from mysqltest.t1;
+alter view mysqltest.v1 as select a from mysqltest.t1;
+drop database mysqltest;
+
+#
+# VIEW with full text
+#
+CREATE TABLE t1 (c1 int not null auto_increment primary key, c2 varchar(20), fulltext(c2));
+insert into t1 (c2) VALUES ('real Beer'),('Water'),('Kossu'),('Coca-Cola'),('Vodka'),('Wine'),('almost real Beer');
+select * from t1 WHERE match (c2) against ('Beer');
+CREATE VIEW v1 AS SELECT  * from t1 WHERE match (c2) against ('Beer');
+select * from v1;
+drop view v1;
+drop table t1;
+
+#
+# distinct in temporary table with a VIEW
+#
+create table t1 (a int);
+insert into t1 values (1),(1),(2),(2),(3),(3);
+create view v1 as select a from t1;
+select distinct a from v1;
+select distinct a from v1 limit 2;
+select distinct a from t1 limit 2;
+prepare stmt1 from "select distinct a from v1 limit 2";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+drop view v1;
+drop table t1;
+
+#
+# aggregate function of aggregate function
+#
+create table t1 (tg_column bigint);
+create view v1 as select count(tg_column) as vg_column from t1;
+select avg(vg_column) from v1;
+drop view v1;
+drop table t1;
+
+#
+# VIEW of VIEW with column renaming
+#
+create table t1 (col1 bigint not null, primary key (col1));
+create table t2 (col1 bigint not null, key (col1));
+create view v1 as select * from t1;
+create view v2 as select * from t2;
+insert into v1 values (1);
+insert into v2 values (1);
+create view v3 (a,b) as select v1.col1 as a, v2.col1 as b from v1, v2 where v1.col1 = v2.col1;
+select * from v3;
+show create view v3;
+drop view v3, v2, v1;
+drop table t2, t1;
+
+#
+# VIEW based on functions with  complex names
+#
+create function `f``1` () returns int return 5;
+create view v1 as select test.`f``1` ();
+show create view v1;
+select * from v1;
+drop view v1;
+drop function `f``1`;
+
+#
+# tested problem when function name length close to ALIGN_SIZE
+#
+create function a() returns int return 5;
+create view v1 as select a();
+select * from v1;
+drop view v1;
+drop function a;
+
+#
+# VIEW with collation
+#
+create table t2 (col1 char collate latin1_german2_ci);
+create view v2 as select col1 collate latin1_german1_ci from t2;
+show create view v2;
+show create view v2;
+drop view v2;
+drop table t2;
+
+#
+# order by refers on integer field
+#
+create table t1 (a int);
+insert into t1 values (1), (2);
+create view v1 as select 5 from t1 order by 1;
+show create view v1;
+select * from v1;
+drop view v1;
+drop table t1;
+
+#
+# VIEW over dropped function
+#
+create function x1 () returns int return 5;
+create table t1 (s1 int);
+create view v1 as select x1() from t1;
+drop function x1;
+-- error ER_VIEW_INVALID
+select * from v1;
+--replace_column 8 # 12 # 13 # 19 #
+show table status;
+drop view v1;
+drop table t1;
+
+#
+# VIEW over non-existing column
+#
+create table t1 (a varchar(20));
+create view v1 as select a from t1;
+alter table t1 change a aa int;
+--error ER_VIEW_INVALID
+select * from v1;
+--replace_column 8 # 12 # 13 # 19 #
+show table status;
+show create view v1;
+drop view v1;
+drop table t1;
+
+
+#
+# VIEW with floating point (long number) as column
+#
+create view v1 as select 99999999999999999999999999999999999999999999999999999 as col1;
+show create view v1;
+drop view v1;
+
+#
+# VIEWs with national characters
+#
+
+SET @old_cs_client = @@character_set_client;
+SET @old_cs_results = @@character_set_results;
+SET @old_cs_connection = @@character_set_connection;
+
+set names utf8;
+create table tü (cü char);
+create view vü as select cü from tü;
+insert into vü values ('ü');
+select * from vü;
+drop view vü;
+drop table tü;
+
+SET character_set_client = @old_cs_client;
+SET character_set_results = @old_cs_results;
+SET character_set_connection = @old_cs_connection;
+
+#
+# problem with used_tables() of outer reference resolved in VIEW
+#
+create table t1 (a int, b int);
+insert into t1 values (1,2), (1,3), (2,4), (2,5), (3,10);
+create view v1(c) as select a+1 from t1 where b >= 4;
+select c from v1 where exists (select * from t1 where a=2 and b=c);
+drop view v1;
+drop table t1;
+
+#
+# view with cast operation
+#
+create view v1 as select cast(1 as char(3));
+show create view v1;
+select * from v1;
+drop view v1;
+
+#
+# renaming views
+#
+create table t1 (a int);
+create view v1 as select a from t1;
+create view v3 as select a from t1;
+create database mysqltest;
+-- error ER_FORBID_SCHEMA_CHANGE
+rename table v1 to mysqltest.v1;
+rename table v1 to v2;
+--error ER_TABLE_EXISTS_ERROR
+rename table v3 to v1, v2 to t1;
+drop table t1;
+drop view v2,v3;
+drop database mysqltest;
+
+#
+# bug handling from VIEWs
+#
+create view v1 as select 'a',1;
+create view v2 as select * from v1 union all select * from v1;
+create view v3 as select * from v2 where 1 = (select `1` from v2);
+create view v4 as select * from v3;
+-- error ER_SUBQUERY_NO_1_ROW
+select * from v4;
+drop view v4, v3, v2, v1;
+
+#
+# VIEW over SELECT with prohibited clauses
+#
+-- error ER_PARSE_ERROR
+create view v1 as select 5 into @w;
+-- error ER_PARSE_ERROR
+create view v1 as select 5 into outfile 'ttt';
+create table t1 (a int);
+-- error ER_PARSE_ERROR
+create view v1 as select a from t1 procedure analyse();
+# now derived tables are allowed
+create view v1 as select 1 from (select 1) as d1;
+drop view v1;
+drop table t1;
+
+#
+# INSERT into VIEW with ON DUPLICATE
+#
+create table t1 (s1 int, primary key (s1));
+create view v1 as select * from t1;
+insert into v1 values (1) on duplicate key update s1 = 7;
+insert into v1 values (1) on duplicate key update s1 = 7;
+select * from t1;
+drop view v1;
+drop table t1;
+
+#
+# test of updating and fetching from the same table check
+#
+create table t1 (col1 int);
+create table t2 (col1 int);
+create table t3 (col1 datetime not null);
+create view v1 as select * from t1;
+create view v2 as select * from v1;
+create view v3 as select v2.col1 from v2,t2 where v2.col1 = t2.col1;
+-- error ER_VIEW_PREVENT_UPDATE
+insert into v2 values ((select max(col1) from v1));
+-- error ER_VIEW_PREVENT_UPDATE
+insert into t1 values ((select max(col1) from v1));
+-- error ER_VIEW_PREVENT_UPDATE
+insert into v2 values ((select max(col1) from v1));
+-- error ER_VIEW_PREVENT_UPDATE
+insert into v2 values ((select max(col1) from t1));
+-- error ER_UPDATE_TABLE_USED
+insert into t1 values ((select max(col1) from t1));
+-- error ER_VIEW_PREVENT_UPDATE
+insert into v2 values ((select max(col1) from t1));
+-- error ER_UPDATE_TABLE_USED
+insert into v2 values ((select max(col1) from v2));
+-- error ER_VIEW_PREVENT_UPDATE
+insert into t1 values ((select max(col1) from v2));
+-- error ER_UPDATE_TABLE_USED
+insert into v2 values ((select max(col1) from v2));
+-- error ER_VIEW_PREVENT_UPDATE
+insert into v3 (col1) values ((select max(col1) from v1));
+-- error ER_VIEW_PREVENT_UPDATE
+insert into v3 (col1) values ((select max(col1) from t1));
+-- error ER_VIEW_PREVENT_UPDATE
+insert into v3 (col1) values ((select max(col1) from v2));
+# check with TZ tables in list
+-- error ER_VIEW_PREVENT_UPDATE
+insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from v2));
+insert into v3 (col1) values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
+-- error ER_BAD_NULL_ERROR
+insert into t3 values ((select CONVERT_TZ('20050101000000','UTC','MET') from t2));
+# temporary table algorithm view should be equal to subquery in the from clause
+create algorithm=temptable view v4 as select * from t1;
+insert into t1 values (1),(2),(3);
+insert into t1 (col1) values ((select max(col1) from v4));
+select * from t1;
+
+drop view v4,v3,v2,v1;
+drop table t1,t2,t3;
+
+#
+# HANDLER with VIEW
+#
+create table t1 (s1 int);
+create view v1 as select * from t1;
+-- error ER_WRONG_OBJECT
+handler v1 open as xx;
+drop view v1;
+drop table t1;
+
+#
+# view with WHERE in nested join
+#
+create table t1(a int);
+insert into t1 values (0), (1), (2), (3);
+create table t2 (a int);
+insert into t2 select a from t1 where a > 1;
+create view v1 as select a from t1 where a > 1;
+select * from t1 left join (t2 as t, v1) on v1.a=t1.a;
+select * from t1 left join (t2 as t, t2) on t2.a=t1.a;
+drop view v1;
+drop table t1, t2;
+
+#
+# Collation with view update
+#
+create table t1 (s1 char);
+create view v1 as select s1 collate latin1_german1_ci as s1 from t1;
+insert into v1 values ('a');
+select * from v1;
+update v1 set s1='b';
+select * from v1;
+update v1,t1 set v1.s1='c' where t1.s1=v1.s1;
+select * from v1;
+prepare stmt1 from "update v1,t1 set v1.s1=? where t1.s1=v1.s1";
+set @arg='d';
+execute stmt1 using @arg;
+select * from v1;
+set @arg='e';
+execute stmt1 using @arg;
+select * from v1;
+deallocate prepare stmt1;
+drop view v1;
+drop table t1;
+
+#
+# test view with LOCK TABLES (work around)
+#
+create table t1 (a int);
+create table t2 (a int);
+create view v1 as select * from t1;
+lock tables t1 read, v1 read;
+select * from v1;
+-- error ER_TABLE_NOT_LOCKED
+select * from t2;
+unlock tables;
+drop view v1;
+drop table t1, t2;
+
+#
+# WITH CHECK OPTION insert/update test
+#
+create table t1 (a int);
+create view v1 as select * from t1 where a < 2 with check option;
+# simple insert
+insert into v1 values(1);
+-- error ER_VIEW_CHECK_FAILED
+insert into v1 values(3);
+# simple insert with ignore
+insert ignore into v1 values (2),(3),(0);
+select * from t1;
+# prepare data for next check
+delete from t1;
+# INSERT SELECT test
+insert into v1 SELECT 1;
+-- error ER_VIEW_CHECK_FAILED
+insert into v1 SELECT 3;
+# prepare data for next check
+create table t2 (a int);
+insert into t2 values (2),(3),(0);
+# INSERT SELECT with ignore test
+insert ignore into v1 SELECT a from t2;
+select * from t1 order by a desc;
+# simple UPDATE test
+update v1 set a=-1 where a=0;
+-- error ER_VIEW_CHECK_FAILED
+update v1 set a=2 where a=1;
+select * from t1 order by a desc;
+# prepare data for next check
+update v1 set a=0 where a=0;
+insert into t2 values (1);
+# multiupdate test
+update v1,t2 set v1.a=v1.a-1 where v1.a=t2.a;
+select * from t1 order by a desc;
+# prepare data for next check
+update v1 set a=a+1;
+# multiupdate with ignore test
+update ignore v1,t2 set v1.a=v1.a+1 where v1.a=t2.a;
+select * from t1;
+
+drop view v1;
+drop table t1, t2;
+
+#
+# CASCADED/LOCAL CHECK OPTION test
+#
+create table t1 (a int);
+create view v1 as select * from t1 where a < 2 with check option;
+create view v2 as select * from v1 where a > 0 with local check option;
+create view v3 as select * from v1 where a > 0 with cascaded check option;
+insert into v2 values (1);
+insert into v3 values (1);
+-- error ER_VIEW_CHECK_FAILED
+insert into v2 values (0);
+-- error ER_VIEW_CHECK_FAILED
+insert into v3 values (0);
+insert into v2 values (2);
+-- error ER_VIEW_CHECK_FAILED
+insert into v3 values (2);
+select * from t1;
+drop view v3,v2,v1;
+drop table t1;
+
+#
+# CHECK OPTION with INSERT ... ON DUPLICATE KEY UPDATE
+#
+create table t1 (a int, primary key (a));
+create view v1 as select * from t1 where a < 2 with check option;
+insert into v1 values (1) on duplicate key update a=2;
+-- error ER_VIEW_CHECK_FAILED
+insert into v1 values (1) on duplicate key update a=2;
+insert ignore into v1 values (1) on duplicate key update a=2;
+select * from t1;
+drop view v1;
+drop table t1;
+
+#
+# check cyclic referencing protection on altering view
+#
+create table t1 (s1 int);
+create view v1 as select * from t1;
+create view v2 as select * from v1;
+-- error ER_NO_SUCH_TABLE
+alter view v1 as select * from v2;
+-- error ER_NO_SUCH_TABLE
+alter view v1 as select * from v1;
+-- error ER_NO_SUCH_TABLE
+create or replace view v1 as select * from v2;
+-- error ER_NO_SUCH_TABLE
+create or replace view v1 as select * from v1;
+drop view v2,v1;
+drop table t1;
+
+#
+# check altering differ options
+#
+create table t1 (a int);
+create view v1 as select * from t1;
+show create view v1;
+alter algorithm=undefined view v1 as select * from t1 with check option;
+show create view v1;
+alter algorithm=merge view v1 as select * from t1 with cascaded check option;
+show create view v1;
+alter algorithm=temptable view v1 as select * from t1;
+show create view v1;
+drop view v1;
+drop table t1;
+
+#
+# updating view with subquery in the WHERE clause
+#
+create table t1 (s1 int);
+create table t2 (s1 int);
+create view v2 as select * from t2 where s1 in (select s1 from t1);
+insert into v2 values (5);
+insert into t1 values (5);
+select * from v2;
+update v2 set s1 = 0;
+select * from v2;
+select * from t2;
+# check it with check option
+alter view v2 as select * from t2 where s1 in (select s1 from t1) with check option;
+insert into v2 values (5);
+-- error ER_VIEW_CHECK_FAILED
+update v2 set s1 = 1;
+insert into t1 values (1);
+update v2 set s1 = 1;
+select * from v2;
+select * from t2;
+# scheck how VIEWs with subqueries work with prepared statements
+prepare stmt1 from "select * from v2;";
+execute stmt1;
+insert into t1 values (0);
+execute stmt1;
+deallocate prepare stmt1;
+drop view v2;
+drop table t1, t2;
+
+#
+# test of substring_index with view
+#
+create table t1 (t time);
+create view v1 as select substring_index(t,':',2) as t from t1;
+insert into t1 (t) values ('12:24:10');
+select substring_index(t,':',2) from t1;
+select substring_index(t,':',2) from v1;
+drop view v1;
+drop table t1;
+
+#
+# test of cascaded check option for whiew without WHERE clause
+#
+create table t1 (s1 tinyint);
+create view v1 as select * from t1 where s1 <> 0 with local check option;
+create view v2 as select * from v1 with cascaded check option;
+-- error ER_VIEW_CHECK_FAILED
+insert into v2 values (0);
+drop view v2, v1;
+drop table t1;
+
+#
+# inserting single value with check option failed always get error
+#
+create table t1 (s1 int);
+create view v1 as select * from t1 where s1 < 5 with check option;
+#single value
+-- error ER_VIEW_CHECK_FAILED
+insert ignore into v1 values (6);
+#several values
+insert ignore into v1 values (6),(3);
+select * from t1;
+drop view v1;
+drop table t1;
+
+#
+# changing value by trigger and CHECK OPTION
+#
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
+create table t1 (s1 tinyint);
+create trigger t1_bi before insert on t1 for each row set new.s1 = 500;
+create view v1 as select * from t1 where s1 <> 127 with check option;
+-- error ER_VIEW_CHECK_FAILED
+insert into v1 values (0);
+select * from v1;
+select * from t1;
+drop trigger t1_bi;
+drop view v1;
+drop table t1;
+SET sql_mode = default;
+
+#
+# CASCADED should be used for all underlaying VIEWs
+#
+create table t1 (s1 tinyint);
+create view v1 as select * from t1 where s1 <> 0;
+create view v2 as select * from v1 where s1 <> 1 with cascaded check option;
+-- error ER_VIEW_CHECK_FAILED
+insert into v2 values (0);
+select * from v2;
+select * from t1;
+drop view v2, v1;
+drop table t1;
+
+#
+# LOAD DATA with view and CHECK OPTION
+#
+# fixed length fields
+create table t1 (a int, b char(10));
+create view v1 as select * from t1 where a != 0 with check option;
+-- error ER_VIEW_CHECK_FAILED
+load data infile '../../std_data/loaddata3.dat' into table v1 fields terminated by '' enclosed by '' ignore 1 lines;
+select * from t1;
+select * from v1;
+delete from t1;
+load data infile '../../std_data/loaddata3.dat' ignore into table v1 fields terminated by '' enclosed by '' ignore 1 lines;
+select * from t1 order by a,b;
+select * from v1 order by a,b;
+drop view v1;
+drop table t1;
+# variable length fields
+create table t1 (a text, b text);
+create view v1 as select * from t1 where a <> 'Field A' with check option;
+-- error ER_VIEW_CHECK_FAILED
+load data infile '../../std_data/loaddata2.dat' into table v1 fields terminated by ',' enclosed by '''';
+select concat('|',a,'|'), concat('|',b,'|') from t1;
+select concat('|',a,'|'), concat('|',b,'|') from v1;
+delete from t1;
+load data infile '../../std_data/loaddata2.dat' ignore into table v1 fields terminated by ',' enclosed by '''';
+select concat('|',a,'|'), concat('|',b,'|') from t1;
+select concat('|',a,'|'), concat('|',b,'|') from v1;
+drop view v1;
+drop table t1;
+
+#
+# Trys update table from which we select using views and subqueries
+#
+create table t1 (s1 smallint);
+create view v1 as select * from t1 where 20 < (select (s1) from t1);
+-- error ER_NON_INSERTABLE_TABLE
+insert into v1 values (30);
+create view v2 as select * from t1;
+create view v3 as select * from t1 where 20 < (select (s1) from v2);
+-- error ER_NON_INSERTABLE_TABLE
+insert into v3 values (30);
+create view v4 as select * from v2 where 20 < (select (s1) from t1);
+-- error ER_NON_INSERTABLE_TABLE
+insert into v4 values (30);
+drop view v4, v3, v2, v1;
+drop table t1;
+
+#
+# CHECK TABLE with VIEW
+#
+create table t1 (a int);
+create view v1 as select * from t1;
+check table t1,v1;
+check table v1,t1;
+drop table t1;
+check table v1;
+drop view v1;
+
+#
+# merge of VIEW with several tables
+#
+create table t1 (a int);
+create table t2 (a int);
+create table t3 (a int);
+insert into t1 values (1), (2), (3);
+insert into t2 values (1), (3);
+insert into t3 values (1), (2), (4);
+# view over tables
+create view v3 (a,b) as select t1.a as a, t2.a as b from t1 left join t2 on (t1.a=t2.a);
+select * from t3 left join v3 on (t3.a = v3.a);
+explain extended select * from t3 left join v3 on (t3.a = v3.a);
+# view over views
+create view v1 (a) as select a from t1;
+create view v2 (a) as select a from t2;
+create view v4 (a,b) as select v1.a as a, v2.a as b from v1 left join v2 on (v1.a=v2.a);
+select * from t3 left join v4 on (t3.a = v4.a);
+explain extended select * from t3 left join v4 on (t3.a = v4.a);
+# PS with view over views
+prepare stmt1 from "select * from t3 left join v4 on (t3.a = v4.a);";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+drop view v4,v3,v2,v1;
+drop tables t1,t2,t3;
+
+#
+# updating of join view
+#
+create table t1 (a int, primary key (a), b int);
+create table t2 (a int, primary key (a));
+insert into t1 values (1,100), (2,200);
+insert into t2 values (1), (3);
+# legal view for update
+create view v3 (a,b) as select t1.a as a, t2.a as b from t1, t2;
+update v3 set a= 10 where a=1;
+select * from t1;
+select * from t2;
+# view without primary key
+create view v2 (a,b) as select t1.b as a, t2.a as b from t1, t2;
+set updatable_views_with_limit=NO;
+-- error ER_NON_UPDATABLE_TABLE
+update v2 set a= 10 where a=200 limit 1;
+set updatable_views_with_limit=DEFAULT;
+# just view selects
+select * from v3;
+select * from v2;
+# prepare statement with updating join view
+set @a= 10;
+set @b= 100;
+prepare stmt1 from "update v3 set a= ? where a=?";
+execute stmt1 using @a,@b;
+select * from v3;
+set @a= 300;
+set @b= 10;
+execute stmt1 using @a,@b;
+select * from v3;
+deallocate prepare stmt1;
+drop view v3,v2;
+drop tables t1,t2;
+
+#
+# inserting/deleting join view
+#
+create table t1 (a int, primary key (a), b int);
+create table t2 (a int, primary key (a), b int);
+insert into t2 values (1000, 2000);
+create view v3 (a,b) as select t1.a as a, t2.a as b from t1, t2;
+# inserting into join view without field list
+-- error ER_VIEW_NO_INSERT_FIELD_LIST
+insert into v3 values (1,2);
+-- error ER_VIEW_NO_INSERT_FIELD_LIST
+insert into v3 select * from t2;
+# inserting in several tables of join view
+-- error ER_VIEW_MULTIUPDATE
+insert into v3(a,b) values (1,2);
+-- error ER_VIEW_MULTIUPDATE
+insert into v3(a,b) select * from t2;
+# correct inserts into join view
+insert into v3(a) values (1);
+insert into v3(b) values (10);
+insert into v3(a) select a from t2;
+insert into v3(b) select b from t2;
+insert into v3(a) values (1) on duplicate key update a=a+10000+VALUES(a);
+select * from t1;
+select * from t2;
+# try delete from join view
+-- error ER_VIEW_DELETE_MERGE_VIEW
+delete from v3;
+-- error ER_VIEW_DELETE_MERGE_VIEW
+delete v3,t1 from v3,t1;
+-- error ER_VIEW_DELETE_MERGE_VIEW
+delete t1,v3 from t1,v3;
+# delete from t1 just to reduce result set size
+delete from t1;
+# prepare statement with insert join view
+prepare stmt1 from "insert into v3(a) values (?);";
+set @a= 100;
+execute stmt1 using @a;
+set @a= 300;
+execute stmt1 using @a;
+deallocate prepare stmt1;
+prepare stmt1 from "insert into v3(a) select ?;";
+set @a= 101;
+execute stmt1 using @a;
+set @a= 301;
+execute stmt1 using @a;
+deallocate prepare stmt1;
+--sorted_result
+select * from v3;
+
+drop view v3;
+drop tables t1,t2;
+
+#
+# View field names should be case insensitive
+#
+create table t1(f1 int);
+create view v1 as select f1 from t1;
+select * from v1 where F1 = 1;
+drop view v1;
+drop table t1;
+
+#
+# Resolving view fields in subqueries in VIEW (Bug#6394)
+#
+create table t1(c1 int);
+create table t2(c2 int);
+insert into t1 values (1),(2),(3);
+insert into t2 values (1);
+SELECT c1 FROM t1 WHERE c1 IN (SELECT c2 FROM t2);
+SELECT c1 FROM t1 WHERE EXISTS (SELECT c2 FROM t2 WHERE c2 = c1);
+create view v1 as SELECT c1 FROM t1 WHERE c1 IN (SELECT c2 FROM t2);
+create view v2 as SELECT c1 FROM t1 WHERE EXISTS (SELECT c2 FROM t2 WHERE c2 = c1);
+select * from v1;
+select * from v2;
+select * from (select c1 from v2) X;
+drop view v2, v1;
+drop table t1, t2;
+
+#
+# view over other view setup (Bug#7433)
+#
+CREATE TABLE t1 (C1 INT, C2 INT);
+CREATE TABLE t2 (C2 INT);
+CREATE VIEW v1 AS SELECT C2 FROM t2;
+CREATE VIEW v2 AS SELECT C1 FROM t1 LEFT OUTER JOIN v1 USING (C2);
+SELECT * FROM v2;
+drop view v2, v1;
+drop table t1, t2;
+
+#
+# view and group_concat() (Bug#7116)
+#
+create table t1 (col1 char(5),col2 int,col3 int);
+insert into t1 values ('one',10,25), ('two',10,50), ('two',10,50), ('one',20,25), ('one',30,25);
+create view v1 as select * from t1;
+select col1,group_concat(col2,col3) from t1 group by col1;
+select col1,group_concat(col2,col3) from v1 group by col1;
+drop view v1;
+drop table t1;
+
+#
+# Item_ref resolved as view field (Bug#6894)
+#
+create table t1 (s1 int, s2 char);
+create view v1 as select s1, s2 from t1;
+-- error ER_BAD_FIELD_ERROR
+select s2 from v1 vq1 where 2 = (select count(*) from v1 vq2 having vq1.s2 = vq2.s2);
+select s2 from v1 vq1 where 2 = (select count(*) aa from v1 vq2 having vq1.s2 = aa);
+drop view v1;
+drop table t1;
+
+#
+# Test case for Bug#9398 CREATE TABLE with SELECT from a multi-table view
+#
+CREATE TABLE t1 (a1 int);
+CREATE TABLE t2 (a2 int);
+INSERT INTO t1 VALUES (1), (2), (3), (4);
+INSERT INTO t2 VALUES (1), (2), (3);
+CREATE VIEW v1(a,b) AS SELECT a1,a2 FROM t1 JOIN t2 ON a1=a2 WHERE a1>1;
+
+SELECT * FROM v1;
+CREATE TABLE t3 SELECT * FROM v1;
+SELECT * FROM t3;
+
+DROP VIEW v1;
+DROP TABLE t1,t2,t3;
+
+#
+# Test for Bug#8703 insert into table select from view crashes
+#
+create table t1 (a int);
+create table t2 like t1;
+create table t3 like t1;
+create view v1 as select t1.a x, t2.a y from t1 join t2 where t1.a=t2.a;
+insert into t3 select x from v1;
+insert into t2 select x from v1;
+drop view v1;
+drop table t1,t2,t3;
+
+#
+# Test for Bug#6106 query over a view using subquery for the underlying table
+#
+
+CREATE TABLE t1 (col1 int PRIMARY KEY, col2 varchar(10));
+INSERT INTO t1 VALUES(1,'trudy');
+INSERT INTO t1 VALUES(2,'peter');
+INSERT INTO t1 VALUES(3,'sanja');
+INSERT INTO t1 VALUES(4,'monty');
+INSERT INTO t1 VALUES(5,'david');
+INSERT INTO t1 VALUES(6,'kent');
+INSERT INTO t1 VALUES(7,'carsten');
+INSERT INTO t1 VALUES(8,'ranger');
+INSERT INTO t1 VALUES(10,'matt');
+CREATE TABLE t2 (col1 int, col2 int, col3 char(1));
+INSERT INTO t2 VALUES (1,1,'y');
+INSERT INTO t2 VALUES (1,2,'y');
+INSERT INTO t2 VALUES (2,1,'n');
+INSERT INTO t2 VALUES (3,1,'n');
+INSERT INTO t2 VALUES (4,1,'y');
+INSERT INTO t2 VALUES (4,2,'n');
+INSERT INTO t2 VALUES (4,3,'n');
+INSERT INTO t2 VALUES (6,1,'n');
+INSERT INTO t2 VALUES (8,1,'y');
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT a.col1,a.col2,b.col2,b.col3
+  FROM t1 a LEFT JOIN t2 b ON a.col1=b.col1
+    WHERE b.col2 IS NULL OR
+          b.col2=(SELECT MAX(col2) FROM t2 b WHERE b.col1=a.col1);
+
+SELECT a.col1,a.col2,b.col2,b.col3
+  FROM v1 a LEFT JOIN t2 b ON a.col1=b.col1
+    WHERE b.col2 IS NULL OR
+          b.col2=(SELECT MAX(col2) FROM t2 b WHERE b.col1=a.col1);
+
+CREATE VIEW v2 AS SELECT * FROM t2;
+
+SELECT a.col1,a.col2,b.col2,b.col3
+  FROM v2 b RIGHT JOIN v1 a ON a.col1=b.col1
+    WHERE b.col2 IS NULL OR
+          b.col2=(SELECT MAX(col2) FROM v2 b WHERE b.col1=a.col1);
+
+# Tests from the report for Bug#6107
+
+SELECT a.col1,a.col2,b.col2,b.col3
+  FROM v2 b RIGHT JOIN v1 a ON a.col1=b.col1
+    WHERE a.col1 IN (1,5,9) AND
+         (b.col2 IS NULL OR
+          b.col2=(SELECT MAX(col2) FROM v2 b WHERE b.col1=a.col1));
+
+CREATE VIEW v3 AS SELECT * FROM t1 WHERE col1 IN (1,5,9);
+
+SELECT a.col1,a.col2,b.col2,b.col3
+  FROM v2 b RIGHT JOIN v3 a ON a.col1=b.col1
+    WHERE b.col2 IS NULL OR
+          b.col2=(SELECT MAX(col2) FROM v2 b WHERE b.col1=a.col1);
+
+DROP VIEW v1,v2,v3;
+DROP TABLE t1,t2;
+
+#
+# Bug#8490 Select from views containing subqueries causes server to hang
+#          forever.
+#
+create table t1 as select 1 A union select 2 union select 3;
+create table t2 as select * from t1;
+create view v1 as select * from t1 where a in (select * from t2);
+select * from v1 A, v1 B where A.a = B.a;
+create table t3 as select a a,a b from t2;
+create view v2 as select * from t3 where
+  a in (select * from t1) or b in (select * from t2);
+select * from v2 A, v2 B where A.a = B.b;
+drop view v1, v2;
+drop table t1, t2, t3;
+
+#
+# Test case for Bug#8528 select from view over multi-table view
+#
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (b int);
+INSERT INTO t1 VALUES (1), (2), (3), (4);
+INSERT INTO t2 VALUES (4), (2);
+
+CREATE VIEW v1 AS SELECT * FROM t1,t2 WHERE t1.a=t2.b;
+SELECT * FROM v1;
+CREATE VIEW v2 AS SELECT * FROM v1;
+SELECT * FROM v2;
+
+DROP VIEW v2,v1;
+
+DROP TABLE t1, t2;
+#
+# Correct restoring view name in SP table locking Bug#9758
+#
+create table t1 (a int);
+create view v1 as select sum(a) from t1 group by a;
+delimiter //;
+create procedure p1()
+begin
+select * from v1;
+end//
+delimiter ;//
+call p1();
+call p1();
+drop procedure p1;
+drop view v1;
+drop table t1;
+
+#
+# Bug#7422 "order by" doesn't work
+#
+CREATE TABLE t1(a char(2) primary key, b char(2));
+CREATE TABLE t2(a char(2), b char(2), index i(a));
+INSERT INTO t1 VALUES ('a','1'), ('b','2');
+INSERT INTO t2 VALUES ('a','5'), ('a','6'), ('b','5'), ('b','6');
+CREATE VIEW v1 AS
+  SELECT t1.b as c, t2.b as d FROM t1,t2 WHERE t1.a=t2.a;
+SELECT d, c FROM v1 ORDER BY d,c;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+#
+# using sum(distinct ) & avg(distinct ) in views (Bug#7015)
+#
+create table t1 (s1 int);
+create view  v1 as select sum(distinct s1) from t1;
+select * from v1;
+drop view v1;
+create view  v1 as select avg(distinct s1) from t1;
+select * from v1;
+drop view v1;
+drop table t1;
+
+#
+# using cast(... as decimal) in views (Bug#11387);
+#
+create view v1 as select cast(1 as decimal);
+select * from v1;
+drop view v1;
+
+#
+# Bug#11298 insert into select from VIEW produces incorrect result when
+#           using ORDER BY
+create table t1(f1 int);
+create table t2(f2 int);
+insert into t1 values(1),(2),(3);
+insert into t2 values(1),(2),(3);
+create view v1 as select * from t1,t2 where f1=f2;
+create table t3 (f1 int, f2 int);
+insert into t3 select * from v1 order by 1;
+select * from t3;
+drop view v1;
+drop table t1,t2,t3;
+
+#
+# Generation unique names for columns, and correct names check (Bug#7448)
+#
+# names with ' and \
+create view v1 as select '\\','\\shazam';
+select * from v1;
+drop view v1;
+create view v1 as select '\'','\shazam';
+select * from v1;
+drop view v1;
+# autogenerated names differ by case only
+create view v1 as select 'k','K';
+select * from v1;
+drop view v1;
+create table t1 (s1 int);
+# same autogenerated names
+create view v1 as select s1, 's1' from t1;
+select * from v1;
+drop view v1;
+create view v1 as select 's1', s1 from t1;
+select * from v1;
+drop view v1;
+# set name as one of expected autogenerated
+create view v1 as select 's1', s1, 1 as My_exp_s1 from t1;
+select * from v1;
+drop view v1;
+create view v1 as select 1 as My_exp_s1, 's1', s1  from t1;
+select * from v1;
+drop view v1;
+# set name conflict with autogenerated names
+create view v1 as select 1 as s1, 's1', 's1' from t1;
+select * from v1;
+drop view v1;
+create view v1 as select 's1', 's1', 1 as s1 from t1;
+select * from v1;
+drop view v1;
+# underlying field name conflict with autogenerated names
+create view v1 as select s1, 's1', 's1' from t1;
+select * from v1;
+drop view v1;
+create view v1 as select 's1', 's1', s1 from t1;
+select * from v1;
+drop view v1;
+# underlying field name conflict with set name
+-- error ER_DUP_FIELDNAME
+create view v1 as select 1 as s1, 's1', s1 from t1;
+-- error ER_DUP_FIELDNAME
+create view v1 as select 's1', s1, 1 as s1 from t1;
+drop table t1;
+# set names differ by case only
+-- error ER_DUP_FIELDNAME
+create view v1(k, K) as select 1,2;
+
+#
+# using time_format in view (Bug#7521)
+#
+create view v1 as SELECT TIME_FORMAT(SEC_TO_TIME(3600),'%H:%i') as t;
+select * from v1;
+drop view v1;
+
+#
+# evaluation constant functions in WHERE (Bug#4663)
+#
+create table t1 (a timestamp default now());
+create table t2 (b timestamp default now());
+create view v1 as select a,b,t1.a < now() from t1,t2 where t1.a < now();
+SHOW CREATE VIEW v1;
+drop view v1;
+drop table t1, t2;
+CREATE TABLE t1 ( a varchar(50) );
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a = CURRENT_USER();
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a = VERSION();
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a = DATABASE();
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+#
+# checking views after some view with error (Bug#11337)
+#
+CREATE TABLE t1 (col1 time);
+CREATE TABLE t2 (col1 time);
+CREATE VIEW v1 AS SELECT CONVERT_TZ(col1,'GMT','MET') FROM t1;
+CREATE VIEW v2 AS SELECT CONVERT_TZ(col1,'GMT','MET') FROM t2;
+CREATE VIEW v3 AS SELECT CONVERT_TZ(col1,'GMT','MET') FROM t1;
+CREATE VIEW v4 AS SELECT CONVERT_TZ(col1,'GMT','MET') FROM t2;
+CREATE VIEW v5 AS SELECT CONVERT_TZ(col1,'GMT','MET') FROM t1;
+CREATE VIEW v6 AS SELECT CONVERT_TZ(col1,'GMT','MET') FROM t2;
+DROP TABLE t1;
+CHECK TABLE v1, v2, v3, v4, v5, v6;
+drop view v1, v2, v3, v4, v5, v6;
+drop table t2;
+
+--disable_warnings
+drop function if exists f1;
+drop function if exists f2;
+--enable_warnings
+CREATE TABLE t1 (col1 time);
+CREATE TABLE t2 (col1 time);
+CREATE TABLE t3 (col1 time);
+create function f1 () returns int return (select max(col1) from t1);
+create function f2 () returns int return (select max(col1) from t2);
+CREATE VIEW v1 AS SELECT f1() FROM t3;
+CREATE VIEW v2 AS SELECT f2() FROM t3;
+CREATE VIEW v3 AS SELECT f1() FROM t3;
+CREATE VIEW v4 AS SELECT f2() FROM t3;
+CREATE VIEW v5 AS SELECT f1() FROM t3;
+CREATE VIEW v6 AS SELECT f2() FROM t3;
+drop function f1;
+CHECK TABLE v1, v2, v3, v4, v5, v6;
+create function f1 () returns int return (select max(col1) from t1);
+DROP TABLE t1;
+CHECK TABLE v1, v2, v3, v4, v5, v6;
+drop function f1;
+drop function f2;
+drop view v1, v2, v3, v4, v5, v6;
+drop table t2,t3;
+
+#
+# Bug#11325 Wrong date comparison in views
+#
+create table t1 (f1 date);
+insert into t1 values ('2005-01-01'),('2005-02-02');
+create view v1 as select * from t1;
+select * from v1 where f1='2005.02.02';
+select * from v1 where '2005.02.02'=f1;
+drop view v1;
+drop table t1;
+
+#
+# using encrypt & substring_index in view (Bug#7024)
+#
+CREATE VIEW v1 AS SELECT ENCRYPT("dhgdhgd");
+disable_result_log;
+SELECT * FROM v1;
+enable_result_log;
+drop view v1;
+CREATE VIEW v1 AS SELECT SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1);
+SELECT * FROM v1;
+drop view v1;
+
+#
+# hide underlying tables names in case of imposibility to update (Bug#10773)
+#
+create table t1 (f59 int, f60 int, f61 int);
+insert into t1 values (19,41,32);
+create view v1 as select f59, f60 from t1 where f59 in
+         (select f59 from t1);
+-- error ER_NON_UPDATABLE_TABLE
+update v1 set f60=2345;
+drop view v1;
+drop table t1;
+
+#
+# Using var_samp with view (Bug#10651)
+#
+create table t1 (s1 int);
+create view v1 as select var_samp(s1) from t1;
+show create view v1;
+drop view v1;
+drop table t1;
+
+
+#
+# Correct inserting data check (absence of default value) for view
+# underlying tables (Bug#6443)
+#
+set sql_mode='strict_all_tables';
+CREATE TABLE t1 (col1 INT NOT NULL, col2 INT NOT NULL);
+CREATE VIEW v1 (vcol1) AS SELECT col1 FROM t1;
+CREATE VIEW v2 (vcol1) AS SELECT col1 FROM t1 WHERE col2 > 2;
+-- error ER_NO_DEFAULT_FOR_FIELD
+INSERT INTO t1 (col1) VALUES(12);
+-- error ER_NO_DEFAULT_FOR_VIEW_FIELD
+INSERT INTO v1 (vcol1) VALUES(12);
+-- error ER_NO_DEFAULT_FOR_VIEW_FIELD
+INSERT INTO v2 (vcol1) VALUES(12);
+set sql_mode=default;
+drop view v2,v1;
+drop table t1;
+
+
+#
+# Bug#11399 Use an alias in a select statement on a view
+#
+create table t1 (f1 int);
+insert into t1 values (1);
+create view v1 as select f1 from t1;
+select f1 as alias from v1;
+drop view v1;
+drop table t1;
+
+
+#
+# Test for Bug#6120 SP cache to be invalidated when altering a view
+#
+
+CREATE TABLE t1 (s1 int, s2 int);
+INSERT  INTO t1 VALUES (1,2);
+CREATE VIEW v1 AS SELECT s2 AS s1, s1 AS s2 FROM t1;
+SELECT * FROM v1;
+CREATE PROCEDURE p1 () SELECT * FROM v1;
+CALL p1();
+ALTER VIEW v1 AS SELECT s1 AS s1, s2 AS s2 FROM t1;
+CALL p1();
+DROP VIEW v1;
+CREATE VIEW v1 AS SELECT s2 AS s1, s1 AS s2 FROM t1;
+CALL p1();
+
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Test for Bug#11709 View was ordered by wrong column
+#
+create table t1 (f1 int, f2 int);
+create view v1 as select f1 as f3, f2 as f1 from t1;
+insert into t1 values (1,3),(2,1),(3,2);
+select * from v1 order by f1;
+drop view v1;
+drop table t1;
+
+
+#
+# Test for Bug#11771 wrong query_id in SELECT * FROM <view>
+#
+CREATE TABLE t1 (f1 char);
+INSERT INTO t1 VALUES ('A');
+CREATE VIEW  v1 AS SELECT * FROM t1;
+
+INSERT INTO t1 VALUES('B');
+SELECT * FROM v1;
+SELECT * FROM t1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# opening table in correct locking mode (Bug#9597)
+#
+CREATE TABLE t1 ( bug_table_seq   INTEGER NOT NULL);
+CREATE OR REPLACE VIEW v1 AS SELECT * from t1;
+DROP PROCEDURE IF EXISTS p1;
+delimiter //;
+CREATE PROCEDURE p1 ( )
+BEGIN
+        DO (SELECT  @next := IFNULL(max(bug_table_seq),0) + 1 FROM v1);
+        INSERT INTO t1 VALUES (1);
+END //
+delimiter ;//
+CALL p1();
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#11760 Typo in Item_func_add_time::print() results in NULLs returned
+#             subtime() in view
+create table t1(f1 datetime);
+insert into t1 values('2005.01.01 12:0:0');
+create view v1 as select f1, subtime(f1, '1:1:1') as sb from t1;
+select * from v1;
+drop view v1;
+drop table t1;
+
+
+#
+# Test for Bug#11412 query over a multitable view with GROUP_CONCAT
+#
+CREATE TABLE t1 (
+  aid int PRIMARY KEY,
+  fn varchar(20) NOT NULL,
+  ln varchar(20) NOT NULL
+);
+CREATE TABLE t2 (
+  aid int NOT NULL,
+  pid int NOT NULL
+);
+INSERT INTO t1 VALUES(1,'a','b'), (2,'c','d');
+INSERT INTO t2 values (1,1), (2,1), (2,2);
+
+CREATE VIEW v1 AS SELECT t1.*,t2.pid FROM t1,t2 WHERE t1.aid = t2.aid;
+
+SELECT pid,GROUP_CONCAT(CONCAT(fn,' ',ln) ORDER BY 1) FROM t1,t2
+  WHERE t1.aid = t2.aid GROUP BY pid;
+SELECT pid,GROUP_CONCAT(CONCAT(fn,' ',ln) ORDER BY 1) FROM v1 GROUP BY pid;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+
+#
+# Test for Bug#12382 SELECT * FROM view after INSERT command
+#
+
+CREATE TABLE t1 (id int PRIMARY KEY, f varchar(255));
+CREATE VIEW v1 AS SELECT id, f FROM t1 WHERE id <= 2;
+INSERT INTO t1 VALUES (2, 'foo2');
+INSERT INTO t1 VALUES (1, 'foo1');
+
+SELECT * FROM v1;
+SELECT * FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Test for Bug#12470 crash for a simple select from a view defined
+#                    as a join over 5 tables
+
+CREATE TABLE t1 (pk int PRIMARY KEY, b int);
+CREATE TABLE t2 (pk int PRIMARY KEY, fk int, INDEX idx(fk));
+CREATE TABLE t3 (pk int PRIMARY KEY, fk int, INDEX idx(fk));
+CREATE TABLE t4 (pk int PRIMARY KEY, fk int, INDEX idx(fk));
+CREATE TABLE t5 (pk int PRIMARY KEY, fk int, INDEX idx(fk));
+CREATE VIEW v1 AS
+  SELECT t1.pk as a FROM t1,t2,t3,t4,t5
+    WHERE t1.b IS NULL AND
+          t1.pk=t2.fk AND t2.pk=t3.fk AND t3.pk=t4.fk AND t4.pk=t5.fk;
+
+SELECT a FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1,t2,t3,t4,t5;
+
+
+#
+# Bug#12298 Typo in function name results in erroneous view being created.
+#
+create view v1 as select timestampdiff(day,'1997-01-01 00:00:00','1997-01-02 00:00:00') as f1;
+select * from v1;
+drop view v1;
+
+#
+# repeatable CREATE VIEW statement Bug#12468
+#
+create table t1(a int);
+create procedure p1() create view v1 as select * from t1;
+drop table t1;
+-- error ER_NO_SUCH_TABLE
+call p1();
+-- error ER_NO_SUCH_TABLE
+call p1();
+drop procedure p1;
+
+
+#
+# Bug#10624 Views with multiple UNION and UNION ALL produce incorrect results
+#
+create table t1 (f1 int);
+create table t2 (f1 int);
+insert into t1 values (1);
+insert into t2 values (2);
+create view v1 as select * from t1 union select * from t2 union all select * from t2;
+select * from v1;
+drop view v1;
+drop table t1,t2;
+
+
+#
+# Test for Bug#10970 view referring a temporary table indirectly
+#
+
+CREATE TEMPORARY TABLE t1 (a int);
+CREATE FUNCTION f1 () RETURNS int RETURN (SELECT COUNT(*) FROM t1);
+-- error ER_VIEW_SELECT_TMPTABLE
+CREATE VIEW v1 AS SELECT f1();
+
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+#
+# Bug#12533 (crash on DESCRIBE <view> after renaming base table column)
+#
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP VIEW  IF EXISTS v1;
+--enable_warnings
+
+CREATE TABLE t1 (f4 CHAR(5));
+CREATE VIEW v1 AS SELECT * FROM t1;
+DESCRIBE v1;
+
+ALTER TABLE t1 CHANGE COLUMN f4 f4x CHAR(5);
+--error ER_VIEW_INVALID
+DESCRIBE v1;
+DROP TABLE t1;
+DROP VIEW v1;
+
+
+#
+# Bug#12489 wrongly printed strcmp() function results in creation of broken
+#            view
+create table t1 (f1 char);
+create view v1 as select strcmp(f1,'a') from t1;
+select * from v1;
+drop view v1;
+drop table t1;
+
+
+#
+# Bug#12922 if(sum(),...) with group from view returns wrong results
+#
+create table t1 (f1 int, f2 int,f3 int);
+insert into t1 values (1,10,20),(2,0,0);
+create view v1 as select * from t1;
+select if(sum(f1)>1,f2,f3) from v1 group by f1;
+drop view v1;
+drop table t1;
+
+
+# Bug#12941
+#
+create table t1 (
+  r_object_id char(16) NOT NULL,
+  group_name varchar(32) NOT NULL
+);
+
+create table t2 (
+  r_object_id char(16) NOT NULL,
+  i_position int(11) NOT NULL,
+  users_names varchar(32) default NULL
+);
+
+create view v1 as select r_object_id, group_name from t1;
+create view v2 as select r_object_id, i_position, users_names from t2;
+
+create unique index r_object_id on t1(r_object_id);
+create index group_name on t1(group_name);
+create unique index r_object_id_i_position on t2(r_object_id,i_position);
+create index users_names on t2(users_names);
+
+insert into t1 values('120001a080000542','tstgroup1');
+insert into t2 values('120001a080000542',-1, 'guser01');
+insert into t2 values('120001a080000542',-2, 'guser02');
+
+select v1.r_object_id, v2.users_names from v1, v2
+where (v1.group_name='tstgroup1') and v2.r_object_id=v1.r_object_id
+order by users_names;
+
+drop view v1, v2;
+drop table t1, t2;
+
+
+#
+# Bug#6808 Views: CREATE VIEW v ... FROM t AS v fails
+#
+
+create table t1 (s1 int);
+create view abc as select * from t1 as abc;
+drop table t1;
+drop view abc;
+
+
+#
+# Bug#12993 View column rename broken in subselect
+#
+
+flush status;
+create table t1(f1 char(1));
+create view v1 as select * from t1;
+select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+--disable_ps_protocol
+show status like "Created_tmp%";
+--enable_ps_protocol
+drop view v1;
+drop table t1;
+
+set @tmp=@@optimizer_switch;
+set @@optimizer_switch='derived_merge=OFF';
+create table t1(f1 char(1));
+create view v1 as select * from t1;
+select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
+--disable_ps_protocol
+show status like "Created_tmp%";
+--enable_ps_protocol
+drop view v1;
+drop table t1;
+set @@optimizer_switch=@tmp;
+
+#
+# Bug#11416 Server crash if using a view that uses function convert_tz
+#
+create view v1 as SELECT CONVERT_TZ('2004-01-01 12:00:00','GMT','MET');
+select * from v1;
+drop view v1;
+
+
+#
+# Bugs#12963, #13000 wrong creation of VIEW with DAYNAME, DAYOFWEEK, and WEEKDAY
+#
+
+CREATE TABLE t1 (date DATE NOT NULL);
+INSERT INTO  t1 VALUES ('2005-09-06');
+
+CREATE VIEW v1 AS SELECT DAYNAME(date) FROM t1;
+SHOW CREATE VIEW v1;
+
+CREATE VIEW v2 AS SELECT DAYOFWEEK(date) FROM t1;
+SHOW CREATE VIEW v2;
+
+CREATE VIEW v3 AS SELECT WEEKDAY(date) FROM t1;
+SHOW CREATE VIEW v3;
+
+SELECT DAYNAME('2005-09-06');
+SELECT DAYNAME(date) FROM t1;
+SELECT * FROM v1;
+
+SELECT DAYOFWEEK('2005-09-06');
+SELECT DAYOFWEEK(date) FROM t1;
+SELECT * FROM v2;
+
+SELECT WEEKDAY('2005-09-06');
+SELECT WEEKDAY(date) FROM t1;
+SELECT * FROM v3;
+
+DROP TABLE t1;
+DROP VIEW  v1, v2, v3;
+
+
+#
+# Bug#13411 crash when using non-qualified view column in HAVING clause
+#
+
+CREATE TABLE t1 ( a int, b int );
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+CREATE VIEW v1 AS SELECT a,b FROM t1;
+SELECT t1.a FROM t1 GROUP BY t1.a HAVING a > 1;
+SELECT v1.a FROM v1 GROUP BY v1.a HAVING a > 1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#13410 failed name resolution for qualified view column in HAVING
+#
+
+CREATE TABLE t1 ( a int, b int );
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+CREATE VIEW v1 AS SELECT a,b FROM t1;
+SELECT t1.a FROM t1 GROUP BY t1.a HAVING t1.a > 1;
+SELECT v1.a FROM v1 GROUP BY v1.a HAVING v1.a > 1;
+SELECT t_1.a FROM t1 AS t_1 GROUP BY t_1.a HAVING t_1.a IN (1,2,3);
+SELECT v_1.a FROM v1 AS v_1 GROUP BY v_1.a HAVING v_1.a IN (1,2,3);
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#13327 view wasn't using index for const condition
+#
+
+CREATE TABLE t1 (a INT, b INT, INDEX(a,b));
+CREATE TABLE t2 LIKE t1;
+CREATE TABLE t3 (a INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+INSERT INTO t2 VALUES (1,1),(2,2),(3,3);
+INSERT INTO t3 VALUES (1),(2),(3);
+CREATE VIEW v1 AS SELECT t1.* FROM t1,t2 WHERE t1.a=t2.a AND t1.b=t2.b;
+CREATE VIEW v2 AS SELECT t3.* FROM t1,t3 WHERE t1.a=t3.a;
+EXPLAIN SELECT t1.* FROM t1 JOIN t2 WHERE t1.a=t2.a AND t1.b=t2.b AND t1.a=1;
+EXPLAIN SELECT * FROM v1 WHERE a=1;
+EXPLAIN SELECT * FROM v2 WHERE a=1;
+DROP VIEW v1,v2;
+DROP TABLE t1,t2,t3;
+
+
+#
+# Bug#13622 Wrong view .frm created if some field's alias contain \n
+#
+create table t1 (f1 int);
+create view v1 as select t1.f1 as '123
+456' from t1;
+select * from v1;
+drop view v1;
+drop table t1;
+
+
+# Bug#14466 lost sort order in GROUP_CONCAT() in a view
+#
+create table t1 (f1 int, f2 int);
+insert into t1 values(1,1),(1,2),(1,3);
+create view v1 as select f1 ,group_concat(f2 order by f2 asc) from t1 group by f1;
+create view v2 as select f1 ,group_concat(f2 order by f2 desc) from t1 group by f1;
+select * from v1;
+select * from v2;
+drop view v1,v2;
+drop table t1;
+
+
+#
+# Bug#14026 Crash on second PS execution when using views
+#
+create table t1 (x int, y int);
+create table t2 (x int, y int, z int);
+create table t3 (x int, y int, z int);
+create table t4 (x int, y int, z int);
+
+create view v1 as
+select t1.x
+from (
+  (t1 join t2 on ((t1.y = t2.y)))
+  join
+  (t3 left join t4 on (t3.y = t4.y) and (t3.z = t4.z))
+);
+
+prepare stmt1 from "select count(*) from v1 where x = ?";
+set @parm1=1;
+
+execute stmt1 using @parm1;
+execute stmt1 using @parm1;
+drop view v1;
+drop table t1,t2,t3,t4;
+
+
+#
+# Bug#14540 OPTIMIZE, ANALYZE, REPAIR applied to not a view
+#
+
+CREATE TABLE t1(id INT);
+CREATE VIEW v1 AS SELECT id FROM t1;
+
+OPTIMIZE TABLE v1;
+ANALYZE TABLE v1;
+REPAIR TABLE v1;
+
+DROP TABLE t1;
+OPTIMIZE TABLE v1;
+ANALYZE TABLE v1;
+REPAIR TABLE v1;
+
+DROP VIEW v1;
+
+
+#
+# Bug#14719 Views DEFINER grammar is incorrect
+#
+
+create definer = current_user() sql security invoker view v1 as select 1;
+show create view v1;
+drop view v1;
+
+create definer = current_user sql security invoker view v1 as select 1;
+show create view v1;
+drop view v1;
+
+
+#
+# Bug#14816 test_if_order_by_key() expected only Item_fields.
+#
+create table t1 (id INT, primary key(id));
+insert into t1 values (1),(2);
+create view v1 as select * from t1;
+explain select id from v1 order by id;
+drop view v1;
+drop table t1;
+
+
+#
+# Bug#14850 Item_ref's values wasn't updated
+#
+create table t1(f1 int, f2 int);
+insert into t1 values (null, 10), (null,2);
+select f1, sum(f2) from t1 group by f1;
+create view v1 as select * from t1;
+select f1, sum(f2) from v1 group by f1;
+drop view v1;
+drop table t1;
+
+
+#
+# Bug#14885 incorrect SOURCE in view created in a procedure
+# TODO: here SOURCE string must be shown when it will be possible
+#
+--disable_warnings
+drop procedure if exists p1;
+--enable_warnings
+delimiter //;
+create procedure p1 () deterministic
+begin
+create view v1 as select 1;
+end;
+//
+delimiter ;//
+call p1();
+show create view v1;
+drop view v1;
+drop procedure p1;
+
+
+#
+# Bug#15096 using function with view for view creation
+#
+CREATE VIEW v1 AS SELECT 42 AS Meaning;
+--disable_warnings
+DROP FUNCTION IF EXISTS f1;
+--enable_warnings
+DELIMITER //;
+CREATE FUNCTION f1() RETURNS INTEGER
+BEGIN
+  DECLARE retn INTEGER;
+  SELECT Meaning FROM v1 INTO retn;
+  RETURN retn;
+END
+//
+DELIMITER ;//
+CREATE VIEW v2 AS SELECT f1();
+select * from v2;
+drop view v2,v1;
+drop function f1;
+
+
+#
+# Bug#14861 aliased column names are not preserved.
+#
+create table t1 (id numeric, warehouse_id numeric);
+create view v1 as select id from t1;
+create view v2 as
+select t1.warehouse_id, v1.id as receipt_id
+from t1, v1 where t1.id = v1.id;
+
+insert into t1 (id, warehouse_id) values(3, 2);
+insert into t1 (id, warehouse_id) values(4, 2);
+insert into t1 (id, warehouse_id) values(5, 1);
+
+select v2.receipt_id as alias1, v2.receipt_id as alias2 from v2
+order by v2.receipt_id;
+
+drop view v2, v1;
+drop table t1;
+
+
+#
+# Bug#16016 MIN/MAX optimization for views
+#
+
+CREATE TABLE t1 (a int PRIMARY KEY, b int);
+INSERT INTO t1 VALUES (2,20), (3,10), (1,10), (0,30), (5,10);
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT MAX(a) FROM t1;
+SELECT MAX(a) FROM v1;
+
+EXPLAIN SELECT MAX(a) FROM t1;
+EXPLAIN SELECT MAX(a) FROM v1;
+
+SELECT MIN(a) FROM t1;
+SELECT MIN(a) FROM v1;
+
+EXPLAIN SELECT MIN(a) FROM t1;
+EXPLAIN SELECT MIN(a) FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#16382 grouping name is resolved against a view column name
+#           which coincides with a select column name
+
+CREATE TABLE t1 (x varchar(10));
+INSERT INTO t1 VALUES (null), ('foo'), ('bar'), (null);
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT IF(x IS NULL, 'blank', 'not blank') FROM v1 GROUP BY x;
+SELECT IF(x IS NULL, 'blank', 'not blank') AS x FROM t1 GROUP BY x;
+SELECT IF(x IS NULL, 'blank', 'not blank') AS x FROM v1;
+SELECT IF(x IS NULL, 'blank', 'not blank') AS y FROM v1 GROUP BY y;
+SELECT IF(x IS NULL, 'blank', 'not blank') AS x FROM v1 GROUP BY x;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#15943 mysql_next_result hangs on invalid SHOW CREATE VIEW
+#
+
+--disable_ps_protocol
+delimiter //;
+drop table if exists t1;
+drop view if exists v1;
+create table t1 (id int);
+create view v1 as select * from t1;
+drop table t1;
+show create view v1;
+drop view v1;
+//
+delimiter ;//
+--enable_ps_protocol
+
+
+#
+# Bug#17726 Not checked empty list caused endless loop
+#
+create table t1(f1 int, f2 int);
+create view v1 as select ta.f1 as a, tb.f1 as b from t1 ta, t1 tb where ta.f1=tb
+.f1 and ta.f2=tb.f2;
+insert into t1 values(1,1),(2,2);
+create view v2 as select * from v1 where a > 1 with local check option;
+select * from v2;
+update v2 set b=3 where a=2;
+select * from v2;
+drop view v2, v1;
+drop table t1;
+
+
+#
+# Bug#18386 select from view over a table with ORDER BY view_col clause
+#           given view_col is not an image of any column from the base table
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1), (2);
+
+CREATE VIEW v1 AS SELECT SQRT(a) my_sqrt FROM t1;
+
+SELECT my_sqrt FROM v1 ORDER BY my_sqrt;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#18237 invalid count optimization applied to an outer join with a view
+#
+
+CREATE TABLE t1 (id int PRIMARY KEY);
+CREATE TABLE t2 (id int PRIMARY KEY);
+
+INSERT INTO t1 VALUES (1), (3);
+INSERT INTO t2 VALUES (1), (2), (3);
+
+CREATE VIEW v2 AS SELECT * FROM t2;
+
+SELECT COUNT(*) FROM t1 LEFT JOIN t2 ON t1.id=t2.id;
+SELECT * FROM t1 LEFT JOIN t2 ON t1.id=t2.id;
+
+SELECT COUNT(*) FROM t1 LEFT JOIN v2 ON t1.id=v2.id;
+
+DROP VIEW v2;
+
+DROP TABLE t1, t2;
+
+
+#
+# Bug#16069 VIEW does return the same results as underlying SELECT
+#           with WHERE condition containing BETWEEN over dates
+# Dates as strings should be casted to date type
+
+CREATE TABLE t1 (id int NOT NULL PRIMARY KEY,
+                 td date DEFAULT NULL, KEY idx(td));
+
+INSERT INTO t1 VALUES
+ (1, '2005-01-01'), (2, '2005-01-02'), (3, '2005-01-02'),
+ (4, '2005-01-03'), (5, '2005-01-04'), (6, '2005-01-05'),
+ (7, '2005-01-05'), (8, '2005-01-05'), (9, '2005-01-06');
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT * FROM t1 WHERE td BETWEEN CAST('2005.01.02' AS DATE) AND CAST('2005.01.04' AS DATE);
+SELECT * FROM v1 WHERE td BETWEEN CAST('2005.01.02' AS DATE) AND CAST('2005.01.04' AS DATE);
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#14308 Recursive view definitions
+#
+# using view only
+create table t1 (a int);
+create view v1 as select * from t1;
+create view v2 as select * from v1;
+drop table t1;
+rename table v2 to t1;
+-- error ER_VIEW_RECURSIVE
+select * from v1;
+drop view t1, v1;
+# using SP function
+create table t1 (a int);
+delimiter //;
+create function f1() returns int
+begin
+  declare mx int;
+  select max(a) from t1 into mx;
+  return mx;
+end//
+delimiter ;//
+create view v1 as select f1() as a;
+create view v2 as select * from v1;
+drop table t1;
+rename table v2 to t1;
+-- error ER_SP_NO_RECURSION
+select * from v1;
+drop function f1;
+drop view t1, v1;
+
+
+#
+# Bug#15153 CONVERT_TZ() is not allowed in all places in VIEWs
+#
+# Error was reported when one tried to use CONVERT_TZ() function
+# select list of view which was processed using MERGE algorithm.
+# (Also see additional test in timezone_grant.test)
+create table t1 (dt datetime);
+insert into t1 values (20040101000000), (20050101000000), (20060101000000);
+# Let us test that convert_tz() can be used in view's select list
+create view v1 as select convert_tz(dt, 'UTC', 'Europe/Moscow') as ldt from t1;
+select * from v1;
+drop view v1;
+# And in its where part
+create view v1 as select * from t1 where convert_tz(dt, 'UTC', 'Europe/Moscow') >= 20050101000000;
+select * from v1;
+# Other interesting case - a view which uses convert_tz() function
+# through other view.
+create view v2 as select * from v1 where dt < 20060101000000;
+select * from v2;
+drop view v2;
+# And even more interesting case when view uses convert_tz() both
+# directly and indirectly
+create view v2 as select convert_tz(dt, 'UTC', 'Europe/Moscow') as ldt from v1;
+select * from v2;
+drop view v1, v2;
+drop table t1;
+
+
+#
+# Bug#19490 usage of view specified by a query with GROUP BY
+#           an expression containing non-constant interval
+
+CREATE TABLE t1 (id int NOT NULL PRIMARY KEY, d datetime);
+
+CREATE VIEW v1 AS
+SELECT id, date(d) + INTERVAL TIME_TO_SEC(d) SECOND AS t, COUNT(*)
+  FROM t1 GROUP BY id, t;
+
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#19077 A nested materialized view is used before being populated.
+#
+CREATE TABLE t1 (i INT, j BIGINT);
+INSERT INTO t1 VALUES (1, 2), (2, 2), (3, 2);
+CREATE VIEW v1 AS SELECT MIN(j) AS j FROM t1;
+CREATE VIEW v2 AS SELECT MIN(i) FROM t1 WHERE j = ( SELECT * FROM v1 );
+SELECT * FROM v2;
+DROP VIEW v2, v1;
+DROP TABLE t1;
+
+
+#
+# Bug#19573 VIEW with HAVING that refers an alias name
+#
+
+CREATE TABLE t1(
+  fName varchar(25) NOT NULL,
+  lName varchar(25) NOT NULL,
+  DOB date NOT NULL,
+  test_date date NOT NULL,
+  uID int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY);
+
+INSERT INTO t1(fName, lName, DOB, test_date) VALUES
+  ('Hank', 'Hill', '1964-09-29', '2007-01-01'),
+  ('Tom', 'Adams', '1908-02-14', '2007-01-01'),
+  ('Homer', 'Simpson', '1968-03-05', '2007-01-01');
+
+CREATE VIEW v1 AS
+  SELECT (year(test_date)-year(DOB)) AS Age
+    FROM t1 HAVING Age < 75;
+SHOW CREATE VIEW v1;
+
+SELECT (year(test_date)-year(DOB)) AS Age FROM t1 HAVING Age < 75;
+SELECT * FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#19089 wrong inherited dafault values in temp table views
+#
+
+CREATE TABLE t1 (id int NOT NULL PRIMARY KEY, a char(6) DEFAULT 'xxx');
+INSERT INTO t1(id) VALUES (1), (2), (3), (4);
+INSERT INTO t1 VALUES (5,'yyy'), (6,'yyy');
+SELECT * FROM t1;
+
+CREATE VIEW v1(a, m) AS SELECT a, MIN(id) FROM t1 GROUP BY a;
+SELECT * FROM v1;
+
+CREATE TABLE t2 SELECT * FROM v1;
+INSERT INTO t2(m) VALUES (0);
+SELECT * FROM t2;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (id int PRIMARY KEY, e ENUM('a','b') NOT NULL DEFAULT 'b');
+INSERT INTO t1(id) VALUES (1), (2), (3);
+INSERT INTO t1 VALUES (4,'a');
+SELECT * FROM t1;
+
+CREATE VIEW v1(m, e) AS SELECT MIN(id), e FROM t1 GROUP BY e;
+CREATE TABLE t2 SELECT * FROM v1;
+SELECT * FROM t2;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+
+#
+# Bug#16110 insert permitted into view col w/o default value
+#
+CREATE TABLE t1 (a INT NOT NULL, b INT NULL DEFAULT NULL);
+CREATE VIEW v1 AS SELECT a, b FROM t1;
+
+INSERT IGNORE INTO v1 (b) VALUES (2);
+
+SET SQL_MODE = STRICT_ALL_TABLES;
+--error ER_NO_DEFAULT_FOR_VIEW_FIELD
+INSERT INTO v1 (b) VALUES (4);
+SET SQL_MODE = '';
+
+SELECT * FROM t1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#18243 expression over a view column that with the REVERSE function
+#
+
+CREATE TABLE t1 (firstname text, surname text);
+INSERT INTO t1 VALUES
+  ("Bart","Simpson"),("Milhouse","van Houten"),("Montgomery","Burns");
+
+CREATE VIEW v1 AS SELECT CONCAT(firstname," ",surname) AS name FROM t1;
+SELECT CONCAT(LEFT(name,LENGTH(name)-INSTR(REVERSE(name)," ")),
+              LEFT(name,LENGTH(name)-INSTR(REVERSE(name)," "))) AS f1
+ FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#19714 wrong type of a view column specified by an expressions over ints
+#
+
+CREATE TABLE t1 (i int, j int);
+CREATE VIEW v1 AS SELECT COALESCE(i,j) FROM t1;
+DESCRIBE v1;
+CREATE TABLE t2 SELECT COALESCE(i,j) FROM t1;
+DESCRIBE t2;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+
+#
+# Bug#17526 views with TRIM functions
+#
+
+CREATE TABLE t1 (s varchar(10));
+INSERT INTO t1 VALUES ('yadda'), ('yady');
+
+SELECT TRIM(BOTH 'y' FROM s) FROM t1;
+CREATE VIEW v1 AS SELECT TRIM(BOTH 'y' FROM s) FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+SELECT TRIM(LEADING 'y' FROM s) FROM t1;
+CREATE VIEW v1 AS SELECT TRIM(LEADING 'y' FROM s) FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+SELECT TRIM(TRAILING 'y' FROM s) FROM t1;
+CREATE VIEW v1 AS SELECT TRIM(TRAILING 'y' FROM s) FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+DROP TABLE t1;
+
+
+#
+# Bug#21080 ALTER VIEW makes user restate SQL SECURITY mode, and ALGORITHM
+#
+CREATE TABLE t1 (x INT, y INT);
+CREATE ALGORITHM=TEMPTABLE SQL SECURITY INVOKER VIEW v1 AS SELECT x FROM t1;
+SHOW CREATE VIEW v1;
+
+ALTER VIEW v1 AS SELECT x, y FROM t1;
+SHOW CREATE VIEW v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+# Bug#21086 server crashes when VIEW defined with a SELECT with COLLATE
+#           clause is called
+#
+CREATE TABLE t1 (s1 char);
+INSERT INTO t1 VALUES ('Z');
+
+CREATE VIEW v1 AS SELECT s1 collate latin1_german1_ci AS col FROM t1;
+
+CREATE VIEW v2 (col) AS SELECT s1 collate latin1_german1_ci FROM t1;
+
+# either of these statements will cause crash
+INSERT INTO v1 (col) VALUES ('b');
+INSERT INTO v2 (col) VALUES ('c');
+
+SELECT s1 FROM t1;
+DROP VIEW v1, v2;
+DROP TABLE t1;
+
+
+#
+# Bug#11551 Asymmetric + undocumented behaviour of DROP VIEW and DROP TABLE
+#
+CREATE TABLE t1 (id INT);
+CREATE VIEW v1 AS SELECT id FROM t1;
+SHOW TABLES;
+
+--error ER_UNKNOWN_VIEW
+DROP VIEW v2,v1;
+SHOW TABLES;
+
+CREATE VIEW v1 AS SELECT id FROM t1;
+--error ER_WRONG_OBJECT
+DROP VIEW t1,v1;
+SHOW TABLES;
+
+DROP TABLE t1;
+--disable_warnings
+DROP VIEW IF EXISTS v1;
+--enable_warnings
+
+
+#
+# Bug#21261 Wrong access rights was required for an insert to a view
+#
+
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
+CREATE DATABASE bug21261DB;
+USE bug21261DB;
+connect (root,localhost,root,,bug21261DB);
+connection root;
+CREATE TABLE t1 (x INT);
+CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT x FROM t1;
+GRANT INSERT, UPDATE ON v1 TO 'user21261'@'localhost';
+GRANT INSERT, UPDATE ON t1 TO 'user21261'@'localhost';
+CREATE TABLE t2 (y INT);
+GRANT SELECT ON t2 TO 'user21261'@'localhost';
+
+connect (user21261, localhost, user21261,, bug21261DB);
+connection user21261;
+INSERT INTO v1 (x) VALUES (5);
+UPDATE v1 SET x=1;
+connection root;
+GRANT SELECT ON v1 TO 'user21261'@'localhost';
+GRANT SELECT ON t1 TO 'user21261'@'localhost';
+connection user21261;
+UPDATE v1,t2 SET x=1 WHERE x=y;
+connection root;
+SELECT * FROM t1;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user21261'@'localhost';
+DROP USER 'user21261'@'localhost';
+DROP VIEW v1;
+DROP TABLE t1;
+DROP DATABASE bug21261DB;
+
+connection default;
+USE test;
+disconnect root;
+disconnect user21261;
+
+set GLOBAL sql_mode=default;
+set LOCAL sql_mode=default;
+
+#
+# Bug#15950 NOW() optimized away in VIEWs
+#
+create table t1 (f1 datetime);
+create view v1 as select * from t1 where f1 between now() and now() + interval 1 minute;
+show create view v1;
+drop view v1;
+drop table t1;
+
+
+#
+# Test for Bug#16899 Possible buffer overflow in handling of DEFINER-clause.
+#
+
+# Prepare.
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP VIEW IF EXISTS v1;
+DROP VIEW IF EXISTS v2;
+--enable_warnings
+
+CREATE TABLE t1(a INT, b INT);
+
+--error ER_WRONG_STRING_LENGTH
+CREATE DEFINER=longer_than_80_456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789@localhost
+  VIEW v1 AS SELECT a FROM t1;
+
+--error ER_WRONG_STRING_LENGTH
+CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
+  VIEW v2 AS SELECT b FROM t1;
+
+# Cleanup.
+
+DROP TABLE t1;
+
+
+#
+# Bug#17591 Updatable view not possible with trigger or stored function
+#
+# During prelocking phase we didn't update lock type of view tables,
+# hence READ lock was always requested.
+#
+--disable_warnings
+DROP FUNCTION IF EXISTS f1;
+DROP FUNCTION IF EXISTS f2;
+DROP VIEW IF EXISTS v1, v2;
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (i INT);
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+delimiter |;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  INSERT INTO v1 VALUES (0);
+  RETURN 0;
+END |
+delimiter ;|
+
+SELECT f1();
+
+CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t1;
+
+delimiter |;
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  INSERT INTO v2 VALUES (0);
+  RETURN 0;
+END |
+delimiter ;|
+
+--error ER_NON_INSERTABLE_TABLE
+SELECT f2();
+
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP VIEW v1, v2;
+DROP TABLE t1;
+
+
+#
+# Bug#5500 wrong select_type in EXPLAIN output for queries over views
+#
+
+CREATE TABLE t1 (s1 int);
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+EXPLAIN SELECT * FROM t1;
+EXPLAIN SELECT * FROM v1;
+
+INSERT INTO t1 VALUES (1), (3), (2);
+
+EXPLAIN SELECT * FROM t1 t WHERE t.s1+1 < (SELECT MAX(t1.s1) FROM t1);
+EXPLAIN SELECT * FROM v1 t WHERE t.s1+1 < (SELECT MAX(t1.s1) FROM t1);
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#5505 Wrong error message on INSERT into a view
+#
+create table t1 (s1 int);
+create view v1 as select s1 as a, s1 as b from t1;
+--error ER_NON_INSERTABLE_TABLE
+insert into v1 values (1,1);
+update v1 set a = 5;
+drop view v1;
+drop table t1;
+
+
+#
+# Bug#21646 view qith a subquery in ON expression
+#
+
+CREATE TABLE t1(pk int PRIMARY KEY);
+CREATE TABLE t2(pk int PRIMARY KEY, fk int, ver int, org int);
+
+CREATE ALGORITHM=MERGE VIEW v1 AS
+SELECT t1.*
+  FROM t1 JOIN t2
+       ON t2.fk = t1.pk AND
+          t2.ver = (SELECT MAX(t.ver) FROM t2 t WHERE t.org = t2.org);
+SHOW WARNINGS;
+SHOW CREATE VIEW v1;
+
+DROP VIEW v1;
+DROP TABLE t1, t2;
+
+
+#
+# Bug#19111 TRIGGERs selecting from a VIEW on the firing base table fail
+#
+# Allow to select from a view on a table being modified in a trigger
+# and stored function, since plain select is allowed there.
+#
+--disable_warnings
+DROP FUNCTION IF EXISTS f1;
+DROP VIEW IF EXISTS v1;
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1);
+
+CREATE VIEW v1 AS SELECT MAX(i) FROM t1;
+
+# Plain 'SET NEW.i = (SELECT MAX(i) FROM t1) + 1' works, so select
+# from a view should work too.
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+  SET NEW.i = (SELECT * FROM v1) + 1;
+INSERT INTO t1 VALUES (1);
+
+# Plain 'RETURN (SELECT MAX(i) FROM t1)' works in INSERT, so select
+# from a view should work too.
+CREATE FUNCTION f1() RETURNS INT RETURN (SELECT * FROM v1);
+UPDATE t1 SET i= f1();
+
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#16813 (WITH CHECK OPTION doesn't work with UPDATE)
+#
+CREATE TABLE t1(id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, val INT UNSIGNED NOT NULL);
+CREATE VIEW v1 AS SELECT id, val FROM t1 WHERE val >= 1 AND val <= 5 WITH CHECK OPTION;
+INSERT INTO v1 (val) VALUES (2);
+INSERT INTO v1 (val) VALUES (4);
+-- error ER_VIEW_CHECK_FAILED
+INSERT INTO v1 (val) VALUES (6);
+-- error ER_VIEW_CHECK_FAILED
+UPDATE v1 SET val=6 WHERE id=2;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#22584 last_insert_id not updated after inserting a record
+# through a updatable view
+#
+# We still do not update LAST_INSERT_ID if AUTO_INCREMENT column is
+# not accessible through a view.  However, we do not reset the value
+# of LAST_INSERT_ID, but keep it unchanged.
+#
+--disable_warnings
+DROP VIEW IF EXISTS v1, v2;
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY, j INT);
+CREATE VIEW v1 AS SELECT j FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t1;
+
+INSERT INTO t1 (j) VALUES (1);
+SELECT LAST_INSERT_ID();
+
+INSERT INTO v1 (j) VALUES (2);
+--echo # LAST_INSERT_ID() should not change.
+SELECT LAST_INSERT_ID();
+
+INSERT INTO v2 (j) VALUES (3);
+--echo # LAST_INSERT_ID() should be updated.
+SELECT LAST_INSERT_ID();
+
+INSERT INTO v1 (j) SELECT j FROM t1;
+--echo # LAST_INSERT_ID() should not change.
+SELECT LAST_INSERT_ID();
+
+SELECT * FROM t1;
+
+DROP VIEW v1, v2;
+DROP TABLE t1;
+
+
+#
+# Bug#25580 !0 as an operand in a select expression of a view
+#
+
+CREATE VIEW v AS SELECT !0 * 5 AS x FROM DUAL;
+SHOW CREATE VIEW v;
+
+SELECT !0 * 5 AS x FROM DUAL;
+SELECT * FROM v;
+
+DROP VIEW v;
+
+
+#
+# Bug#24293 '\Z' token is not handled correctly in views
+#
+
+--disable_warnings
+DROP VIEW IF EXISTS v1;
+--enable_warnings
+
+CREATE VIEW v1 AS SELECT 'The\ZEnd';
+SELECT * FROM v1;
+
+SHOW CREATE VIEW v1;
+
+DROP VIEW v1;
+
+
+#
+# Bug#26124 BETWEEN over a view column of the DATETIME type
+#
+
+CREATE TABLE t1 (mydate DATETIME);
+INSERT INTO t1 VALUES
+  ('2007-01-01'), ('2007-01-02'), ('2007-01-30'), ('2007-01-31');
+
+CREATE VIEW v1 AS SELECT mydate from t1;
+
+SELECT * FROM t1 WHERE mydate BETWEEN '2007-01-01' AND '2007-01-31';
+SELECT * FROM v1 WHERE mydate BETWEEN '2007-01-01' AND '2007-01-31';
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#25931 update of a multi-table view with check option
+#
+
+CREATE TABLE t1 (a int);
+CREATE TABLE t2 (b int);
+INSERT INTO t1 VALUES (1), (2);
+INSERT INTO t2 VALUES (1), (2);
+
+CREATE VIEW v1 AS
+  SELECT t2.b FROM t1,t2 WHERE t1.a = t2.b WITH CHECK OPTION;
+
+SELECT * FROM v1;
+--error ER_VIEW_CHECK_FAILED
+UPDATE v1 SET b=3;
+SELECT * FROM v1;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+
+#
+# Bug#12122 Views with ORDER BY can't be resolved using MERGE algorithm.
+#
+create table t1(f1 int, f2 int);
+insert into t1 values(1,2),(1,3),(1,1),(2,3),(2,1),(2,2);
+select * from t1;
+create view v1 as select * from t1 order by f2;
+select * from v1;
+explain extended select * from v1;
+select * from v1 order by f1;
+explain extended select * from v1 order by f1;
+drop view v1;
+drop table t1;
+
+#
+# Bug#26209 queries with GROUP BY and ORDER BY using views
+#
+
+CREATE TABLE t1 (
+  id int(11) NOT NULL PRIMARY KEY,
+  country varchar(32),
+  code int(11) default NULL
+);
+INSERT INTO t1 VALUES
+  (1,'ITALY',100),(2,'ITALY',200),(3,'FRANCE',100), (4,'ITALY',100);
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT code, COUNT(DISTINCT country) FROM t1 GROUP BY code ORDER BY MAX(id);
+SELECT code, COUNT(DISTINCT country) FROM v1 GROUP BY code ORDER BY MAX(id);
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#25897 Some queries are no longer possible after a CREATE VIEW fails
+#
+--disable_warnings
+DROP VIEW IF EXISTS v1;
+--enable_warnings
+
+let $query = SELECT * FROM (SELECT 1) AS t into @w;
+
+eval $query;
+--error ER_PARSE_ERROR
+eval CREATE VIEW v1 AS $query;
+--echo # Previously the following would fail.
+eval $query;
+
+
+#
+# Bug#24532 The return data type of IS TRUE is different from similar operations
+#
+
+--disable_warnings
+drop view if exists view_24532_a;
+drop view if exists view_24532_b;
+drop table if exists table_24532;
+--enable_warnings
+
+create table table_24532 (
+  a int,
+  b bigint,
+  c int(4),
+  d bigint(48)
+);
+
+create view view_24532_a as
+select
+  a IS TRUE,
+  a IS NOT TRUE,
+  a IS FALSE,
+  a IS NOT FALSE,
+  a IS UNKNOWN,
+  a IS NOT UNKNOWN,
+  a is NULL,
+  a IS NOT NULL,
+  ISNULL(a),
+  b IS TRUE,
+  b IS NOT TRUE,
+  b IS FALSE,
+  b IS NOT FALSE,
+  b IS UNKNOWN,
+  b IS NOT UNKNOWN,
+  b is NULL,
+  b IS NOT NULL,
+  ISNULL(b),
+  c IS TRUE,
+  c IS NOT TRUE,
+  c IS FALSE,
+  c IS NOT FALSE,
+  c IS UNKNOWN,
+  c IS NOT UNKNOWN,
+  c is NULL,
+  c IS NOT NULL,
+  ISNULL(c),
+  d IS TRUE,
+  d IS NOT TRUE,
+  d IS FALSE,
+  d IS NOT FALSE,
+  d IS UNKNOWN,
+  d IS NOT UNKNOWN,
+  d is NULL,
+  d IS NOT NULL,
+  ISNULL(d)
+from table_24532;
+
+describe view_24532_a;
+
+create view view_24532_b as
+select
+  a IS TRUE,
+  if(ifnull(a, 0), 1, 0) as old_istrue,
+  a IS NOT TRUE,
+  if(ifnull(a, 0), 0, 1) as old_isnottrue,
+  a IS FALSE,
+  if(ifnull(a, 1), 0, 1) as old_isfalse,
+  a IS NOT FALSE,
+  if(ifnull(a, 1), 1, 0) as old_isnotfalse
+from table_24532;
+
+describe view_24532_b;
+
+show create view view_24532_b;
+
+insert into table_24532 values (0, 0, 0, 0);
+select * from view_24532_b;
+update table_24532 set a=1;
+select * from view_24532_b;
+update table_24532 set a=NULL;
+select * from view_24532_b;
+
+drop view view_24532_a;
+drop view view_24532_b;
+drop table table_24532;
+
+
+#
+# Bug#26560 view using subquery with a reference to an outer alias
+#
+
+CREATE TABLE t1 (
+  lid int NOT NULL PRIMARY KEY,
+  name char(10) NOT NULL
+);
+INSERT INTO t1 (lid, name) VALUES
+  (1, 'YES'), (2, 'NO');
+
+CREATE TABLE t2 (
+  id int NOT NULL PRIMARY KEY,
+  gid int NOT NULL,
+  lid int NOT NULL,
+  dt date
+);
+INSERT INTO t2 (id, gid, lid, dt) VALUES
+ (1, 1, 1, '2007-01-01'),(2, 1, 2, '2007-01-02'),
+ (3, 2, 2, '2007-02-01'),(4, 2, 1, '2007-02-02');
+
+SELECT DISTINCT t2.gid AS lgid,
+                (SELECT t1.name FROM t1, t2
+                   WHERE t1.lid  = t2.lid AND t2.gid = lgid
+                     ORDER BY t2.dt DESC LIMIT 1
+                ) as clid
+  FROM t2;
+
+CREATE VIEW v1 AS
+SELECT DISTINCT t2.gid AS lgid,
+                (SELECT t1.name FROM t1, t2
+                   WHERE t1.lid  = t2.lid AND t2.gid = lgid
+                     ORDER BY t2.dt DESC LIMIT 1
+                ) as clid
+  FROM t2;
+SELECT * FROM v1;
+
+DROP VIEW v1;
+DROP table t1,t2;
+
+
+#
+# Bug#27786 Inconsistent Operation Performing UNION On View With ORDER BY
+#
+CREATE TABLE t1 (a INT); INSERT INTO t1 VALUES (1),(2),(3);
+CREATE VIEW v1 AS SELECT a FROM t1 ORDER BY a;
+
+SELECT * FROM t1 UNION SELECT * FROM v1;
+EXPLAIN SELECT * FROM t1 UNION SELECT * FROM v1;
+SELECT * FROM v1 UNION SELECT * FROM t1;
+EXPLAIN SELECT * FROM v1 UNION SELECT * FROM t1;
+SELECT * FROM t1 UNION SELECT * FROM v1 ORDER BY a;
+EXPLAIN SELECT * FROM t1 UNION SELECT * FROM v1 ORDER BY a;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#27921 View ignores precision for CAST()
+#
+CREATE VIEW v1 AS SELECT CAST( 1.23456789 AS DECIMAL( 7,5 ) ) AS col;
+SELECT * FROM v1;
+DESCRIBE v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT CAST(1.23456789 AS DECIMAL(8,0)) AS col;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+
+#
+# Bug#28716 CHECK OPTION expression is evaluated over expired record buffers
+#           when VIEW is updated via temporary tables
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT, c INT DEFAULT 0);
+INSERT INTO t1 (a) VALUES (1), (2);
+INSERT INTO t2 (b) VALUES (1), (2);
+CREATE VIEW v1 AS SELECT t2.b,t2.c FROM t1, t2
+  WHERE t1.a=t2.b AND t2.b < 3 WITH CHECK OPTION;
+SELECT * FROM v1;
+UPDATE v1 SET c=1 WHERE b=1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+
+#
+# Bug#28561 update on multi-table view with CHECK OPTION and a subquery
+#           in WHERE condition
+#
+
+CREATE TABLE t1 (id int);
+CREATE TABLE t2 (id int, c int DEFAULT 0);
+INSERT INTO t1 (id) VALUES (1);
+INSERT INTO t2 (id) VALUES (1);
+
+CREATE VIEW v1 AS
+  SELECT t2.c FROM t1, t2
+    WHERE t1.id=t2.id AND 1 IN (SELECT id FROM t1) WITH CHECK OPTION;
+
+UPDATE v1 SET c=1;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+
+#
+# Bug#27827 CHECK OPTION ignores ON conditions when updating
+#           a multi-table view with CHECK OPTION.
+#
+
+CREATE TABLE t1 (a1 INT, c INT DEFAULT 0);
+CREATE TABLE t2 (a2 INT);
+CREATE TABLE t3 (a3 INT);
+CREATE TABLE t4 (a4 INT);
+INSERT INTO t1 (a1) VALUES (1),(2);
+INSERT INTO t2 (a2) VALUES (1),(2);
+INSERT INTO t3 (a3) VALUES (1),(2);
+INSERT INTO t4 (a4) VALUES (1),(2);
+
+CREATE VIEW v1 AS
+  SELECT t1.a1, t1.c FROM t1 JOIN t2 ON t1.a1=t2.a2 AND t1.c < 3
+    WITH CHECK OPTION;
+SELECT * FROM v1;
+--error ER_VIEW_CHECK_FAILED
+UPDATE v1 SET c=3;
+PREPARE t FROM 'UPDATE v1 SET c=3';
+--error ER_VIEW_CHECK_FAILED
+EXECUTE t;
+--error ER_VIEW_CHECK_FAILED
+EXECUTE t;
+--error ER_VIEW_CHECK_FAILED
+INSERT INTO v1(a1, c) VALUES (3, 3);
+UPDATE v1 SET c=1 WHERE a1=1;
+SELECT * FROM v1;
+SELECT * FROM t1;
+
+CREATE VIEW v2 AS SELECT t1.a1, t1.c
+  FROM (t1 JOIN t2 ON t1.a1=t2.a2 AND t1.c < 3)
+  JOIN (t3 JOIN t4 ON t3.a3=t4.a4)
+    ON t2.a2=t3.a3 WITH CHECK OPTION;
+SELECT * FROM v2;
+--error ER_VIEW_CHECK_FAILED
+UPDATE v2 SET c=3;
+PREPARE t FROM 'UPDATE v2 SET c=3';
+--error ER_VIEW_CHECK_FAILED
+EXECUTE t;
+--error ER_VIEW_CHECK_FAILED
+EXECUTE t;
+--error ER_VIEW_CHECK_FAILED
+INSERT INTO v2(a1, c) VALUES (3, 3);
+UPDATE v2 SET c=2 WHERE a1=1;
+SELECT * FROM v2;
+SELECT * FROM t1;
+
+DROP VIEW v1,v2;
+DROP TABLE t1,t2,t3,t4;
+
+
+#
+# Bug#29104 assertion abort for a query with a view column reference
+#           in the GROUP BY list and a condition requiring the value
+#           of another view column to be equal to a constant
+#
+
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 VALUES (1,2), (2,2), (1,3), (1,2);
+
+CREATE VIEW v1 AS SELECT a, b+1 as b FROM t1;
+
+
+SELECT b, SUM(a) FROM v1 WHERE b=3 GROUP BY b;
+EXPLAIN SELECT b, SUM(a) FROM v1 WHERE b=3 GROUP BY b;
+
+SELECT a, SUM(b) FROM v1 WHERE b=3 GROUP BY a;
+EXPLAIN SELECT a, SUM(b) FROM v1 WHERE b=3 GROUP BY a;
+
+SELECT a, SUM(b) FROM v1 WHERE a=1 GROUP BY a;
+EXPLAIN SELECT a, SUM(b) FROM v1 WHERE a=1 GROUP BY a;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#29392 SELECT over a multi-table view with ORDER BY
+#           selecting the same view column with two different aliases
+#
+
+CREATE TABLE t1 (
+  person_id int NOT NULL PRIMARY KEY,
+  username varchar(40) default NULL,
+  status_flg char(1) NOT NULL default 'A'
+);
+
+CREATE TABLE t2 (
+  person_role_id int NOT NULL auto_increment PRIMARY KEY,
+  role_id int NOT NULL,
+  person_id int NOT NULL,
+  INDEX idx_person_id (person_id),
+  INDEX idx_role_id (role_id)
+);
+
+CREATE TABLE t3 (
+  role_id int NOT NULL auto_increment PRIMARY KEY,
+  role_name varchar(100) default NULL,
+  app_name varchar(40) NOT NULL,
+  INDEX idx_app_name(app_name)
+);
+
+CREATE VIEW v1 AS
+SELECT profile.person_id AS person_id
+  FROM t1 profile, t2 userrole, t3 role
+    WHERE userrole.person_id = profile.person_id AND
+          role.role_id = userrole.role_id AND
+          profile.status_flg = 'A'
+  ORDER BY profile.person_id,role.app_name,role.role_name;
+
+INSERT INTO  t1 VALUES
+ (6,'Sw','A'), (-1136332546,'ols','e'), (0,'    *\n','0'),
+ (-717462680,'ENTS Ta','0'), (-904346964,'ndard SQL\n','0');
+INSERT INTO t2 VALUES
+  (1,3,6),(2,4,7),(3,5,8),(4,6,9),(5,1,6),(6,1,7),(7,1,8),(8,1,9),(9,1,10);
+
+INSERT INTO t3 VALUES
+  (1,'NUCANS_APP_USER','NUCANSAPP'),(2,'NUCANS_TRGAPP_USER','NUCANSAPP'),
+  (3,'IA_INTAKE_COORDINATOR','IACANS'),(4,'IA_SCREENER','IACANS'),
+  (5,'IA_SUPERVISOR','IACANS'),(6,'IA_READONLY','IACANS'),
+  (7,'SOC_USER','SOCCANS'),(8,'CAYIT_USER','CAYITCANS'),
+  (9,'RTOS_DCFSPOS_SUPERVISOR','RTOS');
+
+EXPLAIN SELECT t.person_id AS a, t.person_id AS b FROM v1 t WHERE t.person_id=6;
+SELECT t.person_id AS a, t.person_id AS b FROM v1 t WHERE t.person_id=6;
+
+DROP VIEW v1;
+DROP TABLE t1,t2,t3;
+
+
+#
+# Bug#30020 Insufficient check led to a wrong info provided by the
+#           information schema table.
+#
+create table t1 (i int);
+insert into t1 values (1), (2), (1), (3), (2), (4);
+create view v1 as select distinct i from t1;
+select * from v1;
+select table_name, is_updatable from information_schema.views
+   where table_name = 'v1';
+drop view v1;
+drop table t1;
+
+
+#
+# Bug#28701 SELECTs from VIEWs completely ignore USE/FORCE KEY, allowing
+#           invalid statements
+#
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT * FROM t1;
+--error ER_KEY_DOES_NOT_EXITS
+SELECT * FROM v1 USE KEY(non_existant);
+--error ER_KEY_DOES_NOT_EXITS
+SELECT * FROM v1 FORCE KEY(non_existant);
+--error ER_KEY_DOES_NOT_EXITS
+SELECT * FROM v1 IGNORE KEY(non_existant);
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+#
+# Bug#28702 VIEWs defined with USE/FORCE KEY ignore that request
+#
+CREATE TABLE t1 (a INT NOT NULL AUTO_INCREMENT, b INT NOT NULL DEFAULT 0,
+                 PRIMARY KEY(a), KEY (b));
+INSERT INTO t1 VALUES (),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+CREATE VIEW v1 AS SELECT * FROM t1 FORCE KEY (PRIMARY,b) ORDER BY a;
+SHOW CREATE VIEW v1;
+EXPLAIN SELECT * FROM v1;
+CREATE VIEW v2 AS SELECT * FROM t1 USE KEY () ORDER BY a;
+SHOW CREATE VIEW v2;
+EXPLAIN SELECT * FROM v2;
+CREATE VIEW v3 AS SELECT * FROM t1 IGNORE KEY (b) ORDER BY a;
+SHOW CREATE VIEW v3;
+EXPLAIN SELECT * FROM v3;
+
+DROP VIEW v1;
+DROP VIEW v2;
+DROP VIEW v3;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Bug#29477 Not all fields of the target table were checked to have
+--echo #           a default value when inserting into a view.
+--echo #
+create table t1(f1 int, f2 int not null);
+create view v1 as select f1 from t1;
+insert ignore into v1 values(1);
+set @old_mode=@@sql_mode;
+set @@sql_mode=traditional;
+--error ER_NO_DEFAULT_FOR_VIEW_FIELD
+insert into v1 values(1);
+set @@sql_mode=@old_mode;
+drop view v1;
+drop table t1;
+
+
+#
+# Bug#33389 Selecting from a view into a table from within SP or trigger
+#           crashes server
+#
+
+create table t1 (a int, key(a));
+create table t2 (c int);
+
+create view v1 as select a b from t1;
+create view v2 as select 1 a from t2, v1 where c in
+                  (select 1 from t1 where b = a);
+
+insert into t1 values (1), (1);
+insert into t2 values (1), (1);
+
+prepare stmt from "select * from v2 where a = 1";
+execute stmt;
+
+drop view v1, v2;
+drop table t1, t2;
+
+
+#
+# Bug#33049 Assert while running test-as3ap test(mysql-bench suite)
+#
+
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT p.a AS a FROM t1 p, t1 q;
+
+INSERT INTO t1 VALUES (1), (1);
+SELECT MAX(a), COUNT(DISTINCT a) FROM v1 GROUP BY a;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+###########################################################################
+
+--echo # -----------------------------------------------------------------
+--echo # -- Bug#34337 Server crash when Altering a view using a table name.
+--echo # -----------------------------------------------------------------
+--echo
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--echo
+
+CREATE TABLE t1(c1 INT);
+
+--echo
+
+SELECT * FROM t1;
+
+--error ER_WRONG_OBJECT
+ALTER ALGORITHM=TEMPTABLE SQL SECURITY INVOKER VIEW t1 (c2) AS SELECT (1);
+
+--echo
+
+DROP TABLE t1;
+
+--echo
+--echo # -- End of test case for Bug#34337.
+--echo
+
+###########################################################################
+
+--echo # -----------------------------------------------------------------
+--echo # -- Bug#35193 VIEW query is rewritten without "FROM DUAL",
+--echo # --           causing syntax error
+--echo # -----------------------------------------------------------------
+--echo
+
+CREATE VIEW v1 AS SELECT 1 FROM DUAL WHERE 1;
+
+--echo
+
+SELECT * FROM v1;
+SHOW CREATE TABLE v1;
+
+--echo
+
+DROP VIEW v1;
+
+--echo
+--echo # -- End of test case for Bug#35193.
+--echo
+
+###########################################################################
+
+#
+# Bug#39040 valgrind errors/crash when creating views with binlog logging
+#           enabled
+#
+# Bug is visible only when running in valgrind with binary logging.
+CREATE VIEW v1 AS SELECT 1;
+DROP VIEW v1;
+
+
+#
+# Bug#33461 SELECT ... FROM <view> USE INDEX (...) throws an error
+#
+
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT, INDEX (c2));
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+SELECT * FROM t1 USE INDEX (PRIMARY) WHERE c1=2;
+SELECT * FROM t1 USE INDEX (c2) WHERE c2=2;
+
+CREATE VIEW v1 AS SELECT c1, c2 FROM t1;
+SHOW INDEX FROM v1;
+--error ER_KEY_DOES_NOT_EXITS
+SELECT * FROM v1 USE INDEX (PRIMARY) WHERE c1=2;
+--error ER_KEY_DOES_NOT_EXITS
+SELECT * FROM v1 FORCE INDEX (PRIMARY) WHERE c1=2;
+--error ER_KEY_DOES_NOT_EXITS
+SELECT * FROM v1 IGNORE INDEX (PRIMARY) WHERE c1=2;
+--error ER_KEY_DOES_NOT_EXITS
+SELECT * FROM v1 USE INDEX (c2) WHERE c2=2;
+--error ER_KEY_DOES_NOT_EXITS
+SELECT * FROM v1 FORCE INDEX (c2) WHERE c2=2;
+--error ER_KEY_DOES_NOT_EXITS
+SELECT * FROM v1 IGNORE INDEX (c2) WHERE c2=2;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # 
+--echo # Bug #45806 crash when replacing into a view with a join!
+--echo # 
+CREATE TABLE t1(a INT UNIQUE);
+CREATE VIEW v1 AS SELECT t1.a FROM t1, t1 AS a;
+INSERT INTO t1 VALUES (1), (2);
+
+REPLACE INTO v1(a) SELECT 1 FROM t1,t1 AS c;
+SELECT * FROM v1;
+REPLACE INTO v1(a) SELECT 3 FROM t1,t1 AS c;
+SELECT * FROM v1;
+DELETE FROM t1 WHERE a=3;
+INSERT INTO v1(a) SELECT 1 FROM t1,t1 AS c
+ON DUPLICATE KEY UPDATE `v1`.`a`= 1;
+SELECT * FROM v1;
+
+CREATE VIEW v2 AS SELECT t1.a FROM t1, v1 AS a;
+
+REPLACE INTO v2(a) SELECT 1 FROM t1,t1 AS c;
+SELECT * FROM v2 order by 1;
+REPLACE INTO v2(a) SELECT 3 FROM t1,t1 AS c;
+SELECT * FROM v2 order by 1;
+INSERT INTO v2(a) SELECT 1 FROM t1,t1 AS c
+ON DUPLICATE KEY UPDATE `v2`.`a`= 1;
+SELECT * FROM v2 order by 1;
+
+DROP VIEW v1;
+DROP VIEW v2;
+DROP TABLE t1;
+
+--echo # -- End of test case for Bug#45806
+
+--echo # -----------------------------------------------------------------
+--echo # -- Bug#40825: Error 1356 while selecting from a view 
+--echo # --            with a "HAVING" clause though query works
+--echo # -----------------------------------------------------------------
+--echo
+
+CREATE TABLE t1 (c INT);
+
+--echo
+
+CREATE VIEW v1 (view_column) AS SELECT c AS alias FROM t1 HAVING alias;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+
+--echo
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo
+--echo # -- End of test case for Bug#40825
+--echo
+
+--echo # -----------------------------------------------------------------
+--echo # -- End of 5.0 tests.
+--echo # -----------------------------------------------------------------
+
+#
+# Bug#21370 View renaming lacks tablename_to_filename encoding
+#
+--disable_warnings
+DROP DATABASE IF EXISTS `d-1`;
+--enable_warnings
+CREATE DATABASE `d-1`;
+USE `d-1`;
+CREATE TABLE `t-1` (c1 INT);
+CREATE VIEW  `v-1` AS SELECT c1 FROM `t-1`;
+SHOW TABLES;
+RENAME TABLE `t-1` TO `t-2`;
+RENAME TABLE `v-1` TO `v-2`;
+SHOW TABLES;
+DROP TABLE `t-2`;
+DROP VIEW  `v-2`;
+DROP DATABASE `d-1`;
+USE test;
+
+--echo
+--echo #
+--echo # Bug#26676 VIEW using old table schema in a session.
+--echo #
+--echo
+
+--disable_warnings
+DROP VIEW IF EXISTS v1;
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1(c1 INT, c2 INT);
+INSERT INTO t1 VALUES (1, 2), (3, 4);
+
+--echo
+
+SELECT * FROM t1;
+
+--echo
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+--echo
+
+SELECT * FROM v1;
+
+--echo
+
+ALTER TABLE t1 ADD COLUMN c3 INT AFTER c2;
+
+--echo
+
+SELECT * FROM t1;
+
+--echo
+
+SELECT * FROM v1;
+
+--echo
+
+SHOW CREATE VIEW v1;
+
+--echo
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo
+--echo # End of test case for Bug#26676.
+--echo
+
+###########################################################################
+
+--echo # -----------------------------------------------------------------
+--echo # -- Bug#32538 View definition picks up character set, but not collation
+--echo # -----------------------------------------------------------------
+--echo
+
+--disable_warnings
+DROP VIEW IF EXISTS v1;
+--enable_warnings
+
+--echo
+
+SET collation_connection = latin1_general_ci;
+CREATE VIEW v1 AS SELECT _latin1 'text1' AS c1, 'text2' AS c2;
+
+--echo
+
+SELECT COLLATION(c1), COLLATION(c2) FROM v1;
+
+--echo
+
+SHOW CREATE VIEW v1;
+
+--echo
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT * FROM v1 WHERE c1 = 'text1';
+
+--echo
+
+SELECT * FROM v1 WHERE c2 = 'text2';
+
+--echo
+
+use test;
+SET names latin1;
+
+--echo
+
+SELECT COLLATION(c1), COLLATION(c2) FROM v1;
+
+--echo
+
+SELECT * FROM v1 WHERE c1 = 'text1';
+
+--echo
+
+--error ER_CANT_AGGREGATE_2COLLATIONS
+SELECT * FROM v1 WHERE c2 = 'text2';
+
+--echo
+
+DROP VIEW v1;
+
+--echo
+--echo # -- End of test case for Bug#32538.
+--echo
+
+#
+# Bug#34587 Creating a view inside a stored procedure leads to a server crash
+#
+
+--disable_warnings
+drop view if exists a;
+drop procedure if exists p;
+--enable_warnings
+
+delimiter |;
+create procedure p()
+begin
+  declare continue handler for sqlexception begin end;
+  create view a as select 1;
+end|
+delimiter ;|
+call p();
+call p();
+drop view a;
+drop procedure p;
+
+###########################################################################
+
+
+--echo #
+--echo # Bug #44860: ALTER TABLE on view crashes server
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT a FROM t1;
+--error ER_WRONG_OBJECT
+ALTER TABLE v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#48449: hang on show create view after upgrading when
+--echo #            view contains function of view
+--echo #
+
+--disable_warnings
+DROP VIEW IF EXISTS v1,v2;
+DROP TABLE IF EXISTS t1,t2;
+DROP FUNCTION IF EXISTS f1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+
+delimiter //;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  SELECT a FROM v2 INTO @a;
+  RETURN @a;
+END//
+delimiter ;//
+
+--echo # Trigger pre-locking when opening v2.
+CREATE VIEW v1 AS SELECT f1() FROM t1;
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+copy_file std_data/bug48449.frm $MYSQLD_DATADIR/test/v2.frm;
+
+enable_prepare_warnings;
+SHOW CREATE VIEW v1;
+disable_prepare_warnings;
+
+DROP VIEW v1,v2;
+DROP TABLE t1,t2;
+DROP FUNCTION f1;
+
+
+#
+# Bug#48294 assertion when creating a view based on some row() construct in select query
+#
+CREATE TABLE t1(f1 INT);
+INSERT INTO t1 VALUES ();
+
+CREATE VIEW v1 AS SELECT 1 FROM t1 WHERE
+ROW(1,1) >= ROW(1, (SELECT 1 FROM t1 WHERE  f1 >= ANY ( SELECT '1' )));
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#52120 create view cause Assertion failed: 0, file .\item_subselect.cc, line 817
+--echo #
+CREATE TABLE t1 (a CHAR(1) CHARSET latin1, b CHAR(1) CHARSET utf8);
+CREATE VIEW v1 AS SELECT 1 from t1
+WHERE t1.b <=> (SELECT a FROM t1 WHERE a < SOME(SELECT '1'));
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#57703 create view cause Assertion failed: 0, file .\item_subselect.cc, line 846
+--echo #
+
+CREATE TABLE t1(a int);
+CREATE VIEW v1 AS SELECT 1 FROM t1 GROUP BY
+SUBSTRING(1 FROM (SELECT 3 FROM t1 WHERE a >= ANY(SELECT 1)));
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#57352 valgrind warnings when creating view
+--echo #
+CREATE VIEW v1 AS SELECT 1 IN (1 LIKE 2,0) AS f;
+DROP VIEW v1;
+
+--echo #
+--echo # Bug 11829681 - 60295: ERROR 1356 ON VIEW THAT EXECUTES FINE AS A QUERY
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT s.* FROM t1 s, t1 b HAVING a;
+
+SELECT * FROM v1; 
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # LP BUG#777809 (a retrograded condition for view ON)
+--echo #
+
+CREATE TABLE t1 ( f1 int NOT NULL , f6 int NOT NULL ) ;
+INSERT IGNORE INTO t1 VALUES (20, 2);
+
+CREATE TABLE t2 ( f3 int NOT NULL ) ;
+INSERT IGNORE INTO t2 VALUES (7);
+
+CREATE OR REPLACE VIEW v2 AS SELECT * FROM t2;
+
+PREPARE prep_stmt FROM 'SELECT t1.f6 FROM t1 RIGHT JOIN v2 ON v2.f3 WHERE t1.f1 != 0';
+
+EXECUTE prep_stmt;
+EXECUTE prep_stmt;
+
+drop view v2;
+drop table t1,t2;
+
+--echo # -----------------------------------------------------------------
+--echo # -- End of 5.1 tests.
+--echo # -----------------------------------------------------------------
+--echo #
+--echo # Bug #794005: crash in st_table::mark_virtual_columns_for_write
+--echo #
+
+CREATE TABLE t1 (a int);
+insert into t1 values (1);
+CREATE TABLE t2 (a int);
+insert into t2 values (1);
+
+CREATE VIEW v2 AS SELECT * FROM t2;
+CREATE VIEW v1 AS SELECT * FROM v2;
+CREATE VIEW v3 AS SELECT t2.a,v1.a as b FROM t2,v1 where t2.a=v1.a;
+CREATE OR REPLACE ALGORITHM = TEMPTABLE VIEW v2 AS SELECT * FROM t1;
+
+--error ER_NON_UPDATABLE_TABLE
+UPDATE v1 SET a = 10;
+--error ER_NON_INSERTABLE_TABLE
+REPLACE v1 SET a = 10;
+--error ER_NON_INSERTABLE_TABLE
+INSERT into v1 values (20);
+--error ER_NON_UPDATABLE_TABLE
+DELETE from v1;
+--error ER_NON_UPDATABLE_TABLE
+UPDATE v3 SET b= 10;
+--error ER_NON_INSERTABLE_TABLE
+REPLACE v3 SET b= 10;
+--error ER_NON_INSERTABLE_TABLE
+INSERT into v3(b) values (20);
+--error ER_VIEW_DELETE_MERGE_VIEW
+DELETE from v3 where b=20;
+--error ER_VIEW_DELETE_MERGE_VIEW
+DELETE from v3 where a=20;
+--error ER_NON_UPDATABLE_TABLE
+DELETE v1 from v1,t1 where v1.a=t1.a;
+UPDATE v3 SET a = 10;
+REPLACE v3 SET a = 11;
+INSERT INTO v3(a) values (20);
+
+select * from t1;
+select * from t2;
+
+CREATE OR REPLACE ALGORITHM = MERGE VIEW v2 AS SELECT * FROM t2;
+DELETE from v1 where a=11;
+DELETE v1 from v1,t1 where v1.a=t1.a;
+select * from t1;
+select * from t2;
+
+DROP VIEW v1,v2,v3;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-6251: SIGSEGV in query optimizer (in set_check_materialized 
+--echo # with MERGE view)
+--echo #
+
+CREATE TABLE t1 (a1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
+CREATE TABLE t2 (b1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
+CREATE TABLE t3 (c1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
+CREATE TABLE t4 (d1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
+CREATE TABLE t5 (e1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
+CREATE TABLE t6 (f1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
+  
+CREATE OR REPLACE view v1 AS
+  SELECT 1
+  FROM t1 a_alias_1
+    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
+    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
+    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
+    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
+;
+
+SELECT 1
+FROM ((  SELECT 1
+  FROM t1 a_alias_1
+    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
+    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
+    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
+    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
+) t1)
+LEFT OUTER JOIN ((  SELECT 1
+  FROM t1 a_alias_1
+    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
+    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
+    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
+    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
+) t2) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
+  FROM t1 a_alias_1
+    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
+    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
+    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
+    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
+) t3) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
+  FROM t1 a_alias_1
+    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
+    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
+    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
+    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
+) t4) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
+  FROM t1 a_alias_1
+    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
+    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
+    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
+    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
+) t5) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
+  FROM t1 a_alias_1
+    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
+    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
+    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
+    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
+) t6) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
+  FROM t1 a_alias_1
+    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
+    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
+    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
+    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
+) t7) ON 1=1
+LEFT OUTER JOIN ((  SELECT 1
+  FROM t1 a_alias_1
+    LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
+    LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
+    LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
+    LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
+    LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
+) t8) ON 1=1
+;
+
+SELECT 1
+FROM (v1 t1)
+LEFT OUTER JOIN (v1 t2) ON 1=1
+LEFT OUTER JOIN (v1 t3) ON 1=1
+LEFT OUTER JOIN (v1 t4) ON 1=1
+LEFT OUTER JOIN (v1 t5) ON 1=1
+LEFT OUTER JOIN (v1 t6) ON 1=1
+LEFT OUTER JOIN (v1 t7) ON 1=1
+LEFT OUTER JOIN (v1 t8) ON 1=1
+;
+
+drop view v1;
+drop table t1,t2,t3,t4,t5,t6;
+
+--echo # -----------------------------------------------------------------
+--echo # -- End of 5.2 tests.
+--echo # -----------------------------------------------------------------
+
+--echo #
+--echo # Bug #59696 Optimizer does not use equalities for conditions over view 
+--echo #
+
+CREATE TABLE t1 (a int NOT NULL);
+INSERT INTO t1 VALUES 
+  (9), (2), (8), (1), (3), (4), (2), (5),
+  (9), (2), (8), (1), (3), (4), (2), (5);
+
+CREATE TABLE t2 (pk int PRIMARY KEY, c int NOT NULL);
+INSERT INTO t2 VALUES
+  (9,90), (16, 160), (11,110), (1,10), (18,180), (2,20),
+  (14,140), (15, 150), (12,120), (3,30), (17,170), (19,190);
+
+EXPLAIN EXTENDED
+SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
+FLUSH STATUS;
+SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
+SHOW STATUS LIKE 'Handler_read_%';
+
+CREATE VIEW v AS SELECT * FROM t2;
+EXPLAIN EXTENDED
+SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
+FLUSH STATUS;
+SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
+SHOW STATUS LIKE 'Handler_read_%';
+DROP VIEW v;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Bug#702403: crash with multiple equalities and a view
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (10);
+
+CREATE TABLE t2 (pk int PRIMARY KEY, b int, INDEX idx (b));
+INSERT INTO t2 VALUES (1,2), (3,4);
+CREATE TABLE t3 (pk int PRIMARY KEY, b int, INDEX idx (b));
+INSERT INTO t3 VALUES (1,2), (3,4);
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+EXPLAIN 
+SELECT * FROM v1, t2, t3 
+  WHERE t3.pk = v1.a AND t2.b = 1 AND t2.b = t3.pk AND v1.a BETWEEN 2 AND 5;
+
+SELECT * FROM v1, t2, t3 
+  WHERE t3.pk = v1.a AND t2.b = 1 AND t2.b = t3.pk AND v1.a BETWEEN 2 AND 5;
+
+DROP VIEW v1;
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # Bug#717577: substitution for best field in a query over a view and
+--echo #             with OR in the WHERE condition 
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (2,4), (1,3);
+create table t2 (c int);
+insert into t2 values (6), (4), (1), (3), (8), (3), (4), (2);
+
+select * from t1,t2 where t2.c=t1.a and t2.c < 3 or t2.c=t1.b and t2.c >=4;
+explain extended
+select * from t1,t2 where t2.c=t1.a and t2.c < 3 or t2.c=t1.b and t2.c >=4;
+
+create view v1 as select * from t2;
+select * from t1,v1 where v1.c=t1.a and v1.c < 3 or v1.c=t1.b and v1.c >=4;
+explain extended
+select * from t1,v1 where v1.c=t1.a and v1.c < 3 or v1.c=t1.b and v1.c >=4;
+
+create view v2 as select * from v1;
+select * from t1,v2 where v2.c=t1.a and v2.c < 3 or v2.c=t1.b and v2.c >=4;
+explain extended
+select * from t1,v2 where v2.c=t1.a and v2.c < 3 or v2.c=t1.b and v2.c >=4;
+
+create view v3 as select * from t1;
+select * from v3,v2 where v2.c=v3.a and v2.c < 3 or v2.c=v3.b and v2.c >=4;
+explain extended
+select * from v3,v2 where v2.c=v3.a and v2.c < 3 or v2.c=v3.b and v2.c >=4;
+
+drop view v1,v2,v3;
+drop table t1,t2;
+
+--echo #
+--echo # Bug#724942: substitution of the constant into a view field
+--echo #              
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (2), (9), (9), (6), (5), (4), (7);
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT * FROM v1 WHERE a > -1 OR a > 6 AND a = 3;
+EXPLAIN EXTENDED
+SELECT * FROM v1 WHERE a > -1 OR a > 6 AND a = 3;
+
+SELECT * FROM v1 WHERE a > -1 OR a AND a = 0;
+EXPLAIN EXTENDED
+SELECT * FROM v1 WHERE a > -1 OR a AND a = 0;
+
+CREATE VIEW v2 AS SELECT * FROM v1;
+
+SELECT * FROM v2 WHERE a > -1 OR a AND a = 0;
+EXPLAIN EXTENDED
+SELECT * FROM v2 WHERE a > -1 OR a AND a = 0;
+
+DROP VIEW v1,v2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a varchar(10), KEY (a)) ;
+INSERT INTO t1 VALUES
+  ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'), ('MM'),
+  ('AA'), ('DD'), ('CC'), ('GG');
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+--echo # t1 and v1 should return the same result set
+SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV'; 
+SELECT * FROM t1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
+--echo # t1 and v1 should propagate constants in the same way
+EXPLAIN EXTENDED
+SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV'; 
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
+
+--echo # t1 and v1 should return the same result set
+SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV'; 
+SELECT * FROM t1 WHERE a > 'JJ' OR a AND a = 'VV';
+--echo # t1 and v1 should propagate constants in the same way
+EXPLAIN EXTENDED
+SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV'; 
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a > 'JJ' OR a AND a = 'VV';
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#777745: crash  with equality propagation 
+--echo #             over view fields
+--echo #
+
+CREATE TABLE t1 (a int NOT NULL ) ;
+INSERT INTO t1 VALUES (2), (1);
+
+CREATE TABLE t2 (a int NOT NULL , b int NOT NULL) ;
+INSERT INTO t2 VALUES (2,20),(2,30);
+
+CREATE VIEW  v2 AS SELECT * FROM t2;
+
+EXPLAIN
+SELECT * FROM t1,v2 
+  WHERE v2.a = t1.a AND v2.a = 2 AND v2.a IS NULL AND t1.a != 0;
+SELECT * FROM t1,v2 
+  WHERE v2.a = t1.a AND v2.a = 2 AND v2.a IS NULL AND t1.a != 0;
+
+EXPLAIN
+SELECT * FROM t1,v2 
+  WHERE v2.a = t1.a AND v2.a = 2 AND v2.a+1 > 2 AND t1.a != 0;
+SELECT * FROM t1,v2 
+  WHERE v2.a = t1.a AND v2.a = 2 AND v2.a+1 > 2 AND t1.a != 0;
+
+DROP VIEW v2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Bug#794038: crash  with INSERT/UPDATE/DELETE 
+--echo #             over a non-updatable view
+--echo #
+
+CREATE TABLE t1 (a int);
+CREATE ALGORITHM = TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+CREATE ALGORITHM = MERGE VIEW v2 AS SELECT * FROM v1;
+CREATE ALGORITHM = TEMPTABLE VIEW v3 AS SELECT * FROM v2;
+
+-- error ER_NON_INSERTABLE_TABLE
+INSERT INTO v3 VALUES (1);
+-- error ER_NON_UPDATABLE_TABLE
+UPDATE v3 SET a=0;
+-- error ER_NON_UPDATABLE_TABLE
+DELETE FROM v3;
+
+DROP VIEW v1,v2,v3;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#798621: crash with a view string field equal  
+--echo #             to a constant
+--echo #
+
+CREATE TABLE t1 (a varchar(32), b int) ;
+INSERT INTO t1 VALUES ('j', NULL), ('c', 8), ('c', 1);
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+CREATE TABLE t2 (a varchar(32)) ;
+INSERT INTO t2 VALUES ('j'), ('c');
+
+SELECT * FROM v1 LEFT JOIN t2 ON t2.a = v1.a 
+  WHERE v1.b = 1 OR v1.a = 'a' AND LENGTH(v1.a) >= v1.b;
+EXPLAIN EXTENDED
+SELECT * FROM v1 LEFT JOIN t2 ON t2.a = v1.a 
+  WHERE v1.b = 1 OR v1.a = 'a' AND LENGTH(v1.a) >= v1.b;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+--echo # Bug#798625: duplicate of the previous one, but without crash  
+
+CREATE TABLE t1 (f1 int NOT NULL, f2 int, f3 int, f4 varchar(32), f5 int) ;
+INSERT INTO t1 VALUES (20,5,2,'r', 0);
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+SELECT v1.f4 FROM v1 
+  WHERE f1<>0 OR f2<>0 AND f4='v' AND (f2<>0 OR f3<>0 AND f5<>0 OR f4 LIKE '%b%');
+EXPLAIN EXTENDED
+SELECT v1.f4 FROM v1 
+  WHERE f1<>0 OR f2<>0 AND f4='v' AND (f2<>0 OR f3<>0 AND f5<>0 OR f4 LIKE '%b%');
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#798576: abort on a GROUP BY query over a view with left join 
+--echo #             that can be converted to inner join
+--echo #
+
+CREATE TABLE t1 (a int NOT NULL , b int NOT NULL) ;
+INSERT INTO t1 VALUES (214,0), (6,6), (6,0), (7,0);
+
+CREATE TABLE t2 (b int) ;
+INSERT INTO t2 VALUES (88), (78), (6);
+
+CREATE ALGORITHM=MERGE VIEW v1 AS 
+  SELECT t1.a, t2.b FROM (t2 LEFT JOIN t1 ON t2.b > t1.a) WHERE t1.b <= 0;
+
+SELECT * FROM v1;
+SELECT a, MIN(b) FROM v1 GROUP BY a;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # LP bug #793386: unexpected 'Duplicate column name ''' error
+--echo #                 at the second execution of a PS using a view 
+--echo #
+
+CREATE TABLE t1 (f1 int, f2 int, f3 int, f4 int);
+
+CREATE VIEW v1 AS
+  SELECT t.f1, t.f2, s.f3, s.f4 FROM t1 t, t1 s
+    WHERE t.f4 >= s.f2 AND s.f3 < 0;
+
+PREPARE stmt1 FROM 
+ "SELECT s.f1 AS f1, s.f2 AS f2, s.f3 AS f3, t.f4 AS f4
+    FROM v1 AS t LEFT JOIN v1 AS s ON t.f4=s.f4 WHERE t.f2 <> 1225";
+EXECUTE stmt1;
+EXECUTE stmt1;
+
+DEALLOCATE PREPARE stmt1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # LP BUG#806071 (2 views with ORDER BY)
+--echo #
+
+CREATE TABLE t1 (f1 int);
+INSERT INTO t1 VALUES (1),(1);
+
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT f1 FROM t1;
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT f1 FROM v1 ORDER BY f1;
+
+SELECT * FROM v2 AS a1, v2 AS a2;
+EXPLAIN EXTENDED SELECT * FROM v2 AS a1, v2 AS a2;
+
+DROP VIEW v1, v2;
+DROP TABLE t1;
+
+--echo #
+--echo # LP bug #823189: dependent subquery with RIGHT JOIN
+--echo #                 referencing view in WHERE
+--echo #
+
+CREATE TABLE t1 (a varchar(32));
+INSERT INTO t1 VALUES ('y'), ('w');
+
+CREATE TABLE t2 (a int);
+INSERT INTO t2 VALUES (10);
+
+CREATE TABLE t3 (a varchar(32), b int);
+
+CREATE TABLE t4 (a varchar(32));
+INSERT INTO t4 VALUES ('y'), ('w');
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2
+  WHERE t2.a NOT IN (SELECT t3.b FROM t3 RIGHT JOIN t4 ON (t4.a = t3.a)
+                       WHERE t4.a >= t1.a);
+SELECT * FROM t1, t2
+  WHERE t2.a NOT IN (SELECT t3.b FROM t3 RIGHT JOIN t4 ON (t4.a = t3.a)
+                       WHERE t4.a >= t1.a);
+
+EXPLAIN EXTENDED
+SELECT * FROM v1, t2
+  WHERE t2.a NOT IN (SELECT t3.b FROM t3 RIGHT JOIN t4 ON (t4.a = t3.a)
+                       WHERE t4.a >= v1.a);
+SELECT * FROM v1, t2
+  WHERE t2.a NOT IN (SELECT t3.b FROM t3 RIGHT JOIN t4 ON (t4.a = t3.a)
+                       WHERE t4.a >= v1.a);
+
+DROP VIEW v1;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # LP bug #823237: dependent subquery with LEFT JOIN
+--echo #                 referencing view in WHERE
+--echo # (duplicate of LP bug #823189)
+--echo # 
+
+CREATE TABLE t1 (a int);
+
+CREATE TABLE t2 ( b int, d int, e int);
+INSERT INTO t2 VALUES (7,8,0);
+
+CREATE TABLE t3 ( c int);
+INSERT INTO t3 VALUES (0);
+
+CREATE TABLE t4 (a int, b int, c int);
+INSERT INTO t4 VALUES (93,1,0), (95,NULL,0);
+
+CREATE VIEW v4 AS SELECT * FROM t4;
+
+EXPLAIN EXTENDED
+SELECT * FROM t3 , t4 
+  WHERE t4.c <= (SELECT t2.e FROM t2 LEFT JOIN t1 ON ( t1.a = t2.d )
+                   WHERE t2.b > t4.b);
+SELECT * FROM t3 , t4 
+  WHERE t4.c <= (SELECT t2.e FROM t2 LEFT JOIN t1 ON ( t1.a = t2.d )
+                   WHERE t2.b > t4.b);
+
+
+EXPLAIN EXTENDED
+SELECT * FROM t3, v4 
+  WHERE v4.c <= (SELECT t2.e FROM t2 LEFT JOIN t1 ON ( t1.a = t2.d )
+                   WHERE t2.b > v4.b);
+
+SELECT * FROM t3, v4 
+  WHERE v4.c <= (SELECT t2.e FROM t2 LEFT JOIN t1 ON ( t1.a = t2.d )
+                   WHERE t2.b > v4.b);
+
+DROP VIEW v4;
+DROP TABLE t1,t2,t3,t4;
+
+#
+# Bug#9801 (Views: imperfect error message)
+#
+
+--disable_warnings
+drop table if exists t_9801;
+drop view if exists v_9801;
+--enable_warnings
+
+create table t_9801 (s1 int);
+
+--error ER_VIEW_NONUPD_CHECK
+create view v_9801 as
+  select sum(s1) from t_9801 with check option;
+
+--error ER_VIEW_NONUPD_CHECK
+create view v_9801 as
+  select sum(s1) from t_9801 group by s1 with check option;
+
+ --error ER_VIEW_NONUPD_CHECK
+create view v_9801 as
+  select sum(s1) from t_9801 group by s1 with rollup with check option;
+
+drop table t_9801;
+
+--echo #
+--echo # Bug #47335 assert in get_table_share
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP VIEW IF EXISTS v1;
+--enable_warnings
+
+CREATE TEMPORARY TABLE t1 (id INT);
+--error ER_NO_SUCH_TABLE
+ALTER VIEW t1 AS SELECT 1 AS f1;
+DROP TABLE t1;
+
+CREATE VIEW v1 AS SELECT 1 AS f1;
+CREATE TEMPORARY TABLE v1 (id INT);
+ALTER VIEW v1 AS SELECT 2 AS f1;
+DROP TABLE v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+
+--echo #
+--echo # Bug #47635 assert in start_waiting_global_read_lock 
+--echo #            during CREATE VIEW
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2;
+DROP VIEW IF EXISTS t2;
+--enable_warnings
+
+CREATE TABLE t1 (f1 integer);
+CREATE TEMPORARY TABLE IF NOT EXISTS t1 (f1 integer);
+CREATE TEMPORARY TABLE t2 (f1 integer);
+DROP TABLE t1;
+FLUSH TABLES WITH READ LOCK;
+--error ER_CANT_UPDATE_WITH_READLOCK
+CREATE VIEW t2 AS SELECT * FROM t1;
+
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # Bug#48315 Metadata lock is not taken for merged views that
+--echo #           use an INFORMATION_SCHEMA table
+--echo #
+
+--disable_warnings
+DROP VIEW IF EXISTS v1;
+DROP PROCEDURE IF EXISTS p1;
+--enable_warnings
+
+connect (con2, localhost, root);
+connect (con3, localhost, root);
+
+connection default;
+
+CREATE VIEW v1 AS SELECT schema_name FROM information_schema.schemata;
+CREATE PROCEDURE p1() SELECT COUNT(*), GET_LOCK('blocker', 100) FROM v1;
+
+--echo # CALL p1() so the view is merged.
+--disable_result_log
+CALL p1();
+--enable_result_log
+SELECT RELEASE_LOCK('blocker');
+
+connection con3;
+SELECT GET_LOCK('blocker', 100);
+
+connection default;
+--echo # Try to CALL p1() again, this time it should block on "blocker".
+--echo # Sending:
+--send CALL p1()
+
+connection con2;
+let $wait_condition=
+  SELECT COUNT(*) = 1 from information_schema.processlist
+  WHERE state = "User lock" AND
+        info = "SELECT COUNT(*), GET_LOCK('blocker', 100) FROM v1";
+--source include/wait_condition.inc
+--echo # ... then try to drop the view. This should block.
+--echo # Sending:
+--send DROP VIEW v1
+
+connection con3;
+let $wait_condition=
+  SELECT COUNT(*) = 1 from information_schema.processlist
+  WHERE state = "Waiting for table metadata lock" AND info = "DROP VIEW v1";
+--source include/wait_condition.inc
+--echo # Now allow CALL p1() to complete
+SELECT RELEASE_LOCK('blocker');
+
+connection default;
+--echo # Reaping: CALL p1()
+--disable_result_log
+--reap
+--enable_result_log
+SELECT RELEASE_LOCK('blocker');
+
+connection con2;
+--echo # Reaping: DROP VIEW v1
+--reap
+
+connection default;
+DROP PROCEDURE p1;
+disconnect con2;
+disconnect con3;
+
+
+--echo #
+--echo # Bug#12626844: WRONG ERROR MESSAGE WHILE CREATING A VIEW ON A
+--echo #               NON EXISTING DATABASE
+--echo #
+
+--disable_warnings
+DROP DATABASE IF EXISTS nodb;
+--enable_warnings
+--error ER_BAD_DB_ERROR
+CREATE VIEW nodb.a AS SELECT 1;
+
+
+--echo #
+--echo # BUG#14117018 - MYSQL SERVER CREATES INVALID VIEW DEFINITION
+--echo # BUG#18405221 - SHOW CREATE VIEW OUTPUT INCORRECT
+--echo #
+
+CREATE VIEW v1 AS (SELECT '' FROM DUAL);
+CREATE VIEW v2 AS (SELECT 'BUG#14117018' AS col1 FROM DUAL) UNION ALL
+                  (SELECT '' FROM DUAL);
+CREATE VIEW v3 AS (SELECT 'BUG#14117018' AS col1 FROM DUAL) UNION ALL
+                  (SELECT '' FROM DUAL) UNION ALL
+                  (SELECT '' FROM DUAL);
+CREATE VIEW v4 AS (SELECT 'BUG#14117018' AS col1 FROM DUAL) UNION ALL
+                  (SELECT '' AS col2 FROM DUAL) UNION ALL
+                  (SELECT '' FROM DUAL);
+
+# In the second (and later) UNIONed queries, duplicate column names are allowed
+CREATE VIEW v5 AS (SELECT 'buggy' AS col1, 'fix' as col2 FROM DUAL) UNION ALL
+                  (SELECT 'buggy' as a, 'fix' as a FROM DUAL);
+
+--echo # Name for the column in select1 is set properly with or
+--echo # without this fix.
+SHOW CREATE VIEW v1;
+
+--echo # Name for the column in select2 is set with this fix.
+--echo # Without this fix, name would not have set for the
+--echo # columns in select2.
+SHOW CREATE VIEW v2;
+
+--echo # Name for the field item in select2 & select3 is set with this fix.
+--echo # Without this fix, name would not have set for the
+--echo # columns in select2 & select3.
+SHOW CREATE VIEW v3;
+
+--echo # Name for the field item in select3 is set with this fix.
+--echo # Without this fix, name would not have set for the
+--echo # columns in select3.
+SHOW CREATE VIEW v4;
+
+DROP VIEW v1, v2, v3, v4, v5;
+
+
+--echo #
+--echo # BUG#19886430: VIEW CREATION WITH NAMED COLUMNS, OVER UNION,
+--echo #               IS REJECTED
+
+--echo # Without the patch, reports an error.
+CREATE VIEW v1 (fld1, fld2) AS
+  SELECT 1 AS a, 2 AS b
+    UNION ALL
+  SELECT 1 AS a, 1 AS a;
+
+--echo # The column names are explicitly specified and not duplicates, hence
+--echo # succeeds.
+CREATE VIEW v2 (fld1, fld2) AS
+  SELECT 1 AS a, 2 AS a
+    UNION ALL
+  SELECT 1 AS a, 1 AS a;
+
+--echo # The column name in the first SELECT are not duplicates, hence succeeds.
+CREATE VIEW v3 AS
+  SELECT 1 AS a, 2 AS b
+    UNION ALL
+  SELECT 1 AS a, 1 AS a;
+
+--echo # Should report an error, since the explicitly specified column names are
+--echo # duplicates.
+--error ER_DUP_FIELDNAME
+CREATE VIEW v4 (fld1, fld1) AS
+  SELECT 1 AS a, 2 AS b
+    UNION ALL
+  SELECT 1 AS a, 1 AS a;
+
+--echo # Should report an error, since duplicate column name is specified in the
+--echo # First SELECT.
+--error ER_DUP_FIELDNAME
+CREATE VIEW v4 AS
+  SELECT 1 AS a, 2 AS a
+    UNION ALL
+  SELECT 1 AS a, 1 AS a;
+
+--echo # Cleanup
+DROP VIEW v1, v2, v3;
+
+
+# Check that all connections opened by test cases in this file are really
+# gone so execution of other tests won't be affected by their presence.
+--source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # lp:833600 Wrong result with view + outer join + uncorrelated subquery (non-semijoin) 
+--echo #
+
+CREATE TABLE t1 ( a int, b int );
+INSERT INTO t1 VALUES (0,0),(0,0);
+
+CREATE TABLE t2 ( a int, b int );
+INSERT IGNORE INTO t2 VALUES (1,0),(1,0);
+
+CREATE TABLE t3 ( b int );
+INSERT IGNORE INTO t3 VALUES (0),(0);
+
+CREATE OR REPLACE VIEW v2 AS SELECT * FROM t2;
+SELECT * FROM t1 RIGHT JOIN v2 ON ( v2.a = t1.a ) WHERE v2.b IN ( SELECT b FROM t3 ) AND t1.b IS NULL ;
+
+SELECT * FROM t1 RIGHT JOIN v2 ON ( v2.a = t1.a ) WHERE v2.b IN ( SELECT b FROM t3 ) AND t1.b IS NULL ;
+
+DROP VIEW v2;
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # BUG#915222: Valgrind complains or crashes with INSERT SELECT
+--echo #              within a trigger that uses a view
+--echo #
+
+CREATE TABLE t1 (a char(1));
+
+CREATE TABLE t2 (d int, e char(1));
+
+INSERT INTO t2 VALUES (13,'z');
+
+CREATE TRIGGER tr AFTER UPDATE ON t2
+  FOR EACH ROW
+  REPLACE INTO t3
+  SELECT f, a AS alias FROM t3, v;
+
+CREATE TABLE t3 (f int, g char(8));
+
+CREATE VIEW v AS SELECT a, e FROM t2, t1;
+
+UPDATE t2 SET d=7;
+UPDATE t2 SET d=7;
+UPDATE t2 SET d=7;
+UPDATE t2 SET d=7;
+
+DROP TRIGGER tr;
+DROP VIEW v;
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # BUG#972943: Assertion failure with INSERT SELECT within a trigger 
+--echo #             that uses derived table and materialized view
+--echo #
+
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 VALUES (1,0), (2,8);
+
+CREATE ALGORITHM=TEMPTABLE VIEW v1
+  AS SELECT * FROM t1;
+
+CREATE TABLE t2 (c int);
+CREATE TABLE t3 (d int, e int);
+
+CREATE TRIGGER tr BEFORE INSERT ON t2 FOR EACH ROW
+  INSERT INTO t3
+  SELECT t1.*
+    FROM (SELECT * FROM t1 WHERE b IN (SELECT b FROM v1)) AS alias1, t1
+    WHERE t1.a = 3 OR t1.a > 5;
+
+INSERT INTO t2 VALUES (1);
+
+DROP TRIGGER tr;
+DROP VIEW v1;
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # LP bug#1007622 Server crashes in handler::increment_statistics on
+--echo # inserting into a view over a view
+--echo #
+
+flush status;
+--disable_ps_protocol
+CREATE TABLE t1 (a INT);
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT a1.* FROM t1 AS a1, t1 AS a2;
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM v1;
+INSERT INTO v2 (a) VALUES (1) ;
+select * from t1;
+drop view v2,v1;
+drop table t1;
+show status like '%view%';
+show status like 'Opened_table%';
+--enable_ps_protocol
+
+--echo #
+--echo # MDEV-486 LP BUG#1010116 Incorrect query results in
+--echo # view and derived tables
+--echo #
+
+SELECT
+`Derived1`.`id`,
+`Derived2`.`Val1`
+FROM (select 30631 as `id`) AS `Derived1` LEFT OUTER JOIN (SELECT
+2 as `id`,
+1 AS `Val1`
+FROM (select 30631 as `id`) AS `Derived3`) AS `Derived2` ON `Derived1`.`id` = `Derived2`.`id`;
+
+create table t1 ( id int );
+insert into t1 values (30631);
+create table t2 ( id int );
+insert into t2 values (30631);
+create algorithm=MERGE view v2 as select 2 as id, 1 as val1 from t2;
+select t1.*, v2.* from t1 left join v2 on t1.id = v2.id;
+drop view v2;
+drop table t1,t2;
+
+create table t1 ( id int );
+insert into t1 values (30631);
+create table t2 ( id int );
+insert into t2 values (30631);
+create algorithm=MERGE view v2 as select 2 as id, id is null as bbb, id as iddqd, 1 as val1 from t2;
+select t1.*, v2.* from t1 left join v2 on t1.id = v2.id;
+drop view v2;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-3914: Wrong result (NULLs instead of real values)
+--echo # with INNER and RIGHT JOIN in a FROM subquery, derived_merge=on
+--echo # (fix of above MDEV-486 fix)
+--echo #
+SET @save_optimizer_switch_MDEV_3914=@@optimizer_switch;
+SET optimizer_switch = 'derived_merge=on';
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (5),(6);
+
+SELECT * FROM ( SELECT c FROM ( t1 INNER JOIN t2 ) RIGHT JOIN t3 ON a = c ) AS alias;
+
+SET optimizer_switch = 'derived_merge=off';
+
+SELECT * FROM ( SELECT c FROM ( t1 INNER JOIN t2 ) RIGHT JOIN t3 ON a = c ) AS alias;
+
+SET optimizer_switch=@save_optimizer_switch_MDEV_3914;
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-589 (LP BUG#1007647) :
+--echo # Assertion `vcol_table == 0 || vcol_table == table' failed in
+--echo # fill_record(THD*, List<Item>&, List<Item>&, bool)
+--echo #
+CREATE TABLE t1 (f1 INT, f2 INT);
+CREATE TABLE t2 (f1 INT, f2 INT);
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT a1.f1, a2.f2 FROM t1 AS a1, t1 AS a2;
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM v1;
+CREATE ALGORITHM=MERGE VIEW v3 AS SELECT a1.f1, a2.f2 FROM t1 AS a1, t2 AS a2;
+CREATE ALGORITHM=MERGE VIEW v4 AS SELECT * FROM v3;
+--error ER_VIEW_MULTIUPDATE
+INSERT INTO v3 (f1, f2) VALUES (1, 2);
+--error ER_VIEW_MULTIUPDATE
+INSERT INTO v1 (f1, f2) VALUES (1, 2);
+--error ER_VIEW_MULTIUPDATE
+INSERT INTO v4 (f1, f2) VALUES (1, 2);
+--error ER_VIEW_MULTIUPDATE
+INSERT INTO v2 (f1, f2) VALUES (1, 2);
+drop view v4,v3,v2,v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-3799 fix of above bugfix (MDEV-589) 
+--echo # Wrong result (NULLs instead of real values) with RIGHT JOIN
+--echo # in a FROM subquery and derived_merge=on
+--echo #
+
+CREATE TABLE t1 (f1 INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4),(6);
+
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (7),(8);
+
+SELECT * FROM (  
+  SELECT * FROM t1 RIGHT JOIN t2 ON f1 = f2
+) AS alias;
+
+SELECT * FROM (  
+  SELECT * FROM t2 LEFT JOIN t1 ON f1 = f2
+) AS alias;
+
+drop tables t1,t2;
+
+
+--echo #
+--echo # MDEV-3876 Wrong result (extra rows) with ALL subquery
+--echo # from a MERGE view (duplicate of MDEV-3873)
+--echo #
+
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(3);
+
+CREATE OR REPLACE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t2;
+
+SELECT a FROM t1 AS alias
+WHERE a >= ALL ( 
+SELECT b FROM t1 LEFT JOIN v1 ON (a = b) 
+WHERE a = alias.a );
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-4593: p_s: crash in simplify_joins with delete using subselect
+--echo # from view
+--echo #
+
+create table `t1`(`a` int);
+create table `t2`(`a` int);
+create or replace view `v1` as select `a` from `t1`;
+prepare s from "delete  from `t2` order by (select 1 from `v1`)";
+execute s;
+deallocate prepare s;
+drop view v1;
+drop tables t1,t2;
+
+--echo #
+--echo # MDEV-5034 (duplicate of MDEV-5107):
+--echo # Left Join Yields All Nulls Instead of Appropriate Matches
+--echo #
+  
+ --echo # test #1
+
+CREATE TABLE t1 (state VARCHAR(32), INDEX(state));
+INSERT INTO t1 VALUES ('Indiana'),('Vermont');
+
+CREATE TABLE t2 (state VARCHAR(32));
+INSERT INTO t2 VALUES ('Hawaii'),('Oregon'),('Vermont');
+
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT t1.* FROM t2, t1;
+SELECT * FROM t1 AS outer_t1 LEFT JOIN v1 AS joined_t1
+ON (joined_t1.state = outer_t1.state AND joined_t1.state IN ( SELECT 'Vermont' UNION  SELECT 'Florida' ) );
+
+SELECT * FROM t1 AS outer_t1 LEFT JOIN (SELECT t1.* FROM t2, t1) AS joined_t1 ON (joined_t1.state = outer_t1.state AND joined_t1.state IN ( SELECT 'Vermont' UNION  SELECT 'Florida' ) );
+
+drop view v1;
+drop table t1, t2;
+
+--echo # test #1
+
+CREATE TABLE t1 (a INT, b VARCHAR(1), INDEX(b,a)); 
+INSERT INTO t1 VALUES (4,'p'),(1,'q'),(9,'w'); 
+
+CREATE TABLE t2 (c VARCHAR(1), INDEX(c)); 
+INSERT INTO t2 VALUES ('q'),('a'); 
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT t1a.* FROM t1, t1 AS t1a; 
+SELECT * FROM t2 LEFT JOIN v1 ON ( c=b AND a IN ( 1,6 ) ); 
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT t1a.* FROM t1, t1 AS t1a; 
+SELECT * FROM t2 LEFT JOIN v1 ON ( c=b AND a IN ( 1,6 ) );
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-5153: Server crashes in Item_ref::fix_fields on 2nd execution
+--echo # of PS with LEFT JOIN and MERGE view or SELECT SQ
+--echo #
+
+CREATE TABLE t1 (i1 INT, c1 VARCHAR(6)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+
+CREATE TABLE t2 (c2 VARCHAR(6)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('foobar'),('qux');
+
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1 WHERE ( c1 ) IN ( SELECT c2 FROM t2 ) AND i1 <= 2 ;
+
+PREPARE stmt FROM 'SELECT * FROM t1 LEFT JOIN v1 ON (v1.i1 = t1.i1)';
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+drop view v1;
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1 WHERE ( c1, c1 ) IN ( SELECT c2, c2 FROM t2 ) AND i1 <= 2 ;
+
+EXECUTE stmt;
+EXECUTE stmt;
+
+deallocate prepare stmt;
+drop view v1;
+drop table t1,t2;
+
+#
+# MDEV-5414: RAND() in a subselect : different behavior in MariaDB and MySQL
+#
+create table t1 (a int);
+insert into t1 values (1),(2);
+
+create view v1 (a,r) as select a,rand() from t1;
+
+
+create table t2 select a, r as r1, r as r2, r as r3 from v1;
+
+select a, r1 = r2, r2 = r3 from t2;
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-5515: 2nd execution of a prepared statement returns wrong results
+--echo #
+CREATE TABLE t1 (i1 INT, j1 INT NOT NULL, PRIMARY KEY (i1));
+
+INSERT INTO t1 VALUES (30,300),(40,400);
+
+CREATE TABLE t2 (i2 INT);
+INSERT INTO t2 VALUES (50),(60);
+
+CREATE TABLE t3 (c3 VARCHAR(20), i3 INT);
+INSERT INTO t3 VALUES ('a',10),('b',2);
+
+CREATE TABLE t4 (i4 INT);
+INSERT INTO t4 VALUES (1),(2);
+
+DROP VIEW IF EXISTS v1;
+CREATE VIEW v1 AS select coalesce(j1,i3) AS v1_field1 from t2 join t3 left join t1 on ( i1 = i2 );
+
+CREATE VIEW v2 AS select v1_field1 from t4 join v1;
+
+prepare my_stmt from "select v1_field1 from v2";
+execute my_stmt;
+execute my_stmt;
+deallocate prepare my_stmt;
+
+DROP VIEW v1,v2;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo #MDEV-5717: Server crash with insert statement containing DEFAULT into
+--echo #view
+--echo #
+CREATE TABLE t1 (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `test` tinyint(3) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`)
+);
+
+CREATE VIEW v1 AS (select  t1.id AS id,  t1.test AS test from t1);
+
+INSERT INTO v1 SET test = DEFAULT;
+
+select * from v1;
+
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-5981: name resolution issues with views and multi-update
+--echo # in ps-protocol
+--echo #
+
+create table t1 (id1 int primary key, val1 varchar(20));
+insert into t1 values (1, 'test1');
+create table t2 (id2 int primary key, val2 varchar(20));
+insert into t2 values (1, 'test2');
+create algorithm=merge view v1 as select id1 as id1v1, val1 as val1v1 from t1;
+create algorithm=merge view v2 as
+select t2.id2 as id2v2, t2.val2 as val2v2
+from t2, v1
+where t2.id2 = v1.id1v1;
+prepare stmt1 from "update v2 set val2v2 = 'test19' where 1 = id2v2";
+execute stmt1;
+deallocate prepare stmt1;
+drop view v1,v2;
+drop table t1,t2;
+
+--echo # -----------------------------------------------------------------
+--echo # -- End of 5.3 tests.
+--echo # -----------------------------------------------------------------
+
+--echo #
+--echo # MDEV-3874: Server crashes in Item_field::print on a SELECT
+--echo # from a MERGE view with materialization+semijoin, subquery, ORDER BY
+--echo #
+SET @save_optimizer_switch_MDEV_3874=@@optimizer_switch;
+
+SET optimizer_switch = 'materialization=on,semijoin=on';
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(7);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (4),(6);
+
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1),(2);
+
+
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT  
+( SELECT a FROM t1 WHERE ( 1, 1 ) IN ( 
+SELECT b, c FROM t2, t3 HAVING c > 2 ) ) AS field1, 
+b + c AS field2 
+FROM t2, t3 AS table1
+GROUP BY field1, field2 ORDER BY field1;
+
+SELECT * FROM v1;
+
+drop view v1;
+drop table t1,t2,t3;
+SET optimizer_switch=@save_optimizer_switch_MDEV_3874;
+
+#
+# MDEV-5515: sub-bug test of 3rd execution crash
+#
+
+CREATE TABLE `t1` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `f0` int(11) unsigned NOT NULL DEFAULT '0',
+  `f1` int(11) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id` (`id`)
+);
+
+CREATE TABLE `t2` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `f02` bigint(20) unsigned NOT NULL DEFAULT '0',
+  `f03` int(11) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id` (`id`)
+);
+
+CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW `v1` AS 
+  SELECT 
+    `t1`.`f0` AS `f0`,
+    `t1`.`f1` AS `f1`,
+    `t2`.`f02` AS `f02`,
+    `t2`.`f03` AS `f03` 
+  FROM 
+    (`t1` LEFT JOIN `t2` ON((`t1`.`id` = `t2`.`f02`)));
+
+--delimiter |
+CREATE FUNCTION `f1`(
+        p0 BIGINT(20) UNSIGNED
+    )
+    RETURNS bigint(20) unsigned
+    DETERMINISTIC
+    CONTAINS SQL
+    SQL SECURITY DEFINER
+    COMMENT ''
+BEGIN
+
+DECLARE k0 INTEGER UNSIGNED DEFAULT 0;
+DECLARE lResult INTEGER UNSIGNED DEFAULT 0;
+
+ SET k0 = 0;
+ WHILE k0 < 1 DO
+    SELECT COUNT(*) as `f00` INTO lResult  FROM `v1` WHERE `v1`.`f0` = p0; -- BUG
+   SET k0 = k0 + 1;
+ END WHILE;
+
+  RETURN(k0);
+END|
+--delimiter ;
+
+
+SELECT `f1`(1);
+SELECT `f1`(1);
+SELECT `f1`(1);
+SELECT `f1`(1);
+
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+
+
+create view v1 as select 1;
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--let SEARCH_FILE= $MYSQLD_DATADIR/test/v1.frm
+--let SEARCH_RANGE= 50000
+--let SEARCH_PATTERN=mariadb-version
+--source include/search_pattern_in_file.inc
+
+drop view v1;
+
+--echo #
+--echo # MDEV-7260: Crash in get_best_combination when executing multi-table
+--echo # UPDATE with nested views
+--echo #
+
+CREATE TABLE `t1` (`id` bigint(20));
+
+INSERT INTO `t1` VALUES (1),(2);
+
+CREATE TABLE `t2` (`id` bigint(20));
+
+CREATE TABLE `t3` (`id` bigint(20), `flag` tinyint(4));
+
+create view v1 as select id from t1;
+
+create view v2 as select t2.* from (t2 left join v1 using (id));
+
+update t3 left join v2 using (id) set flag=flag+1;
+
+drop view v2, v1;
+drop table t1, t2, t3;
+
+--echo #
+--echo # MDEV-7207 - ALTER VIEW does not change ALGORITM
+--echo #
+create table t1 (a int, b int);
+create algorithm=temptable view v2 (c) as select b+1 from t1;
+show create view v2;
+alter algorithm=undefined view v2 (c) as select b+1 from t1;
+show create view v2;
+alter algorithm=merge view v2 (c) as select b+1 from t1;
+show create view v2;
+drop view v2;
+drop table t1;
+
+--echo #
+--echo # MDEV-8554: Server crashes in base_list_iterator::next_fast on 1st execution of PS with a multi-table update
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2); # Not necessary, the table can be empty
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4); # Not necessary, the table can be empty
+
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (5),(6); # Not necessary, the table can be empty
+
+CREATE OR REPLACE ALGORITHM=MERGE VIEW v3 AS SELECT * FROM t3;
+
+PREPARE stmt FROM 'UPDATE t1, t2 SET a = 1 WHERE a IN ( SELECT 0 FROM t3 )';
+UPDATE t1, t2 SET a = 1 WHERE a IN ( SELECT 0 FROM v3 );
+EXECUTE stmt;
+
+DROP TABLE t1, t2, t3;
+DROP VIEW v3;
+
+--echo #
+--echo # MDEV-8632: Segmentation fault on INSERT
+--echo #
+CREATE TABLE `t1` (
+  `id` int(10) unsigned NOT NULL,
+  `r` float NOT NULL,
+  PRIMARY KEY (`id`)
+) DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+create view v1 as select id, if(r=r,1,2) as d from t1;
+create view v2 as
+  select id, 
+  d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d as p
+  from v1;
+insert into t1 (id, r)
+select id,p from
+(
+  select id, 
+  d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d+d as p
+  from (
+    select id, if(r=r,1,2) as d
+    from t1
+  ) a
+) b
+on duplicate key update r=p;
+insert into t1 (id, r)
+select id,p from v2 
+on duplicate key update r=p;
+
+prepare stmt from "insert into t1 (id, r) select id,p from v2 on duplicate key update r=p";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop view v1,v2;
+drop table `t1`;
+
+#
+# Bug#19817021
+#
+create table t1 (a int, b int);
+create view v1 as select a+b from t1;
+alter table v1 check partition p1;
+drop view v1;
+drop table t1;
+
+
+--echo #
+--echo # MDEV-10419: crash in mariadb 10.1.16-MariaDB-1~trusty
+--echo #
+CREATE TABLE t1 (c1 CHAR(13));
+CREATE TABLE t2 (c2 CHAR(13));
+ 
+CREATE FUNCTION f() RETURNS INT RETURN 0;
+CREATE OR REPLACE VIEW v1 AS select f() from t1 where c1 in (select c2 from t2);
+DROP FUNCTION f;
+ 
+SHOW CREATE VIEW v1;
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-12099: usage of mergeable view with LEFT JOIN 
+--echo #             that can be converted to INNER JOIN
+--echo #
+
+create table t1 (a int, b int, key(a)) engine=myisam;
+insert into t1 values
+ (3,20), (7,10), (2,10), (4,30), (8,70), 
+ (7,70), (9,100), (9,60), (8,80), (7,60);
+
+create table t2 (c int, d int, key (c)) engine=myisam;
+insert into t2 values
+  (50,100), (20, 200), (10,300),
+  (150,100), (120, 200), (110,300),
+  (250,100), (220, 200), (210,300);
+  
+create table t3(e int, f int not null, key(e), unique (f)) engine=myisam;
+insert into t3 values
+  (100, 3), (300, 5), (400, 4), (300,7),
+  (300,2), (600, 13), (800, 15), (700, 14),
+  (600, 23), (800, 25), (700, 24); 
+
+create view v1 as
+  select * from t2 left join t3 on t3.e=t2.d where t3.f is not null;
+
+select *
+  from t1 left join v1 on v1.c=t1.b 
+    where t1.a < 5;
+
+select *
+  from t1 left join ( t2 left join t3 on t3.e=t2.d )
+          on t2.c=t1.b and  t3.f is not null
+    where t1.a < 5;
+
+explain extended
+select *
+  from t1 left join v1 on v1.c=t1.b 
+    where t1.a < 5;
+
+explain extended
+select *
+  from t1 left join ( t2 left join t3 on t3.e=t2.d )
+          on t2.c=t1.b and  t3.f is not null
+    where t1.a < 5;
+
+explain extended
+select *
+  from t1 left join v1 on v1.c=t1.b and v1.f=t1.a
+    where t1.a < 5;
+
+explain extended
+select *
+  from t1 left join ( t2 left join t3 on t3.e=t2.d )
+       on t2.c=t1.b and t3.f=t1.a and t3.f is not null
+    where t1.a < 5;
+
+drop view v1;
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-11240: Server crashes in check_view_single_update or
+--echo # Assertion `derived->table' failed in mysql_derived_merge_for_insert
+--echo #
+
+CREATE TABLE t3 (a INT);
+CREATE ALGORITHM = MERGE VIEW v1 AS SELECT t2.a FROM t3 AS t1, t3 AS t2;
+CREATE ALGORITHM = MERGE VIEW v2 AS SELECT * FROM v1;
+--error ER_VIEW_NO_INSERT_FIELD_LIST
+PREPARE stmt FROM 'REPLACE INTO v2 SELECT a FROM t3';
+drop view v1,v2;
+drop table t3;
+
+--echo #
+--echo # MDEV-14619: VIEW and GROUP_CONCAT
+--echo #
+
+CREATE TABLE t1 (str text);
+INSERT INTO t1 VALUES ("My"),("SQL");
+CREATE VIEW v1 AS SELECT GROUP_CONCAT(str  SEPARATOR  '\\') FROM t1;
+SELECT * FROM v1;
+SHOW CREATE VIEW v1;
+drop view v1;
+drop table t1;
+
+CREATE TABLE IF NOT EXISTS t0 (f0 INT);
+CREATE TABLE IF NOT EXISTS t1 (f1 INT);
+CREATE TABLE IF NOT EXISTS t2 (f2 INT);
+CREATE TABLE IF NOT EXISTS t3 (f3 INT);
+CREATE TABLE IF NOT EXISTS t4 (f4 INT);
+CREATE TABLE IF NOT EXISTS t5 (f5 INT);
+CREATE TABLE IF NOT EXISTS t6 (f6 INT);
+CREATE TABLE IF NOT EXISTS t7 (f7 INT);
+CREATE TABLE IF NOT EXISTS t8 (f8 INT);
+CREATE TABLE IF NOT EXISTS t9 (f9 INT);
+CREATE TABLE IF NOT EXISTS t10 (f10 INT);
+CREATE TABLE IF NOT EXISTS t11 (f11 INT);
+CREATE TABLE IF NOT EXISTS t12 (f12 INT);
+CREATE TABLE IF NOT EXISTS t13 (f13 INT);
+CREATE TABLE IF NOT EXISTS t14 (f14 INT);
+CREATE TABLE IF NOT EXISTS t15 (f15 INT);
+CREATE TABLE IF NOT EXISTS t16 (f16 INT);
+CREATE TABLE IF NOT EXISTS t17 (f17 INT);
+CREATE TABLE IF NOT EXISTS t18 (f18 INT);
+CREATE TABLE IF NOT EXISTS t19 (f19 INT);
+CREATE TABLE IF NOT EXISTS t20 (f20 INT);
+CREATE TABLE IF NOT EXISTS t21 (f21 INT);
+CREATE TABLE IF NOT EXISTS t22 (f22 INT);
+CREATE TABLE IF NOT EXISTS t23 (f23 INT);
+CREATE TABLE IF NOT EXISTS t24 (f24 INT);
+CREATE TABLE IF NOT EXISTS t25 (f25 INT);
+CREATE TABLE IF NOT EXISTS t26 (f26 INT);
+CREATE TABLE IF NOT EXISTS t27 (f27 INT);
+CREATE TABLE IF NOT EXISTS t28 (f28 INT);
+CREATE TABLE IF NOT EXISTS t29 (f29 INT);
+CREATE TABLE IF NOT EXISTS t30 (f30 INT);
+CREATE TABLE IF NOT EXISTS t31 (f31 INT);
+CREATE TABLE IF NOT EXISTS t32 (f32 INT);
+CREATE TABLE IF NOT EXISTS t33 (f33 INT);
+CREATE TABLE IF NOT EXISTS t34 (f34 INT);
+CREATE TABLE IF NOT EXISTS t35 (f35 INT);
+CREATE TABLE IF NOT EXISTS t36 (f36 INT);
+CREATE TABLE IF NOT EXISTS t37 (f37 INT);
+CREATE TABLE IF NOT EXISTS t38 (f38 INT);
+CREATE TABLE IF NOT EXISTS t39 (f39 INT);
+CREATE TABLE IF NOT EXISTS t40 (f40 INT);
+CREATE TABLE IF NOT EXISTS t41 (f41 INT);
+CREATE TABLE IF NOT EXISTS t42 (f42 INT);
+CREATE TABLE IF NOT EXISTS t43 (f43 INT);
+CREATE TABLE IF NOT EXISTS t44 (f44 INT);
+CREATE TABLE IF NOT EXISTS t45 (f45 INT);
+CREATE TABLE IF NOT EXISTS t46 (f46 INT);
+CREATE TABLE IF NOT EXISTS t47 (f47 INT);
+CREATE TABLE IF NOT EXISTS t48 (f48 INT);
+CREATE TABLE IF NOT EXISTS t49 (f49 INT);
+CREATE TABLE IF NOT EXISTS t50 (f50 INT);
+CREATE TABLE IF NOT EXISTS t51 (f51 INT);
+CREATE TABLE IF NOT EXISTS t52 (f52 INT);
+CREATE TABLE IF NOT EXISTS t53 (f53 INT);
+CREATE TABLE IF NOT EXISTS t54 (f54 INT);
+CREATE TABLE IF NOT EXISTS t55 (f55 INT);
+CREATE TABLE IF NOT EXISTS t56 (f56 INT);
+CREATE TABLE IF NOT EXISTS t57 (f57 INT);
+CREATE TABLE IF NOT EXISTS t58 (f58 INT);
+CREATE TABLE IF NOT EXISTS t59 (f59 INT);
+CREATE TABLE IF NOT EXISTS t60 (f60 INT);
+CREATE OR REPLACE VIEW v60 AS SELECT * FROM t60;
+
+EXPLAIN
+ SELECT t0.*
+FROM t0
+JOIN t1
+    ON t1.f1 = t0.f0
+LEFT JOIN t2
+    ON t0.f0 = t2.f2
+LEFT JOIN t3
+    ON t0.f0 = t3.f3
+LEFT JOIN t4
+    ON t0.f0 = t4.f4
+LEFT JOIN t5
+    ON t4.f4 = t5.f5
+LEFT JOIN t6
+    ON t0.f0 = t6.f6
+LEFT JOIN t7
+    ON t0.f0 = t7.f7
+LEFT JOIN t8
+    ON t0.f0 = t8.f8
+LEFT JOIN t9
+    ON t0.f0 = t9.f9
+LEFT JOIN t10
+    ON t0.f0 = t10.f10
+LEFT JOIN t11
+    ON t0.f0 = t11.f11
+LEFT JOIN t12
+    ON t0.f0 = t12.f12
+LEFT JOIN t13
+    ON t0.f0 = t13.f13
+LEFT JOIN t14
+    ON t0.f0 = t14.f14
+LEFT JOIN t15
+    ON t0.f0 = t15.f15
+LEFT JOIN t16
+    ON t0.f0 = t16.f16
+LEFT JOIN t17
+    ON t0.f0 = t17.f17
+LEFT JOIN t18
+    ON t0.f0 = t18.f18
+LEFT JOIN t19
+    ON t18.f18 = t19.f19
+LEFT JOIN t20
+    ON t20.f20 = t19.f19
+LEFT JOIN t21
+    ON t20.f20 = t21.f21
+LEFT JOIN t22
+    ON t19.f19 = t22.f22
+LEFT JOIN t23
+    ON t23.f23 = t0.f0
+LEFT JOIN t24
+    ON t24.f24 = t23.f23
+LEFT JOIN t25
+    ON t0.f0 = t25.f25
+LEFT JOIN t26
+    ON t26.f26 = t0.f0
+LEFT JOIN t27
+    ON t27.f27 = t0.f0
+LEFT JOIN t28
+    ON t0.f0 = t28.f28
+LEFT JOIN t29
+    ON t0.f0 = t29.f29
+LEFT JOIN t30
+    ON t30.f30 = t0.f0
+LEFT JOIN t31
+    ON t0.f0 = t31.f31
+LEFT JOIN t32
+    ON t32.f32 = t31.f31
+LEFT JOIN t33
+    ON t33.f33 = t0.f0
+LEFT JOIN t34
+    ON t33.f33 = t34.f34
+LEFT JOIN t35
+    ON t33.f33 = t35.f35
+LEFT JOIN t36
+    ON t36.f36 = t0.f0
+LEFT JOIN t37
+    ON t32.f32 = t37.f37
+LEFT JOIN t38
+    ON t31.f31 = t38.f38
+LEFT JOIN t39
+    ON t39.f39 = t0.f0
+LEFT JOIN t40
+    ON t40.f40 = t39.f39
+LEFT JOIN t41
+    ON t41.f41 = t0.f0
+LEFT JOIN t42
+    ON t42.f42 = t41.f41
+LEFT JOIN t43
+    ON t43.f43 = t41.f41
+LEFT JOIN t44
+    ON t44.f44 = t0.f0
+LEFT JOIN t45
+    ON t45.f45 = t0.f0
+LEFT JOIN t46
+    ON t46.f46 = t0.f0
+LEFT JOIN t47
+    ON t47.f47 = t0.f0
+LEFT JOIN t48
+    ON t48.f48 = t0.f0
+LEFT JOIN t49
+    ON t0.f0 = t49.f49
+LEFT JOIN t50
+    ON t0.f0 = t50.f50
+LEFT JOIN t51
+    ON t0.f0 = t51.f51
+LEFT JOIN t52
+    ON t52.f52 = t0.f0
+LEFT JOIN t53
+    ON t53.f53 = t0.f0
+LEFT JOIN t54
+    ON t54.f54 = t0.f0
+LEFT JOIN t55
+    ON t55.f55 = t0.f0
+LEFT JOIN t56
+    ON t56.f56 = t0.f0
+LEFT JOIN t57
+    ON t57.f57 = t0.f0
+LEFT JOIN t58
+    ON t58.f58 = t57.f57
+LEFT JOIN t59
+    ON t36.f36 = t59.f59
+LEFT JOIN v60
+    ON t36.f36 = v60.f60
+;
+drop table t0, t1, t2, t3, t4, t5, t6, t7, t8, t9,
+t10, t11, t12, t13, t14, t15, t16, t17, t18,
+t19, t20, t21, t22, t23, t24, t25, t26, t27,
+t28, t29, t30, t31, t32, t33, t34, t35, t36,
+t37, t38, t39, t40, t41, t42, t43, t44, t45,
+t46, t47, t48, t49, t50, t51, t52, t53, t54,
+t55, t56, t57, t58, t59,t60;
+drop view v60;
+
+--echo #
+--echo # MDEV-15572: view.test, server crash with --big-tables=1
+--echo #
+
+set @save_big_tables=@@big_tables;
+set big_tables=ON;
+CREATE TABLE t1 ( f1 int , f2 int , f3 int , f4 int);
+CREATE TABLE t2 ( f1 int , f2 int , f3 int , f4 int);
+
+CREATE VIEW v1 AS
+	SELECT t2.f1, t1.f2, t2.f3, t2.f4 FROM (t1 JOIN t2);
+
+--error ER_VIEW_MULTIUPDATE
+REPLACE INTO v1 (f1, f2, f3, f4)
+	SELECT f1, f2, f3, f4 FROM t1;
+
+drop view v1;
+drop table t1, t2;
+set big_tables=@save_big_tables;
+
+--echo # -----------------------------------------------------------------
+--echo # -- End of 5.5 tests.
+--echo # -----------------------------------------------------------------
+
+--echo # some subqueries in SELECT list test
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+insert into t1 values (1,2), (3,4), (3,3), (5,6), (7,8), (9,10);
+insert into t2 values (1,2), (3,4), (3,3), (5,6), (7,8), (9,10);
+create algorithm=merge view v1 as select t1.a as a, (select max(b) from t2 where t1.a=t2.a) as c from t1;
+explain extended
+select * from v1;
+select * from v1;
+explain extended
+select * from t2, v1 where t2.a=v1.a;
+select * from t2, v1 where t2.a=v1.a;
+explain extended
+select * from t1, v1 where t1.a=v1.a;
+select * from t1, v1 where t1.a=v1.a;
+explain extended
+select * from t1, v1 where t1.b=v1.c;
+select * from t1, v1 where t1.b=v1.c;
+explain extended
+select * from t2, t1, v1 where t1.a=t2.a and t1.a=v1.a;
+select * from t2, t1, v1 where t1.a=t2.a and t1.a=v1.a;
+
+drop view v1;
+drop table t1,t2;
+
+#
+# MDEV-6785 Wrong result on 2nd execution of PS with aggregate function, FROM SQ or MERGE view
+#
+
+create table t1 (i int not null);
+insert into t1 values (1),(2);
+create table t2 (j int not null);
+insert into t2 values (11),(12);
+create algorithm=merge view v3 as select t1.* from t2 left join t1 on (t2.j = t1.i);
+prepare stmt from 'select count(v3.i) from t1, v3';
+execute stmt;
+execute stmt;
+drop table t1, t2;
+drop view v3;
+
+--echo #
+--echo # MDEV-8525: mariadb 10.0.20 crashing when data is read by Kodi 
+--echo # media center (http://kodi.tv).
+--echo #
+
+CREATE TABLE `t1` (
+  `idSong` int(11) NOT NULL AUTO_INCREMENT,
+  `idAlbum` int(11) DEFAULT NULL,
+  `idPath` int(11) DEFAULT NULL,
+  `strArtists` text,
+  `strGenres` text,
+  `strTitle` varchar(512) DEFAULT NULL,
+  `iTrack` int(11) DEFAULT NULL,
+  `iDuration` int(11) DEFAULT NULL,
+  `iYear` int(11) DEFAULT NULL,
+  `dwFileNameCRC` text,
+  `strFileName` text,
+  `strMusicBrainzTrackID` text,
+  `iTimesPlayed` int(11) DEFAULT NULL,
+  `iStartOffset` int(11) DEFAULT NULL,
+  `iEndOffset` int(11) DEFAULT NULL,
+  `idThumb` int(11) DEFAULT NULL,
+  `lastplayed` varchar(20) DEFAULT NULL,
+  `rating` char(1) DEFAULT '0',
+  `comment` text,
+  `mood` text,
+  PRIMARY KEY (`idSong`),
+  UNIQUE KEY `idxSong7` (`idAlbum`,`strMusicBrainzTrackID`(36)),
+  KEY `idxSong` (`strTitle`(255)),
+  KEY `idxSong1` (`iTimesPlayed`),
+  KEY `idxSong2` (`lastplayed`),
+  KEY `idxSong3` (`idAlbum`),
+  KEY `idxSong6` (`idPath`,`strFileName`(255))
+)  DEFAULT CHARSET=utf8;
+
+INSERT INTO `t1` VALUES (1,1,1,'strArtists1','strGenres1','strTitle1',1,100,2000,NULL,'strFileName1','strMusicBrainzTrackID1',0,0,0,NULL,NULL,'0','',''),(2,2,2,'strArtists2','strGenres2','strTitle2',2,200,2001,NULL,'strFileName2','strMusicBrainzTrackID2',0,0,0,NULL,NULL,'0','','');
+
+CREATE TABLE `t2` (
+  `idAlbum` int(11) NOT NULL AUTO_INCREMENT,
+  `strAlbum` varchar(256) DEFAULT NULL,
+  `strMusicBrainzAlbumID` text,
+  `strArtists` text,
+  `strGenres` text,
+  `iYear` int(11) DEFAULT NULL,
+  `idThumb` int(11) DEFAULT NULL,
+  `bCompilation` int(11) NOT NULL DEFAULT '0',
+  `strMoods` text,
+  `strStyles` text,
+  `strThemes` text,
+  `strReview` text,
+  `strImage` text,
+  `strLabel` text,
+  `strType` text,
+  `iRating` int(11) DEFAULT NULL,
+  `lastScraped` varchar(20) DEFAULT NULL,
+  `dateAdded` varchar(20) DEFAULT NULL,
+  `strReleaseType` text,
+  PRIMARY KEY (`idAlbum`),
+  UNIQUE KEY `idxAlbum_2` (`strMusicBrainzAlbumID`(36)),
+  KEY `idxAlbum` (`strAlbum`(255)),
+  KEY `idxAlbum_1` (`bCompilation`)
+) DEFAULT CHARSET=utf8;
+
+INSERT INTO `t2` VALUES (1,'strAlbum1','strMusicBrainzAlbumID1','strArtists1','strGenres1',2000,NULL,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'album');
+
+CREATE TABLE `t3` (
+  `idArtist` int(11) DEFAULT NULL,
+  `idAlbum` int(11) DEFAULT NULL,
+  `strJoinPhrase` text,
+  `boolFeatured` int(11) DEFAULT NULL,
+  `iOrder` int(11) DEFAULT NULL,
+  `strArtist` text,
+  UNIQUE KEY `idxAlbumArtist_1` (`idAlbum`,`idArtist`),
+  UNIQUE KEY `idxAlbumArtist_2` (`idArtist`,`idAlbum`),
+  KEY `idxAlbumArtist_3` (`boolFeatured`)
+) DEFAULT CHARSET=utf8;
+
+INSERT INTO `t3` VALUES (1,1,'',0,0,'strArtist1');
+
+CREATE TABLE `t4` (
+  `idArtist` int(11) NOT NULL AUTO_INCREMENT,
+  `strArtist` varchar(256) DEFAULT NULL,
+  `strMusicBrainzArtistID` text,
+  `strBorn` text,
+  `strFormed` text,
+  `strGenres` text,
+  `strMoods` text,
+  `strStyles` text,
+  `strInstruments` text,
+  `strBiography` text,
+  `strDied` text,
+  `strDisbanded` text,
+  `strYearsActive` text,
+  `strImage` text,
+  `strFanart` text,
+  `lastScraped` varchar(20) DEFAULT NULL,
+  `dateAdded` varchar(20) DEFAULT NULL,
+  PRIMARY KEY (`idArtist`),
+  UNIQUE KEY `idxArtist1` (`strMusicBrainzArtistID`(36)),
+  KEY `idxArtist` (`strArtist`(255))
+) DEFAULT CHARSET=utf8;
+
+INSERT INTO `t4` VALUES (1,'strArtist1','strMusicBrainzArtistID',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+
+CREATE VIEW `v1` AS select `t2`.`idAlbum` AS `idAlbum`,`t2`.`strAlbum` AS `strAlbum`,`t2`.`strMusicBrainzAlbumID` AS `strMusicBrainzAlbumID`,`t2`.`strArtists` AS `strArtists`,`t2`.`strGenres` AS `strGenres`,`t2`.`iYear` AS `iYear`,`t2`.`strMoods` AS `strMoods`,`t2`.`strStyles` AS `strStyles`,`t2`.`strThemes` AS `strThemes`,`t2`.`strReview` AS `strReview`,`t2`.`strLabel` AS `strLabel`,`t2`.`strType` AS `strType`,`t2`.`strImage` AS `strImage`,`t2`.`iRating` AS `iRating`,`t2`.`bCompilation` AS `bCompilation`,(select min(`t1`.`iTimesPlayed`) from `t1` where (`t1`.`idAlbum` = `t2`.`idAlbum`)) AS `iTimesPlayed`,`t2`.`strReleaseType` AS `strReleaseType` from `t2`;
+
+CREATE VIEW `v2` AS select `t3`.`idAlbum` AS `idAlbum`,`t3`.`idArtist` AS `idArtist`,`t4`.`strArtist` AS `strArtist`,`t4`.`strMusicBrainzArtistID` AS `strMusicBrainzArtistID`,`t3`.`boolFeatured` AS `boolFeatured`,`t3`.`strJoinPhrase` AS `strJoinPhrase`,`t3`.`iOrder` AS `iOrder` from (`t3` join `t4` on((`t3`.`idArtist` = `t4`.`idArtist`)));
+
+SELECT v1.*,v2.* FROM v1 LEFT JOIN v2 ON v1.idAlbum = v2.idAlbum WHERE v1.idAlbum = 1 ORDER BY v2.iOrder;
+
+drop view v1,v2;
+drop table t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-8913: Derived queries with same column names as final
+--echo # projection causes issues when using Order By
+--echo #
+create table t1 (field int);
+insert into t1 values (10),(5),(3),(8),(20);
+
+SELECT sq.f2 AS f1, sq.f1 AS f2
+FROM ( SELECT field AS f1, 1 AS f2 FROM t1) AS sq
+ORDER BY sq.f1;
+
+create view v1 as SELECT field AS f1, 1 AS f2 FROM t1;
+
+SELECT sq.f2 AS f1, sq.f1 AS f2
+FROM v1 AS sq
+ORDER BY sq.f1;
+
+drop view v1;
+
+create table t2 SELECT field AS f1, 1 AS f2 FROM t1;
+
+SELECT
+  sq.f2 AS f1,
+  sq.f1 AS f2
+FROM t2 AS sq
+ORDER BY sq.f1;
+
+drop table t1, t2;
+
+--error ER_BAD_FIELD_ERROR
+SELECT 1 FROM (SELECT 1 as a) AS b HAVING (SELECT `SOME_GARBAGE`.b.a)=1; 
+
+
+--echo #
+--echo # MDEV-10035: DBUG_ASSERT on CREATE VIEW v1 AS SELECT * FROM t1
+--echo # FOR UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+insert into t1 values (1),(2);
+
+CREATE VIEW v1 AS SELECT * FROM t1 FOR UPDATE;
+SHOW CREATE VIEW v1;
+select * from v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT * FROM t1 LOCK IN SHARE MODE;
+SHOW CREATE VIEW v1;
+select * from v1;
+DROP VIEW v1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8642: WHERE Clause not applied on View - Empty result set returned
+--echo #
+
+CREATE TABLE `t1` (
+  `id` int(20) NOT NULL AUTO_INCREMENT,
+  `use_case` int(11) DEFAULT NULL,
+  `current_deadline` date DEFAULT NULL,
+  `ts_create` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id_UNIQUE` (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=13976 DEFAULT CHARSET=latin1;
+INSERT INTO `t1` VALUES (1,10,'2015-12-18','2015-08-18 08:38:16');
+INSERT INTO `t1` VALUES (2,20,'2015-10-18','2015-08-18 08:43:30');
+CREATE VIEW v1 AS SELECT
+     use_case as use_case_id,
+     (
+          SELECT 
+               deadline_sub.current_deadline
+          FROM 
+               t1 deadline_sub
+          WHERE 
+               deadline_sub.use_case = use_case_id
+               AND ts_create = (SELECT 
+                                        MIN(ts_create)
+                                   FROM 
+                                        t1 startdate_sub
+                                   WHERE 
+                                        startdate_sub.use_case = use_case_id
+                )
+     ) AS InitialDeadline
+FROM 
+     t1;
+
+SELECT * FROM v1 where use_case_id = 10;
+
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-12666: CURRENT_ROLE() and DATABASE() does not work in a view
+--echo #
+--echo # DATABASE() fails only when the initial view creation features a NULL
+--echo # default database.
+--echo #
+--echo # CREATE, USE and DROP database so that we have no "default" database.
+--echo #
+CREATE DATABASE temporary;
+USE temporary;
+DROP DATABASE temporary;
+SELECT DATABASE();
+
+CREATE VIEW test.v_no_db AS SELECT DATABASE() = 'temporary_two';
+SHOW CREATE VIEW test.v_no_db;
+PREPARE prepared_no_database FROM "SELECT DATABASE() = 'temporary_two'";
+
+--echo #
+--echo # All statements should return NULL
+--echo #
+EXECUTE prepared_no_database;
+SELECT DATABASE() = 'temporary_two';
+SELECT * FROM test.v_no_db;
+
+CREATE DATABASE temporary_two;
+USE temporary_two;
+CREATE VIEW test.v_with_db AS SELECT DATABASE() = 'temporary_two';
+PREPARE prepared_with_database FROM "SELECT DATABASE() = 'temporary_two'";
+
+--echo #
+--echo # All statements should return 1;
+--echo #
+SELECT DATABASE() = 'temporary_two';
+SELECT * FROM test.v_no_db;
+SELECT * FROM test.v_with_db;
+EXECUTE prepared_with_database;
+
+--echo #
+--echo # Prepared statements maintain default database to be the same
+--echo # during on creation so this should return NULL still.
+--echo # See MySQL bug #25843
+--echo #
+EXECUTE prepared_no_database;
+
+DROP DATABASE temporary_two;
+DROP VIEW test.v_no_db;
+DROP VIEW test.v_with_db;
+USE test;
+
+--echo # -----------------------------------------------------------------
+--echo # -- End of 10.0 tests.
+--echo # -----------------------------------------------------------------
+SET optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8747 Wrong result for SELECT..WHERE derived_table_column='a' AND derived_table_column<>_latin1'A' COLLATE latin1_bin
+--echo #
+CREATE TABLE t1 (a varchar(10) character set cp1251 collate cp1251_ukrainian_ci, KEY (a)) ;
+INSERT INTO t1 VALUES ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM'),('`1');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
+SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
+DROP VIEW v1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a='5' AND a<2;
+SELECT * FROM v1 WHERE a='5' AND a<2;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8749 Wrong result for SELECT..WHERE derived_table_enum_column='number' AND derived_table_enum_column OP number2
+--echo #
+CREATE TABLE t1 (a varchar(10) character set cp1251 collate cp1251_ukrainian_ci, KEY (a));
+INSERT INTO t1 VALUES ('DD'), ('ZZ'), ('ZZ'), ('KK'), ('FF'), ('HH'),('MM'),('`1');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a <> 0 AND a = ' 1';
+SELECT * FROM v1 WHERE a <> 0 AND a = ' 1';
+DROP VIEW v1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM('5','6'));
+INSERT INTO t1 VALUES ('5'),('6');
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM t1 WHERE a='5' AND a<2;
+SELECT * FROM v1 WHERE a='5' AND a<2;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8742 Wrong result for SELECT..WHERE view_latin1_swedish_ci_field='a' COLLATE latin1_bin
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a='a';
+SELECT * FROM v1 WHERE a=_latin1'a' COLLATE latin1_bin;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9701: CREATE VIEW with GROUP BY or ORDER BY and constant
+--echo # produces invalid definition
+--echo #
+CREATE TABLE t1 ( i INT );
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE VIEW v1 AS
+SELECT 3 AS three, COUNT(*) FROM t1 GROUP BY three;
+
+show create view v1;
+
+SELECT * FROM v1;
+
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-12819: order by ordering expression changed to empty string
+--echo # when creatin view with union
+--echo #
+
+create table t1 (t1col1 int, t1col2 int,t1col3 int );
+create table t2 (t2col1 int, t2col2 int, t2col3 int);
+
+create view v1 as
+select t1col1,t1col2,t1col3 from t1
+union all
+select t2col1,t2col2,t2col3 from t2
+order by 2,3;
+
+show create view v1;
+
+select * from v1;
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo # Checking that SHOW CREATE VIEW preserve parentheses
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+
+CREATE VIEW v1 AS SELECT 1 AS a UNION SELECT a FROM t1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT 1 AS a UNION SELECT a FROM t1 LIMIT 1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT 1 AS a UNION (SELECT a FROM t1);
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT 1 AS a UNION (SELECT a FROM t1 LIMIT 1);
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT 1 AS a UNION (SELECT a FROM t1) LIMIT 1;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-9408 CREATE TABLE SELECT MAX(int_column) creates different columns for table vs view
+--echo #
+CREATE TABLE t1 (
+  id int(11) NOT NULL PRIMARY KEY,
+  country varchar(32),
+  code int(11) default NULL
+);
+INSERT INTO t1 VALUES (1,'ITALY',100),(2,'ITALY',200),(3,'FRANCE',100), (4,'ITALY',100);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 AS
+SELECT code, COUNT(DISTINCT country), MAX(id) FROM t1 GROUP BY code ORDER BY MAX(id);
+SHOW CREATE TABLE t2;
+CREATE TABLE t3 AS
+SELECT code, COUNT(DISTINCT country), MAX(id) FROM v1 GROUP BY code ORDER BY MAX(id);
+SHOW CREATE TABLE t3;
+DROP VIEW v1;
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-3944: Allow derived tables in VIEWS
+--echo #
+create table t1 (s1 int);
+insert into t1 values (1),(2),(3);
+
+CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM t1 WHERE s1>1) AS x;
+CREATE VIEW v2 AS SELECT * FROM (SELECT s1 FROM t1 WHERE s1<3) AS x;
+
+--sorted_result
+select * from v1;
+--sorted_result
+select * from v2;
+--sorted_result
+select * from v1 natural join v2;
+--sorted_result
+select * from v1 natural join t1;
+--sorted_result
+select * from v1 natural join (SELECT s1 FROM t1 WHERE s1<3) as x;
+--sorted_result
+select * from v1 left join v2 on (v1.s1=v2.s1);
+--sorted_result
+select * from v1 left join t1 on (v1.s1=t1.s1);
+--sorted_result
+select * from t1 left join v2 on (t1.s1=v2.s1);
+--sorted_result
+select * from v1 left join (SELECT s1 FROM t1 WHERE s1<3) as x on (v1.s1=x.s1);
+--sorted_result
+select * from (SELECT s1 FROM t1 WHERE s1>1) AS x left join v2 on (x.s1=v2.s1);
+
+drop view v1,v2;
+
+CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+< 100) as xx WHERE s1>1) AS x;
+CREATE VIEW v2 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+> -100) as xx WHERE s1<3) AS x;
+insert into t1 values (200),(-200);
+--sorted_result
+select * from t1;
+--sorted_result
+select * from v1;
+--sorted_result
+select * from v2;
+--sorted_result
+select * from v1 natural join v2;
+--sorted_result
+select * from v1 natural join t1;
+--sorted_result
+select * from v1 natural join (SELECT s1 FROM t1 WHERE s1<3) as x;
+--sorted_result
+select * from v1 left join v2 on (v1.s1=v2.s1);
+--sorted_result
+select * from v1 left join t1 on (v1.s1=t1.s1);
+--sorted_result
+select * from t1 left join v2 on (t1.s1=v2.s1);
+--sorted_result
+select * from v1 left join (SELECT s1 FROM t1 WHERE s1<3) as x on (v1.s1=x.s1);
+--sorted_result
+select * from (SELECT s1 FROM t1 WHERE s1>1) AS x left join v2 on (x.s1=v2.s1);
+
+drop view v1,v2;
+
+CREATE algorithm=temptable VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+< 100) as xx WHERE s1>1) AS x;
+CREATE algorithm=temptable VIEW v2 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+> -100) as xx WHERE s1<3) AS x;
+--sorted_result
+select * from t1;
+--sorted_result
+select * from v1;
+--sorted_result
+select * from v2;
+--sorted_result
+select * from v1 natural join v2;
+--sorted_result
+select * from v1 natural join t1;
+--sorted_result
+select * from v1 natural join (SELECT s1 FROM t1 WHERE s1<3) as x;
+--sorted_result
+select * from v1 left join v2 on (v1.s1=v2.s1);
+--sorted_result
+select * from v1 left join t1 on (v1.s1=t1.s1);
+--sorted_result
+select * from t1 left join v2 on (t1.s1=v2.s1);
+--sorted_result
+select * from v1 left join (SELECT s1 FROM t1 WHERE s1<3) as x on (v1.s1=x.s1);
+--sorted_result
+select * from (SELECT s1 FROM t1 WHERE s1>1) AS x left join v2 on (x.s1=v2.s1);
+
+drop view v1,v2;
+
+CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+< 100) as xx WHERE s1>1) AS x;
+
+--error ER_NON_INSERTABLE_TABLE
+insert into v1 values (-300);
+--error ER_NON_UPDATABLE_TABLE
+update v1 set s1=s1+1;
+
+drop view v1;
+
+CREATE VIEW v1 AS SELECT s1,s2 FROM (SELECT s1 as s2 FROM t1 WHERE s1 <
+100) x, t1 WHERE t1.s1=x.s2;
+select * from v1;
+
+insert into v1 (s1) values (-300);
+update v1 set s1=s1+1;
+select * from v1;
+select * from t1;
+--error ER_NON_INSERTABLE_TABLE
+insert into v1(s2) values (-300);
+--error ER_NON_UPDATABLE_TABLE
+update v1 set s2=s2+1;
+
+drop view v1;
+
+CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM t1 WHERE s1
+< 100) AS x;
+
+--error ER_NON_INSERTABLE_TABLE
+insert into v1 values (-300);
+--error ER_NON_UPDATABLE_TABLE
+update v1 set s1=s1+1;
+
+drop view v1;
+
+CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
+< 100) as xx WHERE s1>1) AS x;
+
+--error ER_NON_INSERTABLE_TABLE
+insert into v1 values (-300);
+--error ER_NON_UPDATABLE_TABLE
+update v1 set s1=s1+1;
+
+create view v2 as select * from v1;
+
+--error ER_NON_INSERTABLE_TABLE
+insert into v2 values (-300);
+--error ER_NON_UPDATABLE_TABLE
+update v2 set s1=s1+1;
+
+drop view v1, v2;
+drop table t1;
+
+--echo #
+--echo # MDEV-9671:Wrong result upon select from a view with a FROM subquery
+--echo #
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3),(2);
+
+CREATE TABLE t2 (j INT);
+INSERT INTO t2 VALUES (8),(3),(3);
+
+CREATE TABLE t3 (k INT);
+INSERT INTO t3 VALUES (1),(8);
+
+CREATE VIEW v1 AS SELECT * FROM t1 LEFT JOIN ( SELECT t2.* FROM t2 INNER JOIN t3 ON ( k = j ) ) AS alias1 ON ( i = j );
+
+show create view v1;
+
+SELECT * FROM t1 LEFT JOIN ( SELECT t2.* FROM t2 INNER JOIN t3 ON ( k = j ) ) AS alias1 ON ( i = j );
+
+SELECT * FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-10035: DBUG_ASSERT on CREATE VIEW v1 AS SELECT * FROM t1
+--echo # FOR UPDATE
+--echo #
+
+CREATE TABLE t1 (a INT);
+insert into t1 values (1),(2);
+
+CREATE VIEW v1 AS SELECT * FROM t1 FOR UPDATE;
+SHOW CREATE VIEW v1;
+select * from v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT * FROM t1 LOCK IN SHARE MODE;
+SHOW CREATE VIEW v1;
+select * from v1;
+DROP VIEW v1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10724:Assertion `vcol_table == 0 || vcol_table == table'
+--echo # failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,
+--echo # bool, bool)
+--echo #
+
+CREATE TABLE t1 (f1 INT);
+CREATE TABLE t2 (f2 INT);
+CREATE TABLE t3 (f3 INT);
+ 
+CREATE ALGORITHM = MERGE VIEW v AS SELECT f1, f3 FROM t1,
+( SELECT f3 FROM t2, t3 ) AS sq;
+ 
+--error ER_VIEW_MULTIUPDATE
+INSERT INTO v (f1, f3) VALUES (1,1), (2,2);
+
+drop view v;
+drop tables t1,t2,t3;
+
+--echo #
+--echo # MDEV-10704: Assertion `field->field->table == table_arg'
+--echo # failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,
+--echo # bool, bool)
+--echo #
+
+CREATE TABLE t1 (i INT);
+CREATE TABLE t2 (j INT);
+CREATE TABLE t3 (k INT);
+
+CREATE ALGORITHM = MERGE VIEW v AS SELECT j AS f1, k AS f2 FROM ( SELECT j FROM t1, t2 ) sq, t3;
+--error ER_VIEW_MULTIUPDATE
+REPLACE INTO v (f1,f2) VALUES (1,1);
+
+drop view v;
+drop table t1,t2,t3;
+
+
+--echo #
+--echo # MDEV-12379: Server crashes in TABLE_LIST::is_with_table on
+--echo # SHOW CREATE VIEW
+--echo #
+
+CREATE TABLE t (i INT);
+CREATE VIEW v AS SELECT * FROM ( SELECT * FROM t ) sq;
+DROP TABLE IF EXISTS t;
+SHOW CREATE VIEW v;
+DROP VIEW v;
+
+--echo #
+--echo # MDEV-13439: Database permissions are not enough to run a subquery
+--echo # with GROUP BY within a view
+--echo #
+
+create database test_db;
+use test_db;
+create table t (i int);
+
+create user foo@localhost;
+grant all on test_db.* to foo@localhost;
+
+--connect (con1,localhost,foo,,)
+
+use test_db;
+create view v as select * from (select i from t group by i) sq;
+select * from v;
+
+# Cleanup
+--disconnect con1
+--connection default
+use test;
+drop database test_db;
+drop user foo@localhost;
+
+--echo #
+--echo # MDEV-13523: Group By in a View, called within a Stored Routine
+--echo # causes Error Code 1356 when a non-root user runs the routine for
+--echo # a second time
+--echo #
+
+CREATE DATABASE bugTest;
+USE bugTest;
+
+CREATE TABLE `procViewTable` (`id` int(10), `someText` varchar(50) NOT NULL);
+insert  into `procViewTable` values (1,'Test'), (2,'Test 2');
+
+CREATE USER 'procView'@'%';
+GRANT ALL PRIVILEGES ON `bugTest`.* TO 'procView'@'%';
+
+CREATE DEFINER=`procView`@`%` VIEW `procViewSimple` AS (
+  select * from (
+    select `id` from `bugTest`.`procViewTable`
+  ) `innerQuery`
+  group by `innerQuery`.`id`
+);
+
+--connect (con1,localhost,procView,,)
+use bugTest;
+
+prepare stmt from "SELECT * FROM procViewSimple";
+execute stmt;
+execute stmt;
+
+# Cleanup
+--disconnect con1
+--connection default
+drop user procView;
+drop view procViewSimple;
+drop table procViewTable;
+use test;
+drop database bugTest;
+
+--echo #
+--echo # MDEV-13436: PREPARE doesn't work as expected & throws errors but
+--echo # MySQL is working fine
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2);
+SET @sql_query = "
+  CREATE VIEW v1 AS
+    SELECT * FROM (
+          SELECT CASE WHEN 1 IN (SELECT a from t1 where a < 2) THEN TRUE END AS testcase
+    ) testalias
+";
+PREPARE stmt FROM @sql_query;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+show create view v1;
+SELECT * FROM v1;
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-18502: Server crash in find_field_in_tables upon 2nd execution of SP which causes ER_WRONG_GROUP_FIELD
+--echo #
+
+CREATE TABLE t1 (id INT, f VARCHAR(1));
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,'a'),(2,'b');
+CREATE PROCEDURE sp() SELECT f AS f1, MAX(id) AS f2 FROM v1 GROUP BY f1, f2 ORDER BY f1;
+--error ER_WRONG_GROUP_FIELD
+CALL sp;
+--error ER_WRONG_GROUP_FIELD
+CALL sp;
+DROP PROCEDURE sp;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24314: create view with derived table without default database
+--echo #
+
+drop database test;
+
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3),(7),(1);
+
+create view db1.v1 as select * from (select * from db1.t1) t;
+show create view db1.v1;
+select * from db1.v1;
+drop view db1.v1;
+
+prepare stmt from "
+create view db1.v1 as select * from (select * from db1.t1) t;
+";
+execute stmt;
+deallocate prepare stmt;
+show create view db1.v1;
+select * from db1.v1;
+drop view db1.v1;
+
+drop table db1.t1;
+drop database db1;
+
+create database test;
+use test;
+
+--echo #
+--echo # MDEV-16940: update of multi-table view returning error used in SP
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2), (3);
+
+CREATE VIEW v1 AS SELECT a, b FROM t1,t2;
+
+CREATE PROCEDURE sp1() UPDATE v1 SET a = 8, b = 9;
+
+--error ER_VIEW_MULTIUPDATE
+CALL sp1;
+--error ER_VIEW_MULTIUPDATE
+CALL sp1;
+
+DROP PROCEDURE sp1;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-23291: SUM column from a derived table returns invalid values
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2);
+
+CREATE view v1 AS
+SELECT a as x, (select x) as y, (select y) as z FROM t1;
+
+SELECT sum(z) FROM (SELECT a as x, (select x) as y, (select y) as z FROM t1) q;
+SELECT sum(z) FROM v1;
+
+DROP TABLE t1;
+DROP VIEW v1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-13197 Parser refactoring for CREATE VIEW,TRIGGER,SP,UDF,EVENT
+--echo #
+
+--error ER_PARSE_ERROR
+ALTER VIEW IF NOT EXISTS v1 AS SELECT 1;
+
+--echo #
+--echo # MDEV-18605: Loss of column aliases by using view and group
+--echo #
+
+CREATE TABLE t1 (id int, foo int);
+CREATE VIEW v1 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1;
+
+INSERT INTO t1 (id, foo) VALUES (1,1),(2,2);
+
+SELECT v.id, v.foo AS bar  FROM v1 v
+  WHERE id = 2;
+
+SELECT v.id, v.foo AS bar  FROM v1 v
+  GROUP BY v.id;
+
+SELECT v.id, v.foo AS bar  FROM v1 v
+  WHERE id = 2
+  GROUP BY v.id;
+
+#Cleanup
+Drop View v1;
+Drop table t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-25206: view specification contains unknown column reference
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (2),(3);
+CREATE TABLE t3 (c int);
+
+--error ER_BAD_FIELD_ERROR
+CREATE VIEW v1 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+--error ER_BAD_FIELD_ERROR
+INSERT INTO t3 SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+--error ER_BAD_FIELD_ERROR
+CREATE TABLE t4 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+
+DROP TABLE t1,t2,t3;
+
+--echo # End of 10.4 tests

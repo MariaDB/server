@@ -1,0 +1,109 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_4;
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+EXPECT_4
+4
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+INSERT INTO t1 VALUES (2);
+connection node_3;
+INSERT INTO t1 VALUES (3);
+connection node_4;
+INSERT INTO t1 VALUES (4);
+connection node_3;
+INSERT INTO t1 VALUES (13);
+Shutting down server ...
+connection node_1;
+SELECT VARIABLE_VALUE AS EXPECT_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+EXPECT_3
+3
+INSERT INTO t1 VALUES (11);
+connection node_2;
+INSERT INTO t1 VALUES (12);
+connection node_4;
+INSERT INTO t1 VALUES (14);
+connection node_3;
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+EXPECT_4
+4
+INSERT INTO t1 VALUES (131);
+connection node_2;
+INSERT INTO t1 VALUES (22);
+Shutting down server ...
+connection node_1;
+SELECT VARIABLE_VALUE AS EXPECT_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+EXPECT_3
+3
+INSERT INTO t1 VALUES (21);
+connection node_3;
+INSERT INTO t1 VALUES (23);
+connection node_4;
+INSERT INTO t1 VALUES (24);
+connection node_2;
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+EXPECT_4
+4
+INSERT INTO t1 VALUES (221);
+connection node_4;
+INSERT INTO t1 VALUES (34);
+Shutting down server ...
+connection node_1;
+SELECT VARIABLE_VALUE AS EXPECT_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+EXPECT_3
+3
+INSERT INTO t1 VALUES (31);
+connection node_2;
+INSERT INTO t1 VALUES (32);
+connection node_3;
+INSERT INTO t1 VALUES (33);
+connection node_4;
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+EXPECT_4
+4
+INSERT INTO t1 VALUES (341);
+connection node_1;
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
+EXPECT_19
+19
+connection node_2;
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 4
+1
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
+EXPECT_19
+19
+connection node_3;
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 4
+1
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
+EXPECT_19
+19
+connection node_4;
+SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 4
+1
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
+EXPECT_19
+19
+connection node_1;
+DROP TABLE t1;
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+connection node_2;
+CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
+connection node_3;
+CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
+CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
+connection node_4;
+CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
+connection node_1;
+disconnect node_3;
+disconnect node_4;

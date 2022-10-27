@@ -1,0 +1,6 @@
+SET @mroonga_default_parser_backup = @@mroonga_default_parser;
+SET GLOBAL mroonga_default_parser = "TokenBigramSplitAlpha";
+SHOW GLOBAL VARIABLES LIKE 'mroonga_default_parser';
+Variable_name	Value
+mroonga_default_parser	TokenBigramSplitAlpha
+SET GLOBAL mroonga_default_parser = @mroonga_default_parser_backup;

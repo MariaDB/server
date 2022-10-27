@@ -1,0 +1,41 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE USER dummy@localhost;
+CREATE USER dummy1@localhost, dummy2@localhost;
+SELECT user, host FROM mysql.user WHERE user like 'dummy%';
+User	Host
+dummy	localhost
+dummy1	localhost
+dummy2	localhost
+SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
+COUNT(*)
+3
+connection slave;
+**** On Slave ****
+SELECT user,host FROM mysql.user WHERE user like 'dummy%';
+User	Host
+dummy	localhost
+dummy1	localhost
+dummy2	localhost
+SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
+COUNT(*)
+3
+connection master;
+DROP USER nonexisting@localhost;
+ERROR HY000: Operation DROP USER failed for 'nonexisting'@'localhost'
+DROP USER nonexisting@localhost, dummy@localhost;
+ERROR HY000: Operation DROP USER failed for 'nonexisting'@'localhost'
+DROP USER dummy1@localhost, dummy2@localhost;
+SELECT user, host FROM mysql.user WHERE user like 'dummy%';
+User	Host
+SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
+COUNT(*)
+0
+connection slave;
+SELECT user,host FROM mysql.user WHERE user like 'dummy%';
+User	Host
+SELECT COUNT(*) FROM mysql.user WHERE user like 'dummy%';
+COUNT(*)
+0
+include/rpl_end.inc

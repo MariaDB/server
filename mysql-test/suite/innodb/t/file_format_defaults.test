@@ -1,0 +1,35 @@
+#***********************************************************
+# WL#7703:
+# Check boundary value of max key length 3073
+#***********************************************************
+-- source include/have_innodb.inc
+-- source include/have_innodb_16k.inc
+
+call mtr.add_suppression("InnoDB: Cannot add field `c1` in table `test`\\.`tab0`");
+
+# Check some default settings
+SELECT @@innodb_strict_mode;
+
+SELECT @@innodb_file_per_table;
+
+SET SQL_MODE=strict_all_tables;
+
+CREATE TABLE tab0 (c1 VARCHAR(65530), KEY(c1(3073))) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+SHOW CREATE TABLE tab0;
+DROP TABLE tab0;
+
+--error ER_TOO_BIG_ROWSIZE
+CREATE TABLE tab0 (c1 VARCHAR(65530), KEY(c1(3073))) ENGINE=InnoDB KEY_BLOCK_SIZE=2;
+
+CREATE TABLE tab0(c1 INT,c2 LONGBLOB ) ENGINE=InnoDB ROW_FORMAT=Dynamic;
+DROP TABLE tab0;
+
+SET GLOBAL innodb_strict_mode=OFF;
+
+# Check with default value
+SET GLOBAL innodb_strict_mode=Default;
+
+SELECT @@innodb_strict_mode;
+
+CREATE TABLE tab1(c1 int ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+DROP TABLE tab1;

@@ -1,0 +1,37 @@
+install soname 'ha_example';
+set sql_mode='ignore_bad_table_options';
+create table t1 (
+a int complex='c,f,f,f' invalid=3
+) engine=example ull=10000 str='dskj' one_or_two='one' yesno=0
+foobar=barfoo;
+Warnings:
+Warning	1911	Unknown option 'invalid'
+Warning	1911	Unknown option 'foobar'
+create table t2 (a int, key (a) some_option=2014);
+Warnings:
+Warning	1911	Unknown option 'some_option'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL `complex`='c,f,f,f' `invalid`=3
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ull`=10000 `str`='dskj' `one_or_two`='one' `yesno`=0 `foobar`=barfoo
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  KEY `a` (`a`) `some_option`=2014
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set sql_mode='';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL `complex`='c,f,f,f' /* `invalid`=3 */
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ull`=10000 `str`='dskj' `one_or_two`='one' `yesno`=0 /* `foobar`=barfoo */
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  KEY `a` (`a`) /* `some_option`=2014 */
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1, t2;
+uninstall soname 'ha_example';

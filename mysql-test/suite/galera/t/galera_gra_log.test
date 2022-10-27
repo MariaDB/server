@@ -1,0 +1,30 @@
+#
+# Test that GRA_* files are generated on applier failure and are readable.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_2
+--exec rm -rf $MYSQLTEST_VARDIR/mysqld.2/data/GRA_*.log
+
+# Create applier failure
+
+SET SESSION wsrep_on=OFF;
+CREATE TABLE t1 (f1 INTEGER);
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER);
+
+--connection node_2
+SET SESSION wsrep_on=ON;
+SELECT COUNT(*) = 0 FROM t1;
+
+# Make sure the GRA file produced is readable and contains the failure
+
+--replace_regex /SET TIMESTAMP=[0-9]+/SET TIMESTAMP=<TIMESTAMP>/ /pseudo_thread_id=[0-9]+/pseudo_thread_id=<PSEUDO_THREAD_ID>/
+--exec $MYSQL_BINLOG --short-form $MYSQLTEST_VARDIR/mysqld.2/data/GRA_*.log
+
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query");
+
+DROP TABLE t1;

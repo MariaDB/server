@@ -1,0 +1,101 @@
+SET @@global.rocksdb_rate_limiter_bytes_per_sec = 10000;
+Warnings:
+Warning	1210	RocksDB: rocksdb_rate_limiter_bytes_per_sec cannot be dynamically changed to or from 0.  Do a clean shutdown if you want to change it from or to 0.
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1), (1000), (1000000), (1000000000), (1000000000000);
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\''), (3.14);
+SET @start_global_value = @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+SELECT @start_global_value;
+@start_global_value
+10000
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC to 1"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC   = 1;
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC = DEFAULT;
+Warnings:
+Warning	1210	RocksDB: rocksdb_rate_limiter_bytes_per_sec cannot be dynamically changed to or from 0.  Do a clean shutdown if you want to change it from or to 0.
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1
+"Trying to set variable @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC to 1000"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC   = 1000;
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1000
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC = DEFAULT;
+Warnings:
+Warning	1210	RocksDB: rocksdb_rate_limiter_bytes_per_sec cannot be dynamically changed to or from 0.  Do a clean shutdown if you want to change it from or to 0.
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1000
+"Trying to set variable @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC to 1000000"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC   = 1000000;
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1000000
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC = DEFAULT;
+Warnings:
+Warning	1210	RocksDB: rocksdb_rate_limiter_bytes_per_sec cannot be dynamically changed to or from 0.  Do a clean shutdown if you want to change it from or to 0.
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1000000
+"Trying to set variable @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC to 1000000000"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC   = 1000000000;
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1000000000
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC = DEFAULT;
+Warnings:
+Warning	1210	RocksDB: rocksdb_rate_limiter_bytes_per_sec cannot be dynamically changed to or from 0.  Do a clean shutdown if you want to change it from or to 0.
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1000000000
+"Trying to set variable @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC to 1000000000000"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC   = 1000000000000;
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1000000000000
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC = DEFAULT;
+Warnings:
+Warning	1210	RocksDB: rocksdb_rate_limiter_bytes_per_sec cannot be dynamically changed to or from 0.  Do a clean shutdown if you want to change it from or to 0.
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1000000000000
+"Trying to set variable @@session.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC   = 444;
+ERROR HY000: Variable 'rocksdb_rate_limiter_bytes_per_sec' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC to 'aaa'"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1000000000000
+"Trying to set variable @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC to 3.14"
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC   = 3.14;
+Got one of the listed errors
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+1000000000000
+SET @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC = @start_global_value;
+SELECT @@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC;
+@@global.ROCKSDB_RATE_LIMITER_BYTES_PER_SEC
+10000
+DROP TABLE valid_values;
+DROP TABLE invalid_values;
+SET @@global.rocksdb_rate_limiter_bytes_per_sec = 0;
+Warnings:
+Warning	1210	RocksDB: rocksdb_rate_limiter_bytes_per_sec cannot be dynamically changed to or from 0.  Do a clean shutdown if you want to change it from or to 0.
+SET @@global.rocksdb_rate_limiter_bytes_per_sec = -1;
+Warnings:
+Warning	1292	Truncated incorrect rocksdb_rate_limiter_bytes_pe... value: '-1'
+Warning	1210	RocksDB: rocksdb_rate_limiter_bytes_per_sec cannot be dynamically changed to or from 0.  Do a clean shutdown if you want to change it from or to 0.

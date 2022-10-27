@@ -1,0 +1,15 @@
+connection node_2;
+connection node_1;
+SELECT variable_value FROM information_schema.session_variables
+WHERE variable_name = 'wsrep_trx_fragment_size';
+variable_value
+0
+SET SESSION wsrep_trx_fragment_size = 0;
+SET SESSION wsrep_trx_fragment_size = 123;
+SELECT variable_value FROM information_schema.global_variables
+WHERE variable_name = 'wsrep_trx_fragment_size';
+variable_value
+0
+SET GLOBAL wsrep_trx_fragment_size = 0;
+SET GLOBAL wsrep_trx_fragment_size = 123;
+SET GLOBAL wsrep_trx_fragment_size = default;

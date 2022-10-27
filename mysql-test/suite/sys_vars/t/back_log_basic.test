@@ -1,0 +1,4 @@
+#
+# show the global and session values;
+#
+select @@global.back_log;

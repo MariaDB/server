@@ -1,0 +1,19 @@
+drop table if exists t1, t2, t3;
+create table t1 (_id int, c1 int, unique key (_id) using hash);
+insert into t1 values(null, 100);
+insert into t1 values(null, 100);
+insert into t1 values(null, 100);
+insert into t1 values(null, 100);
+select * from t1;
+_id	c1
+1	100
+2	100
+3	100
+4	100
+delete from t1 where _id = 2;
+select * from t1;
+_id	c1
+1	100
+3	100
+4	100
+drop table t1;

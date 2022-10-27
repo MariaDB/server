@@ -1,0 +1,66 @@
+7,10c7
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+< Warnings:
+< Warning	1265	Data truncated for column 'f1' at row 1
+---
+> ERROR 01000: Data truncated for column 'f1' at row 1
+13c10
+< 0
+---
+> NULL
+21,24c18
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+< Warnings:
+< Warning	1265	Data truncated for column 'f1' at row 1
+---
+> ERROR 01000: Data truncated for column 'f1' at row 1
+27c21
+< 
+---
+> NULL
+35,38c29
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+< Warnings:
+< Warning	1265	Data truncated for column 'f1' at row 1
+---
+> ERROR 01000: Data truncated for column 'f1' at row 1
+41c32
+< 
+---
+> NULL
+49,52c40
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+< Warnings:
+< Warning	1265	Data truncated for column 'f1' at row 1
+---
+> ERROR 01000: Data truncated for column 'f1' at row 1
+55c43
+< 
+---
+> NULL
+63,66c51
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+< Warnings:
+< Warning	1265	Data truncated for column 'f3' at row 1
+---
+> ERROR 01000: Data truncated for column 'f3' at row 1
+69c54
+< 2	2	0
+---
+> 2	2	NULL
+77,80c62
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+< Warnings:
+< Warning	1265	Data truncated for column 'b' at row 1
+---
+> ERROR 01000: Data truncated for column 'b' at row 1
+83c65
+< 10	0
+---
+> 10	NULL

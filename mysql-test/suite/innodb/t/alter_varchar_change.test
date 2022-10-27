@@ -1,0 +1,375 @@
+--source include/have_innodb.inc
+
+DELIMITER |;
+CREATE PROCEDURE get_index_id(IN tbl_id INT, IN idx_name char(100), OUT idx_id INT)
+BEGIN
+SELECT index_id into idx_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE
+	NAME=idx_name and TABLE_ID=tbl_id;
+END|
+
+CREATE PROCEDURE get_table_id(IN tbl_name char(100), OUT tbl_id INT)
+BEGIN
+SELECT table_id into tbl_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE
+	NAME = tbl_name;
+END|
+
+DELIMITER ;|
+
+SET @tbl_id = 0;
+SET @tbl1_id = 0;
+SET @idx_id = 0;
+SET @idx1_id = 0;
+
+# Table should avoid rebuild for the following varchar change.
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100) PRIMARY KEY)ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ALGORITHM=INSTANT;
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# Index should avoid rebuild
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ALGORITHM=INSTANT;
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 VARCHAR(100), f3 VARCHAR(100),
+		INDEX idx(f2, f3), index idx1(f3, f2))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+CALL get_index_id(@tbl_id, "idx", @idx_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), MODIFY f3 VARCHAR(150), ALGORITHM=INSTANT;
+CALL get_table_id("test/t1", @tbl1_id);
+CALL get_index_id(@tbl1_id, "idx", @idx1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SELECT @idx1_id = @idx_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 VARCHAR(100),
+		INDEX idx(f2(40)))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+CALL get_index_id(@tbl_id, "idx", @idx_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ALGORITHM=INSTANT;
+CALL get_table_id("test/t1", @tbl1_id);
+CALL get_index_id(@tbl1_id, "idx", @idx1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SELECT @idx1_id = @idx_id;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100), FULLTEXT idx(f2))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+CALL get_index_id(@tbl_id, "idx", @idx_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ALGORITHM=INSTANT;
+CALL get_table_id("test/t1", @tbl1_id);
+CALL get_index_id(@tbl1_id, "idx", @idx1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SELECT @idx1_id = @idx_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		f3 VARCHAR(50) as (f2) VIRTUAL,
+		INDEX idx(f3))ENGINE=InnoDB;
+
+INSERT INTO t1(f1, f2) VALUES(1, repeat('a', 40));
+
+CALL get_table_id("test/t1", @tbl_id);
+CALL get_index_id(@tbl_id, "idx", @idx_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(100), ALGORITHM=INSTANT;
+CALL get_table_id("test/t1", @tbl1_id);
+CALL get_index_id(@tbl1_id, "idx", @idx1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SELECT @idx1_id = @idx_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2(10)),
+		INDEX idx1(f1))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+CALL get_index_id(@tbl_id, "idx", @idx_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), DROP INDEX idx1;
+CALL get_table_id("test/t1", @tbl1_id);
+CALL get_index_id(@tbl1_id, "idx", @idx1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SELECT @idx1_id = @idx_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2(10)))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+CALL get_index_id(@tbl_id, "idx", @idx_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), DROP INDEX idx, ADD INDEX idx(f2(10)), ALGORITHM=INSTANT;
+CALL get_table_id("test/t1", @tbl1_id);
+CALL get_index_id(@tbl1_id, "idx", @idx1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SELECT @idx1_id = @idx_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2(10)))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+CALL get_index_id(@tbl_id, "idx", @idx_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), DROP INDEX idx, ADD INDEX idx(f2(50));
+CALL get_table_id("test/t1", @tbl1_id);
+CALL get_index_id(@tbl1_id, "idx", @idx1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SELECT @idx1_id = @idx_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# Newly added index should built
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2(100)))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+CALL get_index_id(@tbl_id, "idx", @idx_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ADD INDEX idx1(f1);
+CALL get_table_id("test/t1", @tbl1_id);
+CALL get_index_id(@tbl1_id, "idx", @idx1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SELECT @idx1_id = @idx_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2(10)))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+CALL get_index_id(@tbl_id, "idx", @idx_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), DROP INDEX idx, ADD INDEX idx(f2(6));
+CALL get_table_id("test/t1", @tbl1_id);
+CALL get_index_id(@tbl1_id, "idx", @idx1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SELECT @idx1_id = @idx_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# Table should rebuild
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ADD COLUMN f3 INT, ALGORITHM=INSTANT;
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 VARCHAR(100) PRIMARY KEY)ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ADD COLUMN f3 INT, ALGORITHM=INSTANT;
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 VARCHAR(100))ENGINE=INNODB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200), ADD FULLTEXT idx(f2);
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 CHAR(100) PRIMARY KEY)ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 CHAR(200);
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2(10)),
+		INDEX idx1(f1))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(50);
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2(10)),
+		INDEX idx1(f1))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(5), DROP INDEX idx1;
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100), FULLTEXT idx(f2))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+CALL get_index_id(@tbl_id, "idx", @idx_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(50);
+CALL get_table_id("test/t1", @tbl1_id);
+CALL get_index_id(@tbl1_id, "idx", @idx1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SELECT @idx1_id = @idx_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 CHAR(200);
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2(40)))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 TEXT;
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2(40)))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(300);
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(128),
+		INDEX idx(f2(40)))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(300);
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(128),
+		INDEX idx(f2(40)))ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(300);
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		INDEX idx(f2(40)))ENGINE=InnoDB;
+
+CALL get_table_id("test/t1", @tbl_id);
+ALTER TABLE t1 MODIFY f2 VARCHAR(200) CHARACTER SET UTF16;
+CALL get_table_id("test/t1", @tbl1_id);
+
+SELECT @tbl1_id = @tbl_id;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+# Show error when virtual varchar column got changed
+
+CREATE TABLE t1(f1 INT NOT NULL,
+		f2 VARCHAR(100),
+		f3 VARCHAR(50) as (f2) VIRTUAL,
+		INDEX idx(f3))ENGINE=InnoDB;
+
+--echo # If varchar virtual column extension is allowed in the future then
+--echo #	InnoDB must rebuild the index
+
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
+ALTER TABLE t1 MODIFY f3 VARCHAR(100);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+DROP PROCEDURE get_index_id;
+DROP PROCEDURE get_table_id;
+
+# LEN must increase here
+create table t (a varchar(100)) engine=innodb;
+select sc.name, sc.pos, sc.mtype, sc.prtype, sc.len
+from information_schema.innodb_sys_columns sc
+inner join information_schema.innodb_sys_tables st
+on sc.table_id=st.table_id where st.name='test/t' and sc.name='a';
+alter table t modify a varchar(110), algorithm=inplace;
+select sc.name, sc.pos, sc.mtype, sc.prtype, sc.len
+from information_schema.innodb_sys_columns sc
+inner join information_schema.innodb_sys_tables st
+on sc.table_id=st.table_id where st.name='test/t' and sc.name='a';
+drop table t;
+
+--echo # End of 10.2 tests

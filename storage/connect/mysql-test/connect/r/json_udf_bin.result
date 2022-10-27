@@ -1,0 +1,587 @@
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=VIR BLOCK_SIZE=3;
+#
+# Test Jbin UDF's
+#
+SELECT Json_Array_Add(Jbin_Array(56, 3.1416, 'My name is "Foo"', NULL), n) from t1;
+Json_Array_Add(Jbin_Array(56, 3.1416, 'My name is "Foo"', NULL), n)
+[56,3.141600,"My name is \"Foo\"",null,1]
+[56,3.141600,"My name is \"Foo\"",null,2]
+[56,3.141600,"My name is \"Foo\"",null,3]
+SELECT Json_Array_Add(Jbin_Array(n, 3.1416, 'My name is "Foo"', NULL), n) from t1;
+Json_Array_Add(Jbin_Array(n, 3.1416, 'My name is "Foo"', NULL), n)
+[1,3.141600,"My name is \"Foo\"",null,1]
+[2,3.141600,"My name is \"Foo\"",null,2]
+[3,3.141600,"My name is \"Foo\"",null,3]
+SELECT Json_Array_Add(Jbin_Array(56, 3.1416, 'My name is "Foo"', NULL), Jbin_Array('a','b',n)) from t1;
+Json_Array_Add(Jbin_Array(56, 3.1416, 'My name is "Foo"', NULL), Jbin_Array('a','b',n))
+[56,3.141600,"My name is \"Foo\"",null,["a","b",1]]
+[56,3.141600,"My name is \"Foo\"",null,["a","b",2]]
+[56,3.141600,"My name is \"Foo\"",null,["a","b",3]]
+SELECT Json_Array_Add(Jbin_Array(56, 3.1416, 'My name is "Foo"', NULL), JsonGet_String(Jbin_Array('a','b','c'), '[1]'));
+Json_Array_Add(Jbin_Array(56, 3.1416, 'My name is "Foo"', NULL), JsonGet_String(Jbin_Array('a','b','c'), '[1]'))
+[56,3.141600,"My name is \"Foo\"",null,"b"]
+SELECT Json_Array_Delete(Jbin_Array_Add_Values(Jbin_Array(56, 3.1416, 'My name is "Foo"', NULL), "One more", 2), 4);
+Json_Array_Delete(Jbin_Array_Add_Values(Jbin_Array(56, 3.1416, 'My name is "Foo"', NULL), "One more", 2), 4)
+[56,3.141600,"My name is \"Foo\"",null,2]
+SELECT Json_Array_Delete(Jbin_Array(56, Jbin_Array(3.1416, 'My name is "Foo"'), NULL), '[1]', 1);
+Json_Array_Delete(Jbin_Array(56, Jbin_Array(3.1416, 'My name is "Foo"'), NULL), '[1]', 1)
+[56,[3.141600],null]
+SELECT Json_Array_Delete(Jbin_Array(56, Jbin_Array(3.1416, 'My name is "Foo"'), TRUE), 1, '[1]');
+Json_Array_Delete(Jbin_Array(56, Jbin_Array(3.1416, 'My name is "Foo"'), TRUE), 1, '[1]')
+[56,[3.141600],true]
+SELECT Json_Make_Array(1, TRUE, 0, FALSE);
+Json_Make_Array(1, TRUE, 0, FALSE)
+[1,true,0,false]
+SELECT Json_Serialize(Jbin_Array(TRUE, FALSE));
+Json_Serialize(Jbin_Array(TRUE, FALSE))
+[true,false]
+SELECT Json_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty', NULL);
+Json_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty', NULL)
+{"qty":56,"price":3.141600,"truc":"machin","garanty":null}
+SELECT Json_Serialize(Jbin_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty', NULL));
+Json_Serialize(Jbin_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty', NULL))
+{"qty":56,"price":3.141600,"truc":"machin","garanty":null}
+SELECT Jbin_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty');
+ERROR HY000: Can't initialize function 'jbin_object_key'; This function must have an even number of arguments
+SELECT Json_Object_Add(Jbin_Object(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 'blue' color);
+Json_Object_Add(Jbin_Object(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 'blue' color)
+{"qty":56,"price":3.141600,"truc":"machin","garanty":null,"color":"blue"}
+SELECT Json_Object_Add(Jbin_Object(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 45.99 price);
+Json_Object_Add(Jbin_Object(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 45.99 price)
+{"qty":56,"price":45.990000,"truc":"machin","garanty":null}
+SELECT Json_Object_Add(Jbin_Object_Nonull(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 'blue' color);
+Json_Object_Add(Jbin_Object_Nonull(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 'blue' color)
+{"qty":56,"price":3.141600,"truc":"machin","color":"blue"}
+SELECT Json_Object_Add(Jbin_Object_Nonull(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 45.99 price);
+Json_Object_Add(Jbin_Object_Nonull(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 45.99 price)
+{"qty":56,"price":45.990000,"truc":"machin"}
+#
+# Test Jbin file UDF's
+#
+SELECT Json_Serialize(Jbin_File('gloss.json'));
+Json_Serialize(Jbin_File('gloss.json'))
+{"glossary":{"title":"example glossary","GlossDiv":{"title":"S","GlossList":{"GlossEntry":{"ID":"SGML","SortAs":"SGML","GlossTerm":"Standard Generalized Markup Language","Acronym":"SGML","Abbrev":"ISO 8879:1986","GlossDef":{"para":"A meta-markup language, used to create markup languages such as DocBook.","GlossSeeAlso":["GML","XML"]},"GlossSee":"markup"}}}}}
+SELECT JsonLocate(Jbin_File('gloss.json'),'XML');
+JsonLocate(Jbin_File('gloss.json'),'XML')
+$.glossary.GlossDiv.GlossList.GlossEntry.GlossDef.GlossSeeAlso[1]
+SELECT Json_Object_Key('first', 'foo', 'second', Jbin_Array('a', 33));
+Json_Object_Key('first', 'foo', 'second', Jbin_Array('a', 33))
+{"first":"foo","second":["a",33]}
+SELECT Json_Get_Item(Json_Make_Array('a','b','c'), '$[1]');
+Json_Get_Item(Json_Make_Array('a','b','c'), '$[1]')
+NULL
+SELECT Json_Get_Item(Json_Make_Object('foo' AS "first", Json_Make_Array('a', 33) AS "json_second"), '$.second') AS "item";
+item
+["a",33]
+SELECT Json_Get_Item(Jbin_Object('foo' first, Jbin_Array('a', 33) jbin_second), '$.second') item;
+item
+["a",33]
+SELECT Json_Get_Item(Jbin_File('gloss.json'),'$.glossary.GlossDiv');
+Json_Get_Item(Jbin_File('gloss.json'),'$.glossary.GlossDiv')
+{"title":"S","GlossList":{"GlossEntry":{"ID":"SGML","SortAs":"SGML","GlossTerm":"Standard Generalized Markup Language","Acronym":"SGML","Abbrev":"ISO 8879:1986","GlossDef":{"para":"A meta-markup language, used to create markup languages such as DocBook.","GlossSeeAlso":["GML","XML"]},"GlossSee":"markup"}}}
+SELECT Json_Serialize(Jbin_Get_Item(Jbin_File('gloss.json'),'$.glossary.GlossDiv'));
+Json_Serialize(Jbin_Get_Item(Jbin_File('gloss.json'),'$.glossary.GlossDiv'))
+{"title":"S","GlossList":{"GlossEntry":{"ID":"SGML","SortAs":"SGML","GlossTerm":"Standard Generalized Markup Language","Acronym":"SGML","Abbrev":"ISO 8879:1986","GlossDef":{"para":"A meta-markup language, used to create markup languages such as DocBook.","GlossSeeAlso":["GML","XML"]},"GlossSee":"markup"}}}
+SELECT Json_Get_Item(Jbin_File('gloss.json'),'$.glossary.GlossDiv');
+Json_Get_Item(Jbin_File('gloss.json'),'$.glossary.GlossDiv')
+{"title":"S","GlossList":{"GlossEntry":{"ID":"SGML","SortAs":"SGML","GlossTerm":"Standard Generalized Markup Language","Acronym":"SGML","Abbrev":"ISO 8879:1986","GlossDef":{"para":"A meta-markup language, used to create markup languages such as DocBook.","GlossSeeAlso":["GML","XML"]},"GlossSee":"markup"}}}
+SELECT JsonGet_String(Json_File('gloss.json'),'$.glossary.GlossDiv.GlossList.GlossEntry.GlossDef.GlossSeeAlso') lang;
+lang
+GML, XML
+SELECT Json_Get_Item(Jbin_File('gloss.json'),'$.glossary.GlossDiv.GlossList.GlossEntry.GlossDef.GlossSeeAlso') "See also";
+See also
+["GML","XML"]
+SELECT Json_Serialize(Jbin_Get_Item(Jbin_File('gloss.json'),'$.glossary.GlossDiv.GlossList.GlossEntry.GlossDef.GlossSeeAlso')) "See also";
+See also
+["GML","XML"]
+SELECT JsonGet_String(Json_Get_Item(Json_File('gloss.json'),'$.glossary.GlossDiv.GlossList.GlossEntry.GlossDef.GlossSeeAlso'),'$[0]') lang;
+lang
+GML
+#
+# Test Item Get/Set/Insert/Update UDF's
+#
+SELECT Json_Get_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), '$[]');
+Json_Get_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), '$[]')
+[1,2,{"trois":3,"quatre":4}]
+SELECT Json_Get_Item(Jbin_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), '$[1]');
+Json_Get_Item(Jbin_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), '$[1]')
+NULL
+SELECT Json_Get_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), '$[1]');
+Json_Get_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), '$[1]')
+NULL
+SELECT Json_Set_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)));
+Json_Set_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)))
+[1,2,{"trois":3,"quatre":4}]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), '$.foo');
+ERROR HY000: Can't initialize function 'json_set_item'; This function must have an odd number of arguments
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq')
+[1,2,{"trois":3,"quatre":4,"cinq":5}]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 7, '$[1]');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 7, '$[1]')
+[1,7,{"trois":3,"quatre":4}]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 7, '$[1]');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 7, '$[1]')
+[1,7,{"trois":3,"quatre":4,"cinq":5}]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), Json_Make_Array(7, 8, 9), '$[1]');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), Json_Make_Array(7, 8, 9), '$[1]')
+[1,[7,8,9],{"trois":3,"quatre":4}]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), Jbin_Array(7, 8, 9), '$[2]');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), Jbin_Array(7, 8, 9), '$[2]')
+[1,2,[7,8,9]]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), Jbin_Array(7, 8, 9), '$[2].*');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), Jbin_Array(7, 8, 9), '$[2].*')
+[1,2,{"trois":3,"quatre":4}]
+Warnings:
+Warning	1105	Invalid specification * in a write path
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 3.1416, '$.foo');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 3.1416, '$.foo')
+[1,2,{"trois":3,"quatre":4}]
+SELECT Json_Set_Item(Jbin_Array(1, Jbin_Array(7, 8, 9), Jbin_Object_Key('trois', 3, 'quatre', 4)), 'toto', '$[1][2]');
+Json_Set_Item(Jbin_Array(1, Jbin_Array(7, 8, 9), Jbin_Object_Key('trois', 3, 'quatre', 4)), 'toto', '$[1][2]')
+[1,[7,8,"toto"],{"trois":3,"quatre":4}]
+SELECT Json_Set_Item(Jbin_Array(1, Jbin_Array(7, 8, 9), Jbin_Object_Key('trois', 3, 'quatre', 4)), 300, '$[2].nxt.total[]');
+Json_Set_Item(Jbin_Array(1, Jbin_Array(7, 8, 9), Jbin_Object_Key('trois', 3, 'quatre', 4)), 300, '$[2].nxt.total[]')
+[1,[7,8,9],{"trois":3,"quatre":4,"nxt":{"total":[300]}}]
+SELECT Json_Set_Item(Jbin_Array(1, Jbin_Array(7, 8, 9), Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 10, '$[1][]', 300, '$[2].nxt.total[]');
+Json_Set_Item(Jbin_Array(1, Jbin_Array(7, 8, 9), Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 10, '$[1][]', 300, '$[2].nxt.total[]')
+[1,[7,8,9,10],{"trois":3,"quatre":4,"cinq":5,"nxt":{"total":[300]}}]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), Jbin_Array(7, 8, 9), '$[1]', 5, '$[2].cinq', 10, '$[1][]');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), Jbin_Array(7, 8, 9), '$[1]', 5, '$[2].cinq', 10, '$[1][]')
+[1,[7,8,9,10],{"trois":3,"quatre":4,"cinq":5}]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 44, '$[2].quatre');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 44, '$[2].quatre')
+[1,2,{"trois":3,"quatre":44}]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, 'truc');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, 'truc')
+[1,2,{"trois":3,"quatre":4}]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '')
+[1,2,{"trois":3,"quatre":4},5]
+SELECT Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '*');
+Json_Set_Item(Jbin_Array(1, 2, Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '*')
+[1,2,{"trois":3,"quatre":4}]
+Warnings:
+Warning	1105	Invalid specification * in a write path
+SELECT Json_Serialize(Jbin_Set_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq'));
+Json_Serialize(Jbin_Set_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq'))
+[1,2,{"trois":3,"quatre":4,"cinq":5}]
+SELECT Json_Insert_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq');
+Json_Insert_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq')
+[1,2,{"trois":3,"quatre":4,"cinq":5}]
+SELECT Json_Update_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq');
+Json_Update_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq')
+[1,2,{"trois":3,"quatre":4}]
+SELECT Json_Insert_Item(Jbin_Array(1, Jbin_Array(7, 8, 9), Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 10, '$[1][]', 44, '$[2].quatre');
+Json_Insert_Item(Jbin_Array(1, Jbin_Array(7, 8, 9), Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 10, '$[1][]', 44, '$[2].quatre')
+[1,[7,8,9,10],{"trois":3,"quatre":4,"cinq":5}]
+SELECT Json_Update_Item(Jbin_Array(1, Jbin_Array(7, 8, 9), Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 10, '$[1][]', 44, '$[2].quatre');
+Json_Update_Item(Jbin_Array(1, Jbin_Array(7, 8, 9), Jbin_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 10, '$[1][]', 44, '$[2].quatre')
+[1,[7,8,9],{"trois":3,"quatre":44}]
+SELECT Json_Insert_Item(Json_Make_Array(1, Json_Make_Array(7, 8, 9), Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 10, '$[1][1]', 300, '$[2].nxt.total[]');
+Json_Insert_Item(Json_Make_Array(1, Json_Make_Array(7, 8, 9), Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 10, '$[1][1]', 300, '$[2].nxt.total[]')
+[1,[7,8,9],{"trois":3,"quatre":4,"cinq":5,"nxt":{"total":[300]}}]
+SELECT Json_Update_Item(Json_Make_Array(1, Json_Make_Array(7, 8, 9), Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 10, '$[1][1]', 300, '$[2].nxt.total[]');
+Json_Update_Item(Json_Make_Array(1, Json_Make_Array(7, 8, 9), Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[2].cinq', 10, '$[1][1]', 300, '$[2].nxt.total[]')
+[1,[7,10,9],{"trois":3,"quatre":4}]
+SELECT Json_Insert_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[]');
+Json_Insert_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[]')
+[1,2,{"trois":3,"quatre":4},5]
+SELECT Json_Update_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[]');
+Json_Update_Item(Json_Make_Array(1, 2, Json_Object_Key('trois', 3, 'quatre', 4)), 5, '$[]')
+[1,2,{"trois":3,"quatre":4}]
+#
+# Test merging items UDF's
+#
+SELECT Json_Item_Merge(Jbin_Array('a','b','c'), Jbin_Array('d','e','f'));
+Json_Item_Merge(Jbin_Array('a','b','c'), Jbin_Array('d','e','f'))
+["a","b","c","d","e","f"]
+SELECT Json_Item_Merge(Json_Make_Array('a','b','c'), Json_Make_Array('d','e','f')) AS "Result";
+Result
+["a","b","c","d","e","f"]
+SELECT Json_Array_Add(Jbin_Item_Merge(Jbin_Array('a','b','c'), Jbin_Array('d','e','f')), 'and', 3);
+Json_Array_Add(Jbin_Item_Merge(Jbin_Array('a','b','c'), Jbin_Array('d','e','f')), 'and', 3)
+["a","b","c","and","d","e","f"]
+SELECT Json_Item_Merge(Jbin_Object(1 "a",2 "b",3 "c"), Jbin_Object(4 "d",5 "e",6 "f"));
+Json_Item_Merge(Jbin_Object(1 "a",2 "b",3 "c"), Jbin_Object(4 "d",5 "e",6 "f"))
+{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6}
+SELECT Json_Item_Merge(Jbin_Object(1 "a",2 "b",2 "c"), Jbin_Array('d','e','f'));
+Json_Item_Merge(Jbin_Object(1 "a",2 "b",2 "c"), Jbin_Array('d','e','f'))
+Binary Json object
+Warnings:
+Warning	1105	Second argument is not an object
+SELECT Json_Object_Add(Jbin_Item_Merge(Jbin_Object(1 "a",2 "b",3 "c"), Jbin_Object(4 "d",5 "e",6 "f")), 'x' AS "and");
+Json_Object_Add(Jbin_Item_Merge(Jbin_Object(1 "a",2 "b",3 "c"), Jbin_Object(4 "d",5 "e",6 "f")), 'x' AS "and")
+{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6,"and":"x"}
+SELECT Json_Item_Merge(Jbin_Object(1 "a",2 "b",3 "c"), Jbin_Object(4 "a",5 "e",6 "f"));
+Json_Item_Merge(Jbin_Object(1 "a",2 "b",3 "c"), Jbin_Object(4 "a",5 "e",6 "f"))
+{"a":4,"b":2,"c":3,"e":5,"f":6}
+SELECT Json_Item_Merge('foo', Json_Make_Array('d','e','f'));
+ERROR HY000: Can't initialize function 'json_item_merge'; First argument must be a json item
+#
+# Test making file UDF's
+#
+SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json')
+bt1.json
+SELECT Json_File('bt1.json');
+Json_File('bt1.json')
+[
+	"a",
+	"b",
+	"c"
+]
+
+SELECT Json_File(Jfile_Make(Jbin_File('bt1.json'), 0));
+Json_File(Jfile_Make(Jbin_File('bt1.json'), 0))
+"a"
+"b"
+"c"
+
+SELECT Json_File(Jfile_Make(Jbin_File('bt1.json'), 1));
+Json_File(Jfile_Make(Jbin_File('bt1.json'), 1))
+[
+	"a",
+	"b",
+	"c"
+]
+
+SELECT Json_File(Jfile_Make(Jbin_File('bt1.json'), 2));
+Json_File(Jfile_Make(Jbin_File('bt1.json'), 2))
+[
+	"a",
+	"b",
+	"c"
+]
+
+SELECT Json_File('bt1.json', 0);
+Json_File('bt1.json', 0)
+["a","b","c"]
+Warnings:
+Warning	1105	File pretty format doesn't match the specified pretty value
+SELECT Json_File('bt1.json', 1);
+Json_File('bt1.json', 1)
+["a","b","c"]
+Warnings:
+Warning	1105	File pretty format doesn't match the specified pretty value
+SELECT Json_File('bt1.json', 2);
+Json_File('bt1.json', 2)
+["a","b","c"]
+SELECT Json_Serialize(Jbin_Array('a','b','c'));
+Json_Serialize(Jbin_Array('a','b','c'))
+["a","b","c"]
+SELECT Json_Serialize(Jbin_Array_Add(Jbin_File('not_exist.json'), 'd'));
+Json_Serialize(Jbin_Array_Add(Jbin_File('not_exist.json'), 'd'))
+[null,"d"]
+Warnings:
+Warning	1105	Open(map) error 2 on not_exist.json
+# This does not modify the file
+SELECT Json_Serialize(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'));
+Json_Serialize(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'))
+["a","b","c","d"]
+SELECT Json_File('bt1.json', 2);
+Json_File('bt1.json', 2)
+["a","b","c"]
+# This does modify the file
+SELECT Json_Array_Add(Jbin_File('bt1.json'), 'd');
+Json_Array_Add(Jbin_File('bt1.json'), 'd')
+bt1.json
+SELECT Json_File('bt1.json', 2);
+Json_File('bt1.json', 2)
+["a","b","c","d"]
+# Back to the original file
+SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json')
+bt1.json
+SELECT Json_Make_Object(Jbin_Array_Add(Jbin_Array('a','b','c'), 'd') "Jbin_foo") AS "Result";
+Result
+{"foo":["a","b","c","d"]}
+SELECT Json_Make_Object(Jbin_Array_Add(Jbin_File('bt1.json'), 'd')) AS "Result";
+Result
+{"Array_Add(Jbin_File('bt1.json'), 'd')":["a","b","c","d"]}
+SELECT Json_Make_Object(Jbin_Array_Add(Jbin_File('bt1.json'), 'd') "Jbin_bt1") AS "Result";
+Result
+{"bt1":["a","b","c","d"]}
+# This does modify the file
+SELECT Json_Make_Object(Json_Array_Add(Jbin_File('bt1.json'), 'd') "Jfile_bt1") AS "Result";
+Result
+{"bt1":["a","b","c","d"]}
+SELECT Json_File('bt1.json');
+Json_File('bt1.json')
+[
+	"a",
+	"b",
+	"c",
+	"d"
+]
+
+SELECT Json_File(Json_Array_Delete(Jbin_File('bt1.json'), 3), 2);
+Json_File(Json_Array_Delete(Jbin_File('bt1.json'), 3), 2)
+["a","b","c"]
+SELECT Json_Make_Object(Jbin_Array_Add(Jbin_File('bt1.json'), 'd') "Jbin_bt1", n "t1") AS "Result" from t1;
+Result
+{"bt1":["a","b","c","d"],"t1":1}
+{"bt1":["a","b","c","d"],"t1":2}
+{"bt1":["a","b","c","d"],"t1":3}
+SELECT Json_File(Json_Array_Add(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'), 'e')) AS "Result";
+Result
+[
+	"a",
+	"b",
+	"c",
+	"d",
+	"e"
+]
+
+SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json')
+bt1.json
+SELECT Json_File(Json_Array_Add(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'), 'e')) AS "Result" from t1;
+Result
+[
+	"a",
+	"b",
+	"c",
+	"d",
+	"e"
+]
+
+[
+	"a",
+	"b",
+	"c",
+	"d",
+	"e"
+]
+
+[
+	"a",
+	"b",
+	"c",
+	"d",
+	"e"
+]
+
+SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json')
+bt1.json
+SELECT Json_Array_Add(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'), n) AS "Result" from t1;
+Result
+bt1.json
+bt1.json
+bt1.json
+# Show modified file
+SELECT Json_File('bt1.json');
+Json_File('bt1.json')
+[
+	"a",
+	"b",
+	"c",
+	"d",
+	1,
+	"d",
+	2,
+	"d",
+	3
+]
+
+SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json')
+bt1.json
+SELECT Json_Array_Add(Jbin_File('bt1.json'), n) AS "Result" from t1;
+Result
+bt1.json
+bt1.json
+bt1.json
+# Show modified file
+SELECT Json_File('bt1.json');
+Json_File('bt1.json')
+[
+	"a",
+	"b",
+	"c",
+	1,
+	2,
+	3
+]
+
+SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json')
+bt1.json
+SELECT Json_File(Jbin_Item_Merge(Jbin_File('bt1.json'), Jbin_Array('d','e','f')));
+Json_File(Jbin_Item_Merge(Jbin_File('bt1.json'), Jbin_Array('d','e','f')))
+[
+	"a",
+	"b",
+	"c"
+]
+
+SELECT Json_File(Json_Item_Merge(Jbin_File('bt1.json'), Jbin_Array('d','e','f')));
+Json_File(Json_Item_Merge(Jbin_File('bt1.json'), Jbin_Array('d','e','f')))
+[
+	"a",
+	"b",
+	"c",
+	"d",
+	"e",
+	"f"
+]
+
+SELECT Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json');
+Jfile_Make(Jbin_Array('a','b','c'), 'bt1.json')
+bt1.json
+# Test DELETE from file
+SELECT Json_Make_Object(Jbin_Array_Delete(Jbin_File('bt1.json'), 1)) AS "Result";
+Result
+{"Array_Delete(Jbin_File('bt1.json'), 1)":["a","c"]}
+SELECT Json_Make_Object(Jbin_Array_Delete(Jbin_File('bt1.json'), 2) "Jbin_bt1") AS "Result";
+Result
+{"bt1":["a","b"]}
+SELECT Json_Make_Object(Jbin_Array_Delete(Jbin_File('bt1.json'), 0) "Jbin_bt1", n "t1") AS "Result" from t1;
+Result
+{"bt1":["b","c"],"t1":1}
+{"bt1":["b","c"],"t1":2}
+{"bt1":["b","c"],"t1":3}
+SELECT Json_Make_Object(Jbin_Array_Delete(Jbin_File('bt1.json'), 3 - n) "Jbin_bt1") AS "Result" from t1;
+Result
+{"bt1":["a","b"]}
+{"bt1":["a"]}
+{"bt1":[]}
+SELECT Json_Make_Object(Json_Array_Delete(Jbin_File('bt1.json'), 3 - n) "Jbin_bt1") AS "Result" from t1;
+Result
+{"bt1":["a","b"]}
+{"bt1":["a"]}
+{"bt1":[]}
+# Show modified file
+SELECT Json_File('bt1.json');
+Json_File('bt1.json')
+[
+	
+]
+
+# Object file
+SELECT Jfile_Make(Jbin_Object(1 "a", 2 "b", 3 "c"), 'bt2.json', 0);
+Jfile_Make(Jbin_Object(1 "a", 2 "b", 3 "c"), 'bt2.json', 0)
+bt2.json
+SELECT Json_File('bt2.json', 0);
+Json_File('bt2.json', 0)
+{"a":1,"b":2,"c":3}
+SELECT Json_File('bt2.json');
+Json_File('bt2.json')
+{"a":1,"b":2,"c":3}
+
+SELECT Json_Serialize(Jbin_Object_Add(Jbin_File('bt2.json'), 4 "d"));
+Json_Serialize(Jbin_Object_Add(Jbin_File('bt2.json'), 4 "d"))
+{"a":1,"b":2,"c":3,"d":4}
+# First query (file not modified)
+SELECT Json_Make_Object(Jbin_Object_Add(Jbin_File('bt2.json'), 4 AS "d") AS "Jbin_new") AS "Result";
+Result
+{"new":{"a":1,"b":2,"c":3,"d":4}}
+# First query (file modified)
+SELECT Json_Make_Object(Json_Object_Add(Jbin_File('bt2.json'), 4 AS "d") AS "Jfile_new") AS "Result";
+Result
+{"new":{"a":1,"b":2,"c":3,"d":4}}
+SELECT Jfile_Make(Jbin_Object(1 "a", 2 "b", 3 "c"), 'bt2.json', 0);
+Jfile_Make(Jbin_Object(1 "a", 2 "b", 3 "c"), 'bt2.json', 0)
+bt2.json
+SELECT Json_Make_Object(Jbin_Object_Add(Jbin_File('bt2.json'), 4 "d") "Jbin_new", n "t1") AS "Result" from t1;
+Result
+{"new":{"a":1,"b":2,"c":3,"d":4},"t1":1}
+{"new":{"a":1,"b":2,"c":3,"d":4},"t1":2}
+{"new":{"a":1,"b":2,"c":3,"d":4},"t1":3}
+SELECT Json_File(Json_Object_Add(Jbin_Object_Add(Jbin_File('bt2.json'), 4 "d"), 5 "e")) AS "Result";
+Result
+{"a":1,"b":2,"c":3,"d":4,"e":5}
+
+SELECT Json_Object_Add(Jbin_Object_Add(Jbin_File('bt2.json'), 4 "d"), 5 "e") AS "Result" from t1;
+Result
+bt2.json
+bt2.json
+bt2.json
+SELECT Json_Object_Add(Jbin_Object_Add(Jbin_File('bt2.json'), 4 "d"), n "n") AS "Result" from t1;
+Result
+bt2.json
+bt2.json
+bt2.json
+SELECT Jfile_Make(Jbin_Object(1 "a", 2 "b", 3 "c"), 'bt2.json', 0);
+Jfile_Make(Jbin_Object(1 "a", 2 "b", 3 "c"), 'bt2.json', 0)
+bt2.json
+SELECT Json_Object_Add(Jbin_File('bt2.json'), n) AS "Result" from t1;
+Result
+bt2.json
+bt2.json
+bt2.json
+SELECT Json_File('bt2.json');
+Json_File('bt2.json')
+{"a":1,"b":2,"c":3,"n":3}
+
+SELECT Jfile_Make(Jbin_Object(1 "a", 2 "b", 3 "c"), 'bt2.json', 0);
+Jfile_Make(Jbin_Object(1 "a", 2 "b", 3 "c"), 'bt2.json', 0)
+bt2.json
+SELECT Json_Serialize(Jbin_Item_Merge(Jbin_File('bt2.json'), Jbin_Object(4 "d",5 "e",6 "f"))) AS "Result";
+Result
+{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6}
+SELECT Json_File(Json_Item_Merge(Jbin_File('bt2.json'), Jbin_Object(4 "d",5 "e",6 "f"))) AS "Result";
+Result
+{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6}
+
+SELECT Json_Item_Merge(Json_Make_Object(1 "a", 2 "b", 3 "c"), Json_Make_Object(4 "d",5 "b",6 "f")) AS "Result";
+Result
+{"a":1,"b":5,"c":3,"d":4,"f":6}
+SELECT Json_Make_Object(Json_Object_Delete(Jbin_File('bt2.json'), 'b')) AS "Result";
+Result
+{"Object_Delete(Jbin_File('bt2.json'), 'b')":{"a":1,"c":3,"d":4,"e":5,"f":6}}
+SELECT Json_Make_Object(Jbin_Object_Delete(Jbin_File('bt2.json'), 'c') "Jbin_bt1") AS "Result";
+Result
+{"bt1":{"a":1,"d":4,"e":5,"f":6}}
+SELECT Json_Make_Object(Json_Object_Delete(Jbin_File('bt2.json'), 'c') "Jbin_bt1") AS "Result";
+Result
+{"bt1":{"a":1,"d":4,"e":5,"f":6}}
+SELECT Json_Make_Object(Json_Object_Delete(Jbin_File('bt2.json'), 'c') "Jfile_bt1") AS "Result";
+Result
+{"bt1":{"a":1,"d":4,"e":5,"f":6}}
+SELECT Json_Make_Object(Json_Object_Delete(Jbin_File('bt2.json'), 'a') "Jbin_bt1", n "t1") AS "Result" from t1;
+Result
+{"bt1":{"d":4,"e":5,"f":6},"t1":1}
+{"bt1":{"d":4,"e":5,"f":6},"t1":2}
+{"bt1":{"d":4,"e":5,"f":6},"t1":3}
+SELECT Json_Serialize(Jbin_Object_List(Jbin_File('bt2.json'))) "Key list";
+Key list
+["d","e","f"]
+SELECT Jfile_Make('{"a":1, "b":[44, 55]}' json_, 'bt3.json', 0);
+Jfile_Make('{"a":1, "b":[44, 55]}' json_, 'bt3.json', 0)
+bt3.json
+SELECT Json_Array_Add(Json_File('bt3.json', '$.b'), 66);
+Json_Array_Add(Json_File('bt3.json', '$.b'), 66)
+[44,55,66]
+SELECT Json_Array_Add(Json_File('bt3.json'), 66, '$.b');
+Json_Array_Add(Json_File('bt3.json'), 66, '$.b')
+{"a":1,"b":[44,55,66]}
+SELECT Json_Array_Add(Jbin_File('bt3.json', '$.b'), 66);
+Json_Array_Add(Jbin_File('bt3.json', '$.b'), 66)
+bt3.json
+SELECT Json_File('bt3.json', 3);
+Json_File('bt3.json', 3)
+{"a":1,"b":[44,55,66]}
+SELECT Jfile_Make('{"a":1, "b":[44, 55]}' json_, 'bt3.json', 0);
+Jfile_Make('{"a":1, "b":[44, 55]}' json_, 'bt3.json', 0)
+bt3.json
+CREATE TABLE t2 (
+n INT KEY,
+jfile_cols CHAR(12) NOT NULL)
+ENGINE= MYISAM;
+INSERT INTO t2 VALUES(1,'bt3.json');
+# In this table, the jfile_cols column just contains a file name
+UPDATE t2 SET jfile_cols = Json_Array_Add(Jbin_File('bt3.json', '$.b'), 66) WHERE n = 1;
+SELECT JsonGet_String(jfile_cols, '*') FROM t2;
+JsonGet_String(jfile_cols, '*')
+{"a":1,"b":[44,55,66]}
+UPDATE t2 SET jfile_cols = Json_Insert_Item(jfile_cols, 77, '$.b[]') WHERE n = 1;
+SELECT JsonGet_String(jfile_cols, '$.b.*') FROM t2;
+JsonGet_String(jfile_cols, '$.b.*')
+[44,55,66,77]
+UPDATE t2 SET jfile_cols = Json_Insert_Item(Jbin_Insert_Item(jfile_cols, 88, '$.b[]') , 99, '$.b[]') WHERE n = 1;
+SELECT JsonGet_String(jfile_cols, '*') FROM t2;
+JsonGet_String(jfile_cols, '*')
+{"a":1,"b":[44,55,66,77,88,99]}
+DROP TABLE t1, t2;

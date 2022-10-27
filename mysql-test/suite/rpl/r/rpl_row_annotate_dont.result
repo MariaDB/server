@@ -1,0 +1,176 @@
+include/master-slave.inc
+[connection master]
+connect  master2,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connection master;
+########################################################################
+# TABLES ON MASTER
+########################################################################
+SELECT * FROM t1 ORDER BY a;
+a	b
+0	1
+SELECT * FROM t2 ORDER BY a;
+a	b
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	1
+2	2
+3	3
+SELECT * FROM t5 ORDER BY a;
+a	b
+1	foo
+2	bar
+3	baz
+4	gås
+5	gås
+connection slave;
+########################################################################
+# TABLES ON SLAVE: should be the same as on master
+########################################################################
+SELECT * FROM t1 ORDER BY a;
+a	b
+0	1
+SELECT * FROM t2 ORDER BY a;
+a	b
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	1
+2	2
+3	3
+SELECT * FROM t5 ORDER BY a;
+a	b
+1	foo
+2	bar
+3	baz
+4	gås
+5	gås
+########################################################################
+# EVENTS ON SLAVE
+# No Annotate_rows events should appear below
+########################################################################
+# Ensure that a replication failure doesn't segfault - MDEV-7864
+########################################################################
+DELETE FROM t3 WHERE a=2;
+connection master;
+INSERT INTO t5 (a) SELECT a.a*10000+b.a*1000+c.a*100+d.a*10 FROM t5 a, t5 b, t5 c, t5 d;
+INSERT INTO t3 (a) SELECT a FROM t5 WHERE a > 10;
+DELETE t3 FROM t3 INNER JOIN t5 ON t3.a=t5.a;
+connection slave;
+---- Wait until slave stops with an error ----
+include/wait_for_slave_sql_error.inc [errno=1032]
+Last_SQL_Error (expected "Delete_rows_v1 event on table test1.t3; Can't find record in 't3'" error)
+Could not execute Delete_rows_v1 event on table test1.t3; Can't find record in 't3', Error_code: 1032; handler error HA_ERR_END_OF_FILE; the event's master log master-bin.000002, end_log_pos END_LOG_POS
+call mtr.add_suppression("Can't find record in 't3'");
+SET GLOBAL sql_slave_skip_counter=1;
+START SLAVE;
+connection master;
+connection slave;
+########################################################################
+FLUSH LOGS;
+show binlog events in 'slave-bin.000001' from <start_pos>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid_list	2	#	[]
+slave-bin.000001	#	Binlog_checkpoint	2	#	slave-bin.000001
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-1
+slave-bin.000001	#	Query	1	#	DROP DATABASE IF EXISTS test1
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-2
+slave-bin.000001	#	Query	1	#	CREATE DATABASE test1
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-3
+slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t1(a int primary key, b int)
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-4
+slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t2(a int, b int)
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-5
+slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t3(a int, b int)
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-6
+slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t4(a int, b int)
+slave-bin.000001	#	Gtid	1	#	GTID 0-1-9
+slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t5 (
+a INT PRIMARY KEY AUTO_INCREMENT,
+b VARCHAR(10) CHARACTER SET utf8 COLLATE utf8_bin
+)
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-10
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t1)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-11
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t1)
+slave-bin.000001	#	Update_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-12
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t1)
+slave-bin.000001	#	Update_rows_v1	1	#	table_id: #
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-13
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t2)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-14
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t3)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-15
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t2)
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t1)
+slave-bin.000001	#	Delete_rows_v1	1	#	table_id: #
+slave-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-17
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t2)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-18
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t2)
+slave-bin.000001	#	Delete_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-22
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-23
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-24
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-25
+slave-bin.000001	#	Annotate_rows	2	#	DELETE FROM t3 WHERE a=2
+slave-bin.000001	#	Table_map	2	#	table_id: # (test1.t3)
+slave-bin.000001	#	Delete_rows_v1	2	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	2	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-25
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t5)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	1	#	BEGIN GTID 0-1-26
+slave-bin.000001	#	Table_map	1	#	table_id: # (test1.t3)
+slave-bin.000001	#	Write_rows_v1	1	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	1	#	COMMIT
+slave-bin.000001	#	Gtid	2	#	BEGIN GTID 0-2-27
+slave-bin.000001	#	Annotate_rows	2	#	INSERT INTO test_suppressions (pattern) VALUES ( NAME_CONST('pattern',_latin1'Can\'t find record in \'t3\'' COLLATE 'latin1_swedish_ci'))
+slave-bin.000001	#	Table_map	2	#	table_id: # (mtr.test_suppressions)
+slave-bin.000001	#	Write_rows_v1	2	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	2	#	COMMIT
+slave-bin.000001	#	Rotate	2	#	slave-bin.000002;pos=4
+# 
+########################################################################
+# INSERTs DELAYED ON MASTERs
+########################################################################
+connection master;
+SET SESSION binlog_annotate_row_events = ON;
+INSERT DELAYED INTO test1.t4 VALUES (1,1);
+FLUSH TABLES test1.t4;
+SELECT * FROM test1.t4 ORDER BY a;
+a	b
+1	1
+connection slave;
+connection master;
+connection slave;
+########################################################################
+# ON SLAVE
+# No Annotate_rows events should appear below
+########################################################################
+FLUSH LOGS;
+connection master;
+include/rpl_end.inc

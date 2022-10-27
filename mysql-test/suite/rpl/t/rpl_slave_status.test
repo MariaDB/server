@@ -1,0 +1,81 @@
+# ==== Purpose ====
+#
+# Verify that a slave without replication privileges has
+# Slave_IO_Running = No
+# Check that relay_log_status doesn't change by CHANGE MASTER
+# ==== Method ====
+#
+# We do the following steps:
+# - Create a new replication user on master
+# - Connect to slave and start replication as this user.
+# - Verify that slave can replicate well, by creating a table and
+#   inserting a row into it.
+# - Delete the user from the master.
+# - Stop and start the slave (this should fail).
+# - Check the Slave_IO_Running column of SHOW SLAVE STATUS.
+#
+# ==== Related bugs ====
+#
+# BUG#10780: slave can't connect to master - IO and SQL threads running
+
+--source include/master-slave.inc
+
+--echo ==== Create new replication user ====
+connection master;
+GRANT REPLICATION SLAVE ON *.* TO rpl@127.0.0.1 IDENTIFIED BY 'rpl';
+
+sync_slave_with_master;
+source include/stop_slave.inc;
+
+# Test that relay_log_purge doesn't change because of CHANGE MASTER
+set @save_relay_log_purge=@@global.relay_log_purge;
+set @@global.relay_log_purge=0;
+CHANGE MASTER TO master_user='rpl', master_password='rpl';
+select @@global.relay_log_purge;
+set @@global.relay_log_purge=1;
+CHANGE MASTER TO master_user='rpl', master_password='rpl';
+select @@global.relay_log_purge;
+set @@global.relay_log_purge=@save_relay_log_purge;
+
+CHANGE MASTER TO master_user='rpl', master_password='rpl';
+source include/start_slave.inc;
+
+--echo ==== Do replication as new user ====
+connection master;
+CREATE TABLE t1 (n INT);
+INSERT INTO t1 VALUES (1);
+sync_slave_with_master;
+SELECT * FROM t1;
+
+--echo ==== Delete new replication user ====
+connection master;
+DROP USER rpl@127.0.0.1;
+FLUSH PRIVILEGES;
+
+sync_slave_with_master;
+
+--echo ==== Restart slave without privileges =====
+# (slave.err will contain access denied error for this START SLAVE command)
+source include/stop_slave.inc;
+START SLAVE;
+source include/wait_for_slave_sql_to_start.inc;
+source include/wait_for_slave_io_to_stop.inc;
+
+--echo ==== Verify that Slave IO thread stopped with error ====
+# 1045 = ER_ACCESS_DENIED_ERROR
+--let $slave_io_errno= 1045
+--source include/wait_for_slave_io_error.inc
+
+--echo ==== Cleanup (Note that slave IO thread is not running) ====
+
+# cleanup: slave io thread has is stopped so we reset replication
+--source include/stop_slave_sql.inc
+CHANGE MASTER TO MASTER_USER = 'root', MASTER_PASSWORD = '';
+# clear Slave_IO_Errno
+--let $rpl_only_running_threads= 1
+--source include/rpl_reset.inc
+
+connection master;
+DROP TABLE t1;
+
+--source include/rpl_end.inc

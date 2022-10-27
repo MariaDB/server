@@ -1,0 +1,59 @@
+#
+# Testing out of range dates as (var)char
+#
+CREATE TABLE t1 (
+id INT NOT NULL,
+dat CHAR(10) NOT NULL,
+tim CHAR(8) DEFAULT '09:35:08',
+datim CHAR(19) DEFAULT '1789-08-10 14:20:30')
+ENGINE=CONNECT TABLE_TYPE=FIX;
+Warnings:
+Warning	1105	No file name. Table will use t1.fix
+INSERT INTO t1(id,dat) VALUES(1,'1515-04-01'),(2,'2014-07-26'),(3,'2118-11-02');
+SELECT * FROM t1;
+id	dat	tim	datim
+1	1515-04-01	09:35:08	1789-08-10 14:20:30
+2	2014-07-26	09:35:08	1789-08-10 14:20:30
+3	2118-11-02	09:35:08	1789-08-10 14:20:30
+SELECT id, DATE(datim) FROM t1 LIMIT 1;
+id	DATE(datim)
+1	1789-08-10
+SELECT id, DAYNAME(dat) FROM t1;
+id	DAYNAME(dat)
+1	Thursday
+2	Saturday
+3	Wednesday
+SELECT id, DAYNAME(datim) FROM t1 LIMIT 1;
+id	DAYNAME(datim)
+1	Monday
+SELECT id, TIME(tim) FROM t1 LIMIT 1;
+id	TIME(tim)
+1	09:35:08.000000
+DROP TABLE t1;
+#
+# Testing use of dates in where clause (MDEV-8926)
+#
+CREATE TABLE t1 (col1 DATE) ENGINE=CONNECT TABLE_TYPE=CSV;
+Warnings:
+Warning	1105	No file name. Table will use t1.csv
+INSERT INTO t1 VALUES('2015-01-01'),('2015-02-01'),('2015-03-01'),('2015-04-01');
+SELECT * FROM t1 WHERE col1 = '2015-02-01';
+col1
+2015-02-01
+SELECT * FROM t1 WHERE col1 > '2015-02-01';
+col1
+2015-03-01
+2015-04-01
+SELECT * FROM t1 WHERE col1 >= '2015-02-01';
+col1
+2015-02-01
+2015-03-01
+2015-04-01
+SELECT * FROM t1 WHERE col1 < '2015-02-01';
+col1
+2015-01-01
+SELECT * FROM t1 WHERE col1 <= '2015-02-01';
+col1
+2015-01-01
+2015-02-01
+DROP TABLE t1;

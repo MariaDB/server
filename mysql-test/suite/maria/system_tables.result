@@ -1,0 +1,14 @@
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+LOCK TABLE t1 WRITE;
+connect  con1,localhost,root,,test;
+SET lock_wait_timeout= 2;
+FLUSH TABLES;
+FLUSH TABLES t1;
+connection default;
+CALL non_existing_sp;
+ERROR 42000: PROCEDURE test.non_existing_sp does not exist
+connection con1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+DROP TABLE t1;

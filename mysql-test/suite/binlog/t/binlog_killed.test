@@ -1,0 +1,457 @@
+-- source include/have_innodb.inc
+-- source include/have_binlog_format_statement.inc
+-- source include/binlog_start_pos.inc
+
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+
+# You cannot use `KILL' with the Embedded MySQL Server library,
+# because the embedded server merely runs inside the threads of the host
+# application. -- the docs
+
+-- source include/not_embedded.inc
+
+#
+# Avoid printing binlog checkpoints
+#
+
+--let $skip_checkpoint_events=1
+
+
+###
+### bug#22725 : incorrect killed error in binlogged query
+###
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+
+create table t1 (a int auto_increment, b int, PRIMARY KEY (a)) ENGINE=InnoDB;
+create table t2 (a int auto_increment, b int, PRIMARY KEY (a)) ENGINE=MyISAM;
+create table t3 (a int auto_increment, b int, PRIMARY KEY (a)) ENGINE=InnoDB;
+
+#
+# effective test for bug#22725
+#
+
+connection con1;
+select get_lock("a", 20);
+
+connection con2;
+let $ID= `select connection_id()`;
+
+#
+# reset master does not reset binlogging on the embedded server.
+# the test is not run on the embedded for reason of using KILL query.
+# `reset master' problem is to be addressed by bug#15580 fixes.
+#
+reset master;
+send insert into t2 values (null, null), (null, get_lock("a", 10));
+
+
+connection con1;
+
+--disable_abort_on_error
+--disable_warnings
+
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where info like "%insert into t2 values%" and state like 'User lock';
+--source include/wait_condition.inc
+
+--replace_regex /[0-9]+/ID/
+eval kill query $ID;
+
+connection con2;
+--error 0,ER_QUERY_INTERRUPTED
+reap;
+let $rows= `select count(*) from t2  /* must be 2 or 0 */`;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--let $binlog_killed_pos=query_get_value(SHOW BINLOG EVENTS, Pos, 6)
+--let $binlog_killed_end_log_pos=query_get_value(SHOW BINLOG EVENTS, End_log_pos, 6)
+--exec $MYSQL_BINLOG --force-if-open --start-position=$binlog_killed_pos --stop-position=$binlog_killed_end_log_pos $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/kill_query_calling_sp.binlog
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_result_log
+eval select
+(@a:=load_file("$MYSQLTEST_VARDIR/tmp/kill_query_calling_sp.binlog"))
+is not null;
+--enable_result_log
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+let $error_code= `select @a like "%#%error_code=0%" /* must return 1 or 0*/`;
+let $insert_binlogged= `select @a like "%insert into%" /* must return 1 or 0 */`;
+eval set @result= $rows - $error_code - $insert_binlogged;
+
+--enable_warnings
+--enable_abort_on_error
+
+select @result /* must be zero either way */;
+
+
+--remove_file $MYSQLTEST_VARDIR/tmp/kill_query_calling_sp.binlog
+connection con1;
+select RELEASE_LOCK("a");
+
+#
+# bug#27571 asynchronous setting mysql_`query`::error and Query_log_e::error_code
+#
+
+# checking that killing inside of select loops is safe as before
+# killing after the loop can be only simulated - another test
+
+delete from t1;
+delete from t2;
+insert into t1 values (1,1),(2,2);
+
+#
+# simple update
+#
+connection con1;
+begin; update t1 set b=11 where a=2;
+
+connection con2;
+let $ID= `select connection_id()`;
+begin;
+send update t1 set b=b+10;
+
+connection con1;
+--replace_result $ID ID
+eval kill query $ID;
+rollback;
+
+# Bug #32148  	killi query may be ineffective 
+# forced to comment out the test's outcome 
+# and mask out ineffective ER_QUERY_INTERRUPTED
+# todo1: revert back upon fixing bug#32148
+# todo2: the tests need refining in that
+#        killing should wait till the victim requested
+#        its lock (wait_condition available in 5.1 tests)
+
+connection con2;
+--error 0,ER_QUERY_INTERRUPTED
+reap;
+rollback;
+select * from t1  order by a /* must be the same as before (1,1),(2,2) */;
+
+#
+# multi update
+# commented out as Bug #31807 multi-update,delete killing does not report with ER_QUERY_INTERRUPTED
+# in the way
+#
+# connection con1;
+# begin; update t1 set b=b+10;
+
+# connection con2;
+# send update t1 as t_1,t1 as t_2 set t_1.b=11 where t_2.a=2;
+
+# connection con1;
+# --replace_result $ID ID
+# eval kill query $ID;
+# rollback;
+
+# disable_abort_on_error;
+
+# connection con2;
+# --error HY000,ER_QUERY_INTERRUPTED
+# reap;
+# select * from t1 /* must be the same as before (1,1),(2,2) */;
+
+# enable_abort_on_error;
+#
+# simple delete
+#
+connection con1;
+begin; delete from t1 where a=2;
+
+connection con2;
+let $ID= `select connection_id()`;
+begin;
+send delete from t1 where a=2;
+
+connection con1;
+--replace_result $ID ID
+eval kill query $ID;
+rollback;
+
+connection con2;
+--error 0,ER_QUERY_INTERRUPTED
+reap;
+rollback;
+# todo1,2 above
+select * from t1 order by a /* must be the same as before (1,1),(2,2) */;
+
+
+#
+# multi delete
+# the same as for multi-update
+#
+# connection con1;
+# begin; delete from t1 where a=2;
+
+# connection con2;
+# send delete t1 from t1 where t1.a=2;
+
+# connection con1;
+# --replace_result $ID ID
+# eval kill query $ID;
+# rollback;
+
+# connection con2;
+# --error 0,ER_QUERY_INTERRUPTED
+# reap;
+# select * from t1 /* must be the same as before (1,1),(2,2) */;
+#
+# insert select
+#
+connection con1;
+--disable_warnings
+drop table if exists t4;
+--enable_warnings
+create table t4 (a int, b int) engine=innodb;
+insert into t4 values (3, 3);
+begin; insert into t1 values (3, 3);
+
+connection con2;
+let $ID= `select connection_id()`;
+begin;
+send insert into t1 select * from t4 for update;
+
+connection con1;
+--replace_result $ID ID
+eval kill query $ID;
+rollback;
+
+connection con2;
+--error 0,ER_QUERY_INTERRUPTED,ER_LOCK_WAIT_TIMEOUT
+reap;
+# todo 1,2 above
+rollback;
+select * from t1 /* must be the same as before (1,1),(2,2) */;
+
+drop table t4; # cleanup for the sub-case
+
+###
+## non-ta table case: killing must be recorded in binlog
+###
+create table t4 (a int, b int) ENGINE=MyISAM /* for killing update and delete */;
+
+delimiter |;
+create function bug27563(n int) 
+RETURNS int(11)
+NOT DETERMINISTIC
+begin
+  if @b > 0 then
+     select get_lock("a", 20)  into @a;
+  else 
+     set @b= 1;
+  end if;
+  return n;
+end|
+delimiter ;|
+
+#
+# update
+#
+
+delete from t4;
+insert into t4 values (1,1), (1,1);
+reset master;
+connection con1;
+select get_lock("a", 20);
+
+connection con2;
+let $ID= `select connection_id()`;
+set @b= 0;
+send update t4 set b=b + bug27563(b);
+
+connection con1;
+let $wait_condition= select count(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST where state='User lock';
+source include/wait_condition.inc;
+select count(*) FROM INFORMATION_SCHEMA.PROCESSLIST where state='User lock';
+
+--replace_result $ID ID
+eval kill query $ID;
+
+connection con2;
+--error ER_QUERY_INTERRUPTED
+reap;
+select * from t4 order by b /* must be (1,1), (1,2) */;
+select @b  /* must be 1 at the end of a stmt calling bug27563() */;
+--echo must have the update query event on the 4th line
+source include/show_binlog_events.inc;
+--let $binlog_killed_pos= query_get_value(SHOW BINLOG EVENTS, Pos, 5)
+--let $binlog_killed_end_log_pos= query_get_value(SHOW BINLOG EVENTS, End_log_pos, 5)
+
+--echo *** a proof the query is binlogged with an error ***
+
+--exec $MYSQL_BINLOG --force-if-open --start-position=$binlog_killed_pos --stop-position=$binlog_killed_end_log_pos $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/binlog_killed_bug27571.binlog
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval select
+(@a:=load_file("$MYSQLTEST_VARDIR/tmp/binlog_killed_bug27571.binlog"))
+is not null;
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+let $error_code= `select @a like "%#%error_code=0%" /* must return 0*/`;
+eval select $error_code /* must return 0 to mean the killed update is in */;
+
+# cleanup for the sub-case
+connection con1;
+select RELEASE_LOCK("a");
+--remove_file $MYSQLTEST_VARDIR/tmp/binlog_killed_bug27571.binlog
+
+#
+# delete
+#
+
+delete from t4;
+insert into t4 values (1,1), (2,2);
+reset master;
+connection con1;
+select get_lock("a", 20);
+
+connection con2;
+let $ID= `select connection_id()`;
+set @b= 0;
+send delete from t4 where b=bug27563(1) or b=bug27563(2);
+
+connection con1;
+let $wait_condition= select count(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST where state='User lock';
+source include/wait_condition.inc;
+select count(*) FROM INFORMATION_SCHEMA.PROCESSLIST where state='User lock';
+--replace_result $ID ID
+eval kill query $ID;
+
+connection con2;
+--error ER_QUERY_INTERRUPTED
+reap;
+select count(*) from t4 /* must be 1 */;
+select @b  /* must be 1 at the end of a stmt calling bug27563() */;
+--echo must have the delete query event on the 4th line
+source include/show_binlog_events.inc;
+--let $binlog_killed_pos= query_get_value(SHOW BINLOG EVENTS, Pos, 5)
+--let $binlog_killed_end_log_pos= query_get_value(SHOW BINLOG EVENTS, End_log_pos, 5)
+
+# a proof the query is binlogged with an error
+
+--exec $MYSQL_BINLOG --force-if-open --start-position=$binlog_killed_pos --stop-position=$binlog_killed_end_log_pos $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/binlog_killed_bug27571.binlog
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval select
+(@a:=load_file("$MYSQLTEST_VARDIR/tmp/binlog_killed_bug27571.binlog"))
+is not null;
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+let $error_code= `select @a like "%#%error_code=0%" /* must return 0*/`;
+eval select $error_code /* must return 0 to mean the killed delete is in */;
+
+# cleanup for the sub-case
+connection con1;
+select RELEASE_LOCK("a");
+--remove_file $MYSQLTEST_VARDIR/tmp/binlog_killed_bug27571.binlog
+
+drop table t4;
+
+#
+# load data - see simulation tests
+#
+
+
+# bug#27571 cleanup
+
+drop function bug27563;
+
+
+# Prove that killing connection in the middle
+# of mixed engine transactions affect binlogging
+# as specified.
+
+# keep binlogging for this piece of test in a new file
+FLUSH LOGS;
+
+# Connection con3 as transaction generator thoughout the test
+connect (con3, localhost, root,,);
+
+connection con3;
+let $ID= `select connection_id()`;
+
+--let $threads_connected=`select variable_value from information_schema.global_status where variable_name="threads_connected"`
+--let wait_condition=select variable_value < $threads_connected from information_schema.global_status where variable_name="threads_connected"
+
+--echo MI: MyISAM, INNODB
+BEGIN;
+INSERT INTO t2 VALUES (NULL, 1);
+INSERT INTO t1 VALUES (NULL, 2);
+
+#Connection con1 as killer throughout the test
+connection con1;
+--replace_result $ID ID
+--eval KILL $ID
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+--source include/wait_condition.inc
+--let $binlog_start= 4
+--source include/show_binlog_events.inc
+--let $binlog_killed_pos=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+disconnect con3;
+connect (con3, localhost, root,,);
+connection con3;
+let $ID= `select connection_id()`;
+
+--echo IM: INNODB, MyISAM
+BEGIN;
+INSERT INTO t1 VALUES (NULL, 3);
+INSERT INTO t2 VALUES (NULL, 4);
+
+connection con1;
+--replace_result $ID ID
+--eval KILL $ID
+--source include/wait_condition.inc
+--let $binlog_start= $binlog_killed_pos
+--source include/show_binlog_events.inc
+--let $binlog_killed_pos=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+disconnect con3;
+connect (con3, localhost, root,,);
+connection con3;
+let $ID= `select connection_id()`;
+
+--echo IMI: INNODB, MyISAM, INNODB
+BEGIN;
+INSERT INTO t1 VALUES (NULL, 5);
+INSERT INTO t2 VALUES (NULL, 6);
+INSERT INTO t1 VALUES (NULL, 7);
+
+connection con1;
+--replace_result $ID ID
+--eval KILL $ID
+--source include/wait_condition.inc
+--let $binlog_start= $binlog_killed_pos
+--source include/show_binlog_events.inc
+--let $binlog_killed_pos=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+disconnect con3;
+connect (con3, localhost, root,,);
+connection con3;
+let $ID= `select connection_id()`;
+
+--echo MI2:  MyISAM, INNODB, MyISAM, INNODB
+BEGIN;
+INSERT INTO t2 VALUES (NULL, 8);
+INSERT INTO t1 VALUES (NULL, 9);
+INSERT INTO t2 VALUES (NULL, 10);
+INSERT INTO t1 VALUES (NULL, 11);
+
+connection con1;
+--replace_result $ID ID
+--eval KILL $ID
+--source include/wait_condition.inc
+--let $binlog_start= $binlog_killed_pos
+--source include/show_binlog_events.inc
+
+
+#
+# common cleanup 
+#
+
+connection default;
+disconnect con1;
+disconnect con2;
+
+drop table t1,t2,t3;
+
+--echo end of the tests

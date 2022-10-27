@@ -1,0 +1,27 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+--source include/not_windows.inc # Data directory option not availablr
+
+#
+# Create tables with partitions and try to generate an error while creating
+# partitions.
+#
+--disable_warnings
+
+DROP TABLE IF EXISTS t1;
+
+--enable_warnings
+
+CREATE TABLE t1(a INT,b INT,KEY (a)) PARTITION BY HASH (a) PARTITIONS 3;
+
+SHOW TABLES;
+
+--disable_query_log
+call mtr.add_suppression("Failed to execute action for entry.*");
+--enable_query_log
+
+--error ER_WRONG_TABLE_NAME
+ALTER TABLE t1 ADD PARTITION(PARTITION p3 DATA DIRECTORY='G:/mysqltest/p3Data' INDEX DIRECTORY='H:/mysqltest/p3Index');
+
+DROP TABLE t1;
+

@@ -1,0 +1,174 @@
+#
+# Testing of constraints
+#
+create table t1 (a int check (a>0));
+show create table t1;
+insert into t1 values (1);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (0);
+drop table t1;
+create table t1 (a int, b int, check (a>b));
+show create table t1;
+insert into t1 values (1,0);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (0,1);
+drop table t1;
+create table t1 (a int ,b int, constraint abc check (a>b));
+show create table t1;
+insert into t1 values (1,0);
+--error ER_CONSTRAINT_FAILED
+insert into t1 values (0,1);
+drop table t1;
+create table t1 (a int null);
+show create table t1;
+insert into t1 values (1),(NULL);
+drop table t1;
+create table t1 (a int null);
+alter table t1 add constraint constraint_1 unique (a);
+alter table t1 add constraint unique key_1(a);
+alter table t1 add constraint constraint_2 unique key_2(a);
+show create table t1;
+drop table t1;
+
+# End of 4.1 tests
+
+#
+# Bug#35578 (Parser allows useless/illegal CREATE TABLE syntax)
+#
+
+--disable_warnings
+drop table if exists t_illegal;
+--enable_warnings
+
+--error ER_PARSE_ERROR
+create table t_illegal (a int, b int, check a>b);
+
+--error ER_PARSE_ERROR
+create table t_illegal (a int, b int, constraint abc check a>b);
+
+--error ER_PARSE_ERROR
+create table t_illegal (a int, b int, constraint abc);
+
+#
+# Bug#11714 (Non-sensical ALTER TABLE ADD CONSTRAINT allowed)
+#
+
+--disable_warnings
+drop table if exists t_11714;
+--enable_warnings
+
+create table t_11714(a int, b int);
+
+--error ER_PARSE_ERROR
+alter table t_11714 add constraint cons1;
+
+drop table t_11714;
+
+#
+# Bug#38696 (CREATE TABLE ... CHECK ... allows illegal syntax)
+
+--error ER_PARSE_ERROR
+CREATE TABLE t_illegal (col_1 INT CHECK something (whatever));
+
+--error ER_PARSE_ERROR
+CREATE TABLE t_illegal (col_1 INT CHECK something);
+
+#
+# MDEV-17065 Crash on SHOW CREATE TABLE with CHECK CONSTRAINT
+#
+
+CREATE TABLE long_enough_name (
+pk int(11) NOT NULL,
+f1 int(11) DEFAULT NULL,
+f2 int(11) NOT NULL,
+f3 int(11) DEFAULT NULL,
+f4 timestamp NOT NULL DEFAULT current_timestamp(),
+f5 varchar(32) COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+f6 smallint(6) NOT NULL DEFAULT 1,
+f7 int(11) DEFAULT NULL,
+PRIMARY KEY (pk),
+KEY idx1 (f7),
+KEY idx2 (f1),
+KEY idx3 (f2),
+KEY idx4 (f3),
+CONSTRAINT constr CHECK (f6 >= 0)
+);
+ 
+SELECT * FROM long_enough_name AS tbl;
+SHOW CREATE TABLE long_enough_name;
+ 
+DROP TABLE long_enough_name;
+
+#
+# MDEV-17654 Incorrect syntax returned for column with CHECK constraint
+#            in the "SHOW CREATE TABLE ..." result
+#
+
+CREATE TABLE test.t(t int COMMENT 't_comment' CHECK(t>0));
+SHOW CREATE TABLE test.t;
+DROP table test.t;
+
+SET @OLD_SQL_MODE=@@SQL_MODE;
+SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
+
+CREATE TABLE test.t (f int foo=bar check(f>0));
+SHOW CREATE TABLE t;
+DROP table test.t;
+SET @@SQL_MODE=@OLD_SQL_MODE;
+
+--echo #
+--echo # MDEV-16932 - ASAN heap-use-after-free in my_charlen_utf8 /
+--echo # my_well_formed_char_length_utf8 on 2nd execution of SP with
+--echo # ALTER trying to add bad CHECK
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE sp() ALTER TABLE t1 ADD CONSTRAINT CHECK (b > 0);
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+show create table t1;
+alter table t1 add column b int;
+CALL sp;
+show create table t1;
+CALL sp;
+show create table t1;
+# Cleanup
+DROP PROCEDURE sp;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE sp() ALTER TABLE t1 ADD CONSTRAINT CHECK (b > 0);
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+alter table t1 add column b int, add constraint check (b < 10);
+CALL sp;
+show create table t1;
+# Cleanup
+DROP PROCEDURE sp;
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
+
+#
+# Check that we don't lose constraints as part of CREATE ... SELECT
+#
+
+create table t1 (a int check (a>10)) select 100 as 'a';
+show create table t1;
+drop table t1;
+
+#
+# Check that we constraints on field with default expressions work
+#
+
+create table t1 (a text default(length(now())) check (length(a) > 1));
+insert into t1 values ();
+insert into t1 values ("ccc");
+--error ER_CONSTRAINT_FAILED
+insert into t1 values ("");
+select * from t1;
+drop table t1;

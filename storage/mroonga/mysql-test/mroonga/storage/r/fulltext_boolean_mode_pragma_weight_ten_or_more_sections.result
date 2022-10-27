@@ -1,0 +1,39 @@
+DROP TABLE IF EXISTS memos;
+SET NAMES utf8;
+CREATE TABLE memos (
+title VARCHAR(255),
+tag1 VARCHAR(10),
+tag2 VARCHAR(10),
+tag3 VARCHAR(10),
+tag4 VARCHAR(10),
+tag5 VARCHAR(10),
+tag6 VARCHAR(10),
+tag7 VARCHAR(10),
+tag8 VARCHAR(10),
+tag9 VARCHAR(10),
+tag10 VARCHAR(10),
+FULLTEXT INDEX (tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag8, tag9, tag10)
+) DEFAULT CHARSET=utf8;
+INSERT INTO memos
+VALUES("Groonga",
+"tag 1",
+"tag 2",
+"tag 3",
+"tag 4",
+"tag 5",
+"tag 6",
+"tag 7",
+"tag 8",
+"tag 9",
+"tag 10");
+SELECT title,
+MATCH(tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag8, tag9, tag10)
+AGAINST("*W1:2,2:4,3:6,4:8,5:10,6:12,7:14,8:16,9:18,10:20 +tag"
+               in BOOLEAN MODE) AS score
+FROM memos
+WHERE MATCH(tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag8, tag9, tag10)
+AGAINST("*W1:2,2:4,3:6,4:8,5:10,6:12,7:14,8:16,9:18,10:20 +tag"
+                in BOOLEAN MODE);
+title	score
+Groonga	110
+DROP TABLE memos;

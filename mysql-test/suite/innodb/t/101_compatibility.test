@@ -1,0 +1,108 @@
+--source include/innodb_page_size.inc
+--source include/not_embedded.inc
+
+-- echo #
+-- echo # MDEV-11623 MariaDB 10.1 fails to start datadir created with
+-- echo # MariaDB 10.0/MySQL 5.6 using innodb-page-size!=16K
+-- echo #
+
+# This is actually testing the opposite: starting the fixed 10.1 with
+# buggy 10.1 files (by manually converting the flags in the files).
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS of file ");
+FLUSH TABLES;
+--enable_query_log
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let MYSQLD_DATADIR=`select @@datadir`;
+
+CREATE TABLE tr(a INT)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+CREATE TABLE tc(a INT)ENGINE=InnoDB ROW_FORMAT=COMPACT;
+CREATE TABLE td(a INT)ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+--disable_warnings
+# ROW_FORMAT=COMPRESSED is not available with innodb_page_size>16k
+SET INNODB_STRICT_MODE=OFF;
+CREATE TABLE tz(a INT)ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+SET INNODB_STRICT_MODE=ON;
+--enable_warnings
+
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+EVAL CREATE TABLE tdd(a INT) ENGINE=InnoDB, DATA DIRECTORY='$MYSQL_TMP_DIR';
+
+CREATE TABLE tp(a INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC PAGE_COMPRESSED=1;
+CREATE TABLE ti(a INT) ENGINE=InnoDB;
+FLUSH TABLES ti FOR EXPORT;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "ti");
+EOF
+UNLOCK TABLES;
+ALTER TABLE ti DISCARD TABLESPACE;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "ti");
+ib_restore_tablespaces("test", "ti");
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+do "$ENV{MTR_SUITE_DIR}/include/ibd_convert.pl";
+my $ps = $ENV{INNODB_PAGE_SIZE};
+my $dd = $ENV{MYSQLD_DATADIR};
+convert_to_mariadb_101("$dd/test/ti.ibd", $ps);
+EOF
+
+ALTER TABLE ti IMPORT TABLESPACE;
+
+BEGIN;
+INSERT INTO tr VALUES(1);
+INSERT INTO tc VALUES(1);
+INSERT INTO td VALUES(1);
+INSERT INTO tz VALUES(1);
+INSERT INTO tdd VALUES(1);
+INSERT INTO tp VALUES(1);
+INSERT INTO ti VALUES(1);
+
+--source include/kill_mysqld.inc
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+do "$ENV{MTR_SUITE_DIR}/include/ibd_convert.pl";
+my $ps = $ENV{INNODB_PAGE_SIZE};
+my $dd = $ENV{MYSQLD_DATADIR};
+
+convert_to_mariadb_101("$dd/ibdata1", $ps);
+convert_to_mariadb_101("$dd/test/tr.ibd", $ps);
+convert_to_mariadb_101("$dd/test/tc.ibd", $ps);
+convert_to_mariadb_101("$dd/test/td.ibd", $ps);
+convert_to_mariadb_101("$dd/test/tz.ibd", 1024) if $ps<32768;
+convert_to_mariadb_101("$dd/test/tp.ibd", $ps);
+convert_to_mariadb_101("$dd/test/ti.ibd", $ps);
+convert_to_mariadb_101("$ENV{MYSQL_TMP_DIR}/test/tdd.ibd", $ps);
+EOF
+
+--source include/start_mysqld.inc
+CHECK TABLE tr,tc,td,tz,tdd,tp,ti;
+--source include/shutdown_mysqld.inc
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+do "$ENV{MTR_SUITE_DIR}/include/ibd_convert.pl";
+my $ps = $ENV{INNODB_PAGE_SIZE};
+my $dd = $ENV{MYSQLD_DATADIR};
+
+convert_to_mariadb_101("$dd/ibdata1", $ps);
+convert_to_mariadb_101("$dd/test/tr.ibd", $ps);
+convert_to_mariadb_101("$dd/test/tc.ibd", $ps);
+convert_to_mariadb_101("$dd/test/td.ibd", $ps);
+convert_to_mariadb_101("$dd/test/tz.ibd", 1024) if $ps<32768;
+convert_to_mariadb_101("$dd/test/tp.ibd", $ps);
+convert_to_mariadb_101("$dd/test/ti.ibd", $ps);
+convert_to_mariadb_101("$ENV{MYSQL_TMP_DIR}/test/tdd.ibd", $ps);
+EOF
+
+--let $restart_parameters=--innodb-read-only
+--source include/start_mysqld.inc
+CHECK TABLE tr,tc,td,tz,tdd,tp,ti;
+--source include/shutdown_mysqld.inc
+
+--let $restart_parameters=
+--source include/start_mysqld.inc
+DROP TABLE tr,tc,td,tz,tdd,tp,ti;

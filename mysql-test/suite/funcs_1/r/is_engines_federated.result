@@ -1,0 +1,8 @@
+SELECT * FROM information_schema.engines
+WHERE ENGINE = 'FEDERATED';
+ENGINE	FEDERATED
+SUPPORT	YES
+COMMENT	Allows to access tables on other MariaDB servers, supports transactions and more
+TRANSACTIONS	YES
+XA	NO
+SAVEPOINTS	YES

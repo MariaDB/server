@@ -1,0 +1,274 @@
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+@@innodb_stats_persistent_sample_pages;
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+create table t1
+( 
+pk1 int not null,
+pk2 int not null,
+key1 int not null,
+key2 int not null,
+key (key1),
+key (key2),
+primary key (pk1, pk2)
+)engine=Innodb;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set optimizer_trace="enabled=on";
+set @tmp_index_merge_ror_cpk=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
+explain select * from t1 where pk1 != 0  and key1 = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	PRIMARY,key1	key1	4	const	1	Using index condition
+select * from information_schema.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+explain select * from t1 where pk1 != 0  and key1 = 1	{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "select t1.pk1 AS pk1,t1.pk2 AS pk2,t1.key1 AS key1,t1.key2 AS key2 from t1 where t1.pk1 <> 0 and t1.key1 = 1"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": [
+          {
+            "condition_processing": {
+              "condition": "WHERE",
+              "original_condition": "t1.pk1 <> 0 and t1.key1 = 1",
+              "steps": [
+                {
+                  "transformation": "equality_propagation",
+                  "resulting_condition": "t1.pk1 <> 0 and multiple equal(1, t1.key1)"
+                },
+                {
+                  "transformation": "constant_propagation",
+                  "resulting_condition": "t1.pk1 <> 0 and multiple equal(1, t1.key1)"
+                },
+                {
+                  "transformation": "trivial_condition_removal",
+                  "resulting_condition": "t1.pk1 <> 0 and multiple equal(1, t1.key1)"
+                }
+              ]
+            }
+          },
+          {
+            "table_dependencies": [
+              {
+                "table": "t1",
+                "row_may_be_null": false,
+                "map_bit": 0,
+                "depends_on_map_bits": []
+              }
+            ]
+          },
+          {
+            "ref_optimizer_key_uses": [
+              {
+                "table": "t1",
+                "field": "key1",
+                "equals": "1",
+                "null_rejecting": false
+              }
+            ]
+          },
+          {
+            "rows_estimation": [
+              {
+                "table": "t1",
+                "range_analysis": {
+                  "table_scan": {
+                    "rows": 1000,
+                    "cost": 206.1
+                  },
+                  "potential_range_indexes": [
+                    {
+                      "index": "PRIMARY",
+                      "usable": true,
+                      "key_parts": ["pk1", "pk2"]
+                    },
+                    {
+                      "index": "key1",
+                      "usable": true,
+                      "key_parts": ["key1"]
+                    },
+                    {
+                      "index": "key2",
+                      "usable": false,
+                      "cause": "not applicable"
+                    }
+                  ],
+                  "setup_range_conditions": [],
+                  "group_index_range": {
+                    "chosen": false,
+                    "cause": "no group by or distinct"
+                  },
+                  "analyzing_range_alternatives": {
+                    "range_scan_alternatives": [
+                      {
+                        "index": "PRIMARY",
+                        "ranges": ["(pk1) < (0)", "(0) < (pk1)"],
+                        "rowid_ordered": true,
+                        "using_mrr": false,
+                        "index_only": false,
+                        "rows": 1000,
+                        "cost": 204.01,
+                        "chosen": true
+                      },
+                      {
+                        "index": "key1",
+                        "ranges": ["(1) <= (key1) <= (1)"],
+                        "rowid_ordered": true,
+                        "using_mrr": false,
+                        "index_only": false,
+                        "rows": 1,
+                        "cost": 2.3751,
+                        "chosen": true
+                      }
+                    ],
+                    "analyzing_roworder_intersect": {
+                      "intersecting_indexes": [
+                        {
+                          "index": "key1",
+                          "index_scan_cost": 1.0001,
+                          "cumulated_index_scan_cost": 1.0001,
+                          "disk_sweep_cost": 1.0042,
+                          "cumulative_total_cost": 2.0043,
+                          "usable": true,
+                          "matching_rows_now": 1,
+                          "intersect_covering_with_this_index": false,
+                          "chosen": true
+                        }
+                      ],
+                      "clustered_pk": {
+                        "clustered_pk_added_to_intersect": false,
+                        "cause": "cost"
+                      },
+                      "chosen": false,
+                      "cause": "too few indexes to merge"
+                    },
+                    "analyzing_index_merge_union": []
+                  },
+                  "chosen_range_access_summary": {
+                    "range_access_plan": {
+                      "type": "range_scan",
+                      "index": "key1",
+                      "rows": 1,
+                      "ranges": ["(1) <= (key1) <= (1)"]
+                    },
+                    "rows_for_plan": 1,
+                    "cost_for_plan": 2.3751,
+                    "chosen": true
+                  }
+                }
+              },
+              {
+                "table": "t1",
+                "rowid_filters": [
+                  {
+                    "key": "key1",
+                    "build_cost": 1.1801,
+                    "rows": 1
+                  }
+                ]
+              },
+              {
+                "selectivity_for_indexes": [
+                  {
+                    "index_name": "key1",
+                    "selectivity_from_index": 0.001
+                  },
+                  {
+                    "index_name": "PRIMARY",
+                    "selectivity_from_index": 1
+                  }
+                ],
+                "selectivity_for_columns": [],
+                "cond_selectivity": 0.001
+              }
+            ]
+          },
+          {
+            "considered_execution_plans": [
+              {
+                "plan_prefix": [],
+                "table": "t1",
+                "best_access_path": {
+                  "considered_access_paths": [
+                    {
+                      "access_type": "ref",
+                      "index": "key1",
+                      "used_range_estimates": true,
+                      "rows": 1,
+                      "cost": 2,
+                      "chosen": true
+                    },
+                    {
+                      "type": "scan",
+                      "chosen": false,
+                      "cause": "cost"
+                    }
+                  ],
+                  "chosen_access_method": {
+                    "type": "ref",
+                    "records": 1,
+                    "cost": 2,
+                    "uses_join_buffering": false
+                  }
+                },
+                "rows_for_plan": 1,
+                "cost_for_plan": 2.2,
+                "estimated_join_cardinality": 1
+              }
+            ]
+          },
+          {
+            "best_join_order": ["t1"]
+          },
+          {
+            "attaching_conditions_to_tables": {
+              "original_condition": "t1.key1 = 1 and t1.pk1 <> 0",
+              "attached_conditions_computation": [],
+              "attached_conditions_summary": [
+                {
+                  "table": "t1",
+                  "attached": "t1.pk1 <> 0"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}	0	0
+drop table t1;
+set @@optimizer_switch= @tmp_index_merge_ror_cpk;
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+@innodb_stats_persistent_sample_pages_save;
+#
+# MDEV-18962: ASAN heap-buffer-overflow in Single_line_formatting_helper::on_add_str with optimizer trace
+#
+CREATE TABLE t1 (a date not null, b time, key(a), key(b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('1991-09-09','00:00:00'),('2032-08-24','02:22:24');
+SET SESSION optimizer_trace = 'enabled=on';
+SELECT * FROM t1 WHERE b IS NULL AND a = '2000-01-01';
+a	b
+DROP TABLE t1;
+set optimizer_trace="enabled=off";

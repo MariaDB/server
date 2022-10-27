@@ -1,0 +1,5 @@
+--source include/have_tokudb.inc
+--skip MariaDB doesn't support kill_idle_trx variable for all SE
+
+SET default_storage_engine=TokuDB;
+--source include/percona_kill_idle_trx.inc

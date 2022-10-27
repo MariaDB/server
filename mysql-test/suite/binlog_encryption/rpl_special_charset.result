@@ -1,0 +1,10 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("'utf16' can not be used as client character set");
+CREATE TABLE t1(i VARCHAR(20));
+INSERT INTO t1 VALUES (0xFFFF);
+connection slave;
+include/diff_tables.inc [master:t1, slave:t1]
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

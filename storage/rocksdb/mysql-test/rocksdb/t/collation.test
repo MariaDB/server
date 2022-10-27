@@ -1,0 +1,211 @@
+--source include/have_rocksdb.inc
+# MariaDB doesn't have server variables to check for GCC version, so the
+# following check is commented out:
+# --source include/have_fullregex.inc
+
+call mtr.add_suppression("Invalid pattern");
+
+# ci non-indexed column is allowed
+CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text) engine=rocksdb charset utf8;
+# ci indexed column is not allowed
+--error ER_UNSUPPORTED_COLLATION
+ALTER TABLE t1 ADD INDEX (value);
+DROP TABLE t1;
+
+# ci indexed column is not allowed
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value)) engine=rocksdb charset utf8;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value3(50))) engine=rocksdb charset utf8;
+# ci indexed column with rocksdb_strict_collation_check=OFF is allowed.
+SET GLOBAL rocksdb_strict_collation_check=0;
+CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value3(50))) engine=rocksdb charset utf8;
+DROP TABLE t1;
+SET GLOBAL rocksdb_strict_collation_check=1;
+
+# cs indexed column is allowed
+CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value2)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+
+# cs latin1_bin is allowed
+CREATE TABLE t1 (id varchar(20), value varchar(50), value2 varchar(50), value3 text, primary key (id), index(value, value2)) engine=rocksdb charset latin1 collate latin1_bin;
+# THIS SHOULD FAIL BUT IT DOES NOT
+ALTER TABLE t1 collate=latin1_general_ci;
+DROP TABLE t1;
+
+# cs utf8_bin is allowed
+CREATE TABLE t1 (id varchar(20), value varchar(50), value2 varchar(50), value3 text, primary key (id), index(value, value2)) engine=rocksdb charset utf8 collate utf8_bin;
+DROP TABLE t1;
+
+# cs mixed latin1_bin and utf8_bin is allowed
+CREATE TABLE t1 (id varchar(20) collate latin1_bin, value varchar(50) collate utf8_bin, value2 varchar(50) collate latin1_bin, value3 text, primary key (id), index(value, value2)) engine=rocksdb;
+DROP TABLE t1;
+
+# ci indexed column is not allowed unless table name is in exception list
+SET GLOBAL rocksdb_strict_collation_exceptions=t1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE t2 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test regex for exception list
+SET GLOBAL rocksdb_strict_collation_exceptions="t.*";
+CREATE TABLE t123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t123;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE s123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+SET GLOBAL rocksdb_strict_collation_exceptions=".t.*";
+CREATE TABLE xt123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE xt123;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE t123 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test multiple entries in the list with commas
+SET GLOBAL rocksdb_strict_collation_exceptions="s.*,t.*";
+CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE s1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test multiple entries in the list with vertical bar
+SET GLOBAL rocksdb_strict_collation_exceptions="s.*|t.*";
+CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE s1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test multiple entries in the list and extra comma at the front
+SET GLOBAL rocksdb_strict_collation_exceptions=",s.*,t.*";
+CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE s1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test multiple entries in the list and extra vertical bar at the front
+SET GLOBAL rocksdb_strict_collation_exceptions="|s.*|t.*";
+CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE s1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test multiple entries in the list and extra comma in the middle
+SET GLOBAL rocksdb_strict_collation_exceptions="s.*,,t.*";
+CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE s1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test multiple entries in the list and extra vertical bar in the middle
+SET GLOBAL rocksdb_strict_collation_exceptions="s.*||t.*";
+CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE s1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test multiple entries in the list and extra comma at the end
+SET GLOBAL rocksdb_strict_collation_exceptions="s.*,t.*,";
+CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE s1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test multiple entries in the list and extra vertical bar at the end
+SET GLOBAL rocksdb_strict_collation_exceptions="s.*|t.*|";
+CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE s1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test multiple entries in the list and tons of commas and vertical bars just for the fun of it
+SET GLOBAL rocksdb_strict_collation_exceptions="||||,,,,s.*,,|,,||,t.*,,|||,,,";
+CREATE TABLE s1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE s1;
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE u1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb charset utf8;
+
+# test allowing alters to create temporary tables
+SET GLOBAL rocksdb_strict_collation_exceptions='t1';
+CREATE TABLE t1 (id INT primary key, value varchar(50), index(value)) engine=rocksdb;
+ALTER TABLE t1 AUTO_INCREMENT=1;
+DROP TABLE t1;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE t2 (id INT primary key, value varchar(50), index(value)) engine=rocksdb;
+CREATE TABLE t2 (id INT primary key, value varchar(50)) engine=rocksdb;
+--error ER_UNSUPPORTED_COLLATION
+ALTER TABLE t2 ADD INDEX(value);
+DROP TABLE t2;
+
+
+# test invalid regex (missing end bracket)
+SET GLOBAL rocksdb_strict_collation_exceptions="[a-b";
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=Invalid pattern in strict_collation_exceptions: \[a-b;
+source include/search_pattern_in_file.inc;
+CREATE TABLE a (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
+SET GLOBAL rocksdb_strict_collation_exceptions="[a-b]";
+CREATE TABLE a (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
+CREATE TABLE b (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE c (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE a, b;
+
+call mtr.add_suppression("Invalid pattern in strict_collation_exceptions:");
+# test invalid regex (trailing escape)
+SET GLOBAL rocksdb_strict_collation_exceptions="abc\\";
+let SEARCH_PATTERN=Invalid pattern in strict_collation_exceptions: abc;
+source include/search_pattern_in_file.inc;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
+SET GLOBAL rocksdb_strict_collation_exceptions="abc";
+CREATE TABLE abc (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
+--error ER_UNSUPPORTED_COLLATION
+CREATE TABLE abcd (id INT PRIMARY KEY, value varchar(50), index(value)) engine=rocksdb charset utf8;
+DROP TABLE abc;
+
+# test bad regex (null caused a crash) - Issue 493
+SET GLOBAL rocksdb_strict_collation_exceptions=null;
+
+# test for warnings instead of errors
+--let $_mysqld_option=--rocksdb_error_on_suboptimal_collation=0
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_option.inc
+
+SET GLOBAL rocksdb_strict_collation_check=1;
+
+# ci indexed column is not optimal, should emit a warning
+CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text, index(value)) engine=rocksdb charset utf8;
+DROP TABLE t1;
+
+# ci non-indexed column is allowed
+CREATE TABLE t1 (id INT primary key, value varchar(50), value2 varbinary(50), value3 text) engine=rocksdb charset utf8;
+# ci indexed column is not allowed, should emit a warning
+ALTER TABLE t1 ADD INDEX (value);
+DROP TABLE t1;
+
+# cs latin1_bin is allowed
+CREATE TABLE t1 (id varchar(20), value varchar(50), value2 varchar(50), value3 text, primary key (id), index(value, value2)) engine=rocksdb charset latin1 collate latin1_bin;
+# THIS SHOULD WARN BUT IT DOES NOT
+ALTER TABLE t1 collate=latin1_general_ci;
+DROP TABLE t1;
+
+# cleanup
+--source include/restart_mysqld.inc

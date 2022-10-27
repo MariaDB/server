@@ -1,0 +1,128 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # Variable name : session_track_system_variables
+--echo # Scope         : Global & Session
+--echo #
+
+--echo # Global - default
+SELECT @@global.session_track_system_variables;
+--echo # Session - default
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # via INFORMATION_SCHEMA.GLOBAL_VARIABLES
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'session_track%' ORDER BY VARIABLE_NAME;
+
+--echo # via INFORMATION_SCHEMA.SESSION_VARIABLES
+SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE 'session_track%' ORDER BY VARIABLE_NAME;
+
+# Save the global value to be used to restore the original value.
+SET @global_saved_tmp =  @@global.session_track_system_variables;
+--echo
+
+--echo # Altering global variable's value
+SET @@global.session_track_system_variables='autocommit';
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # Altering session variable's value
+SET @@session.session_track_system_variables='autocommit';
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # Variables' values in a new session.
+connect (con1,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+
+--echo # Global - expect "autocommit"
+SELECT @@global.session_track_system_variables;
+--echo
+--echo # Session - expect "autocommit"
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # Switching to the default connection.
+connection default;
+
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # Test if DEFAULT is working as expected.
+SET @@global.session_track_system_variables = DEFAULT;
+SET @@session.session_track_system_variables = DEFAULT;
+--echo
+
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # Variables' values in a new session (con2).
+connect (con2,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # Altering session should not affect global.
+SET @@session.session_track_system_variables = 'sql_mode';
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # Variables' values in a new session (con3).
+connect (con3,"127.0.0.1",root,,test,$MASTER_MYPORT,);
+
+--echo # Altering global should not affect session.
+SET @@global.session_track_system_variables = 'sql_mode';
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # Switching to the default connection.
+connection default;
+
+--echo # Testing NULL
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.session_track_system_variables = NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@session.session_track_system_variables = NULL;
+
+--echo # testing with duplicate entries.
+# Lets first set it to some valid value.
+SET @@global.session_track_system_variables= "time_zone";
+SET @@session.session_track_system_variables= "time_zone";
+# Now set with duplicate entries (must pass)
+SET @@global.session_track_system_variables= "sql_mode,sql_mode";
+SET @@session.session_track_system_variables= "sql_mode,sql_mode";
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # testing ordering
+SET @@global.session_track_system_variables= "time_zone,sql_mode";
+SET @@session.session_track_system_variables= "time_zone,sql_mode";
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # special values
+SET @@global.session_track_system_variables= "*";
+SET @@session.session_track_system_variables= "*";
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+SET @@global.session_track_system_variables= "";
+SET @@session.session_track_system_variables= "";
+SELECT @@global.session_track_system_variables;
+SELECT @@session.session_track_system_variables;
+--echo
+
+--echo # MDEV-22524 SIGABRT in safe_mutex_unlock with session_track_system_variables and max_relay_log_size.
+SET SESSION session_track_system_variables="sql_slave_skip_counter", sql_slave_skip_counter= 0;
+
+--echo # Restoring the original values.
+SET @@global.session_track_system_variables = @global_saved_tmp;
+
+--echo # End of tests.

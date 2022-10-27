@@ -1,0 +1,73 @@
+--source include/have_partition.inc
+# See https://bugs.launchpad.net/percona-server/+bug/1657908
+
+source include/have_tokudb.inc;
+
+SET GLOBAL tokudb_dir_per_db=ON;
+
+--let $DB= test
+--let $DATADIR= `SELECT @@datadir`
+
+--delimiter |
+CREATE PROCEDURE create_table()
+BEGIN
+CREATE TABLE test.t1 (
+  a INT
+) ENGINE = TokuDB
+PARTITION BY RANGE (a)
+(PARTITION p100 VALUES LESS THAN (100) ENGINE = TokuDB,
+ PARTITION p_to_del VALUES LESS THAN (200) ENGINE = TokuDB,
+ PARTITION p300 VALUES LESS THAN (300) ENGINE = TokuDB,
+ PARTITION p400 VALUES LESS THAN (400) ENGINE = TokuDB
+);
+END|
+--delimiter ;
+
+--echo ### Create partitioned table
+CALL create_table();
+--source dir_per_db_show_table_files.inc
+
+--echo ### Stop server
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--echo ### Remove 'main' file of one of the partitions
+--remove_files_wildcard $DATADIR/$DB t1_P_p_to_del_main_*.tokudb
+
+--echo ### Start server
+--enable_reconnect
+--exec echo "restart: --loose-tokudb-dir-per-db=ON" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--source include/wait_until_connected_again.inc
+
+--echo ### Make sure 'main' partition file is deleted
+--source dir_per_db_show_table_files.inc
+
+--echo ### Make sure the table still exists
+SHOW TABLES;
+
+--echo ### Drop table
+# error 1051 was here before the fix
+DROP TABLE t1;
+
+--echo ### Make sure the table is dropped
+SHOW TABLES;
+
+--echo ### Check what files still exist after DROP TABLE
+--source dir_per_db_show_table_files.inc
+
+--echo ### Remove the rest of the files
+--remove_files_wildcard $DATADIR/$DB *.tokudb
+
+--echo ### Make sure there are no tokudb files
+--source dir_per_db_show_table_files.inc
+
+--echo ### Create the same table once more
+# engine error 17 (EEXIST) was here before the fix
+CALL create_table();
+--source dir_per_db_show_table_files.inc
+
+--echo ### Restore state
+DROP TABLE t1;
+DROP PROCEDURE create_table;
+SET GLOBAL tokudb_dir_per_db=default;

@@ -1,0 +1,40 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/load_sysvars.inc
+
+SET @start_session_value = @@session.enforce_storage_engine;
+
+SET @@session.enforce_storage_engine = INNODB;
+SET @@session.enforce_storage_engine = DEFAULT;
+
+SELECT @@session.enforce_storage_engine;
+
+SET @@session.enforce_storage_engine = MYISAM;
+SELECT @@session.enforce_storage_engine;
+SET @@session.enforce_storage_engine = MERGE;
+SELECT @@session.enforce_storage_engine;
+SET @@session.enforce_storage_engine = MEMORY;
+SELECT @@session.enforce_storage_engine;
+SET @@session.enforce_storage_engine = INNODB;
+SELECT @@session.enforce_storage_engine;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@session.enforce_storage_engine = 8199;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@session.enforce_storage_engine = 65530.34;
+
+--Error ER_UNKNOWN_STORAGE_ENGINE
+SET @@session.enforce_storage_engine = RECORD;
+
+SELECT @@session.enforce_storage_engine =
+ VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_VARIABLES
+  WHERE VARIABLE_NAME='enforce_storage_engine';
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@session.enforce_storage_engine = TRUE;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@session.enforce_storage_engine = FALSE;
+
+SET @@session.enforce_storage_engine = @start_session_value;

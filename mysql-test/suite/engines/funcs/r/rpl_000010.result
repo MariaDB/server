@@ -1,0 +1,14 @@
+include/master-slave.inc
+[connection master]
+create table t1 (n int not null auto_increment primary key);
+insert into t1 values(NULL);
+insert into t1 values(2);
+connection slave;
+select n from t1;
+n
+1
+2
+connection master;
+drop table t1;
+connection slave;
+include/rpl_end.inc

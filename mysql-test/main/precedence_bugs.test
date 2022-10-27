@@ -1,0 +1,41 @@
+--echo #
+--echo # Bug#6726: NOT BETWEEN parse failure
+--echo #
+create table t1 (a int, b int);
+insert into t1 values (1,2), (2,3), (3,4), (4,5);
+select * from t1 where a not between 1 and 2;
+select * from t1 where a not between 1 and 2 and b not between 3 and 4;
+drop table t1;
+
+--echo #
+--echo # MDEV-13673 Bad result in view
+--echo #
+explain extended select (3-2)+1, (3/2)*1, 3-(2+1), 3/(2*1);
+
+--echo #
+--echo # MDEV-11784 View is created with invalid definition which causes ERROR 1241 (21000): Operand should contain 1 column(s)
+--echo #
+create table t1 (i int, j int);
+insert t1 values (1,1),(2,2);
+create view v1 as select (2, 3) not in (select i, j from t1);
+select * from v1;
+query_vertical show create view v1;
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-23656 view: removal of parentheses results in wrong result
+--echo #
+create table t1 (a int, b decimal(10,2));
+insert into t1 values (1, 10.2);
+create view v1 as select avg(b) / (2 + a) from t1;
+query_vertical show create view v1;
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-17408 VIEW is incorrectly defined for a combination of = and BETWEEN
+--echo #
+create view v1 as select 1 like (now() between '2000-01-01' and '2012-12-12' );
+query_vertical show create view v1;
+drop view v1;

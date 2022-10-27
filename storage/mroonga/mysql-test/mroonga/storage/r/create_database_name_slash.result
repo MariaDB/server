@@ -1,0 +1,33 @@
+DROP DATABASE IF EXISTS `master/production`;
+DROP DATABASE IF EXISTS `master/development`;
+CREATE DATABASE `master/production`;
+USE `master/production`;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT
+) DEFAULT CHARSET=UTF8;
+INSERT INTO diaries (title) VALUES ("clear day (production)");
+INSERT INTO diaries (title) VALUES ("rainy day (production)");
+INSERT INTO diaries (title) VALUES ("cloudy day (production)");
+SELECT * FROM diaries;
+id	title
+1	clear day (production)
+2	rainy day (production)
+3	cloudy day (production)
+CREATE DATABASE `master/development`;
+USE `master/development`;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT
+) DEFAULT CHARSET=UTF8;
+INSERT INTO diaries (title) VALUES ("clear day (development)");
+INSERT INTO diaries (title) VALUES ("rainy day (development)");
+INSERT INTO diaries (title) VALUES ("cloudy day (development)");
+SELECT * FROM diaries;
+id	title
+1	clear day (development)
+2	rainy day (development)
+3	cloudy day (development)
+USE test;
+DROP DATABASE `master/production`;
+DROP DATABASE `master/development`;

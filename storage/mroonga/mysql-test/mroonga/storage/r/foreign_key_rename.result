@@ -1,0 +1,28 @@
+DROP TABLE IF EXISTS articles;
+DROP TABLE IF EXISTS comments;
+DROP TABLE IF EXISTS articles2;
+DROP TABLE IF EXISTS comments2;
+CREATE TABLE comments (
+comment int unsigned PRIMARY KEY,
+content text NOT NULL
+);
+CREATE TABLE articles (
+content text NOT NULL,
+comment int unsigned,
+FOREIGN KEY (comment) REFERENCES comments (comment)
+);
+RENAME TABLE comments TO comments2;
+RENAME TABLE articles TO articles2;
+SHOW CREATE TABLE articles2;
+Table	Create Table
+articles2	CREATE TABLE `articles2` (
+  `content` text NOT NULL,
+  `comment` int(10) unsigned DEFAULT NULL,
+  KEY `comment` (`comment`),
+  CONSTRAINT `comment` FOREIGN KEY (`comment`) REFERENCES `test`.`comments2` (`comment`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=Mroonga DEFAULT CHARSET=latin1
+SELECT * FROM information_schema.referential_constraints;
+CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	UNIQUE_CONSTRAINT_CATALOG	UNIQUE_CONSTRAINT_SCHEMA	UNIQUE_CONSTRAINT_NAME	MATCH_OPTION	UPDATE_RULE	DELETE_RULE	TABLE_NAME	REFERENCED_TABLE_NAME
+def	test	comment	def	test	PRIMARY	NONE	RESTRICT	RESTRICT	articles2	comments2
+DROP TABLE articles2;
+DROP TABLE comments2;

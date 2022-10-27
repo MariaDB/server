@@ -1,0 +1,54 @@
+#
+# Test pc.ignore_sb=true wsrep_provider option . Killing one node should leave the other running.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+SET @wsrep_cluster_address_orig = @@GLOBAL.wsrep_cluster_address;
+SET @wsrep_provider_options_orig = @@GLOBAL.wsrep_provider_options;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+SET GLOBAL wsrep_provider_options ='pc.ignore_sb=true';
+
+--connection node_2
+--source include/kill_galera.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+
+# Reset the master and restart the slave so that post-test checks can run
+
+SET GLOBAL wsrep_cluster_address = '';
+SET GLOBAL wsrep_cluster_address = @wsrep_cluster_address_orig;
+
+--connection node_2
+--source include/start_mysqld.inc
+
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+SET GLOBAL wsrep_provider_options = @wsrep_provider_options_orig;
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--source include/galera_end.inc

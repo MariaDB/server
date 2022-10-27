@@ -1,0 +1,25 @@
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1 (b INT PRIMARY KEY);
+CREATE TABLE t2 (a INT NOT NULL, b INT NOT NULL, FOREIGN KEY (b) REFERENCES t1(b));
+ERROR 42000: This version of MariaDB doesn't yet support 'FOREIGN KEY for the RocksDB storage engine'
+CREATE TABLE t2 (a INT NOT NULL, bforeign INT NOT NULL);
+DROP TABLE t2;
+CREATE TABLE t2 (a INT NOT NULL, foreignkey INT NOT NULL);
+DROP TABLE t2;
+CREATE TABLE t2 (a INT NOT NULL, bforeign INT not null, FOREIGN KEY (bforeign) REFERENCES t1(b));
+ERROR 42000: This version of MariaDB doesn't yet support 'FOREIGN KEY for the RocksDB storage engine'
+CREATE TABLE t2 (a INT NOT NULL, b INT NOT NULL);
+ALTER TABLE t2 ADD FOREIGN KEY (b) REFERENCES t1(b);
+ERROR 42000: This version of MariaDB doesn't yet support 'FOREIGN KEY for the RocksDB storage engine'
+DROP TABLE t2;
+CREATE TABLE t2 (a INT NOT NULL);
+ALTER TABLE t2 ADD bforeign INT NOT NULL;
+DROP TABLE t2;
+CREATE TABLE t2 (a INT NOT NULL);
+ALTER TABLE t2 ADD foreignkey INT NOT NULL;
+DROP TABLE t2;
+CREATE TABLE t2 (a INT NOT NULL);
+ALTER TABLE t2 ADD bforeign INT NOT NULL, ADD FOREIGN KEY (bforeign) REFERENCES t1(b);
+ERROR 42000: This version of MariaDB doesn't yet support 'FOREIGN KEY for the RocksDB storage engine'
+DROP TABLE t2;
+DROP TABLE t1;

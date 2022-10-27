@@ -1,0 +1,117 @@
+# This test is to verify replication with PS
+
+-- source include/not_embedded.inc
+-- source include/have_binlog_format_statement.inc
+
+disable_query_log;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+enable_query_log;
+
+-- disable_query_log
+reset master; # get rid of previous tests binlog
+-- enable_query_log
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+reset master;
+
+#
+# Bug #26842: master binary log contains invalid queries - replication fails
+#
+create table t1 (a int); 
+prepare s from "insert into t1 values (@a),(?)";
+set @a=98; execute s using @a;
+prepare s from "insert into t1 values (?)";
+set @a=99; execute s using @a;
+prepare s from "insert into t1 select 100 limit ?";
+set @a=100; execute s using @a;
+source include/show_binlog_events.inc;
+drop table t1;
+
+--echo #
+--echo # MDEV-10709 Expressions as parameters to Dynamic SQL
+--echo #
+
+FLUSH LOGS;
+SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-02 10:20:30.123456');
+CREATE TABLE t1 (a DECIMAL(30,8));
+PREPARE stmt FROM 'INSERT INTO t1 VALUES (?)';
+EXECUTE stmt USING 10;
+EXECUTE stmt USING 11e0;
+EXECUTE stmt USING 12.1;
+EXECUTE stmt USING '13';
+EXECUTE stmt USING CURRENT_DATE;
+EXECUTE stmt USING MAKETIME(10,20,30);
+EXECUTE stmt USING CURRENT_TIME;
+EXECUTE stmt USING CURRENT_TIME(3);
+EXECUTE stmt USING CURRENT_TIME(6);
+EXECUTE stmt USING CURRENT_TIMESTAMP;
+EXECUTE stmt USING CURRENT_TIMESTAMP(3);
+EXECUTE stmt USING CURRENT_TIMESTAMP(6);
+SELECT * FROM t1;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+DROP TABLE t1;
+SET TIMESTAMP=DEFAULT;
+
+--echo #
+--echo # MDEV-10585 EXECUTE IMMEDIATE statement
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (a INT);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (101)';
+SET @a=102;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING @a;
+SET @a=103;
+SET @stmt='INSERT INTO t1 VALUES (?)';
+EXECUTE IMMEDIATE @stmt USING @a;
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11360 Dynamic SQL: DEFAULT as a bind parameter
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (a INT DEFAULT 10);
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (Default)';
+--echo # The output of this query in 'Note' is a syntactically incorrect query.
+--echo # But as it's never logged, it's ok. It should be human readable only.
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT ?' USING Default;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING Default;
+
+DELIMITER $$;
+CREATE PROCEDURE p1 ()
+BEGIN
+  INSERT INTO t1 VALUES (Default);
+  # EXPLAIN should not be logged
+  EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT ?' USING Default;
+  EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES (?)' USING Default;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+--echo #
+--echo #MDEV-14467 Item_param: replace {INT|DECIMAL|REAL|STRING|TIME}_VALUE with Type_handler
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (a INT);
+EXECUTE IMMEDIATE 'INSERT INTO t1 SELECT 1 LIMIT ?' USING 10;
+EXECUTE IMMEDIATE 'INSERT INTO t1 SELECT 1 LIMIT ?' USING 10.1;
+EXECUTE IMMEDIATE 'INSERT INTO t1 SELECT 1 LIMIT ?' USING 10.1e0;
+EXECUTE IMMEDIATE 'INSERT INTO t1 SELECT 1 LIMIT ?' USING '10';
+EXECUTE IMMEDIATE 'INSERT INTO t1 SELECT 1 LIMIT ?' USING TIME'10:10:10';
+DROP TABLE t1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

@@ -1,0 +1,3 @@
+# This is a maintainer generated file. Generated at Wednesday 5 February  22:26:12 CST 2014.
+--let $oqgraph_use_table_type= MyISAM
+--source general.inc

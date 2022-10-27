@@ -1,0 +1,370 @@
+include/rpl_init.inc [topology=1->2]
+*** Test crashing master, causing slave IO thread to reconnect while SQL thread is running ***
+connection server_1;
+call mtr.add_suppression("Checking table:");
+call mtr.add_suppression("client is using or hasn't closed the table properly");
+call mtr.add_suppression("Table .* is marked as crashed and should be repaired");
+flush tables;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+connection server_2;
+SET sql_log_bin=0;
+call mtr.add_suppression('Master command COM_REGISTER_SLAVE failed: failed registering on master, reconnecting to try again');
+SET sql_log_bin=1;
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_USE_GTID=CURRENT_POS;
+connection server_1;
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t1 VALUES (3,1);
+connection server_2;
+include/start_slave.inc
+connection server_1;
+include/save_master_gtid.inc
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+SELECT 1;
+Got one of the listed errors
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t1 VALUES (1000, 3);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_1;
+DROP TABLE t1;
+*** Test crashing the master mysqld and check that binlog state is recovered. ***
+connection server_2;
+include/stop_slave.inc
+RESET MASTER;
+SET GLOBAL gtid_slave_pos='';
+connection server_1;
+RESET MASTER;
+SHOW BINLOG EVENTS IN 'master-bin.000001' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid_list	#	#	[]
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+connection server_2;
+include/start_slave.inc
+connection server_1;
+SET gtid_domain_id= 1;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+FLUSH LOGS;
+SET gtid_domain_id= 2;
+INSERT INTO t1 VALUES (3);
+FLUSH LOGS;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+SHOW BINLOG EVENTS IN 'master-bin.000003' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid_list	#	#	#
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+SELECT 1;
+Got one of the listed errors
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Gtid_list	#	#	#
+connection server_2;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+*** Test crashing slave at various points and check that it recovers crash-safe. ***
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,inject_crash_before_write_rpl_slave_state";
+START SLAVE;
+connection server_1;
+INSERT INTO t1 VALUES (4);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+START SLAVE;
+SET GLOBAL debug_dbug="+d,crash_commit_before";
+connection server_1;
+INSERT INTO t1 VALUES (5);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+START SLAVE;
+SET GLOBAL debug_dbug="+d,crash_commit_after";
+connection server_1;
+INSERT INTO t1 VALUES (6);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,inject_crash_before_flush_rli";
+START SLAVE;
+connection server_1;
+INSERT INTO t1 VALUES (7);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,inject_crash_after_flush_rli";
+START SLAVE;
+connection server_1;
+INSERT INTO t1 VALUES (8);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+8
+*** MDEV-4725: Incorrect recovery when crash in the middle of writing an event group ***
+connection server_2;
+SET GLOBAL debug_dbug="+d,crash_before_writing_xid";
+connection server_1;
+INSERT INTO t1 VALUES (9), (10);
+connection server_2;
+SHOW VARIABLES like 'gtid_strict_mode';
+Variable_name	Value
+gtid_strict_mode	ON
+include/start_slave.inc
+*** MDEV-6462: Incorrect recovery on a slave reconnecting to crashed master ***
+connection server_1;
+set sql_log_bin= 0;
+call mtr.add_suppression("Error writing file 'master-bin'");
+set sql_log_bin= 1;
+connection server_2;
+set sql_log_bin= 0;
+call mtr.add_suppression("The server_id of master server changed in the middle of GTID");
+call mtr.add_suppression("Unexpected change of master binlog file name in the middle of GTID");
+set sql_log_bin= 1;
+connection server_1;
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (11);
+COMMIT;
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+COMMIT;
+Got one of the listed errors
+SELECT @@GLOBAL.server_id;
+@@GLOBAL.server_id
+3
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+gtid_check
+Binlog pos ok
+# Wait 30 seconds for SQL thread to catch up with IO thread
+connection server_2;
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+gtid_check
+Binlog pos ok
+gtid_check
+Slave pos ok
+gtid_check
+Current pos ok
+# Repeat this with additional transactions on the master
+connection server_1;
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (12);
+COMMIT;
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+COMMIT;
+Got one of the listed errors
+SELECT @@GLOBAL.server_id;
+@@GLOBAL.server_id
+1
+INSERT INTO t1 VALUES (13);
+INSERT INTO t1 VALUES (14);
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+connection server_1;
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (21);
+COMMIT;
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+COMMIT;
+Got one of the listed errors
+SELECT @@GLOBAL.server_id;
+@@GLOBAL.server_id
+1
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+gtid_check
+Binlog pos ok
+gtid_check
+Current pos ok
+# Wait 30 seconds for SQL thread to catch up with IO thread
+connection server_2;
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+gtid_check
+Binlog pos ok
+gtid_check
+Slave pos ok
+gtid_check
+Current pos ok
+# Repeat this with additional transactions on the master
+connection server_1;
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (22);
+COMMIT;
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+COMMIT;
+Got one of the listed errors
+INSERT INTO t1 VALUES (23);
+INSERT INTO t1 VALUES (24);
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+23
+24
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+23
+24
+# Repeat this with slave restart
+connection server_1;
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (25);
+COMMIT;
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+COMMIT;
+Got one of the listed errors
+connection server_1;
+connection server_2;
+# Wait 30 seconds for IO thread to connect and SQL thread to catch up
+# with IO thread.
+include/stop_slave.inc
+connection server_1;
+gtid_check
+Binlog pos ok
+gtid_check
+Current pos ok
+INSERT INTO t1 VALUES (26);
+INSERT INTO t1 VALUES (27);
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+23
+24
+26
+27
+include/save_master_gtid.inc
+connection server_2;
+gtid_check
+Binlog pos ok
+gtid_check
+Slave pos ok
+gtid_check
+Current pos ok
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+23
+24
+26
+27
+*** MDEV-6391: GTID binlog state not recovered if mariadb-bin.state is removed ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (30);
+SET @old_server_id= @@server_id;
+SET @old_domain_id= @@gtid_domain_id;
+SET SESSION server_id= 10;
+INSERT INTO t1 VALUES (31);
+INSERT INTO t1 VALUES (32);
+SET SESSION gtid_domain_id= 1;
+SET SESSION server_id=11;
+INSERT INTO t1 VALUES (33);
+SET SESSION gtid_domain_id= 2;
+INSERT INTO t1 VALUES (34);
+SET SESSION server_id= 10;
+INSERT INTO t1 VALUES (35);
+INSERT INTO t1 VALUES (36);
+SET SESSION gtid_domain_id= 0;
+SET SESSION server_id= 12;
+INSERT INTO t1 VALUES (37);
+SET SESSION gtid_domain_id= @old_domain_id;
+SET SESSION server_id= @old_server_id;
+INSERT INTO t1 VALUES (38);
+INSERT INTO t1 VALUES (39);
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
+a
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+connection server_1;
+DROP TABLE t1;
+connection default;
+include/rpl_end.inc

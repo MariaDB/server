@@ -1,0 +1,16 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # Bug#17604730 ASSERTION: *CURSOR->INDEX->NAME == TEMP_INDEX_PREFIX
+--echo #
+
+create table t1 (f1 int primary key, f2 int, f3 int, unique key k1(f2),
+  key k2(f3)) engine=innodb;
+insert into t1 values (14, 24, 34);
+set @old_dbug= @@session.debug_dbug;
+SET debug_dbug = '+d,row_ins_sec_index_entry_timeout';
+replace into t1 values (14, 25, 34);
+select * from t1;
+drop table t1;
+SET debug_dbug = @old_dbug;

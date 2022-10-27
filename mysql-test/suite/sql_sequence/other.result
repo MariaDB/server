@@ -1,0 +1,362 @@
+#
+# Create and check
+#
+create sequence s1 engine=innodb;
+check table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	check	note	The storage engine for the table doesn't support check
+select next value for s1;
+next value for s1
+1
+flush tables;
+check table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	check	note	The storage engine for the table doesn't support check
+select next value for s1;
+next value for s1
+1001
+flush tables;
+repair table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	repair	note	The storage engine for the table doesn't support repair
+select next value for s1;
+next value for s1
+2001
+drop sequence s1;
+create or replace sequence s1 engine=innodb;
+select next value for s1;
+next value for s1
+1
+repair table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	repair	note	The storage engine for the table doesn't support repair
+check table s1;
+Table	Op	Msg_type	Msg_text
+test.s1	check	note	The storage engine for the table doesn't support check
+select next value for s1;
+next value for s1
+1001
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+2001	1	9223372036854775806	1	1	1000	0	0
+drop sequence s1;
+#
+# INSERT
+#
+create sequence s1;
+create sequence s2;
+insert into s1 (next_not_cached_value, minimum_value) values (100,1000);
+ERROR HY000: Field 'maximum_value' doesn't have a default value
+insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
+ERROR HY000: Table 's1' is specified twice, both as a target for 'INSERT' and as a separate source for data
+insert into s1 values(1000,9223372036854775806,1,1,1,1000,0,0);
+ERROR HY000: Sequence 'test.s1' values are conflicting
+insert into s1 values(0,9223372036854775806,1,1,1,1000,0,0);
+ERROR HY000: Sequence 'test.s1' values are conflicting
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+insert into s1 values(1000,1,9223372036854775806,1,1,1000,0,0);
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1000	1	9223372036854775806	1	1	1000	0	0
+select next value for s1;
+next value for s1
+1000
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+2000	1	9223372036854775806	1	1	1000	0	0
+insert into s2 values(0, 1, 10, 1, 2, 1, 1, 0);
+ERROR HY000: Sequence 'test.s2' values are conflicting
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+2000	1	9223372036854775806	1	1	1000	0	0
+insert into s1 values (next value for s2, 1,9223372036854775806,1,1,1000,0,0);
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1001	1	9223372036854775806	1	1	1000	0	0
+insert into s1 select * from s2;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1001	1	9223372036854775806	1	1	1000	0	0
+drop sequence s1,s2;
+#
+# UPDATE and DELETE
+#
+create sequence s1;
+update s1 set next_not_cached_value=100;
+ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this option
+delete from s1 where next_not_cached_value > 0;
+ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this option
+drop sequence s1;
+#
+# SHOW TABLES
+#
+create sequence s1;
+create table t1 (a int);
+create view v1 as select * from s1;
+show full tables;
+Tables_in_test	Table_type
+s1	SEQUENCE
+t1	BASE TABLE
+v1	VIEW
+SELECT TABLE_TYPE,ENGINE FROM INFORMATION_SCHEMA.TABLES where table_schema="test" ORDER BY TABLE_NAME;
+TABLE_TYPE	ENGINE
+SEQUENCE	MyISAM
+BASE TABLE	MyISAM
+VIEW	NULL
+drop table t1,s1;
+drop view v1;
+#
+# LOCK TABLES (as in mysqldump)
+#
+create sequence s1 engine=innodb;
+LOCK TABLES s1 READ;
+SELECT * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+UNLOCK TABLES;
+LOCK TABLES s1 WRITE;
+insert into s1 values (1,1,9223372036854775806, 1, 1, 1000, 0, 0);
+UNLOCK TABLES;
+drop table s1;
+#
+# Many sequence calls with innodb
+#
+create sequence s1 cache=1000 engine=innodb;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+count(nextval(s1))
+2000
+commit;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+2001	1	9223372036854775806	1	1	1000	0	0
+drop sequence s1;
+create sequence s1  cache=1000 engine=innodb;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+count(nextval(s1))
+2000
+connect  addconroot, localhost, root,,;
+connection addconroot;
+start transaction;
+select count(nextval(s1)) from seq_1_to_2000;
+count(nextval(s1))
+2000
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+4001	1	9223372036854775806	1	1	1000	0	0
+commit;
+disconnect addconroot;
+connection default;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+4001	1	9223372036854775806	1	1	1000	0	0
+commit;
+drop sequence s1;
+#
+# Flush tables with read lock
+#
+create sequence s1;
+select next value for s1;
+next value for s1
+1
+flush tables with read lock;
+create sequence s2;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+select next value for s1;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+unlock tables;
+drop sequence s1;
+#
+# MDEV-14761
+# Assertion `!mysql_parse_status || thd->is_error() ||
+# thd->get_internal_handler()' failed in parse_sql
+#
+CREATE SEQUENCE s1;
+ALTER SEQUENCE s1 MAXVALUE 100 NO MAXVALUE;
+ERROR HY000: Option 'MAXVALUE' used twice in statement
+DROP SEQUENCE s1;
+#
+# Don't allow SEQUENCE to be used with CHECK or virtual fields
+#
+CREATE SEQUENCE s1 nocache engine=myisam;
+CREATE table t1 (a int check (next value for s1 > 0));
+ERROR HY000: Function or expression 'nextval()' cannot be used in the CHECK clause of `a`
+CREATE table t1 (a int check (previous value for s1 > 0));
+ERROR HY000: Function or expression 'lastval()' cannot be used in the CHECK clause of `a`
+CREATE table t1 (a int check (setval(s1,10)));
+ERROR HY000: Function or expression 'setval()' cannot be used in the CHECK clause of `a`
+CREATE TABLE t1 (a int, b int as (next value for s1 > 0));
+ERROR HY000: Function or expression 'nextval()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop sequence s1;
+#
+# MDEV-13024: Server crashes in my_store_ptr upon DELETE from
+# sequence in multi-table format
+#
+CREATE SEQUENCE s;
+CREATE table t1 (a int);
+insert into t1 values (1),(2);
+DELETE s FROM s;
+ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
+delete t1,s from s,t1;
+ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
+delete s,t1 from t1,s;
+ERROR HY000: Storage engine SEQUENCE of the table `test`.`s` doesn't have this option
+DROP SEQUENCE s;
+DROP TABLE t1;
+#
+# MDEV-20074: Lost connection on update trigger
+#
+# INSERT & table
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+INSERT INTO t2(a_p_name, a_p_first_name) VALUES(old.p_name, old.p_first_name);
+END;
+$$
+update t1 set p_first_name='Yunxi' where p_id=1;
+drop sequence s1;
+drop table t1,t2;
+# INSERT & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+INSERT INTO v2(a_p_name, a_p_first_name) VALUES(old.p_name, old.p_first_name);
+END;
+$$
+update t1 set p_first_name='Yunxi' where p_id=1;
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+# INSERT SELECT & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+INSERT INTO v2(a_p_name, a_p_first_name) SELECT old.p_name, old.p_first_name;
+END;
+$$
+update t1 set p_first_name='Yunxi' where p_id=1;
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+# REPLACE & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+REPLACE INTO v2(a_p_name, a_p_first_name) VALUES(old.p_name, old.p_first_name);
+END;
+$$
+update t1 set p_first_name='Yunxi' where p_id=1;
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+# REPLACE SELECT & view
+create sequence s1 increment by 1 start with 1;
+create table t1 (p_id integer, p_name varchar(128), p_first_name varchar(128));
+create table t2 (a_id integer default nextval(s1), a_p_name varchar(128), a_p_first_name varchar(128), t timestamp default current_timestamp);
+create view v2 as select * from t2;
+insert into t1 values
+(1, 'Luo','Frank'),(2, 'Xe','Emma'),(3, 'Li','Anna'),(4, 'Lun','Serg'),(5, 'Xu','Nils'),(6, 'Ja','Ute'),(7, 'Jin','Mike'),(8, 'Lio','Carl'),(9, 'Lang','Kevin'),(10, 'Ling','Lisa'),(11, 'Fang','Frank'),(12, 'Feng','Emma'),(13, 'Tuo','Anna'),(14, 'Tua','Serg'),(15, 'Moa','Nils'),(16, 'Hua','Ute'),(17, 'Xufa','Mike'),(18, 'Lulu','Carl'),(19, 'Hoho','Kevin'),(20, 'Tata','Lisa');
+CREATE TRIGGER tr_upd
+BEFORE UPDATE on t1
+FOR EACH ROW
+BEGIN
+REPLACE INTO v2(a_p_name, a_p_first_name) SELECT old.p_name, old.p_first_name;
+END;
+$$
+update t1 set p_first_name='Yunxi' where p_id=1;
+drop view v2;
+drop table t1,t2;
+drop sequence s1;
+#
+# MDEV-19273:Server crash in MDL_ticket::has_stronger_or_equal_type or
+# Assertion `thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+# table->db.str, table->table_name.str, MDL_SHARED)' failed
+# in mysql_rm_table_no_locks
+#
+CREATE TABLE t1 (a INT);
+CREATE TEMPORARY TABLE tmp (b INT);
+LOCK TABLE t1 READ;
+DROP SEQUENCE tmp;
+ERROR 42S02: 'test.tmp' is not a SEQUENCE
+DROP TEMPORARY SEQUENCE tmp;
+ERROR 42S02: 'test.tmp' is not a SEQUENCE
+DROP SEQUENCE t1;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+DROP TEMPORARY SEQUENCE t1;
+ERROR 42S02: Unknown SEQUENCE: 'test.t1'
+UNLOCK TABLES;
+DROP SEQUENCE t1;
+ERROR 42S02: 'test.t1' is not a SEQUENCE
+DROP TEMPORARY SEQUENCE t1;
+ERROR 42S02: Unknown SEQUENCE: 'test.t1'
+DROP TABLE t1;
+CREATE TABLE t (a INT);
+CREATE TEMPORARY TABLE s (f INT);
+CREATE SEQUENCE s;
+LOCK TABLE t WRITE;
+DROP SEQUENCE s;
+ERROR 42S02: 'test.s' is not a SEQUENCE
+DROP TEMPORARY SEQUENCE s;
+ERROR 42S02: 'test.s' is not a SEQUENCE
+UNLOCK TABLES;
+CREATE TEMPORARY SEQUENCE s;
+LOCK TABLE t WRITE;
+DROP TEMPORARY SEQUENCE s;
+UNLOCK TABLES;
+DROP TEMPORARY TABLE s;
+DROP SEQUENCE s;
+create table s(a INT);
+CREATE TEMPORARY TABLE s (f INT);
+LOCK TABLE t WRITE;
+DROP TEMPORARY TABLE s;
+CREATE TEMPORARY TABLE s (f INT);
+DROP TABLE s;
+DROP TABLE s;
+ERROR HY000: Table 's' was not locked with LOCK TABLES
+UNLOCK TABLES;
+DROP TABLE s;
+CREATE VIEW v1 as SELECT * FROM t;
+CREATE SEQUENCE s;
+DROP SEQUENCE IF EXISTS v1;
+Warnings:
+Note	4091	Unknown SEQUENCE: 'test.v1'
+DROP VIEW IF EXISTS s;
+Warnings:
+Note	4092	Unknown VIEW: 'test.s'
+DROP VIEW v1;
+DROP SEQUENCE s;
+DROP TABLE t;
+# End of 10.3 tests

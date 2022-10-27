@@ -1,0 +1,65 @@
+# Test for BUG#1858 "OPTIMIZE TABLE done by a client
+# thread stops the slave SQL thread".
+# You can replace OPTIMIZE by REPAIR.
+#####################################
+# Change Author: JBM
+# Change Date: 2006-02-09
+# OPTIMIZE for memory tables. If and when 
+# it does support for Disk Data, a new 
+# version of this test will be need.
+#####################################
+# Slow test, don't run during staging part
+-- source include/not_staging.inc
+-- source include/master-slave.inc
+
+--disable_warnings
+drop tables if exists t1;
+--enable_warnings
+
+disable_query_log;
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+enable_query_log;
+
+create table t1 (a int not null auto_increment primary key, b int, key(b));
+INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+--disable_warnings
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+INSERT INTO t1 (a) SELECT null FROM t1;
+--enable_warnings
+save_master_pos;
+# a few updates to force OPTIMIZE to do something
+--disable_warnings
+update t1 set b=(a/2*rand());
+delete from t1 order by b limit 10000;
+--enable_warnings
+
+connection slave;
+sync_with_master;
+optimize table t1;
+connection master;
+save_master_pos;
+connection slave;
+# Bug was that when the INSERT terminated on slave,
+# the slave SQL thread got killed by OPTIMIZE.
+sync_with_master; # won't work if slave SQL thread stopped
+
+connection master; # cleanup
+drop table t1;
+sync_slave_with_master;
+
+# If the machine is so fast that slave syncs before OPTIMIZE
+# starts, this test will demonstrate nothing but will pass.
+
+# End of 4.1 tests
+--source include/rpl_end.inc

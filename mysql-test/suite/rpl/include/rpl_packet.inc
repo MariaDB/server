@@ -1,0 +1,184 @@
+#
+# This include file is used by more than one test suite
+# (currently rpl and binlog_encryption).
+# Please check all dependent tests after modifying it
+#
+
+# ==== Purpose ====
+#
+# Check replication protocol packet size handling
+#
+# ==== Related bugs ====
+# Bug#19402 SQL close to the size of the max_allowed_packet fails on slave
+# BUG#23755: Replicated event larger that max_allowed_packet infinitely re-transmits
+# BUG#42914: No LAST_IO_ERROR for max_allowed_packet errors
+# BUG#55322: SHOW BINLOG EVENTS increases @@SESSION.MAX_ALLOWED_PACKET
+
+# max-out size db name 
+source include/have_binlog_format_row.inc;
+source include/master-slave.inc;
+
+call mtr.add_suppression("Slave I/O: Got a packet bigger than 'slave_max_allowed_packet' bytes, .*error.* 1153");
+call mtr.add_suppression("Log entry on master is longer than slave_max_allowed_packet");
+let $db= DB_NAME_OF_MAX_LENGTH_AKA_NAME_LEN_64_BYTES_____________________;
+disable_warnings;
+eval drop database if exists $db;
+enable_warnings;
+eval create database $db;
+
+connection master;
+let $old_max_allowed_packet= `SELECT @@global.max_allowed_packet`;
+let $old_net_buffer_length= `SELECT @@global.net_buffer_length`;
+let $old_slave_max_allowed_packet= `SELECT @@global.slave_max_allowed_packet`;
+SET @@global.max_allowed_packet=1024;
+SET @@global.net_buffer_length=1024;
+
+sync_slave_with_master;
+# Restart slave for setting to take effect
+source include/stop_slave.inc;
+source include/start_slave.inc;
+
+# Reconnect to master for new setting to take effect
+disconnect master;
+
+# alas, can't use eval here; if db name changed apply the change here
+connect (master,localhost,root,,DB_NAME_OF_MAX_LENGTH_AKA_NAME_LEN_64_BYTES_____________________);
+
+connection master;
+select @@net_buffer_length, @@max_allowed_packet;
+
+create table `t1` (`f1` LONGTEXT) ENGINE=MyISAM;
+
+INSERT INTO `t1`(`f1`) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1023');
+sync_slave_with_master;
+
+eval select count(*) from `$db`.`t1` /* must be 1 */;
+
+SHOW STATUS LIKE 'Slave_running';
+select * from information_schema.session_status where variable_name= 'SLAVE_RUNNING';
+connection master;
+eval drop database $db;
+sync_slave_with_master;
+
+#
+# Bug #23755: Replicated event larger that max_allowed_packet infinitely re-transmits
+#
+# Check that a situation when the size of event on the master is greater than 
+# max_allowed_packet on the slave does not lead to infinite re-transmits.
+
+connection master;
+
+# Change the max packet size on master
+
+SET @@global.max_allowed_packet=4096;
+SET @@global.net_buffer_length=4096;
+
+# Restart slave for new setting to take effect
+connection slave;
+source include/stop_slave.inc;
+source include/start_slave.inc;
+
+# Reconnect to master for new setting to take effect
+disconnect master;
+connect (master, localhost, root);
+connection master;
+
+CREATE TABLE `t1` (`f1` LONGTEXT) ENGINE=MyISAM;
+
+sync_slave_with_master;
+
+connection master;
+
+INSERT INTO `t1`(`f1`) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2048');
+
+
+#
+# Bug#42914: The slave I/O thread must stop after trying to read the above
+# event, However there is no Last_IO_Error report.
+#
+
+# The slave I/O thread must stop after trying to read the above event
+connection slave;
+# 1153 = ER_NET_PACKET_TOO_LARGE
+--let $slave_io_errno= 1153
+--let $show_slave_io_error= 1
+--source include/wait_for_slave_io_error.inc
+
+# TODO: this is needed because of BUG#55790. Remove once that is fixed.
+--source include/stop_slave_sql.inc
+
+#
+# Bug#42914: On the master, if a binary log event is larger than
+# max_allowed_packet, the error message ER_MASTER_FATAL_ERROR_READING_BINLOG
+# is sent to a slave when it requests a dump from the master, thus leading the
+# I/O thread to stop. However, there is no Last_IO_Error reported.
+#
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_reset.inc
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+
+connection master;
+CREATE TABLE t1 (f1 int PRIMARY KEY, f2 LONGTEXT, f3 LONGTEXT) ENGINE=MyISAM;
+sync_slave_with_master;
+
+connection master;
+INSERT INTO t1(f1, f2, f3) VALUES(1, REPEAT('a', @@global.max_allowed_packet), REPEAT('b', @@global.max_allowed_packet));
+
+connection slave;
+# The slave I/O thread must stop after receiving
+# 1153 = ER_NET_PACKET_TOO_LARGE
+--let $slave_io_errno= 1153
+--let $show_slave_io_error= 1
+--source include/wait_for_slave_io_error.inc
+
+# Remove the bad binlog and clear error status on slave.
+STOP SLAVE;
+RESET SLAVE;
+--connection master
+RESET MASTER;
+
+
+#
+# BUG#55322: SHOW BINLOG EVENTS increases @@SESSION.MAX_ALLOWED_PACKET
+#
+# In BUG#55322, @@session.max_allowed_packet increased each time SHOW
+# BINLOG EVENTS was issued. To verify that this bug is fixed, we
+# execute SHOW BINLOG EVENTS twice and check that max_allowed_packet
+# never changes.  We turn off the result log because we don't care
+# about the contents of the binlog.
+
+--disable_result_log
+SET @max_allowed_packet_0= @@session.max_allowed_packet;
+SHOW BINLOG EVENTS;
+SET @max_allowed_packet_1= @@session.max_allowed_packet;
+SHOW BINLOG EVENTS;
+SET @max_allowed_packet_2= @@session.max_allowed_packet;
+--enable_result_log
+if (`SELECT NOT(@max_allowed_packet_0 = @max_allowed_packet_1 AND @max_allowed_packet_1 = @max_allowed_packet_2)`)
+{
+  --echo ERROR: max_allowed_packet changed after executing SHOW BINLOG EVENTS
+  --source include/show_rpl_debug_info.inc
+  SELECT @max_allowed_packet_0, @max_allowed_packet_1, @max_allowed_packet_2;
+  --die @max_allowed_packet changed after executing SHOW BINLOG EVENTS
+}
+
+
+--echo ==== clean up ====
+connection master;
+DROP TABLE t1;
+eval SET @@global.max_allowed_packet= $old_max_allowed_packet;
+eval SET @@global.net_buffer_length= $old_net_buffer_length;
+eval SET @@global.slave_max_allowed_packet= $old_slave_max_allowed_packet;
+# slave is stopped
+connection slave;
+DROP TABLE t1;
+
+# Clear Last_IO_Error
+RESET SLAVE;
+
+--source include/rpl_end.inc
+# End of tests

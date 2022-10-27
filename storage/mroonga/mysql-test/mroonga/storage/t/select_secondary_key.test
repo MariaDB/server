@@ -1,0 +1,51 @@
+# Copyright(C) 2010 Kentoku SHIBA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+create table t1 (c1 int primary key, c2 int, c3 text, key idx1(c2), fulltext index ft(c3));
+insert into t1 values(1,10,"aa ii uu ee oo");
+insert into t1 values(2,20,"ka ki ku ke ko");
+insert into t1 values(3,30,"sa si su se so");
+insert into t1 values(4,40,"ta ti tu te to");
+insert into t1 values(5,50,"aa ii uu ee oo");
+
+select * from t1;
+select * from t1 force index(idx1) where c2 = 30;
+select * from t1 force index(idx1) where c2 = 20;
+
+insert into t1 values(6,30,"aa bb cc dd ee");
+select * from t1;
+select * from t1 force index(idx1) where c2 = 30;
+
+drop table t1;
+
+create table t1 (c1 varchar(5) primary key, c2 varchar(5), c3 text, key idx1(c2), fulltext index ft(c3))engine=mroonga;
+insert into t1 values('ab','ijk',"aa ii uu ee oo");
+insert into t1 values('bc','ghi',"ka ki ku ke ko");
+insert into t1 values('cd','efg',"sa si su se so");
+insert into t1 values('de','cde',"ta ti tu te to");
+insert into t1 values('ef','abc',"aa ii uu ee oo");
+select * from t1 force index(idx1) where c2 < 'e' order by c1 asc;
+select * from t1 force index(idx1) where c2 > 'e' order by c1 asc;
+select * from t1 force index(idx1) where c2 between 'c' and 'h' order by c1 asc;
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

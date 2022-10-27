@@ -1,0 +1,111 @@
+-- source include/not_embedded.inc
+
+set local sql_mode="";
+set global sql_mode="";
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+SET SESSION enforce_storage_engine=MyISAM;
+select @@session.enforce_storage_engine;
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=Memory;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=MyISAM;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SET SESSION sql_mode='NO_ENGINE_SUBSTITUTION';
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=MyISAM;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 values (1,'abba');
+
+--error 1286
+CREATE TABLE t2 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=Memory;
+
+SET SESSION sql_mode='';
+
+SET SESSION enforce_storage_engine=MyISAM;
+select @@session.enforce_storage_engine;
+select * from t1;
+drop table t1;
+
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error 1286
+SET SESSION enforce_storage_engine=FooBar;
+
+select @@session.enforce_storage_engine;
+
+--source include/add_anonymous_users.inc
+
+connect (con1,localhost,user_1,,);
+connection con1;
+--error 1227
+SET SESSION enforce_storage_engine=MyISAM;
+disconnect con1;
+
+connection default;
+
+--source include/delete_anonymous_users.inc
+
+SET SESSION enforce_storage_engine=NULL;
+
+SET SESSION sql_mode='NO_ENGINE_SUBSTITUTION';
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=Memory;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=MyISAM;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SET GLOBAL enforce_storage_engine=Memory;
+SET SESSION sql_mode='';
+
+connect (con1,localhost,root,,);
+connection con1;
+select @@session.enforce_storage_engine;
+select @@global.enforce_storage_engine;
+CREATE TABLE t1 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+connection default;
+disconnect con1;
+
+set global sql_mode=default;
+SET SESSION enforce_storage_engine=NULL;
+SET GLOBAL enforce_storage_engine=NULL;
+
+#
+# MDEV-8577: With enforce-storage-engine mysql_upgrade corrupts the schema:
+#   ALTER TABLE should either bypass enforce-storage-engine, or mysql_upgrade
+#   should refuse to run
+#
+CREATE TABLE t3 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=MyISAM;
+INSERT INTO t3 values (NULL, 'test');
+SET SESSION enforce_storage_engine=Memory;
+ALTER TABLE t3 ENGINE=MyISAM;
+SHOW CREATE TABLE t3;
+DROP TABLE t3;
+SET SESSION enforce_storage_engine=NULL;
+CREATE TABLE t3 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=MyISAM;
+INSERT INTO t3 values (NULL, 'test');
+SET SESSION enforce_storage_engine=Memory;
+ALTER TABLE t3 ADD COLUMN c3 INT;
+SHOW CREATE TABLE t3;
+DROP TABLE t3;
+
+SET SESSION enforce_storage_engine=NULL;
+SET GLOBAL enforce_storage_engine=NULL;

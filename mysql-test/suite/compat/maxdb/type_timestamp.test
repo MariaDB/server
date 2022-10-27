@@ -1,0 +1,29 @@
+--echo #
+--echo # MDEV-19632 Replication aborts with ER_SLAVE_CONVERSION_FAILED upon CREATE ... SELECT in ORACLE mode
+--echo #
+
+
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (
+  def_timestamp TIMESTAMP,
+  mdb_timestamp mariadb_schema.TIMESTAMP,
+  ora_timestamp oracle_schema.TIMESTAMP,
+  max_timestamp maxdb_schema.TIMESTAMP
+);
+SHOW CREATE TABLE t1;
+SET sql_mode=MAXDB;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+SET sql_mode=MAXDB;
+CREATE TABLE t1 (
+  def_timestamp TIMESTAMP,
+  mdb_timestamp mariadb_schema.TIMESTAMP,
+  ora_timestamp oracle_schema.TIMESTAMP,
+  max_timestamp maxdb_schema.TIMESTAMP
+);
+SHOW CREATE TABLE t1;
+SET sql_mode=DEFAULT;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

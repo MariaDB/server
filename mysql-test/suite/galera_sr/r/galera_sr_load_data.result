@@ -1,0 +1,14 @@
+connection node_2;
+connection node_1;
+SET SESSION wsrep_trx_fragment_size = 512;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
+connection node_1;
+connection node_2;
+SELECT COUNT(*) = 20000 FROM t1;
+COUNT(*) = 20000
+1
+wsrep_last_committed_diff
+1
+connection node_1;
+DROP TABLE t1;

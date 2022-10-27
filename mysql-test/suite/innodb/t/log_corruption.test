@@ -1,0 +1,493 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Upgrade after a crash is not supported");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: Unsupported redo log format");
+call mtr.add_suppression("InnoDB: No valid checkpoint found");
+call mtr.add_suppression("InnoDB: Invalid (log block|redo log header) checksum");
+call mtr.add_suppression("InnoDB: Missing MLOG_CHECKPOINT");
+call mtr.add_suppression("InnoDB: MLOG_FILE_NAME incorrect");
+call mtr.add_suppression("InnoDB: ############### CORRUPT LOG RECORD FOUND");
+call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
+call mtr.add_suppression("InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42\\r?$");
+call mtr.add_suppression("InnoDB: Obtaining redo log encryption key version 1 failed");
+call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
+call mtr.add_suppression("InnoDB: Are you sure you are using the right ib_logfiles to start up the database\\? Log sequence number in the ib_logfiles is 1213964,");
+--enable_query_log
+
+let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
+--mkdir $bugdir
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+
+let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+write_file $bugdir/ib_buffer_pool;
+EOF
+
+--let $dirs= --innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+# Create a dummy system tablespace file using the default innodb_page_size=16k
+die unless open OUT, ">", "$ENV{bugdir}/ibdata1";
+binmode OUT;
+
+# We calculate innodb_checksum_algorithm=crc32 for the pages.
+# The following bytes are excluded:
+# bytes 0..3 (the checksum is stored there)
+# bytes 26..37 (encryption key version, post-encryption checksum, tablespace id)
+# bytes $page_size-8..$page_size-1 (checksum, LSB of FIL_PAGE_LSN)
+my $polynomial = 0x82f63b78; # CRC-32C
+
+# Tablespace header page with valid FSP_SIZE=768 pages.
+# Also, write a dummy FSEG_MAGIC_N at offset 60 to keep fseg_inode_try_get()
+# happy when fseg_n_reserved_pages() is following an invalid pointer
+# from the all-zero change buffer header page (page 3).
+## FIL_PAGE_OFFSET
+my $head = pack("Nx[18]", 0);
+## FSP_PAGE_SIZE, # FSEG_MAGIC_N
+my $body = pack("x[8]Nx[10]Nx[16312]", 768, 97937874);
+my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+# Dummy pages 1..6.
+print OUT chr(0) x (6 * 16384);
+# Dictionary header page (page 7).
+## FIL_PAGE_OFFSET
+$head = pack("Nx[18]", 7);
+## DICT_HDR_TABLES,DICT_HDR_INDEXES
+$body = pack("x[32]Nx[8]Nx[16290]", 8, 9);
+$ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
+# Empty SYS_TABLES page (page 8).
+## FIL_PAGE_OFFSET, FIL_PAGE_PREV, FIL_PAGE_NEXT, FIL_PAGE_TYPE
+$head = pack("NNNx[8]n", 8, ~0, ~0, 17855);
+## PAGE_N_DIR_SLOTS, PAGE_HEAP_TOP, PAGE_INDEX_ID == DICT_TABLES_ID
+$body = pack("nnx[31]Cx[20]", 2, 124, 1);
+$body .= pack("nxnn", 0x801, 3, 116) . "infimum";
+$body .= pack("xnxnxx", 0x901, 0x803) . "supremum";
+$body .= pack("x[16248]nn", 116, 101);
+$ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
+# Empty SYS_INDEXES page (page 9).
+## FIL_PAGE_OFFSET, FIL_PAGE_PREV, FIL_PAGE_NEXT, FIL_PAGE_TYPE
+$head = pack("NNNx[8]n", 9, ~0, ~0, 17855);
+## PAGE_N_DIR_SLOTS, PAGE_HEAP_TOP, PAGE_INDEX_ID == DICT_INDEXES_ID
+$body = pack("nnx[31]Cx[20]", 2, 124, 3);
+$body .= pack("nxnn", 0x801, 3, 116) . "infimum";
+$body .= pack("xnxnxx", 0x901, 0x803) . "supremum";
+$body .= pack("x[16248]nn", 116, 101);
+$ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+print OUT pack("N",$ck).$head.pack("x[12]").$body.pack("Nx[4]",$ck);
+
+print OUT chr(0) x (759 * 16384);
+close OUT or die;
+
+# Create a dummy second redo log file
+die unless open OUT, ">", "$ENV{bugdir}/ib_logfile1";
+binmode OUT;
+print OUT chr(0) x 1048576;
+close OUT or die;
+
+# Create a redo log from before MariaDB 10.2.2/MySQL 5.7.9
+die unless open OUT, ">", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+print OUT pack("x[9]nx[5]", 0x1286), "    ", chr(0) x 492;
+print OUT pack("x[13]nCNnxxNNx[256]", 0x1286, 12, 0x80c, 0xf0, ~0, ~0);
+print OUT pack("H*x[1240]", "590DBAACFE922582");
+print OUT pack("H*x[5]", "800009440022000c0000000138");
+print OUT pack("H*x[475]H*", "12860cb7809781e80006626f677573", "089C0ADA");
+print OUT chr(0) x 1046016;
+close OUT or die;
+EOF
+
+--echo # redo log from before MariaDB 10.2.2/MySQL 5.7.9
+--let $restart_parameters= $dirs
+--source include/restart_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\\.2\\.2\\.;
+--source include/search_pattern_in_file.inc
+
+--echo # redo log from before MariaDB 10.2.2, with corrupted log checkpoint
+--move_file $bugdir/ib_logfile0 $bugdir/ib_logfile
+--copy_file $bugdir/ib_logfile1 $bugdir/ib_logfile0
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\\.2\\.2, and we did not find a valid checkpoint;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=Plugin 'InnoDB' registration as a STORAGE ENGINE failed;
+--source include/search_pattern_in_file.inc
+
+--echo # redo log from before MariaDB 10.2.2, with corrupted log block
+--remove_file $bugdir/ib_logfile0
+--move_file $bugdir/ib_logfile $bugdir/ib_logfile0
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+die unless seek(OUT, 0x800, 0);
+print OUT pack("Nx[508]", 0xc0deba5e);
+close OUT or die;
+EOF
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\\.2\\.2, and it appears corrupted;
+--source include/search_pattern_in_file.inc
+
+--echo # empty redo log from before MariaDB 10.2.2
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+die unless seek(OUT, 0x800, 0);
+print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 0, 0xb2a);
+close OUT or die;
+EOF
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=1m
+--source include/start_mysqld.inc
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Upgrading redo log:
+--source include/search_pattern_in_file.inc
+--let $restart_parameters= $dirs
+
+--echo # redo log from "after" MariaDB 10.2.2, but with invalid header checksum
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+print OUT pack("N",2);
+close OUT or die;
+EOF
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: Invalid redo log header checksum;
+--source include/search_pattern_in_file.inc
+
+--echo # distant future redo log format, with valid header checksum
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+print OUT pack("Nx[5]nx[5]", ~0, 0x1286);
+print OUT "malicious intentions, or perhaps not";
+print OUT pack("x[456]N", 0x8a1bb475);
+close OUT or die;
+EOF
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: Unsupported redo log format. The redo log was created with malicious intentions, or perhaps\.;
+--source include/search_pattern_in_file.inc
+
+--echo # valid header, but old-format checkpoint blocks
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+# header block
+print OUT pack("Nx[5]nx[5]", 1, 0x1286);
+print OUT "malicious intentions, or perhaps not";
+print OUT pack("x[456]N", 0xd42d53a2);
+# old-format checkpoint block 1
+print OUT pack("x[13]nCNnxxNNx[256]", 0x1286, 12, 0x80c, 0xf0, ~0, ~0);
+print OUT pack("H*x[1240]", "590DBAACFE922582");
+print OUT pack("H*x[5]", "800009440022000c0000000138");
+print OUT pack("H*x[475]H*", "12860cb7809781e80006626f677573", "089C0ADA");
+close OUT or die;
+EOF
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: No valid checkpoint found .corrupted redo log;
+--source include/search_pattern_in_file.inc
+
+--echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block checksum
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+die unless seek(OUT, 0x210, 0);
+print OUT pack("NNx[264]", 0, 0x80c);
+print OUT pack("NNx[212]N", 0x590dbaac, 0xfe922582, 0xc72d49c4);
+close OUT or die;
+EOF
+# Anything below innodb_force_recovery=6 must find a valid redo log.
+# Missing tablespace files are tolerated already with innodb_force_recovery=1.
+--let $restart_parameters= $dirs --innodb-force-recovery=5
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
+--source include/search_pattern_in_file.inc
+
+--echo # same, but with current-version header
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+print OUT pack("Nx[5]nx[5]", 103, 0x1286), "MariaDB 10.3.1";
+print OUT pack("x[478]N", 0x85021a0f);
+close OUT or die;
+EOF
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
+let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Missing MLOG_CHECKPOINT between the checkpoint 1213964 and the end 1213952\.;
+--source include/search_pattern_in_file.inc
+--echo # --innodb-force-recovery=6 (skip the entire redo log)
+--let $restart_parameters= $dirs --innodb-force-recovery=6
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN=\\[Note\\] InnoDB: .* started; log sequence number 0
+--source include/search_pattern_in_file.inc
+
+--echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block number
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+# header block
+print OUT pack("Nx[5]nx[5]", 103, 0x1286), "MariaDB 10.3.1";
+print OUT pack("x[478]N", 0x85021a0f);
+# checkpoint page 1 and all-zero checkpoint 2
+print OUT pack("x[13]nCNNx[264]", 0x1286, 12, 0, 0x80c);
+print OUT pack("H*x[212]Nx[1024]", "590DBAACFE922582", 0xc72d49c4);
+# redo log data
+print OUT pack("H*x[5]", "C0DEBA5E0022000c0000000138");
+print OUT pack("H*x[475]H*", "12860cb7809781e80006626f677573", "089C0ADA");
+close OUT or die;
+EOF
+--copy_file $bugdir/ib_logfile0 $bugdir/ib_logfile
+# Anything below innodb_force_recovery=6 must find an invalid redo log.
+# Missing tablespace files are tolerated already with innodb_force_recovery=1.
+--let $restart_parameters= $dirs --innodb-force-recovery=5
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+--echo # --innodb-force-recovery=6 (skip the entire redo log)
+--let $restart_parameters= $dirs --innodb-force-recovery=6
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
+--echo # Test a corrupted MLOG_FILE_NAME record.
+--echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2
+--remove_file $bugdir/ib_logfile0
+--move_file $bugdir/ib_logfile $bugdir/ib_logfile0
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+die unless seek(OUT, 0x800, 0);
+print OUT pack("N", 0x80000944);
+die unless seek(OUT, 0x9fc, 0);
+print OUT pack("N", 0xc86474db);
+close OUT or die;
+EOF
+--let $restart_parameters= $dirs
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: Starting crash recovery from checkpoint LSN=1213964;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: MLOG_FILE_NAME incorrect:bogus;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: ############### CORRUPT LOG RECORD FOUND ##################;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Log record type 55, page 151:488\. Log parsing proceeded successfully up to 1213973\. Previous log record type 56, is multi 0 Recv offset 9, prev 0;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= len 22. hex 38000000000012860cb7809781e80006626f67757300. asc 8               bogus ;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=InnoDB: Set innodb_force_recovery to ignore this error;
+--source include/search_pattern_in_file.inc
+
+--echo # Test a corrupted MLOG_FILE_NAME record.
+--echo # valid header, invalid checkpoint 1, valid checkpoint 2, invalid block
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+# header block
+print OUT pack("Nx[5]nx[5]", 103, 0x1286), "MariaDB 10.3.1";
+print OUT pack("x[478]N", 0x85021a0f);
+# invalid (all-zero) checkpoint page 1 and an empty log page
+print OUT chr(0) x 1024;
+# valid checkpoint block 2
+print OUT pack("x[13]nCNNx[264]", 0x1286, 12, 0, 0x80c);
+print OUT pack("H*x[212]N", "590DBAACFE922582", 0xc72d49c4);
+# log page
+print OUT pack("H*", "800009440022000c00000001");
+# MLOG_CHECKPOINT record
+print OUT pack("H*", "38000000000012860c");
+# MLOG_FILE_NAME record
+print OUT pack("H*", "b7809781e80006"), "bigot";
+# padding and wrong log block checksum
+print OUT pack("x[475]N", 150151);
+close OUT or die;
+EOF
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 2454333373 found: 150151;
+--source include/search_pattern_in_file.inc
+--echo # valid header, invalid checkpoint 1, valid checkpoint 2, invalid log record
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+die unless seek(OUT, 0x9fc, 0);
+print OUT pack("N", 2454333373);
+close OUT or die;
+EOF
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+let SEARCH_PATTERN=InnoDB: MLOG_FILE_NAME incorrect:bigot;
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= len 22; hex 38000000000012860cb7809781e800066269676f7400; asc 8               bigot ;
+--source include/search_pattern_in_file.inc
+
+--echo # 10.2 missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+# header block
+print OUT pack("Nx[5]nx[5]", 1, 0x1286);
+print OUT "ibbackup was here!!!1!";
+print OUT pack("x[470]N", 0x52b54540);
+# invalid (all-zero) checkpoint page 1 and an empty log page
+print OUT chr(0) x 1024;
+# valid checkpoint block 2
+print OUT pack("x[12]NNNx[264]", 0x12860c, 0, 0x80c);
+# pointer to the MLOG_CHECKPOINT record, and checkpoint page checksum
+print OUT pack("H*x[204]NNN", "590DBAACFE922582", 0x128612, 0, 0x101741b);
+# log page
+print OUT pack("H*", "800009440022000c00000001");
+# MLOG_1BYTE record for missing tablespace 42 page 123
+print OUT pack("CCCnC", 128 | 1, 42, 123, 4567, 89);
+# MLOG_CHECKPOINT record
+print OUT pack("CNN", 56, 0, 0x12860c);
+# padding (MLOG_DUMMY_RECORD) and block checksum
+print OUT " " x 481, pack("N", 0x644e6db8);
+close OUT or die;
+EOF
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42
+--source include/search_pattern_in_file.inc
+
+--echo # 10.3 missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+print OUT pack("Nx[5]nx[5]", 103, 0x1286), "MariaDB 10.3.1";
+print OUT pack("x[478]N", 0x85021a0f);
+close OUT or die;
+EOF
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42
+--source include/search_pattern_in_file.inc
+
+--echo # Empty 10.3 redo log
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+die unless seek(OUT, 0x800, 0);
+print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 1, 0x46c8a2a2);
+close OUT or die;
+EOF
+
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=1m
+--source include/start_mysqld.inc
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+--source include/shutdown_mysqld.inc
+# In encryption.innodb_encrypt_log_corruption, we would convert the
+# log to encrypted format. Writing an extra log checkpoint before the
+# redo log conversion would advance the LSN by the size of a
+# MLOG_CHECKPOINT record (9 bytes).
+--let SEARCH_PATTERN= InnoDB: .* started; log sequence number 121397[09]
+--source include/search_pattern_in_file.inc
+
+--echo # Empty 10.2 redo log
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+# header block
+print OUT pack("Nx[5]nx[5]", 1, 0x1286);
+print OUT "ibbackup was here!!!1!";
+print OUT pack("x[470]N", 0x52b54540);
+# In encryption.innodb_log_corruption the previous step would
+# replace the block with an encrypted one and update the checkpoint.
+# Restore them.
+# invalid (all-zero) checkpoint page 1 and an empty log page
+print OUT chr(0) x 1024;
+# valid checkpoint block 2
+print OUT pack("x[12]NNNx[264]", 0x12860c, 0, 0x80c);
+# pointer to the MLOG_CHECKPOINT record, and checkpoint page checksum
+print OUT pack("H*x[204]NNN", "590DBAACFE922582", 0x128612, 0, 0x101741b);
+# log page
+print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 1, 0x46c8a2a2);
+close OUT or die;
+EOF
+
+--source include/start_mysqld.inc
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Upgrading redo log:
+--source include/search_pattern_in_file.inc
+
+--echo # Minimal MariaDB 10.1.21 encrypted redo log
+perl;
+die unless open OUT, "+<", "$ENV{bugdir}/ib_logfile0";
+binmode OUT;
+# header and empty checkpoint page 1 (not encrypted)
+print OUT pack("x[9]nx[5]A[4]x[46]Cx[1469]", 0x186e, "", 2);
+# checkpoint page 2 (not encrypted)
+print OUT pack("NNNNNNNN", 0, 1, 0, 0x186e16, 0x816, 0x1000000, ~0, ~0);
+print OUT pack("x[6]Cx[249]", 0x20);
+print OUT pack("H*x[12]nNNn", "FDE012DE6D3BD6AC", 0x201, 1, 1, 0xEFC);
+print OUT pack("H*x[162]",
+               "75774015174BE4723904C88E110E3B50FF5C634167DB058D02A415D2A4A3");
+# log block (encrypted)
+print OUT pack("H*", "80000c380016000c000000015cf22e8aff355642045605c22b97f7cba94cc9932b6032b9c828ef85269024127d3863193b44e52d22eccdd0a8b197ce837f6b530c3042a022738bbac803adc5e7607333409b35c1f6351601a9da83d9b0bc3f389fb288d2bd6a0783066e3b07cae0e276fe83aa522d3f2b59b9549e2338031674383bbef87d7a42f415870fa33685afd3894a9d8214d60b5cde0c776489f45ad0c759e0495bc5d0c91018750070ed21ec1a41bcb9054007851df28e1da15fb662ab219bd558f1569b22671c943bfb0c12e97b604feb0d96a53c05c868e2eea9d4692cd0b6f4625a52adc8251ac955957e33d8c32eb964e416b246b950321a71d5b2e8e95c26e00333abe24ca827cd2eb95cff7b21dce639073f526614816fa2151afdb967aa049b4625cd70881fbd73827c1eb6f70447dcb7755055fa939a2c8ec38fc24f135c22f9f9691bd34a91be7047e5fd68d2e68b0d072cb69c253e14c7111b950b9d6df327f3ffb2a0dc6eff045d64baeb3c75c4ae4aeb41235757f40291540148d79deaff983851247134d7513a550ed7e21bf2e209d8dec51b252f0e9ba6fa33cc2ad0b28d05c04442dac9d233d0ca93d8ef0b81ba82e7396ffaec979b2df97f7249a20d8cb8036b582c245f27e64ac12c8b1d46248b670936893c7c737ba8a4ecf623689c18d79755865626993a43d607611d0736d1c626ebf88946");
+close OUT or die;
+EOF
+
+--let $restart_parameters= $dirs --innodb-force-recovery=5
+--source include/start_mysqld.inc
+if (!$no_cleanup) {
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN= InnoDB: Obtaining redo log encryption key version 1 failed
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= InnoDB: Decrypting checkpoint failed
+--source include/search_pattern_in_file.inc
+
+--list_files $bugdir
+--remove_files_wildcard $bugdir
+--rmdir $bugdir
+--let $restart_parameters=
+--source include/start_mysqld.inc
+}

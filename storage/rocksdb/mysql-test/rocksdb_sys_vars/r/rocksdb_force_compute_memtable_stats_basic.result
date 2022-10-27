@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS t;
+CREATE TABLE t (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t (a,b) VALUES (1,'bar'),(2,'foo');
+SET @ORIG_FORCE_COMPUTE_MEMTABLE_STATS = @@rocksdb_force_compute_memtable_stats;
+set global rocksdb_force_flush_memtable_now = true;
+INSERT INTO t (a,b) VALUES (3,'dead'),(4,'beef'),(5,'a'),(6,'bbb'),(7,'c'),(8,'d');
+set global rocksdb_force_compute_memtable_stats=0;
+SELECT TABLE_ROWS INTO @ROWS_EXCLUDE_MEMTABLE FROM information_schema.TABLES WHERE table_name = 't';
+set global rocksdb_force_compute_memtable_stats=1;
+SELECT TABLE_ROWS INTO @ROWS_INCLUDE_MEMTABLE FROM information_schema.TABLES WHERE table_name = 't';
+select case when @ROWS_INCLUDE_MEMTABLE-@ROWS_EXCLUDE_MEMTABLE > 0 then 'true' else 'false' end;
+case when @ROWS_INCLUDE_MEMTABLE-@ROWS_EXCLUDE_MEMTABLE > 0 then 'true' else 'false' end
+true
+DROP TABLE t;
+set global rocksdb_force_compute_memtable_stats = @ORIG_FORCE_COMPUTE_MEMTABLE_STATS;

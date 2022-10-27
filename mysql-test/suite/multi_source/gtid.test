@@ -1,0 +1,171 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+
+#
+# Test GTID with multi-source
+#
+
+--connect (slave1,127.0.0.1,root,,,$SERVER_MYPORT_3)
+--connect (slave2,127.0.0.1,root,,,$SERVER_MYPORT_4)
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (master2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+
+--connection slave1
+--replace_result $SERVER_MYPORT_1 MYPORT_1 
+eval CHANGE MASTER 'slave1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root';
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval CHANGE MASTER 'slave2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root';
+set default_master_connection = 'slave1';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'slave2';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+
+--connection slave2
+--replace_result $SERVER_MYPORT_3 MYPORT_3 
+eval CHANGE MASTER TO master_port=$SERVER_MYPORT_3, master_host='127.0.0.1', master_user='root';
+start all slaves;
+--source include/wait_for_slave_to_start.inc
+
+--connection master1
+SET GLOBAL gtid_domain_id= 1;
+SET SESSION gtid_domain_id= 1;
+CREATE TABLE t3 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10));
+INSERT INTO t1 VALUES (1, "initial");
+INSERT INTO t3 VALUES (101, "initial 1");
+
+# Make sure we have CREATE TABLE t3 from master1 before replicating INSERT INTO
+# t3 from master2.
+--connection slave1
+--let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.tables WHERE table_name = "t3" AND table_schema = "test"
+--source include/wait_condition.inc
+
+--connection master2
+SET GLOBAL gtid_domain_id= 2;
+SET SESSION gtid_domain_id= 2;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1, "initial");
+SET SQL_LOG_BIN=0;
+CREATE TABLE t3 (a INT PRIMARY KEY, b VARCHAR(10));
+SET SQL_LOG_BIN=1;
+INSERT INTO t3 VALUES (201, "initial 2");
+
+--connection slave2
+--let $wait_condition= SELECT COUNT(*)=3 FROM information_schema.tables WHERE table_name IN ("t1", "t2", "t3") AND table_schema = "test"
+--source include/wait_condition.inc
+--let $wait_condition= SELECT (SELECT COUNT(*) FROM t1)=1 AND (SELECT COUNT(*) FROM t2)=1 AND (SELECT COUNT(*) FROM t3)=2
+--source include/wait_condition.inc
+
+--echo *** Now move slave2 to replicate from both master1 and master2 instead of just slave1 ***
+STOP ALL SLAVES;
+
+# Let us have a couple extra transactions on the masters to check that
+# we resume replication at the right place even in the middle of the logs.
+--connection master1
+INSERT INTO t1 VALUES (2, "switch1");
+INSERT INTO t3 VALUES (102, "switch1 a");
+--connection master2
+INSERT INTO t2 VALUES (2, "switch1");
+INSERT INTO t3 VALUES (202, "switch1 b");
+
+--connection slave2
+--replace_result $SERVER_MYPORT_1 MYPORT_1 
+eval CHANGE MASTER 'slave1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval CHANGE MASTER 'slave2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+SET default_master_connection = 'slave1';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+SET default_master_connection = 'slave2';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+--let $wait_condition= SELECT (SELECT COUNT(*) FROM t1)=2 AND (SELECT COUNT(*) FROM t2)=2 AND (SELECT COUNT(*) FROM t3)=4
+--source include/wait_condition.inc
+
+
+--echo *** Move slave1 to replicate from slave2 instead of from master1 and master2 ***
+--connection slave1
+# Set up so that slave1 will have to start from two different positions
+# in the slave2 binlog (one for each domain_id).
+--let $wait_condition= SELECT (SELECT COUNT(*) FROM t1)=2 AND (SELECT COUNT(*) FROM t2)=2 AND (SELECT COUNT(*) FROM t3)=4
+--source include/wait_condition.inc
+STOP SLAVE 'slave1';
+
+--connection master1
+INSERT INTO t1 VALUES (3, "switch 2");
+INSERT INTO t3 VALUES (103, "switch 2 a");
+
+--connection slave2
+--let $wait_condition= SELECT (SELECT COUNT(*) FROM t1)=3 AND (SELECT COUNT(*) FROM t2)=2 AND (SELECT COUNT(*) FROM t3)=5
+--source include/wait_condition.inc
+
+--connection master2
+INSERT INTO t2 VALUES (3, "switch 2");
+INSERT INTO t3 VALUES (203, "switch 2 b");
+--source include/save_master_gtid.inc
+
+--connection slave1
+--let $wait_condition= SELECT (SELECT COUNT(*) FROM t1)=2 AND (SELECT COUNT(*) FROM t2)=3 AND (SELECT COUNT(*) FROM t3)=5
+--source include/wait_condition.inc
+STOP SLAVE 'slave2';
+
+--connection master2
+INSERT INTO t2 VALUES (4, "switch 3");
+INSERT INTO t3 VALUES (204, "switch 3 b");
+
+--connection slave2
+# Make sure that slave2 has replicated far enough before connecting slave1 to
+# it (otherwise we get an error that slave1 requested to start from a GTID
+# which is not in slave2's binlogs).
+--source include/sync_with_master_gtid.inc
+
+--connection slave1
+--replace_result $SERVER_MYPORT_4 MYPORT_4 
+eval CHANGE MASTER TO master_port=$SERVER_MYPORT_4, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+START SLAVE;
+--let $wait_condition= SELECT (SELECT COUNT(*) FROM t1)=3 AND (SELECT COUNT(*) FROM t2)=4 AND (SELECT COUNT(*) FROM t3)=7
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM t3 ORDER BY a;
+
+# Cleanup.
+--connection master1
+DROP TABLE t1;
+SET SQL_LOG_BIN=0;
+DROP TABLE t3;
+SET SQL_LOG_BIN=1;
+
+--connection master2
+DROP TABLE t2;
+DROP TABLE t3;
+
+--connection slave1
+SET GLOBAL gtid_domain_id=0;
+--let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.tables WHERE table_name IN ("t1", "t2", "t3") AND table_schema = "test"
+--source include/wait_condition.inc
+--sorted_result
+STOP ALL SLAVES;
+--source include/reset_master_slave.inc
+--disconnect slave1
+
+--connection slave2
+SET GLOBAL gtid_domain_id=0;
+--sorted_result
+STOP ALL SLAVES;
+--source include/reset_master_slave.inc
+--disconnect slave2
+
+--connection master1
+SET GLOBAL gtid_domain_id=0;
+--source include/reset_master_slave.inc
+--disconnect master1
+
+--connection master2
+SET GLOBAL gtid_domain_id=0;
+--source include/reset_master_slave.inc
+--disconnect master2

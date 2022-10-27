@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_PIN_L0_FILTER_AND_INDEX_BLOCKS_IN_CACHE;
+SELECT @start_global_value;
+@start_global_value
+1
+"Trying to set variable @@global.ROCKSDB_PIN_L0_FILTER_AND_INDEX_BLOCKS_IN_CACHE to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_PIN_L0_FILTER_AND_INDEX_BLOCKS_IN_CACHE   = 444;
+ERROR HY000: Variable 'rocksdb_pin_l0_filter_and_index_blocks_in_cache' is a read only variable

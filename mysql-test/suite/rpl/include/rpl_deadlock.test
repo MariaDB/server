@@ -1,0 +1,142 @@
+# See if slave restarts the transaction after failing on an InnoDB deadlock error.
+
+# Note: testing what happens when too many retries is possible, but
+# needs large waits when running with --debug, so we don't do it.
+# The same way, this test may not test what is expected when run
+# under Valgrind, timings are too short then (with --valgrind I
+# (Guilhem) have seen the test manage to provoke lock wait timeout
+# error but not deadlock error; that is ok as code deals with the two
+# errors in exactly the same way.
+
+--source include/master-slave.inc
+
+# 0) Prepare tables and data
+--echo *** Prepare tables and data ***
+
+connection master;
+eval CREATE TABLE t1 (a INT NOT NULL, KEY(a)) ENGINE=$engine_type;
+eval CREATE TABLE t2 (a INT) ENGINE=$engine_type;
+eval CREATE TABLE t3 (a INT NOT NULL, KEY(a)) ENGINE=$engine_type;
+sync_slave_with_master;
+
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+SHOW CREATE TABLE t3;
+SHOW VARIABLES LIKE 'slave_transaction_retries';
+--source include/stop_slave.inc
+
+connection master;
+BEGIN;
+INSERT INTO t1 VALUES (1);
+# We make a long transaction here
+INSERT INTO t2 VALUES (2), (2), (2), (2), (2), (2), (2), (2), (2), (2);
+INSERT INTO t3 VALUES (3);
+COMMIT;
+save_master_pos;
+# Save BEGIN event into variable
+let $master_pos_begin= query_get_value(SHOW BINLOG EVENTS, Pos, 10);
+--echo
+
+# 1) Test deadlock
+# Block slave SQL thread, wait retries of transaction, unlock slave before lock timeout
+--echo *** Test deadlock ***
+
+connection slave;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+# Save variable 'Slave_retried_transactions' before deadlock
+let $slave_retried_transactions= query_get_value(SHOW GLOBAL STATUS LIKE 'Slave_retried_transactions', Value, 1);
+# Run the START SLAVE in a separate connection. Otherwise it terminates
+# the SELECT FOR UPDATE transaction (START SLAVE does implicit COMMIT!).
+connection slave1;
+START SLAVE;
+# Wait until SQL thread blocked: variable 'Slave_retried_transactions' will incremented
+let $status_var= Slave_retried_transactions;
+let $status_var_value= $slave_retried_transactions;
+let $status_type= GLOBAL;
+let $status_var_comparsion= >;
+--source include/wait_for_status_var.inc
+connection slave;
+SELECT COUNT(*) FROM t2;
+COMMIT;
+sync_with_master;
+
+# Check the data
+SELECT * FROM t1;
+SELECT * FROM t3;
+# Check that no error is reported
+source include/check_slave_is_running.inc;
+--echo
+
+# 2) Test lock wait timeout
+# Block slave and wait lock timeout error
+--echo *** Test lock wait timeout ***
+
+connection slave;
+--source include/stop_slave.inc
+DELETE FROM t2;
+# Set slave position to the BEGIN log event
+--replace_result $master_pos_begin <master_pos_begin>
+eval CHANGE MASTER TO MASTER_LOG_POS=$master_pos_begin; 
+BEGIN;
+# Hold lock
+SELECT * FROM t1 FOR UPDATE;
+# Wait until slave stopped with error 'Lock wait timeout exceeded'
+connection slave1;
+START SLAVE;
+let $slave_sql_errno= 1205;
+--source include/wait_for_slave_sql_error.inc
+connection slave;
+SELECT COUNT(*) FROM t2;
+COMMIT;
+--source include/start_slave.inc
+sync_with_master;
+# Check data from tables
+SELECT * FROM t1;
+SELECT * FROM t3;
+# Check that no error is reported
+source include/check_slave_is_running.inc;
+--echo
+
+# 3) Test lock wait timeout and purged relay log
+# Set max_relay_log_size=0, block slave and wait lock timeout error.
+# Restart slave and check that no erros appear
+--echo *** Test lock wait timeout and purged relay logs ***
+
+connection slave;
+SET @my_max_relay_log_size= @@global.max_relay_log_size;
+SET global max_relay_log_size=0;
+--source include/stop_slave.inc
+DELETE FROM t2;
+# Set slave position to the BEGIN log event
+--replace_result $master_pos_begin <master_pos_begin>
+eval CHANGE MASTER TO MASTER_LOG_POS=$master_pos_begin; 
+BEGIN;
+# Hold lock
+SELECT * FROM t1 FOR UPDATE;
+# Wait until slave stopped with error 'Lock wait timeout exceeded'
+connection slave1;
+START SLAVE;
+let $slave_sql_errno= 1205;
+--source include/wait_for_slave_sql_error.inc
+connection slave;
+SELECT COUNT(*) FROM t2;
+COMMIT;
+--source include/start_slave.inc
+sync_with_master;
+# Check data from tables
+SELECT * FROM t1;
+SELECT * FROM t3;
+# Check that no error is reported
+source include/check_slave_is_running.inc;
+--echo
+
+# Clean up
+--echo *** Clean up ***
+connection master;
+DROP TABLE t1,t2,t3;
+sync_slave_with_master;
+SET global max_relay_log_size= @my_max_relay_log_size;
+
+--echo End of 5.1 tests
+--source include/rpl_end.inc

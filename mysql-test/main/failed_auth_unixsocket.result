@@ -1,0 +1,10 @@
+create table global_priv_backup select * from mysql.global_priv;
+update mysql.global_priv set priv=json_insert(priv, '$.plugin', 'unix_socket');
+delete from mysql.global_priv where user != 'root';
+flush privileges;
+connect(localhost,USER,,test,MASTER_PORT,MASTER_SOCKET);
+ERROR 28000: Access denied for user 'USER'@'localhost'
+ERROR 28000: Access denied for user 'USER'@'localhost'
+replace mysql.global_priv select * from global_priv_backup;
+flush privileges;
+drop table global_priv_backup;

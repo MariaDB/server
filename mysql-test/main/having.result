@@ -1,0 +1,909 @@
+drop table if exists t1,t2,t3;
+create table t1 (a int);
+select count(a) as b from t1 where a=0 having b > 0;
+b
+insert into t1 values (null);
+select count(a) as b from t1 where a=0 having b > 0;
+b
+select count(a) as b from t1 where a=0 having b >=0;
+b
+0
+explain extended select count(a) as b from t1 where a=0 having b >=0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	select count(NULL) AS `b` from dual where 0 having `b` >= 0
+drop table t1;
+CREATE TABLE t1 (
+raw_id int(10) NOT NULL default '0',
+chr_start int(10) NOT NULL default '0',
+chr_end int(10) NOT NULL default '0',
+raw_start int(10) NOT NULL default '0',
+raw_end int(10) NOT NULL default '0',
+raw_ori int(2) NOT NULL default '0'
+);
+INSERT INTO t1 VALUES (469713,1,164123,1,164123,1),(317330,164124,317193,101,153170,1),(469434,317194,375620,101,58527,1),(591816,375621,484273,1,108653,1),(591807,484274,534671,91,50488,1),(318885,534672,649362,101,114791,1),(318728,649363,775520,102,126259,1),(336829,775521,813997,101,38577,1),(317740,813998,953227,101,139330,1),(1,813998,953227,101,139330,1);
+CREATE TABLE t2 (
+id int(10) unsigned NOT NULL default '0',
+contig_id int(10) unsigned NOT NULL default '0',
+seq_start int(10) NOT NULL default '0',
+seq_end int(10) NOT NULL default '0',
+strand tinyint(2) NOT NULL default '0',
+KEY id (id)
+);
+INSERT INTO t2 VALUES (133195,469713,61327,61384,1),(133196,469713,64113,64387,1),(133197,1,1,1,0),(133197,1,1,1,-2);
+SELECT e.id,
+MIN( IF(sgp.raw_ori=1,
+(e.seq_start+sgp.chr_start-sgp.raw_start),  
+(sgp.chr_start+sgp.raw_end-e.seq_end))) as start, 
+MAX( IF(sgp.raw_ori=1,
+(e.seq_end+sgp.chr_start-sgp.raw_start),  
+(sgp.chr_start+sgp.raw_end-e.seq_start))) as end, 
+AVG(IF (sgp.raw_ori=1,e.strand,(-e.strand))) as chr_strand 
+FROM  t1 sgp,
+t2 e  
+WHERE sgp.raw_id=e.contig_id 
+GROUP BY e.id 
+HAVING chr_strand= -1 and end >= 0 
+AND start <= 999660;
+id	start	end	chr_strand
+133197	813898	813898	-1.0000
+drop table t1,t2;
+CREATE TABLE t1 (Fld1 int(11) default NULL,Fld2 int(11) default NULL);
+INSERT INTO t1 VALUES (1,10),(1,20),(2,NULL),(2,NULL),(3,50);
+select Fld1, max(Fld2) as q from t1 group by Fld1 having q is not null;
+Fld1	q
+1	20
+3	50
+select Fld1, max(Fld2) from t1 group by Fld1 having max(Fld2) is not null;
+Fld1	max(Fld2)
+1	20
+3	50
+select Fld1, max(Fld2) from t1 group by Fld1 having avg(Fld2) is not null;
+Fld1	max(Fld2)
+1	20
+3	50
+select Fld1, max(Fld2) from t1 group by Fld1 having std(Fld2) is not null;
+Fld1	max(Fld2)
+1	20
+3	50
+select Fld1, max(Fld2) from t1 group by Fld1 having variance(Fld2) is not null;
+Fld1	max(Fld2)
+1	20
+3	50
+drop table t1;
+create table t1 (id int not null, qty int not null);
+insert into t1 values (1,2),(1,3),(2,4),(2,5);
+select id, sum(qty) as sqty from t1 group by id having sqty>2;
+id	sqty
+1	5
+2	9
+select sum(qty) as sqty from t1 group by id having count(id) > 0;
+sqty
+5
+9
+select sum(qty) as sqty from t1 group by id having count(distinct id) > 0;
+sqty
+5
+9
+drop table t1;
+CREATE TABLE t1 (
+`id` bigint(20) NOT NULL default '0',
+`description` text
+) ENGINE=MyISAM;
+CREATE TABLE t2 (
+`id` bigint(20) NOT NULL default '0',
+`description` varchar(20)
+) ENGINE=MyISAM;
+INSERT INTO t1  VALUES (1, 'test');
+INSERT INTO t2 VALUES (1, 'test');
+CREATE TABLE t3 (
+`id`       bigint(20) NOT NULL default '0',
+`order_id` bigint(20) NOT NULL default '0'
+) ENGINE=MyISAM;
+select
+a.id, a.description,
+count(b.id) as c 
+from t1 a left join t3 b on a.id=b.order_id 
+group by a.id, a.description 
+having (a.description is not null) and (c=0);
+id	description	c
+1	test	0
+select
+a.*, 
+count(b.id) as c 
+from t2 a left join t3 b on a.id=b.order_id 
+group by a.id, a.description
+having (a.description is not null) and (c=0);
+id	description	c
+1	test	0
+INSERT INTO t1  VALUES (2, 'test2');
+select
+a.id, a.description,
+count(b.id) as c 
+from t1 a left join t3 b on a.id=b.order_id 
+group by a.id, a.description 
+having (a.description is not null) and (c=0);
+id	description	c
+1	test	0
+2	test2	0
+drop table t1,t2,t3;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (3), (4), (1), (3), (1);
+SELECT SUM(a) FROM t1 GROUP BY a HAVING SUM(a)>0;
+SUM(a)
+2
+6
+4
+SELECT SUM(a) FROM t1 GROUP BY a HAVING SUM(a);
+SUM(a)
+2
+6
+4
+DROP TABLE t1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1), (2), (1), (3), (2), (1);
+SELECT a FROM t1 GROUP BY a HAVING a > 1;
+a
+2
+3
+SELECT a FROM t1 GROUP BY a HAVING 1 != 1 AND a > 1;
+a
+SELECT 0 AS x, a FROM t1 GROUP BY x,a HAVING x=1 AND a > 1;
+x	a
+EXPLAIN SELECT a FROM t1 GROUP BY a HAVING 1 != 1 AND a > 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+EXPLAIN SELECT 0 AS x, a FROM t1 GROUP BY x,a HAVING x=1 AND a > 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+DROP table t1;
+CREATE TABLE t1 (a int PRIMARY KEY);
+CREATE TABLE t2 (b int PRIMARY KEY, a int);
+CREATE TABLE t3 (b int, flag int);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1,1), (2,1), (3,1);
+INSERT INTO t3(b,flag) VALUES (2, 1);
+SELECT t1.a
+FROM t1 INNER JOIN t2 ON t1.a=t2.a LEFT JOIN t3 ON t2.b=t3.b
+GROUP BY t1.a, t2.b HAVING MAX(t3.flag)=0;
+a
+SELECT DISTINCT t1.a, MAX(t3.flag)
+FROM t1 INNER JOIN t2 ON t1.a=t2.a LEFT JOIN t3 ON t2.b=t3.b
+GROUP BY t1.a, t2.b HAVING MAX(t3.flag)=0;
+a	MAX(t3.flag)
+SELECT DISTINCT t1.a
+FROM t1 INNER JOIN t2 ON t1.a=t2.a LEFT JOIN t3 ON t2.b=t3.b
+GROUP BY t1.a, t2.b HAVING MAX(t3.flag)=0;
+a
+DROP TABLE t1,t2,t3;
+create table t1 (col1 int, col2 varchar(5), col_t1 int);
+create table t2 (col1 int, col2 varchar(5), col_t2 int);
+create table t3 (col1 int, col2 varchar(5), col_t3 int);
+insert into t1 values(10,'hello',10);
+insert into t1 values(20,'hello',20);
+insert into t1 values(30,'hello',30);
+insert into t1 values(10,'bye',10);
+insert into t1 values(10,'sam',10);
+insert into t1 values(10,'bob',10);
+insert into t2 select * from t1;
+insert into t3 select * from t1;
+select count(*) from t1 group by col1 having col1 = 10;
+count(*)
+4
+select count(*) as count_col1 from t1 group by col1 having col1 = 10;
+count_col1
+4
+select count(*) as count_col1 from t1 as tmp1 group by col1 having col1 = 10;
+count_col1
+4
+select count(*) from t1 group by col2 having col2 = 'hello';
+count(*)
+3
+select count(*) from t1 group by col2 having col1 = 10;
+ERROR 42S22: Unknown column 'col1' in 'having clause'
+select col1 as count_col1 from t1 as tmp1 group by col1 having col1 = 10;
+count_col1
+10
+select col1 as count_col1 from t1 as tmp1 group by col1 having count_col1 = 10;
+count_col1
+10
+select col1 as count_col1 from t1 as tmp1 group by count_col1 having col1 = 10;
+count_col1
+10
+select col1 as count_col1 from t1 as tmp1 group by count_col1 having count_col1 = 10;
+count_col1
+10
+select col1 as count_col1,col2 from t1 as tmp1 group by col1,col2 having col1 = 10;
+count_col1	col2
+10	bob
+10	bye
+10	hello
+10	sam
+select col1 as count_col1,col2 from t1 as tmp1 group by col1,col2 having count_col1 = 10;
+count_col1	col2
+10	bob
+10	bye
+10	hello
+10	sam
+select col1 as count_col1,col2 from t1 as tmp1 group by col1,col2 having col2 = 'hello';
+count_col1	col2
+10	hello
+20	hello
+30	hello
+select col1 as count_col1,col2 as group_col2 from t1 as tmp1 group by col1,col2 having group_col2 = 'hello';
+count_col1	group_col2
+10	hello
+20	hello
+30	hello
+select sum(col1) as co12 from t1 group by col2 having col2 10;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '10' at line 1
+select sum(col1) as co2, count(col2) as cc from t1 group by col1 having col1 =10;
+co2	cc
+40	4
+select t2.col2 from t2 group by t2.col1, t2.col2 having t1.col1 <= 10;
+ERROR 42S22: Unknown column 't1.col1' in 'having clause'
+select t1.col1 from t1
+where t1.col2 in 
+(select t2.col2 from t2 
+group by t2.col1, t2.col2 having t2.col1 <= 10);
+col1
+10
+20
+30
+10
+10
+10
+select t1.col1 from t1
+where t1.col2 in 
+(select t2.col2 from t2
+group by t2.col1, t2.col2
+having t2.col1 <=
+(select min(t3.col1) from t3));
+col1
+10
+20
+30
+10
+10
+10
+select t1.col1 from t1
+where t1.col2 in
+(select t2.col2 from t2 
+group by t2.col1, t2.col2 having t1.col1 <= 10);
+col1
+10
+10
+10
+10
+select t1.col1 as tmp_col from t1
+where t1.col2 in 
+(select t2.col2 from t2 
+group by t2.col1, t2.col2 having tmp_col <= 10);
+tmp_col
+10
+10
+10
+10
+select t1.col1 from t1
+where t1.col2 in 
+(select t2.col2 from t2 
+group by t2.col1, t2.col2 having col_t1 <= 10);
+col1
+10
+10
+10
+10
+select sum(col1) from t1
+group by col_t1
+having (select col_t1 from t2 where col_t1 = col_t2 order by col_t2 limit 1);
+sum(col1)
+40
+20
+30
+select t1.col1 from t1
+where t1.col2 in 
+(select t2.col2 from t2 
+group by t2.col1, t2.col2 having col_t1 <= 10)
+having col_t1 <= 20;
+ERROR 42S22: Unknown column 'col_t1' in 'having clause'
+select t1.col1 from t1
+where t1.col2 in 
+(select t2.col2 from t2 
+group by t2.col1, t2.col2 having col_t1 <= 10)
+group by col_t1
+having col_t1 <= 20;
+col1
+10
+select col_t1, sum(col1) from t1
+group by col_t1
+having col_t1 > 10 and
+exists (select sum(t2.col1) from t2
+group by t2.col2 having t2.col2 > 'b');
+col_t1	sum(col1)
+20	20
+30	30
+select sum(col1) from t1
+group by col_t1
+having col_t1 in (select sum(t2.col1) from t2
+group by t2.col2, t2.col1 having t2.col1 = t1.col1);
+ERROR 42S22: Unknown column 't1.col1' in 'having clause'
+select sum(col1) from t1
+group by col_t1
+having col_t1 in (select sum(t2.col1) from t2
+group by t2.col2, t2.col1 having t2.col1 = col_t1);
+sum(col1)
+40
+20
+30
+select t1.col1, t2.col1 from t1, t2 where t1.col1 = t2.col1
+group by t1.col1, t2.col1 having col1 = 2;
+ERROR 23000: Column 'col1' in having clause is ambiguous
+select t1.col1*10+t2.col1 from t1,t2 where t1.col1=t2.col1
+group by t1.col1, t2.col1 having col1 = 2;
+ERROR 23000: Column 'col1' in having clause is ambiguous
+drop table t1, t2, t3;
+create table t1 (s1 int);
+insert into t1 values (1),(2),(3);
+select count(*) from t1 group by s1 having s1 is null;
+count(*)
+select s1*0 as s1 from t1 group by s1 having s1 <> 0;
+s1
+0
+0
+0
+Warnings:
+Warning	1052	Column 's1' in group statement is ambiguous
+Warning	1052	Column 's1' in having clause is ambiguous
+select s1*0 from t1 group by s1 having s1 = 0;
+s1*0
+select s1 from t1 group by 1 having 1 = 0;
+s1
+select count(s1) from t1 group by s1 having count(1+1)=2;
+count(s1)
+select count(s1) from t1 group by s1 having s1*0=0;
+count(s1)
+1
+1
+1
+select * from t1 a, t1 b group by a.s1 having s1 is null;
+ERROR 23000: Column 's1' in having clause is ambiguous
+drop table t1;
+create table t1 (s1 char character set latin1 collate latin1_german1_ci);
+insert ignore into t1 values ('ü'),('y');
+Warnings:
+Warning	1265	Data truncated for column 's1' at row 1
+select s1,count(s1) from t1
+group by s1 collate latin1_swedish_ci having s1 = 'y';
+s1	count(s1)
+y	1
+drop table t1;
+DROP SCHEMA IF EXISTS HU;
+CREATE SCHEMA HU ;
+USE HU ;
+CREATE TABLE STAFF
+(EMPNUM   CHAR(3) NOT NULL UNIQUE,
+EMPNAME  CHAR(20),
+GRADE    DECIMAL(4),
+CITY     CHAR(15));
+CREATE TABLE PROJ
+(PNUM     CHAR(3) NOT NULL UNIQUE,
+PNAME    CHAR(20),
+PTYPE    CHAR(6),
+BUDGET   DECIMAL(9),
+CITY     CHAR(15));
+INSERT INTO STAFF VALUES ('E1','Alice',12,'Deale');
+INSERT INTO STAFF VALUES ('E2','Betty',10,'Vienna');
+INSERT INTO STAFF VALUES ('E3','Carmen',13,'Vienna');
+INSERT INTO STAFF VALUES ('E4','Don',12,'Deale');
+INSERT INTO STAFF VALUES ('E5','Ed',13,'Akron');
+INSERT INTO PROJ VALUES  ('P1','MXSS','Design',10000,'Deale');
+INSERT INTO PROJ VALUES  ('P2','CALM','Code',30000,'Vienna');
+INSERT INTO PROJ VALUES  ('P3','SDP','Test',30000,'Tampa');
+INSERT INTO PROJ VALUES  ('P4','SDP','Design',20000,'Deale');
+INSERT INTO PROJ VALUES  ('P5','IRM','Test',10000,'Vienna');
+INSERT INTO PROJ VALUES  ('P6','PAYR','Design',50000,'Deale');
+SELECT EMPNUM, GRADE*1000
+FROM HU.STAFF WHERE GRADE * 1000 > 
+ANY (SELECT SUM(BUDGET) FROM HU.PROJ
+GROUP BY CITY, PTYPE
+HAVING HU.PROJ.CITY = HU.STAFF.CITY);
+EMPNUM	GRADE*1000
+E3	13000
+DROP SCHEMA HU;
+USE test;
+create table t1(f1 int);
+select f1 from t1 having max(f1)=f1;
+f1
+select f1 from t1 group by f1 having max(f1)=f1;
+f1
+set session sql_mode='ONLY_FULL_GROUP_BY';
+select f1 from t1 having max(f1)=f1;
+ERROR 42000: Non-grouping field 'f1' is used in HAVING clause
+select f1 from t1 group by f1 having max(f1)=f1;
+f1
+set session sql_mode='';
+drop table t1;
+CREATE TABLE t1 ( a INT, b INT);
+INSERT INTO t1 VALUES (1, 1), (2,2), (3, NULL);
+SELECT b, COUNT(DISTINCT a) FROM t1 GROUP BY b HAVING b is NULL;
+b	COUNT(DISTINCT a)
+NULL	1
+DROP TABLE t1;
+#
+# Bug#50995 Having clause on subquery result produces incorrect results.
+#
+CREATE TABLE t1
+(
+id1 INT,
+id2 INT NOT NULL,
+INDEX id1(id2)
+);
+INSERT INTO t1 SET id1=1, id2=1;
+INSERT INTO t1 SET id1=2, id2=1;
+INSERT INTO t1 SET id1=3, id2=1;
+SELECT t1.id1,
+(SELECT 0 FROM DUAL
+WHERE t1.id1=t1.id1) AS amount FROM t1
+WHERE t1.id2 = 1
+HAVING amount > 0
+ORDER BY t1.id1;
+id1	amount
+DROP TABLE t1;
+#
+# Bug#48916 Server incorrectly processing HAVING clauses with an ORDER BY clause
+#
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT, f3 INT);
+INSERT INTO t1 VALUES (2,7,9), (4,7,9), (6,2,9), (17,0,9);
+SELECT table1.f1, table2.f2
+FROM t1 AS table1
+JOIN t1 AS table2 ON table1.f3 = table2.f3
+WHERE table2.f1 = 2
+GROUP BY table1.f1, table2.f2
+HAVING (table2.f2 = 8 AND table1.f1 >= 6);
+f1	f2
+EXPLAIN EXTENDED
+SELECT table1.f1, table2.f2
+FROM t1 AS table1
+JOIN t1 AS table2 ON table1.f3 = table2.f3
+WHERE table2.f1 = 2
+GROUP BY table1.f1, table2.f2
+HAVING (table2.f2 = 8 AND table1.f1 >= 6);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	select 0 AS `f1`,7 AS `f2` from `test`.`t1` `table1` join `test`.`t1` `table2` where 0 group by 0,7 having 1
+EXPLAIN EXTENDED
+SELECT table1.f1, table2.f2
+FROM t1 AS table1
+JOIN t1 AS table2 ON table1.f3 = table2.f3
+WHERE table2.f1 = 2
+GROUP BY table1.f1, table2.f2
+HAVING (table2.f2 = 8);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	select `test`.`table1`.`f1` AS `f1`,7 AS `f2` from `test`.`t1` `table1` join `test`.`t1` `table2` where 0 group by `test`.`table1`.`f1`,7 having 1
+DROP TABLE t1;
+#
+# Bug#52336 Segfault / crash in 5.1 copy_fields (param=0x9872980) at sql_select.cc:15355
+#
+CREATE TABLE t1(f1 INT, f2 INT);
+INSERT INTO t1 VALUES (10,8);
+CREATE TABLE t2 (f1 INT);
+INSERT INTO t2 VALUES (5);
+SELECT  COUNT(f1) FROM t2
+HAVING (7, 9)  IN (SELECT f1, MIN(f2) FROM t1);
+COUNT(f1)
+DROP TABLE t1, t2;
+CREATE TABLE t1 (f1 INT, f2 VARCHAR(1));
+INSERT INTO t1 VALUES (16,'f');
+INSERT INTO t1 VALUES (16,'f');
+CREATE TABLE t2 (f1 INT, f2 VARCHAR(1));
+INSERT INTO t2 VALUES (13,'f');
+INSERT INTO t2 VALUES (20,'f');
+CREATE TABLE t3 (f1 INT, f2 VARCHAR(1));
+INSERT INTO t3 VALUES (7,'f');
+SELECT t1.f2 FROM t1
+STRAIGHT_JOIN (t2 JOIN t3 ON t3.f2  = t2.f2  ) ON t3 .f2  = t2 .f2
+HAVING ('v', 'i') NOT IN (SELECT f2, MIN(f2) FROM t1)
+ORDER BY f2;
+f2
+f
+f
+f
+f
+DROP TABLES t1,t2,t3;
+#
+# Bug#52340 Segfault: read_cached_record (tab=0x94a2634) at sql_select.cc:14411
+#
+CREATE TABLE t1 (f1 INT, f2 VARCHAR(1));
+INSERT INTO t1 VALUES (16,'d');
+CREATE TABLE t2 (f1 INT, f2 VARCHAR(1));
+INSERT INTO t2 VALUES (13,'e');
+INSERT INTO t2 VALUES (20,'d');
+SELECT MAX(t2.f2) FROM t2 JOIN t1 ON t1.f2
+HAVING ('e' , 'd') IN
+(SELECT ts1.f2, ts2.f2 FROM t2 ts1 JOIN t2 ts2 ON ts1.f1)
+ORDER BY t1.f2;
+MAX(t2.f2)
+NULL
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'd'
+DROP TABLE t1,t2;
+End of 5.0 tests
+#
+# Bug#54416 MAX from JOIN with HAVING returning NULL with 5.1 and Empty set
+#
+CREATE TABLE t1 (f1 INT(11), f2 VARCHAR(1), PRIMARY KEY (f1));
+INSERT INTO t1 VALUES (1,'f');
+CREATE TABLE t2 (f1 INT(11), f2 VARCHAR(1));
+INSERT INTO t2 VALUES (2,'m');
+INSERT INTO t2 VALUES (3,'m');
+INSERT INTO t2 VALUES (11,NULL);
+INSERT INTO t2 VALUES (12,'k');
+SELECT MAX(t1.f1) field1
+FROM t1 JOIN t2 ON t2.f2 LIKE 'x'
+HAVING field1 < 7;
+field1
+DROP TABLE t1,t2;
+#
+# Bug#48916 Server incorrectly processing HAVING clauses with an ORDER BY clause
+#
+CREATE TABLE t1 (f1 INT, f2 INT);
+INSERT INTO t1 VALUES (1, 0), (2, 1), (3, 2);
+CREATE TABLE t2 (f1 INT, f2 INT);
+SELECT t1.f1
+FROM t1
+HAVING (3, 2) IN (SELECT f1, f2 FROM t2) AND t1.f1  >= 0
+ORDER BY t1.f1;
+f1
+SELECT t1.f1
+FROM t1
+HAVING (3, 2) IN (SELECT 4, 2) AND t1.f1  >= 0
+ORDER BY t1.f1;
+f1
+SELECT t1.f1
+FROM t1
+HAVING 2 IN (SELECT f2 FROM t2) AND t1.f1  >= 0
+ORDER BY t1.f1;
+f1
+DROP TABLE t1,t2;
+End of 5.1 tests
+#
+# LP bug:938518 HAVING does not reject the result of aggregation
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT);
+INSERT INTO t1 VALUES (2,7), (4,7), (6,2), (17,0);
+SELECT MIN(t.pk) FROM t1, t1 as t WHERE t1.pk = 1;
+MIN(t.pk)
+NULL
+SELECT MIN(t.pk) FROM t1, t1 as t WHERE t1.pk = 1 HAVING MIN(t.pk) < 10;
+MIN(t.pk)
+drop table t1;
+#
+# LP bug #791761: MAX over an empty join + HAVING
+#
+CREATE TABLE t1 (a int, b int , KEY (b)) ;
+INSERT INTO t1 VALUES (3,1);
+CREATE TABLE t2 (a int NOT NULL ) ;
+INSERT INTO t2 VALUES (29);
+SELECT MAX(t1.b)  FROM t1,t2 WHERE t2.a > 0 HAVING MAX(t1.b) <> 6;
+MAX(t1.b)
+1
+SELECT MAX(t1.b)  FROM t1,t2 WHERE t2.a > 0 HAVING MAX(t1.b) IS NULL;
+MAX(t1.b)
+EXPLAIN
+SELECT MAX(t1.b)  FROM t1,t2 WHERE t2.a < 0 HAVING MAX(t1.b) <> 6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+SELECT MAX(t1.b)  FROM t1,t2 WHERE t2.a < 0 HAVING MAX(t1.b) <> 6;
+MAX(t1.b)
+CREATE TABLE t3 ( f3 int) ;
+INSERT INTO t3 VALUES (NULL);
+SELECT MAX(t1.b) AS f FROM t1 JOIN t2 ON t2.a != 0
+WHERE (SELECT f3 FROM t3) <> 0 HAVING f <> 6 ;
+f
+DROP TABLE t1,t2,t3;
+#
+# LP bug:806955 HAVING not observed with aggregate +subquery
+#
+CREATE TABLE t1 (f3 int, f10 varchar(1), f11 int, KEY (f10) );
+INSERT INTO t1 VALUES (NULL,'a',0),(8,'b',0);
+CREATE TABLE t2 (f2 int);
+INSERT INTO t2 VALUES (7);
+CREATE TABLE t3 (f3 int);
+INSERT INTO t3 VALUES (0),(8);
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='semijoin=off,materialization=off';
+SELECT MIN( t1.f10 ) AS field1
+FROM t1 , t2
+WHERE t2.f2 IN ( SELECT f3 FROM t3 )
+HAVING field1 < 's';
+field1
+explain extended 
+SELECT MIN( t1.f10 ) AS field1
+FROM t1 , t2
+WHERE t2.f2 IN ( SELECT f3 FROM t3 )
+HAVING field1 < 's';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	index	NULL	f10	4	NULL	2	100.00	Using index
+2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select min(`test`.`t1`.`f10`) AS `field1` from `test`.`t1` where <expr_cache><7>(<in_optimizer>(7,<exists>(/* select#2 */ select `test`.`t3`.`f3` from `test`.`t3` where <cache>(7) = `test`.`t3`.`f3`))) having `field1` < 's'
+set optimizer_switch=@save_optimizer_switch;
+drop table t1,t2,t3;
+End of 5.2 tests
+#
+# Bug mdev-6116: an equality in the conjunction of HAVING
+#                and IN subquery in WHERE
+# (The bug is caused by the same problem as bug mdev-5927)
+#
+CREATE TABLE t1 (f_key varchar(1), f_nokey varchar(1), INDEX(f_key));
+INSERT INTO t1 VALUES ('v','v'),('s','s');
+CREATE TABLE t2 (f_int int, f_key varchar(1), INDEX(f_key));
+INSERT INTO t2 VALUES 
+(4,'j'),(6,'v'),(3,'c'),(5,'m'),(3,'d'),(2,'d'),(2,'y'),
+(9,'t'),(3,'d'),(8,'s'),(1,'r'),(8,'m'),(8,'b'),(5,'x');
+SELECT t2.f_int FROM t1 INNER JOIN t2 ON (t2.f_key = t1.f_nokey) 
+WHERE t1.f_nokey IN ( 
+SELECT t1.f_key FROM t1, t2 WHERE t1.f_key = t2.f_key 
+) HAVING t2.f_int >= 0 AND t2.f_int != 0;
+f_int
+6
+8
+DROP TABLE t1,t2;
+#
+# Bug mdev-5927: an equality in the conjunction of HAVING
+#                and an equality in WHERE
+#
+CREATE TABLE t1 (pk int PRIMARY KEY, f int NOT NULL, INDEX(f));
+INSERT INTO t1 VALUES (1,0), (2,8);
+SELECT * FROM t1 WHERE f = 2 HAVING ( pk IN ( SELECT 9 ) AND f != 0 );
+pk	f
+DROP TABLE t1;
+End of 5.3 tests
+#
+# Bug MDEV-7301: Unknown column quoted with backticks in HAVING clause when using function.
+# Bug#16221433 MYSQL REJECTS QUERY DUE TO BAD RESOLUTION OF NAMES IN HAVING; VIEW UNREADABLE
+#
+CREATE TABLE `t1` (
+`id` int(11) NOT NULL,
+`title` varchar(45) DEFAULT NULL,
+PRIMARY KEY (`id`)
+) DEFAULT CHARSET=utf8;
+INSERT INTO `t1` VALUES ('1', 'Just for fun');
+INSERT INTO `t1` VALUES ('2', 'Wait until a sunhine');
+INSERT INTO `t1` VALUES ('3', 'Take a new turn');
+SELECT `id`, SHA1(`title`) AS `column_1`
+FROM `t1`
+HAVING `column_1` LIKE '8%';
+id	column_1
+1	80a12660d24a72460e5e292fe33f870276d7f40a
+expected 1 row(s) returned
+SELECT `id`, SHA1(`title`) AS `column_1`
+FROM `t1`
+HAVING UPPER(column_1) LIKE '8%';
+id	column_1
+1	80a12660d24a72460e5e292fe33f870276d7f40a
+expected -- 1 row(s) returned
+SELECT `id`, SHA1(`title`) AS `column_1`
+FROM `t1`
+HAVING UPPER(`column_1`) LIKE '8%';
+id	column_1
+1	80a12660d24a72460e5e292fe33f870276d7f40a
+expected -- 1 row(s) returned not ER_BAD_FIELD_ERROR
+drop table t1;
+#
+# mdev-14368: grouping query with alias for aggregate function in HAVING
+#             when sql_mode = 'ONLY_FULL_GROUP_BY'
+set @save_sql_mode= @@sql_mode;
+set sql_mode = 'ONLY_FULL_GROUP_BY';
+create table t1(a int);
+insert  t1 values (4),(1),(2),(1), (3),(4);
+SELECT a, COUNT(a) as ct FROM t1 GROUP BY a HAVING ct>0;
+a	ct
+1	2
+2	1
+3	1
+4	2
+set sql_mode=@save_sql_mode;
+drop table t1;
+#
+# mdev-16235: impossible HAVING in query without aggregation
+#
+explain extended
+select * from mysql.help_topic where example = 'foo' having description is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+Warnings:
+Note	1003	select `mysql`.`help_topic`.`help_topic_id` AS `help_topic_id`,`mysql`.`help_topic`.`name` AS `name`,`mysql`.`help_topic`.`help_category_id` AS `help_category_id`,`mysql`.`help_topic`.`description` AS `description`,`mysql`.`help_topic`.`example` AS `example`,`mysql`.`help_topic`.`url` AS `url` from `mysql`.`help_topic` where `mysql`.`help_topic`.`example` = 'foo' having 0
+select * from mysql.help_topic where example = 'foo' having description is null;
+help_topic_id	name	help_category_id	description	example	url
+#
+# End of 5. tests
+#
+#
+# Start of 10.0 tests
+#
+#
+# Bug mdev-5160: two-way join with HAVING over the second table
+#
+CREATE TABLE t1 (c1 varchar(6)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('s'), ('t'), ('a'),  ('x');
+CREATE TABLE t2 (c2 varchar(6)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('a'), ('x');
+SELECT * FROM t1 JOIN t2 ON c1 = c2 HAVING c2 > 'a' ORDER BY c2 LIMIT 1;
+c1	c2
+x	x
+DROP TABLE t1,t2;
+#
+# MDEV-6736: Valgrind warnings 'Invalid read' in subselect_engine::calc_const_tables with SQ 
+# in WHERE and HAVING, ORDER BY, materialization+semijoin
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (3),(8);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2),(1);
+SELECT a FROM t1
+WHERE 9 IN ( SELECT MIN( a ) FROM t1 )
+HAVING a <> ( SELECT COUNT(*) FROM t2 ) 
+ORDER BY a;
+a
+DROP TABLE t1,t2;
+End of 10.0 tests
+#
+# MDEV-10716: Assertion `real_type() != FIELD_ITEM' failed in
+# Item_ref::build_equal_items(THD*, COND_EQUAL*, bool, COND_EQUAL**)
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT i, COUNT(*) FROM t1 GROUP BY i HAVING i<>0 AND 1;
+i	COUNT(*)
+1	1
+2	1
+SELECT i-1 A, COUNT(*) FROM t1 GROUP BY i HAVING A AND 1;
+A	COUNT(*)
+1	1
+CREATE VIEW v1 as select i, i-1 as A from t1;
+SELECT A, COUNT(*) FROM v1 GROUP BY i HAVING A AND 1;
+A	COUNT(*)
+1	1
+DROP VIEW v1;
+DROP TABLE t1;
+End of 10.1 tests
+#
+# MDEV-14093: GROUP BY with HAVING over function + ORDER BY
+#
+CREATE TABLE _authors (
+id MEDIUMINT(8) UNSIGNED AUTO_INCREMENT,
+name VARCHAR(100),
+some_field MEDIUMINT(8) UNSIGNED,
+PRIMARY KEY (id),
+index(some_field)
+);
+CREATE TABLE _books (
+id MEDIUMINT(8) UNSIGNED AUTO_INCREMENT,
+title VARCHAR(100),
+PRIMARY KEY (id)
+);
+CREATE TABLE _books2authors (
+author_id MEDIUMINT(8) DEFAULT 0,
+book_id MEDIUMINT(8) DEFAULT 0,
+index(author_id),
+index(book_id)
+);
+INSERT INTO _authors (name, some_field) VALUES
+('author1', 1),('author2', 2),('author3', 3);
+INSERT INTO _books (title) VALUES
+('book1'),('book2'),('book3');
+INSERT INTO _books2authors (author_id, book_id) VALUES
+(2,1),(3,2),(3,3);
+SELECT A.id,
+GROUP_CONCAT(B.title ORDER BY B.title DESC SEPARATOR ',') AS books,
+some_field-1 AS having_field
+FROM _authors A
+LEFT JOIN _books2authors B2A FORCE INDEX(author_id)
+ON B2A.author_id = A.id
+LEFT JOIN
+_books B ON B.id = B2A.book_id
+GROUP BY A.id
+HAVING having_field < 1
+ORDER BY having_field ASC;
+id	books	having_field
+1	NULL	0
+DROP TABLE _authors, _books, _books2authors;
+#
+# Bug#17055185: WRONG RESULTS WHEN RUNNING A SELECT THAT INCLUDE
+#               A HAVING BASED ON A FUNCTION.
+#
+CREATE TABLE series (
+val INT(10) UNSIGNED NOT NULL
+);
+INSERT INTO series VALUES(1);
+CREATE FUNCTION next_seq_value() RETURNS INT
+BEGIN
+DECLARE next_val INT;
+SELECT val INTO next_val FROM series;
+UPDATE series SET val=mod(val + 1, 2);
+RETURN next_val;
+END;
+|
+CREATE TABLE t1 (t INT, u INT, KEY(t));
+INSERT INTO t1 VALUES(10, 10), (11, 11), (12, 12), (12, 13),(14, 15), (15, 16),
+(16, 17), (17, 17);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t)
+GROUP BY t HAVING r = 1  ORDER BY t1.u;
+t	r
+10	1
+12	1
+15	1
+17	1
+DROP TABLE t1;
+DROP FUNCTION next_seq_value;
+DROP TABLE series;
+#
+# MDEV-24958 Server crashes in my_strtod /
+# Value_source::Converter_strntod::Converter_strntod with DEFAULT(blob)
+#
+# MDEV-24942 Server crashes in _ma_rec_pack / _ma_write_blob_record with
+# DEFAULT() on BLOB
+#
+CREATE TABLE t1 (id INT, f MEDIUMTEXT NOT NULL DEFAULT 'A');
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+SELECT f FROM t1 GROUP BY id ORDER BY DEFAULT(f);
+f
+foo
+bar
+SELECT DEFAULT(f) AS h FROM t1 HAVING h > 5;
+h
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'A'
+SELECT DEFAULT(f) AS h FROM t1 HAVING h >= 0;
+h
+A
+A
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'A'
+SELECT DEFAULT(f) AS h FROM t1 HAVING h >= 'A';
+h
+A
+A
+alter table t1 add column b int default (rand()+1+3);
+select default(b) AS h FROM t1 HAVING h > "2";
+h
+#
+#
+drop table t1;
+# End of 10.3 tests
+#
+# MDEV-18681: AND formula in HAVING with several occurances
+#             of the same field f in different conjuncts + f=constant
+#
+CREATE TABLE t1 (pk int, f varchar(1));
+INSERT INTO t1 VALUES (2,'x'), (7,'y');
+CREATE TABLE t2 (pk int);
+INSERT INTO t2 VALUES (2), (3);
+SELECT t.f
+FROM (SELECT t1.* FROM (t1 JOIN t2 ON (t2.pk = t1.pk))) t
+HAVING t.f != 112 AND t.f = 'x' AND t.f != 'a';
+f
+x
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'x'
+DROP TABLE t1,t2;
+#
+# MDEV-20200: AddressSanitizer: use-after-poison in
+# Item_direct_view_ref::get_null_ref_table
+#
+CREATE TABLE t (f VARCHAR(512));
+INSERT INTO t VALUES ('a'),('b');
+SELECT * FROM t HAVING f = 'foo';
+f
+DROP TABLE t;
+# End of 10.4 tests

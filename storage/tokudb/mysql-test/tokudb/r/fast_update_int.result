@@ -1,0 +1,1120 @@
+### Test int for: tinyint, , null
+create table t (
+id tinyint  primary key,
+x tinyint  null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: tinyint, , not null
+create table t (
+id tinyint  primary key,
+x tinyint  not null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: tinyint, unsigned, null
+create table t (
+id tinyint unsigned primary key,
+x tinyint unsigned null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: tinyint, unsigned, not null
+create table t (
+id tinyint unsigned primary key,
+x tinyint unsigned not null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: smallint, , null
+create table t (
+id smallint  primary key,
+x smallint  null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: smallint, , not null
+create table t (
+id smallint  primary key,
+x smallint  not null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: smallint, unsigned, null
+create table t (
+id smallint unsigned primary key,
+x smallint unsigned null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: smallint, unsigned, not null
+create table t (
+id smallint unsigned primary key,
+x smallint unsigned not null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: mediumint, , null
+create table t (
+id mediumint  primary key,
+x mediumint  null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: mediumint, , not null
+create table t (
+id mediumint  primary key,
+x mediumint  not null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: mediumint, unsigned, null
+create table t (
+id mediumint unsigned primary key,
+x mediumint unsigned null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: mediumint, unsigned, not null
+create table t (
+id mediumint unsigned primary key,
+x mediumint unsigned not null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: int, , null
+create table t (
+id int  primary key,
+x int  null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: int, , not null
+create table t (
+id int  primary key,
+x int  not null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: int, unsigned, null
+create table t (
+id int unsigned primary key,
+x int unsigned null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: int, unsigned, not null
+create table t (
+id int unsigned primary key,
+x int unsigned not null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: bigint, , null
+create table t (
+id bigint  primary key,
+x bigint  null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: bigint, , not null
+create table t (
+id bigint  primary key,
+x bigint  not null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: bigint, unsigned, null
+create table t (
+id bigint unsigned primary key,
+x bigint unsigned null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;
+### Test int for: bigint, unsigned, not null
+create table t (
+id bigint unsigned primary key,
+x bigint unsigned not null
+) engine = tokudb;
+insert into t values (1,0), (2,0), (3,0);
+select * from t;
+id	x
+1	0
+2	0
+3	0
+update t set x = 100 where id = 2;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	1
+update t set x = x - 1 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	100
+update t set x = x - 100 where id = 3;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = 1 + x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = -x where id = 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1 where id = 100;
+select * from t;
+id	x
+1	0
+2	100
+3	0
+update t set x = x + 1 where 1 <= id and id < 100;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+update t set x = x + 1;
+ERROR 42000: Table 't' uses an extension that doesn't exist in this XYZ version
+drop table t;

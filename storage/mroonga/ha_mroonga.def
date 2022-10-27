@@ -1,0 +1,18 @@
+LIBRARY		ha_mroonga
+VERSION		1.0
+EXPORTS
+  last_insert_grn_id
+  last_insert_grn_id_init
+  last_insert_grn_id_deinit
+  mroonga_snippet
+  mroonga_snippet_init
+  mroonga_snippet_deinit
+  mroonga_command
+  mroonga_command_init
+  mroonga_command_deinit
+  mroonga_escape
+  mroonga_escape_init
+  mroonga_escape_deinit
+  mroonga_normalize
+  mroonga_normalize_init
+  mroonga_normalize_deinit

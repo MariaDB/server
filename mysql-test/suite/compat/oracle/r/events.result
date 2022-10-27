@@ -1,0 +1,18 @@
+set sql_mode='ORACLE';
+#
+# MDEV-16891 EVENTs created with SQL_MODE=ORACLE fail to execute
+#
+SET GLOBAL event_scheduler=off;
+SET sql_mode='ORACLE';
+CREATE TABLE t1 (a TIMESTAMP);
+CREATE EVENT e1
+ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 MICROSECOND
+DO INSERT INTO t1 VALUES(NOW());
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+SET GLOBAL event_scheduler=on;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+DROP TABLE t1;
+SET GLOBAL event_scheduler=off;

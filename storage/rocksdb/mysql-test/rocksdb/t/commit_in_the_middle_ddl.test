@@ -1,0 +1,27 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS a;
+--enable_warnings
+
+create table a (id int, value int,  primary key (id) comment 'cf_a') engine=rocksdb;
+
+--disable_query_log
+let $i = 1;
+while ($i <= 100000) {
+  let $insert = INSERT INTO a VALUES($i, $i);
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+
+set rocksdb_bulk_load=1;
+set rocksdb_commit_in_the_middle=1;
+alter table a add index v (value) COMMENT 'cf_a';
+set rocksdb_bulk_load=0;
+set rocksdb_commit_in_the_middle=0;
+select count(*) from a force index(primary);
+select count(*) from a force index(v);
+
+DROP TABLE a;
+

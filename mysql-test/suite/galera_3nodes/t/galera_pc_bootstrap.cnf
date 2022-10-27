@@ -1,0 +1,5 @@
+# We need a dedicated .cnf file, even if empty, in order to force this test to run
+# alone on a freshly started cluster. Otherwise there are adverse interactions with
+# prior tests such as galera_3nodes.galera_innobackupex_backup
+
+!include ../galera_3nodes.cnf

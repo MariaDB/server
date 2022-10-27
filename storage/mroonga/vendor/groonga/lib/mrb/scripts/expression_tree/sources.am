@@ -1,0 +1,10 @@
+RUBY_SCRIPT_FILES =				\
+	accessor.rb				\
+	binary_operation.rb			\
+	constant.rb				\
+	function_call.rb			\
+	index_column.rb				\
+	logical_operation.rb			\
+	options.rb				\
+	procedure.rb				\
+	variable.rb

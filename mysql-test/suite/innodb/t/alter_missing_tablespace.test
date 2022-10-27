@@ -1,0 +1,76 @@
+--source include/not_embedded.inc
+--source include/innodb_page_size.inc
+
+--echo #
+--echo # Bug#13955083 ALLOW IN-PLACE DDL OPERATIONS ON MISSING
+--echo # OR DISCARDED TABLESPACES
+--echo #
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: ");
+call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation");
+call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
+call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them");
+call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`.`\(t\|x\.\.d\)` because it could not be opened");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing");
+call mtr.add_suppression("Could not find a valid tablespace file for");
+call mtr.add_suppression("InnoDB: Failed to find tablespace for table `test`\.`\(t\|x\.\.d\)` in the cache");
+call mtr.add_suppression("InnoDB: Cannot delete tablespace [0-9]+.*not found");
+call mtr.add_suppression("Table .* in the InnoDB data dictionary has tablespace id .*, but tablespace with that id or name does not exist");
+call mtr.add_suppression("InnoDB: ALTER TABLE `test`.`t` DISCARD TABLESPACE failed to find tablespace");
+--enable_query_log
+
+let $MYSQLD_DATADIR=`select @@datadir`;
+SET GLOBAL innodb_file_per_table=1;
+CREATE TABLE t(a SERIAL)ENGINE=InnoDB;
+CREATE TABLE `x..d` (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t1(a SERIAL)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2),(3);
+
+--source include/shutdown_mysqld.inc
+
+# Remove the tablespace files.
+--remove_file $MYSQLD_DATADIR/test/t.ibd
+--remove_file $MYSQLD_DATADIR/test/x@002e@002ed.ibd
+
+--source include/start_mysqld.inc
+
+# The table does exist, only the tablespace does not exist.
+--error ER_GET_ERRNO
+SELECT * FROM t;
+
+--error ER_GET_ERRNO
+ALTER TABLE t ADD INDEX (a), ALGORITHM=INPLACE;
+SHOW WARNINGS;
+
+--error ER_GET_ERRNO
+ALTER TABLE t ADD INDEX (a), ALGORITHM=COPY;
+SHOW WARNINGS;
+
+--error ER_GET_ERRNO
+ALTER TABLE t AUTO_INCREMENT=1, ALGORITHM=INPLACE;
+--error ER_GET_ERRNO
+ALTER TABLE t AUTO_INCREMENT=1, ALGORITHM=COPY;
+
+--error ER_PARSE_ERROR
+ALTER TABLE t ALGORITHM=INPLACE, DISCARD TABLESPACE;
+--error ER_PARSE_ERROR
+ALTER TABLE t ALGORITHM=COPY, DISCARD TABLESPACE;
+--error ER_PARSE_ERROR
+ALTER TABLE t ALGORITHM=DEFAULT, DISCARD TABLESPACE;
+ALTER TABLE t DISCARD TABLESPACE;
+RENAME TABLE t TO u;
+RENAME TABLE u TO v;
+DROP TABLE v;
+--error ER_GET_ERRNO
+SELECT * FROM `x..d`;
+DROP TABLE `x..d`;
+
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+ALTER TABLE t1 AUTO_INCREMENT=1, ALGORITHM=INPLACE;
+--error ER_TABLESPACE_DISCARDED
+ALTER TABLE t1 AUTO_INCREMENT=1, FORCE, ALGORITHM=INPLACE;
+--error ER_TABLESPACE_DISCARDED
+ALTER TABLE t1 AUTO_INCREMENT=1, ALGORITHM=COPY;
+DROP TABLE t1;

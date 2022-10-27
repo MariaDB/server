@@ -1,0 +1,72 @@
+#
+# Test mixing transactional and non transactional tables
+#
+
+--source include/master-slave.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+
+#
+# Test updating conditionally a non transactinal table in a function
+# This verifies that we don't write only a table map for a non transactional,
+# without any row events
+# The original bug caused a crash on the slave when doing a sync_slave
+#
+
+create or replace table t1(id int)engine=innodb;
+create or replace table t3(id int)engine=myisam;
+
+delimiter //;
+create or replace function t99 (a int)
+returns int(10)
+MODIFIES SQL DATA
+begin
+  if (a > 100)
+  then
+    insert into t3 values (a);
+  end if;
+  return a;
+end//
+delimiter ;//
+begin;
+insert into t1 values(t99(1));
+insert into t1 values(t99(101));
+commit;
+select * from t1;
+select * from t3;
+insert into t1 values(t99(1));
+
+drop function t99;
+drop table t1,t3;
+
+sync_slave_with_master;
+connection master;
+
+#
+# MDEV-8203
+# Assertion `!current_stmt_is_commit || !rgi->tables_to_lock' failed in
+# Query_log_event::do_apply_event(rpl_group_info*, const char*, uint32)
+#
+
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+CREATE TABLE t2 (j INT) ENGINE=MyISAM;
+
+--delimiter ||
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW 
+BEGIN 
+  SET @a = unknown_column_just_to_raise_an_error; 
+  INSERT INTO t2 VALUES (NULL) ; 
+END||
+--delimiter ;
+
+--error ER_BAD_FIELD_ERROR
+INSERT INTO t1 VALUES (1);
+--sync_slave_with_master
+
+connection master;
+
+drop trigger tr;
+drop table t1,t2;
+
+# End of 4.1 tests
+--source include/rpl_end.inc

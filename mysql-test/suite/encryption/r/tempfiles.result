@@ -1,0 +1,109 @@
+select @@encrypt_tmp_files;
+@@encrypt_tmp_files
+1
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES(1),(2);
+DELETE FROM t1 WHERE a=1;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+create table t1 (v varchar(10), c char(10), t text, key(v), key(c), key(t(10)));
+insert into t1 (v) select concat(char(ascii('a')+s2.seq),repeat(' ',s1.seq))
+from seq_0_to_9 as s1, seq_0_to_26 as s2;
+update t1 set c=v, t=v;
+select sql_big_result t,count(t) from t1 group by t limit 10;
+t	count(t)
+a	10
+b	10
+c	10
+d	10
+e	10
+f	10
+g	10
+h	10
+i	10
+j	10
+drop table t1;
+reset master;
+set @save_binlog_cache_size=@@global.binlog_cache_size;
+set global binlog_cache_size=8192;
+connect con1, localhost, root;
+create table t1 (a text) engine=innodb;
+start transaction;
+insert t1 select repeat(seq, 1000) from seq_1_to_15;
+commit;
+start transaction;
+insert t1 select repeat(seq, 1000) from seq_1_to_8;
+commit;
+disconnect con1;
+connect con2, localhost, root;
+create table t2 (a text) engine=innodb;
+start transaction;
+insert t2 select repeat(seq, 1000) from seq_1_to_15;
+savepoint foo;
+insert t2 select repeat(seq, 1000) from seq_16_to_30;
+rollback to savepoint foo;
+insert t2 select repeat(seq, 1000) from seq_31_to_40;
+commit;
+disconnect con2;
+connection default;
+flush binary logs;
+drop table t1, t2;
+set @@global.binlog_cache_size=@save_binlog_cache_size;
+select left(a, 10) from t1;
+left(a, 10)
+1111111111
+2222222222
+3333333333
+4444444444
+5555555555
+6666666666
+7777777777
+8888888888
+9999999999
+1010101010
+1111111111
+1212121212
+1313131313
+1414141414
+1515151515
+1111111111
+2222222222
+3333333333
+4444444444
+5555555555
+6666666666
+7777777777
+8888888888
+select left(a, 10) from t2;
+left(a, 10)
+1111111111
+2222222222
+3333333333
+4444444444
+5555555555
+6666666666
+7777777777
+8888888888
+9999999999
+1010101010
+1111111111
+1212121212
+1313131313
+1414141414
+1515151515
+3131313131
+3232323232
+3333333333
+3434343434
+3535353535
+3636363636
+3737373737
+3838383838
+3939393939
+4040404040
+drop table t1, t2;

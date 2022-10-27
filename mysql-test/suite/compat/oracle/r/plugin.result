@@ -1,0 +1,48 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-16294: INSTALL PLUGIN IF NOT EXISTS / UNINSTALL PLUGIN IF EXISTS
+#
+# INSTALL IF NOT EXISTS PLUGIN name SONAME library /
+# UNINSTALL IF EXISTS PLUGIN|SONAME name
+#
+select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
+PLUGIN_NAME	PLUGIN_STATUS	PLUGIN_TYPE
+INSTALL PLUGIN IF NOT EXISTS example SONAME 'ha_example';
+select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
+PLUGIN_NAME	PLUGIN_STATUS	PLUGIN_TYPE
+EXAMPLE	ACTIVE	STORAGE ENGINE
+INSTALL PLUGIN example SONAME 'ha_example';
+ERROR HY000: Plugin 'example' already installed
+INSTALL PLUGIN IF NOT EXISTS example SONAME 'ha_example';
+Warnings:
+Note	1968	Plugin 'example' already installed
+SHOW WARNINGS;
+Level	Code	Message
+Note	1968	Plugin 'example' already installed
+UNINSTALL PLUGIN IF EXISTS example;
+select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
+PLUGIN_NAME	PLUGIN_STATUS	PLUGIN_TYPE
+UNINSTALL PLUGIN IF EXISTS example;
+Warnings:
+Note	1305	PLUGIN example does not exist
+SHOW WARNINGS;
+Level	Code	Message
+Note	1305	PLUGIN example does not exist
+UNINSTALL PLUGIN example;
+ERROR 42000: PLUGIN example does not exist
+INSTALL SONAME 'ha_example';
+select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
+PLUGIN_NAME	PLUGIN_STATUS	PLUGIN_TYPE
+EXAMPLE	ACTIVE	STORAGE ENGINE
+UNUSABLE	ACTIVE	DAEMON
+UNINSTALL SONAME IF EXISTS 'ha_example';
+UNINSTALL SONAME IF EXISTS 'ha_example';
+Warnings:
+Note	1305	SONAME ha_example.so does not exist
+SHOW WARNINGS;
+Level	Code	Message
+Note	1305	SONAME ha_example.so does not exist
+select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
+PLUGIN_NAME	PLUGIN_STATUS	PLUGIN_TYPE
+UNINSTALL SONAME 'ha_example';
+ERROR 42000: SONAME ha_example.so does not exist

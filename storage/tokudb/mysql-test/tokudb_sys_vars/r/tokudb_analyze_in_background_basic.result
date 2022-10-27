@@ -1,0 +1,101 @@
+SET @orig_global = @@global.tokudb_analyze_in_background;
+SELECT @orig_global;
+@orig_global
+0
+SET @orig_session = @@session.tokudb_analyze_in_background;
+SELECT @orig_session;
+@orig_session
+0
+SET GLOBAL tokudb_analyze_in_background = 0;
+SELECT @@global.tokudb_analyze_in_background;
+@@global.tokudb_analyze_in_background
+0
+SET GLOBAL tokudb_analyze_in_background = 1;
+SELECT @@global.tokudb_analyze_in_background;
+@@global.tokudb_analyze_in_background
+1
+SET GLOBAL tokudb_analyze_in_background = DEFAULT;
+SELECT @@global.tokudb_analyze_in_background;
+@@global.tokudb_analyze_in_background
+0
+SET GLOBAL tokudb_analyze_in_background = -6;
+ERROR 42000: Variable 'tokudb_analyze_in_background' can't be set to the value of '-6'
+SELECT @@global.tokudb_analyze_in_background;
+@@global.tokudb_analyze_in_background
+0
+SET GLOBAL tokudb_analyze_in_background = 1.6;
+ERROR 42000: Incorrect argument type to variable 'tokudb_analyze_in_background'
+SELECT @@global.tokudb_analyze_in_background;
+@@global.tokudb_analyze_in_background
+0
+SET GLOBAL tokudb_analyze_in_background = "T";
+ERROR 42000: Variable 'tokudb_analyze_in_background' can't be set to the value of 'T'
+SELECT @@global.tokudb_analyze_in_background;
+@@global.tokudb_analyze_in_background
+0
+SET GLOBAL tokudb_analyze_in_background = "Y";
+ERROR 42000: Variable 'tokudb_analyze_in_background' can't be set to the value of 'Y'
+SELECT @@global.tokudb_analyze_in_background;
+@@global.tokudb_analyze_in_background
+0
+SET GLOBAL tokudb_analyze_in_background = 'foobar';
+ERROR 42000: Variable 'tokudb_analyze_in_background' can't be set to the value of 'foobar'
+SELECT @@global.tokudb_analyze_in_background;
+@@global.tokudb_analyze_in_background
+0
+SET SESSION tokudb_analyze_in_background = 0;
+SELECT @@session.tokudb_analyze_in_background;
+@@session.tokudb_analyze_in_background
+0
+SET SESSION tokudb_analyze_in_background = 1;
+SELECT @@session.tokudb_analyze_in_background;
+@@session.tokudb_analyze_in_background
+1
+SET SESSION tokudb_analyze_in_background = DEFAULT;
+SELECT @@session.tokudb_analyze_in_background;
+@@session.tokudb_analyze_in_background
+0
+SET SESSION tokudb_analyze_in_background = -6;
+ERROR 42000: Variable 'tokudb_analyze_in_background' can't be set to the value of '-6'
+SELECT @@session.tokudb_analyze_in_background;
+@@session.tokudb_analyze_in_background
+0
+SET SESSION tokudb_analyze_in_background = 1.6;
+ERROR 42000: Incorrect argument type to variable 'tokudb_analyze_in_background'
+SELECT @@session.tokudb_analyze_in_background;
+@@session.tokudb_analyze_in_background
+0
+SET SESSION tokudb_analyze_in_background = "T";
+ERROR 42000: Variable 'tokudb_analyze_in_background' can't be set to the value of 'T'
+SELECT @@session.tokudb_analyze_in_background;
+@@session.tokudb_analyze_in_background
+0
+SET SESSION tokudb_analyze_in_background = "Y";
+ERROR 42000: Variable 'tokudb_analyze_in_background' can't be set to the value of 'Y'
+SELECT @@session.tokudb_analyze_in_background;
+@@session.tokudb_analyze_in_background
+0
+SET SESSION tokudb_analyze_in_background = 'foobar';
+ERROR 42000: Variable 'tokudb_analyze_in_background' can't be set to the value of 'foobar'
+SELECT @@session.tokudb_analyze_in_background;
+@@session.tokudb_analyze_in_background
+0
+SET GLOBAL tokudb_analyze_in_background = 0;
+SET SESSION tokudb_analyze_in_background = 1;
+SELECT @@global.tokudb_analyze_in_background;
+@@global.tokudb_analyze_in_background
+0
+SELECT @@session.tokudb_analyze_in_background;
+@@session.tokudb_analyze_in_background
+1
+SHOW VARIABLES LIKE 'tokudb_analyze_in_background';
+Variable_name	Value
+tokudb_analyze_in_background	ON
+SET SESSION tokudb_analyze_in_background = @orig_session;
+SELECT @@session.tokudb_analyze_in_background;
+@@session.tokudb_analyze_in_background
+0
+SET GLOBAL tokudb_analyze_in_background = @orig_global;
+SELECT @@global.tokudb_analyze_in_background;
+@@global.tokudb_analyze_in_background
+0

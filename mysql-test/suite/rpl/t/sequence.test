@@ -1,0 +1,52 @@
+#
+# Testing sequences with replication
+#
+
+--source include/have_binlog_format_row.inc
+--source include/have_aria.inc
+--source include/have_sequence.inc
+
+--let $rpl_topology= 1->2->3
+--source include/rpl_init.inc
+
+--let $rpl_connection_name= master
+--let $rpl_server_number= 1
+--source include/rpl_connect.inc
+
+--let $rpl_connection_name= slave
+--let $rpl_server_number= 2
+--source include/rpl_connect.inc
+
+--let $rpl_connection_name= slave2
+--let $rpl_server_number= 3
+--source include/rpl_connect.inc
+
+--connection master
+
+set @@default_storage_engine="aria";
+
+CREATE SEQUENCE s1 cache=10;
+create table t1 select * from s1;
+select NEXT VALUE for s1,seq from seq_1_to_20;
+insert into t1 select * from s1;
+do setval(s1,5, 1, 0);
+insert into t1 select * from s1;
+do setval(s1, 5000, 1 ,0);
+insert into t1 select * from s1;
+alter sequence s1 minvalue=-1 start=-1 restart=-1;
+insert into t1 select * from s1;
+insert into s1 values(-100,-1000,9223372036854775806,1,1,1000,0,0);
+insert into t1 select * from s1;
+select * from t1;
+--sync_slave_with_master
+select * from t1;
+--sync_slave_with_master slave2
+select * from t1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+connection master;
+drop table s1,t1;
+
+--source include/rpl_end.inc

@@ -1,0 +1,469 @@
+CREATE TABLE gap1 (id1 INT, id2 INT, id3 INT, c1 INT, value INT,
+PRIMARY KEY (id1, id2, id3),
+INDEX i (c1)) ENGINE=tokudb;
+CREATE TABLE gap2 like gap1;
+CREATE TABLE gap3 (id INT, value INT,
+PRIMARY KEY (id),
+UNIQUE KEY ui(value)) ENGINE=tokudb;
+CREATE TABLE gap4 (id INT, value INT,
+PRIMARY KEY (id)) ENGINE=tokudb
+PARTITION BY HASH(id) PARTITIONS 2;
+insert into gap3 values (1,1), (2,2),(3,3),(4,4),(5,5);
+insert into gap4 values (1,1), (2,2),(3,3),(4,4),(5,5);
+set session autocommit=0;
+select * from gap1 limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where id1=1 for update;
+id1	id2	id3	c1	value
+1	0	2	2	2
+1	0	3	3	3
+select * from gap1 where id1=1 and id2= 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 order by id1 asc limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 desc limit 1 for update;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 for update;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 force index(i) where c1=1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap3 force index(ui) where value=1 for update;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 for update;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 for update;
+id	value
+1	1
+select * from gap4 where id=1 for update;
+id	value
+1	1
+select * from gap4 where id in (1, 2, 3) for update;
+id	value
+1	1
+2	2
+3	3
+select * from gap4 for update;
+id	value
+2	2
+4	4
+1	1
+3	3
+5	5
+select * from gap4 where id between 3 and 7 for update;
+id	value
+3	3
+4	4
+5	5
+set session autocommit=1;
+select * from gap1 limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where id1=1 for update;
+id1	id2	id3	c1	value
+1	0	2	2	2
+1	0	3	3	3
+select * from gap1 where id1=1 and id2= 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 for update;
+id1	id2	id3	c1	value
+select * from gap1 order by id1 asc limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 desc limit 1 for update;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 for update;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 force index(i) where c1=1 for update;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap3 force index(ui) where value=1 for update;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) for update;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 for update;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 for update;
+id	value
+1	1
+select * from gap4 where id=1 for update;
+id	value
+1	1
+select * from gap4 where id in (1, 2, 3) for update;
+id	value
+1	1
+2	2
+3	3
+select * from gap4 for update;
+id	value
+2	2
+4	4
+1	1
+3	3
+5	5
+select * from gap4 where id between 3 and 7 for update;
+id	value
+3	3
+4	4
+5	5
+set session autocommit=0;
+select * from gap1 limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where id1=1 lock in share mode;
+id1	id2	id3	c1	value
+1	0	2	2	2
+1	0	3	3	3
+select * from gap1 where id1=1 and id2= 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 order by id1 asc limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 desc limit 1 lock in share mode;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 lock in share mode;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 force index(i) where c1=1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap3 force index(ui) where value=1 lock in share mode;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 lock in share mode;
+id	value
+1	1
+select * from gap4 where id=1 lock in share mode;
+id	value
+1	1
+select * from gap4 where id in (1, 2, 3) lock in share mode;
+id	value
+1	1
+2	2
+3	3
+select * from gap4 lock in share mode;
+id	value
+2	2
+4	4
+1	1
+3	3
+5	5
+select * from gap4 where id between 3 and 7 lock in share mode;
+id	value
+3	3
+4	4
+5	5
+set session autocommit=1;
+select * from gap1 limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where id1=1 lock in share mode;
+id1	id2	id3	c1	value
+1	0	2	2	2
+1	0	3	3	3
+select * from gap1 where id1=1 and id2= 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 order by id1 asc limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 desc limit 1 lock in share mode;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 lock in share mode;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 force index(i) where c1=1 lock in share mode;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap3 force index(ui) where value=1 lock in share mode;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) lock in share mode;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 lock in share mode;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 lock in share mode;
+id	value
+1	1
+select * from gap4 where id=1 lock in share mode;
+id	value
+1	1
+select * from gap4 where id in (1, 2, 3) lock in share mode;
+id	value
+1	1
+2	2
+3	3
+select * from gap4 lock in share mode;
+id	value
+2	2
+4	4
+1	1
+3	3
+5	5
+select * from gap4 where id between 3 and 7 lock in share mode;
+id	value
+3	3
+4	4
+5	5
+set session autocommit=0;
+select * from gap1 limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where id1=1 ;
+id1	id2	id3	c1	value
+1	0	2	2	2
+1	0	3	3	3
+select * from gap1 where id1=1 and id2= 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 ;
+id1	id2	id3	c1	value
+select * from gap1 order by id1 asc limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 desc limit 1 ;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 ;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 force index(i) where c1=1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap3 force index(ui) where value=1 ;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 ;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 ;
+id	value
+1	1
+select * from gap4 where id=1 ;
+id	value
+1	1
+select * from gap4 where id in (1, 2, 3) ;
+id	value
+1	1
+2	2
+3	3
+select * from gap4 ;
+id	value
+2	2
+4	4
+1	1
+3	3
+5	5
+select * from gap4 where id between 3 and 7 ;
+id	value
+3	3
+4	4
+5	5
+set session autocommit=1;
+select * from gap1 limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where value != 100 limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 where id1=1 ;
+id1	id2	id3	c1	value
+1	0	2	2	2
+1	0	3	3	3
+select * from gap1 where id1=1 and id2= 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3 != 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 and id3
+between 1 and 3 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 asc
+limit 1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2= 1 order by id3 desc
+limit 1 ;
+id1	id2	id3	c1	value
+select * from gap1 order by id1 asc limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 asc, id2 asc, id3 asc limit 1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap1 order by id1 desc limit 1 ;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 order by id1 desc, id2 desc, id3 desc
+limit 1 ;
+id1	id2	id3	c1	value
+500	100	1000	1000	1000
+select * from gap1 force index(i) where c1=1 ;
+id1	id2	id3	c1	value
+0	0	1	1	1
+select * from gap3 force index(ui) where value=1 ;
+id	value
+1	1
+select * from gap1 where id1=1 and id2=1 and id3=1 ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3 in (1, 2, 3) ;
+id1	id2	id3	c1	value
+select * from gap1 where id1=1 and id2=1 and id3=1 and value=1
+order by c1 ;
+id1	id2	id3	c1	value
+select * from gap3 where id=1 ;
+id	value
+1	1
+select * from gap4 where id=1 ;
+id	value
+1	1
+select * from gap4 where id in (1, 2, 3) ;
+id	value
+1	1
+2	2
+3	3
+select * from gap4 ;
+id	value
+2	2
+4	4
+1	1
+3	3
+5	5
+select * from gap4 where id between 3 and 7 ;
+id	value
+3	3
+4	4
+5	5
+set session autocommit=0;
+insert into gap1 (id1, id2, id3) values (-1,-1,-1);
+insert into gap1 (id1, id2, id3) values (-1,-1,-1)
+on duplicate key update value=100;
+update gap1 set value=100 where id1=1;
+update gap1 set value=100 where id1=1 and id2=1 and id3=1;
+delete from gap1 where id1=2;
+delete from gap1 where id1=-1 and id2=-1 and id3=-1;
+commit;
+set session autocommit=1;
+insert into gap1 (id1, id2, id3) values (-1,-1,-1);
+insert into gap1 (id1, id2, id3) values (-1,-1,-1)
+on duplicate key update value=100;
+update gap1 set value=100 where id1=1;
+update gap1 set value=100 where id1=1 and id2=1 and id3=1;
+delete from gap1 where id1=2;
+delete from gap1 where id1=-1 and id2=-1 and id3=-1;
+commit;
+drop table gap1, gap2, gap3, gap4;

@@ -1,0 +1,54 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_2;
+SET GLOBAL wsrep_cluster_address = 'foo://';
+SHOW STATUS;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET SESSION wsrep_sync_wait=0;
+SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
+COUNT(*) > 0
+1
+SHOW STATUS LIKE 'wsrep_ready';
+Variable_name	Value
+wsrep_ready	OFF
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Disconnected
+SHOW STATUS LIKE 'wsrep_local_state';
+Variable_name	Value
+wsrep_local_state	0
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+Variable_name	Value
+wsrep_local_state_comment	Initialized
+connection node_1;
+SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 1
+1
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+connection node_2;
+connection node_1;
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+connection node_2;
+CALL mtr.add_suppression("Backend not supported: foo");
+CALL mtr.add_suppression("Failed to initialize backend using 'foo");
+CALL mtr.add_suppression("Failed to open channel 'my_wsrep_cluster' at 'foo");
+CALL mtr.add_suppression("gcs connect failed: Socket type not supported");
+CALL mtr.add_suppression("wsrep::connect\\(\\) failed: 7");
+CALL mtr.add_suppression("gcs_caused\\(\\) returned -[0-9]+ \\(Software caused connection abort\\)");
+CALL mtr.add_suppression("failed to open gcomm backend connection: 110: failed to reach primary view: 110");
+CALL mtr.add_suppression("Failed to open backend connection: -110 \\(Connection timed out\\)");
+CALL mtr.add_suppression("gcs connect failed: Connection timed out");
+CALL mtr.add_suppression("WSREP: wsrep::connect\\(foo://\\) failed: 7");
+CALL mtr.add_suppression("WSREP: wsrep::connect\\(gcomm://192.0.2.1\\) failed: 7");
+disconnect node_2;
+disconnect node_1;
+# End of test

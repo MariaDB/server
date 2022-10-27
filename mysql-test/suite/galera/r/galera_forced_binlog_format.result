@@ -1,0 +1,36 @@
+connection node_2;
+connection node_1;
+connection node_1;
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+FLUSH BINARY LOGS;
+SET SESSION binlog_format = 'STATEMENT';
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET SESSION binlog_format = 'MIXED';
+INSERT INTO t1 VALUES (2);
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-bin.000001	<Pos>	Gtid_list	1	<End_log_pos>	[]
+mysqld-bin.000001	<Pos>	Binlog_checkpoint	1	<End_log_pos>	mysqld-bin.000001
+mysqld-bin.000001	<Pos>	Rotate	1	<End_log_pos>	mysqld-bin.000002;pos=4
+DROP TABLE t1;
+#
+# MDEV-9401: wsrep_forced_binlog_format with binlog causes crash
+#
+SET SESSION binlog_format = 'ROW';
+CREATE DATABASE testdb_9401;
+USE testdb_9401;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE USER dummy@localhost;
+GRANT ALL PRIVILEGES ON testdb_9401.t1 TO dummy@localhost;
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR dummy@localhost;
+Grants for dummy@localhost
+GRANT USAGE ON *.* TO `dummy`@`localhost`
+GRANT ALL PRIVILEGES ON `testdb_9401`.`t1` TO `dummy`@`localhost`
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM dummy@localhost;
+DROP USER dummy@localhost;
+DROP DATABASE testdb_9401;
+# End of tests

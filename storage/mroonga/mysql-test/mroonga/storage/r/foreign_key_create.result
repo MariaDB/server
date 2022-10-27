@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS articles;
+DROP TABLE IF EXISTS comments;
+CREATE TABLE comments (
+comment int unsigned PRIMARY KEY,
+content text NOT NULL
+);
+CREATE TABLE articles (
+content text NOT NULL,
+comment int unsigned,
+FOREIGN KEY (comment) REFERENCES comments (comment)
+);
+SHOW CREATE TABLE articles;
+Table	Create Table
+articles	CREATE TABLE `articles` (
+  `content` text NOT NULL,
+  `comment` int(10) unsigned DEFAULT NULL,
+  KEY `comment` (`comment`),
+  CONSTRAINT `comment` FOREIGN KEY (`comment`) REFERENCES `test`.`comments` (`comment`) ON DELETE RESTRICT ON UPDATE RESTRICT
+) ENGINE=Mroonga DEFAULT CHARSET=latin1
+SELECT * FROM information_schema.referential_constraints;
+DROP TABLE articles;
+DROP TABLE comments;

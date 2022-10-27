@@ -1,0 +1,4 @@
+# List of disabled tests
+# test name : comment
+
+crash_manycolumns_string : Bug#50495 'Row size too large' for plugin, but works for built-in innodb [ERROR] InnoDB: Cannot add field `c726` in table `test`.`t1` because after adding it, the row size is 8135 which is greater than maximum allowed size (8126 bytes) for a record on index leaf page

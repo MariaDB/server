@@ -1,0 +1,36 @@
+--- innodb-spatial-index.result
++++ innodb-spatial-index.result
+@@ -1,23 +1,27 @@
+ CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+ c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB
+ ENCRYPTED=YES;
+-Got one of the listed errors
++INSERT INTO t1(c, coordinate) values('mysql', ST_GeomFromText('POINT(903994614 180726515)'));
++# restart
++INSERT INTO t1(c, coordinate) values('mariadb', ST_GeomFromText('POINT(903994614 180726515)'));
++DROP TABLE t1;
+ CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+ c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB;
+ ALTER TABLE t1 ENCRYPTED=YES;
+-Got one of the listed errors
+ DROP TABLE t1;
+ CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+ c VARCHAR(256), coordinate POINT NOT NULL)
+ PAGE_COMPRESSED=YES, ENCRYPTED=YES ENGINE=INNODB;
+ ALTER TABLE t1 ADD SPATIAL INDEX b1(coordinate), ALGORITHM=COPY;
+-Got one of the listed errors
+ ALTER TABLE t1 ADD SPATIAL INDEX b2(coordinate), FORCE, ALGORITHM=INPLACE;
+-Got one of the listed errors
++Warnings:
++Note	1831	Duplicate index `b2`. This is deprecated and will be disallowed in a future release
+ ALTER TABLE t1 ADD SPATIAL INDEX(coordinate);
+-Got one of the listed errors
++Warnings:
++Note	1831	Duplicate index `coordinate`. This is deprecated and will be disallowed in a future release
+ CREATE SPATIAL INDEX b3 on t1(coordinate);
+-Got one of the listed errors
++Warnings:
++Note	1831	Duplicate index `b3`. This is deprecated and will be disallowed in a future release
+ DROP TABLE t1;
+ CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+ c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=DEFAULT ENGINE=INNODB;

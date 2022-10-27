@@ -1,0 +1,18 @@
+include/master-slave.inc
+[connection master]
+create table t1 (n int);
+insert into t1 values(1);
+connection slave;
+include/stop_slave.inc
+include/start_slave.inc
+connection master;
+insert into t1 values(2);
+connection slave;
+select * from t1;
+n
+1
+2
+connection master;
+drop table t1;
+connection slave;
+include/rpl_end.inc

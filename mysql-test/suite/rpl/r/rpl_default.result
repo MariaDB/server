@@ -1,0 +1,19 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1 (a int DEFAULT (1+1), b bigint default uuid_short(), u blob default user());
+insert into t1 (a) values(1);
+connection slave;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT (1 + 1),
+  `b` bigint(20) DEFAULT uuid_short(),
+  `u` blob DEFAULT user()
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+a	uuid	user
+1	1	1
+connection master;
+drop table t1;
+include/rpl_end.inc

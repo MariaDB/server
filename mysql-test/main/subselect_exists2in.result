@@ -1,0 +1,1123 @@
+drop table if exists t1,t2,t3;
+set optimizer_switch='exists_to_in=on';
+#
+# LP BUG#884644 exists2in broke name resolution
+#
+CREATE TABLE t1 (f1 integer);
+SELECT * FROM t1 WHERE EXISTS (SELECT NO_SUCH_TABLE.NO_SUCH_FIELD FROM t1);
+ERROR 42S22: Unknown column 'NO_SUCH_TABLE.NO_SUCH_FIELD' in 'field list'
+drop table t1;
+#
+# LP BUG#884657 Wrong result with exists2in , correlated subquery
+#
+CREATE TABLE t1 ( a varchar(1)) ;
+INSERT INTO t1 VALUES ('c'),('b');
+CREATE TABLE t2 ( b varchar(1)) ;
+INSERT INTO t2 VALUES ('v'),('v'),('c'),(NULL),('x'),('i'),('e'),('p'),('s'),('j'),('z'),('c'),('a'),('q'),('y'),(NULL),('r'),('v'),(NULL),('r');
+CREATE TABLE t3 ( a int NOT NULL , b varchar(1)) ;
+INSERT INTO t3 VALUES (29,'c');
+SELECT *
+FROM t1, t2
+WHERE EXISTS (
+SELECT a
+FROM t3
+WHERE t3.b = t1.a
+AND t3.b <> t2.b
+);
+a	b
+c	v
+c	v
+c	x
+c	i
+c	e
+c	p
+c	s
+c	j
+c	z
+c	a
+c	q
+c	y
+c	r
+c	v
+c	r
+INSERT INTO t3 VALUES (2,'c');
+alter table t1 add index aa (a);
+alter table t3 add index bb (b);
+-- EXIST to IN then semijoin (has priority over IN to EXISTS)
+set optimizer_switch='exists_to_in=on,in_to_exists=on,semijoin=on,materialization=off,subquery_cache=off';
+SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
+a
+c
+explain extended
+SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	aa	aa	4	NULL	2	100.00	Using index
+1	PRIMARY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t3`) where `test`.`t3`.`b` = `test`.`t1`.`a`
+-- EXIST to IN then IN to EXISTS
+set optimizer_switch='exists_to_in=on,in_to_exists=on,semijoin=off,materialization=off,subquery_cache=off';
+SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
+a
+c
+explain extended
+SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#2 */ select `test`.`t3`.`b` from `test`.`t3` where <cache>(`test`.`t1`.`a`) = `test`.`t3`.`b`))
+-- EXIST2IN then MATERIALIZATION
+set optimizer_switch='exists_to_in=on,in_to_exists=off,semijoin=off,materialization=on,subquery_cache=off';
+SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
+a
+c
+explain extended
+SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t3`.`b` from `test`.`t3` where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`b`)))
+-- NO EXIST2IN
+set optimizer_switch='exists_to_in=off,subquery_cache=off';
+SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
+a
+c
+explain extended
+SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(/* select#2 */ select `test`.`t3`.`a` from `test`.`t3` where `test`.`t3`.`b` = `test`.`t1`.`a` limit 1)
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+drop table t1,t2,t3;
+# 
+# From group_min_max.test
+# 
+create table t1 (
+a1 char(64), a2 char(64), b char(16), c char(16) not null, d char(16), dummy char(64) default ' '
+);
+insert into t1 (a1, a2, b, c, d) values
+('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
+('a','a','b','e112','xy1'),('a','a','b','f112','xy2'),('a','a','b','g112','xy3'),('a','a','b','h112','xy4'),
+('a','b','a','i121','xy1'),('a','b','a','j121','xy2'),('a','b','a','k121','xy3'),('a','b','a','l121','xy4'),
+('a','b','b','m122','xy1'),('a','b','b','n122','xy2'),('a','b','b','o122','xy3'),('a','b','b','p122','xy4'),
+('b','a','a','a211','xy1'),('b','a','a','b211','xy2'),('b','a','a','c211','xy3'),('b','a','a','d211','xy4'),
+('b','a','b','e212','xy1'),('b','a','b','f212','xy2'),('b','a','b','g212','xy3'),('b','a','b','h212','xy4'),
+('b','b','a','i221','xy1'),('b','b','a','j221','xy2'),('b','b','a','k221','xy3'),('b','b','a','l221','xy4'),
+('b','b','b','m222','xy1'),('b','b','b','n222','xy2'),('b','b','b','o222','xy3'),('b','b','b','p222','xy4'),
+('c','a','a','a311','xy1'),('c','a','a','b311','xy2'),('c','a','a','c311','xy3'),('c','a','a','d311','xy4'),
+('c','a','b','e312','xy1'),('c','a','b','f312','xy2'),('c','a','b','g312','xy3'),('c','a','b','h312','xy4'),
+('c','b','a','i321','xy1'),('c','b','a','j321','xy2'),('c','b','a','k321','xy3'),('c','b','a','l321','xy4'),
+('c','b','b','m322','xy1'),('c','b','b','n322','xy2'),('c','b','b','o322','xy3'),('c','b','b','p322','xy4'),
+('d','a','a','a411','xy1'),('d','a','a','b411','xy2'),('d','a','a','c411','xy3'),('d','a','a','d411','xy4'),
+('d','a','b','e412','xy1'),('d','a','b','f412','xy2'),('d','a','b','g412','xy3'),('d','a','b','h412','xy4'),
+('d','b','a','i421','xy1'),('d','b','a','j421','xy2'),('d','b','a','k421','xy3'),('d','b','a','l421','xy4'),
+('d','b','b','m422','xy1'),('d','b','b','n422','xy2'),('d','b','b','o422','xy3'),('d','b','b','p422','xy4'),
+('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
+('a','a','b','e112','xy1'),('a','a','b','f112','xy2'),('a','a','b','g112','xy3'),('a','a','b','h112','xy4'),
+('a','b','a','i121','xy1'),('a','b','a','j121','xy2'),('a','b','a','k121','xy3'),('a','b','a','l121','xy4'),
+('a','b','b','m122','xy1'),('a','b','b','n122','xy2'),('a','b','b','o122','xy3'),('a','b','b','p122','xy4'),
+('b','a','a','a211','xy1'),('b','a','a','b211','xy2'),('b','a','a','c211','xy3'),('b','a','a','d211','xy4'),
+('b','a','b','e212','xy1'),('b','a','b','f212','xy2'),('b','a','b','g212','xy3'),('b','a','b','h212','xy4'),
+('b','b','a','i221','xy1'),('b','b','a','j221','xy2'),('b','b','a','k221','xy3'),('b','b','a','l221','xy4'),
+('b','b','b','m222','xy1'),('b','b','b','n222','xy2'),('b','b','b','o222','xy3'),('b','b','b','p222','xy4'),
+('c','a','a','a311','xy1'),('c','a','a','b311','xy2'),('c','a','a','c311','xy3'),('c','a','a','d311','xy4'),
+('c','a','b','e312','xy1'),('c','a','b','f312','xy2'),('c','a','b','g312','xy3'),('c','a','b','h312','xy4'),
+('c','b','a','i321','xy1'),('c','b','a','j321','xy2'),('c','b','a','k321','xy3'),('c','b','a','l321','xy4'),
+('c','b','b','m322','xy1'),('c','b','b','n322','xy2'),('c','b','b','o322','xy3'),('c','b','b','p322','xy4'),
+('d','a','a','a411','xy1'),('d','a','a','b411','xy2'),('d','a','a','c411','xy3'),('d','a','a','d411','xy4'),
+('d','a','b','e412','xy1'),('d','a','b','f412','xy2'),('d','a','b','g412','xy3'),('d','a','b','h412','xy4'),
+('d','b','a','i421','xy1'),('d','b','a','j421','xy2'),('d','b','a','k421','xy3'),('d','b','a','l421','xy4'),
+('d','b','b','m422','xy1'),('d','b','b','n422','xy2'),('d','b','b','o422','xy3'),('d','b','b','p422','xy4');
+create index idx_t1_0 on t1 (a1);
+create index idx_t1_1 on t1 (a1,a2,b,c);
+create index idx_t1_2 on t1 (a1,a2,b);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+create table t2 (
+a1 char(64), a2 char(64) not null, b char(16), c char(16), d char(16), dummy char(64) default ' '
+);
+insert into t2 select * from t1;
+insert into t2 (a1, a2, b, c, d) values
+('a','a',NULL,'a777','xyz'),('a','a',NULL,'a888','xyz'),('a','a',NULL,'a999','xyz'),
+('a','a','a',NULL,'xyz'),
+('a','a','b',NULL,'xyz'),
+('a','b','a',NULL,'xyz'),
+('c','a',NULL,'c777','xyz'),('c','a',NULL,'c888','xyz'),('c','a',NULL,'c999','xyz'),
+('d','b','b',NULL,'xyz'),
+('e','a','a',NULL,'xyz'),('e','a','a',NULL,'xyz'),('e','a','a',NULL,'xyz'),('e','a','a',NULL,'xyz'),
+('e','a','b',NULL,'xyz'),('e','a','b',NULL,'xyz'),('e','a','b',NULL,'xyz'),('e','a','b',NULL,'xyz'),
+('a','a',NULL,'a777','xyz'),('a','a',NULL,'a888','xyz'),('a','a',NULL,'a999','xyz'),
+('a','a','a',NULL,'xyz'),
+('a','a','b',NULL,'xyz'),
+('a','b','a',NULL,'xyz'),
+('c','a',NULL,'c777','xyz'),('c','a',NULL,'c888','xyz'),('c','a',NULL,'c999','xyz'),
+('d','b','b',NULL,'xyz'),
+('e','a','a',NULL,'xyz'),('e','a','a',NULL,'xyz'),('e','a','a',NULL,'xyz'),('e','a','a',NULL,'xyz'),
+('e','a','b',NULL,'xyz'),('e','a','b',NULL,'xyz'),('e','a','b',NULL,'xyz'),('e','a','b',NULL,'xyz');
+create index idx_t2_0 on t2 (a1);
+create index idx_t2_1 on t2 (a1,a2,b,c);
+create index idx_t2_2 on t2 (a1,a2,b);
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+create table t3 (
+a1 char(1), a2 char(1), b char(1), c char(4) not null, d char(3), dummy char(1) default ' '
+);
+insert into t3 (a1, a2, b, c, d) values
+('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
+('a','a','b','e112','xy1'),('a','a','b','f112','xy2'),('a','a','b','g112','xy3'),('a','a','b','h112','xy4'),
+('a','b','a','i121','xy1'),('a','b','a','j121','xy2'),('a','b','a','k121','xy3'),('a','b','a','l121','xy4'),
+('a','b','b','m122','xy1'),('a','b','b','n122','xy2'),('a','b','b','o122','xy3'),('a','b','b','p122','xy4'),
+('b','a','a','a211','xy1'),('b','a','a','b211','xy2'),('b','a','a','c211','xy3'),('b','a','a','d211','xy4'),
+('b','a','b','e212','xy1'),('b','a','b','f212','xy2'),('b','a','b','g212','xy3'),('b','a','b','h212','xy4'),
+('b','b','a','i221','xy1'),('b','b','a','j221','xy2'),('b','b','a','k221','xy3'),('b','b','a','l221','xy4'),
+('b','b','b','m222','xy1'),('b','b','b','n222','xy2'),('b','b','b','o222','xy3'),('b','b','b','p222','xy4'),
+('c','a','a','a311','xy1'),('c','a','a','b311','xy2'),('c','a','a','c311','xy3'),('c','a','a','d311','xy4'),
+('c','a','b','e312','xy1'),('c','a','b','f312','xy2'),('c','a','b','g312','xy3'),('c','a','b','h312','xy4'),
+('c','b','a','i321','xy1'),('c','b','a','j321','xy2'),('c','b','a','k321','xy3'),('c','b','a','l321','xy4'),
+('c','b','b','m322','xy1'),('c','b','b','n322','xy2'),('c','b','b','o322','xy3'),('c','b','b','p322','xy4');
+insert into t3 (a1, a2, b, c, d) values
+('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
+('a','a','b','e112','xy1'),('a','a','b','f112','xy2'),('a','a','b','g112','xy3'),('a','a','b','h112','xy4'),
+('a','b','a','i121','xy1'),('a','b','a','j121','xy2'),('a','b','a','k121','xy3'),('a','b','a','l121','xy4'),
+('a','b','b','m122','xy1'),('a','b','b','n122','xy2'),('a','b','b','o122','xy3'),('a','b','b','p122','xy4'),
+('b','a','a','a211','xy1'),('b','a','a','b211','xy2'),('b','a','a','c211','xy3'),('b','a','a','d211','xy4'),
+('b','a','b','e212','xy1'),('b','a','b','f212','xy2'),('b','a','b','g212','xy3'),('b','a','b','h212','xy4'),
+('b','b','a','i221','xy1'),('b','b','a','j221','xy2'),('b','b','a','k221','xy3'),('b','b','a','l221','xy4'),
+('b','b','b','m222','xy1'),('b','b','b','n222','xy2'),('b','b','b','o222','xy3'),('b','b','b','p222','xy4'),
+('c','a','a','a311','xy1'),('c','a','a','b311','xy2'),('c','a','a','c311','xy3'),('c','a','a','d311','xy4'),
+('c','a','b','e312','xy1'),('c','a','b','f312','xy2'),('c','a','b','g312','xy3'),('c','a','b','h312','xy4'),
+('c','b','a','i321','xy1'),('c','b','a','j321','xy2'),('c','b','a','k321','xy3'),('c','b','a','l321','xy4'),
+('c','b','b','m322','xy1'),('c','b','b','n322','xy2'),('c','b','b','o322','xy3'),('c','b','b','p322','xy4');
+insert into t3 (a1, a2, b, c, d) values
+('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
+('a','a','b','e112','xy1'),('a','a','b','f112','xy2'),('a','a','b','g112','xy3'),('a','a','b','h112','xy4'),
+('a','b','a','i121','xy1'),('a','b','a','j121','xy2'),('a','b','a','k121','xy3'),('a','b','a','l121','xy4'),
+('a','b','b','m122','xy1'),('a','b','b','n122','xy2'),('a','b','b','o122','xy3'),('a','b','b','p122','xy4'),
+('b','a','a','a211','xy1'),('b','a','a','b211','xy2'),('b','a','a','c211','xy3'),('b','a','a','d211','xy4'),
+('b','a','b','e212','xy1'),('b','a','b','f212','xy2'),('b','a','b','g212','xy3'),('b','a','b','h212','xy4'),
+('b','b','a','i221','xy1'),('b','b','a','j221','xy2'),('b','b','a','k221','xy3'),('b','b','a','l221','xy4'),
+('b','b','b','m222','xy1'),('b','b','b','n222','xy2'),('b','b','b','o222','xy3'),('b','b','b','p222','xy4'),
+('c','a','a','a311','xy1'),('c','a','a','b311','xy2'),('c','a','a','c311','xy3'),('c','a','a','d311','xy4'),
+('c','a','b','e312','xy1'),('c','a','b','f312','xy2'),('c','a','b','g312','xy3'),('c','a','b','h312','xy4'),
+('c','b','a','i321','xy1'),('c','b','a','j321','xy2'),('c','b','a','k321','xy3'),('c','b','a','l321','xy4'),
+('c','b','b','m322','xy1'),('c','b','b','n322','xy2'),('c','b','b','o322','xy3'),('c','b','b','p322','xy4');
+insert into t3 (a1, a2, b, c, d) values
+('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
+('a','a','b','e112','xy1'),('a','a','b','f112','xy2'),('a','a','b','g112','xy3'),('a','a','b','h112','xy4'),
+('a','b','a','i121','xy1'),('a','b','a','j121','xy2'),('a','b','a','k121','xy3'),('a','b','a','l121','xy4'),
+('a','b','b','m122','xy1'),('a','b','b','n122','xy2'),('a','b','b','o122','xy3'),('a','b','b','p122','xy4'),
+('b','a','a','a211','xy1'),('b','a','a','b211','xy2'),('b','a','a','c211','xy3'),('b','a','a','d211','xy4'),
+('b','a','b','e212','xy1'),('b','a','b','f212','xy2'),('b','a','b','g212','xy3'),('b','a','b','h212','xy4'),
+('b','b','a','i221','xy1'),('b','b','a','j221','xy2'),('b','b','a','k221','xy3'),('b','b','a','l221','xy4'),
+('b','b','b','m222','xy1'),('b','b','b','n222','xy2'),('b','b','b','o222','xy3'),('b','b','b','p222','xy4'),
+('c','a','a','a311','xy1'),('c','a','a','b311','xy2'),('c','a','a','c311','xy3'),('c','a','a','d311','xy4'),
+('c','a','b','e312','xy1'),('c','a','b','f312','xy2'),('c','a','b','g312','xy3'),('c','a','b','h312','xy4'),
+('c','b','a','i321','xy1'),('c','b','a','j321','xy2'),('c','b','a','k321','xy3'),('c','b','a','l321','xy4'),
+('c','b','b','m322','xy1'),('c','b','b','n322','xy2'),('c','b','b','o322','xy3'),('c','b','b','p322','xy4');
+create index idx_t3_0 on t3 (a1);
+create index idx_t3_1 on t3 (a1,a2,b,c);
+create index idx_t3_2 on t3 (a1,a2,b);
+analyze table t3;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	Table is already up to date
+explain select a1,a2,b,c,min(c), max(c) from t1
+where exists ( select * from t2
+where t2.c in (select c from t3 where t3.c > t1.b) and
+t2.c > 'b1' )
+group by a1,a2,b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2); Using join buffer (flat, BNL join)
+select a1,a2,b,c,min(c), max(c) from t1
+where exists ( select * from t2
+where t2.c in (select c from t3 where t3.c > t1.b) and
+t2.c > 'b1' )
+group by a1,a2,b;
+a1	a2	b	c	min(c)	max(c)
+a	a	a	a111	a111	d111
+a	a	b	e112	e112	h112
+a	b	a	i121	i121	l121
+a	b	b	m122	m122	p122
+b	a	a	a211	a211	d211
+b	a	b	e212	e212	h212
+b	b	a	i221	i221	l221
+b	b	b	m222	m222	p222
+c	a	a	a311	a311	d311
+c	a	b	e312	e312	h312
+c	b	a	i321	i321	l321
+c	b	b	m322	m322	p322
+d	a	a	a411	a411	d411
+d	a	b	e412	e412	h412
+d	b	a	i421	i421	l421
+d	b	b	m422	m422	p422
+explain select a1,a2,b,c,min(c), max(c) from t1
+where exists ( select * from t2
+where t2.c in (select c from t3 where t3.c > t1.c) and
+t2.c > 'b1' )
+group by a1,a2,b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2); Using join buffer (flat, BNL join)
+select a1,a2,b,c,min(c), max(c) from t1
+where exists ( select * from t2
+where t2.c in (select c from t3 where t3.c > t1.c) and
+t2.c > 'b1' )
+group by a1,a2,b;
+a1	a2	b	c	min(c)	max(c)
+a	a	a	a111	a111	d111
+a	a	b	e112	e112	h112
+a	b	a	i121	i121	l121
+a	b	b	m122	m122	p122
+b	a	a	a211	a211	d211
+b	a	b	e212	e212	h212
+b	b	a	i221	i221	l221
+b	b	b	m222	m222	p222
+c	a	a	a311	a311	d311
+c	a	b	e312	e312	h312
+c	b	a	i321	i321	l321
+c	b	b	m322	m322	o322
+d	a	a	a411	a411	d411
+d	a	b	e412	e412	h412
+d	b	a	i421	i421	l421
+d	b	b	m422	m422	o422
+drop table t1, t2, t3;
+CREATE TABLE t1 ( a INT );
+INSERT INTO t1 VALUES (7),(0);
+CREATE TABLE t2 ( b INT );
+INSERT INTO t2 VALUES (0),(8);
+SELECT * FROM t1 WHERE
+EXISTS ( SELECT * FROM t2 WHERE b = a )
+OR a > 0;
+a
+7
+0
+explain extended
+SELECT * FROM t1 WHERE
+EXISTS ( SELECT * FROM t2 WHERE b = a )
+OR a > 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t2`.`b` from `test`.`t2` where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`b`)))) or `test`.`t1`.`a` > 0
+drop tables t1,t2;
+CREATE TABLE t1 ( a INT );
+INSERT INTO t1 VALUES (1),(5);
+CREATE TABLE t2 ( b INT ) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1);
+CREATE TABLE t3 ( c INT );
+INSERT INTO t3 VALUES (4),(5);
+SET optimizer_switch='exists_to_in=on,subquery_cache=off,materialization=on,in_to_exists=off,semijoin=off';
+explain extended
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in (<primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )
+1
+1
+SET optimizer_switch='exists_to_in=on,subquery_cache=off';
+explain extended
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in (<primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )
+1
+1
+SET optimizer_switch='exists_to_in=off,subquery_cache=off';
+explain extended
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !exists(/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` = 1 limit 1)) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
+SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )
+1
+1
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+drop table t1,t2,t3;
+# multi condition test
+CREATE TABLE t1 ( a varchar(1), a1 varchar(1)) ;
+INSERT INTO t1 VALUES ('c', 'c'), ('b', 'b');
+CREATE TABLE t3 ( a int NOT NULL , b varchar(1), b1 varchar(1)) ;
+INSERT INTO t3 VALUES (29,'c','c');
+INSERT INTO t3 VALUES (2,'c','c');
+alter table t1 add index aa (a,a1);
+alter table t3 add index bb (b,b1);
+-- EXIST to IN then semijoin (has priority over IN to EXISTS)
+set optimizer_switch='exists_to_in=on,in_to_exists=on,semijoin=on,materialization=off,subquery_cache=off';
+SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
+a	a1
+c	c
+explain extended
+SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	index	bb	bb	8	NULL	2	100.00	Using where; Using index; LooseScan
+1	PRIMARY	t1	ref	aa	aa	8	test.t3.b,test.t3.b1	2	100.00	Using index
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`a1` AS `a1` from `test`.`t1` semi join (`test`.`t3`) where `test`.`t1`.`a` = `test`.`t3`.`b` and `test`.`t1`.`a1` = `test`.`t3`.`b1`
+-- EXIST to IN then IN to EXISTS
+set optimizer_switch='exists_to_in=on,in_to_exists=on,semijoin=off,materialization=off,subquery_cache=off';
+SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
+a	a1
+c	c
+explain extended
+SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	index_subquery	bb	bb	8	func,func	2	100.00	Using index; Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`a1` AS `a1` from `test`.`t1` where <in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`a1`),<exists>(<index_lookup>(<cache>(`test`.`t1`.`a`) in t3 on bb where <cache>(`test`.`t1`.`a`) = `test`.`t3`.`b` and <cache>(`test`.`t1`.`a1`) = `test`.`t3`.`b1`)))
+-- EXIST2IN then MATERIALIZATION
+set optimizer_switch='exists_to_in=on,in_to_exists=off,semijoin=off,materialization=on,subquery_cache=off';
+SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
+a	a1
+c	c
+explain extended
+SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
+2	MATERIALIZED	t3	index	NULL	bb	8	NULL	2	100.00	Using index
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`a1` AS `a1` from `test`.`t1` where <in_optimizer>((`test`.`t1`.`a`,`test`.`t1`.`a1`),(`test`.`t1`.`a`,`test`.`t1`.`a1`) in ( <materialize> (/* select#2 */ select `test`.`t3`.`b`,`test`.`t3`.`b1` from `test`.`t3` where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`b` and `test`.`t1`.`a1` = `<subquery2>`.`b1`)))
+-- NO EXIST2IN
+set optimizer_switch='exists_to_in=off,subquery_cache=off';
+SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
+a	a1
+c	c
+explain extended
+SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	ref	bb	bb	8	test.t1.a,test.t1.a1	2	100.00	Using index
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`a1` AS `a1` from `test`.`t1` where exists(/* select#2 */ select 1 from `test`.`t3` where `test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`b1` = `test`.`t1`.`a1` limit 1)
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+drop table t1,t3;
+#
+# MDEV-159 Assertion about not marked for read failed in
+# String* Field_varstring::val_str(String*, String*)
+#
+SET optimizer_switch = REPLACE(REPLACE(@@optimizer_switch, '=on', '=off'), 'in_to_exists=off', 'in_to_exists=on');
+SET optimizer_switch='exists_to_in=on';
+CREATE TABLE t1 ( a VARCHAR(1) );
+INSERT INTO t1 VALUES ('k'),('m');
+CREATE TABLE t2 ( b INT,
+c VARCHAR(1),
+d VARCHAR(1) NOT NULL );
+INSERT INTO t2 VALUES 
+(4,'j','j'),(6,'v','v');
+CREATE ALGORITHM=MERGE VIEW v AS SELECT * FROM t2 WHERE b < 1;
+SELECT c FROM v  
+WHERE EXISTS ( 
+SELECT * FROM t1, t2 
+WHERE a <= v.d AND b = v.b 
+);
+c
+explain extended
+SELECT c FROM v  
+WHERE EXISTS ( 
+SELECT * FROM t1, t2 
+WHERE a <= v.d AND b = v.b 
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'v.d' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'v.b' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t2`.`c` AS `c` from `test`.`t2` where <in_optimizer>(`test`.`t2`.`b`,<exists>(/* select#2 */ select `test`.`t2`.`b` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` <= `test`.`t2`.`d` and <cache>(`test`.`t2`.`b`) = `test`.`t2`.`b`)) and `test`.`t2`.`b` < 1
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+drop view v;
+drop table t1,t2;
+#
+# MDEV-160 Exists2In: Crash in in hp_movelink with subquery_cache=ON
+#
+SET optimizer_switch = 'in_to_exists=on,subquery_cache=on,exists_to_in=on';
+CREATE TABLE t1 (  
+a VARCHAR(3) NOT NULL,  
+b VARCHAR(50)
+);
+INSERT INTO t1 VALUES 
+('USA','Chinese'),('USA','English'),
+('FRA','French'),('ITA','Italian');
+CREATE TABLE t2 ( c VARCHAR(3) );
+INSERT INTO t2 VALUES ('USA'),('FRA');
+SELECT * FROM t1 AS alias1, t1 AS alias2 
+WHERE EXISTS ( 
+SELECT * FROM t1, t2 
+WHERE a <= alias2.a AND c = alias1.b 
+) OR alias1 .a = 'foo';
+a	b	a	b
+SELECT * FROM t1 AS alias1, t1 AS alias2 
+WHERE EXISTS ( 
+SELECT * FROM t1, t2 
+WHERE a <= alias2.a AND c = alias1.a 
+) OR alias1 .a = 'foo';
+a	b	a	b
+USA	Chinese	USA	Chinese
+USA	English	USA	Chinese
+FRA	French	USA	Chinese
+USA	Chinese	USA	English
+USA	English	USA	English
+FRA	French	USA	English
+USA	Chinese	FRA	French
+USA	English	FRA	French
+FRA	French	FRA	French
+USA	Chinese	ITA	Italian
+USA	English	ITA	Italian
+FRA	French	ITA	Italian
+drop table t1,t2;
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+#
+# MDEV-160 Exists2In: Crash in in hp_movelink with subquery_cache=ON
+#
+SET optimizer_switch = 'in_to_exists=on,subquery_cache=on,exists_to_in=on';
+CREATE TABLE t1 (  
+a VARCHAR(3) NOT NULL,  
+b VARCHAR(50)
+);
+INSERT INTO t1 VALUES 
+('USA','Chinese'),('USA','English'),
+('FRA','French'),('ITA','Italian');
+CREATE TABLE t2 ( c VARCHAR(3) );
+INSERT INTO t2 VALUES ('USA'),('FRA');
+SELECT * FROM t1 AS alias1, t1 AS alias2 
+WHERE EXISTS ( 
+SELECT * FROM t1, t2 
+WHERE a <= alias2.a AND c = alias1.b 
+) OR alias1 .a = 'foo';
+a	b	a	b
+explain extended
+SELECT * FROM t1 AS alias1, t1 AS alias2 
+WHERE EXISTS ( 
+SELECT * FROM t1, t2 
+WHERE a <= alias2.a AND c = alias1.b 
+) OR alias1 .a = 'foo';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'test.alias2.a' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.alias1.b' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`alias1`.`a` AS `a`,`test`.`alias1`.`b` AS `b`,`test`.`alias2`.`a` AS `a`,`test`.`alias2`.`b` AS `b` from `test`.`t1` `alias1` join `test`.`t1` `alias2` where <expr_cache><`test`.`alias1`.`b`,`test`.`alias2`.`a`>(<in_optimizer>(`test`.`alias1`.`b`,<exists>(/* select#2 */ select `test`.`t2`.`c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` <= `test`.`alias2`.`a` and <cache>(`test`.`alias1`.`b`) = `test`.`t2`.`c`))) or `test`.`alias1`.`a` = 'foo'
+drop table t1,t2;
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+#
+# MDEV-245 Exists2In: Wrong result (extra rows) with
+# exists_to_in=ON, materialization=OFF, NOT EXISTS subquery
+#
+SET optimizer_switch='materialization=off,exists_to_in=on';
+CREATE TABLE t1 ( a INT ) ;
+INSERT INTO t1 VALUES (0),(8),(1);
+CREATE TABLE t2 ( b INT ) ;
+INSERT INTO t2 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE NOT EXISTS ( SELECT * FROM t2 WHERE b = a );
+a
+0
+8
+explain extended
+SELECT * FROM t1 WHERE NOT EXISTS ( SELECT * FROM t2 WHERE b = a );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where !(`test`.`t1`.`a` is not null and <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#2 */ select `test`.`t2`.`b` from `test`.`t2` where `test`.`t2`.`b` is not null and <cache>(`test`.`t1`.`a`) = `test`.`t2`.`b`))))
+drop table t1,t2;
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+#
+# MDEV-243 Wrong result (extra or missing rows) with
+# exists_to_in + materialization, EXISTS subquery
+#
+SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=off,exists_to_in=on';
+CREATE TABLE t1 ( a VARCHAR(1), b VARCHAR(1) );
+INSERT INTO t1 VALUES ('v','v'),('s','v');
+SELECT * FROM t1 AS alias
+WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
+a	b
+s	v
+explain extended
+SELECT * FROM t1 AS alias
+WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(alias); Using join buffer (flat, BNL join)
+Warnings:
+Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.alias.b' of SELECT #2 was resolved in SELECT #1
+Note	1003	select `test`.`alias`.`a` AS `a`,`test`.`alias`.`b` AS `b` from `test`.`t1` `alias` semi join (`test`.`t1`) where `test`.`t1`.`a` = `test`.`alias`.`b` and `test`.`alias`.`b` > `test`.`alias`.`a`
+SET optimizer_switch = REPLACE(REPLACE(@@optimizer_switch, '=on', '=off'), 'materialization=off', 'materialization=on');
+SET optimizer_switch = 'exists_to_in=on,semijoin=off';
+SELECT * FROM t1 AS alias
+WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
+a	b
+s	v
+explain extended
+SELECT * FROM t1 AS alias
+WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.alias.b' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`alias`.`a` AS `a`,`test`.`alias`.`b` AS `b` from `test`.`t1` `alias` where <in_optimizer>(`test`.`alias`.`b`,<exists>(/* select#2 */ select `test`.`t1`.`a` from `test`.`t1` where `test`.`t1`.`a` > `test`.`alias`.`a` and <cache>(`test`.`alias`.`b`) = `test`.`t1`.`a`))
+SET optimizer_switch = 'exists_to_in=on,materialization=on,semijoin=on';
+SELECT * FROM t1 AS alias
+WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
+a	b
+s	v
+explain extended
+SELECT * FROM t1 AS alias
+WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary; End temporary
+Warnings:
+Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.alias.b' of SELECT #2 was resolved in SELECT #1
+Note	1003	select `test`.`alias`.`a` AS `a`,`test`.`alias`.`b` AS `b` from `test`.`t1` `alias` semi join (`test`.`t1`) where `test`.`t1`.`a` = `test`.`alias`.`b` and `test`.`alias`.`b` > `test`.`alias`.`a`
+drop table t1;
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+#
+# MDEV-403 Wrong result (missing rows) with subquery in
+# EXISTS and an OR condition outside
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2),(3);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1),(3);
+SET optimizer_switch = 'exists_to_in=off,in_to_exists=on';
+SELECT * FROM t1 AS alias1, t2 AS alias2 
+WHERE EXISTS ( 
+SELECT 1 FROM t2 WHERE b = alias1.a AND b > alias2.b 
+) OR a = 5;
+a	b
+3	1
+SET optimizer_switch = 'exists_to_in=on,in_to_exists=on';
+SELECT * FROM t1 AS alias1, t2 AS alias2 
+WHERE EXISTS ( 
+SELECT 1 FROM t2 WHERE b = alias1.a AND b > alias2.b 
+) OR a = 5;
+a	b
+3	1
+explain extended
+SELECT * FROM t1 AS alias1, t2 AS alias2 
+WHERE EXISTS ( 
+SELECT 1 FROM t2 WHERE b = alias1.a AND b > alias2.b 
+) OR a = 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.alias1.a' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.alias2.b' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select `test`.`alias1`.`a` AS `a`,`test`.`alias2`.`b` AS `b` from `test`.`t1` `alias1` join `test`.`t2` `alias2` where <expr_cache><`test`.`alias1`.`a`,`test`.`alias2`.`b`>(<in_optimizer>(`test`.`alias1`.`a`,<exists>(/* select#2 */ select `test`.`t2`.`b` from `test`.`t2` where `test`.`t2`.`b` > `test`.`alias2`.`b` and <cache>(`test`.`alias1`.`a`) = `test`.`t2`.`b`))) or `test`.`alias1`.`a` = 5
+drop table t1, t2;
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+#
+# MDEV-404: Wrong result (extra rows) with STRAIGHT_JOIN,
+# EXISTS subquery, NOT NULL column
+# (same as above)
+#
+SET optimizer_switch = 'exists_to_in=on,in_to_exists=on';
+CREATE TABLE t1 (a INT, b VARCHAR(1) NOT NULL);
+INSERT INTO t1 VALUES (1,'s'),(2,'e');
+SELECT STRAIGHT_JOIN * FROM t1 AS alias1, t1 AS alias2 
+WHERE EXISTS ( SELECT 1 FROM t1 WHERE b < alias2.b AND a = alias1.a );
+a	b	a	b
+2	e	1	s
+drop table t1;
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+#
+# MDEV-3800: ORDER BY doesn't work with exists_to_in=ON on
+# a query with EXISTS subquery and OR condition
+#
+SET optimizer_switch = 'in_to_exists=on,exists_to_in=on';
+CREATE TABLE t1 (a INT, b VARCHAR(1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4,'j'),(6,'v'),(3,'c');
+CREATE TABLE t2 (c VARCHAR(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('b'),('y');
+SELECT a FROM t1
+WHERE EXISTS ( 
+SELECT 1 FROM t2 WHERE c = b 
+) OR b NOT IN ('U')  
+ORDER BY a;
+a
+3
+4
+6
+select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`b` in (select `test`.`t2`.`c` from `test`.`t2` where 1 ) or (`test`.`t1`.`b` <> 'U') order by `test`.`t1`.`a`;
+a
+3
+4
+6
+drop table t1,t2;
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+#
+# correct calculation of reserved items (postreview-fix)
+#
+create table t1 (col1 int, col2 int, col3 int);
+insert into t1 values (1,2,3),(2,3,4),(4,5,6);
+create table t2 as select * from t1;
+explain extended
+select * from t1 where exists (select col2 from t2 where t2.col1=t1.col1 and t2.col2=t1.col2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	100.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1276	Field or reference 'test.t1.col1' of SELECT #2 was resolved in SELECT #1
+Note	1276	Field or reference 'test.t1.col2' of SELECT #2 was resolved in SELECT #1
+Note	1003	select `test`.`t1`.`col1` AS `col1`,`test`.`t1`.`col2` AS `col2`,`test`.`t1`.`col3` AS `col3` from `test`.`t1` semi join (`test`.`t2`) where 1
+select * from t1 where exists (select col2 from t2 where t2.col1=t1.col1 and t2.col2=t1.col2);
+col1	col2	col3
+1	2	3
+2	3	4
+4	5	6
+drop table t1,t2;
+#
+# MDEV-3879: Exists2In: Wrong result (extra row) and unexpected
+# warning with exists_to_in=on and a NOT EXISTS subquery
+#
+SET optimizer_switch = 'exists_to_in=on';
+CREATE TABLE t1 (a1 INT, b1 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (3,'y'),(6,'w');
+CREATE TABLE t2 (a2 INT, b2 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3,'y'),(6,'d');
+SELECT * FROM t1
+WHERE NOT EXISTS ( SELECT * FROM t2 WHERE b2 = b1 AND a2 = a1 );
+a1	b1
+6	w
+drop table t1, t2;
+#
+# MDEV-3880: Wrong result (missing rows) with exists_to_in=on,
+# LEFT JOIN and NOT EXISTS subquery.
+# (Duplicate of above MDEV-3879).
+#
+SET optimizer_switch = 'exists_to_in=on';
+CREATE TABLE t1 (a1 INT, b1 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4,'b'),(5,'y');
+CREATE TABLE t2 (b2 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('z'),('b');
+CREATE TABLE t3 (a3 INT, b3 CHAR(1)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (4,'j'),(6,'v');
+SELECT * FROM t1 LEFT JOIN t2 ON ( b2 = b1 ) 
+WHERE NOT EXISTS ( SELECT * FROM t3 WHERE b3 = b2 AND a3 = a1 ) ;
+a1	b1	b2
+4	b	b
+5	y	NULL
+drop table t1, t2, t3;
+#
+# MDEV-3881: Endless loop and crash in Item_ref::real_item with
+# exists_to_in=on, NOT EXISTS subquery, merge view or from subquery,
+# constant table
+#
+SET optimizer_switch = 'exists_to_in=on';
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(7);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8);
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t2;
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (4),(6);
+SELECT * FROM t1, v1 WHERE NOT EXISTS ( SELECT * FROM t3 WHERE c = b ) AND a = b;
+a	b
+drop view v1;
+drop table t1, t2, t3;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(7);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8);
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (4),(6);
+SELECT * FROM t1, ( SELECT * FROM t2 ) alias WHERE NOT EXISTS ( SELECT * FROM t3 WHERE c = b ) AND a = b;
+a	b
+drop table t1, t2, t3;
+#
+# MDEV-3906: Server crashes in Dependency_marker::visit_field
+# on 2nd execution of PS with exists_to_in and NOT EXISTS subquery
+#
+SET optimizer_switch='exists_to_in=on';
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(7);
+PREPARE stmt FROM ' 
+SELECT * FROM t1 AS alias 
+WHERE NOT EXISTS ( SELECT * FROM t1 WHERE t1.a = alias.a ) 
+';
+EXECUTE stmt;
+a
+EXECUTE stmt;
+a
+drop table t1;
+#
+# MDEV-3904: Assertion `in_subs->has_strategy()' failed in
+# JOIN::choose_subquery_plan on 2nd execution of PS with
+# exists_to_in+semijoin, EXISTS subquery, MERGE view or FROM subquery
+#
+SET optimizer_switch='in_to_exists=on,semijoin=on,exists_to_in=on';
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (4),(6);
+CREATE ALGORITHM=MERGE VIEW v AS 
+SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t2 WHERE b = a );
+PREPARE stmt FROM ' SELECT * FROM v ';
+EXECUTE stmt;
+a
+EXECUTE stmt;
+a
+drop view v;
+drop table t1,t2;
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+#
+# MDEV-3903: Server crashes in Item_cond::fix_fields on 2nd execution
+# of a prepared stmt with exists_to_in+materialization+semijoin,
+# EXISTS subquery, STRAIGHT_JOIN
+#
+SET optimizer_switch='materialization=on,semijoin=on,exists_to_in=on';
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+PREPARE stmt FROM
+'SELECT STRAIGHT_JOIN * FROM t1
+WHERE EXISTS ( SELECT * FROM t2 WHERE b = a )';
+EXECUTE stmt;
+a
+EXECUTE stmt;
+a
+drop table t1,t2;
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+#
+# MDEV-4152: Wrong result (missing rows) with exists_to_in=on, 
+# inner joins
+#
+SET optimizer_switch='materialization=on,semijoin=on,exists_to_in=on';
+CREATE TABLE t1 (i INT, c1 CHAR(5), c2 CHAR(5), t1_field VARCHAR(1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'test1','test2','f'), (2,'test3','test4','d');
+CREATE TABLE t2 (t2_field VARCHAR(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('m'), ('b');
+CREATE TABLE t3 (t3_field VARCHAR(1)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES ('b'),('c');
+SELECT * FROM t1, t2 outer_t2 
+WHERE EXISTS ( SELECT 1 FROM t2, t3 WHERE t3_field = outer_t2.t2_field AND t2_field <= t1_field );
+i	c1	c2	t1_field	t2_field
+1	test1	test2	f	b
+2	test3	test4	d	b
+drop table t1,t2,t3;
+set optimizer_switch=default;
+set optimizer_switch='exists_to_in=on';
+#
+#MDEV-5401: Wrong result (missing row) on a 2nd execution of PS with
+#exists_to_in=on, MERGE view or a SELECT SQ
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2),(3);
+SELECT * FROM v1 WHERE EXISTS ( SELECT * FROM t2 t2x, t2 t2y WHERE t2y.b = a );
+a
+2
+PREPARE stmt FROM "SELECT * FROM v1 WHERE EXISTS ( SELECT * FROM t2 t2x, t2 t2y WHERE t2y.b = a )";
+EXECUTE stmt;
+a
+2
+EXECUTE stmt;
+a
+2
+deallocate prepare stmt;
+drop view v1;
+drop table t1,t2;
+#
+#MDEV-10053: EXIST to IN transformation turned down
+#
+CREATE TABLE t1 (
+pk INT, f1 INT NOT NULL, f2 VARCHAR(3), f3 INT NULL, PRIMARY KEY(pk))
+ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1,'foo',8), (2,5,'bar',7);
+set @optimizer_switch_save=@@optimizer_switch;
+set optimizer_switch='exists_to_in=off';
+explain extended SELECT STRAIGHT_JOIN sq1.f2 
+FROM ( SELECT * FROM t1 ) AS sq1
+WHERE EXISTS ( SELECT * FROM t1 AS sq2 
+WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DEPENDENT SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
+Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1
+Note	1003	/* select#1 */ select straight_join `test`.`t1`.`f2` AS `f2` from `test`.`t1` where <expr_cache><`test`.`t1`.`f1`,`test`.`t1`.`pk`>(exists(/* select#3 */ select 1 from `test`.`t1` `sq2` semi join (`test`.`t1`) where `test`.`sq2`.`f1` = `test`.`t1`.`f1` and `test`.`t1`.`pk` = `test`.`t1`.`f1` limit 1))
+SELECT STRAIGHT_JOIN sq1.f2 
+FROM ( SELECT * FROM t1 ) AS sq1
+WHERE EXISTS ( SELECT * FROM t1 AS sq2 
+WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
+f2
+foo
+set optimizer_switch='exists_to_in=on';
+explain extended SELECT STRAIGHT_JOIN sq1.f2 
+FROM ( SELECT * FROM t1 ) AS sq1
+WHERE EXISTS ( SELECT * FROM t1 AS sq2 
+WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DEPENDENT SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
+Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1
+Note	1003	/* select#1 */ select straight_join `test`.`t1`.`f2` AS `f2` from `test`.`t1` where <expr_cache><`test`.`t1`.`f1`,`test`.`t1`.`pk`>(<in_optimizer>(`test`.`t1`.`f1`,<exists>(/* select#3 */ select `test`.`sq2`.`f1` from `test`.`t1` `sq2` semi join (`test`.`t1`) where `test`.`t1`.`pk` = `test`.`t1`.`f1` and <cache>(`test`.`t1`.`f1`) = `test`.`sq2`.`f1`)))
+SELECT STRAIGHT_JOIN sq1.f2 
+FROM ( SELECT * FROM t1 ) AS sq1
+WHERE EXISTS ( SELECT * FROM t1 AS sq2 
+WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
+f2
+foo
+set optimizer_switch= @optimizer_switch_save;
+DROP TABLE t1;
+#
+# MDEV-14164: Unknown column error when adding aggregate to function
+# in oracle style procedure FOR loop
+#
+CREATE TABLE t1(id INT, val INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM (
+SELECT DISTINCT id FROM t1) a
+WHERE NOT EXISTS (SELECT * FROM ( SELECT id FROM t1) b
+WHERE a.id=b.id);
+OPEN cur1;
+CLOSE cur1;
+OPEN cur1;
+CLOSE cur1;
+END;
+//
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1(id INT, val INT);
+CREATE PROCEDURE p1()
+BEGIN
+SELECT * FROM (SELECT DISTINCT id FROM t1) a
+WHERE NOT a.id IN (SELECT b.id FROM t1 b);
+SELECT * FROM (SELECT DISTINCT id FROM t1) a
+WHERE NOT EXISTS (SELECT * FROM t1 b WHERE a.id=b.id);
+END;
+//
+CALL p1();
+id
+id
+CALL p1();
+id
+id
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# End of 10.0 tests
+#
+# MDEV-23221: A subquery causes crash
+#
+create table t1 (
+location_code varchar(10),
+country_id varchar(10)
+);
+insert into t1 values ('HKG', 'HK');
+insert into t1 values ('NYC', 'US');
+insert into t1 values ('LAX', 'US');
+create table t2 (
+container_id varchar(10),
+cntr_activity_type varchar(10),
+cntr_dest varchar(10)
+);
+insert into t2 values ('AAAA1111', 'VSL', 'NYC');
+insert into t2 values ('AAAA1111', 'CUV', 'NYC');
+insert into t2 values ('BBBB2222', 'VSL', 'LAX');
+insert into t2 values ('BBBB2222', 'XYZ', 'LAX');
+# Must not crash or return an error:
+select
+(select country_id from t1 where location_code = cl1.cntr_dest) as dest_cntry,
+(select
+max(container_id)
+from t2 as cl2
+where
+cl2.container_id = cl1.container_id and
+cl2.cntr_activity_type = 'CUV' and
+exists (select location_code
+from t1
+where
+location_code = cl2.cntr_dest and
+country_id = dest_cntry)
+) as CUV
+from
+t2 cl1;
+dest_cntry	CUV
+US	AAAA1111
+US	AAAA1111
+US	NULL
+US	NULL
+prepare s from "select
+(select country_id from t1 where location_code = cl1.cntr_dest) as dest_cntry,
+(select
+max(container_id)
+from t2 as cl2
+where
+cl2.container_id = cl1.container_id and
+cl2.cntr_activity_type = 'CUV' and
+exists (select location_code
+from t1
+where
+location_code = cl2.cntr_dest and
+country_id = dest_cntry)
+) as CUV
+from
+t2 cl1";
+execute s;
+dest_cntry	CUV
+US	AAAA1111
+US	AAAA1111
+US	NULL
+US	NULL
+execute s;
+dest_cntry	CUV
+US	AAAA1111
+US	AAAA1111
+US	NULL
+US	NULL
+drop table t1,t2;
+# 
+# MDEV-20557: SQL query with duplicate table aliases consistently crashes server
+# (Just a testcase)
+#
+create table t1 (id int, id2 int);
+create table t2 (id int, id2 int, a int);
+create table t3 (id int);
+create table t4 (id int);
+select (select 1 from t1 where (exists 
+(select 1 from t2  
+where t2.a = (select t4.id from t4 where t4.id = t3.id) and t2.id2 = t1.id2))) dt
+from t3;
+ERROR 42000: This version of MariaDB doesn't yet support 'SUBQUERY in ROW in left expression of IN/ALL/ANY'
+drop table t1,t2,t3,t4;
+# 
+# MDEV-21649: Crash when using nested EXISTS
+# (Just a testcase)
+# 
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(id));
+CREATE TABLE t2 (id INT NOT NULL AUTO_INCREMENT, ip_id INT, PRIMARY KEY(id));
+CREATE TABLE t3 (id INT NOT NULL AUTO_INCREMENT, storage_method_id INT, storage_target_id INT, PRIMARY KEY(id));
+SELECT
+W0.`id`
+FROM
+`t1` W0
+WHERE (
+EXISTS(
+SELECT
+V0.`id`
+        FROM
+`t2` V0
+WHERE (
+EXISTS(
+SELECT
+U0.`id`
+                FROM
+`t2` U0
+INNER JOIN `t3` U4 ON (U0.`id` = U4.`storage_target_id`)
+WHERE (
+U0.`ip_id` = V0.`ip_id`
+                        AND U4.`storage_method_id` = (
+SELECT
+U5.`storage_method_id`
+                            FROM
+`t3` U5
+WHERE
+U5.`storage_target_id` = V0.`id`
+                            LIMIT
+1
+)
+)
+)
+)
+)
+);
+id
+drop table t1,t2,t3;
+#
+# MDEV-25407: EXISTS subquery with correlation in ON expression crashes
+#
+create table t10(a int primary key);
+insert into t10 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t11(a int primary key);
+insert into t11 select a.a + b.a* 10 + c.a * 100 from t10 a, t10 b, t10 c;
+create table t1 (a int, b int);
+insert into t1 select a,a from t10;
+create table t2 (a int, b int);
+insert into t2 select a,a from t11;
+create table t3 as select * from t2;
+explain  select *  from t1  where    exists (select t2.a from t2 left join t3 on (t3.b=t1.b) where t2.a=t1.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1000	Using where; Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where; End temporary; Using join buffer (incremental, BNL join)
+drop table t1, t2, t3, t10, t11;
+set optimizer_switch=default;

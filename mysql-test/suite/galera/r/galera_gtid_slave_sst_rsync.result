@@ -1,0 +1,168 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+#Connection 2
+connection node_2;
+START SLAVE;
+#Connection 3
+connection node_3;
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY, f2 int unique) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1,11);
+INSERT INTO t2 VALUES(2,22);
+INSERT INTO t2 VALUES(3,33);
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+2-3-4
+include/save_master_gtid.inc
+#Connection 2
+connection node_2;
+include/sync_with_master_gtid.inc
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+2-3-4
+INSERT INTO t2 VALUES(4,44);
+INSERT INTO t2 VALUES(5,55);
+INSERT INTO t2 VALUES(6,66);
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+0-2-3,2-3-4
+#Connection 1
+connection node_1;
+INSERT INTO t2 VALUES(7,77);
+INSERT INTO t2 VALUES(8,88);
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+1-1-2,2-3-4,2-2-7
+#Connection 3
+connection node_3;
+CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node1_committed_before');
+INSERT INTO t1 VALUES ('node1_committed_before');
+COMMIT;
+include/save_master_gtid.inc
+#Connection 2
+connection node_2;
+include/sync_with_master_gtid.inc
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node2_committed_before');
+INSERT INTO t1 VALUES ('node2_committed_before');
+COMMIT;
+#Connection 1
+connection node_1;
+connection node_1;
+connection node_2;
+#Connection 2
+connection node_2;
+Shutting down server ...
+#Connection 1
+connection node_1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node1_committed_during');
+INSERT INTO t1 VALUES ('node1_committed_during');
+COMMIT;
+#Connection 2
+connection node_2;
+Starting server ...
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES ('node2_committed_after');
+INSERT INTO t1 VALUES ('node2_committed_after');
+COMMIT;
+#Connection 1
+connection node_1;
+Select * from t1 order by f1;
+f1
+node1_committed_before
+node1_committed_before
+node1_committed_during
+node1_committed_during
+node2_committed_after
+node2_committed_after
+node2_committed_before
+node2_committed_before
+#Connection 2
+connection node_2;
+Select * from t1 order by f1;
+f1
+node1_committed_before
+node1_committed_before
+node1_committed_during
+node1_committed_during
+node2_committed_after
+node2_committed_after
+node2_committed_before
+node2_committed_before
+#Connection 1
+connection node_1;
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+1-1-3,2-3-6,2-2-9
+#Connection 2
+connection node_2;
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+0-1-7,0-2-8,2-3-6
+#Connection 3
+connection node_3;
+SET AUTOCOMMIT=ON;
+#Connection 2
+connection node_2;
+SET AUTOCOMMIT=ON;
+#Connection 1
+connection node_1;
+SET AUTOCOMMIT=ON;
+#Connection 2
+connection node_2;
+STOP slave;
+INSERT INTO t1 VALUES ('node2_slave_stoped');
+#Connection 3
+connection node_3;
+INSERT INTO t1 VALUES ('node3_normal_entry');
+include/save_master_gtid.inc
+#Connection 2
+connection node_2;
+INSERT INTO t1 VALUES ('node2_slave_stoped_inserted');
+start slave;
+include/sync_with_master_gtid.inc
+INSERT INTO t1 VALUES ('node2_slave_started');
+SELECT count(*) from t1;
+count(*)
+12
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+0-1-7,0-2-11,2-3-7
+#Connection 1
+connection node_1;
+SELECT count(*) from t1;
+count(*)
+12
+SELECT @@global.gtid_binlog_state;
+@@global.gtid_binlog_state
+1-1-3,2-3-7,2-2-12
+#Connection 3
+connection node_3;
+DROP TABLE t2,t1;
+#Connection 2
+connection node_2;
+#Connection 1
+connection node_1;
+#Connection 2
+connection node_2;
+STOP SLAVE;
+RESET SLAVE ALL;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+set global gtid_slave_pos="";
+#Connection 1
+connection node_1;
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+#Connection 3
+connection node_3;
+reset master;

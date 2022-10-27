@@ -1,0 +1,3 @@
+SET NAMES UTF8;
+SELECT mroonga_escape() AS escaped_query;
+ERROR HY000: Can't initialize function 'mroonga_escape'; mroonga_escape(): Incorrect number of arguments: 0 for 1..2

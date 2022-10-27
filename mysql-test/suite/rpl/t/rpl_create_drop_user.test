@@ -1,0 +1,57 @@
+--source include/master-slave.inc
+
+connection master;
+CREATE USER u1@localhost IDENTIFIED BY 'abcdefghijk';
+connect (user_a, localhost, u1,'abcdefghijk',);
+connection user_a;
+SELECT CURRENT_USER;
+disconnect user_a;
+
+connection master;
+CREATE USER IF NOT EXISTS u2@localhost;
+connect (user_a, localhost, u2,,);
+connection user_a;
+SELECT CURRENT_USER;
+disconnect user_a;
+
+connection master;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
+sync_slave_with_master;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
+
+connection master;
+CREATE OR REPLACE USER u1@localhost IDENTIFIED BY 'abcdefghijk2';
+connect (user_a, localhost, u1,'abcdefghijk2',);
+connection user_a;
+SELECT CURRENT_USER;
+disconnect user_a;
+connection master;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
+sync_slave_with_master;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
+
+connection master;
+--error ER_CANNOT_USER
+CREATE USER u1@localhost;
+
+--error ER_CANNOT_USER
+DROP USER u3@localhost;
+
+sync_slave_with_master;
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
+
+connection master;
+DROP USER IF EXISTS u1@localhost;
+DROP USER u2@localhost;
+DROP USER IF EXISTS u3@localhost;
+sync_slave_with_master;
+
+--sorted_result
+SELECT user,password,plugin,authentication_string FROM mysql.user WHERE user LIKE 'u%' ;
+
+--source include/rpl_end.inc

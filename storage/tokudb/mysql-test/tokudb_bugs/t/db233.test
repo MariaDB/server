@@ -1,0 +1,52 @@
+# This test for DB-233 tests that icp descending range scans stop properly once
+# it fails to find a key match instead of continuing to scan all the way to the
+# beginning of the index.
+
+-- source include/have_tokudb.inc
+-- source include/have_debug.inc
+-- source include/have_debug_sync.inc
+
+-- enable_query_log
+
+SET SESSION tokudb_auto_analyze = 0;
+SET SESSION tokudb_analyze_in_background = 0;
+
+CREATE TABLE t1(
+  `id` int(10) unsigned NOT NULL,
+  `k` int(10) unsigned NOT NULL DEFAULT '0',
+  `c` char(120) NOT NULL DEFAULT '',
+  `pad` char(60) NOT NULL DEFAULT '',
+  KEY `xid` (`id`),
+  KEY `k` (`k`)
+) ENGINE=TokuDB DEFAULT CHARSET=latin1;
+
+INSERT INTO t1 VALUES(1, 1, '1', '1'), (2, 2, '2', '2'), (3, 3, '3', '3'), (4, 4, '4', '4'),
+(5, 5, '5', '5'), (6, 6, '6', '6'), (6, 6, '6', '6'), (7, 7, '7', '7'),
+(8, 8, '8', '8'), (9, 9, '9', '9'), (10, 10, '10', '10'), (11, 11, '11', '11');
+
+ANALYZE TABLE t1;
+
+# lets flip to another connection
+connect(conn1, localhost, root);
+
+# set up the DEBUG_SYNC point again, but for the out of range
+set DEBUG_SYNC = 'tokudb_icp_asc_scan_out_of_range SIGNAL hit2 WAIT_FOR done2';
+
+# send the query
+send SELECT c FROM t1 WHERE id BETWEEN 5 AND 8 ORDER BY id ASC;
+
+# back to default connection
+connection default;
+
+# wait for the ICP reverse scan to invalidate
+set DEBUG_SYNC = 'now WAIT_FOR hit2';
+
+# lets release and clean up
+set DEBUG_SYNC = 'now SIGNAL done2';
+
+connection conn1;
+reap;
+
+connection default;
+disconnect conn1;
+drop table t1;

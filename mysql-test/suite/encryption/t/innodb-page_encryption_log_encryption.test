@@ -1,0 +1,82 @@
+-- source include/have_innodb.inc
+-- source include/not_embedded.inc
+-- source include/have_file_key_management_plugin.inc
+
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+show warnings;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1;
+show warnings;
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed encrypted=yes encryption_key_id=2;
+show warnings;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes  encryption_key_id=33;
+show warnings;
+create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encrypted=yes  encryption_key_id=4;
+show warnings;
+
+show create table innodb_compact;
+show create table innodb_compressed;
+show create table innodb_dynamic;
+show create table innodb_redundant;
+
+FLUSH TABLES innodb_normal FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compressed FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_redundant FOR EXPORT; UNLOCK TABLES;
+
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_ENCRYPTED';
+
+--source include/restart_mysqld.inc
+
+BEGIN;
+INSERT INTO innodb_normal SET c1 = 1;
+INSERT INTO innodb_compact SET c1 = 1;
+INSERT INTO innodb_compressed SET c1 = 1;
+INSERT INTO innodb_dynamic SET c1 = 1;
+INSERT INTO innodb_redundant SET c1 = 1;
+COMMIT;
+
+FLUSH TABLES innodb_normal FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compressed FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_redundant FOR EXPORT; UNLOCK TABLES;
+
+select variable_name from information_schema.global_status
+where variable_value > 0 and variable_name
+IN ('INNODB_NUM_PAGES_ENCRYPTED','INNODB_NUM_PAGES_DECRYPTED');
+
+SET GLOBAL innodb_encrypt_tables=OFF;
+alter table innodb_compact engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
+show create table innodb_compact;
+alter table innodb_compressed engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
+show create table innodb_compressed;
+alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
+show create table innodb_dynamic;
+alter table innodb_redundant engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
+show create table innodb_redundant;
+
+FLUSH TABLES innodb_normal FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compressed FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_redundant FOR EXPORT; UNLOCK TABLES;
+
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_compressed;
+drop table innodb_dynamic;
+drop table innodb_redundant;
+#
+# MDEV-8143: InnoDB: Database page corruption on disk or a failed file read
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB ENCRYPTION_KEY_ID=2 ENCRYPTED=YES;
+INSERT INTO t1 VALUES (1),(2);
+
+--echo # Restarting server...
+--source include/restart_mysqld.inc
+
+SELECT * FROM t1;
+
+DROP TABLE t1;

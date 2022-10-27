@@ -1,0 +1,43 @@
+[
+  {
+    "ISBN": "9782212090819",
+    "LANG": "fr",
+    "SUBJECT": "applications",
+    "AUTHOR": [
+      {
+        "FIRSTNAME": "Jean-Christophe",
+        "LASTNAME": "Bernadac"
+      },
+      {
+        "FIRSTNAME": "François",
+        "LASTNAME": "Knab"
+      }
+    ],
+    "TITLE": "Construire une application XML",
+    "PUBLISHER": {
+      "NAME": "Eyrolles",
+      "PLACE": "Paris"
+    },
+    "DATEPUB": 1999
+  },
+  {
+    "ISBN": "9782840825685",
+    "LANG": "fr",
+    "SUBJECT": "applications",
+    "AUTHOR": {
+      "FIRSTNAME": "William J.",
+      "LASTNAME": "Pardi"
+      },
+    "TITLE": "XML en Action",
+    "TRANSLATION": "adapté de l'anglais par",
+    "TRANSLATOR": {
+      "FIRSTNAME": "James",
+      "LASTNAME": "Guerin"
+    },
+    "PUBLISHER": {
+      "NAME": "Microsoft Press",
+      "PLACE": "Paris"
+    },
+    "DATEPUB": 1999
+  }
+]

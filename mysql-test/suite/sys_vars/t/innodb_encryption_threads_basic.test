@@ -1,0 +1,41 @@
+# bool global
+--source include/have_innodb.inc
+
+SET @start_global_value = @@global.innodb_encryption_threads;
+
+#
+# exists as global only
+#
+select @@global.innodb_encryption_threads;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.innodb_encryption_threads;
+show global variables like 'innodb_encryption_threads';
+show session variables like 'innodb_encryption_threads';
+select * from information_schema.global_variables
+where variable_name='innodb_encryption_threads';
+select * from information_schema.session_variables
+where variable_name='innodb_encryption_threads';
+
+#
+# show that it's writable
+#
+set global innodb_encryption_threads=0;
+select @@global.innodb_encryption_threads;
+set global innodb_encryption_threads=5;
+select @@global.innodb_encryption_threads;
+set global innodb_encryption_threads=1;
+select @@global.innodb_encryption_threads;
+--error ER_GLOBAL_VARIABLE
+set session innodb_encryption_threads=1;
+
+#
+# incorrect types
+#
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_encryption_threads=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_encryption_threads=1e1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_encryption_threads="foo";
+
+SET @@global.innodb_encryption_threads = @start_global_value;

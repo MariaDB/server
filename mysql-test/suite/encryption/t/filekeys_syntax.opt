@@ -1,0 +1,1 @@
+--loose-file-key-management-filename=$MYSQL_TMP_DIR/keys.txt

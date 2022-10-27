@@ -1,0 +1,11 @@
+#
+# MDEV-6832: ER_LOCK_WAIT_TIMEOUT on SHOW STATUS
+#
+SHOW STATUS LIKE 'wsrep_ready';
+Variable_name	Value
+wsrep_ready	ON
+SHOW STATUS LIKE 'wsrep_ready';
+Variable_name	Value
+wsrep_ready	OFF
+SET @@global.wsrep_cluster_address='gcomm://';
+# End of test.

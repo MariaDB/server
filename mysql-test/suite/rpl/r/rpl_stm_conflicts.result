@@ -1,0 +1,55 @@
+include/master-slave.inc
+[connection master]
+==== Initialize ====
+connection master;
+CREATE TABLE t1(a INT PRIMARY KEY);
+connection slave;
+==== Test: SQL thread sees 'INSERT' of existing key ====
+---- Prepare slave so that it will get duplicate key error ----
+INSERT INTO t1 VALUES (1);
+---- Insert rows on master ----
+connection master;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+a
+1
+connection slave;
+---- Wait until slave stops with an error ----
+include/wait_for_slave_sql_error.inc [errno=1062]
+Last_SQL_Error (expected "duplicate key" error)
+Error 'Duplicate entry '1' for key 'PRIMARY'' on query. Default database: 'test'. Query: 'INSERT INTO t1 VALUES (1)'
+call mtr.add_suppression("Slave SQL.*Duplicate entry .1. for key .PRIMARY.* error.* 1062");
+SELECT * FROM t1;
+a
+1
+---- Resolve the conflict on the slave and restart SQL thread ----
+DELETE FROM t1 WHERE a = 1;
+START SLAVE SQL_THREAD;
+include/wait_for_slave_sql_to_start.inc
+---- Sync slave and verify that there is no error ----
+Last_SQL_Error = '' (expected no error)
+SELECT * FROM t1;
+a
+1
+==== Test: SQL thread sees 'DELETE' of non-existing row ====
+---- On master, insert two rows, the second with binlogging off ----
+connection master;
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1);
+connection slave;
+DELETE FROM t1 WHERE a = 1;
+---- On master, remove the row that does not exist on slave ----
+connection master;
+DELETE FROM t1 WHERE a = 1;
+SELECT * FROM t1;
+a
+connection slave;
+---- Sync slave and verify that there is no error ----
+Last_SQL_Error =  (expected no error)
+SELECT * FROM t1;
+a
+==== Clean up ====
+connection master;
+DROP TABLE t1;
+connection slave;
+include/rpl_end.inc

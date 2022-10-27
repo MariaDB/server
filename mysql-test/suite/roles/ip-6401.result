@@ -1,0 +1,15 @@
+create role r1;
+create user foo@'127.0.0.1';
+grant r1 to foo@'127.0.0.1';
+connect  con1,127.0.0.1,foo,,;
+show grants;
+Grants for foo@127.0.0.1
+GRANT `r1` TO `foo`@`127.0.0.1`
+GRANT USAGE ON *.* TO `foo`@`127.0.0.1`
+set role r1;
+select * from information_schema.enabled_roles;
+ROLE_NAME
+r1
+connection default;
+drop user foo@'127.0.0.1';
+drop role r1;

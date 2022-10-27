@@ -1,0 +1,240 @@
+--source include/have_stat_tables.inc
+--source include/default_optimizer_switch.inc
+
+--echo #
+--echo #  Engine-agnostic tests for statistics-based selectivity calculations.
+--echo #   - selectivity tests that depend on the engine should go into
+--echo #     t/selectivity.test. That test is run with myisam/innodb/xtradb.
+--echo #   - this file is for tests that don't depend on the engine. 
+--echo #
+
+--disable_warnings
+drop table if exists t0,t1,t2,t3;
+--enable_warnings
+
+select @@global.use_stat_tables;
+select @@session.use_stat_tables;
+
+set @save_use_stat_tables=@@use_stat_tables;
+
+set use_stat_tables='preferably';
+
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @save_histogram_size=@@histogram_size;
+set @save_histogram_type=@@histogram_type;
+
+--echo #
+--echo # MDEV-5917: EITS: different order of predicates in IN (...) causes different estimates
+--echo #
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (col1 int);
+--echo # one value in 1..100 range
+insert into t2 select ta.a + tb.a*10 from t1 ta, t1 tb;
+--echo # ten values in 100...200 range
+insert into t2 select 100 + ta.a + tb.a*10 from t1 ta, t1 tb, t1 tc;
+
+set histogram_type='SINGLE_PREC_HB';
+set histogram_size=100;
+set optimizer_use_condition_selectivity=4;
+analyze table t2 persistent for all;
+
+--echo # The following two must have the same in 'Extra' column:
+explain extended select * from t2 where col1 IN (20, 180);
+explain extended select * from t2 where col1 IN (180, 20);
+
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-5926: EITS: Histogram estimates for column=least_possible_value are wrong
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select ta.a from t0 ta, t0 tb, t0 tc;
+set histogram_size=20;
+set histogram_type='single_prec_hb';
+analyze table t1 persistent for all;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+--echo # Should select about 10%:
+explain extended select * from t1 where a=2;
+--echo # Should select about 10%:
+explain extended select * from t1 where a=1;
+--echo # Must not have filtered=100%:
+explain extended select * from t1 where a=0;
+--echo # Again, must not have filtered=100%:
+explain extended select * from t1 where a=-1;
+
+drop table t0, t1;
+
+--echo #
+--echo # MDEV-4362: Selectivity estimates for IN (...) do not depend on whether the values are in range
+--echo #
+create table t1 (col1 int);
+set @a=-1;
+create table t2 (a int)  select (@a:=@a+1) as a from information_schema.session_variables ta limit 100;
+insert into t1 select ta.a from t2 ta, t2 tb where ta.a < 100 and tb.a < 100;
+select min(col1), max(col1), count(*) from t1;
+set histogram_size=100;
+analyze table t1 persistent for all;
+explain extended select * from t1 where col1 in (1,2,3);
+--echo # Must not cause fp division by zero, or produce nonsense numbers:
+explain extended select * from t1 where col1 in (-1,-2,-3);
+explain extended select * from t1 where col1<=-1;
+drop table t1, t2;
+
+--echo # 
+--echo # MDEV-5984: EITS: Incorrect filtered% value for single-table select with range access
+--echo # 
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (a int, b int, col1 varchar(64), col2 varchar(64), key(a,b));
+insert into t2 select ta.a+10*tb.a, tc.a+10*td.a, 'filler-data1', 'filler-data2' from t1 ta, t1 tb, t1 tc, t1 td;
+
+set histogram_size=100;
+set optimizer_use_condition_selectivity=4;
+set use_stat_tables='preferably';
+analyze table t2 persistent for all;
+--echo # This must show filtered=100%:
+explain extended select * from t2 where a in (1,2,3) and b in (1,2,3);
+
+drop table t2, t1;
+
+--echo # 
+--echo # MDEV-5980: EITS: if condition is used for REF access, its selectivity is still in filtered%
+--echo # 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(key1 int, col1 int, key(key1));
+insert into t1 select ta.a, ta.a from t0 ta, t0 tb, t0 tc;
+
+set histogram_size=100;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+--echo # 10% is ok
+explain extended select * from t1 where col1=2;
+--echo # Must show 100%, not 10%
+explain extended select * from t1 where key1=2;
+drop table t0, t1;
+
+--echo # MDEV-6003: EITS: ref access, keypart2=const vs keypart2=expr - inconsistent filtered% value
+--echo # 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+  kp1 int, kp2 int, 
+  filler1 char(100),
+  filler2 char(100),
+  key(kp1, kp2)
+);
+
+insert into t1 
+select 
+  ta.a,
+  tb.a,
+  'filler-data-1',
+  'filler-data-2'
+from t0 ta, t0 tb, t0 tc;
+set histogram_size=100;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+--echo # NOTE: 10*100%, 10*100% rows is ok
+explain extended select * from t0, t1 where t1.kp1=t0.a and t1.kp2=t0.a+1;
+
+--echo # NOTE: t0: 10*100% is ok,  t1: 10*9.90% is bad. t1 should have 10*100%.
+explain extended select * from t0, t1 where t1.kp1=t0.a and t1.kp2=4;
+drop table t0, t1;
+
+--echo # 
+--echo # MDEV-6209: Assertion `join->best_read < double(1.79769313486231570815e+308L)' 
+--echo #            failed in bool greedy_search with optimizer_use_condition_selectivity>1
+--echo # 
+SET optimizer_use_condition_selectivity = 2;
+
+CREATE TABLE t1 (a CHAR(6), b INT, PRIMARY KEY (a,b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo',1),('bar',2);
+
+SELECT * FROM t1 AS t1_1, t1 AS t1_2 WHERE NOT ( t1_1.a <> 'baz');
+DROP TABLE t1;
+
+--echo # 
+--echo # MDEV-6308: Server crashes in table_multi_eq_cond_selectivity with ...
+--echo #
+CREATE TABLE t1 (
+  id varchar(40) COLLATE utf8_bin,
+  dt datetime,
+  PRIMARY KEY (id)
+);
+
+INSERT INTO t1 VALUES ('foo','2011-04-12 05:18:08'),
+                      ('bar','2013-09-19 11:37:03');
+
+CREATE TABLE t2 (
+  t1_id varchar(40) COLLATE utf8_bin,
+  f1 varchar(64),
+  f2 varchar(1024),
+  KEY (f1,f2(255))
+);
+
+INSERT INTO t2 VALUES ('foo','baz','qux'),('bar','baz','qux');
+INSERT INTO t2 VALUES ('foo','bazz','qux'),('bar','bazz','qux');
+
+set optimizer_use_condition_selectivity=2;
+explain
+select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
+select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
+
+drop table t1,t2;
+
+--echo # 
+--echo # MDEV-5985: EITS: selectivity estimates look illogical for join and non-key equalities
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select ta.a + tb.a* 10 + tc.a * 100 from t0 ta, t0 tb, t0 tc;
+create table t2 as select * from t1;
+set histogram_size=100;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+analyze table t2 persistent for all;
+--echo # Filtered will be 4.95, 9.90
+explain extended select * from t1 ta, t2 tb where ta.a < 40 and tb.a < 100;
+--echo # Here, tb.filtered should not become 100%:
+explain extended select * from t1 ta, t2 tb where ta.a < 40 and tb.a < 100 and tb.a=ta.a;
+
+drop table t0,t1,t2;
+
+--echo #
+--echo # MDEV-8779: mysqld got signal 11 in sql/opt_range_mrr.cc:100(step_down_to)
+--echo #
+set @tmp_mdev8779=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=5;
+CREATE TABLE t1 (
+  i int(10) unsigned NOT NULL AUTO_INCREMENT,
+  n varchar(2048) NOT NULL,
+  d tinyint(1) unsigned NOT NULL,
+  p int(10) unsigned NOT NULL,
+  PRIMARY KEY (i)
+) DEFAULT CHARSET=utf8;
+insert into t1 values (1,'aaa',1,1), (2,'bbb',2,2);
+SELECT * FROM t1 WHERE t1.d = 0 AND t1.p = '1' AND t1.i != '-1' AND t1.n = 'some text';
+set optimizer_use_condition_selectivity= @tmp_mdev8779;
+DROP TABLE t1;
+
+--echo # 
+--echo # End of the test file
+--echo # 
+
+set use_stat_tables= @save_use_stat_tables;
+set histogram_type=@save_histogram_type;
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+

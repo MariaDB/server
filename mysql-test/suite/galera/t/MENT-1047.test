@@ -1,0 +1,7 @@
+#
+# MENT-1047 - Reject XA with Galera replication
+#
+--source include/galera_cluster.inc
+
+--error ER_NOT_SUPPORTED_YET
+XA START 'trx';

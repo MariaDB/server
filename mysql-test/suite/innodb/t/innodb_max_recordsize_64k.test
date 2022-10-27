@@ -1,0 +1,508 @@
+--source include/have_innodb.inc
+--source include/have_innodb_64k.inc
+
+# Check page size 64k
+SELECT @@innodb_page_size;
+
+SET innodb_strict_mode=ON;
+
+# FIXED not supported
+-- error 1005
+CREATE TABLE tab5(col1 CHAR (255), col2 CHAR (255), col3 CHAR(255),col4 CHAR(255), col5 CHAR(255),
+col6   CHAR(255), col7 CHAR(255),  col8 CHAR(255), col9 CHAR(255),col10 CHAR(255), col11  CHAR(255),
+col12 CHAR(255), col13 CHAR(255),col14 CHAR(255),col15 CHAR(255),col16  CHAR(255), col17 CHAR(255),
+col18 CHAR(255),col19 CHAR(255),col20 CHAR(255),col21 CHAR(255),col22  CHAR(255), col23 CHAR(255),
+col24 CHAR(255),col25 CHAR(255),col26 CHAR(255),col27 CHAR(255),col28  CHAR(255), col29 CHAR(255),
+col30 CHAR(255),col31 CHAR(255),col32 CHAR(255),col33 CHAR(255),col34  CHAR(255), col35 CHAR(255),
+col36 CHAR(255),col37 CHAR(255),col38 CHAR(255),col39 CHAR(255),col40  CHAR(255), col41 CHAR(255),
+col42 CHAR(255),col43 CHAR(255),col44 CHAR(255),col45 CHAR(255),col46  CHAR(255), col47 CHAR(255),
+col48 CHAR(255),col49 CHAR(255),col50 CHAR(255),col51 CHAR(255),col52  CHAR(255), col53 CHAR(255),
+col54 CHAR(255),col55 CHAR(255),col56 CHAR(255),col57 CHAR(255),col58  CHAR(255), col59 CHAR(255),
+col60 CHAR(255),col61 CHAR(255),col62 CHAR(255),col63 CHAR(255),col64  CHAR(255), col65  CHAR(255))
+ENGINE = innodb ROW_FORMAT=FIXED;
+show warnings;
+
+-- error 1005
+CREATE TABLE tab5(col1 CHAR (255), col2 CHAR (255), col3 CHAR(255),col4 CHAR(255), col5 CHAR(255),
+col6   CHAR(255), col7 CHAR(255),  col8 CHAR(255), col9 CHAR(255),col10 CHAR(255), col11  CHAR(255),
+col12 CHAR(255), col13 CHAR(255),col14 CHAR(255),col15 CHAR(255),col16  CHAR(255), col17 CHAR(255),
+col18 CHAR(255),col19 CHAR(255),col20 CHAR(255),col21 CHAR(255),col22  CHAR(255), col23 CHAR(255),
+col24 CHAR(255),col25 CHAR(255),col26 CHAR(255),col27 CHAR(255),col28  CHAR(255), col29 CHAR(255),
+col30 CHAR(255),col31 CHAR(255),col32 CHAR(255),col33 CHAR(255),col34  CHAR(255), col35 CHAR(255),
+col36 CHAR(255),col37 CHAR(255),col38 CHAR(255),col39 CHAR(255),col40  CHAR(255), col41 CHAR(255),
+col42 CHAR(255),col43 CHAR(255),col44 CHAR(255),col45 CHAR(255),col46  CHAR(255), col47 CHAR(255),
+col48 CHAR(255),col49 CHAR(255),col50 CHAR(255),col51 CHAR(255),col52  CHAR(255), col53 CHAR(255),
+col54 CHAR(255),col55 CHAR(255),col56 CHAR(255),col57 CHAR(255),col58  CHAR(255), col59 CHAR(255),
+col60 CHAR(255),col61 CHAR(255),col62 CHAR(255),col63 CHAR(255),col64  CHAR(255), col65  CHAR(255))
+ENGINE = innodb ROW_FORMAT=COMPRESSED;
+show warnings;
+
+--disable_warnings
+SET @@innodb_strict_mode=OFF;
+SELECT @@innodb_strict_mode;
+--enable_warnings
+
+# Check the Warning |  139 | Row size too large
+--replace_regex /> [0-9]+/> NNNN/
+CREATE TABLE tab5(col1 CHAR (255), col2 CHAR (255), col3 CHAR(255),col4 CHAR(255), col5 CHAR(255),
+col6   CHAR(255), col7 CHAR(255),  col8 CHAR(255), col9 CHAR(255),col10 CHAR(255), col11  CHAR(255),
+col12 CHAR(255), col13 CHAR(255),col14 CHAR(255),col15 CHAR(255),col16  CHAR(255), col17 CHAR(255),
+col18 CHAR(255),col19 CHAR(255),col20 CHAR(255),col21 CHAR(255),col22  CHAR(255), col23 CHAR(255),
+col24 CHAR(255),col25 CHAR(255),col26 CHAR(255),col27 CHAR(255),col28  CHAR(255), col29 CHAR(255),
+col30 CHAR(255),col31 CHAR(255),col32 CHAR(255),col33 CHAR(255),col34  CHAR(255), col35 CHAR(255),
+col36 CHAR(255),col37 CHAR(255),col38 CHAR(255),col39 CHAR(255),col40  CHAR(255), col41 CHAR(255),
+col42 CHAR(255),col43 CHAR(255),col44 CHAR(255),col45 CHAR(255),col46  CHAR(255), col47 CHAR(255),
+col48 CHAR(255),col49 CHAR(255),col50 CHAR(255),col51 CHAR(255),col52  CHAR(255), col53 CHAR(255),
+col54 CHAR(255),col55 CHAR(255),col56 CHAR(255),col57 CHAR(255),col58  CHAR(255), col59 CHAR(255),
+col60 CHAR(255),col61 CHAR(255),col62 CHAR(255),col63 CHAR(255),col64  CHAR(255), col65  CHAR(255),
+ccol1  CHAR(255),ccol2  CHAR(255),ccol3  CHAR(255),ccol4  CHAR(255),ccol5   CHAR(255),
+ccol6  CHAR(255),ccol7  CHAR(255),ccol8  CHAR(255),ccol9  CHAR(255),ccol10  CHAR(255), ccol11  CHAR(255),
+ccol12 CHAR(255),ccol13 CHAR(255),ccol14 CHAR(255),ccol15 CHAR(255),ccol16  CHAR(255), ccol17 CHAR(255),
+ccol18 CHAR(255),ccol19 CHAR(255),ccol20 CHAR(255),ccol21 CHAR(255),ccol22  CHAR(255), ccol23 CHAR(255),
+ccol24 CHAR(255),ccol25 CHAR(255),ccol26 CHAR(255),ccol27 CHAR(255),ccol28  CHAR(255), ccol29 CHAR(255),
+ccol30 CHAR(255),ccol31 CHAR(255),ccol32 CHAR(255),ccol33 CHAR(255),ccol34  CHAR(255), ccol35 CHAR(255),
+ccol36 CHAR(255),ccol37 CHAR(255),ccol38 CHAR(255),ccol39 CHAR(255),ccol40  CHAR(255), ccol41 CHAR(255),
+ccol42 CHAR(255),ccol43 CHAR(255),ccol44 CHAR(255),ccol45 CHAR(255),ccol46  CHAR(255), ccol47 CHAR(255),
+ccol48 CHAR(255),ccol49 CHAR(255),ccol50 CHAR(255),ccol51 CHAR(255),ccol52  CHAR(255), ccol53 CHAR(255),
+ccol54 CHAR(255),ccol55 CHAR(255),ccol56 CHAR(255),ccol57 CHAR(255),ccol58  CHAR(255), ccol59 CHAR(255),
+ccol60 CHAR(255),ccol61 CHAR(255),ccol62 CHAR(255),ccol63 CHAR(255),ccol64  CHAR(255), ccol65  CHAR(255)
+)
+ENGINE = innodb ROW_FORMAT=COMPACT;
+
+# row size 32936 : should fail
+--error ER_TOO_BIG_ROWSIZE
+INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),'a',NULL);
+
+SELECT * FROM tab5;
+DROP TABLE tab5;
+
+CREATE TABLE tab5(col1 VARCHAR (255), col2 VARCHAR (255), col3 VARCHAR(255),col4 VARCHAR(255), col5 VARCHAR(255),
+col6   VARCHAR(255), col7 VARCHAR(255),  col8 VARCHAR(255), col9 VARCHAR(255),col10 VARCHAR(255), col11  VARCHAR(255),
+col12 VARCHAR(255), col13 VARCHAR(255),col14 VARCHAR(255),col15 VARCHAR(255),col16  VARCHAR(255), col17 VARCHAR(255),
+col18 VARCHAR(255),col19 VARCHAR(255),col20 VARCHAR(255),col21 VARCHAR(255),col22  VARCHAR(255), col23 VARCHAR(255),
+col24 VARCHAR(255),col25 VARCHAR(255),col26 VARCHAR(255),col27 VARCHAR(255),col28  VARCHAR(255), col29 VARCHAR(255),
+col30 VARCHAR(255),col31 VARCHAR(255),col32 VARCHAR(255),col33 VARCHAR(255),col34  VARCHAR(255), col35 VARCHAR(255),
+col36 VARCHAR(255),col37 VARCHAR(255),col38 VARCHAR(255),col39 VARCHAR(255),col40  VARCHAR(255), col41 VARCHAR(255),
+col42 VARCHAR(255),col43 VARCHAR(255),col44 VARCHAR(255),col45 VARCHAR(255),col46  VARCHAR(255), col47 VARCHAR(255),
+col48 VARCHAR(255),col49 VARCHAR(255),col50 VARCHAR(255),col51 VARCHAR(255),col52  VARCHAR(255), col53 VARCHAR(255),
+col54 VARCHAR(255),col55 VARCHAR(255),col56 VARCHAR(255),col57 VARCHAR(255),col58  VARCHAR(255), col59 VARCHAR(255),
+col60 VARCHAR(255),col61 VARCHAR(255),col62 VARCHAR(255),col63 VARCHAR(255),col64  VARCHAR(255), col65  VARCHAR(255),
+ccol1  VARCHAR(255),ccol2  VARCHAR(255),ccol3  VARCHAR(255),ccol4  VARCHAR(255),ccol5   VARCHAR(255),
+ccol6  VARCHAR(255),ccol7  VARCHAR(255),ccol8  VARCHAR(255),ccol9  VARCHAR(255),ccol10  VARCHAR(255), ccol11 VARCHAR(255),
+ccol12 VARCHAR(255),ccol13 VARCHAR(255),ccol14 VARCHAR(255),ccol15 VARCHAR(255),ccol16  VARCHAR(255), ccol17 VARCHAR(255),
+ccol18 VARCHAR(255),ccol19 VARCHAR(255),ccol20 VARCHAR(255),ccol21 VARCHAR(255),ccol22  VARCHAR(255), ccol23 VARCHAR(255),
+ccol24 VARCHAR(255),ccol25 VARCHAR(255),ccol26 VARCHAR(255),ccol27 VARCHAR(255),ccol28  VARCHAR(255), ccol29 VARCHAR(255),
+ccol30 VARCHAR(255),ccol31 VARCHAR(255),ccol32 VARCHAR(255),ccol33 VARCHAR(255),ccol34  VARCHAR(255), ccol35 VARCHAR(255),
+ccol36 VARCHAR(255),ccol37 VARCHAR(255),ccol38 VARCHAR(255),ccol39 VARCHAR(255),ccol40  VARCHAR(255), ccol41 VARCHAR(255),
+ccol42 VARCHAR(255),ccol43 VARCHAR(255),ccol44 VARCHAR(255),ccol45 VARCHAR(255),ccol46  VARCHAR(255), ccol47 VARCHAR(255),
+ccol48 VARCHAR(255),ccol49 VARCHAR(255),ccol50 VARCHAR(255),ccol51 VARCHAR(255),ccol52  VARCHAR(255), ccol53 VARCHAR(255),
+ccol54 VARCHAR(255),ccol55 VARCHAR(255),ccol56 VARCHAR(255),ccol57 VARCHAR(255),ccol58  VARCHAR(255), ccol59 VARCHAR(255),
+ccol60 VARCHAR(255),ccol61 VARCHAR(255),ccol62 VARCHAR(255),ccol63 VARCHAR(255),ccol64  VARCHAR(255), ccol65 VARCHAR(255)
+)
+ENGINE = innodb ROW_FORMAT=COMPACT;
+
+# row size 16384 >= 16K : expected to fail
+--error ER_TOO_BIG_ROWSIZE
+INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',214),NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL
+);
+
+# row size 16383 < 16K : expected to pass
+INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',213),NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL
+);
+
+SELECT * FROM tab5;
+DROP TABLE tab5;
+
+# Check the Warning |  139 | Row size too large (> 16318)
+--replace_regex /> [0-9]+/> NNNN/
+CREATE TABLE tab5(col1 CHAR (255), col2 CHAR (255), col3 CHAR(255),col4 CHAR(255), col5 CHAR(255),
+col6   CHAR(255), col7 CHAR(255),  col8 CHAR(255), col9 CHAR(255),col10 CHAR(255), col11  CHAR(255),
+col12 CHAR(255), col13 CHAR(255),col14 CHAR(255),col15 CHAR(255),col16  CHAR(255), col17 CHAR(255),
+col18 CHAR(255),col19 CHAR(255),col20 CHAR(255),col21 CHAR(255),col22  CHAR(255), col23 CHAR(255),
+col24 CHAR(255),col25 CHAR(255),col26 CHAR(255),col27 CHAR(255),col28  CHAR(255), col29 CHAR(255),
+col30 CHAR(255),col31 CHAR(255),col32 CHAR(255),col33 CHAR(255),col34  CHAR(255), col35 CHAR(255),
+col36 CHAR(255),col37 CHAR(255),col38 CHAR(255),col39 CHAR(255),col40  CHAR(255), col41 CHAR(255),
+col42 CHAR(255),col43 CHAR(255),col44 CHAR(255),col45 CHAR(255),col46  CHAR(255), col47 CHAR(255),
+col48 CHAR(255),col49 CHAR(255),col50 CHAR(255),col51 CHAR(255),col52  CHAR(255), col53 CHAR(255),
+col54 CHAR(255),col55 CHAR(255),col56 CHAR(255),col57 CHAR(255),col58  CHAR(255), col59 CHAR(255),
+col60 CHAR(255),col61 CHAR(255),col62 CHAR(255),col63 CHAR(255),col64  CHAR(255), col65  CHAR(255),
+ccol1  CHAR(255),ccol2  CHAR(255),ccol3  CHAR(255),ccol4  CHAR(255),ccol5   CHAR(255),
+ccol6  CHAR(255),ccol7  CHAR(255),ccol8  CHAR(255),ccol9  CHAR(255),ccol10  CHAR(255), ccol11  CHAR(255),
+ccol12 CHAR(255),ccol13 CHAR(255),ccol14 CHAR(255),ccol15 CHAR(255),ccol16  CHAR(255), ccol17 CHAR(255),
+ccol18 CHAR(255),ccol19 CHAR(255),ccol20 CHAR(255),ccol21 CHAR(255),ccol22  CHAR(255), ccol23 CHAR(255),
+ccol24 CHAR(255),ccol25 CHAR(255),ccol26 CHAR(255),ccol27 CHAR(255),ccol28  CHAR(255), ccol29 CHAR(255),
+ccol30 CHAR(255),ccol31 CHAR(255),ccol32 CHAR(255),ccol33 CHAR(255),ccol34  CHAR(255), ccol35 CHAR(255),
+ccol36 CHAR(255),ccol37 CHAR(255),ccol38 CHAR(255),ccol39 CHAR(255),ccol40  CHAR(255), ccol41 CHAR(255),
+ccol42 CHAR(255),ccol43 CHAR(255),ccol44 CHAR(255),ccol45 CHAR(255),ccol46  CHAR(255), ccol47 CHAR(255),
+ccol48 CHAR(255),ccol49 CHAR(255),ccol50 CHAR(255),ccol51 CHAR(255),ccol52  CHAR(255), ccol53 CHAR(255),
+ccol54 CHAR(255),ccol55 CHAR(255),ccol56 CHAR(255),ccol57 CHAR(255),ccol58  CHAR(255), ccol59 CHAR(255),
+ccol60 CHAR(255),ccol61 CHAR(255),ccol62 CHAR(255),ccol63 CHAR(255),ccol64  CHAR(255), ccol65  CHAR(255)
+)
+ENGINE = innodb ROW_FORMAT=DYNAMIC;
+DROP TABLE tab5;
+
+# Check the Warning |  139 | Row size too large (> 16318)
+--replace_regex /> [0-9]+/> NNNN/
+CREATE TABLE tab5(col1 VARCHAR (255), col2 VARCHAR (255), col3 VARCHAR(255),col4 VARCHAR(255), col5 VARCHAR(255),
+col6   VARCHAR(255), col7 VARCHAR(255),  col8 VARCHAR(255), col9 VARCHAR(255),col10 VARCHAR(255), col11  VARCHAR(255),
+col12 VARCHAR(255), col13 VARCHAR(255),col14 VARCHAR(255),col15 VARCHAR(255),col16  VARCHAR(255), col17 VARCHAR(255),
+col18 VARCHAR(255),col19 VARCHAR(255),col20 VARCHAR(255),col21 VARCHAR(255),col22  VARCHAR(255), col23 VARCHAR(255),
+col24 VARCHAR(255),col25 VARCHAR(255),col26 VARCHAR(255),col27 VARCHAR(255),col28  VARCHAR(255), col29 VARCHAR(255),
+col30 VARCHAR(255),col31 VARCHAR(255),col32 VARCHAR(255),col33 VARCHAR(255),col34  VARCHAR(255), col35 VARCHAR(255),
+col36 VARCHAR(255),col37 VARCHAR(255),col38 VARCHAR(255),col39 VARCHAR(255),col40  VARCHAR(255), col41 VARCHAR(255),
+col42 VARCHAR(255),col43 VARCHAR(255),col44 VARCHAR(255),col45 VARCHAR(255),col46  VARCHAR(255), col47 VARCHAR(255),
+col48 VARCHAR(255),col49 VARCHAR(255),col50 VARCHAR(255),col51 VARCHAR(255),col52  VARCHAR(255), col53 VARCHAR(255),
+col54 VARCHAR(255),col55 VARCHAR(255),col56 VARCHAR(255),col57 VARCHAR(255),col58  VARCHAR(255), col59 VARCHAR(255),
+col60 VARCHAR(255),col61 VARCHAR(255),col62 VARCHAR(255),col63 VARCHAR(255),col64  VARCHAR(255), col65  VARCHAR(255),
+ccol1  VARCHAR(255),ccol2  VARCHAR(255),ccol3  VARCHAR(255),ccol4  VARCHAR(255),ccol5   VARCHAR(255),
+ccol6  VARCHAR(255),ccol7  VARCHAR(255),ccol8  VARCHAR(255),ccol9  VARCHAR(255),ccol10  VARCHAR(255), ccol11 VARCHAR(255),
+ccol12 VARCHAR(255),ccol13 VARCHAR(255),ccol14 VARCHAR(255),ccol15 VARCHAR(255),ccol16  VARCHAR(255), ccol17 VARCHAR(255),
+ccol18 VARCHAR(255),ccol19 VARCHAR(255),ccol20 VARCHAR(255),ccol21 VARCHAR(255),ccol22  VARCHAR(255), ccol23 VARCHAR(255),
+ccol24 VARCHAR(255),ccol25 VARCHAR(255),ccol26 VARCHAR(255),ccol27 VARCHAR(255),ccol28  VARCHAR(255), ccol29 VARCHAR(255),
+ccol30 VARCHAR(255),ccol31 VARCHAR(255),ccol32 VARCHAR(255),ccol33 VARCHAR(255),ccol34  VARCHAR(255), ccol35 VARCHAR(255),
+ccol36 VARCHAR(255),ccol37 VARCHAR(255),ccol38 VARCHAR(255),ccol39 VARCHAR(255),ccol40  VARCHAR(255), ccol41 VARCHAR(255),
+ccol42 VARCHAR(255),ccol43 VARCHAR(255),ccol44 VARCHAR(255),ccol45 VARCHAR(255),ccol46  VARCHAR(255), ccol47 VARCHAR(255),
+ccol48 VARCHAR(255),ccol49 VARCHAR(255),ccol50 VARCHAR(255),ccol51 VARCHAR(255),ccol52  VARCHAR(255), ccol53 VARCHAR(255),
+ccol54 VARCHAR(255),ccol55 VARCHAR(255),ccol56 VARCHAR(255),ccol57 VARCHAR(255),ccol58  VARCHAR(255), ccol59 VARCHAR(255),
+ccol60 VARCHAR(255),ccol61 VARCHAR(255),ccol62 VARCHAR(255),ccol63 VARCHAR(255),ccol64  VARCHAR(255), ccol65 VARCHAR(255)
+)
+ENGINE = innodb ROW_FORMAT=DYNAMIC;
+
+# row size 16384 >= 16K : expected to fail
+--error ER_TOO_BIG_ROWSIZE
+INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',214),NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL
+);
+
+# row size 16383 < 16K : expected to pass
+INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',213),NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL
+);
+
+SELECT * FROM tab5;
+DROP TABLE tab5;
+
+# Check the Warning |  139 | Row size too large
+--replace_regex /> [0-9]+/> NNNN/
+CREATE TABLE tab5(col1 CHAR (255), col2 CHAR (255), col3 CHAR(255),col4 CHAR(255), col5 CHAR(255),
+col6   CHAR(255), col7 CHAR(255),  col8 CHAR(255), col9 CHAR(255),col10 CHAR(255), col11  CHAR(255),
+col12 CHAR(255), col13 CHAR(255),col14 CHAR(255),col15 CHAR(255),col16  CHAR(255), col17 CHAR(255),
+col18 CHAR(255),col19 CHAR(255),col20 CHAR(255),col21 CHAR(255),col22  CHAR(255), col23 CHAR(255),
+col24 CHAR(255),col25 CHAR(255),col26 CHAR(255),col27 CHAR(255),col28  CHAR(255), col29 CHAR(255),
+col30 CHAR(255),col31 CHAR(255),col32 CHAR(255),col33 CHAR(255),col34  CHAR(255), col35 CHAR(255),
+col36 CHAR(255),col37 CHAR(255),col38 CHAR(255),col39 CHAR(255),col40  CHAR(255), col41 CHAR(255),
+col42 CHAR(255),col43 CHAR(255),col44 CHAR(255),col45 CHAR(255),col46  CHAR(255), col47 CHAR(255),
+col48 CHAR(255),col49 CHAR(255),col50 CHAR(255),col51 CHAR(255),col52  CHAR(255), col53 CHAR(255),
+col54 CHAR(255),col55 CHAR(255),col56 CHAR(255),col57 CHAR(255),col58  CHAR(255), col59 CHAR(255),
+col60 CHAR(255),col61 CHAR(255),col62 CHAR(255),col63 CHAR(255),col64  CHAR(255), col65  CHAR(255),
+ccol1  CHAR(255),ccol2  CHAR(255),ccol3  CHAR(255),ccol4  CHAR(255),ccol5   CHAR(255),
+ccol6  CHAR(255),ccol7  CHAR(255),ccol8  CHAR(255),ccol9  CHAR(255),ccol10  CHAR(255), ccol11  CHAR(255),
+ccol12 CHAR(255),ccol13 CHAR(255),ccol14 CHAR(255),ccol15 CHAR(255),ccol16  CHAR(255), ccol17 CHAR(255),
+ccol18 CHAR(255),ccol19 CHAR(255),ccol20 CHAR(255),ccol21 CHAR(255),ccol22  CHAR(255), ccol23 CHAR(255),
+ccol24 CHAR(255),ccol25 CHAR(255),ccol26 CHAR(255),ccol27 CHAR(255),ccol28  CHAR(255), ccol29 CHAR(255),
+ccol30 CHAR(255),ccol31 CHAR(255),ccol32 CHAR(255),ccol33 CHAR(255),ccol34  CHAR(255), ccol35 CHAR(255),
+ccol36 CHAR(255),ccol37 CHAR(255),ccol38 CHAR(255),ccol39 CHAR(255),ccol40  CHAR(255), ccol41 CHAR(255),
+ccol42 CHAR(255),ccol43 CHAR(255),ccol44 CHAR(255),ccol45 CHAR(255),ccol46  CHAR(255), ccol47 CHAR(255),
+ccol48 CHAR(255),ccol49 CHAR(255),ccol50 CHAR(255),ccol51 CHAR(255),ccol52  CHAR(255), ccol53 CHAR(255),
+ccol54 CHAR(255),ccol55 CHAR(255),ccol56 CHAR(255),ccol57 CHAR(255),ccol58  CHAR(255), ccol59 CHAR(255),
+ccol60 CHAR(255),ccol61 CHAR(255),ccol62 CHAR(255),ccol63 CHAR(255),ccol64  CHAR(255), ccol65  CHAR(255)
+)
+ENGINE = innodb ROW_FORMAT=REDUNDANT;
+
+# 65 * 255 = 16575
+--error ER_TOO_BIG_ROWSIZE
+INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL
+);
+
+SELECT * FROM tab5;
+DROP TABLE tab5;
+
+# Check the Warning |  139 | Row size too large
+--replace_regex /> [0-9]+/> NNNN/
+CREATE TABLE tab5(col1 VARCHAR (255), col2 VARCHAR (255), col3 VARCHAR(255),col4 VARCHAR(255), col5 VARCHAR(255),
+col6   VARCHAR(255), col7 VARCHAR(255),  col8 VARCHAR(255), col9 VARCHAR(255),col10 VARCHAR(255), col11  VARCHAR(255),
+col12 VARCHAR(255), col13 VARCHAR(255),col14 VARCHAR(255),col15 VARCHAR(255),col16  VARCHAR(255), col17 VARCHAR(255),
+col18 VARCHAR(255),col19 VARCHAR(255),col20 VARCHAR(255),col21 VARCHAR(255),col22  VARCHAR(255), col23 VARCHAR(255),
+col24 VARCHAR(255),col25 VARCHAR(255),col26 VARCHAR(255),col27 VARCHAR(255),col28  VARCHAR(255), col29 VARCHAR(255),
+col30 VARCHAR(255),col31 VARCHAR(255),col32 VARCHAR(255),col33 VARCHAR(255),col34  VARCHAR(255), col35 VARCHAR(255),
+col36 VARCHAR(255),col37 VARCHAR(255),col38 VARCHAR(255),col39 VARCHAR(255),col40  VARCHAR(255), col41 VARCHAR(255),
+col42 VARCHAR(255),col43 VARCHAR(255),col44 VARCHAR(255),col45 VARCHAR(255),col46  VARCHAR(255), col47 VARCHAR(255),
+col48 VARCHAR(255),col49 VARCHAR(255),col50 VARCHAR(255),col51 VARCHAR(255),col52  VARCHAR(255), col53 VARCHAR(255),
+col54 VARCHAR(255),col55 VARCHAR(255),col56 VARCHAR(255),col57 VARCHAR(255),col58  VARCHAR(255), col59 VARCHAR(255),
+col60 VARCHAR(255),col61 VARCHAR(255),col62 VARCHAR(255),col63 VARCHAR(255),col64  VARCHAR(255), col65  VARCHAR(255),
+ccol1  VARCHAR(255),ccol2  VARCHAR(255),ccol3  VARCHAR(255),ccol4  VARCHAR(255),ccol5   VARCHAR(255),
+ccol6  VARCHAR(255),ccol7  VARCHAR(255),ccol8  VARCHAR(255),ccol9  VARCHAR(255),ccol10  VARCHAR(255), ccol11 VARCHAR(255),
+ccol12 VARCHAR(255),ccol13 VARCHAR(255),ccol14 VARCHAR(255),ccol15 VARCHAR(255),ccol16  VARCHAR(255), ccol17 VARCHAR(255),
+ccol18 VARCHAR(255),ccol19 VARCHAR(255),ccol20 VARCHAR(255),ccol21 VARCHAR(255),ccol22  VARCHAR(255), ccol23 VARCHAR(255),
+ccol24 VARCHAR(255),ccol25 VARCHAR(255),ccol26 VARCHAR(255),ccol27 VARCHAR(255),ccol28  VARCHAR(255), ccol29 VARCHAR(255),
+ccol30 VARCHAR(255),ccol31 VARCHAR(255),ccol32 VARCHAR(255),ccol33 VARCHAR(255),ccol34  VARCHAR(255), ccol35 VARCHAR(255),
+ccol36 VARCHAR(255),ccol37 VARCHAR(255),ccol38 VARCHAR(255),ccol39 VARCHAR(255),ccol40  VARCHAR(255), ccol41 VARCHAR(255),
+ccol42 VARCHAR(255),ccol43 VARCHAR(255),ccol44 VARCHAR(255),ccol45 VARCHAR(255),ccol46  VARCHAR(255), ccol47 VARCHAR(255),
+ccol48 VARCHAR(255),ccol49 VARCHAR(255),ccol50 VARCHAR(255),ccol51 VARCHAR(255),ccol52  VARCHAR(255), ccol53 VARCHAR(255),
+ccol54 VARCHAR(255),ccol55 VARCHAR(255),ccol56 VARCHAR(255),ccol57 VARCHAR(255),ccol58  VARCHAR(255), ccol59 VARCHAR(255),
+ccol60 VARCHAR(255),ccol61 VARCHAR(255),ccol62 VARCHAR(255),ccol63 VARCHAR(255),ccol64  VARCHAR(255), ccol65 VARCHAR(255)
+)
+ENGINE = innodb ROW_FORMAT=REDUNDANT;
+
+# row size 16383 >= 16K-1 : expected to fail
+--error ER_TOO_BIG_ROWSIZE
+INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',27),NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL
+);
+
+# row size 16382 < 16K-1 : expected to pass
+INSERT INTO tab5 values(repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',255),
+repeat('a',255),repeat('a',255),repeat('a',255),repeat('a',26),NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL,
+NULL,NULL,NULL,NULL,NULL
+);
+
+SELECT * FROM tab5;
+DROP TABLE tab5;
+
+# Check the Warning |  1478	InnoDB: Cannot create a COMPRESSED table when innodb_page_size > NNNNk. Assuming ROW_FORMAT=COMPACT
+--replace_regex /> [0-9]+/> NNNN/
+CREATE TABLE tab5(col1 VARCHAR (255), col2 VARCHAR (255), col3 VARCHAR(255),col4 VARCHAR(255), col5 VARCHAR(255),
+col6   VARCHAR(255), col7 VARCHAR(255),  col8 VARCHAR(255), col9 VARCHAR(255),col10 VARCHAR(255), col11  VARCHAR(255),
+col12 VARCHAR(255), col13 VARCHAR(255),col14 VARCHAR(255),col15 VARCHAR(255),col16  VARCHAR(255), col17 VARCHAR(255),
+col18 VARCHAR(255),col19 VARCHAR(255),col20 VARCHAR(255),col21 VARCHAR(255),col22  VARCHAR(255), col23 VARCHAR(255),
+col24 VARCHAR(255),col25 VARCHAR(255),col26 VARCHAR(255),col27 VARCHAR(255),col28  VARCHAR(255), col29 VARCHAR(255),
+col30 VARCHAR(255),col31 VARCHAR(255),col32 VARCHAR(255),col33 VARCHAR(255),col34  VARCHAR(255), col35 VARCHAR(255),
+col36 VARCHAR(255),col37 VARCHAR(255),col38 VARCHAR(255),col39 VARCHAR(255),col40  VARCHAR(255), col41 VARCHAR(255),
+col42 VARCHAR(255),col43 VARCHAR(255),col44 VARCHAR(255),col45 VARCHAR(255),col46  VARCHAR(255), col47 VARCHAR(255),
+col48 VARCHAR(255),col49 VARCHAR(255),col50 VARCHAR(255),col51 VARCHAR(255),col52  VARCHAR(255), col53 VARCHAR(255),
+col54 VARCHAR(255),col55 VARCHAR(255),col56 VARCHAR(255),col57 VARCHAR(255),col58  VARCHAR(255), col59 VARCHAR(255),
+col60 VARCHAR(255),col61 VARCHAR(255),col62 VARCHAR(255),col63 VARCHAR(255),col64  VARCHAR(255), col65  VARCHAR(255))
+ENGINE = innodb ROW_FORMAT=COMPRESSED;
+
+DROP TABLE tab5;
+
+CREATE TABLE t(col BLOB) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SHOW WARNINGS;
+INSERT INTO t VALUES (REPEAT('a',16384));
+INSERT INTO t VALUES (REPEAT('a',32768));
+INSERT INTO t VALUES (REPEAT('a',65535));
+SELECT LENGTH(col) FROM t;
+FLUSH TABLE t;
+ANALYZE TABLE t;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t';
+DROP TABLE t;
+
+CREATE TABLE t(col BLOB) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+SHOW WARNINGS;
+INSERT INTO t VALUES (REPEAT('a',16384));
+INSERT INTO t VALUES (REPEAT('a',32768));
+INSERT INTO t VALUES (REPEAT('a',65535));
+SELECT LENGTH(col) FROM t;
+FLUSH TABLE t;
+ANALYZE TABLE t;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t';
+DROP TABLE t;
+
+CREATE TABLE t(col BLOB) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+SHOW WARNINGS;
+INSERT INTO t VALUES (REPEAT('a',16384));
+INSERT INTO t VALUES (REPEAT('a',32768));
+INSERT INTO t VALUES (REPEAT('a',65535));
+SELECT LENGTH(col) FROM t;
+FLUSH TABLE t;
+ANALYZE TABLE t;
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t';
+DROP TABLE t;

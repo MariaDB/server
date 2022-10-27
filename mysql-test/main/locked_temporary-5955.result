@@ -1,0 +1,4 @@
+connect  con1,localhost,root,,;
+CREATE TEMPORARY TABLE tmp (i INT) ENGINE=InnoDB;
+LOCK TABLES tmp AS p WRITE;
+disconnect con1;

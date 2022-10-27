@@ -1,0 +1,81 @@
+Data will be ordered in descending order
+CREATE TABLE t1(
+pk CHAR(5),
+a CHAR(30),
+b CHAR(30),
+PRIMARY KEY(pk) COMMENT "rev:cf1",
+KEY(a)
+) ENGINE=ROCKSDB COLLATE 'latin1_bin';
+CREATE TABLE t2(
+pk CHAR(5),
+a CHAR(30),
+b CHAR(30),
+PRIMARY KEY(pk) COMMENT "rev:cf1",
+KEY(a)
+) ENGINE=ROCKSDB COLLATE 'latin1_bin';
+CREATE TABLE t3(
+pk CHAR(5),
+a CHAR(30),
+b CHAR(30),
+PRIMARY KEY(pk) COMMENT "rev:cf1",
+KEY(a)
+) ENGINE=ROCKSDB COLLATE 'latin1_bin' PARTITION BY KEY() PARTITIONS 4;
+connect  other,localhost,root,,;
+set session transaction isolation level repeatable read;
+start transaction with consistent snapshot;
+select VALUE > 0 as 'Has opened snapshots' from information_schema.rocksdb_dbstats where stat_type='DB_NUM_SNAPSHOTS';
+Has opened snapshots
+1
+connection default;
+SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS=
+'cf1={write_buffer_size=8m;target_file_size_base=1m};';
+set rocksdb_bulk_load=1;
+set rocksdb_bulk_load_size=100000;
+LOAD DATA INFILE <input_file> INTO TABLE t1;
+pk	a	b
+LOAD DATA INFILE <input_file> INTO TABLE t2;
+pk	a	b
+LOAD DATA INFILE <input_file> INTO TABLE t3;
+pk	a	b
+set rocksdb_bulk_load=0;
+SHOW TABLE STATUS WHERE name LIKE 't%';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_bin	NULL			0	N
+t2	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_bin	NULL			0	N
+t3	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_bin	NULL	partitioned		0	N
+ANALYZE TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+SHOW TABLE STATUS WHERE name LIKE 't%';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_bin	NULL			0	N
+t2	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_bin	NULL			0	N
+t3	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	#	#	NULL	latin1_bin	NULL	partitioned		0	N
+select count(pk),count(a) from t1;
+count(pk)	count(a)
+2500000	2500000
+select count(b)           from t1;
+count(b)
+2500000
+select count(pk),count(a) from t2;
+count(pk)	count(a)
+2500000	2500000
+select count(b)           from t2;
+count(b)
+2500000
+select count(pk),count(a) from t3;
+count(pk)	count(a)
+2500000	2500000
+select count(b)           from t3;
+count(b)
+2500000
+longfilenamethatvalidatesthatthiswillgetdeleted.bulk_load.tmp
+test.bulk_load.tmp
+# restart
+disconnect other;
+DROP TABLE t1, t2, t3;

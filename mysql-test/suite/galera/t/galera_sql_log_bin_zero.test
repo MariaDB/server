@@ -1,0 +1,26 @@
+#
+# Test SET SESSION sql_log_bin = 0 . We expect that updates gets repliated to
+# other nodes while they do not show up in the binary log files.
+# (see galera.galera_as_master)
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+SET SESSION sql_log_bin = 0;
+
+INSERT INTO t1 VALUES (1);
+
+SET SESSION sql_log_bin = 1;
+
+INSERT INTO t1 VALUES (2);
+
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t1;
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
+
+--connection node_1
+DROP TABLE t1;

@@ -1,0 +1,23 @@
+CREATE TABLE tags (
+id INT UNSIGNED PRIMARY KEY
+) DEFAULT CHARSET=utf8;
+CREATE TABLE bugs (
+id INT UNSIGNED PRIMARY KEY
+) DEFAULT CHARSET=utf8;
+ALTER TABLE bugs ADD COLUMN name VARCHAR(64) COMMENT 'groonga_type "tags"';
+SELECT mroonga_command("dump --dump_plugins no");
+mroonga_command("dump --dump_plugins no")
+table_create bugs TABLE_PAT_KEY UInt32
+column_create bugs id COLUMN_SCALAR UInt32
+
+table_create mroonga_operations TABLE_NO_KEY
+column_create mroonga_operations record COLUMN_SCALAR UInt32
+column_create mroonga_operations table COLUMN_SCALAR ShortText
+column_create mroonga_operations type COLUMN_SCALAR ShortText
+
+table_create tags TABLE_PAT_KEY UInt32
+column_create tags id COLUMN_SCALAR UInt32
+
+column_create bugs name COLUMN_SCALAR tags
+DROP TABLE bugs;
+DROP TABLE tags;

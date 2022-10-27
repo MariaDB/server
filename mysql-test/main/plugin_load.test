@@ -1,0 +1,18 @@
+--source include/not_windows_embedded.inc
+--source include/have_example_plugin.inc
+
+if (!$MYPLUGLIB_SO) {
+  --echo needs SIMPLE_PARSER plugin
+}
+if (!$LIBDAEMON_EXAMPLE_SO) {
+  --echo needs DAEMON_EXAMPLE plugin
+}
+if (!$DIALOG_EXAMPLES_SO) {
+  --echo needs dialog examples plugins
+}
+SELECT @@global.example_enum_var = 'e2';
+
+--sorted_result
+select plugin_name, plugin_status from information_schema.plugins
+  where plugin_name in ('SIMPLE_PARSER', 'EXAMPLE',
+    'DAEMON_EXAMPLE', 'TWO_QUESTIONS', 'THREE_ATTEMPTS');

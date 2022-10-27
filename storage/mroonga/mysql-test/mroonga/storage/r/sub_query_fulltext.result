@@ -1,0 +1,35 @@
+DROP TABLE IF EXISTS diaries, users;
+CREATE TABLE users (
+id INT PRIMARY KEY AUTO_INCREMENT,
+name TEXT
+) DEFAULT CHARSET UTF8;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+user_id INT UNSIGNED NOT NULL,
+title TEXT,
+FULLTEXT INDEX (title)
+) DEFAULT CHARSET UTF8;
+INSERT INTO users (name) VALUES ("alice");
+INSERT INTO users (name) VALUES ("bob");
+INSERT INTO users (name) VALUES ("carlos");
+SELECT * FROM users;
+id	name
+1	alice
+2	bob
+3	carlos
+INSERT INTO diaries (user_id, title) VALUES (1, "Hello!");
+INSERT INTO diaries (user_id, title) VALUES (2, "my name is bob");
+INSERT INTO diaries (user_id, title) VALUES (3, "my name is carlos");
+SELECT * FROM diaries;
+id	user_id	title
+1	1	Hello!
+2	2	my name is bob
+3	3	my name is carlos
+SELECT * FROM users
+WHERE id IN (SELECT user_id FROM diaries
+WHERE MATCH(title) AGAINST("name"))
+ORDER BY id DESC;
+id	name
+3	carlos
+2	bob
+DROP TABLE diaries, users;

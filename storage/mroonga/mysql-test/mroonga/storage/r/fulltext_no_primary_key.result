@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES UTF8;
+CREATE TABLE diaries (
+title VARCHAR(255),
+content TEXT,
+FULLTEXT INDEX (content)
+) DEFAULT CHARSET UTF8;
+INSERT INTO diaries VALUES("Hello", "今日からはじめました。");
+INSERT INTO diaries VALUES("天気", "明日の富士山の天気について");
+INSERT INTO diaries VALUES("富士山", "今日も天気がよくてきれいに見える。");
+SELECT * FROM diaries WHERE MATCH(content) AGAINST("*D+ 今日 天気" IN BOOLEAN MODE);
+title	content
+富士山	今日も天気がよくてきれいに見える。
+DROP TABLE diaries;

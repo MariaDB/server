@@ -1,0 +1,94 @@
+--source include/have_innodb.inc
+--source include/have_file_key_management_plugin.inc
+--source include/innodb_checksum_algorithm.inc
+
+#
+# MDEV-11974: MariaDB 10.2 encryption does not support spatial indexes
+#
+
+#
+#
+#
+let $checksum_algorithm = `SELECT @@innodb_checksum_algorithm`;
+let $error_code = ER_CANT_CREATE_TABLE, ER_ILLEGAL_HA_CREATE_OPTION;
+if ($checksum_algorithm == "full_crc32")
+{
+  let $error_code = 0;
+}
+if ($checksum_algorithm == "strict_full_crc32")
+{
+  let $error_code = 0;
+}
+
+--error $error_code
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB
+ENCRYPTED=YES;
+
+if (!$error_code) {
+INSERT INTO t1(c, coordinate) values('mysql', ST_GeomFromText('POINT(903994614 180726515)'));
+--source include/restart_mysqld.inc
+INSERT INTO t1(c, coordinate) values('mariadb', ST_GeomFromText('POINT(903994614 180726515)'));
+DROP TABLE t1;
+}
+
+#
+# (2) Alter table
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB;
+--error $error_code
+ALTER TABLE t1 ENCRYPTED=YES;
+DROP TABLE t1;
+
+#
+# Index creation
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL)
+PAGE_COMPRESSED=YES, ENCRYPTED=YES ENGINE=INNODB;
+# FIXME: MDEV-13851 Encrypted table refuses some form of ALGORITHM=COPY,
+# but allows rebuild by FORCE
+--error $error_code
+ALTER TABLE t1 ADD SPATIAL INDEX b1(coordinate), ALGORITHM=COPY;
+--error $error_code
+ALTER TABLE t1 ADD SPATIAL INDEX b2(coordinate), FORCE, ALGORITHM=INPLACE;
+--error $error_code
+ALTER TABLE t1 ADD SPATIAL INDEX(coordinate);
+--error $error_code
+CREATE SPATIAL INDEX b3 on t1(coordinate);
+DROP TABLE t1;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=DEFAULT ENGINE=INNODB;
+CREATE SPATIAL INDEX b on t1(coordinate);
+INSERT INTO t1 values(1, 'secret', ST_GeomFromText('POINT(903994614 180726515)'));
+ALTER TABLE t1 DROP INDEX b;
+INSERT INTO t1 values(2, 'secret', ST_GeomFromText('POINT(903994614 180726515)'));
+ALTER TABLE t1 ADD SPATIAL INDEX b(coordinate);
+INSERT INTO t1 values(3, 'secret', ST_GeomFromText('POINT(903994614 180726515)'));
+DROP TABLE t1;
+#
+# (3) Default encryption should still work
+#
+
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB;
+CREATE TABLE t2 (pk INT PRIMARY KEY AUTO_INCREMENT,
+c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB PAGE_COMPRESSED=YES;
+
+INSERT INTO t1 values(1, 'secret', ST_GeomFromText('POINT(903994614 180726515)'));
+INSERT INTO t2 values(1, 'secret', ST_GeomFromText('POINT(903994614 180726515)'));
+
+--let $wait_timeout=600
+--let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+--source include/wait_condition.inc
+
+--echo # Success!
+
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION > 0;
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+
+DROP TABLE t1, t2;

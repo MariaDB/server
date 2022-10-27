@@ -1,0 +1,25 @@
+--source include/have_innodb.inc
+call mtr.add_suppression("InnoDB: New log files created");
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+
+CREATE TABLE t(a varchar(60)) ENGINE INNODB;
+start transaction;
+INSERT INTO t VALUES(1);
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+
+exec $XTRABACKUP --prepare --target-dir=$basedir ;
+
+let SEARCH_FILE=$MYSQLTEST_VARDIR/log/current_test;
+--let SEARCH_PATTERN= Rolled back recovered transaction
+--source include/search_pattern_in_file.inc
+--echo # expect NOT FOUND
+
+SELECT count(*) FROM t;
+DROP TABLE t;
+
+# Cleanup
+rmdir $basedir;

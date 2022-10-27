@@ -1,0 +1,37 @@
+include/rpl_init.inc [topology=1->2]
+connection server_2;
+include/stop_slave.inc
+RESET SLAVE;
+include/start_slave.inc
+include/stop_slave.inc
+#
+# Stop slave server
+#
+#
+# Simulate file number get close to 999997
+# by renaming relay logs and modifying index/info files
+#
+# Restart slave server
+#
+SET @save_slave_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET @save_max_relay_log_size= @@GLOBAL.max_relay_log_size;
+SET GLOBAL slave_parallel_threads=1;
+SET GLOBAL max_relay_log_size=100 * 1024;
+include/start_slave.inc
+connection server_1;
+create table t1 (i int, c varchar(1024));
+#
+# Insert some data to generate enough amount of binary logs
+#
+connection server_2;
+#
+# Assert that 'slave-relay-bin.999999' is purged.
+#
+NOT FOUND /slave-relay-bin.999999/ in slave-relay-bin.index
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @save_slave_parallel_threads;
+SET GLOBAL max_relay_log_size= @save_max_relay_log_size;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1;
+include/rpl_end.inc

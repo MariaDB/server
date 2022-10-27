@@ -1,0 +1,84 @@
+--source include/master-slave.inc
+
+--connection slave
+
+--echo ###############
+--echo # If Using_Gtid != 'No', backup gtid_slave_pos
+--echo ########################
+
+--source include/stop_slave.inc
+change master to master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--connection master
+CREATE TABLE t(i INT);
+--sync_slave_with_master
+
+--let $using_gtid=query_get_value(SHOW SLAVE STATUS,Using_Gtid,1)
+--echo "using_gtid: $using_gtid"
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffix=.2 --slave-info --backup --target-dir=$targetdir;
+--enable_result_log
+
+--let SEARCH_FILE=$targetdir/xtrabackup_slave_info
+--let SEARCH_PATTERN=gtid_slave_pos
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=MASTER_LOG_FILE
+--source include/search_pattern_in_file.inc
+
+rmdir $targetdir;
+
+--echo ###############
+--echo # If Using_Gtid != 'No' and !gtid_slave_pos, backup master position
+--echo ########################
+
+--source include/stop_slave.inc
+SET GLOBAL gtid_slave_pos="";
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffix=.2 --slave-info --backup --target-dir=$targetdir;
+--enable_result_log
+
+--let SEARCH_FILE=$targetdir/xtrabackup_slave_info
+--let SEARCH_PATTERN=gtid_slave_pos
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=MASTER_LOG_FILE
+--source include/search_pattern_in_file.inc
+
+rmdir $targetdir;
+
+--echo ###############
+--echo # If Using_Gtid == 'No', backup Exec_Master_Log_Pos
+--echo ########################
+
+change master to master_use_gtid=no;
+--source include/start_slave.inc
+
+--connection master
+INSERT INTO t VALUES(1);
+--sync_slave_with_master
+
+--let $using_gtid=query_get_value(SHOW SLAVE STATUS,Using_Gtid,1)
+--echo "using_gtid: $using_gtid"
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --defaults-group-suffix=.2 --slave-info --backup --target-dir=$targetdir;
+--enable_result_log
+
+--let SEARCH_FILE=$targetdir/xtrabackup_slave_info
+--let SEARCH_PATTERN=gtid_slave_pos
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=MASTER_LOG_FILE
+--source include/search_pattern_in_file.inc
+
+rmdir $targetdir;
+
+# Cleanup
+--connection master
+DROP TABLE t;
+--sync_slave_with_master
+--source include/rpl_end.inc

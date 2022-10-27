@@ -1,0 +1,46 @@
+#
+# replication of the DEFINER=current_role
+#
+
+--source include/master-slave.inc
+
+create role role1;
+create role role2;
+grant execute on test.* to role2;
+grant role2 to role1;
+set role role1;
+--sorted_result
+show grants;
+
+create definer=current_user procedure pcu() select current_user;
+create definer=root@localhost procedure pu() select "root@localhost";
+create definer=current_role procedure pcr() select current_role;
+create definer=role1 procedure pr() select "role1";
+
+show create procedure pcu;
+show create procedure pu;
+show create procedure pcr;
+show create procedure pr;
+
+sync_slave_with_master;
+
+set role role1;
+--sorted_result
+show grants;
+
+show create procedure pcu;
+show create procedure pu;
+show create procedure pcr;
+show create procedure pr;
+
+connection master;
+
+drop procedure pcu;
+drop procedure pu;
+drop procedure pcr;
+drop procedure pr;
+drop role role1;
+drop role role2;
+
+--source include/rpl_end.inc
+

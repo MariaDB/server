@@ -1,0 +1,108 @@
+#
+# Code coverage testing of TRUNCATE TABLE.
+#
+# Ingo Struewing, 2009-07-20
+#
+
+--source include/have_debug_sync.inc
+SET DEBUG_SYNC='RESET';
+
+--let $MYSQLD_DATADIR= `SELECT @@datadir`
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--echo #
+--echo # Bug#20667 - Truncate table fails for a write locked table
+--echo #
+########
+# Attack acquire_exclusive_locks(). Hold a global read lock.
+# Non-LOCK TABLE case.
+#
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES (1);
+#
+# Start a transaction and execute a DML in it. Since 5.4.4 this leaves
+# a shared meta data lock (MDL) behind. TRUNCATE shall block on it.
+#
+--connect (con1, localhost, root,,)
+START TRANSACTION;
+INSERT INTO t1 VALUES (2);
+#
+# Get connection id of default connection.
+# Start TRUNCATE, which will block on acquire_exclusive_locks().
+#
+--connection default
+let $ID= `SELECT @id := CONNECTION_ID()`;
+SET DEBUG_SYNC='mdl_acquire_lock_wait SIGNAL waiting';
+send TRUNCATE TABLE t1;
+#
+# Get the default connection ID into a variable in an invisible statement.
+# Kill the TRUNCATE query. This shall result in an error return
+# from wait_while_table_is_used().
+#
+--connection con1
+SET DEBUG_SYNC='now WAIT_FOR waiting';
+let $invisible_assignment_in_select = `SELECT @id := $ID`;
+KILL QUERY @id;
+--connection default
+--error ER_QUERY_INTERRUPTED
+reap;
+--connection con1
+--echo # Release SW lock by committing transaction.
+COMMIT;
+--disconnect con1
+--connection default
+UNLOCK TABLES;
+DROP TABLE t1;
+SET DEBUG_SYNC='RESET';
+
+--echo #
+--echo # Bug#57659 Segfault in Query_cache::invalidate_data for TRUNCATE TABLE
+--echo #
+
+--echo # Note that this test case only reproduces the problem
+--echo # when it is run with valgrind.
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, m1;
+--enable_warnings
+
+CREATE TABLE t1(a INT) engine=memory;
+CREATE TABLE m1(a INT) engine=merge UNION(t1);
+connect(con2, localhost, root);
+
+connect(con1, localhost, root);
+SET DEBUG_SYNC= 'open_tables_after_open_and_process_table SIGNAL opened WAIT_FOR dropped';
+--echo # Sending:
+--send TRUNCATE TABLE m1
+
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+--echo # Sending:
+--send FLUSH TABLES m1
+
+connection default;
+--echo # Waiting for FLUSH TABLES to be blocked.
+let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist
+  WHERE state= 'Waiting for table metadata lock' AND info= 'FLUSH TABLES m1';
+--source include/wait_condition.inc
+SET DEBUG_SYNC= 'now SIGNAL dropped';
+
+connection con1;
+--echo # Reaping: TRUNCATE TABLE m1
+--error ER_WRONG_MRG_TABLE
+--reap
+disconnect con1;
+--source include/wait_until_disconnected.inc
+
+connection con2;
+--echo # Reaping: FLUSH TABLES
+--reap
+disconnect con2;
+--source include/wait_until_disconnected.inc
+
+connection default;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE m1, t1;

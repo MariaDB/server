@@ -1,0 +1,68 @@
+CREATE TABLE t1 (pk BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT);
+INSERT INTO t1 VALUES (5);
+SHOW TABLE STATUS LIKE 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	#	Fixed	#	#	#	#	#	#	6	#	#	NULL	latin1_swedish_ci	NULL			0	N
+INSERT INTO t1 VALUES ('538647864786478647864');
+Warnings:
+Warning	1264	Out of range value for column 'pk' at row 1
+SELECT * FROM t1;
+pk
+5
+9223372036854775807
+SHOW TABLE STATUS LIKE 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	10	Fixed	2	22	44	0	0	0	9223372036854775807	#	#	NULL	latin1_swedish_ci	NULL			0	N
+INSERT INTO t1 VALUES ();
+ERROR 23000: Duplicate entry '9223372036854775807' for key 'PRIMARY'
+SELECT * FROM t1;
+pk
+5
+9223372036854775807
+SHOW TABLE STATUS LIKE 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	#	Fixed	#	#	#	#	#	#	9223372036854775807	#	#	NULL	latin1_swedish_ci	NULL			0	N
+INSERT INTO t1 VALUES ();
+ERROR 23000: Duplicate entry '9223372036854775807' for key 'PRIMARY'
+SELECT * FROM t1;
+pk
+5
+9223372036854775807
+SHOW TABLE STATUS LIKE 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	#	Fixed	#	#	#	#	#	#	9223372036854775807	#	#	NULL	latin1_swedish_ci	NULL			0	N
+DROP TABLE t1;
+CREATE TABLE t1 (pk TINYINT NOT NULL PRIMARY KEY AUTO_INCREMENT);
+INSERT INTO t1 VALUES (5);
+SHOW TABLE STATUS LIKE 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	#	Fixed	#	#	#	#	#	#	6	#	#	NULL	latin1_swedish_ci	NULL			0	N
+INSERT INTO t1 VALUES (1000);
+Warnings:
+Warning	1264	Out of range value for column 'pk' at row 1
+SELECT * FROM t1;
+pk
+5
+127
+SHOW TABLE STATUS LIKE 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	#	Fixed	#	#	#	#	#	#	127	#	#	NULL	latin1_swedish_ci	NULL			0	N
+INSERT INTO t1 VALUES ();
+ERROR 23000: Duplicate entry '127' for key 'PRIMARY'
+SELECT * FROM t1;
+pk
+5
+127
+SHOW TABLE STATUS LIKE 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	#	Fixed	#	#	#	#	#	#	127	#	#	NULL	latin1_swedish_ci	NULL			0	N
+INSERT INTO t1 VALUES ();
+ERROR 23000: Duplicate entry '127' for key 'PRIMARY'
+SELECT * FROM t1;
+pk
+5
+127
+SHOW TABLE STATUS LIKE 't1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	ROCKSDB	#	Fixed	#	#	#	#	#	#	127	#	#	NULL	latin1_swedish_ci	NULL			0	N
+DROP TABLE t1;

@@ -1,0 +1,639 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+SELECT table_name, column_name FROM information_schema.columns where table_name="OPTIMIZER_TRACE";
+show variables like 'optimizer_trace';
+set optimizer_trace="enabled=on";
+show variables like 'optimizer_trace';
+set optimizer_trace="enabled=off";
+create table t1 (a int, b int);
+insert into t1 values (1,2),(2,3);
+
+create table t2 (b int);
+insert into t2 values (1),(2);
+
+analyze table t1;
+analyze table t2;
+create function f1 (a int) returns INT
+return 1;
+
+create view v1 as select * from t1 where t1.a=1;
+create view v2 as select * from t1 where t1.a=1 group by t1.b;
+set optimizer_trace="enabled=on";
+
+--echo # Mergeable views/derived tables
+select * from v1;
+select * from information_schema.OPTIMIZER_TRACE;
+select * from (select * from t1 where t1.a=1)q;
+select * from information_schema.OPTIMIZER_TRACE;
+
+--echo # Non-Mergeable views
+select * from v2;
+select * from information_schema.OPTIMIZER_TRACE;
+
+drop table t1,t2;
+drop view v1,v2;
+drop function f1;
+
+create table t1(a int, b int);
+insert into t1 values (0,0),(1,1),(2,1),(3,2),(4,3),
+(5,3),(6,3),(7,3),(8,3),(9,3);
+create table t2(a int, b int);
+insert into t2 values (0,0),(1,1),(2,1),(3,2),(4,3),
+(5,3),(6,3),(7,3),(8,3),(9,3);
+
+ANALYZE TABLE t1;
+ANALYZE TABLE t2;
+
+create view v1 as select a from t1 group by b;
+create view v2 as select a from t2;
+
+--echo # Mergeable view
+explain select * from v2 ;
+select * from information_schema.OPTIMIZER_TRACE;
+
+--echo # Non-Mergeable view
+explain select * from v1 ;
+select * from information_schema.OPTIMIZER_TRACE;
+drop table t1,t2;
+drop view v1,v2;
+
+--echo #
+--echo # print ref-keyues array
+--echo #
+
+create table t0 (a int);
+INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (a int, b int, c int, key(a));
+insert into t1 select A.a*10 + B.a, A.a*10 + B.a, A.a*10 + B.a from t0 A, t0 B;
+
+create table t2(a int, b int, c int , key(a));
+insert into t2 select A.a*10 + B.a, A.a*10 + B.a, A.a*10 + B.a from t0 A, t0 B;
+
+analyze table t1;
+analyze table t2;
+
+explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b;
+select * from information_schema.OPTIMIZER_TRACE;
+drop table t1,t2,t0;
+
+--echo #
+--echo # group_by min max optimization
+--echo #
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, a INT NOT NULL, KEY(a));
+--disable_query_log
+INSERT INTO t1(a) VALUES (1), (2), (3), (4);
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+--enable_query_log
+
+analyze table t1;
+EXPLAIN SELECT DISTINCT a FROM t1;
+select * from information_schema.OPTIMIZER_TRACE;
+drop table t1;
+
+--echo # 
+--echo # With group by , where clause and MIN/MAX function
+--echo # 
+CREATE TABLE t1 (a INT, b INT, c int, d int,  KEY(a,b,c,d));
+INSERT INTO t1 VALUES (1,1,1,1), (2,2,2,2), (3,3,3,3), (4,4,4,4), (1,0,1,1), (3,2,3,3), (4,5,4,4);
+ANALYZE TABLE t1;
+EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a;
+select * from information_schema.OPTIMIZER_TRACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (id INT NOT NULL, a DATE, KEY(id,a));
+INSERT INTO t1 values (1,'2001-01-01'),(1,'2001-01-02'),
+ (1,'2001-01-03'),(1,'2001-01-04'),
+ (2,'2001-01-01'),(2,'2001-01-02'),
+ (2,'2001-01-03'),(2,'2001-01-04'),
+ (3,'2001-01-01'),(3,'2001-01-02'),
+ (3,'2001-01-03'),(3,'2001-01-04'),
+ (4,'2001-01-01'),(4,'2001-01-02'),
+ (4,'2001-01-03'),(4,'2001-01-04');
+set optimizer_trace='enabled=on';
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+--echo #
+--echo # Late ORDER BY optimization
+--echo #
+
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k(a int primary key);
+insert into one_k select A.a + B.a* 10 + C.a * 100 from ten A, ten B, ten C;
+create table t1  (
+  pk int not null,
+  a int,
+  b int,
+  c int,
+  filler char(100),
+  KEY a_a(c),
+  KEY a_c(a,c),
+  KEY a_b(a,b)
+);
+ 
+insert into t1
+select a, a,a,a, 'filler-dataaa' from test.one_k;
+update t1 set a=1 where pk between 0 and 180;
+update t1 set b=2 where pk between 0 and 20;
+analyze table t1;
+set optimizer_trace='enabled=on';
+explain  select * from t1 where a=1 and b=2 order by c limit 1;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1,ten,one_k;
+
+--echo #
+--echo # TABLE ELIMINATION
+--echo #
+
+create table t1 (a int);
+insert into t1 values (0),(1),(2),(3);
+create table t0 as select * from t1;
+
+create table t2 (a int primary key, b int)
+  as select a, a as b from t1 where a in (1,2);
+
+create table t3 (a int primary key, b int)
+  as select a, a as b from t1 where a in (1,3);
+
+set optimizer_trace='enabled=on';
+
+analyze table t1;
+analyze table t2;
+analyze table t3;
+
+--echo # table t2 should be eliminated
+explain
+select t1.a from t1 left join t2 on t1.a=t2.a;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo # no tables should be eliminated
+explain select * from t1 left join t2 on t2.a=t1.a;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo # multiple tables are eliminated
+explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and t3.a=t1.a;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t0, t1, t2, t3;
+
+--echo #
+--echo # IN subquery to sem-join is traced
+--echo #
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int, b int);
+insert into t1 values (0,0),(1,1),(2,2);
+create table t2 as select * from t1;
+
+create table t11(a int, b int);
+
+create table t10 (pk int, a int);
+insert into t10 select a,a from t0;
+create table t12 like t10;
+insert into t12 select * from t10;
+
+analyze table t1,t10;
+
+set optimizer_trace='enabled=on';
+explain extended select * from t1 where a in (select pk from t10);
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t0,t1,t11,t10,t12,t2;
+
+--echo #
+--echo # Selectivities for columns and indexes.
+--echo #
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (
+pk int,
+a int,
+b int, 
+key pk(pk),
+key pk_a(pk,a),
+key pk_a_b(pk,a,b));
+insert into t1 select a,a,a from t0;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (a,b) INDEXES ();
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @save_use_stat_tables= @@use_stat_tables;
+set @@optimizer_use_condition_selectivity=4;
+set @@use_stat_tables= PREFERABLY;
+set optimizer_trace='enabled=on';
+explain select * from t1 where pk = 2 and a=5 and b=1;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set @@use_stat_tables= @save_use_stat_tables;
+drop table t0,t1;
+set optimizer_trace="enabled=off";
+
+--echo #
+--echo # Tests added to show that sub-statements are not traced
+--echo #
+
+create table t1(a int);
+insert into t1 values (1),(2),(3),(4);
+create table t2(a int);
+insert into t2 values (1),(2),(3),(4);
+delimiter |;
+create function f1(a int) returns int
+begin
+  declare a int default 0;
+  set a= a+ (select count(*) from t2);
+  return a;
+end|
+
+create function f2(a int) returns int
+begin
+  declare a int default 0;
+  select count(*) from t2 into a;
+  return a;
+end|
+
+delimiter ;|
+set optimizer_trace='enabled=on';
+select f1(a) from t1;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select f2(a) from t1;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1,t2;
+drop function f1;
+drop function f2;
+set optimizer_trace='enabled=off';
+
+--echo #
+--echo # MDEV-18489: Limit the memory used by the optimizer trace
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2);
+
+set optimizer_trace='enabled=on';
+set @save_optimizer_trace_max_mem_size= @@optimizer_trace_max_mem_size;
+select * from t1;
+select length(trace) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+set optimizer_trace_max_mem_size=100;
+select * from t1;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+set optimizer_trace_max_mem_size=0;
+select * from t1;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+set optimizer_trace='enabled=off';
+set @@optimizer_trace_max_mem_size= @save_optimizer_trace_max_mem_size;
+
+--echo #
+--echo # MDEV-18527: Optimizer trace for DELETE query shows table:null
+--echo #
+
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t0 (a int, b int);
+insert into t0 select a,a from ten;
+alter table t0 add key(a);
+
+set optimizer_trace=1;
+explain delete from t0 where t0.a<3;
+select * from information_schema.optimizer_trace;
+drop table ten,t0;
+set optimizer_trace='enabled=off';
+
+--echo #
+--echo # MDEV-18528: Optimizer trace support for multi-table UPDATE and DELETE
+--echo #
+
+set optimizer_trace=1;
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t0 (a int, b int);
+insert into t0 select a,a from ten;
+alter table t0 add key(a);
+create table t1 like t0;
+insert into t1 select * from t0;
+explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3;
+select * from information_schema.optimizer_trace;
+drop table ten,t0,t1;
+set optimizer_trace='enabled=off';
+
+--echo #
+--echo # Merged to Materialized for derived tables
+--echo #
+
+set optimizer_trace=1;
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+explain select * from (select rand() from t1)q;
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+set optimizer_trace='enabled=off';
+
+--echo #
+--echo # Semi-join nest
+--echo #
+
+set optimizer_trace=1;
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+create table t2(a int);
+insert into t2 values (1),(2),(3),(1),(2),(3),(1),(2),(3);
+set @save_optimizer_switch= @@optimizer_switch;
+explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_inner_2);
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo # with Firstmatch, mostly for tracing fix_semijoin_strategies_for_picked_join_order
+
+set optimizer_switch='materialization=off';
+explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_inner_1.a from t2 t_inner_2, t1 t_inner_1) and
+                                                 t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4);
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+set optimizer_switch='materialization=on';
+explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_inner_1.a from t2 t_inner_2, t1 t_inner_1) and
+                                                 t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4);
+select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+set @@optimizer_switch= @save_optimizer_switch;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-18942: Json_writer::add_bool: Conditional jump or move depends on uninitialised value upon 
+--echo # fulltext search under optimizer trace
+--echo #
+
+CREATE TABLE t1 (f VARCHAR(255), FULLTEXT(f));
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES ('fooba'),('abcde'),('xyzab');
+SET optimizer_trace = 'enabled=on';
+SELECT COUNT(*) FROM v1 WHERE MATCH (f) AGAINST ('fooba');
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18741: Optimizer trace: multi-part key ranges are printed incorrectly.
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k (a int);
+insert into one_k select A.a + B.a*10 + C.a*100 from t0 A, t0 B, t0 C;
+create table t1 ( a int, b int, key a_b(a,b));
+insert into t1 select a,a from one_k;
+set optimizer_trace='enabled=on';
+
+explain select * from t1 force index (a_b) where a=2 and b=4;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+explain select * from t1 where a >= 900 and b between 10 and 20;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+drop table t0,t1;
+
+create table t1 (start_date date, end_date date, filler char(100), key(start_date, end_date)) ;
+--disable_warnings
+insert into t1 select date_add(now(), interval a day), date_add(now(), interval (a+7) day), 'data' from one_k;
+--enable_warnings
+explain select * from t1 force index(start_date) where start_date >= '2019-02-10' and end_date <'2019-04-01';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1,one_k;
+
+create table ten(a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+  a int not null,
+  b int not null,
+  c int not null,
+  d int not null,
+  key a_b_c(a,b,c)
+);
+
+insert into t1 select a,a, a,a from ten;
+explain select * from t1 force index(a_b_c) where a between 1 and 4 and b < 50;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table ten,t1;
+
+--echo # Ported test from MYSQL for ranges involving Binary column
+
+CREATE TABLE t1(i INT PRIMARY KEY, b BINARY(16), INDEX i_b(b));
+INSERT INTO t1 VALUES (1, x'D95B94336A9946A39CF5B58CFE772D8C');
+INSERT INTO t1 VALUES (2, NULL);
+
+EXPLAIN SELECT * FROM t1 WHERE b IN (0xD95B94336A9946A39CF5B58CFE772D8C);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * FROM t1 WHERE b IS NULL;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-18880: Optimizer trace prints date in hexadecimal
+--echo #
+
+CREATE TABLE t1(i INT PRIMARY KEY, b VARCHAR(10) CHARSET BINARY , INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, NULL);
+set optimizer_trace=1;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+ALTER TABLE t1 modify column b BINARY(10) AFTER i;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+ALTER TABLE t1 modify column b VARBINARY(10) AFTER i;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+CREATE TABLE t1(i INT PRIMARY KEY, b CHAR(10), INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, NULL);
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+CREATE TABLE t1(i INT PRIMARY KEY, b blob , INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, NULL);
+set optimizer_trace=1;
+EXPLAIN SELECT * FROM t1 WHERE b= 'ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+CREATE TABLE t1(i INT PRIMARY KEY, b VARCHAR(10), INDEX i_b(b));
+INSERT INTO t1 VALUES (1, 'ab\n');
+INSERT INTO t1 VALUES (2, 'ab\n');
+set optimizer_trace=1;
+EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k (a int);
+insert into one_k select A.a + B.a*10 + C.a*100 from t0 A, t0 B, t0 C;
+create table t1 (start_date date, end_date date, filler char(100), key(start_date, end_date)) ;
+--disable_warnings
+insert into t1 select date_add(now(), interval a day), date_add(now(), interval (a+7) day), 'data' from one_k;
+--enable_warnings
+explain format=json select * from t1 force index(start_date) where start_date >= '2019-02-10' and end_date <'2019-04-01';
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1, t0, one_k;
+
+--echo #
+--echo # MDEV-19776: Assertion `to_len >= 8' failed in convert_to_printable with optimizer trace enabled
+--echo #
+
+CREATE TABLE t1 (f VARBINARY(16) NOT NULL, KEY(f));
+INSERT INTO t1 VALUES ('a'),('b');
+SET optimizer_trace = 'enabled=on';
+DELETE FROM t1 WHERE f = 'x';
+DROP TABLE t1;
+
+--echo #
+--echo # Print cost_for_plan and rows_for_plan for join prefix
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table one_k (a int, b int, key(b));
+insert into one_k select A.a + B.a*10 + C.a*100, A.a + B.a*10 + C.a*100 from t0 A, t0 B, t0 C;
+
+analyze table t0, one_k persistent for all;
+
+set @tmp_jcl=@@join_cache_level;
+set join_cache_level=0;
+set optimizer_trace=1;
+
+--echo # Check cost/row numbers when multiple tables are joined
+--echo #  (cost_for_plan is the same as best_access_path.cost for single-table SELECTs
+--echo #   but for joins using condition selectivity it is not as trivial. So,
+--echo #   now we are printing it)
+explain select * from t0 A, one_k B where A.a<5 and B.a<800;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+set join_cache_level=@tmp_jcl;
+
+--echo # This shows post-join selectivity
+explain select * from t0 A, one_k B where A.a=B.b and B.a<800;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t0, one_k;
+
+--echo #
+--echo # Assertion `to_len >= 8' failed in convert_to_printable
+--echo #
+
+CREATE TABLE t1 ( a blob, KEY (a(255)));
+insert into t1 values ('foo'), ('bar');
+
+EXPLAIN SELECT * FROM t1 WHERE a= REPEAT('a', 0);
+SELECT * FROM t1 WHERE a= REPEAT('a', 0);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Test for Semi-Join table pullout element
+--echo #
+create table t1 (a int primary key, b int);
+insert into t1 (a) values (1),(2),(3),(4),(5);
+
+create table t2 (a int primary key, b int);
+insert into t2 (a) values (1),(2),(3),(4),(5);
+
+create table t3 (a int);
+insert into t3 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+explain 
+select * from t3 where (a,a) in (select t1.a, t2.a from t1, t2 where t1.b=t2.b);
+
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-22401: Optimizer trace: multi-component range is not printed correctly
+--echo #
+
+create table t1 (kp1 int, kp2 int, key(kp1, kp2));
+insert into t1 values (1,1),(1,5),(5,1),(5,5);
+set optimizer_trace=1;
+select * from t1 force index(kp1) where (kp1=2 and kp2 >=4);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+--echo #
+--echo # MDEV-21626: Optimizer misses the details about the picked join order
+--echo #
+
+CREATE TABLE t1(a INT, b INT, key(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+CREATE TABLE t2(a INT, b INT, key(a));
+INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
+
+SET OPTIMIZER_TRACE=1;
+EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a ORDER BY t2.b;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-22665: Print ranges in the optimizer trace created for non-indexed columns when
+--echo # optimizer_use_condition_selectivity >2
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+SET optimizer_trace=1;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+EXPLAIN EXTENDED SELECT * from t1 WHERE a between 1 and 5 and b <= 5;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN EXTENDED SELECT * from t1 WHERE a != 5;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN EXTENDED SELECT * from t1 WHERE b >= 10 and b < 25;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+drop table t1;
+
+--echo #
+--echo # MDEV-22910:SIGSEGV in Opt_trace_context::is_started & SIGSEGV in Json_writer::add_table_name
+--echo # (on optimized builds)
+--echo #
+
+CREATE TABLE t1( a INT, b INT, PRIMARY KEY( a ) );
+SELECT sum(b), row_number() OVER (order by b) FROM t1 WHERE a = 101;
+UPDATE t1 SET b=10 WHERE a=1;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+DROP TABLE t1;
+
+set optimizer_trace='enabled=off';
+
+--echo #
+--echo # MDEV-24975 Server consumes extra 4G memory upon querying INFORMATION_SCHEMA.OPTIIMIZER_TRACE
+--echo #
+set max_session_mem_used=1024*1024*1024;
+--disable_result_log
+select count(*) from information_schema.optimizer_trace;
+select * from information_schema.optimizer_trace;
+--enable_result_log
+set max_session_mem_used=default;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

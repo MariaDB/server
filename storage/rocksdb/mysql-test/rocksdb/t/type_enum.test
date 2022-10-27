@@ -1,0 +1,8 @@
+--source include/have_rocksdb.inc
+
+#
+# ENUM column type
+#
+
+--source type_enum.inc
+

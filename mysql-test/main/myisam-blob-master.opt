@@ -1,0 +1,1 @@
+--max-allowed-packet=24M --loose-skip-innodb --key-buffer-size=1M

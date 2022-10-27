@@ -1,0 +1,14 @@
+set global innodb_compression_level = 3;
+CREATE TABLE t1(c1 INT, b CHAR(20)) ENGINE=INNODB PAGE_COMPRESSED=1;
+INSERT INTO t1 VALUES(1, 'mariadb');
+# xtrabackup backup
+# xtrabackup prepare
+FOUND 1 /innodb_compression_level=3/ in backup-my.cnf
+DELETE FROM t1;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+SELECT * FROM t1;
+c1	b
+1	mariadb
+DROP TABLE t1;
+set global innodb_compression_level = default;

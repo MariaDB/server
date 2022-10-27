@@ -1,0 +1,21 @@
+create table t2 (a smallint(6) not null, b int(10) not null, name varchar(20), primary key(a,b), key(name)) engine=InnoDB;
+insert into t2 values (8355,3,"sanja"),(8355,4,"wlad"),(8366,5, "lawrin"),(8366,6,"markusjm");
+select count(distinct name) from t2 where a=8366 and b>=5 and b<=5;
+count(distinct name)
+1
+select count(distinct name) from t2 where a=8366 and b=5;
+count(distinct name)
+1
+select count(distinct name) from t2 where a=8366 and b between 5 and 5.5;
+count(distinct name)
+1
+select sum(distinct a) from t2 where a=8366 and b>=5 and b<=5;
+sum(distinct a)
+8366
+select sum(distinct a) from t2 where a=8366 and b=5;
+sum(distinct a)
+8366
+select sum(distinct a) from t2 where a=8366 and b between 5 and 5.5;
+sum(distinct a)
+8366
+drop table t2;

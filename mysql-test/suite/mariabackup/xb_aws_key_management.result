@@ -1,0 +1,11 @@
+CREATE TABLE t(c VARCHAR(10)) ENGINE INNODB encrypted=yes;
+INSERT INTO t VALUES('foobar1');
+# xtrabackup backup
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * from t;
+c
+foobar1
+DROP TABLE t;

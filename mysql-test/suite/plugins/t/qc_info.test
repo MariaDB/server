@@ -1,0 +1,26 @@
+set @save_query_cache_size=@@global.query_cache_size;
+--source include/default_charset.inc
+--source qc_info_init.inc
+
+# test that hits are correctly incremented
+reset query cache;
+select * from t1;
+select * from t1;
+select hits, statement_text from information_schema.query_cache_info;
+
+drop table t1;
+# the query was invalidated
+select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_info;
+
+set global query_cache_size = 0;
+select * from information_schema.query_cache_info;
+
+set global query_cache_size= default;
+set global query_cache_type=default;
+
+--error ER_PARSE_ERROR
+show query_cache_info;
+--error ER_PARSE_ERROR
+flush query_cache_info;
+
+set @@global.query_cache_size=@save_query_cache_size;

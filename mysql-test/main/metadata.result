@@ -1,0 +1,804 @@
+drop table if exists t1,t2;
+select 1, 1.0, -1, "hello", NULL;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					1	3	1	1	N	32897	0	63
+def					1.0	246	4	3	N	32897	1	63
+def					-1	3	2	2	N	32897	0	63
+def					hello	253	5	5	N	1	39	8
+def					NULL	6	0	0	Y	32896	0	63
+1	1.0	-1	hello	NULL
+1	1.0	-1	hello	NULL
+SELECT
+1 AS c1,
+11 AS c2,
+111 AS c3,
+1111 AS c4,
+11111 AS c5,
+111111 AS c6,
+1111111 AS c7,
+11111111 AS c8,
+111111111 AS c9,
+1111111111 AS c10,
+11111111111 AS c11,
+111111111111 AS c12,
+1111111111111 AS c13,
+11111111111111 AS c14,
+111111111111111 AS c15,
+1111111111111111 AS c16,
+11111111111111111 AS c17,
+111111111111111111 AS c18,
+1111111111111111111 AS c19,
+11111111111111111111 AS c20,
+111111111111111111111 AS c21;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	3	1	1	N	32897	0	63
+def					c2	3	2	2	N	32897	0	63
+def					c3	3	3	3	N	32897	0	63
+def					c4	3	4	4	N	32897	0	63
+def					c5	3	5	5	N	32897	0	63
+def					c6	3	6	6	N	32897	0	63
+def					c7	3	7	7	N	32897	0	63
+def					c8	3	8	8	N	32897	0	63
+def					c9	3	9	9	N	32897	0	63
+def					c10	8	10	10	N	32897	0	63
+def					c11	8	11	11	N	32897	0	63
+def					c12	8	12	12	N	32897	0	63
+def					c13	8	13	13	N	32897	0	63
+def					c14	8	14	14	N	32897	0	63
+def					c15	8	15	15	N	32897	0	63
+def					c16	8	16	16	N	32897	0	63
+def					c17	8	17	17	N	32897	0	63
+def					c18	8	18	18	N	32897	0	63
+def					c19	8	19	19	N	32897	0	63
+def					c20	8	20	20	N	32929	0	63
+def					c21	246	22	21	N	32897	0	63
+c1	c2	c3	c4	c5	c6	c7	c8	c9	c10	c11	c12	c13	c14	c15	c16	c17	c18	c19	c20	c21
+1	11	111	1111	11111	111111	1111111	11111111	111111111	1111111111	11111111111	111111111111	1111111111111	11111111111111	111111111111111	1111111111111111	11111111111111111	111111111111111111	1111111111111111111	11111111111111111111	111111111111111111111
+SELECT
+-1 AS c1,
+-11 AS c2,
+-111 AS c3,
+-1111 AS c4,
+-11111 AS c5,
+-111111 AS c6,
+-1111111 AS c7,
+-11111111 AS c8,
+-111111111 AS c9,
+-1111111111 AS c10,
+-11111111111 AS c11,
+-111111111111 AS c12,
+-1111111111111 AS c13,
+-11111111111111 AS c14,
+-111111111111111 AS c15,
+-1111111111111111 AS c16,
+-11111111111111111 AS c17,
+-111111111111111111 AS c18,
+-1111111111111111111 AS c19,
+-11111111111111111111 AS c20,
+-111111111111111111111 AS c21;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c1	3	2	2	N	32897	0	63
+def					c2	3	3	3	N	32897	0	63
+def					c3	3	4	4	N	32897	0	63
+def					c4	3	5	5	N	32897	0	63
+def					c5	3	6	6	N	32897	0	63
+def					c6	3	7	7	N	32897	0	63
+def					c7	3	8	8	N	32897	0	63
+def					c8	3	9	9	N	32897	0	63
+def					c9	8	10	10	N	32897	0	63
+def					c10	8	11	11	N	32897	0	63
+def					c11	8	12	12	N	32897	0	63
+def					c12	8	13	13	N	32897	0	63
+def					c13	8	14	14	N	32897	0	63
+def					c14	8	15	15	N	32897	0	63
+def					c15	8	16	16	N	32897	0	63
+def					c16	8	17	17	N	32897	0	63
+def					c17	8	18	18	N	32897	0	63
+def					c18	8	19	19	N	32897	0	63
+def					c19	8	20	20	N	32897	0	63
+def					c20	246	21	21	N	32897	0	63
+def					c21	246	22	22	N	32897	0	63
+c1	c2	c3	c4	c5	c6	c7	c8	c9	c10	c11	c12	c13	c14	c15	c16	c17	c18	c19	c20	c21
+-1	-11	-111	-1111	-11111	-111111	-1111111	-11111111	-111111111	-1111111111	-11111111111	-111111111111	-1111111111111	-11111111111111	-111111111111111	-1111111111111111	-11111111111111111	-111111111111111111	-1111111111111111111	-11111111111111111111	-111111111111111111111
+create table t1 (a tinyint, b smallint, c mediumint, d int, e bigint, f float(3,2), g double(4,3), h decimal(5,4), i year, j date, k timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, l datetime, m enum('a','b'), n set('a','b'), o char(10));
+select * from t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	a	1	4	0	Y	32768	0	63
+def	test	t1	t1	b	b	2	6	0	Y	32768	0	63
+def	test	t1	t1	c	c	9	9	0	Y	32768	0	63
+def	test	t1	t1	d	d	3	11	0	Y	32768	0	63
+def	test	t1	t1	e	e	8	20	0	Y	32768	0	63
+def	test	t1	t1	f	f	4	3	0	Y	32768	2	63
+def	test	t1	t1	g	g	5	4	0	Y	32768	3	63
+def	test	t1	t1	h	h	246	7	0	Y	32768	4	63
+def	test	t1	t1	i	i	13	4	0	Y	32864	0	63
+def	test	t1	t1	j	j	10	10	0	Y	128	0	63
+def	test	t1	t1	k	k	7	19	0	N	9377	0	63
+def	test	t1	t1	l	l	12	19	0	Y	128	0	63
+def	test	t1	t1	m	m	254	1	0	Y	256	0	8
+def	test	t1	t1	n	n	254	3	0	Y	2048	0	8
+def	test	t1	t1	o	o	254	10	0	Y	0	0	8
+a	b	c	d	e	f	g	h	i	j	k	l	m	n	o
+select a b, b c from t1 as t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t2	a	b	1	4	0	Y	32768	0	63
+def	test	t1	t2	b	c	2	6	0	Y	32768	0	63
+b	c
+drop table t1;
+CREATE TABLE t1 (id tinyint(3) default NULL, data varchar(255) default NULL);
+INSERT INTO t1 VALUES (1,'male'),(2,'female');
+CREATE TABLE t2 (id tinyint(3) unsigned default NULL, data char(3) default '0');
+INSERT INTO t2 VALUES (1,'yes'),(2,'no');
+select t1.id, t1.data, t2.data from t1, t2 where t1.id = t2.id;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	id	id	1	3	1	Y	32768	0	63
+def	test	t1	t1	data	data	253	255	6	Y	0	0	8
+def	test	t2	t2	data	data	254	3	3	Y	0	0	8
+id	data	data
+1	male	yes
+2	female	no
+select t1.id, t1.data, t2.data from t1, t2 where t1.id = t2.id order by t1.id;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	id	id	1	3	1	Y	32768	0	63
+def	test	t1	t1	data	data	253	255	6	Y	0	0	8
+def	test	t2	t2	data	data	254	3	3	Y	0	0	8
+id	data	data
+1	male	yes
+2	female	no
+select t1.id from t1 union select t2.id from t2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				id	id	246	4	1	Y	32768	0	63
+id
+1
+2
+drop table t1,t2;
+create table t1 ( a int, b varchar(30), primary key(a));
+insert into t1 values (1,'one');
+insert into t1 values (2,'two');
+set @arg00=1 ;
+select @arg00 FROM t1 where a=1 union distinct select 1 FROM t1 where a=1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				@arg00	@arg00	8	20	1	Y	32768	0	63
+@arg00
+1
+select * from (select @arg00) aaa;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def			aaa	@arg00	@arg00	8	20	1	Y	32768	0	63
+@arg00
+1
+select 1 union select 1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				1	1	3	1	1	N	32769	0	63
+1
+1
+select * from (select 1 union select 1) aaa;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def			aaa	1	1	3	1	1	N	32769	0	63
+1
+1
+drop table t1;
+create table t1 (i int);
+insert into t1 values (1),(2),(3);
+select * from t1 where i = 2;
+drop table t1;//
+affected rows: 0
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+i
+2
+affected rows: 1
+affected rows: 0
+create table t1 (id int(10));
+insert into t1 values (1);
+CREATE  VIEW v1 AS select t1.id as id from t1;
+CREATE  VIEW v2 AS select t1.id as renamed from t1;
+CREATE  VIEW v3 AS select t1.id + 12 as renamed from t1;
+select * from v1 group by id limit 1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	v1	id	id	3	10	1	Y	32768	0	63
+id
+1
+select * from v1 group by id limit 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	v1	v1	id	id	3	10	0	Y	32768	0	63
+id
+select * from v1 where id=1000 group by id;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	v1	v1	id	id	3	10	0	Y	32768	0	63
+id
+select * from v1 where id=1 group by id;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	v1	id	id	3	10	1	Y	32768	0	63
+id
+1
+select * from v2 where renamed=1 group by renamed;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	v2	id	renamed	3	10	1	Y	32768	0	63
+renamed
+1
+select * from v3 where renamed=1 group by renamed;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def		v3	v3	renamed	renamed	8	12	0	Y	32896	0	63
+renamed
+drop table t1;
+drop view v1,v2,v3;
+select a.* from (select 2147483648 as v_large) a;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def			a	v_large	v_large	8	10	10	N	32769	0	63
+v_large
+2147483648
+select a.* from (select 214748364 as v_small) a;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def			a	v_small	v_small	3	9	9	N	32769	0	63
+v_small
+214748364
+CREATE TABLE t1 (c1 CHAR(1));
+CREATE TABLE t2 (c2 CHAR(1));
+CREATE VIEW v1 AS SELECT t1.c1 FROM t1;
+CREATE VIEW v2 AS SELECT t2.c2 FROM t2;
+INSERT INTO t1 VALUES ('1'), ('2'), ('3');
+INSERT INTO t2 VALUES ('1'), ('2'), ('3'), ('2');
+SELECT v1.c1 FROM v1 JOIN t2 ON c1=c2 ORDER BY 1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	v1	c1	c1	254	1	1	Y	0	0	8
+c1
+1
+2
+2
+3
+SELECT v1.c1, v2.c2 FROM v1 JOIN v2 ON c1=c2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	v1	v1	c1	c1	254	1	1	Y	0	0	8
+def	test	v2	v2	c2	c2	254	1	1	Y	0	0	8
+c1	c2
+1	1
+2	2
+3	3
+2	2
+SELECT v1.c1, v2.c2 FROM v1 JOIN v2 ON c1=c2 GROUP BY v1.c1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	v1	c1	c1	254	1	1	Y	32768	0	8
+def	test	t2	v2	c2	c2	254	1	1	Y	0	0	8
+c1	c2
+1	1
+2	2
+3	3
+SELECT v1.c1, v2.c2 FROM v1 JOIN v2 ON c1=c2 GROUP BY v1.c1 ORDER BY v2.c2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	v1	c1	c1	254	1	1	Y	32768	0	8
+def	test	t2	v2	c2	c2	254	1	1	Y	0	0	8
+c1	c2
+1	1
+2	2
+3	3
+DROP VIEW v1,v2;
+DROP TABLE t1,t2;
+CREATE TABLE t1 (i INT, d DATE);
+INSERT INTO t1 VALUES (1, '2008-01-01'), (2, '2008-01-02'), (3, '2008-01-03');
+SELECT COALESCE(d, d), IFNULL(d, d), IF(i, d, d),
+CASE i WHEN i THEN d ELSE d END, GREATEST(d, d), LEAST(d, d)
+FROM t1 ORDER BY RAND();
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+2008-01-01	2008-01-01	2008-01-01	2008-01-01	2008-01-01	2008-01-01
+2008-01-02	2008-01-02	2008-01-02	2008-01-02	2008-01-02	2008-01-02
+2008-01-03	2008-01-03	2008-01-03	2008-01-03	2008-01-03	2008-01-03
+COALESCE(d, d)	IFNULL(d, d)	IF(i, d, d)	CASE i WHEN i THEN d ELSE d END	GREATEST(d, d)	LEAST(d, d)
+def				CASE i WHEN i THEN d ELSE d END	CASE i WHEN i THEN d ELSE d END	10	10	10	Y	128	0	63
+def				COALESCE(d, d)	COALESCE(d, d)	10	10	10	Y	128	0	63
+def				GREATEST(d, d)	GREATEST(d, d)	10	10	10	Y	128	0	63
+def				IF(i, d, d)	IF(i, d, d)	10	10	10	Y	128	0	63
+def				IFNULL(d, d)	IFNULL(d, d)	10	10	10	Y	128	0	63
+def				LEAST(d, d)	LEAST(d, d)	10	10	10	Y	128	0	63
+DROP TABLE t1;
+#
+# Bug#41788 mysql_fetch_field returns org_table == table by a view
+#
+CREATE TABLE t1 (f1 INT);
+CREATE VIEW v1 AS SELECT f1 FROM t1;
+SELECT f1 FROM v1 va;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	va	va	f1	f1	3	11	0	Y	32768	0	63
+f1
+DROP VIEW v1;
+DROP TABLE t1;
+End of 5.0 tests
+create table t1(
+# numeric types
+bool_col bool,
+boolean_col boolean,
+bit_col bit(5),
+tiny tinyint,
+tiny_uns tinyint unsigned,
+small smallint,
+small_uns smallint unsigned,
+medium mediumint,
+medium_uns mediumint unsigned,
+int_col int,
+int_col_uns int unsigned,
+big bigint,
+big_uns bigint unsigned,
+decimal_col decimal(10,5),
+# synonyms of DECIMAL
+numeric_col numeric(10),
+fixed_col fixed(10),
+dec_col dec(10),
+decimal_col_uns decimal(10,5) unsigned,
+fcol float,
+fcol_uns float unsigned,
+dcol double,
+double_precision_col double precision,
+dcol_uns double unsigned,
+# date/time types
+date_col date,
+time_col time,
+timestamp_col timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+year_col year,
+datetime_col datetime,
+# string types
+char_col char(5),
+varchar_col varchar(10),
+binary_col binary(10),
+varbinary_col varbinary(10),
+tinyblob_col tinyblob,
+blob_col blob,
+mediumblob_col mediumblob,
+longblob_col longblob,
+text_col text,
+mediumtext_col mediumtext,
+longtext_col longtext,
+enum_col enum("A","B","C"),
+set_col set("F","E","D")
+);
+select * from t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	bool_col	bool_col	1	1	0	Y	32768	0	63
+def	test	t1	t1	boolean_col	boolean_col	1	1	0	Y	32768	0	63
+def	test	t1	t1	bit_col	bit_col	16	5	0	Y	32	0	63
+def	test	t1	t1	tiny	tiny	1	4	0	Y	32768	0	63
+def	test	t1	t1	tiny_uns	tiny_uns	1	3	0	Y	32800	0	63
+def	test	t1	t1	small	small	2	6	0	Y	32768	0	63
+def	test	t1	t1	small_uns	small_uns	2	5	0	Y	32800	0	63
+def	test	t1	t1	medium	medium	9	9	0	Y	32768	0	63
+def	test	t1	t1	medium_uns	medium_uns	9	8	0	Y	32800	0	63
+def	test	t1	t1	int_col	int_col	3	11	0	Y	32768	0	63
+def	test	t1	t1	int_col_uns	int_col_uns	3	10	0	Y	32800	0	63
+def	test	t1	t1	big	big	8	20	0	Y	32768	0	63
+def	test	t1	t1	big_uns	big_uns	8	20	0	Y	32800	0	63
+def	test	t1	t1	decimal_col	decimal_col	246	12	0	Y	32768	5	63
+def	test	t1	t1	numeric_col	numeric_col	246	11	0	Y	32768	0	63
+def	test	t1	t1	fixed_col	fixed_col	246	11	0	Y	32768	0	63
+def	test	t1	t1	dec_col	dec_col	246	11	0	Y	32768	0	63
+def	test	t1	t1	decimal_col_uns	decimal_col_uns	246	11	0	Y	32800	5	63
+def	test	t1	t1	fcol	fcol	4	12	0	Y	32768	31	63
+def	test	t1	t1	fcol_uns	fcol_uns	4	12	0	Y	32800	31	63
+def	test	t1	t1	dcol	dcol	5	22	0	Y	32768	31	63
+def	test	t1	t1	double_precision_col	double_precision_col	5	22	0	Y	32768	31	63
+def	test	t1	t1	dcol_uns	dcol_uns	5	22	0	Y	32800	31	63
+def	test	t1	t1	date_col	date_col	10	10	0	Y	128	0	63
+def	test	t1	t1	time_col	time_col	11	10	0	Y	128	0	63
+def	test	t1	t1	timestamp_col	timestamp_col	7	19	0	N	9377	0	63
+def	test	t1	t1	year_col	year_col	13	4	0	Y	32864	0	63
+def	test	t1	t1	datetime_col	datetime_col	12	19	0	Y	128	0	63
+def	test	t1	t1	char_col	char_col	254	5	0	Y	0	0	8
+def	test	t1	t1	varchar_col	varchar_col	253	10	0	Y	0	0	8
+def	test	t1	t1	binary_col	binary_col	254	10	0	Y	128	0	63
+def	test	t1	t1	varbinary_col	varbinary_col	253	10	0	Y	128	0	63
+def	test	t1	t1	tinyblob_col	tinyblob_col	252	255	0	Y	144	0	63
+def	test	t1	t1	blob_col	blob_col	252	65535	0	Y	144	0	63
+def	test	t1	t1	mediumblob_col	mediumblob_col	252	16777215	0	Y	144	0	63
+def	test	t1	t1	longblob_col	longblob_col	252	4294967295	0	Y	144	0	63
+def	test	t1	t1	text_col	text_col	252	65535	0	Y	16	0	8
+def	test	t1	t1	mediumtext_col	mediumtext_col	252	16777215	0	Y	16	0	8
+def	test	t1	t1	longtext_col	longtext_col	252	4294967295	0	Y	16	0	8
+def	test	t1	t1	enum_col	enum_col	254	1	0	Y	256	0	8
+def	test	t1	t1	set_col	set_col	254	5	0	Y	2048	0	8
+bool_col	boolean_col	bit_col	tiny	tiny_uns	small	small_uns	medium	medium_uns	int_col	int_col_uns	big	big_uns	decimal_col	numeric_col	fixed_col	dec_col	decimal_col_uns	fcol	fcol_uns	dcol	double_precision_col	dcol_uns	date_col	time_col	timestamp_col	year_col	datetime_col	char_col	varchar_col	binary_col	varbinary_col	tinyblob_col	blob_col	mediumblob_col	longblob_col	text_col	mediumtext_col	longtext_col	enum_col	set_col
+drop table t1;
+select cast('01:01:01' as time), cast('01:01:01' as time(2));
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					cast('01:01:01' as time)	11	10	8	Y	128	0	63
+def					cast('01:01:01' as time(2))	11	13	11	Y	128	2	63
+cast('01:01:01' as time)	cast('01:01:01' as time(2))
+01:01:01	01:01:01.00
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+SELECT
+STRCMP('a','b'),
+OCTET_LENGTH('a'),
+CHAR_LENGTH('a'),
+COERCIBILITY('a'),
+ASCII('a'),
+ORD('a'),
+CRC32('a'),
+UNCOMPRESSED_LENGTH(COMPRESS('a'));
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					STRCMP('a','b')	3	2	2	N	32897	0	63
+def					OCTET_LENGTH('a')	3	10	1	N	32897	0	63
+def					CHAR_LENGTH('a')	3	10	1	N	32897	0	63
+def					COERCIBILITY('a')	3	10	1	N	32897	0	63
+def					ASCII('a')	3	3	2	N	32897	0	63
+def					ORD('a')	3	7	2	N	32897	0	63
+def					CRC32('a')	3	10	10	N	32929	0	63
+def					UNCOMPRESSED_LENGTH(COMPRESS('a'))	3	10	1	Y	32896	0	63
+STRCMP('a','b')	OCTET_LENGTH('a')	CHAR_LENGTH('a')	COERCIBILITY('a')	ASCII('a')	ORD('a')	CRC32('a')	UNCOMPRESSED_LENGTH(COMPRESS('a'))
+-1	1	1	4	97	97	3904355907	1
+SELECT
+INTERVAL(2,1,2,3),
+REGEXP_INSTR('a','a'),
+LOCATE('a','a'),
+FIND_IN_SET('b','a,b,c,d'),
+FIELD('a','a','b');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					INTERVAL(2,1,2,3)	3	2	1	N	32897	0	63
+def					REGEXP_INSTR('a','a')	3	11	1	N	32897	0	63
+def					LOCATE('a','a')	3	11	1	N	32897	0	63
+def					FIND_IN_SET('b','a,b,c,d')	3	3	1	N	32897	0	63
+def					FIELD('a','a','b')	3	3	1	N	32897	0	63
+INTERVAL(2,1,2,3)	REGEXP_INSTR('a','a')	LOCATE('a','a')	FIND_IN_SET('b','a,b,c,d')	FIELD('a','a','b')
+2	1	1	2	1
+SELECT
+SIGN(1),
+BIT_COUNT(1);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					SIGN(1)	3	2	1	N	32897	0	63
+def					BIT_COUNT(1)	3	2	1	N	32897	0	63
+SIGN(1)	BIT_COUNT(1)
+1	1
+SELECT
+BENCHMARK(0,0),
+SLEEP(0);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					BENCHMARK(0,0)	3	1	1	N	32897	0	63
+def					SLEEP(0)	3	1	1	N	32897	0	63
+BENCHMARK(0,0)	SLEEP(0)
+0	0
+SELECT
+GET_LOCK('metadata',0),
+IS_FREE_LOCK('metadata'),
+RELEASE_LOCK('metadata');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					GET_LOCK('metadata',0)	3	1	1	Y	32896	0	63
+def					IS_FREE_LOCK('metadata')	3	1	1	Y	32896	0	63
+def					RELEASE_LOCK('metadata')	3	1	1	Y	32896	0	63
+GET_LOCK('metadata',0)	IS_FREE_LOCK('metadata')	RELEASE_LOCK('metadata')
+1	0	1
+SELECT
+PERIOD_ADD(200801,2),
+PERIOD_DIFF(200802,200703),
+TO_DAYS('2007-10-07'),
+DAYOFMONTH('2007-02-03'),
+DAYOFWEEK('2007-02-03'),
+TO_SECONDS('2013-06-13');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					PERIOD_ADD(200801,2)	3	6	6	N	32897	0	63
+def					PERIOD_DIFF(200802,200703)	3	6	2	N	32897	0	63
+def					TO_DAYS('2007-10-07')	3	6	6	Y	32896	0	63
+def					DAYOFMONTH('2007-02-03')	3	2	1	Y	32896	0	63
+def					DAYOFWEEK('2007-02-03')	3	1	1	Y	32896	0	63
+def					TO_SECONDS('2013-06-13')	8	12	11	Y	32896	0	63
+PERIOD_ADD(200801,2)	PERIOD_DIFF(200802,200703)	TO_DAYS('2007-10-07')	DAYOFMONTH('2007-02-03')	DAYOFWEEK('2007-02-03')	TO_SECONDS('2013-06-13')
+200803	11	733321	3	7	63538300800
+SELECT
+YEAR('2001-02-03 04:05:06.000007'),
+DAY('2001-02-03 04:05:06.000007'),
+HOUR('2001-02-03 04:05:06.000007'),
+MINUTE('2001-02-03 04:05:06.000007'),
+SECOND('2001-02-03 04:05:06.000007'),
+MICROSECOND('2001-02-03 04:05:06.000007');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					YEAR('2001-02-03 04:05:06.000007')	3	4	4	Y	32896	0	63
+def					DAY('2001-02-03 04:05:06.000007')	3	2	1	Y	32896	0	63
+def					HOUR('2001-02-03 04:05:06.000007')	3	2	1	Y	32896	0	63
+def					MINUTE('2001-02-03 04:05:06.000007')	3	2	1	Y	32896	0	63
+def					SECOND('2001-02-03 04:05:06.000007')	3	2	1	Y	32896	0	63
+def					MICROSECOND('2001-02-03 04:05:06.000007')	3	6	1	Y	32896	0	63
+YEAR('2001-02-03 04:05:06.000007')	DAY('2001-02-03 04:05:06.000007')	HOUR('2001-02-03 04:05:06.000007')	MINUTE('2001-02-03 04:05:06.000007')	SECOND('2001-02-03 04:05:06.000007')	MICROSECOND('2001-02-03 04:05:06.000007')
+2001	3	4	5	6	7
+SELECT
+WEEK('2001-02-03 04:05:06.000007'),
+QUARTER('2001-02-03 04:05:06.000007'),
+YEARWEEK('2001-02-03 04:05:06.000007');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					WEEK('2001-02-03 04:05:06.000007')	3	2	1	Y	32896	0	63
+def					QUARTER('2001-02-03 04:05:06.000007')	3	1	1	Y	32896	0	63
+def					YEARWEEK('2001-02-03 04:05:06.000007')	3	6	6	Y	32896	0	63
+WEEK('2001-02-03 04:05:06.000007')	QUARTER('2001-02-03 04:05:06.000007')	YEARWEEK('2001-02-03 04:05:06.000007')
+4	1	200104
+SELECT BIT_LENGTH(10);
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					BIT_LENGTH(10)	8	11	2	N	32897	0	63
+BIT_LENGTH(10)
+16
+SELECT 1|2, 1&2, 1<<2, 1>>2, ~0, 1^2;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					1|2	8	21	1	N	32929	0	63
+def					1&2	8	21	1	N	32929	0	63
+def					1<<2	8	21	1	N	32929	0	63
+def					1>>2	8	21	1	N	32929	0	63
+def					~0	8	21	20	N	32929	0	63
+def					1^2	8	21	1	N	32929	0	63
+1|2	1&2	1<<2	1>>2	~0	1^2
+3	0	4	0	18446744073709551615	3
+SELECT LAST_INSERT_ID();
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					LAST_INSERT_ID()	8	21	1	N	32929	0	63
+LAST_INSERT_ID()
+0
+SELECT ROW_COUNT(), FOUND_ROWS();
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					ROW_COUNT()	8	21	2	N	32897	0	63
+def					FOUND_ROWS()	8	21	1	N	32897	0	63
+ROW_COUNT()	FOUND_ROWS()
+-1	1
+SELECT TIMESTAMPDIFF(MONTH,'2003-02-01','2003-05-01');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					TIMESTAMPDIFF(MONTH,'2003-02-01','2003-05-01')	8	21	1	Y	32896	0	63
+TIMESTAMPDIFF(MONTH,'2003-02-01','2003-05-01')
+3
+#
+# MDEV-12856 Wrong result set metadata for DIV
+#
+SELECT
+2 DIV 1 AS d0l,
+222222222 DIV 1 AS d09,
+2222222222 DIV 1 AS d10;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					d0l	3	1	1	Y	32896	0	63
+def					d09	3	9	9	Y	32896	0	63
+def					d10	8	10	10	Y	32896	0	63
+d0l	d09	d10
+2	222222222	2222222222
+#
+# MDEV-12862 Data type of @a:=1e0 depends on the session character set
+#
+SET NAMES utf8;
+CREATE TABLE t1 AS SELECT @:=1e0;
+SELECT * FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	@:=1e0	@:=1e0	5	3	1	N	36865	31	63
+@:=1e0
+1
+DROP TABLE t1;
+SET NAMES latin1;
+CREATE TABLE t1 AS SELECT @:=1e0;
+SELECT * FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	@:=1e0	@:=1e0	5	3	1	N	36865	31	63
+@:=1e0
+1
+DROP TABLE t1;
+#
+# MDEV-12869 Wrong metadata for integer additive and multiplicative operators
+#
+SELECT
+1+1,
+11+1,
+111+1,
+1111+1,
+11111+1,
+111111+1,
+1111111+1,
+11111111+1,
+111111111+1 LIMIT 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					1+1	3	3	0	N	32897	0	63
+def					11+1	3	4	0	N	32897	0	63
+def					111+1	3	5	0	N	32897	0	63
+def					1111+1	3	6	0	N	32897	0	63
+def					11111+1	3	7	0	N	32897	0	63
+def					111111+1	3	8	0	N	32897	0	63
+def					1111111+1	3	9	0	N	32897	0	63
+def					11111111+1	8	10	0	N	32897	0	63
+def					111111111+1	8	11	0	N	32897	0	63
+1+1	11+1	111+1	1111+1	11111+1	111111+1	1111111+1	11111111+1	111111111+1
+SELECT
+1-1,
+11-1,
+111-1,
+1111-1,
+11111-1,
+111111-1,
+1111111-1,
+11111111-1,
+111111111-1 LIMIT 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					1-1	3	3	0	N	32897	0	63
+def					11-1	3	4	0	N	32897	0	63
+def					111-1	3	5	0	N	32897	0	63
+def					1111-1	3	6	0	N	32897	0	63
+def					11111-1	3	7	0	N	32897	0	63
+def					111111-1	3	8	0	N	32897	0	63
+def					1111111-1	3	9	0	N	32897	0	63
+def					11111111-1	8	10	0	N	32897	0	63
+def					111111111-1	8	11	0	N	32897	0	63
+1-1	11-1	111-1	1111-1	11111-1	111111-1	1111111-1	11111111-1	111111111-1
+SELECT
+1*1,
+11*1,
+111*1,
+1111*1,
+11111*1,
+111111*1,
+1111111*1,
+11111111*1,
+111111111*1 LIMIT 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					1*1	3	3	0	N	32897	0	63
+def					11*1	3	4	0	N	32897	0	63
+def					111*1	3	5	0	N	32897	0	63
+def					1111*1	3	6	0	N	32897	0	63
+def					11111*1	3	7	0	N	32897	0	63
+def					111111*1	3	8	0	N	32897	0	63
+def					1111111*1	3	9	0	N	32897	0	63
+def					11111111*1	8	10	0	N	32897	0	63
+def					111111111*1	8	11	0	N	32897	0	63
+1*1	11*1	111*1	1111*1	11111*1	111111*1	1111111*1	11111111*1	111111111*1
+SELECT
+1 MOD 1,
+11 MOD 1,
+111 MOD 1,
+1111 MOD 1,
+11111 MOD 1,
+111111 MOD 1,
+1111111 MOD 1,
+11111111 MOD 1,
+111111111 MOD 1,
+1111111111 MOD 1,
+11111111111 MOD 1 LIMIT 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					1 MOD 1	3	2	0	Y	32896	0	63
+def					11 MOD 1	3	3	0	Y	32896	0	63
+def					111 MOD 1	3	4	0	Y	32896	0	63
+def					1111 MOD 1	3	5	0	Y	32896	0	63
+def					11111 MOD 1	3	6	0	Y	32896	0	63
+def					111111 MOD 1	3	7	0	Y	32896	0	63
+def					1111111 MOD 1	3	8	0	Y	32896	0	63
+def					11111111 MOD 1	3	9	0	Y	32896	0	63
+def					111111111 MOD 1	8	10	0	Y	32896	0	63
+def					1111111111 MOD 1	8	11	0	Y	32896	0	63
+def					11111111111 MOD 1	8	12	0	Y	32896	0	63
+1 MOD 1	11 MOD 1	111 MOD 1	1111 MOD 1	11111 MOD 1	111111 MOD 1	1111111 MOD 1	11111111 MOD 1	111111111 MOD 1	1111111111 MOD 1	11111111111 MOD 1
+SELECT
+-(1),
+-(11),
+-(111),
+-(1111),
+-(11111),
+-(111111),
+-(1111111),
+-(11111111),
+-(111111111) LIMIT 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					-(1)	3	2	0	N	32897	0	63
+def					-(11)	3	3	0	N	32897	0	63
+def					-(111)	3	4	0	N	32897	0	63
+def					-(1111)	3	5	0	N	32897	0	63
+def					-(11111)	3	6	0	N	32897	0	63
+def					-(111111)	3	7	0	N	32897	0	63
+def					-(1111111)	3	8	0	N	32897	0	63
+def					-(11111111)	3	9	0	N	32897	0	63
+def					-(111111111)	8	10	0	N	32897	0	63
+-(1)	-(11)	-(111)	-(1111)	-(11111)	-(111111)	-(1111111)	-(11111111)	-(111111111)
+SELECT
+ABS(1),
+ABS(11),
+ABS(111),
+ABS(1111),
+ABS(11111),
+ABS(111111),
+ABS(1111111),
+ABS(11111111),
+ABS(111111111),
+ABS(1111111111) LIMIT 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					ABS(1)	3	1	0	N	32897	0	63
+def					ABS(11)	3	2	0	N	32897	0	63
+def					ABS(111)	3	3	0	N	32897	0	63
+def					ABS(1111)	3	4	0	N	32897	0	63
+def					ABS(11111)	3	5	0	N	32897	0	63
+def					ABS(111111)	3	6	0	N	32897	0	63
+def					ABS(1111111)	3	7	0	N	32897	0	63
+def					ABS(11111111)	3	8	0	N	32897	0	63
+def					ABS(111111111)	3	9	0	N	32897	0	63
+def					ABS(1111111111)	8	10	0	N	32897	0	63
+ABS(1)	ABS(11)	ABS(111)	ABS(1111)	ABS(11111)	ABS(111111)	ABS(1111111)	ABS(11111111)	ABS(111111111)	ABS(1111111111)
+SELECT
+CEILING(1),
+CEILING(11),
+CEILING(111),
+CEILING(1111),
+CEILING(11111),
+CEILING(111111),
+CEILING(1111111),
+CEILING(11111111),
+CEILING(111111111),
+CEILING(1111111111) LIMIT 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					CEILING(1)	3	1	0	N	32897	0	63
+def					CEILING(11)	3	2	0	N	32897	0	63
+def					CEILING(111)	3	3	0	N	32897	0	63
+def					CEILING(1111)	3	4	0	N	32897	0	63
+def					CEILING(11111)	3	5	0	N	32897	0	63
+def					CEILING(111111)	3	6	0	N	32897	0	63
+def					CEILING(1111111)	3	7	0	N	32897	0	63
+def					CEILING(11111111)	3	8	0	N	32897	0	63
+def					CEILING(111111111)	3	9	0	N	32897	0	63
+def					CEILING(1111111111)	8	10	0	N	32897	0	63
+CEILING(1)	CEILING(11)	CEILING(111)	CEILING(1111)	CEILING(11111)	CEILING(111111)	CEILING(1111111)	CEILING(11111111)	CEILING(111111111)	CEILING(1111111111)
+SELECT
+FLOOR(1),
+FLOOR(11),
+FLOOR(111),
+FLOOR(1111),
+FLOOR(11111),
+FLOOR(111111),
+FLOOR(1111111),
+FLOOR(11111111),
+FLOOR(111111111),
+FLOOR(1111111111) LIMIT 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					FLOOR(1)	3	1	0	N	32897	0	63
+def					FLOOR(11)	3	2	0	N	32897	0	63
+def					FLOOR(111)	3	3	0	N	32897	0	63
+def					FLOOR(1111)	3	4	0	N	32897	0	63
+def					FLOOR(11111)	3	5	0	N	32897	0	63
+def					FLOOR(111111)	3	6	0	N	32897	0	63
+def					FLOOR(1111111)	3	7	0	N	32897	0	63
+def					FLOOR(11111111)	3	8	0	N	32897	0	63
+def					FLOOR(111111111)	3	9	0	N	32897	0	63
+def					FLOOR(1111111111)	8	10	0	N	32897	0	63
+FLOOR(1)	FLOOR(11)	FLOOR(111)	FLOOR(1111)	FLOOR(11111)	FLOOR(111111)	FLOOR(1111111)	FLOOR(11111111)	FLOOR(111111111)	FLOOR(1111111111)
+SELECT
+ROUND(1),
+ROUND(11),
+ROUND(111),
+ROUND(1111),
+ROUND(11111),
+ROUND(111111),
+ROUND(1111111),
+ROUND(11111111),
+ROUND(111111111),
+ROUND(1111111111) LIMIT 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					ROUND(1)	3	1	0	N	32897	0	63
+def					ROUND(11)	3	2	0	N	32897	0	63
+def					ROUND(111)	3	3	0	N	32897	0	63
+def					ROUND(1111)	3	4	0	N	32897	0	63
+def					ROUND(11111)	3	5	0	N	32897	0	63
+def					ROUND(111111)	3	6	0	N	32897	0	63
+def					ROUND(1111111)	3	7	0	N	32897	0	63
+def					ROUND(11111111)	3	8	0	N	32897	0	63
+def					ROUND(111111111)	3	9	0	N	32897	0	63
+def					ROUND(1111111111)	8	10	0	N	32897	0	63
+ROUND(1)	ROUND(11)	ROUND(111)	ROUND(1111)	ROUND(11111)	ROUND(111111)	ROUND(1111111)	ROUND(11111111)	ROUND(111111111)	ROUND(1111111111)
+#
+# MDEV-12546 Wrong metadata or data type for string user variables
+#
+SET @a='test';
+SELECT @a;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					@a	251	16777215	4	Y	0	39	8
+@a
+test
+CREATE TABLE t1 AS SELECT @a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `@a` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SELECT @b1:=10, @b2:=@b2:=111111111111;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					@b1:=10	3	2	2	N	32897	0	63
+def					@b2:=@b2:=111111111111	8	12	12	N	32897	0	63
+@b1:=10	@b2:=@b2:=111111111111
+10	111111111111
+CREATE TABLE t1 AS SELECT @b1:=10, @b2:=111111111111;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `@b1:=10` int(2) NOT NULL,
+  `@b2:=111111111111` bigint(12) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

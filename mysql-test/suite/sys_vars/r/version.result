@@ -1,0 +1,4 @@
+SELECT @@version;
+@@version
+my_favorite_version
+1

@@ -1,0 +1,41 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+SET DEBUG_SYNC= 'RESET';
+include/stop_slave.inc
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+set global debug_dbug= 'd,dbug.before_get_running_status_yes';
+Slave_running, Slave_IO_Running, Slave_SQL_Running, must be OFF, NO, NO in three following queries
+SHOW STATUS LIKE 'Slave_running';
+Variable_name	Value
+Slave_running	OFF
+Slave_IO_Running= No
+Slave_SQL_Running= No
+start slave io_thread;
+Slave_running, Slave_IO_Running, Slave_SQL_Running must be OFF Connecting NO in three following queries
+SHOW STATUS LIKE 'Slave_running';
+Variable_name	Value
+Slave_running	OFF
+Slave_IO_Running= Connecting
+Slave_SQL_Running= No
+SET DEBUG_SYNC='now SIGNAL signal.io_thread_let_running';
+include/wait_for_slave_param.inc [Slave_IO_Running]
+Slave_running, Slave_IO_Running, Slave_SQL_Running must be OFF YES NO in three following queries
+SHOW STATUS LIKE 'Slave_running';
+Variable_name	Value
+Slave_running	OFF
+Slave_IO_Running= Yes
+Slave_SQL_Running= No
+start slave sql_thread;
+include/wait_for_slave_sql_to_start.inc
+Slave_running, Slave_IO_Running, Slave_SQL_Running must be ON, YES, YES in three following queries
+SHOW STATUS LIKE 'Slave_running';
+Variable_name	Value
+Slave_running	ON
+Slave_IO_Running= Yes
+Slave_SQL_Running= Yes
+connection slave;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+SET DEBUG_SYNC= 'RESET';
+End of tests
+include/rpl_end.inc

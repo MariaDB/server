@@ -1,0 +1,47 @@
+SET NAMES utf8;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Bad connection string';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Sources;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `Name` varchar(256) NOT NULL,
+  `Description` varchar(256) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Sources'
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Drivers;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `Description` char(128) NOT NULL,
+  `Attributes` varchar(256) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='ODBC' `CATFUNC`='Drivers'
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Tables CONNECTION='Not important';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `Table_Cat` char(128) DEFAULT NULL,
+  `Table_Schema` char(128) DEFAULT NULL,
+  `Table_Name` char(128) NOT NULL,
+  `Table_Type` char(16) NOT NULL,
+  `Remark` char(255) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='Not important' `TABLE_TYPE`='ODBC' `CATFUNC`='Tables'
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Columns CONNECTION='Not important';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `Table_Cat` char(128) DEFAULT NULL,
+  `Table_Schema` char(128) DEFAULT NULL,
+  `Table_Name` char(128) NOT NULL,
+  `Column_Name` char(128) NOT NULL,
+  `Data_Type` smallint(6) NOT NULL,
+  `Type_Name` char(30) NOT NULL,
+  `Column_Size` int(10) NOT NULL,
+  `Buffer_Length` int(10) NOT NULL,
+  `Decimal_Digits` smallint(6) DEFAULT NULL,
+  `Radix` smallint(6) DEFAULT NULL,
+  `Nullable` smallint(6) NOT NULL,
+  `Remarks` char(255) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='Not important' `TABLE_TYPE`='ODBC' `CATFUNC`='Columns'
+DROP TABLE t1;

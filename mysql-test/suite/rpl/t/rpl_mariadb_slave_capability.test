@@ -1,0 +1,158 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+connection master;
+set @old_master_binlog_checksum= @@global.binlog_checksum;
+
+# MDEV-4475: Cannot replicate to old server when binlog contains
+# empty Gtid_list event
+#
+# Test this by binlog rotation before we log any GTIDs.
+connection slave;
+--source include/stop_slave.inc
+--echo # Test slave with no capability gets dummy event, which is ignored.
+set @old_dbug= @@global.debug_dbug;
+SET @@global.debug_dbug='+d,simulate_slave_capability_none';
+--source include/start_slave.inc
+
+connection master;
+FLUSH LOGS;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (0);
+sync_slave_with_master;
+
+connection master;
+# Add a dummy event just to have something to sync_slave_with_master on.
+# Otherwise we occasionally get different $relaylog_start, depending on
+# whether Format_description_log_event was written to relay log or not
+# at the time of SHOW SLAVE STATUS.
+ALTER TABLE t1 ORDER BY a;
+sync_slave_with_master;
+connection slave;
+let $relaylog_start= query_get_value(SHOW SLAVE STATUS, Relay_Log_Pos, 1);
+
+connection master;
+SET SESSION binlog_annotate_row_events = ON;
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+# A short event, to test when we need to use user_var_event for dummy event.
+DELETE FROM t1;
+INSERT INTO t1 /* A comment just to make the annotate event sufficiently long that the dummy event will need to get padded with spaces so that we can test that this works */ VALUES(1);
+let $binlog_limit= 0, 10;
+--source include/show_binlog_events.inc
+sync_slave_with_master;
+connection slave;
+
+SELECT * FROM t1;
+let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
+let $binlog_start= $relaylog_start;
+let $binlog_limit=0,10;
+--source include/show_relaylog_events.inc
+set @@global.debug_dbug= @old_dbug;
+
+--echo # Test dummy event is checksummed correctly.
+
+connection master;
+set @@global.binlog_checksum = CRC32;
+--source include/wait_for_binlog_checkpoint.inc
+TRUNCATE t1;
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+INSERT INTO t1 VALUES(2);
+let $binlog_limit= 0, 5;
+--source include/show_binlog_events.inc
+sync_slave_with_master;
+connection slave;
+
+SELECT * FROM t1;
+let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
+let $binlog_start= 0;
+let $binlog_limit=7,5;
+--source include/show_relaylog_events.inc
+
+
+--echo *** MDEV-5754: MySQL 5.5 slaves cannot replicate from MariaDB 10.0 ***
+
+# The problem was that for a group commit, we get commit id into the
+# GTID event, and there was a bug in the code that replaces GTID with
+# dummy that failed when commit id was present.
+#
+# So setup a group commit in InnoDB.
+
+--connection master
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+
+--connect (con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+send INSERT INTO t2 VALUES (1);
+
+--connection master
+SET debug_sync='now WAIT_FOR master_queued1';
+
+--connect (con2,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+send INSERT INTO t2 VALUES (2);
+
+--connection master
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+
+--connection con1
+REAP;
+SET debug_sync='RESET';
+--connection con2
+REAP;
+SET debug_sync='RESET';
+--connection master
+SET debug_sync='RESET';
+let $binlog_limit= 0, 10;
+--source include/show_binlog_events.inc
+--save_master_pos
+
+--connection slave
+--sync_with_master
+SELECT * FROM t2 ORDER BY a;
+
+
+--echo # Test that slave which cannot tolerate holes in binlog stream but
+--echo # knows the event does not get dummy event
+
+--source include/stop_slave.inc
+SET @@global.debug_dbug='+d,simulate_slave_capability_old_53';
+--source include/start_slave.inc
+connection master;
+ALTER TABLE t1 ORDER BY a;
+sync_slave_with_master;
+connection slave;
+let $relaylog_start= query_get_value(SHOW SLAVE STATUS, Relay_Log_Pos, 1);
+
+connection master;
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+UPDATE t1 SET a = 3;
+let $binlog_limit= 0, 5;
+--source include/show_binlog_events.inc
+sync_slave_with_master;
+connection slave;
+
+SELECT * FROM t1;
+let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
+let $binlog_start= $relaylog_start;
+let $binlog_limit=0,5;
+--source include/show_relaylog_events.inc
+
+select @@global.log_slave_updates;
+select @@global.replicate_annotate_row_events;
+
+--echo Clean up.
+connection master;
+set @@global.binlog_checksum = @old_master_binlog_checksum;
+DROP TABLE t1, t2;
+sync_slave_with_master;
+set @@global.debug_dbug= @old_dbug;
+--source include/rpl_end.inc

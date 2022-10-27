@@ -1,0 +1,45 @@
+#
+# wsrep_certify_nonpk
+#
+# save the initial value
+SET @wsrep_certify_nonpk_global_saved = @@global.wsrep_certify_nonpk;
+# default
+SELECT @@global.wsrep_certify_nonpk;
+@@global.wsrep_certify_nonpk
+1
+
+# scope
+SELECT @@session.wsrep_certify_nonpk;
+ERROR HY000: Variable 'wsrep_certify_nonPK' is a GLOBAL variable
+SET @@global.wsrep_certify_nonpk=OFF;
+SELECT @@global.wsrep_certify_nonpk;
+@@global.wsrep_certify_nonpk
+0
+SET @@global.wsrep_certify_nonpk=ON;
+SELECT @@global.wsrep_certify_nonpk;
+@@global.wsrep_certify_nonpk
+1
+
+# valid values
+SET @@global.wsrep_certify_nonpk='OFF';
+SELECT @@global.wsrep_certify_nonpk;
+@@global.wsrep_certify_nonpk
+0
+SET @@global.wsrep_certify_nonpk=ON;
+SELECT @@global.wsrep_certify_nonpk;
+@@global.wsrep_certify_nonpk
+1
+SET @@global.wsrep_certify_nonpk=default;
+SELECT @@global.wsrep_certify_nonpk;
+@@global.wsrep_certify_nonpk
+1
+
+# invalid values
+SET @@global.wsrep_certify_nonpk=NULL;
+ERROR 42000: Variable 'wsrep_certify_nonPK' can't be set to the value of 'NULL'
+SET @@global.wsrep_certify_nonpk='junk';
+ERROR 42000: Variable 'wsrep_certify_nonPK' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_certify_nonpk = @wsrep_certify_nonpk_global_saved;
+# End of test

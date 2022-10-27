@@ -1,0 +1,20 @@
+DROP TABLE IF EXISTS integers;
+SET optimizer_switch='mrr_cost_based=off';
+CREATE TABLE integers (
+id INT PRIMARY KEY AUTO_INCREMENT,
+value INT,
+KEY (value)
+) COMMENT='engine "InnoDB"';
+INSERT INTO integers (value) VALUES (0), (1), (2), (3);
+EXPLAIN SELECT * FROM integers
+WHERE value IN (0, 2);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	integers	NULL	range	value	value	5	NULL	2	100.00	Using where; Using MRR
+Warnings:
+Note	1003	/* select#1 */ select `test`.`integers`.`id` AS `id`,`test`.`integers`.`value` AS `value` from `test`.`integers` where (`test`.`integers`.`value` in (0,2))
+SELECT * FROM integers
+WHERE value IN (0, 2);
+id	value
+1	0
+3	2
+DROP TABLE integers;

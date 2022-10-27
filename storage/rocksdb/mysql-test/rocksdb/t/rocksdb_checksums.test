@@ -1,0 +1,152 @@
+--source include/have_rocksdb.inc
+
+#
+#  Tests for row checksums feature
+#
+--source include/have_debug.inc
+
+--let LOG=$MYSQLTEST_VARDIR/tmp/rocksdb_checksum.err
+--let $_mysqld_option=--log-error=$LOG
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_option.inc
+
+set @save_rocksdb_store_row_debug_checksums=@@global.rocksdb_store_row_debug_checksums;
+set @save_rocksdb_verify_row_debug_checksums=@@global.rocksdb_verify_row_debug_checksums;
+set @save_rocksdb_checksums_pct=@@global.rocksdb_checksums_pct;
+
+show variables like 'rocksdb_%checksum%';
+
+create table t1 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
+insert into t1 values (1,1,1),(2,2,2),(3,3,3);
+check table t1;
+--let SEARCH_FILE=$LOG
+--let SEARCH_PATTERN=0 table records had checksums
+--let SEARCH_PATTERN=CHECKTABLE t1[^\n]*
+--let SEARCH_OUTPUT=matches
+--source include/search_pattern_in_file.inc
+
+drop table t1;
+
+set session rocksdb_store_row_debug_checksums=on;
+create table t2 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
+insert into t2 values (1,1,1),(2,2,2),(3,3,3);
+check table t2;
+--let SEARCH_PATTERN=CHECKTABLE t2[^\n]*
+--source include/search_pattern_in_file.inc
+
+--echo # Now, make a table that has both rows with checksums and without
+create table t3 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
+insert into t3 values (1,1,1),(2,2,2),(3,3,3);
+set session rocksdb_store_row_debug_checksums=off;
+update t3 set b=3 where a=2;
+set session rocksdb_store_row_debug_checksums=on;
+check table t3;
+--let SEARCH_PATTERN=CHECKTABLE t3[^\n]*
+--source include/search_pattern_in_file.inc
+
+set session rocksdb_store_row_debug_checksums=on;
+set session rocksdb_checksums_pct=5;
+create table t4 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
+--disable_query_log
+let $i=0;
+let $x= 100000;
+while ($i<4000)
+{
+  inc $i;
+  eval insert t4(pk,a,b) values($i, $i, $i div 10);
+  eval update t4 set a= a+$x where a=$i;
+  eval update t4 set pk=pk+$x where pk=$i;
+}
+--enable_query_log
+check table t4;
+perl;
+$total=4000;
+$pct=5;
+@out=();
+
+$filename= "$ENV{LOG}";
+print $filename "\n";
+open(F, '<', $filename) || die("Can't open file $filename: $!");
+while(<F>) {
+  @out=() if /^CURRENT_TEST:/;
+  if (/(\d+) index entries checked \((\d+) had checksums/) {
+    if ($1 == $total and $2 >= $total*($pct-2)/100 and $2 <= $total*($pct+2)/100) {
+      push @out, sprintf "%d index entries had around %d checksums\n", $total, $total*$pct/100;
+    }
+  } elsif (/(\d+) table records had checksums/) {
+    if ($1 >= $total*($pct-2)/100 and $1 <= $total*($pct+2)/100) {
+      push @out, sprintf "Around %d table records had checksums\n", $total*$pct/100;
+    }
+  }
+}
+print @out;
+EOF
+set session rocksdb_checksums_pct=100;
+
+--echo #
+--echo # Ok, table t2 has all rows with checksums. Simulate a few checksum mismatches.
+--echo #
+insert into mtr.test_suppressions values 
+ ('Checksum mismatch in key of key-value pair for index'),
+ ('Checksum mismatch in value of key-value pair for index'),
+ ('Data with incorrect checksum');
+
+--echo # 1. Start with mismatch in key checksum of the PK.
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_checksum1";
+set session rocksdb_verify_row_debug_checksums=off;
+select * from t3;
+set session rocksdb_verify_row_debug_checksums=on;
+--error ER_INTERNAL_ERROR
+select * from t3;
+--error ER_INTERNAL_ERROR
+select * from t4;
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_checksum1";
+
+--echo # 2. Continue with mismatch in pk value checksum.
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_checksum2";
+set session rocksdb_verify_row_debug_checksums=off;
+select * from t3;
+set session rocksdb_verify_row_debug_checksums=on;
+--error ER_INTERNAL_ERROR
+select * from t3;
+--error ER_INTERNAL_ERROR
+select * from t4;
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_checksum2";
+
+--echo # 3. Check if we catch checksum mismatches for secondary indexes
+--replace_column 9 #
+explain
+select * from t3 force index(a) where a<4;
+select * from t3 force index(a) where a<4;
+
+set session debug_dbug= "+d,myrocks_simulate_bad_key_checksum1";
+--error ER_INTERNAL_ERROR
+select * from t3 force index(a) where a<4;
+--error ER_INTERNAL_ERROR
+select * from t4 force index(a) where a<1000000;
+set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
+
+--echo # 4. The same for index-only reads?
+--disable_query_log
+set global rocksdb_force_flush_memtable_now=1;
+--enable_query_log
+--replace_column 9 #
+explain 
+select a from t3 force index(a) where a<4;
+select a from t3 force index(a) where a<4;
+
+set session debug_dbug= "+d,myrocks_simulate_bad_key_checksum1";
+--error ER_INTERNAL_ERROR
+select a from t3 force index(a) where a<4;
+--error ER_INTERNAL_ERROR
+select a from t4 force index(a) where a<1000000;
+set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
+
+set @@global.rocksdb_store_row_debug_checksums=@save_rocksdb_store_row_debug_checksums;
+set @@global.rocksdb_verify_row_debug_checksums=@save_rocksdb_verify_row_debug_checksums;
+set @@global.rocksdb_checksums_pct=@save_rocksdb_checksums_pct;
+
+--source include/restart_mysqld.inc
+#--remove_file $LOG
+
+drop table t2,t3,t4;

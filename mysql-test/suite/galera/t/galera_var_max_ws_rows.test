@@ -1,0 +1,176 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+
+--let $wsrep_max_ws_rows_orig = `SELECT @@wsrep_max_ws_rows`
+SET GLOBAL wsrep_max_ws_rows = 4;
+
+# Test that wsrep_max_ws_rows is enforced with multi statement transactions
+
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+INSERT INTO t1 (f2) VALUES (3);
+INSERT INTO t1 (f2) VALUES (4);
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 (f2) VALUES (5);
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1;
+
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+INSERT INTO t1 (f2) VALUES (3);
+INSERT INTO t1 (f2) VALUES (4);
+--error ER_ERROR_DURING_COMMIT
+UPDATE t1 SET f2 = 10 WHERE f2 = 4;
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1;
+
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+INSERT INTO t1 (f2) VALUES (3);
+INSERT INTO t1 (f2) VALUES (4);
+--error ER_ERROR_DURING_COMMIT
+DELETE FROM t1 WHERE f2 = 1;
+COMMIT;
+SELECT COUNT(*) = 0 FROM t1;
+
+
+# Test that wsrep_max_ws_rows is enforced on sigle statements
+
+SET GLOBAL wsrep_max_ws_rows = 5;
+INSERT INTO t1 (f2) VALUES (1),(2),(3),(4),(5);
+SET GLOBAL wsrep_max_ws_rows = 4;
+
+--error ER_ERROR_DURING_COMMIT
+UPDATE t1 SET f2 = f2 + 10;
+SELECT COUNT(*) = 5 FROM t1;
+
+--error ER_ERROR_DURING_COMMIT
+DELETE FROM t1 WHERE f2 < 10;
+SELECT COUNT(*) = 5 FROM t1;
+
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 (f2) SELECT * FROM ten;
+SELECT COUNT(*) = 5 FROM t1;
+
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 (f2) VALUES (10),(20),(30),(40),(50);
+SELECT COUNT(*) = 5 FROM t1;
+
+# Fewer than wsrep_max_ws_rows is OK
+
+SET GLOBAL wsrep_max_ws_rows = 10;
+DELETE FROM t1 WHERE f2 < 10;
+SELECT COUNT(*) = 0 FROM t1;
+
+# Test a series of transactions
+
+--disable_query_log
+SET GLOBAL wsrep_max_ws_rows = 5;
+let $i= 100;
+while ($i)
+{
+        START TRANSACTION;
+        --eval INSERT INTO t1 (f2) VALUES ($i);
+        COMMIT;
+        dec $i;
+}
+--enable_query_log
+SET GLOBAL wsrep_max_ws_rows = 100;
+SELECT COUNT(*) = 100 FROM t1;
+DELETE FROM t1 WHERE f2 < 101;
+SELECT COUNT(*) = 0 FROM t1;
+
+# Test large statements
+
+SET GLOBAL wsrep_max_ws_rows = 9999;
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+SET GLOBAL wsrep_max_ws_rows = 10000;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
+
+SET GLOBAL wsrep_max_ws_rows = 9999;
+--error ER_ERROR_DURING_COMMIT
+UPDATE t1 SET f2 = 2 WHERE f2 = 1;
+SET GLOBAL wsrep_max_ws_rows = 10000;
+UPDATE t1 SET f2 = 2 WHERE f2 = 1;
+
+SET GLOBAL wsrep_max_ws_rows = 9999;
+--error ER_ERROR_DURING_COMMIT
+DELETE FROM t1 WHERE f2 = 2;
+SET GLOBAL wsrep_max_ws_rows = 10000;
+DELETE FROM t1 WHERE f2 = 2;
+
+SELECT COUNT(*) = 0 FROM t1;
+
+
+# Test that wsrep_max_ws_rows is reset when switching autocommit mode
+
+SET AUTOCOMMIT = ON;
+SET GLOBAL wsrep_max_ws_rows = 1;
+
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 (f2) VALUES (2);
+
+INSERT INTO t1 (f2) VALUES (1);
+INSERT INTO t1 (f2) VALUES (2);
+
+
+SET AUTOCOMMIT = OFF;
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 (f2) VALUES (2);
+
+INSERT INTO t1 (f2) VALUES (1);
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 (f2) VALUES (2);
+
+
+# Test that wsrep_max_ws_rows is reset on implicit commits
+
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+
+START TRANSACTION;
+INSERT INTO t1 (f2) VALUES (1);
+--error ER_ERROR_DURING_COMMIT
+INSERT INTO t1 (f2) VALUES (2);
+
+DROP TABLE t1;
+DROP TABLE ten;
+
+--echo #
+--echo # MDEV-11817: Altering a table with more rows than
+--echo # wsrep_max_ws_rows causes cluster to break when running
+--echo # Galera cluster in TOI mode
+--echo #
+--connection node_1
+CREATE TABLE t1(c1 INT)ENGINE = INNODB;
+SET GLOBAL wsrep_max_ws_rows= DEFAULT;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 SELECT * FROM t1;
+SET GLOBAL wsrep_max_ws_rows= 1;
+ALTER TABLE t1 CHANGE COLUMN c1 c1 BIGINT;
+
+--connection node_2
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) FROM t1;
+DROP TABLE t1;
+
+--connection node_1
+
+--disable_query_log
+--eval SET GLOBAL wsrep_max_ws_rows = $wsrep_max_ws_rows_orig
+--enable_query_log
+
+--source include/galera_end.inc

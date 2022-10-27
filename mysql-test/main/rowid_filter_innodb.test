@@ -1,0 +1,536 @@
+--source include/have_innodb.inc
+
+SET SESSION STORAGE_ENGINE='InnoDB';
+
+--source rowid_filter.test
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-18755: possible RORI-plan and possible plan with range filter
+--echo #
+
+create table t1 (
+  pk int not null primary key, f1 varchar(10), f2 varchar(30), a int(10),
+  key (f1), key (f2)
+) engine=innodb;
+
+insert into t1 values
+  (2,'a','a',2),(3,'a','a',null),(4,'a','a',55),(5,'a','a',4),(6,'a','a',0),
+  (7,'a','a',1),(8,'a','a',4),(9,'a','a',null),(10,'a','a',0),(11,'a','a',0),
+  (12,'a','a',null),(13,'a','a',49778),(14,'a','a',6),(15,'a','a',3),
+  (16,'a','a',233),(17,'a','a',-1),(18,'a','a',5),(19,'a','a',-1),
+  (20,'a','a',null),(21,'a','a',0),(22,'a','a',null),(23,'a','a',53840),
+  (24,'a','a',null),(25,'a','a',null),(26,'a','a',5),(27,'a','a',43454),
+  (28,'a','a',0),(29,'a','a',0),(30,'a','a',null),(59,'a','a',null),
+  (60,'a','a',null),(61,'a','a',-1),(62,'a','a',null),(63,'a','a',0),
+  (64,'a','a',14468),(65,'a','a',0),(66,'a','a',28),(67,'a','a',null),
+  (68,'a','a',14983),(69,'a','a',null),(70,'a','a',3),(71,'a','a',null),
+  (72,'a','a',null),(73,'a','a',237),(74,'a','a',2),(75,'a','a',0),
+  (76,'a','a',6),(77,'a','a',5),(78,'a','a',0),(79,'a','a',1),(80,'a','a',-1),
+  (81,'a','a',20),(82,'a','a',0),(83,'a','a',0),(84,'a','a',null),
+  (85,'a','a',-1),(86,'a','a',5),(87,'a','a',null),(88,'a','a',160),
+  (89,null,null,null),(90,'a','a',14785),(91,'a','a',0),(92,'a','a',null);
+
+let $q=
+( select * from t1
+    where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')))
+  union
+( select * from t1
+    where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')));
+
+eval $q;
+eval explain $q;
+eval explain format=json $q;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-19195: possible RORI-plan and possible plan with range filter
+--echo #             for not first joined table
+--echo #
+
+create table t1 (id int not null primary key) engine=innodb;
+insert into t1 values (2),(1);
+
+create table t2 (y int,x int,index (x),index (y)) engine=innodb;
+insert into t2 values
+  (4,1),(4,777),(2,1),(2,888),(111,1),(222,1),(333,345),(444,1),
+  (555,555),(666,1);
+
+let $q=
+select * from t1 join t2 on t1.id = t2.x where t2.y = 2 and t1.id = 1;
+
+eval $q;
+eval explain extended $q;
+
+drop table t1, t2;
+
+
+--echo #
+--echo # MDEV-19820: use of rowid filter for innodb table without primary key
+--echo #
+
+create table t1 (a int, b int, key (b), key (a)) engine=innodb;
+insert into t1
+select (rand(1)*1000)/10, (rand(1001)*1000)/50 from seq_1_to_1000;
+analyze table t1;
+
+let $q=
+select count(*) from t1 where a in (22,83,11) and b=2;
+let $q1=
+select * from t1 where a in (22,83,11) and b=2;
+
+set @save_optimizer_switch= @@optimizer_switch;
+
+set optimizer_switch='rowid_filter=off';
+eval $q;
+eval explain extended $q;
+eval $q1;
+
+set optimizer_switch='rowid_filter=on';
+eval $q;
+eval explain extended $q;
+eval $q1;
+
+drop table t1;
+set optimizer_switch=@save_optimizer_switch;
+
+SET SESSION STORAGE_ENGINE=DEFAULT;
+
+--echo #
+--echo # MDEV-19919: use of rowid filter for innodb table + ORDER BY
+--echo #
+
+SET @stats.save= @@innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= ON;
+
+CREATE TABLE t1 (
+    a INT,
+    b VARCHAR(10),
+    c VARCHAR(1024),
+    KEY (b),
+    KEY (c)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES
+  (1,'w','z'), (1,'X','o'), (1,'q','c'), (5,'w','c'), (2,'j','m'),
+  (2,'Q','s'), (9,'e','J'), (2,'p','W'), (9,'o','F'), (2,'g','S'),
+  (1,'Y','a'), (NULL,'Y','p'), (NULL,'s','x'), (NULL,'i','S'),
+  (1,'l','q'), (7,'r','e'), (4,'b','h'), (NULL,'E','c'),
+  (NULL,'M','a'), (3,'e','X'), (NULL,'p','r'), (9,'e','i'),
+  (3,'g','x'), (2,'h','y');
+
+ANALYZE TABLE t1;
+
+EXPLAIN EXTENDED
+SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+
+SELECT a FROM t1 WHERE c < 'k' AND b > 't' ORDER BY a;
+
+DROP TABLE t1;
+SET GLOBAL innodb_stats_persistent= @stats.save;
+
+--echo #
+--echo # MDEV-20056: index to build range filter should not be
+--echo #             the same as table access index
+--echo #
+
+SET @stats.save= @@innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= ON;
+
+CREATE TABLE t1 (ch varchar(1), id int, id2 int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+('l',3,2), ('e',NULL,NULL), ('r',7,3), ('h',NULL,2), (NULL,4,4), ('c',4,NULL),
+('k',NULL,NULL), ('h',NULL,NULL), ('b',9,NULL), ('f',6,NULL);
+
+CREATE TABLE t2 (
+  pk int NOT NULL, col_date_key date, ch2 varchar(1), id2 int,
+  PRIMARY KEY (pk), KEY (col_date_key), KEY (ch2), KEY (id2)
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES
+(1,'2034-04-21','g',9), (2,'2006-09-08','y',1), (3,NULL,'h',2),
+(4,'1987-03-02','s',2), (5,'2019-07-02','u',NULL),(6,'2012-12-18','z',1),
+(7,NULL,'w',4), (8,'2005-03-10','o',8), (9,'1987-02-12','d',4);
+
+CREATE TABLE t3 (id int) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (6);
+
+ANALYZE TABLE t1,t2,t3;
+
+let $q1=
+SELECT 1 FROM t3
+WHERE EXISTS ( SELECT 1 FROM t1
+               WHERE t3.id IN ( SELECT bt1.id FROM t2, t1 AS bt1
+                                WHERE bt1.id = t2.pk AND
+                                      t2.ch2 <= 'g' ) OR
+                     t1.id2 = t1.id);
+
+eval EXPLAIN EXTENDED $q1;
+eval $q1;
+
+let $q2=
+SELECT 1 FROM t3
+WHERE EXISTS ( SELECT 1 FROM t1
+               WHERE t3.id IN ( SELECT bt1.id FROM t2, t1 AS bt1
+                                WHERE bt1.ch = t2.ch2 AND
+                                      bt1.id = t2.pk AND
+                                      t2.ch2 <= 'g' ) OR
+                     t1.id2 = t1.id);
+
+eval EXPLAIN EXTENDED $q2;
+eval $q2;
+
+DROP TABLE t1, t2, t3;
+SET GLOBAL innodb_stats_persistent= @stats.save;
+
+--echo #
+--echo # MDEV-20407: usage of range filter is not supported when
+--echo #             the joined table is accessed by a full text index
+--echo #
+
+set @stats.save= @@innodb_stats_persistent;
+set global innodb_stats_persistent=on;
+
+create table t1(id int, s text, key (id), fulltext key (s)) engine=innodb;
+
+insert into t1 values
+(1119,'t'),(1134,'t'),(1134,'t'),(1143,'t'),(1143,'t'),(1187,'t'),(1187,'t'),
+(1187,'t'),(1187,'t'),(1187,'t'),(1187,'t'),(1187,'t'),(1187,'t'),(1187,'t'),
+(1187,'t'),(1210,'t'),(1210,'t'),(1210,'t'),(1210,'t'),(1210,'t'),(1210,'t'),
+(1214,'t'),(1214,'t'),(1215,'t'),(1215,'t'),(1215,'t'),(1216,'t'),(1218,'t'),
+(1220,'t'),(1220,'t'),(1220,'t'),(1222,'t'),(1223,'t'),(1223,'t'),(1224,'t'),
+(1225,'t'),(1225,'t'),(1226,'t'),(1226,'t'),(1227,'t'),(1227,'t'),(1228,'t'),
+(1229,'t'),(1230,'t'),(1230,'t'),(1231,'t'),(1231,'t'),(1232,'t'),(1232,'t'),
+(1232,'t'),(1232,'t'),(1233,'t'),(1241,'t'),(1245,'t'),(1247,'t'),(1247,'t'),
+(1247,'t'),(1247,'t'),(1247,'t'),(1247,'t'),(1248,'like fttest');
+
+analyze table t1;
+
+let $q=
+select count(0) from t1
+ where id=15066 and (match s against ('+"fttest"' in boolean mode));
+
+eval explain extended $q;
+eval $q;
+
+drop table t1;
+set global innodb_stats_persistent= @stats.save;
+
+--echo #
+--echo # MDEV-21356: usage of range filter with range access employing
+--echo #             optimizer_switch='mrr=on,mrr_sort_keys=on';
+--echo #
+
+CREATE TABLE t1 (
+  id int(11) unsigned NOT NULL AUTO_INCREMENT,
+  domain varchar(255) NOT NULL,
+  registrant_name varchar(255) DEFAULT NULL,
+  registrant_organization varchar(255) DEFAULT NULL,
+  registrant_street1 varchar(255) DEFAULT NULL,
+  registrant_street2 varchar(255) DEFAULT NULL,
+  registrant_street3 varchar(255) DEFAULT NULL,
+  registrant_street4 varchar(255) DEFAULT NULL,
+  registrant_street5 varchar(255) DEFAULT NULL,
+  registrant_city varchar(255) DEFAULT NULL,
+  registrant_postal_code varchar(255) DEFAULT NULL,
+  registrant_country varchar(255) DEFAULT NULL,
+  registrant_email varchar(255) DEFAULT NULL,
+  registrant_telephone varchar(255) DEFAULT NULL,
+  administrative_name varchar(255) DEFAULT NULL,
+  administrative_organization varchar(255) DEFAULT NULL,
+  administrative_street1 varchar(255) DEFAULT NULL,
+  administrative_street2 varchar(255) DEFAULT NULL,
+  administrative_street3 varchar(255) DEFAULT NULL,
+  administrative_street4 varchar(255) DEFAULT NULL,
+  administrative_street5 varchar(255) DEFAULT NULL,
+  administrative_city varchar(255) DEFAULT NULL,
+  administrative_postal_code varchar(255) DEFAULT NULL,
+  administrative_country varchar(255) DEFAULT NULL,
+  administrative_email varchar(255) DEFAULT NULL,
+  administrative_telephone varchar(255) DEFAULT NULL,
+  technical_name varchar(255) DEFAULT NULL,
+  technical_organization varchar(255) DEFAULT NULL,
+  technical_street1 varchar(255) DEFAULT NULL,
+  technical_street2 varchar(255) DEFAULT NULL,
+  technical_street3 varchar(255) DEFAULT NULL,
+  technical_street4 varchar(255) DEFAULT NULL,
+  technical_street5 varchar(255) DEFAULT NULL,
+  technical_city varchar(255) DEFAULT NULL,
+  technical_postal_code varchar(255) DEFAULT NULL,
+  technical_country varchar(255) DEFAULT NULL,
+  technical_email varchar(255) DEFAULT NULL,
+  technical_telephone varchar(255) DEFAULT NULL,
+  json longblob NOT NULL,
+  timestamp timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (id),
+  KEY ixEventWhoisDomainDomain (domain),
+  KEY ixEventWhoisDomainTimestamp (timestamp)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO t1 (
+id, domain, registrant_name, registrant_organization, registrant_street1,
+registrant_street2, registrant_street3, registrant_street4, registrant_street5,
+registrant_city, registrant_postal_code, registrant_country, registrant_email,
+registrant_telephone, administrative_name, administrative_organization,
+administrative_street1, administrative_street2, administrative_street3,
+administrative_street4, administrative_street5, administrative_city,
+administrative_postal_code, administrative_country, administrative_email,
+administrative_telephone, technical_name, technical_organization,
+technical_street1, technical_street2, technical_street3, technical_street4,
+technical_street5, technical_city, technical_postal_code, technical_country,
+technical_email, technical_telephone, json, timestamp) VALUES
+(60380, 'www.mailhost.i-dev.fr', null, null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, '', '2016-12-22 09:18:28'),
+(60383, 'www.bestwestern.fr', null, null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, '', '2016-12-22 09:27:06'),
+(80392, 'www.dfinitions.fr', null, null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, '', '2017-01-30 08:02:01'),
+(80407, 'www.firma.o2.pl', null, null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, null, null, 'AZ.pl Sp. z o.o.', 'Al. Papieza Jana Pawla II 19/2',
+ null, null, null, null, '70-453 Szczecin', null, 'POLAND', null,
+ '48914243780', '', '2017-01-30 08:24:51'),
+(80551, 'www.mailhost.i-dev.fr', null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, null, null, null, null, null, null, null, null, null, null,
+ null, null, null, null, null, '', '2017-01-30 10:00:56'),
+(80560, 'www.blackmer-mouvex.com', 'MARIE-PIERRE PRODEAU', 'MOUVEX',
+ '2 RUE DES CAILLOTES', null, null, null, null, 'AUXERRE', '89000', 'FRANCE',
+ 'PRODEAU@MOUVEX.COM', null, 'MARIE-PIERRE PRODEAU', 'MOUVEX',
+ '2 RUE DES CAILLOTES', null, null, null, null, 'AUXERRE', '89000', 'FRANCE',
+ 'PRODEAU@MOUVEX.COM', '33 386498630', 'LAURENT SOUCHELEAU', 'MOUVEX',
+ '2 RUE DES CAILLOTES', null, null, null, null, 'AUXERRE', '89000', 'FRANCE',
+ 'SOUCHELEAU@MOUVEX.COM', '33 386498643', '', '2017-01-30 10:04:38'),
+(80566, 'www.inup.com', 'MAXIMILIAN V. KETELHODT', null,
+ 'SUELZBURGSTRASSE 158A', null, null, null, null, 'KOELN', '50937', 'GERMANY',
+ 'ICANN@EXPIRES-2009.WEBCARE24.COM', '492214307580', 'MAXIMILIAN V. KETELHODT',
+ null, 'SUELZBURGSTRASSE 158A', null, null, null, null, 'KOELN', '50937',
+ 'GERMANY', 'ICANN@EXPIRES-2009.WEBCARE24.COM', '492214307580',
+ 'MAXIMILIAN V. KETELHODT', null, 'SUELZBURGSTRASSE 158A', null, null, null,
+ null, 'KOELN', '50937', 'GERMANY', 'ICANN@EXPIRES-2009.WEBCARE24.COM',
+ '492214307580', '', '2017-01-30 10:08:29');
+
+SET @save_optimizer_switch=@@optimizer_switch;
+
+SET optimizer_switch='mrr=on,mrr_sort_keys=on';
+
+let $q=
+SELECT * FROM t1
+  WHERE 1 = 1 AND domain = 'www.mailhost.i-dev.fr' AND
+        timestamp >= DATE_ADD(CURRENT_TIMESTAMP, INTERVAL -1 MONTH)
+ORDER BY timestamp DESC;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+SET optimizer_switch=@save_optimizer_switch;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-21446: index to access the table is changed for primary key
+--echo #
+
+SET @stats.save= @@innodb_stats_persistent;
+SET global innodb_stats_persistent=on;
+
+CREATE TABLE t1 (
+    pk int auto_increment,
+    a int,
+    b int,
+    primary key (pk),
+    key (a),
+    key (b)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (a,b) VALUES
+(0,0), (0,9), (0,NULL), (1,2), (4,0), (2,9), (1,0), (NULL,0), (5,NULL), (5,1),
+(0,7), (NULL,5), (NULL,0), (2,1), (2,5), (6,NULL), (0,NULL), (NULL,8), (8,5),
+(2,NULL), (2,3), (NULL,8), (NULL,6), (1,1), (5,1), (NULL,5), (4,4), (2,4),
+(2,5), (1,9), (NULL,0), (3,7), (0,4), (2,8), (1,2), (1,4), (2,1),
+(NULL,7), (6,6), (3,0), (4,5), (5,2), (8,2), (NULL,NULL), (8,NULL),
+(0,1),(0,7);
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+INSERT INTO t1(a,b) SELECT a, b FROM t1;
+
+ANALYZE TABLE t1;
+
+EXPLAIN EXTENDED
+SELECT * FROM t1
+  WHERE (a BETWEEN 9 AND 10 OR a IS NULL) AND (b BETWEEN 9 AND 10 OR b = 9);
+
+EXPLAIN EXTENDED
+SELECT * FROM t1
+  WHERE (a BETWEEN 9 AND 10 OR a IS NULL) AND (b BETWEEN 9 AND 10 OR b = 9)
+ORDER BY pk LIMIT 1;
+
+ANALYZE
+SELECT * FROM t1
+  WHERE (a BETWEEN 9 AND 10 OR a IS NULL) AND (b BETWEEN 9 AND 10 OR b = 9)
+ORDER BY pk LIMIT 1;
+
+DROP TABLE t1;
+SET global innodb_stats_persistent= @stats.save;
+
+--echo #
+--echo # MDEV-21610: Using rowid filter with BKA+MRR
+--echo #
+
+set @stats.save= @@innodb_stats_persistent;
+set global innodb_stats_persistent=on;
+
+CREATE TABLE acli (
+  id bigint(20) NOT NULL,
+  rid varchar(255) NOT NULL,
+  tp smallint(6) NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY acli_rid (rid),
+  KEY acli_tp (tp)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+insert into acli(id,rid,tp) values
+(184929059698905997,'ABABABABABABABABAB',103),
+(184929059698905998,'ABABABABABABABABAB',121),
+(283586039035985921,'00000000000000000000000000000000',103),
+(2216474704108064678,'020BED6D07B741CE9B10AB2200FEF1DF',103),
+(2216474704108064679,'020BED6D07B741CE9B10AB2200FEF1DF',121),
+(3080602882609775593,'B5FCC8C7111E4E3CBC21AAF5012F59C2',103),
+(3080602882609775594,'B5FCC8C7111E4E3CBC21AAF5012F59C2',121),
+(3080602882609776594,'B5FCC8C7111E4E3CBC21AAF5012F59C2',121),
+(3080602882609777595,'B5FCC8C7111E4E3CBC21AAF5012F59C2',121),
+(4269412446747236214,'SCSCSCSCSCSCSCSC',103),
+(4269412446747236215,'SCSCSCSCSCSCSCSC',121),
+(6341490487802728356,'6072D47E513F4A4794BBAB2200FDB67D',103),
+(6341490487802728357,'6072D47E513F4A4794BBAB2200FDB67D',121);
+
+CREATE TABLE acei (
+  id bigint(20) NOT NULL,
+  aclid bigint(20) NOT NULL DEFAULT 0,
+  atp smallint(6) NOT NULL DEFAULT 0,
+  clus smallint(6) NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY acei_aclid (aclid),
+  KEY acei_clus (clus)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+insert into acei(id,aclid,atp,clus) values
+(184929059698905999,184929059698905997,0,1),
+(184929059698906000,184929059698905997,0,1),
+(184929059698906001,184929059698905997,1,1),
+(184929059698906002,184929059698905998,1,1),
+(283586039035985922,283586039035985921,1,1),
+(2216474704108064684,2216474704108064678,0,1),
+(2216474704108064685,2216474704108064678,0,1),
+(2216474704108064686,2216474704108064678,1,1),
+(2216474704108064687,2216474704108064679,1,1),
+(3080602882609775595,3080602882609775593,0,1),
+(3080602882609775596,3080602882609775593,0,1),
+(3080602882609775597,3080602882609775593,1,1),
+(3080602882609775598,3080602882609775594,1,1),
+(3080602882609776595,3080602882609776594,1,1),
+(3080602882609777596,3080602882609777595,1,1),
+(4269412446747236216,4269412446747236214,0,1),
+(4269412446747236217,4269412446747236214,0,1),
+(4269412446747236218,4269412446747236214,1,1),
+(4269412446747236219,4269412446747236215,1,1),
+(6341490487802728358,6341490487802728356,0,1),
+(6341490487802728359,6341490487802728356,0,1),
+(6341490487802728360,6341490487802728356,1,1),
+(6341490487802728361,6341490487802728357,1,1);
+
+CREATE TABLE filt (
+  id bigint(20) NOT NULL,
+  aceid bigint(20) NOT NULL DEFAULT 0,
+  clid smallint(6) NOT NULL DEFAULT 0,
+  fh bigint(20) NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY filt_aceid (aceid),
+  KEY filt_clid (clid),
+  KEY filt_fh (fh)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+insert into filt(id,aceid,clid,fh) values
+(184929059698905999,184929059698905999,1,8948400944397203540),
+(184929059698906000,184929059698906000,1,-3516039679025944536),
+(184929059698906001,184929059698906001,1,-3516039679025944536),
+(184929059698906002,184929059698906001,1,2965370193075218252),
+(184929059698906003,184929059698906001,1,8948400944397203540),
+(184929059698906004,184929059698906002,1,2478709353550777738),
+(283586039035985922,283586039035985922,1,5902600816362013271),
+(2216474704108064686,2216474704108064684,1,8948400944397203540),
+(2216474704108064687,2216474704108064685,1,-7244708939311117030),
+(2216474704108064688,2216474704108064686,1,-7244708939311117030),
+(2216474704108064689,2216474704108064686,1,7489060986210282479),
+(2216474704108064690,2216474704108064686,1,8948400944397203540),
+(2216474704108064691,2216474704108064687,1,-3575268945274980038),
+(3080602882609775595,3080602882609775595,1,8948400944397203540),
+(3080602882609775596,3080602882609775596,1,-5420422472375069774),
+(3080602882609775597,3080602882609775597,1,-5420422472375069774),
+(3080602882609775598,3080602882609775597,1,8518228073041491534),
+(3080602882609775599,3080602882609775597,1,8948400944397203540),
+(3080602882609775600,3080602882609775598,1,6311439873746261694),
+(3080602882609775601,3080602882609775598,1,6311439873746261694),
+(3080602882609776595,3080602882609776595,1,-661101805245999843),
+(3080602882609777596,3080602882609777596,1,-661101805245999843),
+(3080602882609777597,3080602882609777596,1,2216865386202464067),
+(4269412446747236216,4269412446747236216,1,8948400944397203540),
+(4269412446747236217,4269412446747236217,1,-1143096194892676000),
+(4269412446747236218,4269412446747236218,1,-1143096194892676000),
+(4269412446747236219,4269412446747236218,1,5313391811364818290),
+(4269412446747236220,4269412446747236218,1,8948400944397203540),
+(4269412446747236221,4269412446747236219,1,7624499822621753835),
+(6341490487802728358,6341490487802728358,1,8948400944397203540),
+(6341490487802728359,6341490487802728359,1,8141092449587136068),
+(6341490487802728360,6341490487802728360,1,8141092449587136068),
+(6341490487802728361,6341490487802728360,1,1291319099896431785),
+(6341490487802728362,6341490487802728360,1,8948400944397203540),
+(6341490487802728363,6341490487802728361,1,6701841652906431497);
+
+analyze table filt, acei, acli;
+
+let $q=
+select t.id, fi.*
+from (acli t inner join acei a on a.aclid = t.id)
+     inner join filt fi on a.id = fi.aceid
+ where
+    t.rid = 'B5FCC8C7111E4E3CBC21AAF5012F59C2' and
+    t.tp = 121 and
+    a.atp = 1 and
+    fi.fh in (6311439873746261694,-397087483897438286,
+              8518228073041491534,-5420422472375069774);
+
+set @save_optimizer_switch=@@optimizer_switch;
+set @save_join_cache_level=@@join_cache_level;
+
+set optimizer_switch='mrr=off';
+set join_cache_level=2;
+eval $without_filter explain extended $q;
+eval $without_filter $q;
+eval $with_filter explain extended $q;
+eval $with_filter $q;
+
+set optimizer_switch='mrr=on';
+set join_cache_level=6;
+eval $without_filter explain extended $q;
+eval $without_filter $q;
+eval $with_filter explain extended $q;
+eval $with_filter $q;
+--source include/analyze-format.inc
+eval $with_filter analyze format=json $q;
+
+set optimizer_switch=@save_optimizer_switch;
+set join_cache_level=@save_join_cache_level;
+
+drop table filt, acei, acli;
+
+set global innodb_stats_persistent= @stats.save;

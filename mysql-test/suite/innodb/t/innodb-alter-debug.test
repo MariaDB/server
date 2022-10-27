@@ -1,0 +1,134 @@
+--source include/innodb_page_size.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--source include/count_sessions.inc
+
+SET NAMES utf8;
+
+CREATE TABLE ① (
+ c1 INT PRIMARY KEY, c2 INT DEFAULT 1, ct TEXT, INDEX(c2))
+ENGINE = InnoDB;
+
+CREATE TABLE t1ć (c1 INT PRIMARY KEY, c2 INT, INDEX(c2),
+                  CONSTRAINT t1c2 FOREIGN KEY (c2) REFERENCES ①(c2))
+ENGINE=InnoDB;
+
+INSERT INTO ① SET c1 = 1;
+
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG = '+d,ib_drop_foreign_error';
+--error ER_RECORD_FILE_FULL
+ALTER TABLE t1ć DROP FOREIGN KEY t1c2, RENAME TO ②;
+SET DEBUG_DBUG = @saved_debug_dbug;
+
+SET DEBUG_DBUG = '+d,ib_rename_column_error';
+--error ER_RECORD_FILE_FULL
+ALTER TABLE ① CHANGE c2 š INT;
+SET DEBUG_DBUG = @saved_debug_dbug;
+
+SHOW CREATE TABLE t1ć;
+
+DROP TABLE t1ć, ①;
+
+--echo #
+--echo # Bug #21364096  THE BOGUS DUPLICATE KEY ERROR IN ONLINE DDL
+--echo #                WITH INCORRECT KEY NAME
+
+create table t1 (id int auto_increment primary key, a int, unique key uk(a))
+engine = innodb;
+insert into t1 select 1, 1;
+insert into t1 select 2, 2;
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL s1 WAIT_FOR s2';
+--send alter table t1 force, add b int, ALGORITHM=inplace
+
+--echo /* connection con1 */
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC = 'now WAIT_FOR s1';
+--error ER_DUP_ENTRY
+insert into t1 select NULL, 1;
+SET DEBUG_SYNC = 'now SIGNAL s2';
+
+--echo /* connection default */
+connection default;
+--echo /* reap */ alter table t1 force, add b int, ALGORITHM=inplace;
+--error ER_DUP_ENTRY
+--reap
+
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL s1 WAIT_FOR s2';
+--send alter table t1 force, add b int, ALGORITHM=inplace;
+
+--echo /* connection con1 */
+connection con1;
+set DEBUG_SYNC = 'now WAIT_FOR s1';
+--error ER_DUP_ENTRY
+update t1 set a=1 where id=2;
+SET DEBUG_SYNC = 'now SIGNAL s2';
+
+--echo /* connection default */
+connection default;
+--echo /* reap */ alter table t1 force, add b int, ALGORITHM=inplace;
+--error ER_DUP_ENTRY
+--reap
+SET DEBUG_SYNC = 'RESET';
+
+drop table t1;
+
+--echo #
+--echo # Bug #27753193  ASSERTION `PREBUILT->TRX->ERROR_KEY_NUM <
+--echo #                HA_ALTER_INFO->KEY_COUNT'
+
+CREATE TABLE t1 (a INT, UNIQUE KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+SET DEBUG_SYNC = 'row_log_table_apply1_before signal S1 WAIT_FOR S2';
+send ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+
+connection con1;
+SET DEBUG_SYNC = 'now WAIT_FOR S1';
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (1);
+SET DEBUG_SYNC = 'now SIGNAL S2';
+disconnect con1;
+
+CONNECTION default;
+--error ER_DUP_ENTRY
+reap;
+SET DEBUG_SYNC='RESET';
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17470 Orphan temporary files after interrupted ALTER
+--echo # cause InnoDB: Operating system error number 17 and eventual
+--echo # fatal error 71
+--echo #
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY, i INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL,1),(NULL,2),(NULL,3),(NULL,4),(NULL,5),(NULL,6),(NULL,7),(NULL,8);
+INSERT INTO t1 SELECT NULL, i FROM t1;
+INSERT INTO t1 SELECT NULL, i FROM t1;
+INSERT INTO t1 SELECT NULL, i FROM t1;
+INSERT INTO t1 SELECT NULL, i FROM t1;
+INSERT INTO t1 SELECT NULL, i FROM t1;
+
+LOCK TABLE t1 READ;
+
+--connect (con1,localhost,root,,test)
+let $ID= `SELECT @id := CONNECTION_ID()`;
+send ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+
+--connection default
+let $wait_condition= select 1 from information_schema.processlist where state='Waiting for table metadata lock';
+source include/wait_condition.inc;
+let $ignore= `SELECT @id := $ID`;
+kill query @id;
+--connection con1
+--error ER_QUERY_INTERRUPTED
+reap;
+--disconnect con1
+--connection default
+UNLOCK TABLES;
+DROP TABLE t1;
+
+# Wait till all disconnects are completed
+--source include/wait_until_count_sessions.inc

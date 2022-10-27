@@ -1,0 +1,49 @@
+call mtr.add_suppression(".*Invalid pattern in rocksdb_read_free_rpl_tables.*");
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES('a');
+INSERT INTO valid_values VALUES('b');
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'*\'');
+SET @start_global_value = @@global.ROCKSDB_READ_FREE_RPL_TABLES;
+SELECT @start_global_value;
+@start_global_value
+.*
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_READ_FREE_RPL_TABLES to a"
+SET @@global.ROCKSDB_READ_FREE_RPL_TABLES   = a;
+SELECT @@global.ROCKSDB_READ_FREE_RPL_TABLES;
+@@global.ROCKSDB_READ_FREE_RPL_TABLES
+a
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_READ_FREE_RPL_TABLES = DEFAULT;
+SELECT @@global.ROCKSDB_READ_FREE_RPL_TABLES;
+@@global.ROCKSDB_READ_FREE_RPL_TABLES
+.*
+"Trying to set variable @@global.ROCKSDB_READ_FREE_RPL_TABLES to b"
+SET @@global.ROCKSDB_READ_FREE_RPL_TABLES   = b;
+SELECT @@global.ROCKSDB_READ_FREE_RPL_TABLES;
+@@global.ROCKSDB_READ_FREE_RPL_TABLES
+b
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_READ_FREE_RPL_TABLES = DEFAULT;
+SELECT @@global.ROCKSDB_READ_FREE_RPL_TABLES;
+@@global.ROCKSDB_READ_FREE_RPL_TABLES
+.*
+"Trying to set variable @@session.ROCKSDB_READ_FREE_RPL_TABLES to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_READ_FREE_RPL_TABLES   = 444;
+ERROR HY000: Variable 'rocksdb_read_free_rpl_tables' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_READ_FREE_RPL_TABLES to '*'"
+SET @@global.ROCKSDB_READ_FREE_RPL_TABLES   = '*';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_READ_FREE_RPL_TABLES;
+@@global.ROCKSDB_READ_FREE_RPL_TABLES
+.*
+SET @@global.ROCKSDB_READ_FREE_RPL_TABLES = @start_global_value;
+SELECT @@global.ROCKSDB_READ_FREE_RPL_TABLES;
+@@global.ROCKSDB_READ_FREE_RPL_TABLES
+.*
+SET GLOBAL ROCKSDB_READ_FREE_RPL_TABLES=NULL;
+SET GLOBAL ROCKSDB_READ_FREE_RPL_TABLES=DEFAULT;
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

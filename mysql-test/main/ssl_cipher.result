@@ -1,0 +1,68 @@
+create user ssl_user1@localhost require SSL;
+create user ssl_user2@localhost require cipher 'AES256-SHA';
+create user ssl_user3@localhost require cipher 'AES256-SHA' AND SUBJECT '/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client';
+create user ssl_user4@localhost require cipher 'AES256-SHA' AND SUBJECT '/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client' ISSUER '/CN=cacert/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB';
+create user ssl_user5@localhost require cipher 'AES256-SHA' AND SUBJECT 'xxx';
+connect  con1,localhost,ssl_user1,,,,,SSL-CIPHER=AES256-SHA;
+connect(localhost,ssl_user2,,test,MASTER_PORT,MASTER_SOCKET);
+connect  con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES128-SHA;
+ERROR 28000: Access denied for user 'ssl_user2'@'localhost' (using password: NO)
+connect  con2,localhost,ssl_user2,,,,,SSL-CIPHER=AES256-SHA;
+connect  con3,localhost,ssl_user3,,,,,SSL-CIPHER=AES256-SHA;
+connect  con4,localhost,ssl_user4,,,,,SSL-CIPHER=AES256-SHA;
+connect(localhost,ssl_user5,,test,MASTER_PORT,MASTER_SOCKET);
+connect  con5,localhost,ssl_user5,,,,,SSL-CIPHER=AES256-SHA;
+ERROR 28000: Access denied for user 'ssl_user5'@'localhost' (using password: NO)
+connection con1;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	AES256-SHA
+disconnect con1;
+connection con2;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	AES256-SHA
+disconnect con2;
+connection con3;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	AES256-SHA
+disconnect con3;
+connection con4;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	AES256-SHA
+disconnect con4;
+connection default;
+drop user ssl_user1@localhost, ssl_user2@localhost, ssl_user3@localhost, ssl_user4@localhost, ssl_user5@localhost;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	AES256-SHA
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	AES128-SHA
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	AES128-SHA
+mysqltest: Could not open connection 'default': 2026 SSL connection error: xxxxVariable_name	Value
+Ssl_cipher	AES256-SHA
+Variable_name	Value
+Ssl_cipher	AES128-SHA
+select 'is still running; no cipher request crashed the server' as result from dual;
+result
+is still running; no cipher request crashed the server
+create user mysqltest_1@localhost;
+grant usage on mysqltest.* to mysqltest_1@localhost require cipher "AES256-SHA";
+Variable_name	Value
+Ssl_cipher	AES256-SHA
+drop user mysqltest_1@localhost;
+# restart: --ssl-cipher=AES128-SHA
+connect  ssl_con,localhost,root,,,,,SSL;
+SHOW STATUS LIKE 'Ssl_cipher';
+Variable_name	Value
+Ssl_cipher	AES128-SHA
+SHOW STATUS LIKE 'Ssl_cipher_list';
+Variable_name	Value
+Ssl_cipher_list	AES128-SHA
+disconnect ssl_con;
+connection default;

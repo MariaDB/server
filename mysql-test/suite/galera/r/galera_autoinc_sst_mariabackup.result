@@ -1,0 +1,48 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+Killing server ...
+connection node_1;
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+connection node_2a;
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+132
+connection node_2a;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+132
+connection node_1;
+DROP TABLE t1;
+CALL mtr.add_suppression("gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
+CALL mtr.add_suppression("WSREP: Action message in non-primary configuration from member 0");
+disconnect node_1a;
+disconnect node_2a;

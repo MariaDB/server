@@ -1,0 +1,26 @@
+create role r1;
+grant r1 to root@localhost;
+create user u1;
+set role r1;
+grant r1 to u1;
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+%	u1	r1	N
+localhost	root	r1	Y
+drop user u1;
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+localhost	root	r1	Y
+show grants;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `r1`
+GRANT `r1` TO `root`@`localhost` WITH ADMIN OPTION
+drop role r1;
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+show grants;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION

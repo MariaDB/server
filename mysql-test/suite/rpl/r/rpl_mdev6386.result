@@ -1,0 +1,67 @@
+include/master-slave.inc
+[connection master]
+connection master;
+ALTER TABLE mysql.gtid_slave_pos ENGINE = InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) Engine=InnoDB;
+connection slave;
+connection slave;
+include/stop_slave.inc
+SET sql_log_bin= 0;
+INSERT INTO t1 VALUES (1, 2);
+SET sql_log_bin= 1;
+CHANGE MASTER TO master_use_gtid= current_pos;
+Contents on slave before:
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=8;
+connection master;
+CREATE TEMPORARY TABLE t2 LIKE t1;
+INSERT INTO t2 VALUE (1, 1);
+INSERT INTO t2 VALUE (2, 1);
+INSERT INTO t2 VALUE (3, 1);
+INSERT INTO t2 VALUE (4, 1);
+INSERT INTO t2 VALUE (5, 1);
+INSERT INTO t1 SELECT * FROM t2;
+DROP TEMPORARY TABLE t2;
+INSERT INTO t1 VALUE (6, 3);
+include/save_master_gtid.inc
+Contents on master:
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+2	1
+3	1
+4	1
+5	1
+6	3
+connection slave;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1062]
+STOP SLAVE IO_THREAD;
+Contents on slave on slave error:
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+SET sql_log_bin= 0;
+DELETE FROM t1 WHERE a=1;
+SET sql_log_bin= 1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+Contents on slave after:
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+2	1
+3	1
+4	1
+5	1
+6	3
+connection master;
+DROP TABLE t1;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_parallel;
+include/start_slave.inc
+include/rpl_end.inc

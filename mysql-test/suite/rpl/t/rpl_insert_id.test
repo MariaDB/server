@@ -1,0 +1,6 @@
+#################################
+# Wrapper for rpl_insert_id.test#
+#################################
+-- source include/have_innodb.inc
+let $engine_type=myisam;
+-- source include/rpl_insert_id.test

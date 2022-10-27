@@ -1,0 +1,39 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+#
+# MDEV-10492: Assertion failure on shutdown when wsrep_sst_auth set in config
+#
+
+SELECT @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth='foo:bar';
+SELECT @@global.wsrep_sst_auth;
+
+#
+# MDEV-24509 Warning: Memory not freed: 56 on SET @@global.wsrep_sst_auth
+#
+--connection node_2
+SET @@global.wsrep_sst_auth= 'abcdefghijklmnopqrstuvwxyz';
+SELECT @@global.wsrep_sst_auth;
+--echo Shutdown node_2
+--source include/shutdown_mysqld.inc
+
+# On node_1, verify that the node has left the cluster.
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Restart node_2
+--connection node_2
+--source include/start_mysqld.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+SELECT @@global.wsrep_sst_auth;
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc

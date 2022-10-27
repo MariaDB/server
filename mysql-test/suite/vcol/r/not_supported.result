@@ -1,0 +1,36 @@
+connect  con1, localhost, root;
+set lc_time_names = 'es_MX';
+set time_zone='+10:00';
+set div_precision_increment=20;
+create table t1 (a int, b int, v decimal(20,19) as (a/3));
+create table t2 (a int, b int, v int as (a+@a));
+drop table t2;
+create table t2 (a int, b int, v int as (a+@a) PERSISTENT);
+ERROR HY000: Function or expression '@a' cannot be used in the GENERATED ALWAYS AS clause of `v`
+create table t3_ok (a int, b int, v int as (a+@@error_count));
+create table t3 (a int, b int, v int as (a+@@error_count) PERSISTENT);
+ERROR HY000: Function or expression '@@error_count' cannot be used in the GENERATED ALWAYS AS clause of `v`
+create table t4 (a int, b int, v int as (@a:=a));
+drop table t4;
+create table t4 (a int, b int, v int as (@a:=a) PERSISTENT);
+ERROR HY000: Function or expression '@a' cannot be used in the GENERATED ALWAYS AS clause of `v`
+create table t8 (a int, b int, v varchar(100) as (from_unixtime(a)));
+insert t1 (a,b) values (1,2);
+insert t8 (a,b) values (1234567890,2);
+select * from t1;
+a	b	v
+1	2	0.3333333333333333333
+select * from t8;
+a	b	v
+1234567890	2	2009-02-14 09:31:30
+disconnect con1;
+connection default;
+set time_zone='+1:00';
+flush tables;
+select * from t1;
+a	b	v
+1	2	0.3333333330000000000
+select * from t8;
+a	b	v
+1234567890	2	2009-02-14 00:31:30
+drop table t1, t3_ok, t8;

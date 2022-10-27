@@ -1,0 +1,29 @@
+drop table if exists diaries;
+set names utf8;
+create table diaries (
+id int primary key,
+title varchar(255),
+content text,
+fulltext index (title, content),
+fulltext index (title),
+fulltext index (content)
+) default charset utf8;
+insert into diaries values(1, "Hello", "はじめました。");
+insert into diaries values(2, "天気", "明日の富士山の天気について");
+insert into diaries values(3, "富士山", "今日もきれい。");
+select * from diaries;
+id	title	content
+1	Hello	はじめました。
+2	天気	明日の富士山の天気について
+3	富士山	今日もきれい。
+select * from diaries where match(title, content) against("富士山");
+id	title	content
+2	天気	明日の富士山の天気について
+3	富士山	今日もきれい。
+select * from diaries where match(title) against("富士山");
+id	title	content
+3	富士山	今日もきれい。
+select * from diaries where match(content) against("富士山");
+id	title	content
+2	天気	明日の富士山の天気について
+drop table diaries;

@@ -1,0 +1,61 @@
+include/master-slave.inc
+[connection master]
+connection master;
+DROP PROCEDURE IF EXISTS test.p1;
+DROP PROCEDURE IF EXISTS test.p2;
+DROP PROCEDURE IF EXISTS test.p3;
+create user user1@localhost;
+grant usage on *.* to user1@localhost;
+flush privileges;
+SELECT CURRENT_USER();
+CURRENT_USER()
+root@localhost
+SELECT USER();
+USER()
+root@localhost
+CREATE PROCEDURE test.p1 () SQL SECURITY INVOKER SELECT CURRENT_USER(), USER();
+CREATE PROCEDURE test.p2 () SQL SECURITY DEFINER CALL test.p1();
+CREATE PROCEDURE test.p3 () SQL SECURITY INVOKER CALL test.p1();
+GRANT EXECUTE ON PROCEDURE p1 TO user1@localhost;
+GRANT EXECUTE ON PROCEDURE p2 TO user1@localhost;
+GRANT EXECUTE ON PROCEDURE p3 TO user1@localhost;
+set sql_mode=default;
+connection slave;
+connect  muser1,localhost,user1,,;
+connection muser1;
+SELECT CURRENT_USER();
+CURRENT_USER()
+user1@localhost
+SELECT USER();
+USER()
+user1@localhost
+CALL test.p3();
+CURRENT_USER()	USER()
+user1@localhost	user1@localhost
+CALL test.p2();
+CURRENT_USER()	USER()
+root@localhost	user1@localhost
+connect  suser1,127.0.0.1,user1,,test,$SLAVE_MYPORT,;
+connection master;
+connection suser1;
+SELECT CURRENT_USER();
+CURRENT_USER()
+user1@localhost
+SELECT USER();
+USER()
+user1@localhost
+CALL test.p3();
+CURRENT_USER()	USER()
+user1@localhost	user1@localhost
+CALL test.p2();
+CURRENT_USER()	USER()
+root@localhost	user1@localhost
+connection master;
+DROP PROCEDURE IF EXISTS test.p1;
+DROP PROCEDURE IF EXISTS test.p3;
+DROP PROCEDURE IF EXISTS test.p2;
+DROP TABLE IF EXISTS test.t1;
+DROP TABLE IF EXISTS test.t2;
+DROP USER user1@localhost;
+connection slave;
+include/rpl_end.inc

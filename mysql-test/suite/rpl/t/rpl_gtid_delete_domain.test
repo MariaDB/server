@@ -1,0 +1,101 @@
+# In case master's gtid binlog state is divergent from the slave's gtid_slave_pos
+# slave may not be able to connect.
+# For instance when slave is more updated in some of domains, see
+# MDEV-12012 as example, the master's state may require adjustment.
+# In a specific case of an "old" divergent domain,  that is there
+# won't be no more event groups from it generated, the states can be
+# made compatible with wiping the problematic domain away.  After that slave
+# becomes connectable.
+#
+# Notice that the slave applied gtid state is not really required to
+# be similarly cleaned in order for replication to flow.
+# However this could lead to an expected error when the master
+# resumes binlogging of such domain which the test demonstrate.
+
+--source include/master-slave.inc
+
+--connection master
+# enforce the default domain_id binlogging explicitly
+SET @@SESSION.gtid_domain_id=0;
+CREATE TABLE t (a INT);
+--sync_slave_with_master
+
+--connection slave
+call mtr.add_suppression("connecting slave requested to start from.*which is not in the master's binlog");
+
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+
+--connection master
+# create extra gtid domains for binlog state
+--let $extra_domain_id=11
+--let $extra_domain_server_id=111
+--let $extra_gtid_seq_no=1
+--eval SET @@SESSION.gtid_domain_id=$extra_domain_id
+--eval SET @@SESSION.server_id=$extra_domain_server_id
+--eval SET @@SESSION.gtid_seq_no=$extra_gtid_seq_no
+INSERT INTO t SET a=1;
+
+#
+# Set up the slave replication state as if slave knows more events from the extra
+# domain.
+#
+--connection slave
+SET @save.gtid_slave_pos=@@global.gtid_slave_pos;
+--eval  SET @@global.gtid_slave_pos=concat(@@global.gtid_slave_pos,  ",", $extra_domain_id, "-", $extra_domain_server_id, "-", $extra_gtid_seq_no + 1)
+
+# unsuccessful attempt to start slave
+START SLAVE IO_THREAD;
+--let $slave_io_errno=1236
+--source include/wait_for_slave_io_error.inc
+
+--connection master
+# adjust the master binlog state
+FLUSH BINARY LOGS;
+--let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $purge_binlogs_to=$purge_to_binlog
+--source include/wait_for_purge.inc 
+
+# with final removal of the extra domain
+--eval FLUSH BINARY LOGS DELETE_DOMAIN_ID=($extra_domain_id)
+SELECT @@global.gtid_binlog_pos, @@global.gtid_binlog_state;
+
+--connection slave
+SELECT @@global.gtid_slave_pos;
+# start the slave sucessfully
+--let rpl_debug=1
+--source include/start_slave.inc
+--let rpl_debug=0
+
+--connection master
+# but the following gtid from the *extra* domain will break replication
+INSERT INTO t SET a=1;
+
+# take note of the slave io thread error due to being dismissed
+# extra domain at connection to master which tried becoming active;
+# slave is to stop.
+--connection slave
+--let $errno=1236
+--source include/wait_for_slave_io_error.inc
+
+# let's apply the very same medicine
+--connection master
+FLUSH BINARY LOGS;
+--let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--eval PURGE BINARY LOGS TO '$purge_to_binlog';
+# with final removal of the extra domain
+--eval FLUSH BINARY LOGS DELETE_DOMAIN_ID=($extra_domain_id)
+
+--connection slave
+--source include/start_slave.inc
+
+#
+# cleanup
+#
+--connection master
+SET @@SESSION.gtid_domain_id=0;
+DROP TABLE t;
+
+sync_slave_with_master;
+
+--source include/rpl_end.inc

@@ -1,0 +1,19 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES('PK_SK');
+INSERT INTO valid_values VALUES('OFF');
+INSERT INTO valid_values VALUES('PK_ONLY');
+
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('a');
+
+--let $sys_var=ROCKSDB_READ_FREE_RPL
+--let $read_only=0
+--let $session=0
+--source ../include/rocksdb_sys_var.inc
+
+SET GLOBAL ROCKSDB_READ_FREE_RPL=DEFAULT;
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

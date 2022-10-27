@@ -1,0 +1,555 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait = 0;
+galera_sr_bf_abort_at_commit = 0
+after_replicate_sync
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 FOR UPDATE;
+f1
+1
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (2);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+INSERT INTO t1 VALUES (3);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+connection node_1;
+SELECT * FROM t1;
+f1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT * FROM t1;
+f1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_trx_fragment_size = 0;
+DELETE FROM t1;
+DROP TABLE t1;
+local_monitor_master_enter_sync
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 FOR UPDATE;
+f1
+1
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (2);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_master_enter_sync';
+connection node_1;
+INSERT INTO t1 VALUES (3);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_master_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+connection node_1;
+SELECT * FROM t1;
+f1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT * FROM t1;
+f1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_trx_fragment_size = 0;
+DELETE FROM t1;
+DROP TABLE t1;
+apply_monitor_master_enter_sync
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 FOR UPDATE;
+f1
+1
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (2);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_master_enter_sync';
+connection node_1;
+INSERT INTO t1 VALUES (3);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_master_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+connection node_1;
+SELECT * FROM t1;
+f1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT * FROM t1;
+f1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_trx_fragment_size = 0;
+DELETE FROM t1;
+DROP TABLE t1;
+commit_monitor_master_enter_sync
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 FOR UPDATE;
+f1
+1
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (2);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_master_enter_sync';
+connection node_1;
+INSERT INTO t1 VALUES (3);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_master_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+connection node_1;
+SELECT * FROM t1;
+f1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT * FROM t1;
+f1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_trx_fragment_size = 0;
+DELETE FROM t1;
+DROP TABLE t1;
+galera_sr_bf_abort_at_commit = 1
+after_replicate_sync
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 FOR UPDATE;
+f1
+1
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (2);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+connection node_1;
+ROLLBACK;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+connection node_1;
+SELECT * FROM t1;
+f1
+1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT * FROM t1;
+f1
+1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_trx_fragment_size = 0;
+DELETE FROM t1;
+DROP TABLE t1;
+local_monitor_master_enter_sync
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 FOR UPDATE;
+f1
+1
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (2);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_master_enter_sync';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_master_enter_sync';
+connection node_1;
+ROLLBACK;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+connection node_1;
+SELECT * FROM t1;
+f1
+1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT * FROM t1;
+f1
+1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_trx_fragment_size = 0;
+DELETE FROM t1;
+DROP TABLE t1;
+apply_monitor_master_enter_sync
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 FOR UPDATE;
+f1
+1
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (2);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_master_enter_sync';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_master_enter_sync';
+connection node_1;
+ROLLBACK;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+connection node_1;
+SELECT * FROM t1;
+f1
+1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT * FROM t1;
+f1
+1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_trx_fragment_size = 0;
+DELETE FROM t1;
+DROP TABLE t1;
+commit_monitor_master_enter_sync
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 FOR UPDATE;
+f1
+1
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+SET AUTOCOMMIT=ON;
+INSERT INTO t1 VALUES (2);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_master_enter_sync';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_master_enter_sync';
+connection node_1;
+ROLLBACK;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'signal=abort_trx_end';
+connection node_1;
+SELECT * FROM t1;
+f1
+1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_2;
+SELECT * FROM t1;
+f1
+1
+2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+connection node_1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) = 0
+1
+connection node_1;
+SET AUTOCOMMIT=ON;
+SET SESSION wsrep_trx_fragment_size = 0;
+DELETE FROM t1;
+DROP TABLE t1;
+CALL mtr.add_suppression("WSREP: fragment replication failed: 1");

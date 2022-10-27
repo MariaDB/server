@@ -1,0 +1,1 @@
+--slave-parallel-mode=minimal --m1.slave-parallel-mode=optimistic --m2.slave-parallel-mode=aggressive

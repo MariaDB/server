@@ -1,0 +1,325 @@
+-- source myconn.inc
+
+#
+# This test is run against a remote MySQL server
+#
+
+connection slave;
+
+CREATE TABLE t1 (a int, b char(10));
+INSERT INTO t1 VALUES (NULL,NULL),(0,'test00'),(1,'test01'),(2,'test02'),(3,'test03');
+SELECT * FROM t1;
+
+--echo #
+--echo # Testing errors
+--echo #
+connection master;
+
+# Bad user name
+# Suppress "mysql_real_connect failed:" (printed in _DEBUG build)
+--replace_result $SLAVE_MYPORT SLAVE_PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+  CONNECTION='mysql://unknown@127.0.0.1:$SLAVE_MYPORT/test/t1';
+
+# Bad database name
+--replace_result $SLAVE_MYPORT SLAVE_PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/unknown/t1';
+
+# Bad database name, with OPTION_LIST going first.
+--replace_result $SLAVE_MYPORT SLAVE_PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+  OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT' DBNAME='unknown' TABNAME='t1';
+
+# Bad table name
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+--error ER_UNKNOWN_ERROR
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/unknown';
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t1;
+
+# Bad column name
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+--error ER_GET_ERRMSG
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# The remote table disappeared
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+
+connection slave;
+ALTER TABLE t1 RENAME t1backup;
+
+connection master;
+--error ER_GET_ERRMSG
+SELECT * FROM t1;
+
+connection slave;
+ALTER TABLE t1backup RENAME t1;
+
+connection master;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing SELECT, etc.
+--echo #
+
+# Automatic table structure
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# Explicit table structure
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1'
+  OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# Explicit table structure: remote NULL, local NOT NULL
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (a INT NOT NULL, b CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=MYSQL
+  OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# Explicit table structure with wrong column types
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 (a char(10), b int) ENGINE=CONNECT TABLE_TYPE=MYSQL
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+connection slave;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing numeric data types
+--echo #
+
+# TODO: mediumint is converted to int, float is converted to double, decimal is converted to double
+CREATE TABLE t1 (a tinyint, b smallint, c mediumint, d int, e bigint, f float, g double, h decimal(20,5));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES(100,3333,41235,1234567890,235000000000,3.14159265,3.14159265,3141.59265);
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+  OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+connection slave;
+DROP TABLE t1;
+
+# TODO: unsigned does not work
+#CREATE TABLE t1 (a tinyint unsigned);
+#SHOW CREATE TABLE t1;
+
+#connection master;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT';
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1;
+
+#connection slave;
+#DROP TABLE t1;
+
+# TODO: add test for BIT
+
+--echo #
+--echo # Testing character data types
+--echo #
+
+CREATE TABLE t1 (a char(12), b varchar(12));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES('Welcome','Hello, World');
+SELECT * FROM t1;
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+connection slave;
+DROP TABLE t1;
+
+# TODO: ERROR 1105: Unsupported column type tinytext
+#CREATE TABLE t1 (a tinytext);
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+# TODO: ERROR 1105: Unsupported column type mediumtext
+#CREATE TABLE t1 (a mediumtext);
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+# TODO: text is converted to varchar(256)
+#CREATE TABLE t1 (a text);
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+# TODO: ERROR 1105: Unsupported column type longtext
+#CREATE TABLE t1 (a longtext);
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+#TODO: add tests for ENUM
+#TODO: add tests for SET
+
+#--echo #
+#--echo # Testing binary data types
+#--echo #
+
+# TODO: ERROR 1105: Unsupported column type binary
+#CREATE TABLE t1 (a binary(10));
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+# TODO: ERROR 1105: Unsupported column type varbinary
+#CREATE TABLE t1 (a varbinary(10));
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+# TODO: ERROR 1105: Unsupported column type tinyblob
+#CREATE TABLE t1 (a tinyblob);
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+# TODO: ERROR 1105: Unsupported column type mediumblob
+#CREATE TABLE t1 (a mediumblob);
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+# TODO: blob is converted to varchar(256)
+#CREATE TABLE t1 (a blob);
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+# TODO: ERROR 1105: Unsupported column type longblob
+#CREATE TABLE t1 (a longblob);
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+# TODO: ERROR 1105: Unsupported column type geometry
+#CREATE TABLE t1 (a geometry);
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=127.0.0.1,user=root,port=$SLAVE_MYPORT'
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#--replace_result $SLAVE_MYPORT SLAVE_PORT
+#SHOW CREATE TABLE t1;
+#SELECT * FROM t1;
+#DROP TABLE t1, t1;
+
+--echo #
+--echo # Testing temporal data types
+--echo #
+
+CREATE TABLE t1 (a date, b datetime, c time, d timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, e year);
+SHOW CREATE TABLE t1;
+INSERT IGNORE INTO t1 VALUES('2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23');
+SELECT * FROM t1;
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MYSQL
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+connection slave;
+DROP TABLE t1;
+
+-- source myconn_cleanup.inc
+

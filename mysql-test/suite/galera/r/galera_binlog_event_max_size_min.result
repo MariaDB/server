@@ -1,0 +1,9 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 VARCHAR(1000));
+INSERT INTO t1 VALUES (REPEAT('x', 1000));
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = REPEAT('x', 1000);
+COUNT(*) = 1
+1
+DROP TABLE t1;

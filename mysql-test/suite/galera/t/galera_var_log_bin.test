@@ -1,0 +1,22 @@
+#
+# A simple test that confirms that Galera works with log-bin enabled, that is
+# when MySQL's binlog is in effect rather than the Galera 'dummy' implementation.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_1
+UPDATE t1 SET f1 = 2 WHERE f1 = 1;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+
+DROP TABLE t1;

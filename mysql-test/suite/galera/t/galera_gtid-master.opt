@@ -1,0 +1,1 @@
+--log-bin --log-slave-updates --loose-new-servers-for-galera_gtid-test

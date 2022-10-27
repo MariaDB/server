@@ -1,0 +1,9 @@
+--source include/word_size.inc
+--source include/have_innodb.inc
+
+let $innodb_ft_result_cache_limit_orig=`select @@innodb_ft_result_cache_limit`;
+
+set global innodb_ft_result_cache_limit=5000000000;
+select @@innodb_ft_result_cache_limit;
+
+eval set global innodb_ft_result_cache_limit=$innodb_ft_result_cache_limit_orig;

@@ -1,0 +1,39 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (id INT PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+START TRANSACTION;
+SELECT * FROM t1;
+id	f2
+connection node_2;
+INSERT INTO t1 VALUES (1,1);
+connection node_1;
+SELECT * FROM t1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+DELETE FROM t1;
+connection node_1;
+INSERT INTO t1 VALUES (1,1);
+START TRANSACTION;
+SELECT * FROM t1;
+id	f2
+1	1
+connection node_2;
+UPDATE t1 SET f2 = 2;
+connection node_1;
+UPDATE t1 SET f2 = 3;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+DELETE FROM t1;
+connection node_1;
+START TRANSACTION;
+connection node_1;
+INSERT INTO t1 VALUES (1,1);
+connection node_2;
+INSERT INTO t1 VALUES (1,2);
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+DROP TABLE t1;

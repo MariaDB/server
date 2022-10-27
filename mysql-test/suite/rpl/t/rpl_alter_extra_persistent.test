@@ -1,0 +1,106 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--enable_connect_log
+--connection master
+create table t1(a int primary key);
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+insert into t1 values(4);
+
+--sync_slave_with_master
+select * from t1 order by a;
+alter table t1 add column z1 int as(a+1) virtual, add column z2 int as (a+2) persistent;
+select * from t1 order by a;
+
+--connection master
+insert into t1 values(5);
+insert into t1 values(6);
+
+--sync_slave_with_master
+select * from t1 order by a;
+
+
+--echo #UPDATE query
+
+--connection master
+update t1 set a = a+10;
+select * from t1 order by a;
+
+--sync_slave_with_master
+select * from t1 order by a;
+
+--connection master
+update t1 set a = a-10;
+select * from t1 order by a;
+
+--sync_slave_with_master
+select * from t1 order by a;
+
+--echo #DELETE quert
+--connection master
+delete from t1 where a > 2 and a < 4;
+select * from t1 order by a;
+
+--sync_slave_with_master
+select * from t1 order by a;
+
+--echo #REPLACE query
+--connection master
+replace into t1 values(1);
+replace into t1 values(3);
+replace into t1 values(1);
+
+--sync_slave_with_master
+select * from t1 order by a;
+
+--echo #SELECT query
+--connection master
+select * from t1 where a > 2 and a < 4;
+
+--connection slave
+select * from t1 where a > 2 and a < 4;
+
+--echo #UPDATE with SELECT query
+--connection master
+update t1 set a = a + 10  where a > 2 and a < 4;
+select * from t1 order by a;
+
+--sync_slave_with_master
+select * from t1 order by a;
+
+--connection master
+update t1 set a = a - 10  where a = 13;
+select * from t1 order by a;
+
+--sync_slave_with_master
+select * from t1 order by a;
+
+--echo #Break Unique Constraint
+alter table t1 add column z4 int as (a % 6) persistent unique;
+
+--connection master
+
+--echo #entering duplicate value for slave persistent column
+insert into t1 values(7);
+select * from t1 order by a;
+
+--connection slave
+--let $slave_sql_errno= 1062
+--source include/wait_for_slave_sql_error.inc
+select * from t1 order by a;
+alter table t1 drop column z4;
+start slave;
+
+--source include/wait_for_slave_sql_to_start.inc
+
+--connection master 
+--sync_slave_with_master
+select * from t1 order by a;
+
+--connection master
+select * from t1 order by a;
+drop table t1;
+
+--source include/rpl_end.inc

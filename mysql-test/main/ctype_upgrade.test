@@ -1,0 +1,199 @@
+-- source include/mysql_upgrade_preparation.inc
+-- source include/have_innodb.inc
+
+call mtr.add_suppression("Table rebuild required");
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Upgrade from Maria-5.3.13:
+--echo # Checking utf8_croatian_ci in a VARCHAR column
+--echo #
+
+--echo # Copying maria050313_utf8_croatian_ci.* to MYSQLD_DATADIR
+--copy_file std_data/ctype_upgrade/maria050313_utf8_croatian_ci.frm $MYSQLD_DATADIR/test/maria050313_utf8_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/maria050313_utf8_croatian_ci.MYD $MYSQLD_DATADIR/test/maria050313_utf8_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/maria050313_utf8_croatian_ci.MYI $MYSQLD_DATADIR/test/maria050313_utf8_croatian_ci.MYI
+# Following test should show that table is corrupted
+CHECK TABLE maria050313_utf8_croatian_ci FOR UPGRADE;
+--error ER_TABLE_NEEDS_REBUILD
+SHOW CREATE TABLE maria050313_utf8_croatian_ci;
+# Check that REPAIR fixes the table
+REPAIR TABLE maria050313_utf8_croatian_ci;
+CHECK TABLE maria050313_utf8_croatian_ci FOR UPGRADE;
+SHOW CREATE TABLE maria050313_utf8_croatian_ci;
+SELECT count(*) FROM maria050313_utf8_croatian_ci;
+DROP TABLE maria050313_utf8_croatian_ci;
+
+--echo # Copying maria050313_utf8_croatian_ci.* to MYSQLD_DATADIR
+--copy_file std_data/ctype_upgrade/maria050313_utf8_croatian_ci.frm $MYSQLD_DATADIR/test/maria050313_utf8_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/maria050313_utf8_croatian_ci.MYD $MYSQLD_DATADIR/test/maria050313_utf8_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/maria050313_utf8_croatian_ci.MYI $MYSQLD_DATADIR/test/maria050313_utf8_croatian_ci.MYI
+ALTER TABLE maria050313_utf8_croatian_ci FORCE;
+SHOW CREATE TABLE maria050313_utf8_croatian_ci;
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050313_utf8_croatian_ci GROUP BY a;
+DROP TABLE maria050313_utf8_croatian_ci;
+
+
+--echo #
+--echo # Upgrade from Maria-5.3.13:
+--echo # Checking ucs2_croatian_ci in the table default collation
+--echo #
+
+--echo # Copying maria050313_ucs2_croatian_ci.* to MYSQLD_DATADIR
+--copy_file std_data/ctype_upgrade/maria050313_ucs2_croatian_ci_def.frm $MYSQLD_DATADIR/test/maria050313_ucs2_croatian_ci_def.frm
+--copy_file std_data/ctype_upgrade/maria050313_ucs2_croatian_ci_def.MYD $MYSQLD_DATADIR/test/maria050313_ucs2_croatian_ci_def.MYD
+--copy_file std_data/ctype_upgrade/maria050313_ucs2_croatian_ci_def.MYI $MYSQLD_DATADIR/test/maria050313_ucs2_croatian_ci_def.MYI
+CHECK TABLE maria050313_ucs2_croatian_ci_def FOR UPGRADE;
+--error ER_TABLE_NEEDS_REBUILD
+SELECT count(*) FROM maria050313_ucs2_croatian_ci_def;
+REPAIR TABLE maria050313_ucs2_croatian_ci_def;
+SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
+DROP TABLE maria050313_ucs2_croatian_ci_def;
+
+--echo # Copying maria050313_ucs2_croatian_ci.* to MYSQLD_DATADIR
+--copy_file std_data/ctype_upgrade/maria050313_ucs2_croatian_ci_def.frm $MYSQLD_DATADIR/test/maria050313_ucs2_croatian_ci_def.frm
+--copy_file std_data/ctype_upgrade/maria050313_ucs2_croatian_ci_def.MYD $MYSQLD_DATADIR/test/maria050313_ucs2_croatian_ci_def.MYD
+--copy_file std_data/ctype_upgrade/maria050313_ucs2_croatian_ci_def.MYI $MYSQLD_DATADIR/test/maria050313_ucs2_croatian_ci_def.MYI
+CHECK TABLE maria050313_ucs2_croatian_ci_def;
+REPAIR TABLE maria050313_ucs2_croatian_ci_def;
+CHECK TABLE maria050313_ucs2_croatian_ci_def;
+SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
+SELECT * FROM maria050313_ucs2_croatian_ci_def ORDER BY a;
+DROP TABLE maria050313_ucs2_croatian_ci_def;
+
+
+
+--echo #
+--echo # Upgrade from Maria-5.5.33
+--echo # Checking utf8_croatian_ci, utf8mb4_croatian_ci, ucs2_croatian_ci,
+--echo # utf16_croatian_ci, utf32_croatian_ci
+--echo #
+
+--echo # Copying maria050533_xxx_croatian_ci.* to MYSQLD_DATADIR
+--copy_file std_data/ctype_upgrade/maria050533_xxx_croatian_ci.frm $MYSQLD_DATADIR/test/maria050533_xxx_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/maria050533_xxx_croatian_ci.MYD $MYSQLD_DATADIR/test/maria050533_xxx_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/maria050533_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/maria050533_xxx_croatian_ci.MYI
+CHECK TABLE maria050533_xxx_croatian_ci FOR UPGRADE;
+REPAIR TABLE maria050533_xxx_croatian_ci;
+SHOW CREATE TABLE maria050533_xxx_croatian_ci;
+SELECT count(*) FROM maria050533_xxx_croatian_ci;
+DROP TABLE maria050533_xxx_croatian_ci;
+
+--echo # Copying maria050533_xxx_croatian_ci.* to MYSQLD_DATADIR
+--copy_file std_data/ctype_upgrade/maria050533_xxx_croatian_ci.frm $MYSQLD_DATADIR/test/maria050533_xxx_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/maria050533_xxx_croatian_ci.MYD $MYSQLD_DATADIR/test/maria050533_xxx_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/maria050533_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/maria050533_xxx_croatian_ci.MYI
+ALTER TABLE maria050533_xxx_croatian_ci FORCE;
+SHOW CREATE TABLE maria050533_xxx_croatian_ci;
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050533_xxx_croatian_ci GROUP BY a;
+SELECT GROUP_CONCAT(b ORDER BY BINARY b) FROM maria050533_xxx_croatian_ci GROUP BY b;
+SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM maria050533_xxx_croatian_ci GROUP BY c;
+SELECT GROUP_CONCAT(d ORDER BY BINARY d) FROM maria050533_xxx_croatian_ci GROUP BY d;
+SELECT GROUP_CONCAT(e ORDER BY BINARY e) FROM maria050533_xxx_croatian_ci GROUP BY e;
+DROP TABLE maria050533_xxx_croatian_ci;
+
+
+--echo #
+--echo # Upgrade from Maria-10.0.4
+--echo # Checking utf8_croatian_ci, utf8mb4_croatian_ci, ucs2_croatian_ci,
+--echo # utf16_croatian_ci, utf32_croatian_ci
+--echo #
+
+--echo # Copying maria100004_xxx_croatian_ci.* to MYSQLD_DATADIR
+--copy_file std_data/ctype_upgrade/maria100004_xxx_croatian_ci.frm $MYSQLD_DATADIR/test/maria100004_xxx_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/maria100004_xxx_croatian_ci.MYD $MYSQLD_DATADIR/test/maria100004_xxx_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/maria100004_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/maria100004_xxx_croatian_ci.MYI
+CHECK TABLE maria100004_xxx_croatian_ci FOR UPGRADE;
+--error ER_TABLE_NEEDS_REBUILD
+SELECT count(*) FROM maria100004_xxx_croatian_ci;
+REPAIR TABLE maria100004_xxx_croatian_ci;
+SHOW CREATE TABLE maria100004_xxx_croatian_ci;
+DROP TABLE maria100004_xxx_croatian_ci;
+
+--echo # Copying maria100004_xxx_croatian_ci.* to MYSQLD_DATADIR
+--copy_file std_data/ctype_upgrade/maria100004_xxx_croatian_ci.frm $MYSQLD_DATADIR/test/maria100004_xxx_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/maria100004_xxx_croatian_ci.MYD $MYSQLD_DATADIR/test/maria100004_xxx_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/maria100004_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/maria100004_xxx_croatian_ci.MYI
+ALTER TABLE maria100004_xxx_croatian_ci FORCE;
+SHOW CREATE TABLE maria100004_xxx_croatian_ci;
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria100004_xxx_croatian_ci GROUP BY a;
+SELECT GROUP_CONCAT(b ORDER BY BINARY b) FROM maria100004_xxx_croatian_ci GROUP BY b;
+SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM maria100004_xxx_croatian_ci GROUP BY c;
+SELECT GROUP_CONCAT(d ORDER BY BINARY d) FROM maria100004_xxx_croatian_ci GROUP BY d;
+SELECT GROUP_CONCAT(e ORDER BY BINARY e) FROM maria100004_xxx_croatian_ci GROUP BY e;
+DROP TABLE maria100004_xxx_croatian_ci;
+
+
+
+--echo #
+--echo # Upgrade from MySQL-5.6.14
+--echo # Checking utf8_croatian_ci, utf8mb4_croatian_ci, ucs2_croatian_ci,
+--echo # utf16_croatian_ci, utf32_croatian_ci
+--echo #
+
+--echo # Copying mysql050614_xxx_croatian_ci.* to MYSQLD_DATADIR
+--copy_file std_data/ctype_upgrade/mysql050614_xxx_croatian_ci.frm $MYSQLD_DATADIR/test/mysql050614_xxx_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/mysql050614_xxx_croatian_ci.MYD $MYSQLD_DATADIR/test/mysql050614_xxx_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/mysql050614_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/mysql050614_xxx_croatian_ci.MYI
+CHECK TABLE mysql050614_xxx_croatian_ci FOR UPGRADE;
+SHOW CREATE TABLE mysql050614_xxx_croatian_ci;
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM mysql050614_xxx_croatian_ci GROUP BY a;
+SELECT GROUP_CONCAT(b ORDER BY BINARY b) FROM mysql050614_xxx_croatian_ci GROUP BY b;
+SELECT GROUP_CONCAT(c ORDER BY BINARY c) FROM mysql050614_xxx_croatian_ci GROUP BY c;
+SELECT GROUP_CONCAT(d ORDER BY BINARY d) FROM mysql050614_xxx_croatian_ci GROUP BY d;
+SELECT GROUP_CONCAT(e ORDER BY BINARY e) FROM mysql050614_xxx_croatian_ci GROUP BY e;
+DROP TABLE mysql050614_xxx_croatian_ci;
+
+
+--echo #
+--echo # Checking mysql_upgrade
+--echo #
+--copy_file std_data/ctype_upgrade/maria050313_utf8_croatian_ci.frm $MYSQLD_DATADIR/test/maria050313_utf8_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/maria050313_utf8_croatian_ci.MYD $MYSQLD_DATADIR/test/maria050313_utf8_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/maria050313_utf8_croatian_ci.MYI $MYSQLD_DATADIR/test/maria050313_utf8_croatian_ci.MYI
+
+--copy_file std_data/ctype_upgrade/maria050313_ucs2_croatian_ci_def.frm $MYSQLD_DATADIR/test/maria050313_ucs2_croatian_ci_def.frm
+--copy_file std_data/ctype_upgrade/maria050313_ucs2_croatian_ci_def.MYD $MYSQLD_DATADIR/test/maria050313_ucs2_croatian_ci_def.MYD
+--copy_file std_data/ctype_upgrade/maria050313_ucs2_croatian_ci_def.MYI $MYSQLD_DATADIR/test/maria050313_ucs2_croatian_ci_def.MYI
+
+--copy_file std_data/ctype_upgrade/maria050533_xxx_croatian_ci.frm $MYSQLD_DATADIR/test/maria050533_xxx_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/maria050533_xxx_croatian_ci.MYD $MYSQLD_DATADIR/test/maria050533_xxx_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/maria050533_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/maria050533_xxx_croatian_ci.MYI
+
+--copy_file std_data/ctype_upgrade/maria100004_xxx_croatian_ci.frm $MYSQLD_DATADIR/test/maria100004_xxx_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/maria100004_xxx_croatian_ci.MYD $MYSQLD_DATADIR/test/maria100004_xxx_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/maria100004_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/maria100004_xxx_croatian_ci.MYI
+
+--copy_file std_data/ctype_upgrade/mysql050614_xxx_croatian_ci.frm $MYSQLD_DATADIR/test/mysql050614_xxx_croatian_ci.frm
+--copy_file std_data/ctype_upgrade/mysql050614_xxx_croatian_ci.MYD $MYSQLD_DATADIR/test/mysql050614_xxx_croatian_ci.MYD
+--copy_file std_data/ctype_upgrade/mysql050614_xxx_croatian_ci.MYI $MYSQLD_DATADIR/test/mysql050614_xxx_croatian_ci.MYI
+
+--echo # Running mysql_upgrade
+--exec $MYSQL_UPGRADE 2>&1
+
+
+--echo # Running mysql_upgrade for the second time
+--echo # This should report OK for all tables
+--exec $MYSQL_UPGRADE --force 2>&1
+
+SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
+SELECT * FROM maria050313_ucs2_croatian_ci_def ORDER BY a;
+
+SHOW CREATE TABLE maria050313_utf8_croatian_ci;
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050313_utf8_croatian_ci GROUP BY a;
+
+SHOW CREATE TABLE maria050533_xxx_croatian_ci;
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050533_xxx_croatian_ci GROUP BY a;
+
+SHOW CREATE TABLE maria100004_xxx_croatian_ci;
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria100004_xxx_croatian_ci GROUP BY a;
+
+SHOW CREATE TABLE mysql050614_xxx_croatian_ci;
+SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM mysql050614_xxx_croatian_ci GROUP BY a;
+
+remove_file $MYSQLD_DATADIR/mysql_upgrade_info;
+DROP TABLE maria050313_ucs2_croatian_ci_def;
+DROP TABLE maria050313_utf8_croatian_ci;
+DROP TABLE maria050533_xxx_croatian_ci;
+DROP TABLE maria100004_xxx_croatian_ci;
+DROP TABLE mysql050614_xxx_croatian_ci;

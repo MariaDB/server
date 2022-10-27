@@ -1,0 +1,36 @@
+--source include/not_embedded.inc
+--source include/not_valgrind.inc
+# Avoid CrashReporter popup on Mac
+--source include/not_crashrep.inc
+# Binary must be compiled with debug for crash to occur
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+#
+# MDEV-20578 Got error 126 when executing undo undo_key_delete upon Aria crash
+# recovery
+#
+
+# Write file to make mysql-test-run.pl expect crash and restart
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+
+create table t1 (a int primary key, b int, c int, unique key(b), key(c)) engine=aria transactional=1;
+insert into t1 values (1000,1000,1000);
+insert into t1 select seq,seq+100, seq+200 from seq_1_to_10;
+
+# Insert into t1 with batch insert where we get a rows replaced after
+# a few sucessful inserts
+
+SET GLOBAL debug_dbug="+d,crash_end_bulk_insert";
+
+--error 2013
+REPLACE into t1 select seq+20,seq+95, seq + 300 from seq_1_to_10;
+
+# Wait until restarted
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+check table t1;
+select sum(a),sum(b),sum(c) from t1;
+drop table t1;

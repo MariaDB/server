@@ -1,0 +1,8 @@
+#
+# MDEV-10186: mysqld crash when runtime setting
+# wsrep_cluster_address without wsrep_on=ON
+#
+SELECT @@wsrep_on;
+@@wsrep_on
+0
+SET @@GLOBAL.wsrep_cluster_address='gcomm://';

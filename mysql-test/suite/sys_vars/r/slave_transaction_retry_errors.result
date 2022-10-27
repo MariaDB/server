@@ -1,0 +1,21 @@
+select @@global.slave_transaction_retry_errors;
+@@global.slave_transaction_retry_errors
+1158,1159,1160,1161,1205,1213,1429,2013,12701,10,20,5000,400
+select @@session.slave_transaction_retry_errors;
+ERROR HY000: Variable 'slave_transaction_retry_errors' is a GLOBAL variable
+show global variables like 'slave_transaction_retry_errors';
+Variable_name	Value
+slave_transaction_retry_errors	1158,1159,1160,1161,1205,1213,1429,2013,12701,10,20,5000,400
+show session variables like 'slave_transaction_retry_errors';
+Variable_name	Value
+slave_transaction_retry_errors	1158,1159,1160,1161,1205,1213,1429,2013,12701,10,20,5000,400
+select * from information_schema.global_variables where variable_name='slave_transaction_retry_errors';
+VARIABLE_NAME	VARIABLE_VALUE
+SLAVE_TRANSACTION_RETRY_ERRORS	1158,1159,1160,1161,1205,1213,1429,2013,12701,10,20,5000,400
+select * from information_schema.session_variables where variable_name='slave_transaction_retry_errors';
+VARIABLE_NAME	VARIABLE_VALUE
+SLAVE_TRANSACTION_RETRY_ERRORS	1158,1159,1160,1161,1205,1213,1429,2013,12701,10,20,5000,400
+set global slave_transaction_retry_errors=1;
+ERROR HY000: Variable 'slave_transaction_retry_errors' is a read only variable
+set session slave_transaction_retry_errors=1;
+ERROR HY000: Variable 'slave_transaction_retry_errors' is a read only variable

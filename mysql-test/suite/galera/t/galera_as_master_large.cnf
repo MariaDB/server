@@ -1,0 +1,4 @@
+!include ../galera_2nodes_as_master.cnf
+
+[mysqld.1]
+binlog-cache-size=8192

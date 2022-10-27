@@ -1,0 +1,241 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_1;
+SET GLOBAL wsrep_replicate_myisam = TRUE;
+connection node_2;
+SET GLOBAL wsrep_replicate_myisam = TRUE;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=MyISAM;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2), (3);
+INSERT INTO t1 SELECT 4 FROM DUAL UNION ALL SELECT 5 FROM DUAL;
+connection node_2;
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(100)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, 'abc'),(2,'abc'), (3, 'xxx');
+REPLACE INTO t1 VALUES (1, 'klm'), (2,'xyz');
+REPLACE INTO t1 SELECT 3, 'yyy' FROM DUAL;
+connection node_2;
+SELECT COUNT(*) = 3 FROM t1;
+COUNT(*) = 3
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1 AND f2 = 'klm';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2 AND f2 = 'xyz';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 3 AND f2 = 'yyy';
+COUNT(*) = 1
+1
+connection node_1;
+UPDATE t1 SET f2 = 'zzz' WHERE f2 = 'yyy';
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'zzz';
+COUNT(*) = 1
+1
+connection node_1;
+DELETE FROM t1 WHERE f2 = 'zzz';
+connection node_2;
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'zzz';
+COUNT(*) = 0
+1
+connection node_1;
+TRUNCATE TABLE t1;
+connection node_2;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER) ENGINE=MyISAM;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+COMMIT;
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 1 FROM t2;
+COUNT(*) = 1
+1
+connection node_1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t2 VALUES (2);
+ROLLBACK;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+connection node_2;
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+SELECT COUNT(*) = 1 FROM t2;
+COUNT(*) = 1
+1
+DROP TABLE t1;
+DROP TABLE t2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (f2 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+connection node_2;
+INSERT INTO t1 VALUES (1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+connection node_1;
+COMMIT;
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# MDEV-11152: wsrep_replicate_myisam: SELECT gets replicated using TO
+#
+connection node_1;
+CREATE TABLE t1 (i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1;
+i
+1
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+PREPARE upd from 'update t1 set b = 100 where id = 5';
+PREPARE ins from 'insert into t1 values (11,11)';
+PREPARE del from 'delete from t1 where id = 4';
+PREPARE rep from 'replace into t1 values (12,12),(6,600)';
+EXECUTE upd;
+EXECUTE ins;
+EXECUTE del;
+EXECUTE rep;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	2
+3	3
+5	100
+6	600
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+connection node_2;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	2
+3	3
+5	100
+6	600
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, b INT) ENGINE=MyISAM;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+CREATE PROCEDURE proc()
+BEGIN
+UPDATE t1 set b = 100 WHERE id = 5;
+INSERT INTO t1 VALUES (11,11);
+DELETE FROM t1 WHERE id = 4;
+REPLACE INTO t1 VALUES (12,12),(6,600);
+COMMIT;
+END|
+CALL proc();
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	2
+3	3
+5	100
+6	600
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+connection node_2;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	2
+3	3
+5	100
+6	600
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+DROP PROCEDURE proc;
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, b INT) ENGINE=MyISAM;
+CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NULL, NEW.b);
+CREATE TRIGGER tr2 BEFORE UPDATE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NULL, OLD.b),(NULL, NEW.b);
+CREATE TRIGGER tr3 BEFORE DELETE ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NULL, OLD.b);
+INSERT INTO t1 VALUES (11,11);
+UPDATE t1 SET b = 200 WHERE id = 2;
+DELETE FROM t1 where id = 5;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	200
+3	3
+4	4
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+SELECT * FROM t2 ORDER BY id;
+id	b
+1	11
+2	2
+3	200
+4	5
+connection node_2;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	1
+2	200
+3	3
+4	4
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+SELECT * FROM t2 ORDER BY id;
+id	b
+1	11
+2	2
+3	200
+4	5
+DROP TRIGGER tr1;
+DROP TRIGGER tr2;
+DROP TRIGGER tr3;
+DROP TABLE t1,t2;
+connection node_1;
+connection node_2;

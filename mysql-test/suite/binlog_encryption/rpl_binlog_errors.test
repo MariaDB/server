@@ -1,0 +1,2 @@
+--let $binlog_limit= 5,1
+--source suite/rpl/include/rpl_binlog_errors.inc

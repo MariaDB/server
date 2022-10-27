@@ -1,0 +1,16 @@
+#
+# MDEV-6401 SET ROLE returning ERROR 1959 Invalid role specification for valid role
+#
+--source include/not_embedded.inc
+create role r1;
+create user foo@'127.0.0.1';
+grant r1 to foo@'127.0.0.1';
+
+--connect (con1,127.0.0.1,foo,,)
+show grants;
+set role r1;
+select * from information_schema.enabled_roles;
+
+connection default;
+drop user foo@'127.0.0.1';
+drop role r1;

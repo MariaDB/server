@@ -1,0 +1,228 @@
+# Test resizing the InnoDB redo log.
+--source include/innodb_page_size_small.inc
+# Embedded server tests do not support restarting
+--source include/not_embedded.inc
+# DBUG_EXECUTE_IF is needed
+--source include/have_debug.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
+
+if (`SELECT @@innodb_log_file_size = 1048576`) {
+  --skip Test requires innodb_log_file_size>1M.
+}
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: The log sequence numbers [0-9]+ and [0-9]+ in ibdata files do not match the log sequence number [0-9]+ in the ib_logfiles");
+call mtr.add_suppression("syntax error in innodb_log_group_home_dir");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("InnoDB: innodb_read_only prevents crash recovery");
+call mtr.add_suppression("InnoDB: Are you sure you are using the right ib_logfiles");
+call mtr.add_suppression("InnoDB: Cannot (create|resize) log files in read-only mode");
+call mtr.add_suppression("InnoDB: Can't initiate database recovery, running in read-only-mode");
+call mtr.add_suppression("InnoDB: Only one log file found");
+call mtr.add_suppression("InnoDB: Log file .*ib_logfile[01].* size");
+call mtr.add_suppression("InnoDB: Unable to open .*ib_logfile0. to check native AIO read support");
+FLUSH TABLES;
+--enable_query_log
+let MYSQLD_DATADIR= `select @@datadir`;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--source include/shutdown_mysqld.inc
+--move_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile.old
+write_file $MYSQLD_DATADIR/ib_logfile0;
+EOF
+let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+--let $restart_parameters= --innodb-thread-concurrency=1 --innodb-log-file-size=1m --innodb-log-files-in-group=2
+--source include/start_mysqld.inc
+
+eval $check_no_innodb;
+--remove_file $MYSQLD_DATADIR/ib_logfile0
+--move_file $MYSQLD_DATADIR/ib_logfile.old $MYSQLD_DATADIR/ib_logfile.0
+--source include/shutdown_mysqld.inc
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= InnoDB: Log file .*ib_logfile1 is of different size .* bytes than other log files 0 bytes!;
+--source include/search_pattern_in_file.inc
+--source include/start_mysqld.inc
+CHECK TABLE t1;
+
+--let $restart_parameters= --innodb-thread-concurrency=100 --innodb-log-file-size=10M --innodb-log-files-in-group=2
+--source include/restart_mysqld.inc
+
+BEGIN;
+INSERT INTO t1 VALUES (42);
+
+let $restart_parameters = --innodb-log-file-size=6M;
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+
+SELECT * FROM t1;
+
+INSERT INTO t1 VALUES (42);
+BEGIN;
+DELETE FROM t1;
+
+let $restart_parameters = --innodb-log-files-in-group=3 --innodb-log-file-size=5M;
+--source include/restart_mysqld.inc
+let $shutdown_timeout=;
+
+SELECT * FROM t1;
+
+INSERT INTO t1 VALUES (0),(123);
+
+let SEARCH_ABORT = NOT FOUND;
+
+BEGIN;
+DELETE FROM t1 WHERE a>0;
+
+--echo # Persist the state of the above incomplete transaction by
+--echo # causing a redo log write for another transaction.
+--connect(con1, localhost, root)
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t1 WHERE a=0;
+--disconnect con1
+--connection default
+
+--source include/kill_mysqld.inc
+
+--let $restart_parameters= --innodb-log-group-home-dir=foo\;bar
+--source include/start_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+let SEARCH_PATTERN= syntax error in innodb_log_group_home_dir;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --debug=d,innodb_log_abort_1
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+let SEARCH_PATTERN= InnoDB: Starting crash recovery from checkpoint LSN=.*;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --debug=d,innodb_log_abort_3
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+
+--let $restart_parameters= --innodb-read-only
+--source include/restart_mysqld.inc
+
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --debug=d,innodb_log_abort_4
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+let SEARCH_PATTERN= redo log from 3\*[0-9]+ to 2\*[0-9]+ bytes;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --debug=d,innodb_log_abort_5
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+let SEARCH_PATTERN= redo log from 3\*[0-9]+ to 2\*[0-9]+ bytes;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --innodb-read-only
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+let SEARCH_PATTERN= InnoDB: innodb_read_only prevents crash recovery;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --debug=d,innodb_log_abort_6
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+
+let SEARCH_PATTERN= redo log from 3\*[0-9]+ to 2\*[0-9]+ bytes;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --debug=d,innodb_log_abort_7
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+
+# this aborts right after deleting all log files
+
+--let $restart_parameters= --innodb-read-only
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+
+let SEARCH_PATTERN= InnoDB: Cannot create log files in read-only mode;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --debug=d,innodb_log_abort_8
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+
+let SEARCH_PATTERN= InnoDB: Setting log file .*ib_logfile[0-9]+ size to;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters= --debug=d,innodb_log_abort_9
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+
+let SEARCH_PATTERN= InnoDB: Setting log file .*ib_logfile[0-9]+ size to;
+--source include/search_pattern_in_file.inc
+--source include/shutdown_mysqld.inc
+
+# We should have perfectly synced files here.
+# Rename the log files, and trigger an error in recovery.
+--move_file $MYSQLD_DATADIR/ib_logfile1 $MYSQLD_DATADIR/ib_logfile1_hidden
+
+perl;
+die unless open(FILE, ">$ENV{MYSQLD_DATADIR}/ib_logfile0");
+print FILE "garbage";
+close(FILE);
+EOF
+
+--source include/start_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+let SEARCH_PATTERN= InnoDB: Log file .*ib_logfile0 size 7 is not a multiple of 512 bytes;
+--source include/search_pattern_in_file.inc
+--remove_file $MYSQLD_DATADIR/ib_logfile0
+--move_file $MYSQLD_DATADIR/ib_logfile101 $MYSQLD_DATADIR/ib_logfile0
+
+perl;
+die unless open(FILE, ">$ENV{MYSQLD_DATADIR}/ib_logfile1");
+print FILE "junkfill" x 131072;
+close(FILE);
+EOF
+
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+
+let SEARCH_PATTERN= InnoDB: Log file .*ib_logfile1 is of different size 1048576 bytes than other log files;
+--source include/search_pattern_in_file.inc
+--remove_file $MYSQLD_DATADIR/ib_logfile1
+--move_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile101
+--move_file $MYSQLD_DATADIR/ib_logfile1_hidden $MYSQLD_DATADIR/ib_logfile1
+
+--let $restart_parameters= --debug=d,innodb_log_abort_10
+--source include/restart_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t1;
+
+let SEARCH_PATTERN= InnoDB: Setting log file .*ib_logfile[0-9]+ size to;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= InnoDB: Renaming log file .*ib_logfile101 to .*ib_logfile0;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+SELECT * FROM t1;
+DROP TABLE t1;

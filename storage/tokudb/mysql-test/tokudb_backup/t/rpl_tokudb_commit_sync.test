@@ -1,0 +1,72 @@
+# if --tokudb-commit-sync is off on slave tokudb log must be flushed on backup
+# to provide the ability to restore replication after backup restoring
+
+--source include/have_tokudb_backup.inc
+
+--let $BACKUP_DIR_SLAVE= $MYSQL_TMP_DIR/tokudb_backup_slave
+--let $BACKUP_MYSQL_DATA_DIR= $BACKUP_DIR_SLAVE/mysql_data_dir
+
+--mkdir $BACKUP_DIR_SLAVE
+
+--source include/master-slave.inc
+
+--echo ### Create some data on master
+--connection master
+CREATE TABLE t1(a INT, b INT, PRIMARY KEY (a)) ENGINE=TokuDB;
+INSERT INTO t1 SET a=100, b=100;
+INSERT INTO t1 SET a=200, b=100;
+INSERT INTO t1 SET a=300, b=100;
+INSERT INTO t1 SET a=400, b=100;
+INSERT INTO t1 SET a=500, b=100;
+UPDATE t1 SET b = 200 WHERE a = 200;
+DELETE FROM t1 WHERE a = 100;
+
+SELECT * FROM t1;
+
+--sync_slave_with_master
+--let $SLAVE_DATA_DIR=`SELECT @@DATADIR`
+
+--echo ### Check for slave options
+SELECT @@tokudb_commit_sync;
+SELECT @@tokudb_fsync_log_period;
+
+--echo ### Check data on slave after sync
+SELECT * FROM t1;
+
+
+--echo ### Do backup on slave
+--disable_query_log
+--eval SET SESSION tokudb_backup_dir='$BACKUP_DIR_SLAVE'
+--enable_query_log
+
+--echo ### Check for errors
+SELECT @@session.tokudb_backup_last_error;
+SELECT @@session.tokudb_backup_last_error_string;
+
+--echo ### Stop slave server
+--connection slave
+--let $rpl_server_number= 2
+--let $rpl_force_stop= 1
+--source include/rpl_stop_server.inc
+
+--echo ### Restore backup
+--exec rm -rf $SLAVE_DATA_DIR;
+--exec mv $BACKUP_MYSQL_DATA_DIR $SLAVE_DATA_DIR;
+
+--echo ### Start slave server and slave threads
+--connection slave
+--source include/rpl_start_server.inc
+--source include/start_slave.inc
+
+--echo ### Sync slave with master
+--connection master
+--sync_slave_with_master
+
+--echo ### Check data on slave
+SELECT * FROM t1;
+
+--echo ### Cleanup
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc

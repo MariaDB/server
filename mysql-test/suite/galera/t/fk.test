@@ -1,0 +1,116 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# 
+# MDEV-6651: MariaDB galera cluster crashes in file row0mysql.cc line 684
+# DELETE FROM ports WHERE ports.id = 'f37aa3fe-ab99-4d0f-a566-6cd3169d7516'
+# where table ports have foreign keys
+#
+
+USE test;
+--echo
+--echo # On node_1
+--connection node_1
+
+ CREATE TABLE networks (
+      `tenant_id` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+      `id` varchar(36) COLLATE utf8_unicode_ci NOT NULL,
+      `name` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+      `status` varchar(16) COLLATE utf8_unicode_ci DEFAULT NULL,
+      `admin_state_up` tinyint(1) DEFAULT NULL,
+      `shared` tinyint(1) DEFAULT NULL,
+      PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+ CREATE TABLE ports (
+      `tenant_id` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+      `id` varchar(36) COLLATE utf8_unicode_ci NOT NULL,
+      `name` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+      `network_id` varchar(36) COLLATE utf8_unicode_ci NOT NULL,
+      `mac_address` varchar(32) COLLATE utf8_unicode_ci NOT NULL,
+      `admin_state_up` tinyint(1) NOT NULL,
+      `status` varchar(16) COLLATE utf8_unicode_ci NOT NULL,
+      `device_id` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
+      `device_owner` varchar(255) COLLATE utf8_unicode_ci NOT NULL,
+      PRIMARY KEY (`id`),
+      KEY `network_id` (`network_id`),
+      CONSTRAINT `ports_ibfk_1` FOREIGN KEY (`network_id`) REFERENCES networks (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+CREATE TABLE subnets (
+      `tenant_id` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+      `id` varchar(36) COLLATE utf8_unicode_ci NOT NULL,
+      `name` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
+      `network_id` varchar(36) COLLATE utf8_unicode_ci DEFAULT NULL,
+      `ip_version` int(11) NOT NULL,
+      `cidr` varchar(64) COLLATE utf8_unicode_ci NOT NULL,
+      `gateway_ip` varchar(64) COLLATE utf8_unicode_ci DEFAULT NULL,
+      `enable_dhcp` tinyint(1) DEFAULT NULL,
+      `shared` tinyint(1) DEFAULT NULL,
+      `ipv6_ra_mode` enum('slaac','dhcpv6-stateful','dhcpv6-stateless') COLLATE utf8_unicode_ci DEFAULT NULL,
+      `ipv6_address_mode` enum('slaac','dhcpv6-stateful','dhcpv6-stateless') COLLATE utf8_unicode_ci DEFAULT NULL,
+      PRIMARY KEY (`id`),
+      KEY `network_id` (`network_id`),
+      CONSTRAINT `subnets_ibfk_1` FOREIGN KEY (`network_id`) REFERENCES networks (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+   CREATE TABLE `ipallocations` (
+      `port_id` varchar(36) COLLATE utf8_unicode_ci DEFAULT NULL,
+      `ip_address` varchar(64) COLLATE utf8_unicode_ci NOT NULL,
+      `subnet_id` varchar(36) COLLATE utf8_unicode_ci NOT NULL,
+      `network_id` varchar(36) COLLATE utf8_unicode_ci NOT NULL,
+      PRIMARY KEY (`ip_address`,`subnet_id`,`network_id`),
+      KEY `port_id` (`port_id`),
+      KEY `subnet_id` (`subnet_id`),
+      KEY `network_id` (`network_id`),
+      CONSTRAINT `ipallocations_ibfk_1` FOREIGN KEY (`port_id`) REFERENCES `ports` (`id`) ON DELETE CASCADE,
+      CONSTRAINT `ipallocations_ibfk_2` FOREIGN KEY (`subnet_id`) REFERENCES `subnets` (`id`) ON DELETE CASCADE,
+      CONSTRAINT `ipallocations_ibfk_3` FOREIGN KEY (`network_id`) REFERENCES `networks` (`id`) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+INSERT INTO networks VALUES ('f37aa3fe-ab99-4d0f-a566-6cd3169d7516','f37aa3fe-ab99-4d0f-a566-6cd3169d7516','MyNet','ACTIVE',0,0);
+
+INSERT INTO ports VALUES ('','f37aa3fe-ab99-4d0f-a566-6cd3169d7516','','f37aa3fe-ab99-4d0f-a566-6cd3169d7516','fa:16:3e:e3:cc:bb',1,'DOWN','f37aa3fe-ab99-4d0f-a566-6cd3169d7516','network:router_gateway');
+
+INSERT INTO subnets VALUES ('f37aa3fe-ab99-4d0f-a566-6cd3169d7516','f37aa3fe-ab99-4d0f-a566-6cd3169d7516','ext-subnet','f37aa3fe-ab99-4d0f-a566-6cd3169d7516',4,'10.25.0.0/24','10.25.0.4',0,1,NULL,NULL);
+
+INSERT INTO ipallocations VALUES ('f37aa3fe-ab99-4d0f-a566-6cd3169d7516','10.25.0.17','f37aa3fe-ab99-4d0f-a566-6cd3169d7516','f37aa3fe-ab99-4d0f-a566-6cd3169d7516');
+
+select * from ports where ports.id = 'f37aa3fe-ab99-4d0f-a566-6cd3169d7516';
+
+--connection node_2
+
+select * from ports where ports.id = 'f37aa3fe-ab99-4d0f-a566-6cd3169d7516';
+
+--let $galera_diff_statement = SELECT * FROM ports
+--source include/galera_diff.inc
+
+--connection node_1
+
+DELETE FROM ports WHERE ports.id = 'f37aa3fe-ab99-4d0f-a566-6cd3169d7516';
+
+select * from networks;
+select * from ports;
+select * from subnets;
+select * from ipallocations;
+select * from ports;
+
+--echo
+--echo # On node_2
+--connection node_2
+select * from networks;
+select * from ports;
+select * from subnets;
+select * from ipallocations;
+select * from ports;
+
+--let $galera_diff_statement = SELECT * FROM ports
+--source include/galera_diff.inc
+
+--connection node_1
+drop table ipallocations;
+drop table subnets;
+drop table ports;
+drop table networks;
+
+--source include/galera_end.inc

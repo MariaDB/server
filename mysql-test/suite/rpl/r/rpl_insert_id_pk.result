@@ -1,0 +1,84 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
+create table t1(a int auto_increment, primary key(a));
+create table t2(b int auto_increment, c int, primary key(b));
+insert into t1 values (1),(2),(3);
+insert into t1 values (null);
+insert into t2 values (null,last_insert_id());
+connection slave;
+select * from t1 ORDER BY a;
+a
+1
+2
+3
+4
+select * from t2 ORDER BY b;
+b	c
+1	4
+connection master;
+drop table t1;
+drop table t2;
+create table t1(a int auto_increment, key(a)) engine=innodb;
+create table t2(b int auto_increment, c int, key(b), foreign key(b) references t1(a)) engine=innodb;
+SET FOREIGN_KEY_CHECKS=0;
+insert into t1 values (10);
+insert into t1 values (null),(null),(null);
+insert into t2 values (5,0);
+insert into t2 values (null,last_insert_id());
+SET FOREIGN_KEY_CHECKS=1;
+connection slave;
+select * from t1;
+a
+10
+11
+12
+13
+select * from t2;
+b	c
+5	0
+6	11
+connection master;
+drop table t2;
+drop table t1;
+create table t1(a int auto_increment, primary key(a));
+create table t2(b int auto_increment, c int, primary key(b));
+insert into t1 values (10);
+insert into t1 values (null),(null),(null);
+insert into t2 values (5,0);
+insert into t2 (c) select * from t1 ORDER BY a;
+select * from t2 ORDER BY b;
+b	c
+5	0
+6	10
+7	11
+8	12
+9	13
+connection slave;
+select * from t1 ORDER BY a;
+a
+10
+11
+12
+13
+select * from t2 ORDER BY b;
+b	c
+5	0
+6	10
+7	11
+8	12
+9	13
+connection master;
+drop table t1;
+drop table t2;
+connection slave;
+connection master;
+SET TIMESTAMP=1000000000;
+CREATE TABLE t1 ( a INT UNIQUE );
+SET FOREIGN_KEY_CHECKS=0;
+INSERT INTO t1 VALUES (1),(1);
+Got one of the listed errors
+connection slave;
+connection master;
+drop table t1;
+include/rpl_end.inc

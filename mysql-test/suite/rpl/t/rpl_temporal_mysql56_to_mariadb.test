@@ -1,0 +1,55 @@
+--source include/master-slave.inc
+
+if ($force_slave_mysql56_temporal_format)
+{
+  connection slave;
+  eval SET @@global.mysql56_temporal_format=$force_slave_mysql56_temporal_format;
+  connection master;
+}
+
+
+--echo #
+--echo # Testing replication from MariaDB-10.0 master
+--echo # started over MySQL-5.6 data directory
+--echo # to MariaDB-10.0 slave running with natively created tables
+--echo #
+
+connection master;
+SET TIME_ZONE='+00:00';
+let $MYSQLD_MASTER_DATADIR= `select @@datadir`;
+
+--copy_file std_data/temporal_upgrade/mysql050614_temporal0.frm $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal0.frm
+--copy_file std_data/temporal_upgrade/mysql050614_temporal0.MYD $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal0.MYD
+--copy_file std_data/temporal_upgrade/mysql050614_temporal0.MYI $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal0.MYI
+
+--copy_file std_data/temporal_upgrade/mysql050614_temporal1.frm $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal1.frm
+--copy_file std_data/temporal_upgrade/mysql050614_temporal1.MYD $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal1.MYD
+--copy_file std_data/temporal_upgrade/mysql050614_temporal1.MYI $MYSQLD_MASTER_DATADIR/test/mysql050614_temporal1.MYI
+SHOW CREATE TABLE mysql050614_temporal0;
+SHOW CREATE TABLE mysql050614_temporal1;
+
+connection slave;
+SELECT @@mysql56_temporal_format;
+SET TIME_ZONE='+00:00';
+CREATE TABLE mysql050614_temporal0 (a time(0), b datetime(0), c timestamp(0)) engine=myisam;
+CREATE TABLE mysql050614_temporal1 (a time(1), b datetime(1), c timestamp(1)) engine=myisam;
+
+connection master;
+INSERT INTO mysql050614_temporal0 VALUES ('00:00:02','2001-01-01 00:00:02','2001-01-01 00:00:02');
+INSERT INTO mysql050614_temporal1 VALUES ('00:00:02.1','2001-01-01 00:00:02.2','2001-01-01 00:00:02.3');
+SELECT TABLE_NAME, TABLE_ROWS, AVG_ROW_LENGTH, DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME LIKE 'mysql050614_temporal%' ORDER BY TABLE_NAME;
+sync_slave_with_master;
+
+connection slave;
+SELECT * FROM mysql050614_temporal0;
+SELECT * FROM mysql050614_temporal1;
+SELECT TABLE_NAME, TABLE_ROWS, AVG_ROW_LENGTH,DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_NAME LIKE 'mysql050614_temporal%' ORDER BY TABLE_NAME;
+SET @@global.mysql56_temporal_format=DEFAULT;
+
+connection master;
+DROP TABLE mysql050614_temporal0;
+DROP TABLE mysql050614_temporal1;
+
+--source include/rpl_end.inc

@@ -1,0 +1,96 @@
+-- source include/not_embedded.inc
+set sql_mode="";
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Testing FILE privilege
+--echo #
+GRANT ALL PRIVILEGES ON *.* TO user@localhost;
+REVOKE FILE ON *.* FROM user@localhost;
+--connect(user,localhost,user,,)
+--connection user
+SELECT user();
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE TABLE t1 (
+  path VARCHAR(256) NOT NULL flag=1,
+  fname VARCHAR(256) NOT NULL,
+  ftype CHAR(4) NOT NULL,
+  size DOUBLE(12,0) NOT NULL flag=5
+) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.*';
+--connection default
+SELECT user();
+CREATE TABLE t1 (
+  path VARCHAR(256) NOT NULL flag=1,
+  fname VARCHAR(256) NOT NULL,
+  ftype CHAR(4) NOT NULL,
+  size DOUBLE(12,0) NOT NULL flag=5
+) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.*';
+# "size>0" to skip directory names on Windows
+--replace_result $MYSQLD_DATADIR DATADIR/
+SELECT fname, ftype, size FROM t1 WHERE size>0 AND ftype!='.opt';
+
+--connection user
+SELECT user();
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT * FROM t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO t1 VALUES ();
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE FROM t1 WHERE path='xxx';
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE t1 SET path='yyy' WHERE path='xxx';
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+TRUNCATE TABLE t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+ALTER TABLE t1 READONLY=1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+--echo # Testing a VIEW created with FILE privileges but accessed with no FILE
+--connection default
+SELECT user();
+CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT * FROM t1;
+--connection user
+SELECT user();
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SELECT * FROM v1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+INSERT INTO v1 VALUES (1,1,1,1);
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+UPDATE v1 SET path=123;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+DELETE FROM v1;
+
+--disconnect user
+--connection default
+SELECT user();
+DROP VIEW v1;
+DROP TABLE t1;
+DROP USER user@localhost;
+--echo #
+--echo # Testing FILE privileges done
+--echo #
+
+
+let $TABLE_OPTIONS=TABLE_TYPE=BIN;
+let $FILE_EXT=BIN;
+--source grant.inc
+
+let $TABLE_OPTIONS=TABLE_TYPE=CSV;
+let $FILE_EXT=CSV;
+--source grant.inc
+
+let $TABLE_OPTIONS=TABLE_TYPE=DBF;
+let $FILE_EXT=DBF;
+--source grant.inc
+
+let $TABLE_OPTIONS=TABLE_TYPE=FIX;
+let $FILE_EXT=FIX;
+--source grant.inc
+
+let $TABLE_OPTIONS=TABLE_TYPE=VEC MAX_ROWS=100;
+let $FILE_EXT=VEC;
+--source grant.inc
+
+set sql_mode=default;

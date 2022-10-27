@@ -1,0 +1,55 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+include/rpl_stop_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1]
+connection slave;
+SET SQL_LOG_BIN=0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE = InnoDB;
+SET SQL_LOG_BIN=1;
+SET @old_engine= @@GLOBAL.default_storage_engine;
+SET GLOBAL default_storage_engine=InnoDB;
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=12;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+include/start_slave.inc
+connection master;
+SET SQL_LOG_BIN=0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE = InnoDB;
+SET SQL_LOG_BIN=1;
+connection slave;
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+0-1-1381
+CHECKSUM TABLE table0_int_autoinc, table0_key_pk_parts_2_int_autoinc, table100_int_autoinc, table100_key_pk_parts_2_int_autoinc, table10_int_autoinc, table10_key_pk_parts_2_int_autoinc, table1_int_autoinc, table1_key_pk_parts_2_int_autoinc, table2_int_autoinc, table2_key_pk_parts_2_int_autoinc;
+Table	Checksum
+test.table0_int_autoinc	3623174395
+test.table0_key_pk_parts_2_int_autoinc	2888328157
+test.table100_int_autoinc	3624823809
+test.table100_key_pk_parts_2_int_autoinc	3316583308
+test.table10_int_autoinc	1615053718
+test.table10_key_pk_parts_2_int_autoinc	4147461080
+test.table1_int_autoinc	478809705
+test.table1_key_pk_parts_2_int_autoinc	3032208641
+test.table2_int_autoinc	854763867
+test.table2_key_pk_parts_2_int_autoinc	4231615291
+include/stop_slave.inc
+SET GLOBAL default_storage_engine= @old_engine;
+SET GLOBAL slave_parallel_threads=@old_parallel;
+SET sql_log_bin=0;
+DROP TABLE table0_int_autoinc;
+DROP TABLE table0_key_pk_parts_2_int_autoinc;
+DROP TABLE table100_int_autoinc;
+DROP TABLE table100_key_pk_parts_2_int_autoinc;
+DROP TABLE table10_int_autoinc;
+DROP TABLE table10_key_pk_parts_2_int_autoinc;
+DROP TABLE table1_int_autoinc;
+DROP TABLE table1_key_pk_parts_2_int_autoinc;
+DROP TABLE table2_int_autoinc;
+DROP TABLE table2_key_pk_parts_2_int_autoinc;
+SET sql_log_bin=1;
+include/start_slave.inc
+connection master;
+include/rpl_end.inc

@@ -1,0 +1,12 @@
+# mysql_upgrade tests requiring SSL support
+
+-- source include/have_ssl_communication.inc
+-- source include/mysql_upgrade_preparation.inc
+-- source include/have_innodb.inc
+
+--echo #
+--echo # Bug#55672 mysql_upgrade dies with internal error 
+--echo #
+--exec $MYSQL_UPGRADE --skip-verbose --skip-silent --ssl --force 2>&1
+--let $datadir= `select @@datadir`
+--remove_file $datadir/mysql_upgrade_info

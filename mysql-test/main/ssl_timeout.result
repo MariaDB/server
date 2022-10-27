@@ -1,0 +1,10 @@
+# connect with read timeout so SLEEP() should timeout
+connect  ssl_con,localhost,root,,,,,SSL read_timeout=5;
+# Check ssl turned on
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+have_ssl
+1
+SELECT SLEEP(600);
+ERROR HY000: Lost connection to MySQL server during query
+connection default;
+disconnect ssl_con;

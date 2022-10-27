@@ -1,0 +1,56 @@
+The --upgrade-system-tables option was used, user tables won't be touched.
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+
+Repairing tables
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+Phase 2/7: Installing used storage engines... Skipped
+Phase 3/7: Fixing views... Skipped
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names ... Skipped
+Phase 6/7: Checking and upgrading tables... Skipped
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK

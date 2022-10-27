@@ -1,0 +1,49 @@
+-- source include/have_innodb.inc
+
+let $force_pk=`select @@innodb_force_primary_key`;
+
+-- error 1173
+create table t1(a integer) engine=innodb;
+show warnings;
+-- error 1173
+create table t1(a integer unique key) engine=innodb;
+show warnings;
+-- error 1173
+create table t1(a integer not null, b integer,
+unique key(a,b)) engine=innodb;
+show warnings;
+create table t1(a integer not null primary key) engine=innodb;
+show create table t1;
+show warnings;
+drop table t1;
+create table t1(a integer not null unique key) engine=innodb;
+show create table t1;
+show warnings;
+drop table t1;
+
+set global innodb_force_primary_key = 0;
+create table t1(a integer) engine=innodb;
+show warnings;
+insert into t1 values (1),(2),(3);
+
+set global innodb_force_primary_key = 1;
+select * from t1;
+-- error 1173
+create table t2(a integer) engine=innodb;
+show warnings;
+drop table t1;
+
+#
+# MDEV-8582: innodb_force_primary_key option does not
+# force PK or unique key
+#
+--error 1173
+create table t1 (i int not null, key(i)) engine=innodb;
+create table t1 (i int not null, unique key(i)) engine=innodb;
+show warnings;
+show create table t1;
+drop table t1;
+
+--disable_query_log
+eval set global innodb_force_primary_key=$force_pk;
+--enable_query_log

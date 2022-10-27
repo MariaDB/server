@@ -1,0 +1,13 @@
+create table t1 (a int primary key, b int, c int, unique key(b), key(c)) engine=aria transactional=1;
+insert into t1 values (1000,1000,1000);
+insert into t1 select seq,seq+100, seq+200 from seq_1_to_10;
+SET GLOBAL debug_dbug="+d,crash_end_bulk_insert";
+REPLACE into t1 select seq+20,seq+95, seq + 300 from seq_1_to_10;
+ERROR HY000: Lost connection to MySQL server during query
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select sum(a),sum(b),sum(c) from t1;
+sum(a)	sum(b)	sum(c)
+1055	2055	3055
+drop table t1;

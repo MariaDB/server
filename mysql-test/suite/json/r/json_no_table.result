@@ -1,0 +1,3614 @@
+SELECT JSON_COMPACT(0.0e0) = -0.0e0;
+JSON_COMPACT(0.0e0) = -0.0e0
+1
+SELECT JSON_COMPACT(CAST(0 AS DECIMAL)) = CAST(-0.0e0 AS DECIMAL);
+JSON_COMPACT(CAST(0 AS DECIMAL)) = CAST(-0.0e0 AS DECIMAL)
+1
+SELECT JSON_COMPACT(0.0e0) = CAST(-0.0e0 AS DECIMAL);
+JSON_COMPACT(0.0e0) = CAST(-0.0e0 AS DECIMAL)
+1
+SELECT JSON_COMPACT(CAST(0 AS DECIMAL)) = -0.0e0;
+JSON_COMPACT(CAST(0 AS DECIMAL)) = -0.0e0
+1
+SELECT JSON_COMPACT(CAST(0 AS SIGNED)) = -0.0e0;
+JSON_COMPACT(CAST(0 AS SIGNED)) = -0.0e0
+1
+SELECT JSON_COMPACT(CAST(0 AS SIGNED)) = CAST(-0.0e0 AS DECIMAL);
+JSON_COMPACT(CAST(0 AS SIGNED)) = CAST(-0.0e0 AS DECIMAL)
+1
+SELECT JSON_COMPACT(CAST(0 AS UNSIGNED)) = -0.0e0;
+JSON_COMPACT(CAST(0 AS UNSIGNED)) = -0.0e0
+1
+SELECT JSON_COMPACT(CAST(0 AS UNSIGNED)) = CAST(-0.0e0 AS DECIMAL);
+JSON_COMPACT(CAST(0 AS UNSIGNED)) = CAST(-0.0e0 AS DECIMAL)
+1
+select json_compact('"abc"');
+json_compact('"abc"')
+"abc"
+error ER_INVALID_JSON_TEXT_IN_PARAM
+select json_compact('abc');
+json_compact('abc')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 1
+
+# String literal - valid JSON
+select JSON_VALID('123');
+JSON_VALID('123')
+1
+select JSON_VALID('-123');
+JSON_VALID('-123')
+1
+select JSON_VALID('5000000000');
+JSON_VALID('5000000000')
+1
+select JSON_VALID('-5000000000');
+JSON_VALID('-5000000000')
+1
+select JSON_VALID('1.23');
+JSON_VALID('1.23')
+1
+select JSON_VALID('"123"');
+JSON_VALID('"123"')
+1
+select JSON_VALID('true');
+JSON_VALID('true')
+1
+select JSON_VALID('false');
+JSON_VALID('false')
+1
+select JSON_VALID('null');
+JSON_VALID('null')
+1
+select JSON_VALID('{"address": "Trondheim"}');
+JSON_VALID('{"address": "Trondheim"}')
+1
+
+# String literal - not valid JSON
+select JSON_VALID('12 3');
+JSON_VALID('12 3')
+0
+
+# String literal not in UTF-8
+set names 'ascii';
+select JSON_VALID('123');
+JSON_VALID('123')
+1
+set names 'utf8';
+
+# Json expression
+select JSON_VALID(json_compact('[123]'));
+JSON_VALID(json_compact('[123]'))
+1
+
+# Json expression NULL
+select JSON_VALID(json_compact(NULL));
+JSON_VALID(json_compact(NULL))
+NULL
+
+# Bare NULL
+select JSON_VALID( NULL );
+JSON_VALID( NULL )
+NULL
+
+# Function result - string
+select JSON_VALID( UPPER('"abc"') );
+JSON_VALID( UPPER('"abc"') )
+1
+set names 'latin1';
+
+# Function result - string
+select JSON_VALID( UPPER('"abc"') );
+JSON_VALID( UPPER('"abc"') )
+1
+set names 'utf8';
+
+# Function result - date, not valid as JSON without CAST
+select JSON_VALID( CAST('2015-01-15' AS DATE) );
+JSON_VALID( CAST('2015-01-15' AS DATE) )
+0
+
+# The date string doesn't parse as JSON text, so wrong:
+select JSON_VALID( CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8') );
+JSON_VALID( CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8') )
+0
+# OK, though:
+select JSON_VALID( json_compact(CURDATE()) );
+JSON_VALID( json_compact(CURDATE()) )
+0
+
+# Function result - NULL
+select JSON_VALID( UPPER(NULL) );
+JSON_VALID( UPPER(NULL) )
+NULL
+select JSON_VALID( UPPER(CAST(NULL as CHAR)) );
+JSON_VALID( UPPER(CAST(NULL as CHAR)) )
+NULL
+SELECT JSON_VALID( '{ "firstName" : "Fred", "lastName" : "Flintstone" }' );
+JSON_VALID( '{ "firstName" : "Fred", "lastName" : "Flintstone" }' )
+1
+SELECT JSON_VALID( '3' );
+JSON_VALID( '3' )
+1
+SELECT JSON_VALID( null );
+JSON_VALID( null )
+NULL
+# ----------------------------------------------------------------------
+# Test of JSON_CONTAINS_PATH function.
+# ----------------------------------------------------------------------
+select json_contains_path();
+ERROR 42000: Incorrect parameter count in the call to native function 'json_contains_path'
+select json_contains_path('{ "a": true }' );
+ERROR 42000: Incorrect parameter count in the call to native function 'json_contains_path'
+select json_contains_path('{ "a": true }', 'all' );
+ERROR 42000: Incorrect parameter count in the call to native function 'json_contains_path'
+error ER_INVALID_JSON_TEXT_IN_PARAM
+select json_contains_path('{ "a": tru }', 'all', '$' );
+json_contains_path('{ "a": tru }', 'all', '$' )
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_contains_path' at position 10
+error ER_INVALID_JSON_PATH
+select json_contains_path('{ "a": true }', 'all', '$[' );
+json_contains_path('{ "a": true }', 'all', '$[' )
+NULL
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 3 to function 'json_contains_path'
+error ER_INVALID_JSON_PATH
+select json_contains_path('{ "a": true }', 'all', '$a.***[3]' );
+json_contains_path('{ "a": true }', 'all', '$a.***[3]' )
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 3 to function 'json_contains_path' at position 2
+error ER_JSON_BAD_ONE_OR_ALL_ARG
+select json_contains_path('{ "a": true }', 'foo', '$.a' );
+json_contains_path('{ "a": true }', 'foo', '$.a' )
+NULL
+Warnings:
+Warning	4046	Argument 2 to function 'json_contains_path' must be "one" or "all".
+error ER_INVALID_JSON_CHARSET
+select json_contains_path('{}', 'all', cast('$' as binary));
+json_contains_path('{}', 'all', cast('$' as binary))
+1
+select json_contains_path(null, 'all', '$.a' );
+json_contains_path(null, 'all', '$.a' )
+NULL
+select json_contains_path('{ "a": true }', null, '$.a' );
+json_contains_path('{ "a": true }', null, '$.a' )
+NULL
+select json_contains_path('{ "a": true }', 'all', null );
+json_contains_path('{ "a": true }', 'all', null )
+NULL
+select json_contains_path('{ "a": true }', 'all', '$' );
+json_contains_path('{ "a": true }', 'all', '$' )
+1
+select json_contains_path('{ "a": true }', 'all', '$.a' );
+json_contains_path('{ "a": true }', 'all', '$.a' )
+1
+select json_contains_path('{ "a": true }', 'one', '$.a' );
+json_contains_path('{ "a": true }', 'one', '$.a' )
+1
+select json_contains_path('{ "a": true }', 'all', '$.b' );
+json_contains_path('{ "a": true }', 'all', '$.b' )
+0
+select json_contains_path('{ "a": true }', 'one', '$.b' );
+json_contains_path('{ "a": true }', 'one', '$.b' )
+0
+select json_contains_path('{ "a": true }', 'all', '$.a', '$.b' );
+json_contains_path('{ "a": true }', 'all', '$.a', '$.b' )
+0
+select json_contains_path('{ "a": true }', 'all', '$.b', '$.a' );
+json_contains_path('{ "a": true }', 'all', '$.b', '$.a' )
+0
+select json_contains_path('{ "a": true }', 'ALL', '$.a', '$.b' );
+json_contains_path('{ "a": true }', 'ALL', '$.a', '$.b' )
+0
+select json_contains_path('{ "a": true }', 'aLl', '$.a', '$.b' );
+json_contains_path('{ "a": true }', 'aLl', '$.a', '$.b' )
+0
+select json_contains_path('{ "a": true }', 'one', '$.a', '$.b' );
+json_contains_path('{ "a": true }', 'one', '$.a', '$.b' )
+1
+select json_contains_path('{ "a": true }', 'one', '$.b', '$.a' );
+json_contains_path('{ "a": true }', 'one', '$.b', '$.a' )
+1
+select json_contains_path('{ "a": true }', 'ONE', '$.a', '$.b' );
+json_contains_path('{ "a": true }', 'ONE', '$.a', '$.b' )
+1
+select json_contains_path('{ "a": true }', 'oNe', '$.a', '$.b' );
+json_contains_path('{ "a": true }', 'oNe', '$.a', '$.b' )
+1
+select json_contains_path('{ "a": true, "b": [ 1, 2, { "c": [ 4, 5, { "d": [ 6, 7, 8, 9, 10 ]} ] } ] }', 'all', '$**[4]' );
+json_contains_path('{ "a": true, "b": [ 1, 2, { "c": [ 4, 5, { "d": [ 6, 7, 8, 9, 10 ]} ] } ] }', 'all', '$**[4]' )
+1
+select json_contains_path('{ "a": true, "b": [ 1, 2, { "c": [ 4, 5, { "d": [ 6, 7, 8, 9, 10 ]} ] } ] }', 'all', '$**[4]', '$**[5]' );
+json_contains_path('{ "a": true, "b": [ 1, 2, { "c": [ 4, 5, { "d": [ 6, 7, 8, 9, 10 ]} ] } ] }', 'all', '$**[4]', '$**[5]' )
+0
+select json_contains_path('{ "a": true, "b": [ 1, 2, { "c": [ 4, 5, { "d": [ 6, 7, 8, 9, 10 ]} ] } ] }', 'all', '$**.c[2]' );
+json_contains_path('{ "a": true, "b": [ 1, 2, { "c": [ 4, 5, { "d": [ 6, 7, 8, 9, 10 ]} ] } ] }', 'all', '$**.c[2]' )
+1
+select json_contains_path('{ "a": true, "b": [ 1, 2, { "c": [ 4, 5, { "d": [ 6, 7, 8, 9, 10 ]} ] } ] }', 'all', '$**.c[3]' );
+json_contains_path('{ "a": true, "b": [ 1, 2, { "c": [ 4, 5, { "d": [ 6, 7, 8, 9, 10 ]} ] } ] }', 'all', '$**.c[3]' )
+0
+select json_contains_path('{"a":1, "b":2}', 'one', '$.*');
+json_contains_path('{"a":1, "b":2}', 'one', '$.*')
+1
+select json_contains_path('[1,2,3]', 'one', '$.*');
+json_contains_path('[1,2,3]', 'one', '$.*')
+0
+select json_contains_path('{}', 'one', '$[*]');
+json_contains_path('{}', 'one', '$[*]')
+0
+SELECT JSON_CONTAINS_PATH('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]',
+'one', '$**.a.*');
+JSON_CONTAINS_PATH('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]',
+'one', '$**.a.*')
+1
+SELECT JSON_CONTAINS_PATH('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]',
+'all', '$**.a.*');
+JSON_CONTAINS_PATH('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]',
+'all', '$**.a.*')
+1
+SELECT JSON_CONTAINS_PATH('[1,2,3]', 'one', '$**[*]');
+JSON_CONTAINS_PATH('[1,2,3]', 'one', '$**[*]')
+1
+SELECT JSON_CONTAINS_PATH('[1,2,3]', 'all', '$**[*]');
+JSON_CONTAINS_PATH('[1,2,3]', 'all', '$**[*]')
+1
+select json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'all', '$**[1]', '$.b[0]', '$.c' );
+json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'all', '$**[1]', '$.b[0]', '$.c' )
+0
+select json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'all', '$.c', '$**[1]', '$.b[0]' );
+json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'all', '$.c', '$**[1]', '$.b[0]' )
+0
+select json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'all', '$.b[0]', '$.c', '$**[1]' );
+json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'all', '$.b[0]', '$.c', '$**[1]' )
+0
+select json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'one', '$**[1]', '$.b[0]', '$.c' );
+json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'one', '$**[1]', '$.b[0]', '$.c' )
+1
+select json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'one', '$.c', '$**[1]', '$.b[0]' );
+json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'one', '$.c', '$**[1]', '$.b[0]' )
+1
+select json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'one', '$.b[0]', '$.c', '$**[1]' );
+json_contains_path('{ "a": true, "b": [ 1, 2 ] }', 'one', '$.b[0]', '$.c', '$**[1]' )
+1
+SELECT JSON_CONTAINS_PATH
+(
+'{ "a" : 123, "b" : [ 123, 456 ] }',
+'all',
+'$.a.c',
+'$.b[1]'
+);
+JSON_CONTAINS_PATH
+(
+'{ "a" : 123, "b" : [ 123, 456 ] }',
+'all',
+'$.a.c',
+'$.b[1]'
+)
+0
+SELECT JSON_CONTAINS_PATH
+(
+'{ "a" : 123, "b" : [ 123, 456 ] }',
+'one',
+'$.a.c',
+'$.b[1]'
+);
+JSON_CONTAINS_PATH
+(
+'{ "a" : 123, "b" : [ 123, 456 ] }',
+'one',
+'$.a.c',
+'$.b[1]'
+)
+1
+SELECT JSON_CONTAINS_PATH
+(
+'{ "a" : 123, "b" : [ 123, 456 ] }',
+'all',
+'$.c'
+);
+JSON_CONTAINS_PATH
+(
+'{ "a" : 123, "b" : [ 123, 456 ] }',
+'all',
+'$.c'
+)
+0
+SELECT JSON_CONTAINS_PATH
+(
+'{ "a" : 123, "b" : [ 123, { "c" : { "d" : true } } ] }',
+'all',
+'$.b[1].c.d'
+);
+JSON_CONTAINS_PATH
+(
+'{ "a" : 123, "b" : [ 123, { "c" : { "d" : true } } ] }',
+'all',
+'$.b[1].c.d'
+)
+1
+select json_length( null );
+json_length( null )
+NULL
+select json_length( '1' );
+json_length( '1' )
+1
+
+# invalid json text
+error ER_INVALID_JSON_TEXT_IN_PARAM
+select json_length( 'abc' );
+json_length( 'abc' )
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_length' at position 1
+select json_length( '"abc"' );
+json_length( '"abc"' )
+1
+select json_length( 'true' );
+json_length( 'true' )
+1
+select json_length( 'false' );
+json_length( 'false' )
+1
+select json_length( 'null' );
+json_length( 'null' )
+1
+select json_length( '{}' );
+json_length( '{}' )
+0
+select json_length( '{ "a" : 100, "b" : 200 }' );
+json_length( '{ "a" : 100, "b" : 200 }' )
+2
+select json_length( '{ "a" : 100, "b" : [ 300, 400, 500 ] }' );
+json_length( '{ "a" : 100, "b" : [ 300, 400, 500 ] }' )
+2
+select json_length( '[]' );
+json_length( '[]' )
+0
+select json_length( '[ null, "foo", true, 1.1 ]' );
+json_length( '[ null, "foo", true, 1.1 ]' )
+4
+select json_length( '[ null, "foo", true, { "a" : "b", "c" : "d" } ]' );
+json_length( '[ null, "foo", true, { "a" : "b", "c" : "d" } ]' )
+4
+select json_length( '"foo"' );
+json_length( '"foo"' )
+1
+select json_length( '1.2' );
+json_length( '1.2' )
+1
+
+# invalid json path
+error ER_INVALID_JSON_PATH
+select json_length( 'true', 'c$' );
+json_length( 'true', 'c$' )
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_length' at position 1
+
+# invalid json path
+error ER_INVALID_JSON_PATH
+select json_length( '{ "foo" : [ true, false ] }', '$.foo[bar]' );
+json_length( '{ "foo" : [ true, false ] }', '$.foo[bar]' )
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_length' at position 7
+
+# wildcards not allowed in path expressions for this function
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_length( 'true', '$.*' );
+json_length( 'true', '$.*' )
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_length'
+
+# wildcards not allowed in path expressions for this function
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_length( 'true', '$.foo**.bar' );
+json_length( 'true', '$.foo**.bar' )
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_length'
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[0]' );
+json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[0]' )
+1
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[1]' );
+json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[1]' )
+3
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' );
+json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2]' )
+1
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' );
+json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][0]' )
+1
+select json_length( '[ 1, [ 2, 3, 4 ], {"a": 1} ]', '$[2][0]' );
+json_length( '[ 1, [ 2, 3, 4 ], {"a": 1} ]', '$[2][0]' )
+1
+select json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][1]' );
+json_length( '[ 1, [ 2, 3, 4 ], 5 ]', '$[2][1]' )
+NULL
+select json_length( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]' );
+json_length( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]' )
+3
+SELECT JSON_LENGTH
+(
+'{}'
+);
+JSON_LENGTH
+(
+'{}'
+)
+0
+SELECT JSON_LENGTH
+(
+'3'
+);
+JSON_LENGTH
+(
+'3'
+)
+1
+SELECT JSON_LENGTH
+(
+'{ "a" : 123, "b" : [ 123, 456, 789 ] }'
+);
+JSON_LENGTH
+(
+'{ "a" : 123, "b" : [ 123, 456, 789 ] }'
+)
+2
+SELECT JSON_LENGTH
+(
+'{ "a" : 123, "b" : [ 123, 456, 789 ] }',
+'$.b'
+);
+JSON_LENGTH
+(
+'{ "a" : 123, "b" : [ 123, 456, 789 ] }',
+'$.b'
+)
+3
+SELECT JSON_LENGTH
+(
+'{ "a" : 123, "b" : [ 123, 456, 789 ] }',
+'$.c'
+);
+JSON_LENGTH
+(
+'{ "a" : 123, "b" : [ 123, 456, 789 ] }',
+'$.c'
+)
+NULL
+# ----------------------------------------------------------------------
+# Test of JSON_DEPTH function.
+# ----------------------------------------------------------------------
+select json_depth(null);
+json_depth(null)
+NULL
+select json_depth(json_compact(null));
+json_depth(json_compact(null))
+NULL
+select json_depth(json_compact('[]')),
+json_depth(json_compact('{}')),
+json_depth(json_compact('null')),
+json_depth(json_quote('foo'));
+json_depth(json_compact('[]'))	json_depth(json_compact('{}'))	json_depth(json_compact('null'))	json_depth(json_quote('foo'))
+1	1	1	1
+select json_depth(json_compact('[[2], 3, [[[4]]]]'));
+json_depth(json_compact('[[2], 3, [[[4]]]]'))
+5
+select json_depth(json_compact('{"a": {"a1": [3]}, "b": {"b1": {"c": {"d": [5]}}}}'));
+json_depth(json_compact('{"a": {"a1": [3]}, "b": {"b1": {"c": {"d": [5]}}}}'))
+6
+SELECT JSON_DEPTH
+(
+'{}'
+);
+JSON_DEPTH
+(
+'{}'
+)
+1
+SELECT JSON_DEPTH
+(
+'[]'
+);
+JSON_DEPTH
+(
+'[]'
+)
+1
+SELECT JSON_DEPTH( '"abc"' );
+JSON_DEPTH( '"abc"' )
+1
+SELECT JSON_DEPTH( json_compact( '"abc"') );
+JSON_DEPTH( json_compact( '"abc"') )
+1
+error ER_INVALID_TYPE_FOR_JSON
+SELECT JSON_DEPTH( 1 );
+JSON_DEPTH( 1 )
+1
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT JSON_DEPTH( 'abc' );
+JSON_DEPTH( 'abc' )
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_depth' at position 1
+SELECT JSON_DEPTH( json_compact( 1) );
+JSON_DEPTH( json_compact( 1) )
+1
+SELECT JSON_DEPTH
+(
+'{ "a" : true, "b" : false, "c" : null }'
+);
+JSON_DEPTH
+(
+'{ "a" : true, "b" : false, "c" : null }'
+)
+2
+SELECT JSON_DEPTH
+(
+'[ "a", true, "b" , false, "c" , null ]'
+);
+JSON_DEPTH
+(
+'[ "a", true, "b" , false, "c" , null ]'
+)
+2
+SELECT JSON_DEPTH
+(
+'{ "a" : true, "b" : {}, "c" : null }'
+);
+JSON_DEPTH
+(
+'{ "a" : true, "b" : {}, "c" : null }'
+)
+2
+SELECT JSON_DEPTH
+(
+'[ "a", true, "b" , {}, "c" , null ]'
+);
+JSON_DEPTH
+(
+'[ "a", true, "b" , {}, "c" , null ]'
+)
+2
+SELECT JSON_DEPTH
+(
+'{ "a" : true, "b" : { "e" : false }, "c" : null }'
+);
+JSON_DEPTH
+(
+'{ "a" : true, "b" : { "e" : false }, "c" : null }'
+)
+3
+SELECT JSON_DEPTH
+(
+'[ "a", true, "b" , { "e" : false }, "c" , null ]'
+);
+JSON_DEPTH
+(
+'[ "a", true, "b" , { "e" : false }, "c" , null ]'
+)
+3
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT JSON_DEPTH
+(
+'[ "a", true, "b" , { "e" : false }, "c" , null'
+);
+JSON_DEPTH
+(
+'[ "a", true, "b" , { "e" : false }, "c" , null'
+)
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_depth'
+# ----------------------------------------------------------------------
+# Test of JSON_REMOVE function.
+# ----------------------------------------------------------------------
+select json_remove( null, '$[1]' );
+json_remove( null, '$[1]' )
+NULL
+select json_remove( null, '$[1]' ) is null;
+json_remove( null, '$[1]' ) is null
+1
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', null );
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', null )
+NULL
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', null ) is null;
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', null ) is null
+1
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]', null );
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]', null )
+NULL
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]', null ) is null;
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]', null ) is null
+1
+
+# not enough args
+select json_remove();
+ERROR 42000: Incorrect parameter count in the call to native function 'json_remove'
+
+# not enough args
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]' );
+ERROR 42000: Incorrect parameter count in the call to native function 'json_remove'
+
+# not enough args
+select json_remove( '$[1]' );
+ERROR 42000: Incorrect parameter count in the call to native function 'json_remove'
+
+# invalid json text
+error ER_INVALID_JSON_TEXT_IN_PARAM
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ', '$[1]', '$[2]' );
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ', '$[1]', '$[2]' )
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_remove'
+
+# invalid json path
+error ER_INVALID_JSON_PATH
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1', '$[2]' );
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1', '$[2]' )
+NULL
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 2 to function 'json_remove'
+
+# invalid json path
+error ER_INVALID_JSON_PATH
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]', '$[2' );
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]', '$[2' )
+NULL
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 3 to function 'json_remove'
+
+# Vacuous path expression
+error ER_JSON_VACUOUS_PATH
+select json_remove( '[ 1, 2, 3 ]', '$' );
+json_remove( '[ 1, 2, 3 ]', '$' )
+NULL
+Warnings:
+Warning	4051	Path expression '$' is not allowed in argument 2 to function 'json_remove'.
+
+# Vacuous path expression
+error ER_JSON_VACUOUS_PATH
+select json_remove( '[ 1, 2, 3 ]', '$', '$[2]' );
+json_remove( '[ 1, 2, 3 ]', '$', '$[2]' )
+NULL
+Warnings:
+Warning	4051	Path expression '$' is not allowed in argument 2 to function 'json_remove'.
+
+# Vacuous path expression
+error ER_JSON_VACUOUS_PATH
+select json_remove( '[ 1, 2, 3 ]', '$[1]', '$' );
+json_remove( '[ 1, 2, 3 ]', '$[1]', '$' )
+NULL
+Warnings:
+Warning	4051	Path expression '$' is not allowed in argument 3 to function 'json_remove'.
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_remove( '[ 1, 2, 3 ]', '$[*]' );
+json_remove( '[ 1, 2, 3 ]', '$[*]' )
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_remove'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_remove( '[ 1, 2, 3 ]', '$**[2]' );
+json_remove( '[ 1, 2, 3 ]', '$**[2]' )
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_remove'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_remove( '[ 1, 2, 3 ]', '$[2]', '$[*]' );
+json_remove( '[ 1, 2, 3 ]', '$[2]', '$[*]' )
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 3 to function 'json_remove'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_remove( '[ 1, 2, 3 ]', '$[2]', '$**[2]' );
+json_remove( '[ 1, 2, 3 ]', '$[2]', '$**[2]' )
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 3 to function 'json_remove'
+select json_remove( '[ 1, 2, 3 ]', '$[0]' );
+json_remove( '[ 1, 2, 3 ]', '$[0]' )
+[2, 3]
+select json_remove( '[ 1, 2, 3 ]', '$[1]' );
+json_remove( '[ 1, 2, 3 ]', '$[1]' )
+[1, 3]
+select json_remove( '[ 1, 2, 3 ]', '$[2]' );
+json_remove( '[ 1, 2, 3 ]', '$[2]' )
+[1, 2]
+select json_remove( '[ 1, 2, 3 ]', '$[3]' );
+json_remove( '[ 1, 2, 3 ]', '$[3]' )
+[1, 2, 3]
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]' );
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$[1]' )
+[1, 5]
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_remove( '[ { "a": { "a": true } } ]', '$**.a' );
+json_remove( '[ { "a": { "a": true } } ]', '$**.a' )
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_remove'
+select json_remove( '[ { "a": true }, { "b": false }, { "c": null }, { "a": null } ]', '$[0].a', '$[2].c' );
+json_remove( '[ { "a": true }, { "b": false }, { "c": null }, { "a": null } ]', '$[0].a', '$[2].c' )
+[{}, {"b": false}, {}, {"a": null}]
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_remove( '[ { "a": true }, { "b": [ { "c": { "a": true } }  ] }, { "c": null }, { "a": null } ]', '$**.a' );
+json_remove( '[ { "a": true }, { "b": [ { "c": { "a": true } }  ] }, { "c": null }, { "a": null } ]', '$**.a' )
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_remove'
+select json_remove( '{"id": 123, "name": "systemQA", "array": [1, 2, 3]}', '$[0]' );
+json_remove( '{"id": 123, "name": "systemQA", "array": [1, 2, 3]}', '$[0]' )
+{"id": 123, "name": "systemQA", "array": [1, 2, 3]}
+SELECT JSON_REMOVE
+(
+'{"a" : "foo", "b" : [true, {"c" : 123}]}',
+'$.b[ 1 ]'
+);
+JSON_REMOVE
+(
+'{"a" : "foo", "b" : [true, {"c" : 123}]}',
+'$.b[ 1 ]'
+)
+{"a": "foo", "b": [true]}
+SELECT JSON_REMOVE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.b[ 1 ].c'
+);
+JSON_REMOVE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.b[ 1 ].c'
+)
+{"a": "foo", "b": [true, {"c": 456}]}
+SELECT JSON_REMOVE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c'
+);
+JSON_REMOVE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c'
+)
+{"a": "foo", "b": [true, {}]}
+SELECT JSON_REMOVE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123, "d" : 456 } ] }',
+'$.b[ 1 ].e'
+);
+JSON_REMOVE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123, "d" : 456 } ] }',
+'$.b[ 1 ].e'
+)
+{"a": "foo", "b": [true, {"c": 123, "d": 456}]}
+# ----------------------------------------------------------------------
+# Test of JSON_MERGE function.
+# ----------------------------------------------------------------------
+
+# not enough args
+select json_merge();
+ERROR 42000: Incorrect parameter count in the call to native function 'json_merge'
+
+# not enough args
+select json_merge( '[ 1, 2, 3 ]' );
+ERROR 42000: Incorrect parameter count in the call to native function 'json_merge'
+select json_merge( null, null );
+json_merge( null, null )
+NULL
+select json_merge( null, '[ 1, 2, 3 ]' );
+json_merge( null, '[ 1, 2, 3 ]' )
+NULL
+select json_merge( '[ 1, 2, 3 ]', null );
+json_merge( '[ 1, 2, 3 ]', null )
+NULL
+select json_merge( null, '[ 1, 2, 3 ]', '[ 4, 5, 6 ]' );
+json_merge( null, '[ 1, 2, 3 ]', '[ 4, 5, 6 ]' )
+NULL
+select json_merge( '[ 1, 2, 3 ]', null, '[ 4, 5, 6 ]' );
+json_merge( '[ 1, 2, 3 ]', null, '[ 4, 5, 6 ]' )
+NULL
+select json_merge( '[ 1, 2, 3 ]', '[ 4, 5, 6 ]', null );
+json_merge( '[ 1, 2, 3 ]', '[ 4, 5, 6 ]', null )
+NULL
+error ER_INVALID_JSON_TEXT_IN_PARAM
+select json_merge( '[1, 2]', '[3, 4' );
+json_merge( '[1, 2]', '[3, 4' )
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_merge_preserve'
+error ER_INVALID_JSON_TEXT_IN_PARAM
+select json_merge( '[1, 2', '[3, 4]' );
+json_merge( '[1, 2', '[3, 4]' )
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_merge_preserve'
+select json_merge( '1', '2' );
+json_merge( '1', '2' )
+[1, 2]
+select json_merge( '1', '[2, 3]' );
+json_merge( '1', '[2, 3]' )
+[1, 2, 3]
+select json_merge( '[1, 2]', '3' );
+json_merge( '[1, 2]', '3' )
+[1, 2, 3]
+select json_merge( '1', '{ "a": 2 }' );
+json_merge( '1', '{ "a": 2 }' )
+[1, {"a": 2}]
+select json_merge( '{ "a": 2 }', '1' );
+json_merge( '{ "a": 2 }', '1' )
+[{"a": 2}, 1]
+select json_merge( '[1, 2]', '[3, 4]' );
+json_merge( '[1, 2]', '[3, 4]' )
+[1, 2, 3, 4]
+select json_merge( '{ "a": 2 }', '{ "b": 3}' );
+json_merge( '{ "a": 2 }', '{ "b": 3}' )
+{"a": 2, "b": 3}
+select json_merge( '[1, 2]', '{ "a": 2 }' );
+json_merge( '[1, 2]', '{ "a": 2 }' )
+[1, 2, {"a": 2}]
+select json_merge( '{ "a": 2 }', '[1, 2]' );
+json_merge( '{ "a": 2 }', '[1, 2]' )
+[{"a": 2}, 1, 2]
+select json_merge( '{"a": 1, "b": 2 }', '{"b": 3, "d": 4 }' );
+json_merge( '{"a": 1, "b": 2 }', '{"b": 3, "d": 4 }' )
+{"a": 1, "b": [2, 3], "d": 4}
+select json_merge( '{"a": 1, "b": 2 }', '{"b": [3, 4], "d": 4 }' );
+json_merge( '{"a": 1, "b": 2 }', '{"b": [3, 4], "d": 4 }' )
+{"a": 1, "b": [2, 3, 4], "d": 4}
+select json_merge( '{"a": 1, "b": [2, 3] }', '{"b": 4, "d": 4 }' );
+json_merge( '{"a": 1, "b": [2, 3] }', '{"b": 4, "d": 4 }' )
+{"a": 1, "b": [2, 3, 4], "d": 4}
+select json_merge( '{"a": 1, "b": 2 }', '{"b": {"e": 7, "f": 8}, "d": 4 }' );
+json_merge( '{"a": 1, "b": 2 }', '{"b": {"e": 7, "f": 8}, "d": 4 }' )
+{"a": 1, "b": [2, {"e": 7, "f": 8}], "d": 4}
+select json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{"a": 1, "b": 2 }' );
+json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{"a": 1, "b": 2 }' )
+{"b": [{"e": 7, "f": 8}, 2], "d": 4, "a": 1}
+select json_merge( '{"a": 1, "b": [2, 9] }', '{"b": [10, 11], "d": 4 }' );
+json_merge( '{"a": 1, "b": [2, 9] }', '{"b": [10, 11], "d": 4 }' )
+{"a": 1, "b": [2, 9, 10, 11], "d": 4}
+select json_merge( '{"a": 1, "b": [2, 9] }', '{"b": {"e": 7, "f": 8}, "d": 4 }' );
+json_merge( '{"a": 1, "b": [2, 9] }', '{"b": {"e": 7, "f": 8}, "d": 4 }' )
+{"a": 1, "b": [2, 9, {"e": 7, "f": 8}], "d": 4}
+select json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{"a": 1, "b": [2, 9] }' );
+json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{"a": 1, "b": [2, 9] }' )
+{"b": [{"e": 7, "f": 8}, 2, 9], "d": 4, "a": 1}
+select json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{ "a": 1, "b": {"e": 20, "g": 21 } }' );
+json_merge( '{"b": {"e": 7, "f": 8}, "d": 4 }', '{ "a": 1, "b": {"e": 20, "g": 21 } }' )
+{"b": {"e": [7, 20], "f": 8, "g": 21}, "d": 4, "a": 1}
+select json_merge( '1', '2', '3' );
+json_merge( '1', '2', '3' )
+[1, 2, 3]
+select json_merge( '[1, 2 ]', '3', '[4, 5]' );
+json_merge( '[1, 2 ]', '3', '[4, 5]' )
+[1, 2, 3, 4, 5]
+select json_merge
+(
+'{ "a": true, "b": { "c": 3, "d": 4 }, "e": [ 1, 2 ] }',
+'{ "d": false, "b": { "g": 3, "d": 5 }, "f": [ 1, 2 ] }',
+'{ "m": true, "b": { "h": 8, "d": 4 }, "e": [ 3, 4 ] }'
+);
+json_merge
+(
+'{ "a": true, "b": { "c": 3, "d": 4 }, "e": [ 1, 2 ] }',
+'{ "d": false, "b": { "g": 3, "d": 5 }, "f": [ 1, 2 ] }',
+'{ "m": true, "b": { "h": 8, "d": 4 }, "e": [ 3, 4 ] }'
+)
+{"a": true, "b": {"c": 3, "d": [4, 5, 4], "g": 3, "h": 8}, "e": [1, 2, 3, 4], "d": false, "f": [1, 2], "m": true}
+SELECT JSON_MERGE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'[ 5, 6]'
+);
+JSON_MERGE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'[ 5, 6]'
+)
+[{"a": "foo", "b": [true, {"c": 123}]}, 5, 6]
+SELECT JSON_MERGE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'{ "b": [ false, 34 ] }'
+);
+JSON_MERGE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'{ "b": [ false, 34 ] }'
+)
+{"a": "foo", "b": [true, {"c": 123}, false, 34]}
+SELECT JSON_MERGE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'{ "b": "bar" }'
+);
+JSON_MERGE
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'{ "b": "bar" }'
+)
+{"a": "foo", "b": [true, {"c": 123}, "bar"]}
+SELECT JSON_MERGE
+(
+'{ "a" : { "b" : 1 } }',
+'{ "a" : { "c" : 1 } }'
+);
+JSON_MERGE
+(
+'{ "a" : { "b" : 1 } }',
+'{ "a" : { "c" : 1 } }'
+)
+{"a": {"b": 1, "c": 1}}
+# ----------------------------------------------------------------------
+# Test of JSON_TYPE function.
+# ----------------------------------------------------------------------
+error ER_INVALID_JSON_TEXT_IN_PARAM
+select json_type('abc');
+json_type('abc')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_type' at position 1
+select json_type('{"a": 2}');
+json_type('{"a": 2}')
+OBJECT
+select json_type('[1,2]');
+json_type('[1,2]')
+ARRAY
+select json_type('"scalar string"');
+json_type('"scalar string"')
+STRING
+select json_type('true');
+json_type('true')
+BOOLEAN
+select json_type('false');
+json_type('false')
+BOOLEAN
+select json_type('null');
+json_type('null')
+NULL
+select json_type('1');
+json_type('1')
+INTEGER
+select json_type('-0');
+json_type('-0')
+INTEGER
+select json_type('-0.0');
+json_type('-0.0')
+DOUBLE
+error ER_INVALID_TYPE_FOR_JSON
+select json_type(-1);
+json_type(-1)
+INTEGER
+error ER_INVALID_TYPE_FOR_JSON
+select json_type(CAST(1 AS UNSIGNED));
+json_type(CAST(1 AS UNSIGNED))
+INTEGER
+select json_type('32767');
+json_type('32767')
+INTEGER
+error ER_INVALID_TYPE_FOR_JSON
+select json_type(PI());
+json_type(PI())
+DOUBLE
+select json_type('3.14');
+json_type('3.14')
+DOUBLE
+error ER_INVALID_JSON_TEXT_IN_PARAM
+select json_type(CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8'));
+json_type(CAST(CAST('2015-01-15' AS DATE) as CHAR CHARACTER SET 'utf8'))
+INTEGER
+# ----------------------------------------------------------------------
+# Test of json_compact(literal)
+# ----------------------------------------------------------------------
+select json_type(json_compact(cast('2014-11-25 18:00' as datetime)));
+json_type(json_compact(cast('2014-11-25 18:00' as datetime)))
+INTEGER
+select json_type(json_compact(cast('2014-11-25' as date)));
+json_type(json_compact(cast('2014-11-25' as date)))
+INTEGER
+select json_type(json_compact(cast('18:00:59' as time)));
+json_type(json_compact(cast('18:00:59' as time)))
+INTEGER
+select json_type(json_compact(127));
+json_type(json_compact(127))
+INTEGER
+select json_type(json_compact(255));
+json_type(json_compact(255))
+INTEGER
+select json_type(json_compact(32767));
+json_type(json_compact(32767))
+INTEGER
+select json_type(json_compact(65535));
+json_type(json_compact(65535))
+INTEGER
+select json_type(json_compact(8388607));
+json_type(json_compact(8388607))
+INTEGER
+select json_type(json_compact(16777215));
+json_type(json_compact(16777215))
+INTEGER
+select json_type(json_compact(2147483647));
+json_type(json_compact(2147483647))
+INTEGER
+select json_type(json_compact(4294967295));
+json_type(json_compact(4294967295))
+INTEGER
+select json_type(json_compact(9223372036854775807));
+json_type(json_compact(9223372036854775807))
+INTEGER
+select json_type(json_compact(18446744073709551615));
+json_type(json_compact(18446744073709551615))
+INTEGER
+select json_type(json_compact(true));
+json_type(json_compact(true))
+INTEGER
+select json_type(json_compact(b'10101'));
+json_type(json_compact(b'10101'))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_type' at position 1
+select json_type(json_compact(cast(3.14 as decimal(5,2))));
+json_type(json_compact(cast(3.14 as decimal(5,2))))
+DOUBLE
+select json_type(json_compact(3.14));
+json_type(json_compact(3.14))
+DOUBLE
+select json_type(json_compact(3.14E30));
+json_type(json_compact(3.14E30))
+DOUBLE
+select json_type(json_compact(cast('10101abcde' as binary)));
+json_type(json_compact(cast('10101abcde' as binary)))
+INTEGER
+select json_type(json_compact(ST_GeomFromText('POINT(1 1)')));
+json_type(json_compact(ST_GeomFromText('POINT(1 1)')))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_type' at position 1
+select json_type(json_compact(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)')));
+json_type(json_compact(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)')))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_type' at position 1
+select json_type(json_compact(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
+                                     (5 5,7 5,7 7,5 7, 5 5))')));
+json_type(json_compact(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
+                                     (5 5,7 5,7 7,5 7, 5 5))')))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_type' at position 1
+select json_type(json_compact(null));
+json_type(json_compact(null))
+NULL
+select json_type(json_compact(null)) is null;
+json_type(json_compact(null)) is null
+1
+select json_type(null) is null;
+json_type(null) is null
+1
+select json_compact(cast('2014-11-25 18:00' as datetime));
+json_compact(cast('2014-11-25 18:00' as datetime))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 5
+select json_compact(cast('2014-11-25' as date));
+json_compact(cast('2014-11-25' as date))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 5
+select json_compact(cast('18:00:59' as time));
+json_compact(cast('18:00:59' as time))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 3
+select json_compact(127);
+json_compact(127)
+127
+select json_compact(255);
+json_compact(255)
+255
+select json_compact(32767);
+json_compact(32767)
+32767
+select json_compact(65535);
+json_compact(65535)
+65535
+select json_compact(8388607);
+json_compact(8388607)
+8388607
+select json_compact(16777215);
+json_compact(16777215)
+16777215
+select json_compact(2147483647);
+json_compact(2147483647)
+2147483647
+select json_compact(4294967295);
+json_compact(4294967295)
+4294967295
+select json_compact(9223372036854775807);
+json_compact(9223372036854775807)
+9223372036854775807
+select json_compact(18446744073709551615);
+json_compact(18446744073709551615)
+18446744073709551615
+select json_compact(true);
+json_compact(true)
+1
+select json_compact(b'10101');
+json_compact(b'10101')
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
+select json_compact(cast(3.14 as decimal(5,2)));
+json_compact(cast(3.14 as decimal(5,2)))
+3.14
+select json_compact(3.14);
+json_compact(3.14)
+3.14
+select json_compact(3.14e0);
+json_compact(3.14e0)
+3.14
+select json_compact(cast('10101abcde' as binary));
+json_compact(cast('10101abcde' as binary))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 6
+select json_compact(ST_GeomFromText('POINT(1 1)'));
+json_compact(ST_GeomFromText('POINT(1 1)'))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
+select json_compact(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)'));
+json_compact(ST_GeomFromText('LINESTRING(0 0,1 1,2 2)'))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
+select json_compact(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
+                                     (5 5,7 5,7 7,5 7, 5 5))'));
+json_compact(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0),
+                                     (5 5,7 5,7 7,5 7, 5 5))'))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
+select json_compact(null);
+json_compact(null)
+NULL
+select json_compact(null) is null;
+json_compact(null) is null
+1
+# ----------------------------------------------------------------------
+# Test of JSON_KEYS function.
+# ----------------------------------------------------------------------
+select json_keys(NULL);
+json_keys(NULL)
+NULL
+select json_keys(NULL, '$.b');
+json_keys(NULL, '$.b')
+NULL
+select json_keys(NULL, NULL);
+json_keys(NULL, NULL)
+NULL
+select json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.a');
+json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.a')
+NULL
+select json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}', NULL);
+json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}', NULL)
+NULL
+select json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}');
+json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}')
+["a", "b"]
+select json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.b');
+json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.b')
+["e", "b"]
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.*.b');
+json_keys('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.*.b')
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_keys'
+# returns [ "a", "b" ]
+SELECT JSON_KEYS('{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }');
+JSON_KEYS('{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }')
+["a", "b"]
+# returns []
+SELECT JSON_KEYS('{ "a" : "foo", "b" : [ true, { "c" : {} } ] }',
+'$.b[1].c');
+JSON_KEYS('{ "a" : "foo", "b" : [ true, { "c" : {} } ] }',
+'$.b[1].c')
+[]
+# returns NULL
+SELECT JSON_KEYS('{ "a" : "foo", "b" : [ true, { "c" : {} } ] }',
+'$.a.b[2]');
+JSON_KEYS('{ "a" : "foo", "b" : [ true, { "c" : {} } ] }',
+'$.a.b[2]')
+NULL
+error ER_INVALID_JSON_PATH
+SELECT JSON_KEYS('{"a":1}', '1010');
+JSON_KEYS('{"a":1}', '1010')
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_keys' at position 1
+error ER_INVALID_JSON_PATH
+SELECT JSON_KEYS('{"a":1}', '1010') IS NULL;
+JSON_KEYS('{"a":1}', '1010') IS NULL
+1
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_keys' at position 1
+SELECT JSON_KEYS
+(
+'{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }'
+);
+JSON_KEYS
+(
+'{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }'
+)
+["a", "b"]
+SELECT JSON_KEYS
+(
+'{ "a" : "foo", "b" : [ true, { "c" : {} } ] }',
+'$.b[1].c'
+);
+JSON_KEYS
+(
+'{ "a" : "foo", "b" : [ true, { "c" : {} } ] }',
+'$.b[1].c'
+)
+[]
+SELECT JSON_KEYS
+(
+'{ "a" : "foo", "b" : [ true, { "c" : {} } ] }',
+'$.a.b[2]'
+);
+JSON_KEYS
+(
+'{ "a" : "foo", "b" : [ true, { "c" : {} } ] }',
+'$.a.b[2]'
+)
+NULL
+SELECT JSON_KEYS();
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_KEYS'
+SELECT JSON_KEYS('{}', '$', '$');
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_KEYS'
+# ----------------------------------------------------------------------
+# CAST(<json> AS CHAR). See also 'json_conversions.test' for other
+# conversion tests.
+# ----------------------------------------------------------------------
+select cast(json_keys('{"a": 1}') as char);
+cast(json_keys('{"a": 1}') as char)
+["a"]
+select cast(json_compact(1) as char);
+cast(json_compact(1) as char)
+1
+select cast(json_keys(NULL) as char);
+cast(json_keys(NULL) as char)
+NULL
+# ----------------------------------------------------------------------
+# Path matching with double-quotes
+# ----------------------------------------------------------------------
+select json_extract( '{ "one potato" : 1 }', '$."one potato"' );
+json_extract( '{ "one potato" : 1 }', '$."one potato"' )
+1
+select json_extract( '{ "a.b" : 1 }', '$."a.b"' );
+json_extract( '{ "a.b" : 1 }', '$."a.b"' )
+1
+select json_extract( '{ "\\"a\\"": 1}', '$."a"' );
+json_extract( '{ "\\"a\\"": 1}', '$."a"' )
+NULL
+select json_extract( '{ "\\"a\\"": 1}', '$."\\"a\\""' );
+json_extract( '{ "\\"a\\"": 1}', '$."\\"a\\""' )
+1
+select json_extract( '{ "a": 1}', '$."a"' );
+json_extract( '{ "a": 1}', '$."a"' )
+1
+select json_extract( '{ "a": 1}', '$.a' );
+json_extract( '{ "a": 1}', '$.a' )
+1
+select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[0]' );
+json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[0]' )
+[3, 2]
+select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[0][1]' );
+json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[0][1]' )
+2
+select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1]' );
+json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1]' )
+[{"c": "d"}, 1]
+select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1][0]' );
+json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1][0]' )
+{"c": "d"}
+select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1][0].c' );
+json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.a[1][0].c' )
+"d"
+select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."one potato"' );
+json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."one potato"' )
+7
+select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.b.c' );
+json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$.b.c' )
+6
+select json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."b.c"' );
+json_extract( '{ "a": [ [ 3, 2 ], [ { "c" : "d" }, 1 ] ], "b": { "c" : 6 }, "one potato": 7, "b.c" : 8 }', '$."b.c"' )
+8
+# ----------------------------------------------------------------------
+# Test of JSON_EXTRACT function.
+# ----------------------------------------------------------------------
+select json_extract(NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_extract'
+select json_extract('$.b');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_extract'
+select json_extract('{"a": 1, "b": {"e": "foo", "b": 3}}');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_extract'
+error ER_INVALID_JSON_TEXT_IN_PARAM
+select json_extract('$.a', '{"a": 1, "b": {"e": "foo", "b": 3}}');
+json_extract('$.a', '{"a": 1, "b": {"e": "foo", "b": 3}}')
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 2 to function 'json_extract' at position 1
+select json_extract(NULL, '$.b');
+json_extract(NULL, '$.b')
+NULL
+select json_extract(NULL, NULL);
+json_extract(NULL, NULL)
+NULL
+select json_extract('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.a');
+json_extract('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.a')
+1
+select json_extract('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.*');
+json_extract('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.*')
+[1, {"e": "foo", "b": 3}]
+select json_extract('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.a', '$.b.e');
+json_extract('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.a', '$.b.e')
+[1, "foo"]
+select json_extract('{"a": 1, "b": [1,2,3]}', '$.b[2]');
+json_extract('{"a": 1, "b": [1,2,3]}', '$.b[2]')
+3
+select json_extract('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.a', NULL);
+json_extract('{"a": 1, "b": {"e": "foo", "b": 3}}', '$.a', NULL)
+NULL
+# returns a JSON value containing just the string "123"
+SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }',
+'$.b[ 1 ].c');
+JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }',
+'$.b[ 1 ].c')
+"123"
+# returns a JSON value containing just the number 123
+SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c');
+JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c')
+123
+# raises an error because the document is not valid
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT JSON_EXTRACT('{ "a" : [ }',
+'$.b[ 1 ].c');
+JSON_EXTRACT('{ "a" : [ }',
+'$.b[ 1 ].c')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 11
+# raises an error because the path is invalid
+error ER_INVALID_JSON_PATH
+SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].');
+JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].')
+NULL
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 2 to function 'json_extract'
+# returns a JSON value containing the number 123 (because of
+# auto-wrapping the scalar)
+SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c[ 0 ]');
+JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c[ 0 ]')
+123
+# returns a JSON value containing the object because of auto-wrapping
+SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : {"not array": 4} } ] }',
+'$.b[ 1 ].c[ 0 ]');
+JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : {"not array": 4} } ] }',
+'$.b[ 1 ].c[ 0 ]')
+{"not array": 4}
+# returns null because the path, although valid, does not identify a value
+SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c[ 1 ]');
+JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c[ 1 ]')
+NULL
+# returns a JSON value containing the number 123 (due to normalization)
+SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.b[ 1 ].c');
+JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.b[ 1 ].c')
+123
+# returns a JSON array [ "foo", true ]
+SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.a', '$.b[0]');
+JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.a', '$.b[0]')
+["foo", true]
+# returns a JSON array [ true ]
+SELECT JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.d', '$.b[0]');
+JSON_EXTRACT('{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.d', '$.b[0]')
+[true]
+select json_extract( '[1]', '$[0][0]' );
+json_extract( '[1]', '$[0][0]' )
+1
+select json_extract( '[1]', '$**[0]' );
+json_extract( '[1]', '$**[0]' )
+[1]
+select json_extract( '{ "a": 1 }', '$.a[0]' );
+json_extract( '{ "a": 1 }', '$.a[0]' )
+1
+select json_extract( '{ "a": 1 }', '$**[0]' );
+json_extract( '{ "a": 1 }', '$**[0]' )
+[{"a": 1}, 1]
+select json_extract( '{ "a": 1 }', '$[0].a' );
+json_extract( '{ "a": 1 }', '$[0].a' )
+1
+select json_extract( '{ "a": 1 }', '$**.a' );
+json_extract( '{ "a": 1 }', '$**.a' )
+[1]
+select json_extract( '{ "a": 1 }', '$[0].a[0]' );
+json_extract( '{ "a": 1 }', '$[0].a[0]' )
+1
+select json_extract( '{ "a": 1 }', '$**[0]' );
+json_extract( '{ "a": 1 }', '$**[0]' )
+[{"a": 1}, 1]
+select json_extract( '{ "a": 1 }', '$[0].a' );
+json_extract( '{ "a": 1 }', '$[0].a' )
+1
+select json_extract( '{ "a": 1 }', '$**.a' );
+json_extract( '{ "a": 1 }', '$**.a' )
+[1]
+select json_extract( '{ "a": 1 }', '$[0][0].a' );
+json_extract( '{ "a": 1 }', '$[0][0].a' )
+1
+select json_extract( '{ "a": 1 }', '$[0][0][0].a' );
+json_extract( '{ "a": 1 }', '$[0][0][0].a' )
+1
+SELECT JSON_EXTRACT('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]', '$**.a.*');
+JSON_EXTRACT('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]', '$**.a.*')
+[{"c": 42}]
+SELECT JSON_EXTRACT('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]',
+'$[1][0][0].x[0].a.*');
+JSON_EXTRACT('[1, [[{"x": [{"a":{"b":{"c":42}}}]}]]]',
+'$[1][0][0].x[0].a.*')
+[{"c": 42}]
+SELECT JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }',
+'$.b[ 1 ].c'
+);
+JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : "123" } ] }',
+'$.b[ 1 ].c'
+)
+"123"
+SELECT JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c'
+);
+JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c'
+)
+123
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT JSON_EXTRACT
+(
+'{ "a" : [ }',
+'$.b[ 1 ].c'
+);
+JSON_EXTRACT
+(
+'{ "a" : [ }',
+'$.b[ 1 ].c'
+)
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 11
+error ER_INVALID_JSON_PATH
+SELECT JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].'
+);
+JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].'
+)
+NULL
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 2 to function 'json_extract'
+SELECT JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c[ 0 ]'
+);
+JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c[ 0 ]'
+)
+123
+SELECT JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c[ 1 ]'
+);
+JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123 } ] }',
+'$.b[ 1 ].c[ 1 ]'
+)
+NULL
+SELECT JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.b[ 1 ].c'
+);
+JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.b[ 1 ].c'
+)
+123
+SELECT JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.a', '$.b[0]'
+);
+JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.a', '$.b[0]'
+)
+["foo", true]
+SELECT JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.d', '$.b[0]'
+);
+JSON_EXTRACT
+(
+'{ "a" : "foo", "b" : [ true, { "c" : 123, "c" : 456 } ] }',
+'$.d', '$.b[0]'
+)
+[true]
+select json_extract( '[ { "a": 1 }, { "a": 2 } ]', '$[*].b' ) jdoc;
+jdoc
+NULL
+select json_extract( '[ { "a": 1 }, { "a": 2 } ]', '$[0].b' ) jdoc;
+jdoc
+NULL
+select json_extract( '[ { "a": 1 }, { "a": 2 } ]', '$[0].a' ) jdoc;
+jdoc
+1
+select json_extract( '[ { "a": 1 }, { "a": 2 } ]', '$[*].a' ) jdoc;
+jdoc
+[1, 2]
+select json_extract( '[ { "a": 1 }, { "b": 2 } ]', '$[*].a' ) jdoc;
+jdoc
+[1]
+select json_extract( '[ { "a": [3,4] }, { "b": 2 } ]', '$[0].a' ) jdoc;
+jdoc
+[3, 4]
+select json_extract( '[ { "a": [3,4] }, { "b": 2 } ]', '$[*].a' ) jdoc;
+jdoc
+[[3, 4]]
+select json_extract( '[ { "a": [3,4] }, { "b": 2 } ]', '$[0].a', '$[1].a' ) jdoc;
+jdoc
+[[3, 4]]
+# ----------------------------------------------------------------------
+# Test of JSON_ARRAY_APPEND function.
+# ----------------------------------------------------------------------
+select json_array_append(NULL, '$.b', json_compact(1));
+json_array_append(NULL, '$.b', json_compact(1))
+NULL
+select json_array_append('[1,2,3]', NULL, json_compact(1));
+json_array_append('[1,2,3]', NULL, json_compact(1))
+NULL
+select json_array_append('[1,2,3]', '$', NULL);
+json_array_append('[1,2,3]', '$', NULL)
+[1, 2, 3, null]
+select json_array_append(NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_array_append'
+select json_array_append(NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_array_append'
+select json_array_append(NULL, NULL, NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_array_append'
+SELECT JSON_ARRAY_APPEND(json_compact('1'), '$', 3);
+JSON_ARRAY_APPEND(json_compact('1'), '$', 3)
+[1, 3]
+SELECT JSON_ARRAY_APPEND(json_compact('{"a": 3}'), '$', 3);
+JSON_ARRAY_APPEND(json_compact('{"a": 3}'), '$', 3)
+[{"a": 3}, 3]
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_array_append(json_compact('{"a": {"b": [3]}}'), '$**[0]', 6);
+json_array_append(json_compact('{"a": {"b": [3]}}'), '$**[0]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_array_append'
+# Auto-wrapping, since because the paths identify scalars.
+# should return {"a": "foo", "b": ["bar", 4], "c": ["wibble", "grape"]}
+SELECT JSON_ARRAY_APPEND('{"a": "foo", "b": "bar", "c": "wibble"}',
+'$.b', json_compact(4),
+'$.c', json_compact('"grape"'));
+JSON_ARRAY_APPEND('{"a": "foo", "b": "bar", "c": "wibble"}',
+'$.b', json_compact(4),
+'$.c', json_compact('"grape"'))
+{"a": "foo", "b": ["bar", 4], "c": ["wibble", "grape"]}
+# should return {"a": "foo", "b": [1, 2, 3, 4],
+#                "c": ["apple", "pear", "grape"]}
+SELECT JSON_ARRAY_APPEND('{"a" : "foo","b": [1, 2, 3], "c": ["apple", "pear"]}',
+'$.b', json_compact(4),
+'$.c', json_compact('"grape"'));
+JSON_ARRAY_APPEND('{"a" : "foo","b": [1, 2, 3], "c": ["apple", "pear"]}',
+'$.b', json_compact(4),
+'$.c', json_compact('"grape"'))
+{"a": "foo", "b": [1, 2, 3, 4], "c": ["apple", "pear", "grape"]}
+SELECT JSON_ARRAY_APPEND('{"a" : "foo","b": [1, 2, 3], "c": ["apple", "pear"]}',
+'$.b', 4,
+'$.c', 'grape');
+JSON_ARRAY_APPEND('{"a" : "foo","b": [1, 2, 3], "c": ["apple", "pear"]}',
+'$.b', 4,
+'$.c', 'grape')
+{"a": "foo", "b": [1, 2, 3, 4], "c": ["apple", "pear", "grape"]}
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_array_append( '[[], [], []]', '$[*]', 3, '$[*]', 4);
+json_array_append( '[[], [], []]', '$[*]', 3, '$[*]', 4)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_array_append'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_array_append( '[[], "not array", []]', '$[*]', 3, '$[*]', 4);
+json_array_append( '[[], "not array", []]', '$[*]', 3, '$[*]', 4)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_array_append'
+SELECT JSON_ARRAY_APPEND
+(
+'{ "a" : "foo", "b" : "bar", "c" : "wibble" }',
+'$.b', 4,
+'$.c', "grape"
+);
+JSON_ARRAY_APPEND
+(
+'{ "a" : "foo", "b" : "bar", "c" : "wibble" }',
+'$.b', 4,
+'$.c', "grape"
+)
+{"a": "foo", "b": ["bar", 4], "c": ["wibble", "grape"]}
+SELECT JSON_ARRAY_APPEND
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ], "c" : [ "apple", "pear" ] }',
+'$.b', 4,
+'$.c', "grape"
+);
+JSON_ARRAY_APPEND
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ], "c" : [ "apple", "pear" ] }',
+'$.b', 4,
+'$.c', "grape"
+)
+{"a": "foo", "b": [1, 2, 3, 4], "c": ["apple", "pear", "grape"]}
+# ----------------------------------------------------------------------
+# Bug#21373874 ASSERTION `PARENT' FAILED
+# ----------------------------------------------------------------------
+select json_array_append('{"a":1}', '$[0]', 100);
+json_array_append('{"a":1}', '$[0]', 100)
+[{"a": 1}, 100]
+select json_array_append('3', '$[0]', 100);
+json_array_append('3', '$[0]', 100)
+[3, 100]
+select json_array_append('3', '$[0][0][0][0]', 100);
+json_array_append('3', '$[0][0][0][0]', 100)
+[3, 100]
+# ----------------------------------------------------------------------
+# Test of JSON_INSERT function.
+# ----------------------------------------------------------------------
+select json_insert(NULL, '$.b', json_compact(1));
+json_insert(NULL, '$.b', json_compact(1))
+NULL
+select json_insert('[1,2,3]', NULL, json_compact(1));
+json_insert('[1,2,3]', NULL, json_compact(1))
+NULL
+select json_insert('[1,2,3]', '$[3]', NULL);
+json_insert('[1,2,3]', '$[3]', NULL)
+[1, 2, 3, null]
+select json_insert(NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_insert'
+select json_insert(NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_insert'
+select json_insert(NULL, NULL, NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_insert'
+select json_insert('[1,2,3]', '$[2]', 4);
+json_insert('[1,2,3]', '$[2]', 4)
+[1, 2, 3]
+select json_insert('[1,2,3]', '$[3]', 4);
+json_insert('[1,2,3]', '$[3]', 4)
+[1, 2, 3, 4]
+select json_insert('[1,2,3]', '$[10]', 4);
+json_insert('[1,2,3]', '$[10]', 4)
+[1, 2, 3, 4]
+select json_insert('{"c":4}', '$.c', 4);
+json_insert('{"c":4}', '$.c', 4)
+{"c": 4}
+select json_insert('{"c":4}', '$.a', 4);
+json_insert('{"c":4}', '$.a', 4)
+{"c": 4, "a": 4}
+select json_insert('1', '$', 4);
+json_insert('1', '$', 4)
+1
+select json_insert('1', '$[0]', 4);
+json_insert('1', '$[0]', 4)
+1
+select json_insert('1', '$[1]', 4);
+json_insert('1', '$[1]', 4)
+[1, 4]
+select json_insert('1', '$[10]', '4', '$[11]', 5);
+json_insert('1', '$[10]', '4', '$[11]', 5)
+[1, "4", 5]
+select json_insert('[1,2,3]', '$[2][0]', 4);
+json_insert('[1,2,3]', '$[2][0]', 4)
+[1, 2, 3]
+select json_insert('[1,2,3]', '$[2][2]', 4);
+json_insert('[1,2,3]', '$[2][2]', 4)
+[1, 2, [3, 4]]
+select json_insert('{"a": 3}', '$.a[0]', 4);
+json_insert('{"a": 3}', '$.a[0]', 4)
+{"a": 3}
+select json_insert('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5');
+json_insert('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5')
+{"a": [3, 4, "5"]}
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('{"a": [1], "b": 2}'), '$.*[1]', 6);
+json_insert(json_compact('{"a": [1], "b": 2}'), '$.*[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('{"a": 1, "b": 2}'), '$.*[1]', 6);
+json_insert(json_compact('{"a": 1, "b": 2}'), '$.*[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('{"a": {"b": 3}}'),   '$.a.*[1]', 6);
+json_insert(json_compact('{"a": {"b": 3}}'),   '$.a.*[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('{"a": {"b": [3]}}'), '$.a.*[1]', 6);
+json_insert(json_compact('{"a": {"b": [3]}}'), '$.a.*[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('{"a": {"b": 3}}'),   '$**[1]', 6);
+json_insert(json_compact('{"a": {"b": 3}}'),   '$**[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6);
+json_insert(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('[1]'), '$[*][1]', 6);
+json_insert(json_compact('[1]'), '$[*][1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('[1]'), '$**[1]', 6);
+json_insert(json_compact('[1]'), '$**[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('[1, [2], 3]'), '$[*][1]', 6);
+json_insert(json_compact('[1, [2], 3]'), '$[*][1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('[1, [2], 3]'), '$**[1]', 6);
+json_insert(json_compact('[1, [2], 3]'), '$**[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('[[1]]'), '$[*][1]', 6);
+json_insert(json_compact('[[1]]'), '$[*][1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert(json_compact('[[1]]'), '$**[1]', 6);
+json_insert(json_compact('[[1]]'), '$**[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+select json_insert(json_compact('{"a": 3}'), '$[1]', 6);
+json_insert(json_compact('{"a": 3}'), '$[1]', 6)
+[{"a": 3}, 6]
+SELECT JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.a', true);
+JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.a', true)
+{"a": "foo", "b": [1, 2, 3]}
+SELECT JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.c', 123);
+JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.c', 123)
+{"a": "foo", "b": [1, 2, 3], "c": 123}
+SELECT JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.c', '123');
+JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.c', '123')
+{"a": "foo", "b": [1, 2, 3], "c": "123"}
+SELECT JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.a[1]', true);
+JSON_INSERT('{ "a" : "foo", "b" : [ 1, 2, 3 ] }', '$.a[1]', true)
+{"a": ["foo", true], "b": [1, 2, 3]}
+SELECT JSON_INSERT('{ "a" : "foo"}', '$.b', true, '$.b', false);
+JSON_INSERT('{ "a" : "foo"}', '$.b', true, '$.b', false)
+{"a": "foo", "b": true}
+SELECT JSON_INSERT
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a',
+true
+);
+JSON_INSERT
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a',
+true
+)
+{"a": "foo", "b": [1, 2, 3]}
+SELECT JSON_INSERT
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+123
+);
+JSON_INSERT
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+123
+)
+{"a": "foo", "b": [1, 2, 3], "c": 123}
+SELECT JSON_INSERT
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+'123'
+);
+JSON_INSERT
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+'123'
+)
+{"a": "foo", "b": [1, 2, 3], "c": "123"}
+SELECT JSON_INSERT
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a[1]',
+true
+);
+JSON_INSERT
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a[1]',
+true
+)
+{"a": ["foo", true], "b": [1, 2, 3]}
+SELECT JSON_INSERT
+(
+'{ "a" : "foo"}',
+'$.b', true,
+'$.b', false
+);
+JSON_INSERT
+(
+'{ "a" : "foo"}',
+'$.b', true,
+'$.b', false
+)
+{"a": "foo", "b": true}
+# ----------------------------------------------------------------------
+# Test of JSON_ARRAY_INSERT function.
+# ----------------------------------------------------------------------
+select json_array_insert(NULL, '$.b[1]', 1);
+json_array_insert(NULL, '$.b[1]', 1)
+NULL
+select json_array_insert('[1,2,3]', NULL, 1);
+json_array_insert('[1,2,3]', NULL, 1)
+NULL
+select json_array_insert('[1,2,3]', '$[3]', NULL);
+json_array_insert('[1,2,3]', '$[3]', NULL)
+[1, 2, 3, null]
+select json_array_insert(NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_array_insert'
+select json_array_insert(NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_array_insert'
+select json_array_insert(NULL, NULL, NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_array_insert'
+error ER_INVALID_JSON_PATH_ARRAY_CELL
+select json_array_insert('true', '$', 1);
+json_array_insert('true', '$', 1)
+NULL
+error ER_INVALID_JSON_PATH_ARRAY_CELL
+select json_array_insert('true', '$.a', 1);
+json_array_insert('true', '$.a', 1)
+NULL
+error ER_INVALID_JSON_PATH_ARRAY_CELL
+select json_array_insert('true', '$.a[1].b', 1);
+json_array_insert('true', '$.a[1].b', 1)
+NULL
+select json_array_insert( 'true', '$[0]', false );
+json_array_insert( 'true', '$[0]', false )
+true
+select json_array_insert( 'true', '$[1]', false );
+json_array_insert( 'true', '$[1]', false )
+true
+select json_array_insert( '{ "a": true }', '$.a[0]', false );
+json_array_insert( '{ "a": true }', '$.a[0]', false )
+{"a": true}
+select json_array_insert( '{ "a": true }', '$.a[1]', false );
+json_array_insert( '{ "a": true }', '$.a[1]', false )
+{"a": true}
+select json_array_insert( '[]', '$[0]', false );
+json_array_insert( '[]', '$[0]', false )
+[false]
+select json_array_insert( '[]', '$[1]', false );
+json_array_insert( '[]', '$[1]', false )
+[false]
+select json_array_insert( '[true]', '$[0]', false );
+json_array_insert( '[true]', '$[0]', false )
+[false, true]
+select json_array_insert( '[true]', '$[1]', false );
+json_array_insert( '[true]', '$[1]', false )
+[true, false]
+select json_array_insert( '[true]', '$[2]', false );
+json_array_insert( '[true]', '$[2]', false )
+[true, false]
+select json_array_insert( '{ "a": [] }', '$.a[0]', false );
+json_array_insert( '{ "a": [] }', '$.a[0]', false )
+{"a": [false]}
+select json_array_insert( '{ "a": [] }', '$.a[1]', false );
+json_array_insert( '{ "a": [] }', '$.a[1]', false )
+{"a": [false]}
+select json_array_insert( '{ "a": [true] }', '$.a[0]', false );
+json_array_insert( '{ "a": [true] }', '$.a[0]', false )
+{"a": [false, true]}
+select json_array_insert( '{ "a": [true] }', '$.a[1]', false );
+json_array_insert( '{ "a": [true] }', '$.a[1]', false )
+{"a": [true, false]}
+select json_array_insert( '{ "a": [true] }', '$.a[2]', false );
+json_array_insert( '{ "a": [true] }', '$.a[2]', false )
+{"a": [true, false]}
+select json_array_insert( '[1, 2, 3, 4]', '$[0]', false );
+json_array_insert( '[1, 2, 3, 4]', '$[0]', false )
+[false, 1, 2, 3, 4]
+select json_array_insert( '[1, 2, 3, 4]', '$[1]', false );
+json_array_insert( '[1, 2, 3, 4]', '$[1]', false )
+[1, false, 2, 3, 4]
+select json_array_insert( '[1, 2, 3, 4]', '$[2]', false );
+json_array_insert( '[1, 2, 3, 4]', '$[2]', false )
+[1, 2, false, 3, 4]
+select json_array_insert( '[1, 2, 3, 4]', '$[3]', false );
+json_array_insert( '[1, 2, 3, 4]', '$[3]', false )
+[1, 2, 3, false, 4]
+select json_array_insert( '[1, 2, 3, 4]', '$[4]', false );
+json_array_insert( '[1, 2, 3, 4]', '$[4]', false )
+[1, 2, 3, 4, false]
+select json_array_insert( '[1, 2, 3, 4]', '$[5]', false );
+json_array_insert( '[1, 2, 3, 4]', '$[5]', false )
+[1, 2, 3, 4, false]
+select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[0]', false );
+json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[0]', false )
+{"a": [false, 1, 2, 3, 4]}
+select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[1]', false );
+json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[1]', false )
+{"a": [1, false, 2, 3, 4]}
+select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[2]', false );
+json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[2]', false )
+{"a": [1, 2, false, 3, 4]}
+select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[3]', false );
+json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[3]', false )
+{"a": [1, 2, 3, false, 4]}
+select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[4]', false );
+json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[4]', false )
+{"a": [1, 2, 3, 4, false]}
+select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[5]', false );
+json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[5]', false )
+{"a": [1, 2, 3, 4, false]}
+select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.b[0]', false );
+json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.b[0]', false )
+{"a": [1, 2, 3, 4]}
+select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.b[1]', false );
+json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.b[1]', false )
+{"a": [1, 2, 3, 4]}
+select json_array_insert( '"a"', '$[0]', true );
+json_array_insert( '"a"', '$[0]', true )
+"a"
+select json_array_insert( '[ "a" ]', '$[0][0]', true );
+json_array_insert( '[ "a" ]', '$[0][0]', true )
+["a"]
+select json_array_insert( '"a"', '$[1]', true );
+json_array_insert( '"a"', '$[1]', true )
+"a"
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert('[]', '$.a.*[1]', 6);
+json_insert('[]', '$.a.*[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert('[]', '$**[1]', 6);
+json_insert('[]', '$**[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_insert('[]', '$[*][1]', 6);
+json_insert('[]', '$[*][1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_insert'
+select json_array_insert( '[ 1, 2, 3 ]', '$[1]', true, '$[1]', false );
+json_array_insert( '[ 1, 2, 3 ]', '$[1]', true, '$[1]', false )
+[1, false, true, 2, 3]
+select json_array_insert( '[ 1, 2, 3 ]', '$[1]',
+json_compact( '[ "a", "b", "c", "d" ]'), '$[1][2]', false );
+json_array_insert( '[ 1, 2, 3 ]', '$[1]',
+json_compact( '[ "a", "b", "c", "d" ]'), '$[1][2]', false )
+[1, ["a", "b", false, "c", "d"], 2, 3]
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT JSON_ARRAY_INSERT(JSON_EXTRACT('[1', '$'), '$[0]', 1);
+JSON_ARRAY_INSERT(JSON_EXTRACT('[1', '$'), '$[0]', 1)
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+error ER_INVALID_JSON_TEXT_IN_PARAM
+select json_array_insert( '[ 1, 2, 3 ]', '$[1]', json_extract( '[', '$' ) );
+json_array_insert( '[ 1, 2, 3 ]', '$[1]', json_extract( '[', '$' ) )
+[1, null, 2, 3]
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+# ----------------------------------------------------------------------
+# Test of JSON_SET function.
+# ----------------------------------------------------------------------
+select json_set(NULL, '$.b', json_compact(1));
+json_set(NULL, '$.b', json_compact(1))
+NULL
+select json_set('[1,2,3]', NULL, json_compact(1));
+json_set('[1,2,3]', NULL, json_compact(1))
+NULL
+select json_set('[1,2,3]', '$[3]', NULL);
+json_set('[1,2,3]', '$[3]', NULL)
+[1, 2, 3, null]
+select json_set(NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_set'
+select json_set(NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_set'
+select json_set(NULL, NULL, NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_set'
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT JSON_SET('{}', '$.name', JSON_EXTRACT('', '$'));
+JSON_SET('{}', '$.name', JSON_EXTRACT('', '$'))
+{"name": null}
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+select json_set('[1,2,3]', '$[2]', 4);
+json_set('[1,2,3]', '$[2]', 4)
+[1, 2, 4]
+select json_set('[1,2,3]', '$[3]', 4);
+json_set('[1,2,3]', '$[3]', 4)
+[1, 2, 3, 4]
+select json_set('[1,2,3]', '$[10]', 4);
+json_set('[1,2,3]', '$[10]', 4)
+[1, 2, 3, 4]
+select json_set('{"c":4}', '$.c', 5);
+json_set('{"c":4}', '$.c', 5)
+{"c": 5}
+select json_set('{"c":4}', '$.a', 5);
+json_set('{"c":4}', '$.a', 5)
+{"c": 4, "a": 5}
+select json_set('1', '$', 4);
+json_set('1', '$', 4)
+4
+select json_set('1', '$[0]', 4);
+json_set('1', '$[0]', 4)
+4
+select json_set('1', '$[1]', 4);
+json_set('1', '$[1]', 4)
+[1, 4]
+select json_set('1', '$[10]', '4', '$[11]', 5);
+json_set('1', '$[10]', '4', '$[11]', 5)
+[1, "4", 5]
+select json_set('[1,2,3]', '$[2][0]', 4);
+json_set('[1,2,3]', '$[2][0]', 4)
+[1, 2, 4]
+select json_set('[1,2,3]', '$[2][2]', 4);
+json_set('[1,2,3]', '$[2][2]', 4)
+[1, 2, [3, 4]]
+select json_set('{"a": 3}', '$.a[0]', 4);
+json_set('{"a": 3}', '$.a[0]', 4)
+{"a": 4}
+select json_set('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5');
+json_set('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5')
+{"a": [3, 4, "5"]}
+error ER_INVALID_JSON_PATH_WILDCARD
+select json_set(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6);
+json_set(json_compact('{"a": {"b": [3]}}'), '$**[1]', 6)
+NULL
+Warnings:
+Warning	4044	Wildcards in JSON path not allowed in argument 2 to function 'json_set'
+SELECT JSON_SET('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a',
+JSON_OBJECT());
+JSON_SET('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a',
+JSON_OBJECT())
+{"a": {}, "b": [1, 2, 3]}
+SELECT JSON_SET('{ "a" : "foo"}', '$.a',
+JSON_OBJECT( 'b', false ), '$.a.c', true);
+JSON_SET('{ "a" : "foo"}', '$.a',
+JSON_OBJECT( 'b', false ), '$.a.c', true)
+{"a": {"b": false, "c": true}}
+select json_set('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a',
+json_compact('{}'));
+json_set('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a',
+json_compact('{}'))
+{"a": {}, "b": [1, 2, 3]}
+select json_set('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+json_compact('[true, false]'));
+json_set('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+json_compact('[true, false]'))
+{"a": "foo", "b": [1, 2, 3], "c": [true, false]}
+select json_set('1', '$[3]', 2);
+json_set('1', '$[3]', 2)
+[1, 2]
+select json_set('{ "a" : "foo"}', '$.a',
+json_compact('{"b": false}'), '$.a.c', true);
+json_set('{ "a" : "foo"}', '$.a',
+json_compact('{"b": false}'), '$.a.c', true)
+{"a": {"b": false, "c": true}}
+SELECT JSON_SET
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a',
+JSON_OBJECT()
+);
+JSON_SET
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a',
+JSON_OBJECT()
+)
+{"a": {}, "b": [1, 2, 3]}
+SELECT JSON_SET
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+JSON_ARRAY( true, false )
+);
+JSON_SET
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+JSON_ARRAY( true, false )
+)
+{"a": "foo", "b": [1, 2, 3], "c": [true, false]}
+SELECT JSON_SET
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+JSON_ARRAY( json_compact( 'true'), json_compact( 'false') )
+);
+JSON_SET
+(
+'{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+JSON_ARRAY( json_compact( 'true'), json_compact( 'false') )
+)
+{"a": "foo", "b": [1, 2, 3], "c": [true, false]}
+SELECT JSON_SET
+(
+'1',
+'$[3]',
+2
+);
+JSON_SET
+(
+'1',
+'$[3]',
+2
+)
+[1, 2]
+SELECT JSON_SET
+(
+'{ "a" : "foo"}',
+'$.a', JSON_OBJECT( 'b', false ),
+'$.a.c', true
+);
+JSON_SET
+(
+'{ "a" : "foo"}',
+'$.a', JSON_OBJECT( 'b', false ),
+'$.a.c', true
+)
+{"a": {"b": false, "c": true}}
+# ----------------------------------------------------------------------
+# Test of JSON_REPLACE function.
+# ----------------------------------------------------------------------
+select json_replace(NULL, '$.b', json_compact(1));
+json_replace(NULL, '$.b', json_compact(1))
+NULL
+select json_replace('[1,2,3]', NULL, json_compact(1));
+json_replace('[1,2,3]', NULL, json_compact(1))
+NULL
+select json_replace('[1,2,3]', '$[2]', NULL);
+json_replace('[1,2,3]', '$[2]', NULL)
+[1, 2, null]
+select json_replace(NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_replace'
+select json_replace(NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_replace'
+select json_replace(NULL, NULL, NULL, NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_replace'
+select json_replace('[1,2,3]', '$[2]', 4);
+json_replace('[1,2,3]', '$[2]', 4)
+[1, 2, 4]
+select json_replace('[1,2,3]', '$[3]', 4);
+json_replace('[1,2,3]', '$[3]', 4)
+[1, 2, 3]
+select json_replace('[1,2,3]', '$[10]', 4);
+json_replace('[1,2,3]', '$[10]', 4)
+[1, 2, 3]
+select json_replace('{"c":4}', '$.c', 5);
+json_replace('{"c":4}', '$.c', 5)
+{"c": 5}
+select json_replace('{"c":4}', '$.a', 5);
+json_replace('{"c":4}', '$.a', 5)
+{"c": 4}
+select json_replace('1', '$', 4);
+json_replace('1', '$', 4)
+4
+select json_replace('1', '$[0]', 4);
+json_replace('1', '$[0]', 4)
+4
+select json_replace('1', '$[1]', 4);
+json_replace('1', '$[1]', 4)
+1
+select json_replace('1', '$[10]', '4', '$[11]', 5);
+json_replace('1', '$[10]', '4', '$[11]', 5)
+1
+select json_replace('[1,2,3]', '$[2][0]', 4);
+json_replace('[1,2,3]', '$[2][0]', 4)
+[1, 2, 4]
+select json_replace('[1,2,3]', '$[2][2]', 4);
+json_replace('[1,2,3]', '$[2][2]', 4)
+[1, 2, 3]
+select json_replace('{"a": 3}', '$.a[0]', 4);
+json_replace('{"a": 3}', '$.a[0]', 4)
+{"a": 4}
+select json_replace('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5');
+json_replace('{"a": 3}', '$.a[1]', 4, '$.a[2]', '5')
+{"a": 3}
+SELECT JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+true);
+JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.c',
+true)
+{"a": "foo", "b": [1, 2, 3]}
+SELECT JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a[0]',
+true);
+JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.a[0]',
+true)
+{"a": true, "b": [1, 2, 3]}
+SELECT JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.b[5]',
+true);
+JSON_REPLACE('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
+'$.b[5]',
+true)
+{"a": "foo", "b": [1, 2, 3]}
+# ----------------------------------------------------------------------
+# Test of JSON_ARRAY function.
+# ----------------------------------------------------------------------
+select json_array(NULL, '$.b', json_compact(1));
+json_array(NULL, '$.b', json_compact(1))
+[null, "$.b", 1]
+select json_array('[1,2,3]', NULL, json_compact(1));
+json_array('[1,2,3]', NULL, json_compact(1))
+["[1,2,3]", null, 1]
+select json_array('[1,2,3]', '$[3]', NULL);
+json_array('[1,2,3]', '$[3]', NULL)
+["[1,2,3]", "$[3]", null]
+select json_array();
+json_array()
+[]
+select json_array(3.14);
+json_array(3.14)
+[3.14]
+select json_array('[1,2,3]');
+json_array('[1,2,3]')
+["[1,2,3]"]
+select json_array(json_compact('[1,2,3]'));
+json_array(json_compact('[1,2,3]'))
+[[1,2,3]]
+select json_array(1,2,3);
+json_array(1,2,3)
+[1, 2, 3]
+select json_array(b'0', b'1', b'10');
+json_array(b'0', b'1', b'10')
+["\u0000", "\u0001", "\u0002"]
+SELECT JSON_ARRAY();
+JSON_ARRAY()
+[]
+# ----------------------------------------------------------------------
+# Test of JSON_OBJECT function.
+# ----------------------------------------------------------------------
+select json_object( 'a' );
+ERROR 42000: Incorrect parameter count in the call to native function 'json_object'
+select json_object( 'a', 1, 'b' );
+ERROR 42000: Incorrect parameter count in the call to native function 'json_object'
+error ER_JSON_DOCUMENT_NULL_KEY
+select json_object( null, 1 );
+json_object( null, 1 )
+{"": 1}
+select json_object();
+json_object()
+{}
+select json_object( 'a', null );
+json_object( 'a', null )
+{"a": null}
+select json_object( 'a', 1 );
+json_object( 'a', 1 )
+{"a": 1}
+select json_object( 'a', 1, 'b', 'foo' );
+json_object( 'a', 1, 'b', 'foo' )
+{"a": 1, "b": "foo"}
+select json_object( 'a', 1, 'b', 'foo', 'c', json_compact( '{ "d": "wibble" }') );
+json_object( 'a', 1, 'b', 'foo', 'c', json_compact( '{ "d": "wibble" }') )
+{"a": 1, "b": "foo", "c": { "d": "wibble" }}
+select json_object( 'a', true, 'b', false, 'c', json_compact( 'null') );
+json_object( 'a', true, 'b', false, 'c', json_compact( 'null') )
+{"a": true, "b": false, "c": null}
+select json_valid( json_object( '"a"', 1 ) );
+json_valid( json_object( '"a"', 1 ) )
+1
+select json_object( REPEAT('a', 64 * 1024), 1 );
+json_object( REPEAT('a', 64 * 1024), 1 )
+{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": 1}
+select json_object(json_array(), json_array());
+json_object(json_array(), json_array())
+{"[]": []}
+select json_object( cast(json_array() as char), json_array());
+json_object( cast(json_array() as char), json_array())
+{"[]": []}
+select json_object( 1, json_array());
+json_object( 1, json_array())
+{"1": []}
+select json_object( cast(1 as char), json_array());
+json_object( cast(1 as char), json_array())
+{"1": []}
+SELECT JSON_OBJECT();
+JSON_OBJECT()
+{}
+# ----------------------------------------------------------------------
+# Test of JSON_SEARCH function.
+# ----------------------------------------------------------------------
+select json_search();
+ERROR 42000: Incorrect parameter count in the call to native function 'json_search'
+select json_search( '{ "a": true }' );
+ERROR 42000: Incorrect parameter count in the call to native function 'json_search'
+select json_search( '{ "a": true }', 'one' );
+ERROR 42000: Incorrect parameter count in the call to native function 'json_search'
+select json_search( null, 'one', 'foo' );
+json_search( null, 'one', 'foo' )
+NULL
+select json_search( '{ "a": "foo" }', null, 'foo' );
+json_search( '{ "a": "foo" }', null, 'foo' )
+NULL
+select json_search( '{ "a": "foo" }', 'one', 'foo', null, null );
+json_search( '{ "a": "foo" }', 'one', 'foo', null, null )
+NULL
+select json_search( '{ "a": "foo" }', 'one', 'foo', null, '$.a', null );
+json_search( '{ "a": "foo" }', 'one', 'foo', null, '$.a', null )
+NULL
+error ER_JSON_BAD_ONE_OR_ALL_ARG
+select json_search( '{ "a": "foo" }', 'twof', 'foo' );
+json_search( '{ "a": "foo" }', 'twof', 'foo' )
+NULL
+Warnings:
+Warning	4046	Argument 2 to function 'json_search' must be "one" or "all".
+error ER_JSON_BAD_ONE_OR_ALL_ARG
+select json_search( '{ "a": "foo" }', 'two', 'foo' );
+json_search( '{ "a": "foo" }', 'two', 'foo' )
+NULL
+Warnings:
+Warning	4046	Argument 2 to function 'json_search' must be "one" or "all".
+select json_search( '{ "a": "foo" }', 'one', 'foo', 'ab' );
+ERROR HY000: Incorrect arguments to ESCAPE
+error ER_INVALID_JSON_PATH
+select json_search( '{ "a": "foo" }', 'one', 'foo', null, '$a' );
+json_search( '{ "a": "foo" }', 'one', 'foo', null, '$a' )
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 5 to function 'json_search' at position 2
+error ER_INVALID_JSON_PATH
+select json_search( '{ "a": "foo" }', 'all', 'foo', null, '$.a', '$b' );
+json_search( '{ "a": "foo" }', 'all', 'foo', null, '$.a', '$b' )
+NULL
+Warnings:
+Warning	4042	Syntax error in JSON path in argument 6 to function 'json_search' at position 2
+select json_search(a, b, c);
+ERROR 42S22: Unknown column 'a' in 'field list'
+select json_search( '{ "a": "foobar" }', 'one', 'foo%' );
+json_search( '{ "a": "foobar" }', 'one', 'foo%' )
+"$.a"
+select json_search( '{ "a": "foobar", "b": "focus", "c": [ "arm", "foot", "shoulder" ] }', 'one', 'foo%' );
+json_search( '{ "a": "foobar", "b": "focus", "c": [ "arm", "foot", "shoulder" ] }', 'one', 'foo%' )
+"$.a"
+select json_search( '{ "a": "foobar", "b": "focus", "c": [ "arm", "foot", "shoulder" ] }', 'all', 'foo%' );
+json_search( '{ "a": "foobar", "b": "focus", "c": [ "arm", "foot", "shoulder" ] }', 'all', 'foo%' )
+["$.a", "$.c[1]"]
+select json_search( '{ "a": "foobar", "b": "focus", "c": [ "arm", "foot", "shoulder" ] }', 'all', 'f__us' );
+json_search( '{ "a": "foobar", "b": "focus", "c": [ "arm", "foot", "shoulder" ] }', 'all', 'f__us' )
+"$.b"
+select json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'all', 'foo%', null, '$.a' );
+json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'all', 'foo%', null, '$.a' )
+["$.a[0]", "$.a[2]"]
+select json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'all', 'foo%', null, '$.a', '$.b' );
+json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'all', 'foo%', null, '$.a', '$.b' )
+["$.a[0]", "$.a[2]", "$.b"]
+select json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'one', 'foo%', null, '$.a', '$.b' );
+json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'one', 'foo%', null, '$.a', '$.b' )
+"$.a[0]"
+select json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'ALL', 'foo%', null, '$.a' );
+json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'ALL', 'foo%', null, '$.a' )
+["$.a[0]", "$.a[2]"]
+select json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'aLl', 'foo%', null, '$.a', '$.b' );
+json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'aLl', 'foo%', null, '$.a', '$.b' )
+["$.a[0]", "$.a[2]", "$.b"]
+select json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'ONE', 'foo%', null, '$.a', '$.b' );
+json_search( '{ "a": [ "foolish", "folly", "foolhardy"  ], "b" : "fool" }', 'ONE', 'foo%', null, '$.a', '$.b' )
+"$.a[0]"
+select json_search
+(
+'[ { "a": { "b": { "c": "fool" } } }, { "b": { "c": "shoulder" } }, { "c": { "c": "food"} } ]',
+'all',
+'foo%',
+null,
+'$**.c'
+);
+json_search
+(
+'[ { "a": { "b": { "c": "fool" } } }, { "b": { "c": "shoulder" } }, { "c": { "c": "food"} } ]',
+'all',
+'foo%',
+null,
+'$**.c'
+)
+["$[0].a.b.c", "$[2].c.c"]
+select json_search
+(
+'[ { "a": { "b": { "c": "showtime" } } }, { "b": { "c": "shoulder" } }, { "c": { "c": "shoe"} } ]',
+'all',
+'sho%',
+null,
+'$**.c'
+);
+json_search
+(
+'[ { "a": { "b": { "c": "showtime" } } }, { "b": { "c": "shoulder" } }, { "c": { "c": "shoe"} } ]',
+'all',
+'sho%',
+null,
+'$**.c'
+)
+["$[0].a.b.c", "$[1].b.c", "$[2].c.c"]
+select json_search
+(
+'[ { "a": { "b": { "c": "showtime" } } }, { "b": { "c": "shoulder" } }, { "c": { "c": "shoe"} } ]',
+'all',
+'sho%e',
+null,
+'$**.c'
+);
+json_search
+(
+'[ { "a": { "b": { "c": "showtime" } } }, { "b": { "c": "shoulder" } }, { "c": { "c": "shoe"} } ]',
+'all',
+'sho%e',
+null,
+'$**.c'
+)
+["$[0].a.b.c", "$[2].c.c"]
+select json_search
+(
+'[ { "a": { "b": { "c": "showtime" } } }, { "b": { "c": "shoulder" } }, { "c": { "c": "shoe"} } ]',
+'all',
+'sho%',
+null,
+'$[*].c'
+);
+json_search
+(
+'[ { "a": { "b": { "c": "showtime" } } }, { "b": { "c": "shoulder" } }, { "c": { "c": "shoe"} } ]',
+'all',
+'sho%',
+null,
+'$[*].c'
+)
+"$[2].c.c"
+select json_search
+(
+'[ { "a": { "b": { "c": "showtime" } } }, [ { "b": { "c": "shout" } }, { "c": { "c": "shoe"} } ] ]',
+'all',
+'sho%',
+null,
+'$[1]**.c'
+);
+json_search
+(
+'[ { "a": { "b": { "c": "showtime" } } }, [ { "b": { "c": "shout" } }, { "c": { "c": "shoe"} } ] ]',
+'all',
+'sho%',
+null,
+'$[1]**.c'
+)
+["$[1][0].b.c", "$[1][1].c.c"]
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo%bar' );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo%bar' )
+["$[0]", "$[1]"]
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar' );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar' )
+"$[1]"
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|' );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|' )
+"$[1]"
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|', '$[0]' );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|', '$[0]' )
+NULL
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|', '$[0]', '$[1]' );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|', '$[0]', '$[1]' )
+"$[1]"
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|', '$[0]', '$[1]', '$[2]' );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|', '$[0]', '$[1]', '$[2]' )
+"$[1]"
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar', null );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar', null )
+"$[1]"
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar', null, '$[0]' );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar', null, '$[0]' )
+NULL
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar', null, '$[1]' );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo\%bar', null, '$[1]' )
+"$[1]"
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|', '$[0]' );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|', '$[0]' )
+NULL
+select json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|', '$[1]' );
+json_search( '[ "footbar", "foo%bar" ]', 'all', 'foo|%bar', '|', '$[1]' )
+"$[1]"
+select json_search( '[ "abc", "ABC" ]', 'all', 'aBc' );
+json_search( '[ "abc", "ABC" ]', 'all', 'aBc' )
+["$[0]", "$[1]"]
+select json_search( '[ "abc", "ABC" ]', 'all', 'abc' );
+json_search( '[ "abc", "ABC" ]', 'all', 'abc' )
+["$[0]", "$[1]"]
+select json_search( '[ "abc", "ABC" ]', 'all', 'ABC' );
+json_search( '[ "abc", "ABC" ]', 'all', 'ABC' )
+["$[0]", "$[1]"]
+select json_search( '[ 10, "10", 1.0, "1.0" ]', 'all', '1%' );
+json_search( '[ 10, "10", 1.0, "1.0" ]', 'all', '1%' )
+["$[0]", "$[1]", "$[2]", "$[3]"]
+SELECT JSON_SEARCH
+(
+'{ "a" : 123, "b" : [ 123, 456 ] }',
+'one',
+'123'
+);
+JSON_SEARCH
+(
+'{ "a" : 123, "b" : [ 123, 456 ] }',
+'one',
+'123'
+)
+"$.a"
+SELECT JSON_SEARCH
+(
+'{ "a" : "123", "b" : [ 123, "789", "123", "456", "123" ] }',
+'one',
+'123',
+null,
+'$.b'
+);
+JSON_SEARCH
+(
+'{ "a" : "123", "b" : [ 123, "789", "123", "456", "123" ] }',
+'one',
+'123',
+null,
+'$.b'
+)
+"$.b[0]"
+SELECT JSON_SEARCH
+(
+'{ "a" : "123", "b" : { "key" : "123" } }',
+'one',
+'123'
+);
+JSON_SEARCH
+(
+'{ "a" : "123", "b" : { "key" : "123" } }',
+'one',
+'123'
+)
+"$.a"
+SELECT JSON_SEARCH
+(
+'{ "a" : "1243", "b" : { "key" : "1234" } }',
+'one',
+'123%'
+);
+JSON_SEARCH
+(
+'{ "a" : "1243", "b" : { "key" : "1234" } }',
+'one',
+'123%'
+)
+"$.b.key"
+SELECT JSON_SEARCH
+(
+'{ "a" : "1243", "b" : { "key" : "1234", "c": "directorysub%directoryabc" } }',
+'one',
+'dir%torysub@%dir%',
+'@'
+);
+JSON_SEARCH
+(
+'{ "a" : "1243", "b" : { "key" : "1234", "c": "directorysub%directoryabc" } }',
+'one',
+'dir%torysub@%dir%',
+'@'
+)
+"$.b.c"
+SELECT JSON_SEARCH
+(
+'{ "a" : "1243", "b" : { "key" : "1234" } }',
+'one',
+'123%',
+null,
+'$.c'
+);
+JSON_SEARCH
+(
+'{ "a" : "1243", "b" : { "key" : "1234" } }',
+'one',
+'123%',
+null,
+'$.c'
+)
+NULL
+SELECT JSON_UNQUOTE
+(
+JSON_SEARCH
+(
+'{ "onepotato": "foot", "one potato": "food" , "one \\"potato": "fool" }',
+'all',
+'food'
+  )
+);
+JSON_UNQUOTE
+(
+JSON_SEARCH
+(
+'{ "onepotato": "foot", "one potato": "food" , "one \\"potato": "fool" }',
+'all',
+'food'
+  )
+)
+$.one potato
+select json_type(case (null is null) when 1 then
+json_compact('null') else
+json_compact('[1,2,3]') end);
+json_type(case (null is null) when 1 then
+json_compact('null') else
+json_compact('[1,2,3]') end)
+NULL
+select json_type(case (null is not null) when 1 then
+json_compact('null') else
+json_compact('[1,2,3]') end);
+json_type(case (null is not null) when 1 then
+json_compact('null') else
+json_compact('[1,2,3]') end)
+ARRAY
+select json_type( if(null is null,
+json_compact('null'),
+json_compact('[1,2,3]')) );
+json_type( if(null is null,
+json_compact('null'),
+json_compact('[1,2,3]')) )
+NULL
+select json_type( if(null is not null,
+json_compact('null'),
+json_compact('[1,2,3]')));
+json_type( if(null is not null,
+json_compact('null'),
+json_compact('[1,2,3]')))
+ARRAY
+select cast(json_extract(json_compact(concat('[', json_compact('["A",2]'), ']')),
+'$[0][1]') as char) = 2;
+cast(json_extract(json_compact(concat('[', json_compact('["A",2]'), ']')),
+'$[0][1]') as char) = 2
+1
+# ----------------------------------------------------------------------
+# Test of aggregate function MAX, MIN.
+# ----------------------------------------------------------------------
+select max(json_compact('[1,2,3]'));
+max(json_compact('[1,2,3]'))
+[1,2,3]
+# ----------------------------------------------------------------------
+# Test of JSON_QUOTE, JSON_UNQUOTE
+# ----------------------------------------------------------------------
+select json_quote();
+ERROR 42000: Incorrect parameter count in the call to native function 'json_quote'
+select json_quote('abc', 'def');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_quote'
+select json_quote(NULL, 'def');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_quote'
+select json_quote('abc', NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_quote'
+select json_unquote();
+ERROR 42000: Incorrect parameter count in the call to native function 'json_unquote'
+select json_unquote('"abc"', '"def"');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_unquote'
+select json_unquote(NULL, 'def');
+ERROR 42000: Incorrect parameter count in the call to native function 'json_unquote'
+select json_unquote('"abc"', NULL);
+ERROR 42000: Incorrect parameter count in the call to native function 'json_unquote'
+select json_quote(NULL);
+json_quote(NULL)
+NULL
+select json_unquote(NULL);
+json_unquote(NULL)
+NULL
+select json_quote('abc');
+json_quote('abc')
+"abc"
+select json_quote(convert('abc' using ascii));
+json_quote(convert('abc' using ascii))
+"abc"
+select json_quote(convert('abc' using latin1));
+json_quote(convert('abc' using latin1))
+"abc"
+select json_quote(convert('abc' using utf8));
+json_quote(convert('abc' using utf8))
+"abc"
+select json_quote(convert('abc' using utf8mb4));
+json_quote(convert('abc' using utf8mb4))
+"abc"
+select json_unquote('abc');
+json_unquote('abc')
+abc
+select json_unquote('"abc"');
+json_unquote('"abc"')
+abc
+select json_unquote(convert('"abc"' using ascii));
+json_unquote(convert('"abc"' using ascii))
+abc
+select json_unquote(convert('"abc"' using latin1));
+json_unquote(convert('"abc"' using latin1))
+abc
+select json_unquote(convert('"abc"' using utf8));
+json_unquote(convert('"abc"' using utf8))
+abc
+select json_unquote(convert('"abc"' using utf8mb4));
+json_unquote(convert('"abc"' using utf8mb4))
+abc
+select json_quote('"');
+json_quote('"')
+"\""
+select json_unquote('"');
+json_unquote('"')
+"
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_unquote'
+error ER_INCORRECT_TYPE
+select json_quote(123);
+json_quote(123)
+NULL
+error ER_INCORRECT_TYPE
+select json_unquote(123);
+json_unquote(123)
+123
+select json_unquote('""');
+json_unquote('""')
+
+select char_length(json_unquote('""'));
+char_length(json_unquote('""'))
+0
+select json_unquote('"" ');
+json_unquote('"" ')
+
+select json_unquote(json_compact(json_quote('abc')));
+json_unquote(json_compact(json_quote('abc')))
+abc
+select json_compact('{"abc": "foo"}');
+json_compact('{"abc": "foo"}')
+{"abc":"foo"}
+select json_unquote(json_compact('{"abc": "foo"}'));
+json_unquote(json_compact('{"abc": "foo"}'))
+{"abc": "foo"}
+select json_extract(json_compact('{"abc": "foo"}'), '$.abc');
+json_extract(json_compact('{"abc": "foo"}'), '$.abc')
+"foo"
+select json_unquote(json_extract(json_compact('{"abc": "foo"}'), '$.abc'));
+json_unquote(json_extract(json_compact('{"abc": "foo"}'), '$.abc'))
+foo
+select json_unquote('["a", "b", "c"]');
+json_unquote('["a", "b", "c"]')
+["a", "b", "c"]
+select json_unquote(json_compact('["a", "b", "c"]'));
+json_unquote(json_compact('["a", "b", "c"]'))
+["a", "b", "c"]
+select charset(json_unquote('"abc"'));
+charset(json_unquote('"abc"'))
+utf8
+select json_quote(convert(X'e68891' using utf8));
+json_quote(convert(X'e68891' using utf8))
+"我"
+select json_quote(convert(X'e68891' using utf8mb4));
+json_quote(convert(X'e68891' using utf8mb4))
+"我"
+select json_compact(json_quote(convert(X'e68891' using utf8)));
+json_compact(json_quote(convert(X'e68891' using utf8)))
+"我"
+select json_unquote(convert(X'e68891' using utf8));
+json_unquote(convert(X'e68891' using utf8))
+我
+select  json_quote(json_quote(json_quote('abc')));
+json_quote(json_quote(json_quote('abc')))
+"\"\\\"abc\\\"\""
+select  json_unquote(json_unquote(json_unquote(        # long round trip of it
+json_quote(json_quote(json_quote('abc'))))));
+json_unquote(json_unquote(json_unquote(        # long round trip of it
+json_quote(json_quote(json_quote('abc'))))))
+abc
+select json_compact(cast('2015-01-15 23:24:25' as datetime));
+json_compact(cast('2015-01-15 23:24:25' as datetime))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_compact' at position 5
+select json_unquote(json_compact(cast('2015-01-15 23:24:25' as datetime)));
+json_unquote(json_compact(cast('2015-01-15 23:24:25' as datetime)))
+2015-01-15 23:24:25
+select json_compact(st_geomfromtext('point(1 1)'));
+json_compact(st_geomfromtext('point(1 1)'))
+NULL
+Warnings:
+Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
+select json_unquote(json_compact(st_geomfromtext('point(1 1)')));
+json_unquote(json_compact(st_geomfromtext('point(1 1)')))
+             �?      �?
+SELECT JSON_UNQUOTE( '"abc"' );
+JSON_UNQUOTE( '"abc"' )
+abc
+SELECT JSON_UNQUOTE( '"abc' );
+JSON_UNQUOTE( '"abc' )
+"abc
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_unquote'
+error ER_INCORRECT_TYPE
+SELECT JSON_UNQUOTE( 123 );
+JSON_UNQUOTE( 123 )
+123
+SELECT JSON_UNQUOTE
+( CAST( json_compact( '"abc"') AS CHAR ) );
+JSON_UNQUOTE
+( CAST( json_compact( '"abc"') AS CHAR ) )
+abc
+SELECT JSON_UNQUOTE
+(
+CAST(
+JSON_EXTRACT( '{ "userName" : "fred" }', '$.userName' )
+AS CHAR
+)
+) = 'fred';
+JSON_UNQUOTE
+(
+CAST(
+JSON_EXTRACT( '{ "userName" : "fred" }', '$.userName' )
+AS CHAR
+)
+) = 'fred'
+1
+SELECT
+CAST(
+JSON_EXTRACT( '{ "userName" : "fred" }', '$.userName' )
+AS CHAR
+) = 'fred';
+CAST(
+JSON_EXTRACT( '{ "userName" : "fred" }', '$.userName' )
+AS CHAR
+) = 'fred'
+0
+SELECT JSON_QUOTE( 'abc' );
+JSON_QUOTE( 'abc' )
+"abc"
+error ER_INCORRECT_TYPE
+SELECT JSON_QUOTE( 123 );
+JSON_QUOTE( 123 )
+NULL
+SELECT json_compact( JSON_QUOTE( '123' ));
+json_compact( JSON_QUOTE( '123' ))
+"123"
+# ----------------------------------------------------------------------
+# Test of JSON_CONTAINS
+# ----------------------------------------------------------------------
+# should give NULL
+select json_contains(NULL, NULL);
+json_contains(NULL, NULL)
+NULL
+select json_contains(json_compact('{"a": 1, "b": 2}'), NULL);
+json_contains(json_compact('{"a": 1, "b": 2}'), NULL)
+NULL
+select json_contains(NULL, json_compact('null'));
+json_contains(NULL, json_compact('null'))
+NULL
+select json_contains(json_compact('[1]'), json_compact('[1]'), NULL);
+json_contains(json_compact('[1]'), json_compact('[1]'), NULL)
+NULL
+# should give 0:
+select json_contains(json_compact(3.14), json_compact(3));
+json_contains(json_compact(3.14), json_compact(3))
+0
+# should give 0: not at top level
+select json_contains(json_compact('{"a": {"b": 7}}'), json_compact('{"b": 7}'));
+json_contains(json_compact('{"a": {"b": 7}}'), json_compact('{"b": 7}'))
+0
+# but path argument will fix it:
+select json_contains(json_compact('{"a": {"b": 7}}'), json_compact('{"b": 7}'), '$.a');
+json_contains(json_compact('{"a": {"b": 7}}'), json_compact('{"b": 7}'), '$.a')
+1
+# but arrays "introspect"
+select json_contains(json_compact('[1,[2.0, 3.0]]'), json_compact('[2.0]'));
+json_contains(json_compact('[1,[2.0, 3.0]]'), json_compact('[2.0]'))
+1
+select json_contains(json_compact('[1, 2, [3, [4, 5]], 6, 7]'), json_compact('5'));
+json_contains(json_compact('[1, 2, [3, [4, 5]], 6, 7]'), json_compact('5'))
+1
+# should give 0: just a key
+select json_contains(json_compact('{"a": 1, "b": 2}'), json_compact('"a"'));
+json_contains(json_compact('{"a": 1, "b": 2}'), json_compact('"a"'))
+0
+# should give 0: one candidate element doesn't match
+select json_contains(json_compact('[1]'), json_compact('[1,2]'));
+json_contains(json_compact('[1]'), json_compact('[1,2]'))
+0
+# should all give 1
+select json_contains(json_compact('null'), json_compact('null'));
+json_contains(json_compact('null'), json_compact('null'))
+1
+# simple object subset
+select json_contains(json_compact('{"a": 1, "b": 2}'), json_compact( '{"a": 1}'));
+json_contains(json_compact('{"a": 1, "b": 2}'), json_compact( '{"a": 1}'))
+1
+# simple vector subset
+select json_contains(json_compact('[1, 2, 3]'), json_compact('[1, 3]'));
+json_contains(json_compact('[1, 2, 3]'), json_compact('[1, 3]'))
+1
+# auto-wrap, should give 1
+select json_contains(json_compact('[1, 2, 3]'), json_compact(3));
+json_contains(json_compact('[1, 2, 3]'), json_compact(3))
+1
+# ok even with nested cast off elements
+select json_contains(json_compact('{"person": {"id": 1, "country": "norway"}}'),
+json_compact('{"person": {"country": "norway"}}'));
+json_contains(json_compact('{"person": {"id": 1, "country": "norway"}}'),
+json_compact('{"person": {"country": "norway"}}'))
+1
+# vector reordering and duplicates is ok
+select json_contains(json_compact('[1,3,5]'), json_compact('[5,3,1,5]'));
+json_contains(json_compact('[1,3,5]'), json_compact('[5,3,1,5]'))
+1
+# ok even with more elts in candidate than in doc
+select json_contains(json_compact('[{"b": 4, "a":7}]'), json_compact('[{"a":7},{"b":4}]'));
+json_contains(json_compact('[{"b": 4, "a":7}]'), json_compact('[{"a":7},{"b":4}]'))
+1
+select json_contains(json_compact('[{"b": 4, "a":7}, 5]'), json_compact('[5, {"a":7, "b":4}]'));
+json_contains(json_compact('[{"b": 4, "a":7}, 5]'), json_compact('[5, {"a":7, "b":4}]'))
+1
+# ok even with mixed number types that compare equal
+select json_contains(json_compact('[{"b": 4, "a":7}, 5.0]'), json_compact('[5, {"a":7.0E0, "b":4}]'));
+json_contains(json_compact('[{"b": 4, "a":7}, 5.0]'), json_compact('[5, {"a":7.0E0, "b":4}]'))
+1
+select json_contains( '{"customer": "cust3"}', '{"customer": "cust1"}' );
+json_contains( '{"customer": "cust3"}', '{"customer": "cust1"}' )
+0
+SELECT JSON_CONTAINS('[null,1,[2,3],true,false]', '[null,1,[3],false]');
+JSON_CONTAINS('[null,1,[2,3],true,false]', '[null,1,[3],false]')
+1
+SELECT JSON_CONTAINS('[null,1,[2,3],true,false]', '[null,1,[4],false]');
+JSON_CONTAINS('[null,1,[2,3],true,false]', '[null,1,[4],false]')
+0
+SELECT JSON_CONTAINS('[true,false]', '[[true]]');
+JSON_CONTAINS('[true,false]', '[[true]]')
+1
+SELECT JSON_CONTAINS('[1,2]', '[[1]]');
+JSON_CONTAINS('[1,2]', '[[1]]')
+1
+SELECT JSON_CONTAINS('[1,2]', '1', '$.abc');
+JSON_CONTAINS('[1,2]', '1', '$.abc')
+0
+SELECT JSON_CONTAINS('{}', '{}');
+JSON_CONTAINS('{}', '{}')
+1
+SELECT JSON_CONTAINS('{}', '{"a":1}');
+JSON_CONTAINS('{}', '{"a":1}')
+0
+SELECT JSON_CONTAINS('{"a":1}', '{"a":1,"b":2}');
+JSON_CONTAINS('{"a":1}', '{"a":1,"b":2}')
+0
+SELECT JSON_CONTAINS
+(
+json_compact('[1, 4, 6]'),
+json_compact('[1, 6]')
+);
+JSON_CONTAINS
+(
+json_compact('[1, 4, 6]'),
+json_compact('[1, 6]')
+)
+1
+SELECT JSON_CONTAINS
+(
+json_compact('{"person": {"id": 1, "country": "norway"}}'),
+json_compact('{"person": {"country": "norway"}}')
+);
+JSON_CONTAINS
+(
+json_compact('{"person": {"id": 1, "country": "norway"}}'),
+json_compact('{"person": {"country": "norway"}}')
+)
+1
+SELECT JSON_CONTAINS
+(
+json_compact('[1,3,5]'),
+json_compact('[5,3,1,5]')
+);
+JSON_CONTAINS
+(
+json_compact('[1,3,5]'),
+json_compact('[5,3,1,5]')
+)
+1
+SELECT JSON_CONTAINS
+(
+json_compact('[3.14]'),
+json_compact('[3]')
+);
+JSON_CONTAINS
+(
+json_compact('[3.14]'),
+json_compact('[3]')
+)
+0
+SELECT JSON_CONTAINS
+(
+json_compact('[1, 2, 3]'),
+json_compact(3)
+);
+JSON_CONTAINS
+(
+json_compact('[1, 2, 3]'),
+json_compact(3)
+)
+1
+SELECT JSON_CONTAINS();
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_CONTAINS'
+SELECT JSON_CONTAINS('[1]');
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_CONTAINS'
+SELECT JSON_CONTAINS('[1]', '[1]', '$', '$[0]');
+ERROR 42000: Incorrect parameter count in the call to native function 'JSON_CONTAINS'
+# ----------------------------------------------------------------------
+# Wrong collation from JSON_QUOTE caused problems: Set it in
+# Item_func_json_quote::fix_length_and_dec.   Bug found by Knut.
+# Similar issue for JSON_UNQUOTE and JSON_TYPE.
+# ----------------------------------------------------------------------
+select json_object("a", ifnull(json_quote('test'), json_compact('null')));
+json_object("a", ifnull(json_quote('test'), json_compact('null')))
+{"a": "\"test\""}
+select json_compact(concat('[', json_quote('ab'), ']'));
+json_compact(concat('[', json_quote('ab'), ']'))
+["ab"]
+select json_compact(concat('[', json_unquote('"12"'), ']'));
+json_compact(concat('[', json_unquote('"12"'), ']'))
+[12]
+select json_compact(concat('["', json_type( json_compact(1)), '"]'));
+json_compact(concat('["', json_type( json_compact(1)), '"]'))
+["INTEGER"]
+#
+# Bug#20912438: ITEM_TYPE_HOLDER::DISPLAY_LENGTH(ITEM*): ASSERTION `0' FAILED
+#
+(SELECT JSON_KEYS('{ "key80": "2015-04-20 11:53:55"}')) UNION ALL
+(SELECT JSON_KEYS('{ "key80": "2015-04-20 11:53:55" }') LIMIT 0);
+JSON_KEYS('{ "key80": "2015-04-20 11:53:55"}')
+["key80"]
+SELECT json_compact(1) UNION ALL SELECT json_compact(1);
+json_compact(1)
+1
+1
+SELECT COUNT(*), json_compact(NULL);
+COUNT(*)	json_compact(NULL)
+1	NULL
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT COUNT(*), JSON_EXTRACT('not valid json!', '$');
+COUNT(*)	JSON_EXTRACT('not valid json!', '$')
+1	NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
+# ----------------------------------------------------------------------
+# Bug  report from John E.
+# Crash in Item_copy_json::~Item_copy_json
+# ----------------------------------------------------------------------
+EXPLAIN SELECT COUNT(*), JSON_KEYS('{}');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+select json_search( '{ "a": "foo" }', 'one', 'foo', 'a' );
+json_search( '{ "a": "foo" }', 'one', 'foo', 'a' )
+"$.a"
+select json_search( '{ "a": "foo" }', 'one', 'foo', null );
+json_search( '{ "a": "foo" }', 'one', 'foo', null )
+"$.a"
+select json_search( '{ "a": "foo" }', 'one', 'foo', convert(x'f8' using latin1) );
+json_search( '{ "a": "foo" }', 'one', 'foo', convert(x'f8' using latin1) )
+"$.a"
+select json_search( '{ "a": "foo" }', 'one', 'foo', 'ab' );
+ERROR HY000: Incorrect arguments to ESCAPE
+# ----------------------------------------------------------------------
+# Wrong results when Json_path_cache primed is accessed
+# during the prepare-phase.
+#----------------------------------------------------------------------
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', null ) is null;
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', null ) is null
+1
+prepare stmt1 from 'select json_remove( ''[ 1, { "a": true, "b": false, "c": null }, 5 ]'', null ) is null';
+execute stmt1;
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', null ) is null
+1
+error ER_INVALID_JSON_PATH
+select json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$.' ) is null;
+json_remove( '[ 1, { "a": true, "b": false, "c": null }, 5 ]', '$.' ) is null
+1
+Warnings:
+Warning	4041	Unexpected end of JSON path in argument 2 to function 'json_remove'
+error ER_INVALID_JSON_PATH
+prepare stmt1 from 'select json_remove( ''[ 1, { "a": true, "b": false, "c": null }, 5 ]'', ''$.'' ) is null';
+# ----------------------------------------------------------------------
+# Bug#20987329 VALUE OF PREPARED STATEMENT PLACEHOLDER FOR PARAMETER
+#              IN JSON_EXTRACT IS STICKY
+#----------------------------------------------------------------------
+prepare json_stmt1 FROM 'select json_contains( ''{ "keyA": [1, 2, 3], "keyB": [4, 5, 6] }'', ''[2]'', ? )';
+set @mypath = '$.keyA';
+execute json_stmt1 USING @mypath;
+json_contains( '{ "keyA": [1, 2, 3], "keyB": [4, 5, 6] }', '[2]', ? )
+1
+set @mypath = '$.keyB';
+execute json_stmt1 USING @mypath;
+json_contains( '{ "keyA": [1, 2, 3], "keyB": [4, 5, 6] }', '[2]', ? )
+0
+prepare json_stmt2 FROM 'select json_contains_path( ''{ "keyA": [1, 2, 3] }'', ''all'', ? )';
+set @mypath = '$.keyA';
+execute json_stmt2 USING @mypath;
+json_contains_path( '{ "keyA": [1, 2, 3] }', 'all', ? )
+1
+set @mypath = '$.keyB';
+execute json_stmt2 USING @mypath;
+json_contains_path( '{ "keyA": [1, 2, 3] }', 'all', ? )
+0
+prepare json_stmt3 FROM 'select json_length( ''{ "keyA": [1, 2, 3], "keyB": [1, 2, 3, 4] }'', ? )';
+set @mypath = '$.keyA';
+execute json_stmt3 USING @mypath;
+json_length( '{ "keyA": [1, 2, 3], "keyB": [1, 2, 3, 4] }', ? )
+3
+set @mypath = '$.keyB';
+execute json_stmt3 USING @mypath;
+json_length( '{ "keyA": [1, 2, 3], "keyB": [1, 2, 3, 4] }', ? )
+4
+prepare json_stmt4 FROM 'select json_keys( ''[ { "keyA": true }, { "keyB": false } ]'', ? )';
+set @mypath = '$[0]';
+execute json_stmt4 USING @mypath;
+json_keys( '[ { "keyA": true }, { "keyB": false } ]', ? )
+["keyA"]
+set @mypath = '$[1]';
+execute json_stmt4 USING @mypath;
+json_keys( '[ { "keyA": true }, { "keyB": false } ]', ? )
+["keyB"]
+prepare json_stmt5 FROM 'select json_array_append( ''{ "keyA": [1, 2], "keyB": [3, 4] }'', ?, 5 )';
+set @mypath = '$.keyA';
+execute json_stmt5 USING @mypath;
+json_array_append( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
+{"keyA": [1, 2, 5], "keyB": [3, 4]}
+set @mypath = '$.keyB';
+execute json_stmt5 USING @mypath;
+json_array_append( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
+{"keyA": [1, 2], "keyB": [3, 4, 5]}
+prepare json_stmt6 FROM 'select json_insert( ''{ "keyA": [1, 2], "keyB": [3, 4] }'', ?, 5 )';
+set @mypath = '$.keyA[2]';
+execute json_stmt6 USING @mypath;
+json_insert( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
+{"keyA": [1, 2, 5], "keyB": [3, 4]}
+set @mypath = '$.keyB[2]';
+execute json_stmt6 USING @mypath;
+json_insert( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
+{"keyA": [1, 2], "keyB": [3, 4, 5]}
+prepare json_stmt7 FROM 'select json_set( ''{ "keyA": [1, 2], "keyB": [3, 4] }'', ?, 5 )';
+set @mypath = '$.keyA[2]';
+execute json_stmt7 USING @mypath;
+json_set( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
+{"keyA": [1, 2, 5], "keyB": [3, 4]}
+set @mypath = '$.keyB[2]';
+execute json_stmt7 USING @mypath;
+json_set( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
+{"keyA": [1, 2], "keyB": [3, 4, 5]}
+prepare json_stmt8 FROM 'select json_replace( ''{ "keyA": [1, 2], "keyB": [3, 4] }'', ?, 5 )';
+set @mypath = '$.keyA[1]';
+execute json_stmt8 USING @mypath;
+json_replace( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
+{"keyA": [1, 5], "keyB": [3, 4]}
+set @mypath = '$.keyB[1]';
+execute json_stmt8 USING @mypath;
+json_replace( '{ "keyA": [1, 2], "keyB": [3, 4] }', ?, 5 )
+{"keyA": [1, 2], "keyB": [3, 5]}
+prepare json_stmt9 FROM 'select json_search( ''{ "keyA": [ "foot" ], "keyB": [ "food" ] }'', ''all'', ''foo%'', null, ? )';
+set @mypath = '$.keyA';
+execute json_stmt9 USING @mypath;
+json_search( '{ "keyA": [ "foot" ], "keyB": [ "food" ] }', 'all', 'foo%', null, ? )
+"$.keyA[0]"
+set @mypath = '$.keyB';
+execute json_stmt9 USING @mypath;
+json_search( '{ "keyA": [ "foot" ], "keyB": [ "food" ] }', 'all', 'foo%', null, ? )
+"$.keyB[0]"
+prepare json_stmt10 FROM 'select json_remove( ''{ "keyA": [ "foot" ], "keyB": [ "food" ] }'', ? )';
+set @mypath = '$.keyA';
+execute json_stmt10 USING @mypath;
+json_remove( '{ "keyA": [ "foot" ], "keyB": [ "food" ] }', ? )
+{"keyB": ["food"]}
+set @mypath = '$.keyB';
+execute json_stmt10 USING @mypath;
+json_remove( '{ "keyA": [ "foot" ], "keyB": [ "food" ] }', ? )
+{"keyA": ["foot"]}
+prepare json_stmt11 FROM 'select json_contains_path( ''{ "keyA": true }'', ?, ''$.keyA'', ''$.keyB'' )';
+set @mypath = 'one';
+execute json_stmt11 USING @mypath;
+json_contains_path( '{ "keyA": true }', ?, '$.keyA', '$.keyB' )
+1
+set @mypath = 'all';
+execute json_stmt11 USING @mypath;
+json_contains_path( '{ "keyA": true }', ?, '$.keyA', '$.keyB' )
+0
+prepare json_stmt12 FROM 'select json_search( ''{ "keyA": [ "foot" ], "keyB": [ "food" ] }'', ?, ''foo%'' )';
+set @mypath = 'one';
+execute json_stmt12 USING @mypath;
+json_search( '{ "keyA": [ "foot" ], "keyB": [ "food" ] }', ?, 'foo%' )
+"$.keyA[0]"
+set @mypath = 'all';
+execute json_stmt12 USING @mypath;
+json_search( '{ "keyA": [ "foot" ], "keyB": [ "food" ] }', ?, 'foo%' )
+["$.keyA[0]", "$.keyB[0]"]
+#
+# Bug#21128632 JSON_QUOTE(JSON_TYPE(...)) GIVES ERROR 3139 ER_INVALID_JSON_CHARSET
+#
+select json_quote( json_type( json_object() ) );
+json_quote( json_type( json_object() ) )
+"OBJECT"
+select json_quote( json_type( json_compact('{}') ) );
+json_quote( json_type( json_compact('{}') ) )
+"OBJECT"
+#
+# Bug#21148020 OUTPUT FROM JSON_TYPE() IS TRUNCATED
+#              WHEN EXECUTED IN A VIEW OR JOIN
+#
+SELECT JSON_TYPE(JSON_OBJECT());
+JSON_TYPE(JSON_OBJECT())
+OBJECT
+CREATE VIEW v1 AS SELECT JSON_TYPE(JSON_OBJECT());
+SELECT * FROM v1;
+JSON_TYPE(JSON_OBJECT())
+OBJE
+drop view v1;
+#
+# Bug#21198333 SIG 6 IN ITEM_CACHE_JSON::CACHE_VALUE AT SQL/ITEM.CC:9470
+#
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT MIN(JSON_EXTRACT('not json', '$'));
+MIN(JSON_EXTRACT('not json', '$'))
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 1
+#
+# Bug#21200657 DATA FROM DERIVED TABLE BASED
+# ON JSN_QUOTE()/JSN_UNQUOTE() CALL IS TRUNCATED
+#
+SELECT JSON_QUOTE('This is a string that should not be truncated') AS field1;
+field1
+"This is a string that should not be truncated"
+SELECT JSON_UNQUOTE(JSON_QUOTE('This is a string that should not be truncated')) AS field1;
+field1
+This is a string that should not be truncated
+SELECT * FROM (SELECT JSON_QUOTE('This is a string that should not be truncated') AS field1) AS DERIVED_TABLE;
+field1
+"This is a string that should not be truncated"
+SELECT * FROM (SELECT JSON_UNQUOTE("This is a string that should not be truncated") AS field1) AS DERIVED_TABLE;
+field1
+This is a string that should not be truncated
+SELECT * FROM (SELECT JSON_UNQUOTE(JSON_QUOTE('This is a string that should not be truncated')) AS field1) AS DERIVED_TABLE;
+field1
+This is a string that should not be truncated
+#
+# Bug#21296173 JSON_OBJECT('KEY', BOOLEAN_LITERAL) USES VALUES 0, 1
+#               FOR BOOL WHEN USED VIA VIEW
+#
+SELECT JSON_OBJECT('key1', false, 'key2', true);
+JSON_OBJECT('key1', false, 'key2', true)
+{"key1": false, "key2": true}
+SELECT JSON_ARRAY('key1', false, 'key2', true);
+JSON_ARRAY('key1', false, 'key2', true)
+["key1", false, "key2", true]
+CREATE VIEW v1 AS SELECT JSON_OBJECT('key1', false, 'key2', true);
+SELECT * FROM v1;
+JSON_OBJECT('key1', false, 'key2', true)
+{"key1": 0, "key2": 1}
+CREATE VIEW v2 AS SELECT JSON_ARRAY('key1', false, 'key2', true);
+SELECT * FROM v2;
+JSON_ARRAY('key1', false, 'key2', true)
+["key1", 0, "key2", 1]
+drop view v1;
+drop view v2;
+#
+# Bug#21293089 JSON_CONTAINS() RETURNS WRONG RESULT WITH EMPTY JSON ARRAY
+#
+SELECT JSON_CONTAINS('[]', '{"a" : 1}');
+JSON_CONTAINS('[]', '{"a" : 1}')
+0
+SELECT JSON_CONTAINS('[]', '[1, 2, 3, 4, 5]');
+JSON_CONTAINS('[]', '[1, 2, 3, 4, 5]')
+0
+SELECT JSON_CONTAINS('[]', '[1, 2, 3, 4, {"a" : 1}]');
+JSON_CONTAINS('[]', '[1, 2, 3, 4, {"a" : 1}]')
+0
+SELECT JSON_CONTAINS('[]', '{"a" : [1, 2, 3, 4, 5]}');
+JSON_CONTAINS('[]', '{"a" : [1, 2, 3, 4, 5]}')
+0
+SELECT JSON_CONTAINS('[]', '[]');
+JSON_CONTAINS('[]', '[]')
+1
+#
+# Bug#21377136 STACK OVERFLOW IN RAPIDJSON::GENERICREADER
+#
+error ER_JSON_DOCUMENT_TOO_DEEP
+SELECT JSON_VALID(REPEAT('[', 100000));
+JSON_VALID(REPEAT('[', 100000))
+0
+error ER_JSON_DOCUMENT_TOO_DEEP
+SELECT JSON_VALID(REPEAT('{"a":', 100000));
+JSON_VALID(REPEAT('{"a":', 100000))
+0
+error ER_JSON_DOCUMENT_TOO_DEEP
+SELECT JSON_VALID(REPEAT('{"a":[', 100000));
+JSON_VALID(REPEAT('{"a":[', 100000))
+0
+error ER_JSON_DOCUMENT_TOO_DEEP
+SELECT JSON_VALID(REPEAT('[{"a":', 100000));
+JSON_VALID(REPEAT('[{"a":', 100000))
+0
+#
+# Bug#21381806 JSON: ASSERTION FAILED: ARG->NULL_VALUE
+#
+SELECT JSON_SET(CASE WHEN 1 THEN NULL ELSE NULL END, '{}', '{}');
+JSON_SET(CASE WHEN 1 THEN NULL ELSE NULL END, '{}', '{}')
+NULL
+SELECT JSON_VALID(CASE WHEN 1 THEN NULL ELSE NULL END);
+JSON_VALID(CASE WHEN 1 THEN NULL ELSE NULL END)
+NULL
+SELECT JSON_ARRAY(CASE WHEN 1 THEN NULL ELSE NULL END);
+JSON_ARRAY(CASE WHEN 1 THEN NULL ELSE NULL END)
+[null]
+#
+# Bug#21384048 ASSERTION FAILED: N >= 0 && N <= 308
+#              IN RAPIDJSON::INTERNAL::FASTPATH
+#
+SELECT JSON_EXTRACT('-1E-36181012216111515851075235238', '$');
+JSON_EXTRACT('-1E-36181012216111515851075235238', '$')
+-1E-36181012216111515851075235238
+SELECT JSON_EXTRACT('1E-36181012216111515851075235238', '$');
+JSON_EXTRACT('1E-36181012216111515851075235238', '$')
+1E-36181012216111515851075235238
+SELECT JSON_EXTRACT('1E-325', '$');
+JSON_EXTRACT('1E-325', '$')
+1E-325
+SELECT JSON_EXTRACT('1E-324', '$');
+JSON_EXTRACT('1E-324', '$')
+1E-324
+SELECT JSON_EXTRACT('1E-323', '$');
+JSON_EXTRACT('1E-323', '$')
+1E-323
+SELECT JSON_EXTRACT('1E+308', '$');
+JSON_EXTRACT('1E+308', '$')
+1E+308
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT JSON_EXTRACT('1E+309', '$');
+JSON_EXTRACT('1E+309', '$')
+1E+309
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT JSON_EXTRACT('1E+36181012216111515851075235238', '$');
+JSON_EXTRACT('1E+36181012216111515851075235238', '$')
+1E+36181012216111515851075235238
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT JSON_EXTRACT('-1E+36181012216111515851075235238', '$');
+JSON_EXTRACT('-1E+36181012216111515851075235238', '$')
+-1E+36181012216111515851075235238
+#
+# Bug#21383284: ASSERTION IN SELECT_LEX::SETUP_CONDS
+#
+SELECT 1 FROM dual WHERE JSON_SEARCH('{}', 'one', 'foo', 'too-long-escape');
+ERROR HY000: Incorrect arguments to ESCAPE
+error ER_INVALID_JSON_TEXT_IN_PARAM
+SELECT 1 FROM dual WHERE JSON_SEARCH('{}', 'one', 'foo', JSON_EXTRACT('', '$'));
+1
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_extract'
+#
+# Bug#21442624 INCORRECT RESULT FROM JSON_SET WITH AUTO-WRAPPING
+#
+SELECT JSON_SET('1', '$', 100);
+JSON_SET('1', '$', 100)
+100
+SELECT JSON_SET('1', '$[0]', 100);
+JSON_SET('1', '$[0]', 100)
+100
+SELECT JSON_SET('1', '$[0][0]', 100);
+JSON_SET('1', '$[0][0]', 100)
+100
+SELECT JSON_SET('1', '$[0][0][0]', 100);
+JSON_SET('1', '$[0][0][0]', 100)
+100
+SELECT JSON_SET('[]', '$', 100);
+JSON_SET('[]', '$', 100)
+100
+SELECT JSON_SET('[]', '$[0]', 100);
+JSON_SET('[]', '$[0]', 100)
+[100]
+SELECT JSON_SET('[]', '$[0][0]', 100);
+JSON_SET('[]', '$[0][0]', 100)
+[]
+SELECT JSON_SET('[]', '$[0][0][0]', 100);
+JSON_SET('[]', '$[0][0][0]', 100)
+[]
+SELECT JSON_SET('[1]', '$', 100);
+JSON_SET('[1]', '$', 100)
+100
+SELECT JSON_SET('[1]', '$[0]', 100);
+JSON_SET('[1]', '$[0]', 100)
+[100]
+SELECT JSON_SET('[1]', '$[0][0]', 100);
+JSON_SET('[1]', '$[0][0]', 100)
+[100]
+SELECT JSON_SET('[1]', '$[0][0][0]', 100);
+JSON_SET('[1]', '$[0][0][0]', 100)
+[100]
+SELECT JSON_SET('[[1]]', '$', 100);
+JSON_SET('[[1]]', '$', 100)
+100
+SELECT JSON_SET('[[1]]', '$[0]', 100);
+JSON_SET('[[1]]', '$[0]', 100)
+[100]
+SELECT JSON_SET('[[1]]', '$[0][0]', 100);
+JSON_SET('[[1]]', '$[0][0]', 100)
+[[100]]
+SELECT JSON_SET('[[1]]', '$[0][0][0]', 100);
+JSON_SET('[[1]]', '$[0][0][0]', 100)
+[[100]]
+SELECT JSON_SET('[[[1]]]', '$', 100);
+JSON_SET('[[[1]]]', '$', 100)
+100
+SELECT JSON_SET('[[[1]]]', '$[0]', 100);
+JSON_SET('[[[1]]]', '$[0]', 100)
+[100]
+SELECT JSON_SET('[[[1]]]', '$[0][0]', 100);
+JSON_SET('[[[1]]]', '$[0][0]', 100)
+[[100]]
+SELECT JSON_SET('[[[1]]]', '$[0][0][0]', 100);
+JSON_SET('[[[1]]]', '$[0][0][0]', 100)
+[[[100]]]
+SELECT JSON_REPLACE('1', '$', 100);
+JSON_REPLACE('1', '$', 100)
+100
+SELECT JSON_REPLACE('1', '$[0]', 100);
+JSON_REPLACE('1', '$[0]', 100)
+100
+SELECT JSON_REPLACE('1', '$[0][0]', 100);
+JSON_REPLACE('1', '$[0][0]', 100)
+100
+SELECT JSON_REPLACE('1', '$[0][0][0]', 100);
+JSON_REPLACE('1', '$[0][0][0]', 100)
+100
+SELECT JSON_REPLACE('[]', '$', 100);
+JSON_REPLACE('[]', '$', 100)
+100
+SELECT JSON_REPLACE('[]', '$[0]', 100);
+JSON_REPLACE('[]', '$[0]', 100)
+[]
+SELECT JSON_REPLACE('[]', '$[0][0]', 100);
+JSON_REPLACE('[]', '$[0][0]', 100)
+[]
+SELECT JSON_REPLACE('[]', '$[0][0][0]', 100);
+JSON_REPLACE('[]', '$[0][0][0]', 100)
+[]
+SELECT JSON_REPLACE('[1]', '$', 100);
+JSON_REPLACE('[1]', '$', 100)
+100
+SELECT JSON_REPLACE('[1]', '$[0]', 100);
+JSON_REPLACE('[1]', '$[0]', 100)
+[100]
+SELECT JSON_REPLACE('[1]', '$[0][0]', 100);
+JSON_REPLACE('[1]', '$[0][0]', 100)
+[100]
+SELECT JSON_REPLACE('[1]', '$[0][0][0]', 100);
+JSON_REPLACE('[1]', '$[0][0][0]', 100)
+[100]
+SELECT JSON_REPLACE('[[1]]', '$', 100);
+JSON_REPLACE('[[1]]', '$', 100)
+100
+SELECT JSON_REPLACE('[[1]]', '$[0]', 100);
+JSON_REPLACE('[[1]]', '$[0]', 100)
+[100]
+SELECT JSON_REPLACE('[[1]]', '$[0][0]', 100);
+JSON_REPLACE('[[1]]', '$[0][0]', 100)
+[[100]]
+SELECT JSON_REPLACE('[[1]]', '$[0][0][0]', 100);
+JSON_REPLACE('[[1]]', '$[0][0][0]', 100)
+[[100]]
+SELECT JSON_REPLACE('[[[1]]]', '$', 100);
+JSON_REPLACE('[[[1]]]', '$', 100)
+100
+SELECT JSON_REPLACE('[[[1]]]', '$[0]', 100);
+JSON_REPLACE('[[[1]]]', '$[0]', 100)
+[100]
+SELECT JSON_REPLACE('[[[1]]]', '$[0][0]', 100);
+JSON_REPLACE('[[[1]]]', '$[0][0]', 100)
+[[100]]
+SELECT JSON_REPLACE('[[[1]]]', '$[0][0][0]', 100);
+JSON_REPLACE('[[[1]]]', '$[0][0][0]', 100)
+[[[100]]]
+#
+# Bug#21828321: JSON FUNCS CALL DBUG_ABORT OR EXIT() ON WINDOWS!
+#
+SELECT JSON_ARRAY(LEAST(NULL, NULL), GREATEST(NULL, NULL), LEAST(j1, NULL),
+GREATEST(NULL, j2), LEAST(j1, j2), GREATEST(j1, j2)) AS j
+FROM (SELECT json_compact('1') AS j1, json_compact('2') AS j2) t;
+j
+[null, null, null, null, "1", "2"]

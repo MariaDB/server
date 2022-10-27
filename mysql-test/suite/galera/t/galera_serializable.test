@@ -1,0 +1,76 @@
+#
+# Test that the SERIALIZABLE isolation level behaves as expected.
+# A local serializable transaction is aborted by an incoming remote update
+#
+# wsrep_sync_wait does not work well with serializable, see mysql-wsrep#130
+# hence the need to use --sleep .
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+
+CREATE TABLE t1 (id INT PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
+
+#
+# Read (local transaction) / Write (remote transaction) conflict
+#
+
+SET AUTOCOMMIT=OFF;
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+START TRANSACTION;
+
+SELECT * FROM t1;
+
+--connection node_2
+INSERT INTO t1 VALUES (1,1);
+
+--sleep 2
+--connection node_1
+--error ER_LOCK_DEADLOCK
+SELECT * FROM t1;
+
+ROLLBACK;
+DELETE FROM t1;
+
+#
+# Write (local transaction) / Write (remote transaction) conflict
+#
+
+--connection node_1
+INSERT INTO t1 VALUES (1,1);
+START TRANSACTION;
+SELECT * FROM t1;
+
+--connection node_2
+UPDATE t1 SET f2 = 2;
+
+--sleep 2
+--connection node_1
+--error ER_LOCK_DEADLOCK
+UPDATE t1 SET f2 = 3;
+
+ROLLBACK;
+DELETE FROM t1;
+
+#
+# Write (local transaction) / Write (remote transaction) conflict
+# Local transaction writes before remote one.
+# Nothing special happens here - ordinary deadlock on COMMIT
+#
+
+--connection node_1
+START TRANSACTION;
+
+--connection node_1
+INSERT INTO t1 VALUES (1,1);
+
+--connection node_2
+INSERT INTO t1 VALUES (1,2);
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+DROP TABLE t1;

@@ -1,0 +1,3889 @@
+CREATE TABLE t1 (a INT, b INT, c INT, d INT);
+CREATE TABLE t2 (e INT, f INT, g INT);
+CREATE TABLE t3 (x INT, y INT);
+INSERT INTO t1 VALUES
+(1,1,18,1), (2,1,25,1), (1,3,40,1), (2,3,40,4),
+(4,2,24,4), (3,2,23,1), (1,2,40,2), (3,4,17,2),
+(5,5,65,1), (2,3,70,3), (1,4,35,3), (2,3,25,3),
+(2,2,40,4), (1,4,55,1), (5,3,72,4), (1,2,70,5);
+INSERT INTO t2 VALUES
+(1,2,38), (2,3,15), (1,3,40), (1,4,35),
+(2,2,70), (3,4,23), (5,5,12), (5,4,17),
+(3,3,17), (4,2,24), (2,5,25), (5,1,65);
+INSERT INTO t3 VALUES
+(1,25), (1,18), (2,15), (4,24),
+(1,35), (3,23), (3,17), (2,15);
+CREATE VIEW v1 AS
+(
+SELECT t3.x AS v1_x, t3.y AS v1_y FROM t3 WHERE t3.x<=3
+);
+CREATE VIEW v2 AS
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.e
+HAVING max_g>25
+);
+# conjunctive subformula : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.c<25 AND
+(t1.a,t1.c) IN (SELECT t2.e,MAX(t2.g) FROM t2 WHERE t2.e<5 GROUP BY t2.e);
+a	b	c	d
+4	2	24	4
+3	2	23	1
+SELECT * FROM t1
+WHERE t1.c<25 AND
+(t1.a,t1.c) IN (SELECT t2.e,MAX(t2.g) FROM t2 WHERE t2.e<5 GROUP BY t2.e);
+a	b	c	d
+4	2	24	4
+3	2	23	1
+EXPLAIN SELECT * FROM t1
+WHERE t1.c<25 AND
+(t1.a,t1.c) IN (SELECT t2.e,MAX(t2.g) FROM t2 WHERE t2.e<5 GROUP BY t2.e);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.c<25 AND
+(t1.a,t1.c) IN (SELECT t2.e,MAX(t2.g) FROM t2 WHERE t2.e<5 GROUP BY t2.e);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.c < 25 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`MAX(t2.g)` < 25",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# extracted AND formula : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.c>55 AND t1.b<4 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+2	3	70	3
+SELECT * FROM t1
+WHERE t1.c>55 AND t1.b<4 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE t1.c>55 AND t1.b<4 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.c>55 AND t1.b<4 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.c > 55 and t1.b < 4 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`MAX(t2.g)` > 55 and t2.f < 4",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# extracted OR formula : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.c>60 OR t1.c<25) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+4	2	24	4
+2	3	70	3
+SELECT * FROM t1
+WHERE (t1.c>60 OR t1.c<25) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+4	2	24	4
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE (t1.c>60 OR t1.c<25) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.c>60 OR t1.c<25) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "(t1.c > 60 or t1.c < 25) and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`MAX(t2.g)` > 60 or `MAX(t2.g)` < 25",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# extracted AND-OR formula : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE ((t1.c>60 OR t1.c<25) AND t1.b>2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+2	3	70	3
+SELECT * FROM t1
+WHERE ((t1.c>60 OR t1.c<25) AND t1.b>2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE ((t1.c>60 OR t1.c<25) AND t1.b>2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE ((t1.c>60 OR t1.c<25) AND t1.b>2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "(t1.c > 60 or t1.c < 25) and t1.b > 2 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "(`MAX(t2.g)` > 60 or `MAX(t2.g)` < 25) and t2.f > 2",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.d>3) AND t1.b>1) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+4	2	24	4
+1	2	40	2
+SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.d>3) AND t1.b>1) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+4	2	24	4
+1	2	40	2
+EXPLAIN SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.d>3) AND t1.b>1) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.d>3) AND t1.b>1) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "(t1.a < 2 or t1.d > 3) and t1.b > 1 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "t2.f > 1",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# using view IN subquery defINition : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.c>20 AND
+(t1.a,t1.c) IN
+(
+SELECT v1_x,MAX(v1_y)
+FROM v1
+WHERE v1_x>1
+GROUP BY v1_x
+)
+;
+a	b	c	d
+3	2	23	1
+SELECT * FROM t1
+WHERE t1.c>20 AND
+(t1.a,t1.c) IN
+(
+SELECT v1_x,MAX(v1_y)
+FROM v1
+WHERE v1_x>1
+GROUP BY v1_x
+)
+;
+a	b	c	d
+3	2	23	1
+EXPLAIN SELECT * FROM t1
+WHERE t1.c>20 AND
+(t1.a,t1.c) IN
+(
+SELECT v1_x,MAX(v1_y)
+FROM v1
+WHERE v1_x>1
+GROUP BY v1_x
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.c>20 AND
+(t1.a,t1.c) IN
+(
+SELECT v1_x,MAX(v1_y)
+FROM v1
+WHERE v1_x>1
+GROUP BY v1_x
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.c > 20 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["v1_x", "MAX(v1_y)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`MAX(v1_y)` > 20",
+          "temporary_table": {
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "rows": 8,
+              "filtered": 100,
+              "attached_condition": "t3.x > 1 and t3.x <= 3"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# using equality : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1,v1
+WHERE t1.c>20 AND t1.c=v1_y AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d	v1_x	v1_y
+3	2	23	1	3	23
+SELECT * FROM t1,v1
+WHERE t1.c>20 AND t1.c=v1_y AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d	v1_x	v1_y
+3	2	23	1	3	23
+EXPLAIN SELECT * FROM t1,v1
+WHERE t1.c>20 AND t1.c=v1_y AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t3.y	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1,v1
+WHERE t1.c>20 AND t1.c=v1_y AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 8,
+      "filtered": 100,
+      "attached_condition": "t3.y > 20 and t3.x <= 3 and t3.y is not null"
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t1",
+        "access_type": "ALL",
+        "rows": 16,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "119",
+      "join_type": "BNL",
+      "attached_condition": "t1.c = t3.y and t1.a is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t3.y"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`MAX(t2.g)` > 20",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.a<2 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	3	40	1
+1	2	40	2
+SELECT * FROM t1
+WHERE t1.a<2 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	3	40	1
+1	2	40	2
+EXPLAIN SELECT * FROM t1
+WHERE t1.a<2 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.a<2 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a < 2 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.e < 2"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# extracted AND formula : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.a>2 AND t1.a<5 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+4	2	24	4
+3	2	23	1
+SELECT * FROM t1
+WHERE t1.a>2 AND t1.a<5 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+4	2	24	4
+3	2	23	1
+EXPLAIN SELECT * FROM t1
+WHERE t1.a>2 AND t1.a<5 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.a>2 AND t1.a<5 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a > 2 and t1.a < 5 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.e > 2 and t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# extracted OR formula : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.a<2 OR t1.a>=4) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	3	40	1
+4	2	24	4
+1	2	40	2
+SELECT * FROM t1
+WHERE (t1.a<2 OR t1.a>=4) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	3	40	1
+4	2	24	4
+1	2	40	2
+EXPLAIN SELECT * FROM t1
+WHERE (t1.a<2 OR t1.a>=4) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.a<2 OR t1.a>=4) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "(t1.a < 2 or t1.a >= 4) and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and (t2.e < 2 or t2.e >= 4)"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# extracted AND-OR formula : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+1	4	35	3
+SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+1	4	35	3
+EXPLAIN SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "(t1.a < 2 or t1.a = 5) and t1.b > 3 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and (t2.e < 2 or t2.e = 5) and t2.f > 3"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# extracted AND-OR formula : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+1	4	35	3
+SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+1	4	35	3
+EXPLAIN SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "(t1.a < 2 or t1.a = 5) and t1.b > 3 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and (t2.e < 2 or t2.e = 5) and t2.f > 3"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE ((t1.b<3 OR t1.d>2) AND t1.a<2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	2	40	2
+SELECT * FROM t1
+WHERE ((t1.b<3 OR t1.d>2) AND t1.a<2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	2	40	2
+EXPLAIN SELECT * FROM t1
+WHERE ((t1.b<3 OR t1.d>2) AND t1.a<2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE ((t1.b<3 OR t1.d>2) AND t1.a<2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "(t1.b < 3 or t1.d > 2) and t1.a < 2 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.e < 2"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# using equalities : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.d=1 AND t1.a=t1.d AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	3	40	1
+SELECT * FROM t1
+WHERE t1.d=1 AND t1.a=t1.d AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	3	40	1
+EXPLAIN SELECT * FROM t1
+WHERE t1.d=1 AND t1.a=t1.d AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	const,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.d=1 AND t1.a=t1.d AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a = 1 and t1.d = 1 and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["const", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "rows": 12,
+            "filtered": 100,
+            "attached_condition": "t2.e = 1"
+          }
+        }
+      }
+    }
+  }
+}
+# using equality : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.d>1 AND t1.a=t1.d AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+4	2	24	4
+SELECT * FROM t1
+WHERE t1.d>1 AND t1.a=t1.d AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+4	2	24	4
+EXPLAIN SELECT * FROM t1
+WHERE t1.d>1 AND t1.a=t1.d AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.d>1 AND t1.a=t1.d AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.d = t1.a and t1.a > 1 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.e > 1"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# using view IN subquery definition : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.a<3 AND
+(t1.a,t1.c) IN
+(
+SELECT v1_x,MAX(v1_y)
+FROM v1
+WHERE v1_x>1
+GROUP BY v1_x
+)
+;
+a	b	c	d
+SELECT * FROM t1
+WHERE t1.a<3 AND
+(t1.a,t1.c) IN
+(
+SELECT v1_x,MAX(v1_y)
+FROM v1
+WHERE v1_x>1
+GROUP BY v1_x
+)
+;
+a	b	c	d
+EXPLAIN SELECT * FROM t1
+WHERE t1.a<3 AND
+(t1.a,t1.c) IN
+(
+SELECT v1_x,MAX(v1_y)
+FROM v1
+WHERE v1_x>1
+GROUP BY v1_x
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.a<3 AND
+(t1.a,t1.c) IN
+(
+SELECT v1_x,MAX(v1_y)
+FROM v1
+WHERE v1_x>1
+GROUP BY v1_x
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a < 3 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["v1_x", "MAX(v1_y)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "rows": 8,
+              "filtered": 100,
+              "attached_condition": "t3.x > 1 and t3.x <= 3 and t3.x < 3"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# using equality : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1,v1
+WHERE t1.a=v1_x AND v1_x<2 AND v1_y>30 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d	v1_x	v1_y
+1	3	40	1	1	35
+1	2	40	2	1	35
+SELECT * FROM t1,v1
+WHERE t1.a=v1_x AND v1_x<2 AND v1_y>30 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d	v1_x	v1_y
+1	3	40	1	1	35
+1	2	40	2	1	35
+EXPLAIN SELECT * FROM t1,v1
+WHERE t1.a=v1_x AND v1_x<2 AND v1_y>30 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t3.x,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1,v1
+WHERE t1.a=v1_x AND v1_x<2 AND v1_y>30 AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 8,
+      "filtered": 100,
+      "attached_condition": "t3.x < 2 and t3.y > 30 and t3.x <= 3 and t3.x is not null"
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t1",
+        "access_type": "ALL",
+        "rows": 16,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "buffer_size": "119",
+      "join_type": "BNL",
+      "attached_condition": "t1.a = t3.x and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t3.x", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.e <= 3"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE
+# extracted OR formula : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE ((t1.b<3 OR t1.b=4) AND t1.a<3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	2	40	2
+SELECT * FROM t1
+WHERE ((t1.b<3 OR t1.b=4) AND t1.a<3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	2	40	2
+EXPLAIN SELECT * FROM t1
+WHERE ((t1.b<3 OR t1.b=4) AND t1.a<3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE ((t1.b<3 OR t1.b=4) AND t1.a<3) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "(t1.b < 3 or t1.b = 4) and t1.a < 3 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "t2.f < 3 or t2.f = 4",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.e < 3"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula using addition : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.a+t1.c>41) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+2	3	70	3
+SELECT * FROM t1
+WHERE (t1.a+t1.c>41) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE (t1.a+t1.c>41) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.a+t1.c>41) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a + t1.c > 41 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "t2.e + `MAX(t2.g)` > 41",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula using substitution : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.c-t1.a<35) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+4	2	24	4
+3	2	23	1
+SELECT * FROM t1
+WHERE (t1.c-t1.a<35) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+4	2	24	4
+3	2	23	1
+EXPLAIN SELECT * FROM t1
+WHERE (t1.c-t1.a<35) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.c-t1.a<35) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.c - t1.a < 35 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`MAX(t2.g)` - t2.e < 35",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula using multiplication : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.c*t1.a>100) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+2	3	70	3
+SELECT * FROM t1
+WHERE (t1.c*t1.a>100) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE (t1.c*t1.a>100) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.c*t1.a>100) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.c * t1.a > 100 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`MAX(t2.g)` * t2.e > 100",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula using division : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.c/t1.a>30) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	3	40	1
+1	2	40	2
+2	3	70	3
+SELECT * FROM t1
+WHERE (t1.c/t1.a>30) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	3	40	1
+1	2	40	2
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE (t1.c/t1.a>30) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.c/t1.a>30) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.c / t1.a > 30 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`MAX(t2.g)` / t2.e > 30",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula using BETWEEN : pushing into HAVING
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.c BETWEEN 50 AND 100) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+2	3	70	3
+SELECT * FROM t1
+WHERE (t1.c BETWEEN 50 AND 100) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE (t1.c BETWEEN 50 AND 100) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.c BETWEEN 50 AND 100) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.c between 50 and 100 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`MAX(t2.g)` between 50 and 100",
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula using addition : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.a+t1.b > 5) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+4	2	24	4
+SELECT * FROM t1
+WHERE (t1.a+t1.b > 5) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+4	2	24	4
+EXPLAIN SELECT * FROM t1
+WHERE (t1.a+t1.b > 5) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.a+t1.b > 5) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a + t1.b > 5 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.e + t2.f > 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula using substitution : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.a-t1.b > 0) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+4	2	24	4
+SELECT * FROM t1
+WHERE (t1.a-t1.b > 0) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+4	2	24	4
+EXPLAIN SELECT * FROM t1
+WHERE (t1.a-t1.b > 0) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.a-t1.b > 0) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a - t1.b > 0 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.e - t2.f > 0"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula using multiplication : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.a*t1.b > 6) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+4	2	24	4
+SELECT * FROM t1
+WHERE (t1.a*t1.b > 6) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+4	2	24	4
+EXPLAIN SELECT * FROM t1
+WHERE (t1.a*t1.b > 6) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.a*t1.b > 6) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a * t1.b > 6 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.e * t2.f > 6"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula using division : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.b/t1.a > 2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+1	3	40	1
+1	4	35	3
+SELECT * FROM t1
+WHERE (t1.b/t1.a > 2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+a	b	c	d
+1	3	40	1
+1	4	35	3
+EXPLAIN SELECT * FROM t1
+WHERE (t1.b/t1.a > 2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.b/t1.a > 2) AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e,t2.f
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.b / t1.a > 2 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "f", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.f / t2.e > 2"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula using BETWEEN : pushing into WHERE
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.a BETWEEN 1 AND 3) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	3	40	1
+3	2	23	1
+1	2	40	2
+2	3	70	3
+SELECT * FROM t1
+WHERE (t1.a BETWEEN 1 AND 3) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+a	b	c	d
+1	3	40	1
+3	2	23	1
+1	2	40	2
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE (t1.a BETWEEN 1 AND 3) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.a BETWEEN 1 AND 3) AND
+(t1.a,t1.c) IN
+(
+SELECT t2.e,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a between 1 and 3 and t1.a is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["e", "MAX(t2.g)"],
+      "ref": ["test.t1.a", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "t2.e < 5 and t2.e between 1 and 3"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into HAVING of the IN subquery
+# conjunctive subformula : pushing into WHERE of the view from the IN subquery
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.c>3 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+a	b	c	d
+1	2	40	2
+2	3	70	3
+SELECT * FROM t1
+WHERE t1.c>3 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+a	b	c	d
+1	2	40	2
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE t1.c>3 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.c>3 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.c > 3 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "MAX(v2.f)", "max_g"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "v2.max_g > 3",
+          "temporary_table": {
+            "table": {
+              "table_name": "<derived3>",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "v2.e < 5",
+              "materialized": {
+                "query_block": {
+                  "select_id": 3,
+                  "having_condition": "max_g > 25",
+                  "filesort": {
+                    "sort_key": "t2.e",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 12,
+                        "filtered": 100,
+                        "attached_condition": "t2.e < 5"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE of the IN subquery
+# conjunctive subformula : pushing into WHERE of the view
+#                          from the IN subquery
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+a	b	c	d
+2	3	70	3
+SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+a	b	c	d
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a > 1 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "MAX(v2.f)", "max_g"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "<derived3>",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "v2.e < 5 and v2.e > 1",
+              "materialized": {
+                "query_block": {
+                  "select_id": 3,
+                  "having_condition": "max_g > 25",
+                  "filesort": {
+                    "sort_key": "t2.e",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 12,
+                        "filtered": 100,
+                        "attached_condition": "t2.e < 5 and t2.e > 1"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE and HAVING
+#                          of the IN subquery
+# conjunctive subformula : pushing into WHERE of the view
+#                          from the IN subquery
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.a>1 AND t1.c<100 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+a	b	c	d
+2	3	70	3
+SELECT * FROM t1
+WHERE t1.a>1 AND t1.c<100 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+a	b	c	d
+2	3	70	3
+EXPLAIN SELECT * FROM t1
+WHERE t1.a>1 AND t1.c<100 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.a>1 AND t1.c<100 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT v2.e,MAX(v2.f),v2.max_g
+FROM v2
+WHERE v2.e<5
+GROUP BY v2.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a > 1 and t1.c < 100 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "MAX(v2.f)", "max_g"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "v2.max_g < 100",
+          "temporary_table": {
+            "table": {
+              "table_name": "<derived3>",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "v2.e < 5 and v2.e > 1",
+              "materialized": {
+                "query_block": {
+                  "select_id": 3,
+                  "having_condition": "max_g > 25",
+                  "filesort": {
+                    "sort_key": "t2.e",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 12,
+                        "filtered": 100,
+                        "attached_condition": "t2.e < 5 and t2.e > 1"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE of the IN subquery
+# extracted AND formula  : pushing into HAVING of the derived table
+#                          from the IN subquery
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+a	b	c	d
+2	3	40	4
+SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+a	b	c	d
+2	3	40	4
+EXPLAIN SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a > 1 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "MAX(d_tab.f)", "max_g"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "<derived3>",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "d_tab.e < 5 and d_tab.e > 1",
+              "materialized": {
+                "query_block": {
+                  "select_id": 3,
+                  "having_condition": "max_g > 25 and t2.e < 5 and t2.e > 1",
+                  "filesort": {
+                    "sort_key": "t2.f",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 12,
+                        "filtered": 100
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into HAVING of the derived table
+# conjunctive subformula : pushing into WHERE of the IN subquery from
+#                          the derived table
+SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.e<5
+GROUP BY t2.e
+)
+GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.b>2;
+x	y	a	b	max_c
+2	15	2	3	70
+2	15	2	3	70
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+a	b	c	d
+2	3	40	4
+SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+a	b	c	d
+2	3	40	4
+EXPLAIN SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a > 1 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "MAX(d_tab.f)", "max_g"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "<derived3>",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "d_tab.e < 5 and d_tab.e > 1",
+              "materialized": {
+                "query_block": {
+                  "select_id": 3,
+                  "having_condition": "max_g > 25 and t2.e < 5 and t2.e > 1",
+                  "filesort": {
+                    "sort_key": "t2.f",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 12,
+                        "filtered": 100
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE of the derived table
+# extracted AND formula  : pushing into WHERE of the IN subquery from
+#                          the derived table
+SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+GROUP BY t2.e
+HAVING t2.f<5
+)
+GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5;
+x	y	a	b	max_c
+2	15	2	3	70
+4	24	4	2	24
+2	15	2	3	70
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+a	b	c	d
+2	3	40	4
+SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+a	b	c	d
+2	3	40	4
+EXPLAIN SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT d_tab.e,MAX(d_tab.f),d_tab.max_g 
+FROM
+(
+SELECT t2.e, t2.f, MAX(t2.g) AS max_g
+FROM t2
+GROUP BY t2.f
+HAVING max_g>25
+) as d_tab
+WHERE d_tab.e<5
+GROUP BY d_tab.e
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.a > 1 and t1.a is not null and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["e", "MAX(d_tab.f)", "max_g"],
+      "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "temporary_table": {
+            "table": {
+              "table_name": "<derived3>",
+              "access_type": "ALL",
+              "rows": 12,
+              "filtered": 100,
+              "attached_condition": "d_tab.e < 5 and d_tab.e > 1",
+              "materialized": {
+                "query_block": {
+                  "select_id": 3,
+                  "having_condition": "max_g > 25 and t2.e < 5 and t2.e > 1",
+                  "filesort": {
+                    "sort_key": "t2.f",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 12,
+                        "filtered": 100
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE and HAVING
+#                          of the derived table
+# extracted AND formula  : pushing into WHERE of the IN subquery
+#                          from the derived table
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+GROUP BY t2.e
+HAVING t2.f<5
+)
+GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
+x	y	a	b	max_c
+4	24	4	2	24
+SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+GROUP BY t2.e
+HAVING t2.f<5
+)
+GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
+x	y	a	b	max_c
+4	24	4	2	24
+EXPLAIN SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+GROUP BY t2.e
+HAVING t2.f<5
+)
+GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.x	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	16	Using where; Using temporary; Using filesort
+2	DERIVED	<subquery3>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+GROUP BY t2.e
+HAVING t2.f<5
+)
+GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 8,
+      "filtered": 100,
+      "attached_condition": "t3.x < 5 and t3.x is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t3.x"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "d_tab.max_c < 70",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "max_c < 70",
+          "filesort": {
+            "sort_key": "t1.a",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 16,
+                "filtered": 100,
+                "attached_condition": "t1.a > 1 and t1.a < 5 and t1.a is not null and t1.b is not null and t1.c is not null"
+              },
+              "table": {
+                "table_name": "<subquery3>",
+                "access_type": "eq_ref",
+                "possible_keys": ["distinct_key"],
+                "key": "distinct_key",
+                "key_length": "12",
+                "used_key_parts": ["e", "f", "MAX(t2.g)"],
+                "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+                "rows": 1,
+                "filtered": 100,
+                "materialized": {
+                  "unique": 1,
+                  "query_block": {
+                    "select_id": 3,
+                    "having_condition": "t2.f < 5",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 12,
+                        "filtered": 100,
+                        "attached_condition": "t2.e > 1 and t2.e < 5"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE of the derived table
+# conjunctive subformula : pushing into HAVING of the IN subquery from
+#                          the derived table
+SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE (t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+WHERE t2.f<4
+GROUP BY t2.f
+)
+GROUP BY t1.a
+HAVING t1.b<5
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5;
+x	y	a	b	max_c
+1	25	1	2	70
+1	18	1	2	70
+2	15	2	3	40
+1	35	1	2	70
+2	15	2	3	40
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+GROUP BY t2.e
+HAVING t2.f<5
+)
+GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
+x	y	a	b	max_c
+4	24	4	2	24
+SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+GROUP BY t2.e
+HAVING t2.f<5
+)
+GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
+x	y	a	b	max_c
+4	24	4	2	24
+EXPLAIN SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+GROUP BY t2.e
+HAVING t2.f<5
+)
+GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.x	2	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	16	Using where; Using temporary; Using filesort
+2	DERIVED	<subquery3>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT *
+FROM t3,
+(
+SELECT t1.a,t1.b,max(t1.c) as max_c
+FROM t1
+WHERE t1.a>1 AND
+(t1.a,t1.b,t1.c) IN
+(
+SELECT t2.e,t2.f,MAX(t2.g)
+FROM t2
+GROUP BY t2.e
+HAVING t2.f<5
+)
+GROUP BY t1.a
+) AS d_tab
+WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 8,
+      "filtered": 100,
+      "attached_condition": "t3.x < 5 and t3.x is not null"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t3.x"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "d_tab.max_c < 70",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "max_c < 70",
+          "filesort": {
+            "sort_key": "t1.a",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 16,
+                "filtered": 100,
+                "attached_condition": "t1.a > 1 and t1.a < 5 and t1.a is not null and t1.b is not null and t1.c is not null"
+              },
+              "table": {
+                "table_name": "<subquery3>",
+                "access_type": "eq_ref",
+                "possible_keys": ["distinct_key"],
+                "key": "distinct_key",
+                "key_length": "12",
+                "used_key_parts": ["e", "f", "MAX(t2.g)"],
+                "ref": ["test.t1.a", "test.t1.b", "test.t1.c"],
+                "rows": 1,
+                "filtered": 100,
+                "materialized": {
+                  "unique": 1,
+                  "query_block": {
+                    "select_id": 3,
+                    "having_condition": "t2.f < 5",
+                    "temporary_table": {
+                      "table": {
+                        "table_name": "t2",
+                        "access_type": "ALL",
+                        "rows": 12,
+                        "filtered": 100,
+                        "attached_condition": "t2.e > 1 and t2.e < 5"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE
+# using WINDOW FUNCTIONS : using MAX function
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.b>1) AND
+(t1.b, t1.c) IN
+(
+SELECT t2.f, MAX(t2.g) OVER (PARTITION BY t2.f)
+FROM t2
+WHERE t2.e<5
+)
+;
+a	b	c	d
+1	3	40	1
+2	3	40	4
+1	4	35	3
+1	2	70	5
+SELECT * FROM t1
+WHERE (t1.b>1) AND
+(t1.b, t1.c) IN
+(
+SELECT t2.f, MAX(t2.g) OVER (PARTITION BY t2.f)
+FROM t2
+WHERE t2.e<5
+)
+;
+a	b	c	d
+1	3	40	1
+2	3	40	4
+1	4	35	3
+1	2	70	5
+EXPLAIN SELECT * FROM t1
+WHERE (t1.b>1) AND
+(t1.b, t1.c) IN
+(
+SELECT t2.f, MAX(t2.g) OVER (PARTITION BY t2.f)
+FROM t2
+WHERE t2.e<5
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.b>1) AND
+(t1.b, t1.c) IN
+(
+SELECT t2.f, MAX(t2.g) OVER (PARTITION BY t2.f)
+FROM t2
+WHERE t2.e<5
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.b > 1 and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "8",
+      "used_key_parts": ["f", "MAX(t2.g) OVER (PARTITION BY t2.f)"],
+      "ref": ["test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "window_functions_computation": {
+            "sorts": {
+              "filesort": {
+                "sort_key": "t2.f"
+              }
+            },
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 12,
+                "filtered": 100,
+                "attached_condition": "t2.e < 5 and t2.f > 1"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+# conjunctive subformula : pushing into WHERE
+# using WINDOW FUNCTIONS : using SUM function
+SET STATEMENT optimizer_switch='condition_pushdown_for_subquery=off' FOR SELECT * FROM t1
+WHERE (t1.b>1) AND
+(t1.b, t1.c) IN
+(
+SELECT t2.f, CAST(SUM(t2.g) OVER (PARTITION BY t2.f) AS INT)
+FROM t2
+WHERE t2.e<5
+)
+;
+a	b	c	d
+5	3	72	4
+SELECT * FROM t1
+WHERE (t1.b>1) AND
+(t1.b, t1.c) IN
+(
+SELECT t2.f, CAST(SUM(t2.g) OVER (PARTITION BY t2.f) AS INT)
+FROM t2
+WHERE t2.e<5
+)
+;
+a	b	c	d
+5	3	72	4
+EXPLAIN SELECT * FROM t1
+WHERE (t1.b>1) AND
+(t1.b, t1.c) IN
+(
+SELECT t2.f, CAST(SUM(t2.g) OVER (PARTITION BY t2.f) AS INT)
+FROM t2
+WHERE t2.e<5
+)
+;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.b,test.t1.c	1	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+EXPLAIN FORMAT=JSON SELECT * FROM t1
+WHERE (t1.b>1) AND
+(t1.b, t1.c) IN
+(
+SELECT t2.f, CAST(SUM(t2.g) OVER (PARTITION BY t2.f) AS INT)
+FROM t2
+WHERE t2.e<5
+)
+;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 16,
+      "filtered": 100,
+      "attached_condition": "t1.b > 1 and t1.b is not null and t1.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "12",
+      "used_key_parts": ["f", "CAST(SUM(t2.g) OVER (PARTITION BY t2.f) AS INT)"],
+      "ref": ["test.t1.b", "test.t1.c"],
+      "rows": 1,
+      "filtered": 100,
+      "attached_condition": "t1.c = `<subquery2>`.`CAST(SUM(t2.g) OVER (PARTITION BY t2.f) AS INT)`",
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "window_functions_computation": {
+            "sorts": {
+              "filesort": {
+                "sort_key": "t2.f"
+              }
+            },
+            "temporary_table": {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "rows": 12,
+                "filtered": 100,
+                "attached_condition": "t2.e < 5 and t2.f > 1"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1,t2,t3;
+DROP VIEW v1,v2;
+#
+# MDEV-16721: IN-subquery defined with the AUTO-INCREMENT column
+#             and used with the ZEROFILL column
+#
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY);
+CREATE TABLE t2 (b INT ZEROFILL);
+INSERT INTO t2 VALUES (2), (3);
+SELECT *
+FROM t2
+WHERE t2.b IN (SELECT MIN(t1.a) from t1);
+b
+DROP TABLE t1, t2;
+#
+# MDEV-16730: server fault caused by pushdown into the derived table
+#             condition that joins IN subquery and parent select
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+SELECT *
+FROM (SELECT DISTINCT * FROM t1) AS tbl
+WHERE tbl.a IN
+(
+SELECT COUNT(t1.a)
+FROM t1
+WHERE (t1.a!=1)
+);
+a
+2
+DROP TABLE t1;
+#
+# MDEV-16727: failure assertion caused by the lamely saved list
+#             of multiple equalities
+#
+CREATE TABLE t1 (a varchar(1));
+INSERT INTO t1 VALUES ('x'), ('y'), ('z');
+CREATE TABLE t2 (b varchar(1));
+INSERT INTO t2 VALUES ('x');
+CREATE TABLE t3 (c varchar(1));
+INSERT INTO t3 VALUES ('y');
+CREATE TABLE t4 (d varchar(1));
+INSERT INTO t4 VALUES ('x'), ('z');
+SELECT * FROM t1
+JOIN t2 ON (t1.a=t2.b)
+LEFT JOIN t3 ON (t1.a=t3.c)
+WHERE (t1.a) IN
+(
+SELECT t4.d
+FROM t4
+ORDER BY t4.d
+);
+a	b	c
+x	x	NULL
+DROP TABLE t1,t2,t3,t4;
+#
+# MDEV-17360: IN subquery predicate with outer reference in the left part
+#             that refers to a field of a mergeable derived table
+#
+CREATE TABLE t1 (id1 int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES (1814),(0),(NULL),(1);
+CREATE TABLE t2 (id2 int) ENGINE=MYISAM;
+SELECT 1 AS r FROM t2,t1,(SELECT * FROM t1) dt1
+WHERE NOT EXISTS (SELECT id2 FROM t2
+WHERE dt1.id1 IN (SELECT t2.id2 FROM t2
+HAVING t2.id2 >= 1));
+r
+DROP TABLE t1,t2;
+#
+# MDEV-17027: IN subquery predicate with outer reference in the left part
+#             conjuncted with equality predicate
+#
+CREATE TABLE t1 (pk int, i1 int, v1 varchar(1));
+INSERT INTO t1 VALUES (3,2,'x'), (1,1,'y'), (4,2,'z');
+CREATE TABLE t2 (pk int, i1 int, v1 varchar(1));
+INSERT INTO t2 VALUES (5,2,'x'), (7,1,'x');
+CREATE TABLE t3 (pk int, i1 int, v1 varchar(1));
+INSERT INTO t3 VALUES (8,2,'x'), (7,1,'z');
+SELECT t3.i1 FROM t3
+WHERE EXISTS ( SELECT t2.v1 FROM t1,t2
+WHERE t1.v1 = t2.v1 AND
+t3.i1 IN (SELECT t.i1 FROM t1 as t
+GROUP BY i1 HAVING t.i1 < 3));
+i1
+2
+1
+DROP TABLE t1,t2,t3;

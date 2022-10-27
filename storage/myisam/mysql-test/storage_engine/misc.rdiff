@@ -1,0 +1,34 @@
+--- suite/storage_engine/misc.result	2018-02-23 03:01:49.673249912 +0200
++++ suite/storage_engine/misc.reject	2018-02-23 03:02:05.669249564 +0200
+@@ -28,6 +28,10 @@
+ SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+ FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE ORDER BY TABLE_NAME;
+ TABLE_NAME	COLUMN_NAME	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
++Warning	1286	Unknown storage engine 'InnoDB'
++Warning	1286	Unknown storage engine 'InnoDB'
++Warning	1286	Unknown storage engine 'InnoDB'
++Warnings:
+ column_stats	column_name	NULL	NULL
+ column_stats	db_name	NULL	NULL
+ column_stats	table_name	NULL	NULL
+@@ -58,12 +62,6 @@
+ index_stats	index_name	NULL	NULL
+ index_stats	prefix_arity	NULL	NULL
+ index_stats	table_name	NULL	NULL
+-innodb_index_stats	database_name	NULL	NULL
+-innodb_index_stats	index_name	NULL	NULL
+-innodb_index_stats	stat_name	NULL	NULL
+-innodb_index_stats	table_name	NULL	NULL
+-innodb_table_stats	database_name	NULL	NULL
+-innodb_table_stats	table_name	NULL	NULL
+ plugin	name	NULL	NULL
+ proc	db	NULL	NULL
+ proc	name	NULL	NULL
+@@ -94,7 +92,5 @@
+ time_zone_transition	Transition_time	NULL	NULL
+ time_zone_transition_type	Time_zone_id	NULL	NULL
+ time_zone_transition_type	Transition_type_id	NULL	NULL
+-transaction_registry	commit_id	NULL	NULL
+-transaction_registry	transaction_id	NULL	NULL
+ user	Host	NULL	NULL
+ user	User	NULL	NULL

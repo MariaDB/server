@@ -1,0 +1,1 @@
+--rocksdb_strict_collation_check=off --binlog_format=row --log-bin --rocksdb_records_in_range=2

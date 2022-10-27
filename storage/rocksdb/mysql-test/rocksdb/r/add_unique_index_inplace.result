@@ -1,0 +1,111 @@
+drop table if exists t1;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+INSERT INTO t1 (a,b) VALUES (4,5);
+ALTER TABLE t1 ADD UNIQUE INDEX kb(b), ALGORITHM=INPLACE;
+ERROR 23000: Duplicate entry '5' for key 'kb'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 ADD UNIQUE INDEX kb(b), ALGORITHM=INPLACE;
+INSERT INTO t1 (a,b) VALUES (4,5);
+ERROR 23000: Duplicate entry '5' for key 'kb'
+INSERT INTO t1 (a,b) VALUES (5,8);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  UNIQUE KEY `kb` (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+SELECT * FROM t1 FORCE INDEX(kb);
+a	b
+1	5
+2	6
+3	7
+5	8
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, NULL);
+INSERT INTO t1 (a, b) VALUES (3, NULL);
+ALTER TABLE t1 ADD UNIQUE INDEX kb(b), ALGORITHM=INPLACE;
+INSERT INTO t1 (a, b) VALUES (4, NULL);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  UNIQUE KEY `kb` (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) FROM t1 FORCE INDEX(kb);
+COUNT(*)
+4
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
+INSERT INTO t1 (a,b,c) VALUES (1,1,NULL);
+INSERT INTO t1 (a,b,c) VALUES (2,1,NULL);
+INSERT INTO t1 (a,b,c) VALUES (3,1,NULL);
+INSERT INTO t1 (a,b,c) VALUES (4,1,5);
+ALTER TABLE t1 ADD UNIQUE INDEX kbc(b,c), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  UNIQUE KEY `kbc` (`b`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) FROM t1 FORCE INDEX(kbc);
+COUNT(*)
+4
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 ADD UNIQUE INDEX kb(b);
+INSERT INTO t1 (a, b) VALUES (4, 8);
+INSERT INTO t1 (a, b) VALUES (5, 5);
+ERROR 23000: Duplicate entry '5' for key 'kb'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  UNIQUE KEY `kb` (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+c INT,
+KEY kbc(b,c)) ENGINE = ROCKSDB;
+INSERT INTO t1 (a,b,c) VALUES (1,1,1);
+INSERT INTO t1 (a,b,c) VALUES (2,2,2);
+INSERT INTO t1 (a,b,c) VALUES (3,2,2);
+ALTER TABLE t1 DROP INDEX kbc, ADD UNIQUE INDEX kbc(b,c), ALGORITHM=INPLACE;
+ERROR 23000: Duplicate entry '2-2' for key 'kbc'
+DROP TABLE t1;

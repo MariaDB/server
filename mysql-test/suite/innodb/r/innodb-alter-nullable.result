@@ -1,0 +1,204 @@
+CREATE TABLE t (c1 INT PRIMARY KEY, c2 INT NOT NULL, c3 INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (1,2,3),(4,5,6),(7,8,9);
+ALTER TABLE t CHANGE c1 c1 INT NULL FIRST, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t MODIFY c3 INT NOT NULL, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t CHANGE c2 c2 INT, CHANGE c2 c2 INT NOT NULL;
+ERROR 42S22: Unknown column 'c2' in 't'
+ALTER TABLE t MODIFY c2 INT, MODIFY c2 INT NOT NULL;
+ERROR 42S22: Unknown column 'c2' in 't'
+ALTER TABLE t MODIFY c2 INT UNSIGNED, MODIFY c2 INT;
+ERROR 42S22: Unknown column 'c2' in 't'
+ALTER TABLE t MODIFY c2 CHAR(1) NOT NULL, MODIFY c2 INT NOT NULL;
+ERROR 42S22: Unknown column 'c2' in 't'
+ALTER TABLE t CHANGE c2 c2 INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t MODIFY c2 INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+connect  con1,localhost,root,,;
+UPDATE t SET c2=NULL;
+ERROR 23000: Column 'c2' cannot be null
+SELECT * FROM t;
+c1	c2	c3
+1	2	3
+4	5	6
+7	8	9
+connection default;
+ALTER TABLE t MODIFY c2 INT, ALGORITHM=INPLACE;
+connection con1;
+BEGIN;
+UPDATE t SET c2=NULL;
+SELECT * FROM t;
+c1	c2	c3
+1	NULL	3
+4	NULL	6
+7	NULL	9
+ROLLBACK;
+SELECT * FROM t;
+c1	c2	c3
+1	2	3
+4	5	6
+7	8	9
+disconnect con1;
+connection default;
+ALTER TABLE t MODIFY c2 INT NULL, ALGORITHM=INPLACE;
+SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
+WHERE NAME='test/t';
+TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
+#	test/t	33	6	#	Dynamic	0	Single
+DROP TABLE t;
+CREATE TABLE t1(c1 INT) ENGINE=InnoDB;
+ALTER TABLE t1 ADD CONSTRAINT UNIQUE KEY i1(c1);
+ALTER TABLE t1 CHANGE c1 c1 INT NOT NULL,ADD KEY(c1);
+DROP TABLE t1;
+#
+# MDEV-18732 InnoDB: ALTER IGNORE returns error for NULL
+#
+CREATE TABLE t1(c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL);
+ALTER IGNORE TABLE t1 MODIFY c INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+INSERT INTO t1 VALUES (NULL);
+ERROR 23000: Column 'c' cannot be null
+SELECT * FROM t1;
+c
+0
+DROP TABLE t1;
+CREATE TABLE t1(c INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL),(1),(1);
+ALTER IGNORE TABLE t1 ADD UNIQUE(c);
+affected rows: 3
+info: Records: 3  Duplicates: 1  Warnings: 0
+ALTER IGNORE TABLE t1 ADD PRIMARY KEY(c);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+SELECT * FROM t1;
+c
+0
+1
+DROP TABLE t1;
+CREATE TABLE t1(c INT, g INT AS (c) PERSISTENT) ENGINE=InnoDB;
+CREATE TABLE t2(c INT, v INT AS (c) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t3(c INT, v INT AS (c) VIRTUAL, INDEX(v)) ENGINE=InnoDB;
+INSERT INTO t1 SET c=NULL;
+INSERT INTO t2 SET c=NULL;
+INSERT INTO t3 SET c=NULL;
+SET @old_sql_mode = @@sql_mode;
+SET sql_mode = '';
+ALTER TABLE t1 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+ALTER TABLE t2 MODIFY c INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+ALTER TABLE t3 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+SET sql_mode = @old_sql_mode;
+SELECT * FROM t1;
+c	g
+0	0
+SELECT * FROM t2;
+c	v
+0	0
+SELECT * FROM t3;
+c	v
+0	0
+SELECT v FROM t3 FORCE INDEX(v);
+v
+0
+CHECK TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+DROP TABLE t1,t2,t3;
+CREATE TABLE t1(c INT, g INT AS (c) PERSISTENT) ENGINE=InnoDB;
+CREATE TABLE t2(c INT, v INT AS (c) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t3(c INT, v INT AS (c) VIRTUAL, INDEX(v)) ENGINE=InnoDB;
+INSERT INTO t1 SET c=NULL;
+INSERT INTO t2 SET c=NULL;
+INSERT INTO t3 SET c=NULL;
+ALTER IGNORE TABLE t1 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+ALTER IGNORE TABLE t2 MODIFY c INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+ALTER IGNORE TABLE t3 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'c' at row 1
+SELECT * FROM t1;
+c	g
+0	0
+SELECT * FROM t2;
+c	v
+0	0
+SELECT * FROM t3;
+c	v
+0	0
+SELECT v FROM t3 FORCE INDEX(v);
+v
+0
+CHECK TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+DROP TABLE t1,t2,t3;
+CREATE TABLE t1(c INT, g INT AS (c) PERSISTENT) ENGINE=InnoDB;
+CREATE TABLE t2(c INT, v INT AS (c) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t3(c INT, v INT AS (c) VIRTUAL, INDEX(v)) ENGINE=InnoDB;
+INSERT INTO t1 SET c=NULL;
+INSERT INTO t2 SET c=NULL;
+INSERT INTO t3 SET c=NULL;
+ALTER TABLE t1 MODIFY c INT NOT NULL;
+ERROR 01000: Data truncated for column 'c' at row 1
+ALTER TABLE t2 MODIFY c INT NOT NULL;
+ERROR 01000: Data truncated for column 'c' at row 1
+ALTER TABLE t3 MODIFY c INT NOT NULL;
+ERROR 01000: Data truncated for column 'c' at row 1
+UPDATE t1 SET c=0;
+UPDATE t2 SET c=0;
+UPDATE t3 SET c=0;
+ALTER TABLE t1 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t2 MODIFY c INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t3 MODIFY c INT NOT NULL;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT * FROM t1;
+c	g
+0	0
+SELECT * FROM t2;
+c	v
+0	0
+SELECT * FROM t3;
+c	v
+0	0
+DROP TABLE t1,t2,t3;

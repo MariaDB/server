@@ -1,0 +1,10 @@
+!include my.cnf
+
+[mysqld.1]
+binlog-checksum=CRC32
+
+[mysqld.2]
+binlog-checksum=CRC32
+plugin-load-add= @ENV.FILE_KEY_MANAGEMENT_SO
+loose-file-key-management-filename=@ENV.MYSQLTEST_VARDIR/std_data/keys.txt
+encrypt-binlog

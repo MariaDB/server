@@ -1,0 +1,21 @@
+#
+# Check `LOCK TABLES` command with or without existing table in database.
+# Test case for MDEV-22222 / MDEV-22223
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+--error ER_NO_SUCH_TABLE
+LOCK TABLES t2 READ;
+
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+LOCK TABLES t1 READ;
+UNLOCK TABLES;
+
+DROP TABLE t1;

@@ -1,0 +1,24 @@
+--source include/have_innodb.inc
+
+SET @start_innodb_defragment_stats_accuracy = @@global.innodb_defragment_stats_accuracy;
+SELECT @start_innodb_defragment_stats_accuracy;
+
+SELECT COUNT(@@global.innodb_defragment_stats_accuracy);
+
+SET @@global.innodb_defragment_stats_accuracy = 1;
+SELECT @@global.innodb_defragment_stats_accuracy;
+
+SET @@global.innodb_defragment_stats_accuracy = 1000;
+SELECT @@global.innodb_defragment_stats_accuracy;
+
+SET @@global.innodb_defragment_stats_accuracy = -1;
+SELECT @@global.innodb_defragment_stats_accuracy;
+
+SET @@global.innodb_defragment_stats_accuracy = 1000000000000;
+SELECT @@global.innodb_defragment_stats_accuracy;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_defragment_stats_accuracy = "abc";
+SELECT @@global.innodb_defragment_stats_accuracy;
+
+SET @@global.innodb_defragment_stats_accuracy = @start_innodb_defragment_stats_accuracy;

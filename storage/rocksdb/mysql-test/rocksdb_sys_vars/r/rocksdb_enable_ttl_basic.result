@@ -1,0 +1,64 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(0);
+INSERT INTO valid_values VALUES('on');
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+INSERT INTO invalid_values VALUES('\'bbb\'');
+SET @start_global_value = @@global.ROCKSDB_ENABLE_TTL;
+SELECT @start_global_value;
+@start_global_value
+1
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_ENABLE_TTL to 1"
+SET @@global.ROCKSDB_ENABLE_TTL   = 1;
+SELECT @@global.ROCKSDB_ENABLE_TTL;
+@@global.ROCKSDB_ENABLE_TTL
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_ENABLE_TTL = DEFAULT;
+SELECT @@global.ROCKSDB_ENABLE_TTL;
+@@global.ROCKSDB_ENABLE_TTL
+1
+"Trying to set variable @@global.ROCKSDB_ENABLE_TTL to 0"
+SET @@global.ROCKSDB_ENABLE_TTL   = 0;
+SELECT @@global.ROCKSDB_ENABLE_TTL;
+@@global.ROCKSDB_ENABLE_TTL
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_ENABLE_TTL = DEFAULT;
+SELECT @@global.ROCKSDB_ENABLE_TTL;
+@@global.ROCKSDB_ENABLE_TTL
+1
+"Trying to set variable @@global.ROCKSDB_ENABLE_TTL to on"
+SET @@global.ROCKSDB_ENABLE_TTL   = on;
+SELECT @@global.ROCKSDB_ENABLE_TTL;
+@@global.ROCKSDB_ENABLE_TTL
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_ENABLE_TTL = DEFAULT;
+SELECT @@global.ROCKSDB_ENABLE_TTL;
+@@global.ROCKSDB_ENABLE_TTL
+1
+"Trying to set variable @@session.ROCKSDB_ENABLE_TTL to 444. It should fail because it is not session."
+SET @@session.ROCKSDB_ENABLE_TTL   = 444;
+ERROR HY000: Variable 'rocksdb_enable_ttl' is a GLOBAL variable and should be set with SET GLOBAL
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_ENABLE_TTL to 'aaa'"
+SET @@global.ROCKSDB_ENABLE_TTL   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_ENABLE_TTL;
+@@global.ROCKSDB_ENABLE_TTL
+1
+"Trying to set variable @@global.ROCKSDB_ENABLE_TTL to 'bbb'"
+SET @@global.ROCKSDB_ENABLE_TTL   = 'bbb';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_ENABLE_TTL;
+@@global.ROCKSDB_ENABLE_TTL
+1
+SET @@global.ROCKSDB_ENABLE_TTL = @start_global_value;
+SELECT @@global.ROCKSDB_ENABLE_TTL;
+@@global.ROCKSDB_ENABLE_TTL
+1
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

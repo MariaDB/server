@@ -1,0 +1,58 @@
+--source include/have_rocksdb.inc
+# Don't run the RQG tests with --rpc_protocol because the connections and
+# queries will be coming from Perl where we don't have any ability to
+# specify the query attributes needed for the RPC protocol.
+--source include/not_rpc_protocol.inc
+
+call mtr.add_suppression("Did not write failed ");
+call mtr.add_suppression("Can't open and lock privilege tables");
+call mtr.add_suppression("Attempt to delete the trigger file");
+
+SET @ORIG_EVENT_SCHEDULER = @@EVENT_SCHEDULER;
+
+# mysql.user and mysql.tables_priv are modified by the
+# tests, so they need to be restored to the original
+# state.
+--disable_warnings
+CREATE TABLE mysql.user_temp LIKE mysql.user;
+INSERT mysql.user_temp SELECT * FROM mysql.user;
+CREATE TABLE mysql.tables_priv_temp LIKE mysql.tables_priv;
+INSERT mysql.tables_priv_temp SELECT * FROM mysql.tables_priv_temp;
+--enable_warnings
+
+# RQG's runtime test
+let $TESTDIR = runtime;
+
+let $GRAMMAR_FILES = alter_online.yy;
+let $DATA_FILE = alter_online.zz;
+
+--source rqg.inc
+
+let $GRAMMAR_FILES = concurrency_1.yy;
+let $DATA_FILE = concurrency_1.zz;
+
+--source rqg.inc
+
+let $GRAMMAR_FILES = connect_kill_sql.yy;
+let $DATA_FILE = connect_kill_data.zz;
+
+--source rqg.inc
+
+let $GRAMMAR_FILES = metadata_stability.yy;
+let $DATA_FILE = metadata_stability.zz;
+
+--source rqg.inc
+
+--disable_warnings
+DELETE FROM mysql.tables_priv;
+DELETE FROM mysql.user;
+INSERT mysql.user SELECT * FROM mysql.user_temp;
+INSERT mysql.tables_priv SELECT * FROM mysql.tables_priv_temp;
+DROP TABLE mysql.user_temp;
+DROP TABLE mysql.tables_priv_temp;
+DROP TABLE IF EXISTS test.executors;
+DROP DATABASE IF EXISTS testdb_N;
+DROP DATABASE IF EXISTS testdb_S;
+--enable_warnings
+
+SET GLOBAL EVENT_SCHEDULER = @ORIG_EVENT_SCHEDULER;

@@ -1,0 +1,23 @@
+let $table_data_dir=$MYSQLTEST_VARDIR/ddir;
+mkdir $table_data_dir;
+--replace_result $table_data_dir table_data_dir
+EVAL CREATE TABLE t(a INT) ENGINE=InnoDB DATA DIRECTORY='$table_data_dir';
+INSERT INTO t VALUES(1);
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+--source include/shutdown_mysqld.inc
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+--source include/start_mysqld.inc
+DROP TABLE t;
+rmdir $table_data_dir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+SELECT * FROM t;
+DROP TABLE t;
+rmdir $targetdir;
+rmdir $table_data_dir;

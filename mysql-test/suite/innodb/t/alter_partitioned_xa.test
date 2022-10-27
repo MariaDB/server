@@ -1,0 +1,31 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+--echo #
+--echo # MDEV-14693 XA: Assertion `!clust_index->online_log' failed
+--echo # in rollback_inplace_alter_table
+--echo #
+
+# A bug in meta-data locking (MDL) for XA transactions causes
+# a bug in InnoDB error handling for ALTER TABLE to be triggered.
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB PARTITION BY HASH(a) PARTITIONS 2;
+XA START 'xid';
+INSERT INTO t1 VALUES (1,10);
+# XA bug: The following releases the MDL on t1!
+--error ER_XAER_RMFAIL
+CREATE DATABASE IF NOT EXISTS db;
+
+--connect (con1,localhost,root,,test)
+SET innodb_lock_wait_timeout= 1, lock_wait_timeout= 2;
+# Here, innodb_lock_wait_timeout would be exceeded, causing the operation
+# to roll back when InnoDB is attempting to commit.
+# (Instead, lock_wait_timeout should be exceeded!)
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t1 FORCE;
+
+# Cleanup
+--disconnect con1
+--connection default
+XA END 'xid';
+XA ROLLBACK 'xid';
+DROP TABLE t1;

@@ -1,0 +1,41 @@
+# Copyright(C) 2012-2013 Kentoku SHIBA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/load_mroonga_functions.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+set names utf8;
+create table t1 (c1 int primary key, c2 varchar(255), c3 text, fulltext index(c2), fulltext index(c3)) default charset utf8;
+insert into t1 values(1, "あああああ","２９日の富士山の天気について");
+insert into t1 values(2, "いいいいい","２９日の富士山の天気は分かりません");
+insert into t1 values(3, "ううううう","29日の富士山の天気について");
+select c1, c2, mroonga_snippet(c3, 10, 2, 'utf8_general_ci', 0, 1, '...', '...<br>\n', '２９日', '<span class="w1">', '</span>', '天気', '<span class="w2">', '</span>', '富士山', '<span class="w3">', '</span>') from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'utf8_bin', 0, 1, '...', '...<br>\n', '２９日', '<span class="w1">', '</span>', '天気', '<span class="w2">', '</span>', '富士山', '<span class="w3">', '</span>') from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'utf8_general_ci', 1, 1, '...', '...<br>\n', '２９日', '<span class="w1">', '</span>', '天気', '<span class="w2">', '</span>', '富士山', '<span class="w3">', '</span>') from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'utf8_bin', 1, 1, '...', '...<br>\n', '２９日', '<span class="w1">', '</span>', '天気', '<span class="w2">', '</span>', '富士山', '<span class="w3">', '</span>') from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'utf8_general_ci', 0, 0, '...', '...\n', '２９日', '(w1)[', ']', '天気', '(w2)[', ']', '富士山', '(w3)[', ']') from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'utf8_bin', 0, 0, '...', '...\n', '２９日', '(w1)[', ']', '天気', '(w2)[', ']', '富士山', '(w3)[', ']') from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'utf8_general_ci', 1, 0, '...', '...\n', '２９日', '(w1)[', ']', '天気', '(w2)[', ']', '富士山', '(w3)[', ']') from t1;
+select c1, c2, mroonga_snippet(c3, 10, 2, 'utf8_bin', 1, 0, '...', '...\n', '２９日', '(w1)[', ']', '天気', '(w2)[', ']', '富士山', '(w3)[', ']') from t1;
+drop table t1;
+
+--source ../../include/mroonga/unload_mroonga_functions.inc
+--source ../../include/mroonga/have_mroonga_deinit.inc

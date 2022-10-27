@@ -1,0 +1,21 @@
+#
+# MDEV-8021 "InnoDB: Tablespace id 4 encrypted but encryption service not available. Can't continue opening tablespace" on server restart when there are encrypted tables
+#
+
+--source include/have_innodb.inc
+--source include/have_file_key_management_plugin.inc
+
+let $datadir=`select @@datadir`;
+--source include/shutdown_mysqld.inc
+
+--remove_file $datadir/ib_logfile0
+--remove_file $datadir/ib_logfile1
+--remove_file $datadir/ibdata1
+
+--source include/start_mysqld.inc
+
+create table t1 (a int);
+
+--source include/restart_mysqld.inc
+
+drop table t1;

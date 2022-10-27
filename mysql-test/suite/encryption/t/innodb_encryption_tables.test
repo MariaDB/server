@@ -1,0 +1,99 @@
+-- source include/have_innodb.inc
+-- source include/have_example_key_management_plugin.inc
+-- source include/not_embedded.inc
+# We can't run this test under valgrind as it 'takes forever'
+-- source include/not_valgrind.inc
+
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic;
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed;
+create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant;
+
+show warnings;
+
+show create table innodb_normal;
+show create table innodb_compact;
+show create table innodb_dynamic;
+show create table innodb_compressed;
+show create table innodb_redundant;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into innodb_normal values(current_num, substring(MD5(RAND()), -64));
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(2000);
+commit;
+set autocommit=1;
+
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+insert into innodb_compressed select * from innodb_normal;
+insert into innodb_redundant select * from innodb_normal;
+
+update innodb_normal set c1 = c1 + 1;
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+update innodb_compressed set c1 = c1 + 1;
+update innodb_redundant set c1 = c1 + 1;
+select count(*) from innodb_normal;
+select count(*) from innodb_compact where c1 < 1500000;
+select count(*) from innodb_dynamic where c1 < 1500000;
+select count(*) from innodb_compressed where c1 < 1500000;
+select count(*) from innodb_redundant where c1 < 1500000;
+select count(*) from innodb_compact t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+select count(*) from innodb_dynamic t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+select count(*) from innodb_compressed t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+select count(*) from innodb_redundant t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';
+
+--source include/restart_mysqld.inc
+
+update innodb_normal set c1 = c1 + 1;
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+update innodb_compressed set c1 = c1 + 1;
+update innodb_redundant set c1 = c1 + 1;
+select count(*) from innodb_normal;
+select count(*) from innodb_compact where c1 < 1500000;
+select count(*) from innodb_dynamic where c1 < 1500000;
+select count(*) from innodb_compressed where c1 < 1500000;
+select count(*) from innodb_redundant where c1 < 1500000;
+select count(*) from innodb_compact t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+select count(*) from innodb_dynamic t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+select count(*) from innodb_compressed t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+select count(*) from innodb_redundant t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_compressed';
+SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_page_decompressed';
+
+drop procedure innodb_insert_proc;
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_dynamic;
+drop table innodb_compressed;
+drop table innodb_redundant;

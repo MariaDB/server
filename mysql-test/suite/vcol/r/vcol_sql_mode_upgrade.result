@@ -1,0 +1,384 @@
+call mtr.add_suppression("Table rebuild required");
+#
+# Opening a Maria-10.2.26 table with a stored VARCHAR column
+#
+# Copying maria100226_char_to_vchar_stored.* to MYSQLD_DATADIR
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+FLUSH TABLES;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+FLUSH TABLES;
+SELECT * FROM t1;
+a	v
+1	1
+2	2
+3	3
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SELECT * FROM t1;
+a	v
+1	1
+2	2
+3	3
+FLUSH TABLES;
+SELECT * FROM t1;
+a	v
+1	1
+2	2
+3	3
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+CREATE TABLE t2 LIKE t1;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t2;
+FLUSH TABLES;
+CREATE TABLE t2 LIKE t1;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE t1 ADD b INT DEFAULT a;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) STORED,
+  `b` int(11) DEFAULT `a`
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SELECT * FROM t1;
+a	v	b
+1	1	1
+2	2	2
+3	3	3
+FLUSH TABLES;
+ALTER TABLE t1 ADD c INT DEFAULT a;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SELECT * FROM t1;
+a	v	b	c
+1	1	1	1
+2	2	2	2
+3	3	3	3
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+#
+# Fixing a Maria-10.2.26 table with a stored VARCHAR column
+#
+# Fixing by dropping the generated stored column
+# Copying maria100226_char_to_vchar_stored.* to MYSQLD_DATADIR
+ALTER TABLE t1 DROP v;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SELECT * FROM t1;
+a
+1
+2
+3
+DROP TABLE t1;
+# Fixing by altering the generation expression of the stored column
+# Copying maria100226_char_to_vchar_stored.* to MYSQLD_DATADIR
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+ALTER TABLE t1 MODIFY v VARCHAR(5) AS (RTRIM(a)) PERSISTENT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (rtrim(`a`)) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# Opening a Maria-10.2.26 table with a virtual VARCHAR column
+#
+# Copying maria100226_char_to_vchar_virtual.* to MYSQLD_DATADIR
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+FLUSH TABLES;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+FLUSH TABLES;
+SELECT * FROM t1;
+a	v
+1	1
+2	2
+3	3
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SELECT * FROM t1;
+a	v
+1	1
+2	2
+3	3
+FLUSH TABLES;
+SELECT * FROM t1;
+a	v
+1	1
+2	2
+3	3
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+CREATE TABLE t2 LIKE t1;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t2;
+FLUSH TABLES;
+CREATE TABLE t2 LIKE t1;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE t1 ADD b INT DEFAULT a;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+FLUSH TABLES;
+ALTER TABLE t1 ADD c INT DEFAULT a;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SELECT * FROM t1;
+a	v	b	c
+1	1	1	1
+2	2	2	2
+3	3	3	3
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+DROP TABLE t1;
+#
+# Fixing a Maria-10.2.26 table with a virtual VARCHAR column
+#
+# Fixing by dropping the virtual column
+# Copying maria100226_char_to_vchar_virtual.* to MYSQLD_DATADIR
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+ALTER TABLE t1 DROP v;
+SELECT * FROM t1;
+a
+1
+2
+3
+DROP TABLE t1;
+# Fixing by dropping a key on a virtual column, using ALTER TABLE
+# Copying maria100226_char_to_vchar_virtual.* to MYSQLD_DATADIR
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+ALTER TABLE t1 DROP KEY v;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+a	v
+1	1
+2	2
+3	3
+DROP TABLE t1;
+# Fixing by dropping a key on a virtual column, using DROP INDEX
+# Copying maria100226_char_to_vchar_virtual.* to MYSQLD_DATADIR
+DROP INDEX v ON t1;
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+a	v
+1	1
+2	2
+3	3
+DROP TABLE t1;
+# Fixing by altering the generation expression of a virtual column
+# Copying maria100226_char_to_vchar_virtual.* to MYSQLD_DATADIR
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Warning	1901	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+Warning	1105	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+ALTER TABLE t1 MODIFY v VARCHAR(5) AS(RTRIM(a)) VIRTUAL;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (rtrim(`a`)) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+a	v
+1	1
+2	2
+3	3
+CREATE TABLE t2 LIKE t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` char(5) DEFAULT NULL,
+  `v` varchar(5) GENERATED ALWAYS AS (rtrim(`a`)) VIRTUAL,
+  KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# Upgrading a Maria-10.2.26 table with a stored column
+#
+# Copying maria100226_char_to_varchar.* to MYSQLD_DATADIR
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+test.t1	check	Warning	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+test.t1	check	status	OK
+FLUSH TABLES;
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+test.t1	check	Warning	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# Upgrading a Maria-10.2.26 table with a virtual column
+#
+# Copying maria100226_char_to_varchar.* to MYSQLD_DATADIR
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+test.t1	check	Warning	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+test.t1	check	status	OK
+FLUSH TABLES;
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	Function or expression '`a`' cannot be used in the GENERATED ALWAYS AS clause of `v`
+test.t1	check	Warning	Expression depends on the @@sql_mode value PAD_CHAR_TO_FULL_LENGTH
+test.t1	check	status	OK
+DROP TABLE t1;

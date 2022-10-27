@@ -1,0 +1,130 @@
+# Test for bug #14676111: WRONG PAGE_LEVEL WRITTEN FOR UPPER THAN FATHER PAGE AT BTR_LIFT_PAGE_UP()
+
+-- source include/have_innodb.inc
+-- source include/have_debug.inc
+-- source include/count_sessions.inc
+
+set @old_innodb_limit_optimistic_insert_debug = @@innodb_limit_optimistic_insert_debug;
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
+
+#
+# make 4 leveled straight tree
+#
+set global innodb_limit_optimistic_insert_debug = 2;
+insert into t1 values (1);
+--connect (con5,localhost,root)
+begin;
+insert into t1 values (5);
+#current tree form
+# (1, 5)
+
+--connect (con4,localhost,root)
+begin;
+insert into t1 values (4);
+#records in a page is limited to 2 artificially. root rise occurs
+#current tree form
+#   (1, 5)
+#(1, 4) (5)
+
+--connection default
+insert into t1 values (3);
+#current tree form
+#    (1, 5)
+#  (1, 4) (5)
+#(1, 3) (4) (5)
+
+--connect (con2,localhost,root)
+begin;
+insert into t1 values (2);
+#current tree form
+#      (1, 5)
+#    (1, 4) (5)
+#  (1, 3) (4) (5)
+#(1, 2) (3) (4) (5)
+
+--connection default
+analyze table t1;
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+
+--connection con4
+rollback;
+--disconnect con4
+--connection default
+
+#deleting 1 record of 2 records don't cause merge artificially.
+#current tree form
+#      (1, 5)
+#    (1)    (5)
+#  (1, 3)     (5)
+#(1, 2) (3)     (5)
+
+analyze table t1;
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+
+--connection con5
+rollback;
+--disconnect con5
+--connection default
+
+#deleting 1 record of 2 records don't cause merge artificially.
+#current tree form
+#      (1)
+#    (1)
+#  (1, 3) <- lift up this level next, when deleting node ptr
+#(1, 2) (3) <- merged next
+
+analyze table t1;
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+
+#
+# cause merge at level 0
+#
+
+#disable the artificial limitation of records in a page
+set global innodb_limit_optimistic_insert_debug = 10000;
+--connection con2
+rollback;
+--disconnect con2
+--connection default
+
+#merge page occurs. and lift up occurs.
+#current tree form
+#      (1)
+#    (1)
+#  (1, 3)
+
+analyze table t1;
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+
+begin;
+insert into t1 values (2);
+#current tree form
+#      (1)
+#    (1) <- lift up this level next, because it is not root
+#  (1, 2, 3)
+rollback;
+
+#current tree form
+#      (1)
+#    (1, 3)
+
+analyze table t1;
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+
+begin;
+insert into t1 values (2);
+#current tree form
+#      (1)
+#    (1, 2, 3) <- lift up this level next, because the father is root
+rollback;
+#current tree form
+#      (1, 3)
+
+analyze table t1;
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+
+drop table t1;
+
+set global innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;
+-- source include/wait_until_count_sessions.inc

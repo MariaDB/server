@@ -1,0 +1,133 @@
+set global innodb_defragment_stats_accuracy = 80;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), KEY SECOND(a, b)) ENGINE=INNODB;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+INSERT INTO t1 VALUES (100000, REPEAT('A', 256));
+INSERT INTO t1 VALUES (200000, REPEAT('A', 256));
+INSERT INTO t1 VALUES (300000, REPEAT('A', 256));
+INSERT INTO t1 VALUES (400000, REPEAT('A', 256));
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+create procedure defragment()
+begin
+set @i = 0;
+repeat
+set @i = @i + 1;
+optimize table t1;
+until @i = 3 end repeat;
+end //
+select count(stat_value) from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+count(stat_value)
+0
+select count(stat_value) from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+count(stat_value)
+2
+select count(stat_value) from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+count(stat_value)
+2
+select count(*) from t1;
+count(*)
+10004
+connect  con1,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK;
+connection con1;
+call defragment();
+connection default;
+connection con1;
+connection default;
+disconnect con1;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+# restart
+select count(*) from t1;
+count(*)
+7904
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+count(stat_value) = 0
+0
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+count(stat_value) > 0
+1
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) > 0
+1
+select count(*) from t1 force index (second);
+count(*)
+7904
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_pages_freed');
+count(stat_value) = 0
+1
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_page_split');
+count(stat_value) = 0
+1
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) = 0
+1
+SET @@global.innodb_defragment_n_pages = 3;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+# restart
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+count(stat_value) < 3
+1
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+count(stat_value) < 3
+1
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) < 3
+1
+select count(*) from t1;
+count(*)
+6904
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+count(stat_value) < 3
+1
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+count(stat_value) < 3
+1
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) < 3
+1
+select count(*) from t1 force index (second);
+count(*)
+6904
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_pages_freed');
+count(stat_value) = 0
+1
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_page_split');
+count(stat_value) = 0
+1
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) = 0
+1
+SET @@global.innodb_defragment_n_pages = 10;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+# restart
+select count(stat_value) > 1 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+count(stat_value) > 1
+1
+select count(stat_value) > 1 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+count(stat_value) > 1
+1
+select count(stat_value) > 1 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) > 1
+1
+select count(*) from t1 force index (second);
+count(*)
+6904
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_pages_freed');
+count(stat_value) = 0
+1
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_page_split');
+count(stat_value) = 0
+1
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_leaf_pages_defrag');
+count(stat_value) = 0
+1
+DROP PROCEDURE defragment;
+DROP TABLE t1;

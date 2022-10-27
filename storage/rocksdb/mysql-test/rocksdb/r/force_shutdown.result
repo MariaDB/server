@@ -1,0 +1,38 @@
+create table t1 (
+pk int not null primary key,
+col1 varchar(10)
+) engine=rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+set session debug= "+d,myrocks_busy_loop_on_row_read";
+select * from t1 where pk=1;
+# testing unclean shutdown on stuck instance
+# Run shutdown sql command with forcing kill (exit code 127)
+shutdown 1;
+Got one of the listed errors
+# verifying exit code is printed
+# restart the server
+shutdown 230;
+Got one of the listed errors
+# restart the server
+# verifying SHUTDOWN is refused if exit code > 255
+SHUTDOWN 256;
+ERROR HY000: exit code must be 0..255
+SHUTDOWN 10000;
+ERROR HY000: exit code must be 0..255
+# verifying SHUTDOWN is refused if instances are not read only
+SHUTDOWN 0 read_only;
+ERROR HY000: Only read_only instance can be killed.
+SHUTDOWN 127 read_only;
+ERROR HY000: Only read_only instance can be killed.
+SHUTDOWN 127;
+Got one of the listed errors
+# restart the server
+set session debug= "+d,myrocks_busy_loop_on_row_read";
+select * from t1 where pk=1;
+SET GLOBAL read_only=1;
+# verifying SHUTDOWN read_only works with read_only instance
+# Run shutdown sql command with forcing kill (exit code 127)
+shutdown 255 read_only;
+Got one of the listed errors
+# restart the server
+drop table t1;

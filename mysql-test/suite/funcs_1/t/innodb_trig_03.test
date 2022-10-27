@@ -1,0 +1,11 @@
+#### suite/funcs_1/t/innodb_trig_03.test
+
+# InnoDB tables should be used
+#
+# 1. Check if InnoDB is available
+--source include/have_innodb.inc
+# 2. Set $engine_type
+set sql_mode="";
+let $engine_type= innodb;
+
+--source suite/funcs_1/triggers/triggers_03.inc

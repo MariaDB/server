@@ -1,0 +1,50 @@
+# Copyright(C) 2016 Naoya Murakami <naoya@createfield.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS items;
+DROP TABLE IF EXISTS readings;
+--enable_warnings
+
+SET NAMES utf8;
+CREATE TABLE readings (
+  reading VARCHAR(255) PRIMARY KEY
+) DEFAULT CHARSET=utf8
+  COLLATE=utf8_bin
+  COMMENT='default_tokenizer "TokenDelimit"';
+
+CREATE TABLE items (
+  name VARCHAR(255) PRIMARY KEY,
+  readings TEXT COMMENT 'flags "COLUMN_VECTOR", type "readings"',
+  FULLTEXT INDEX items_index(readings) COMMENT 'table "readings"'
+) DEFAULT CHARSET=utf8;
+
+INSERT INTO items VALUES("日本", "ニホン ニッポン");
+INSERT INTO items VALUES("ローマ字", "ローマジ");
+INSERT INTO items VALUES("漢字", "カンジ");
+
+SELECT *, MATCH(readings)
+          AGAINST("*SS sub_filter(readings, 'prefix_rk_search(_key, \"niho\")')" in BOOLEAN MODE) AS score
+       FROM items
+       WHERE MATCH(readings)
+             AGAINST("*SS sub_filter(readings, 'prefix_rk_search(_key, \"niho\")')" in BOOLEAN MODE);
+
+DROP TABLE items;
+DROP TABLE readings;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

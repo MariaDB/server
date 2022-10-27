@@ -1,0 +1,17 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
+SET AUTOCOMMIT=OFF;
+LOCK TABLE t1 WRITE;
+connection node_1;
+INSERT INTO t1 VALUES (2);
+connection node_2;
+UNLOCK TABLES;
+COMMIT;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+wsrep_local_aborts_increment
+1
+DROP TABLE t1;

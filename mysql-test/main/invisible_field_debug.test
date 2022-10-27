@@ -1,0 +1,292 @@
+--source include/have_debug.inc
+##TEST for invisible coloumn level 2
+set @old_debug= @@debug_dbug;
+create table t_tmp(a int, b int);
+set debug_dbug= "+d,test_pseudo_invisible";
+create table t1(a int);
+set debug_dbug=@old_debug;
+insert into t1 values(1);
+desc t1;
+show create table t1;
+select a , invisible from t1;
+##field should not be resolved in fill_record
+--error ER_BAD_FIELD_ERROR
+insert into t1(a, invisible) values(99,99);
+--error ER_BAD_FIELD_ERROR
+select default(invisible) from t1;
+--error ER_BAD_FIELD_ERROR
+insert into t1(invisible) values(99);
+insert into t_tmp select a, invisible from t1;
+--error ER_WRONG_VALUE_COUNT_ON_ROW
+insert into t1 select * from t_tmp;
+--error ER_BAD_FIELD_ERROR
+insert into t1(a,invisible) select * from t_tmp;
+
+select a , invisible from t1;
+insert into t1 values (5), (invisible+1);
+select a , invisible from t1;
+delete from t1 where a > 1;
+
+##Update
+update t1 set a = invisible where a=1;
+select a , invisible from t1;
+update t1 set a = (select invisible+100 from t1 limit 1) where a=(select a from t1 limit 1);
+select a , invisible from t1;
+
+--error ER_BAD_FIELD_ERROR
+update t1 set invisible = 23 where a=(select a from t1 limit 1);
+--error ER_BAD_FIELD_ERROR
+update t1 set invisible = 101 where a=(select a from t1 limit 1);
+--error ER_BAD_FIELD_ERROR
+update t1 set invisible = (select invisible+100 from t1 limit 1) where a=(select invisible from t1 limit 1);
+select a , invisible from t1;
+##if changed then error
+set @a=12;
+--error ER_BAD_FIELD_ERROR
+update t1 set invisible = (select @a from dual) where a=(select a from t1 limit 1);
+select a , invisible from t1;
+--error ER_BAD_FIELD_ERROR
+update t1 set invisible = (select invisible+100 from t1 limit 1) where a=(select a from t1 limit 1);
+select a , invisible from t1;
+
+##set
+set @a=(select invisible from t1 limit 1);
+select @a from dual;
+--error ER_BAD_FIELD_ERROR
+alter table t1 add constraint a check (invisible > 2);
+set debug_dbug= "+d,test_pseudo_invisible";
+--error ER_BAD_FIELD_ERROR
+create table t2(a int, b int as (invisible +2) virtual);
+create table t2(a int , b int);
+insert into t2 values(2,2);
+insert into t2 select a, invisible from t1;
+set debug_dbug=@old_debug;
+select * from t1;
+select invisible ,a from t1;
+drop table t1,t2,t_tmp;
+
+##TEST for invisible coloumn level 3
+
+set debug_dbug= "+d,test_completely_invisible";
+create table t1(a int);
+set debug_dbug=@old_debug;
+
+desc t1;
+show create table t1;
+insert into t1 values(1);
+select * from t1;
+
+--error ER_BAD_FIELD_ERROR
+select invisible ,a from t1;
+
+set debug_dbug= "+d,test_completely_invisible";
+select invisible ,a from t1;
+set debug_dbug=@old_debug;
+
+create table t2 (invisible int);
+--error ER_BAD_FIELD_ERROR
+select * from t1 join t2 using (invisible);
+--error ER_BAD_FIELD_ERROR
+select * from t2 join t1 using (invisible);
+
+insert t2 values (8),(9);
+select * from t1 natural join t2;
+select * from t2 natural join t1;
+
+drop table t1, t2;
+
+##TEST for Alter table for invisibleness level 2
+
+set debug_dbug= "+d,test_pseudo_invisible";
+create table t1(a int);
+set debug_dbug=@old_debug;
+
+desc t1;
+insert into t1 values(1);
+select * from t1;
+select invisible ,a from t1;
+
+## Alter should not be possible
+
+--error ER_BAD_FIELD_ERROR
+ALTER table t1 change invisible b int;
+select * from t1;
+select invisible ,a from t1;
+
+--error ER_BAD_FIELD_ERROR
+ALTER table t1 modify invisible char;
+select * from t1;
+select invisible ,a from t1;
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+ALTER table t1 drop invisible;
+select * from t1;
+select invisible ,a from t1;
+
+--error ER_DUP_FIELDNAME
+ALTER table t1 add invisible int;
+select * from t1;
+select invisible ,a from t1;
+
+ALTER table t1 add invisible2 int default 2;
+select * from t1;
+select invisible ,a from t1;
+
+--error ER_BAD_FIELD_ERROR
+create trigger trg before insert on t1 for each row set new.invisible=1;
+create trigger trg before insert on t1 for each row set @a:=new.invisible;
+
+drop table t1;
+
+##TEST for Alter table for invisibleness level 3
+
+set debug_dbug= "+d,test_completely_invisible";
+create table t1(a int);
+
+set debug_dbug=@old_debug;
+--error ER_BAD_FIELD_ERROR
+create trigger trg before insert on t1 for each row set new.invisible=1;
+--error ER_BAD_FIELD_ERROR
+create trigger trg before insert on t1 for each row set @a:=new.invisible;
+set debug_dbug= "+d,test_completely_invisible";
+
+desc t1;
+insert into t1 values(1);
+select * from t1;
+select invisible ,a from t1;
+
+## Alter should not be possible
+
+--error ER_BAD_FIELD_ERROR
+ALTER table t1 change invisible b int;
+select * from t1;
+select invisible ,a from t1;
+
+--error ER_BAD_FIELD_ERROR
+ALTER table t1 modify invisible char;
+select * from t1;
+select invisible ,a from t1;
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+ALTER table t1 drop invisible;
+select * from t1;
+select invisible ,a from t1;
+
+ALTER table t1 add invisible int;
+select * from t1;
+select invisible1, invisible ,a from t1;
+
+ALTER table t1 add hid int default 2;
+select * from t1;
+select invisible ,a from t1;
+
+drop table t1;
+set debug_dbug=@old_debug;
+
+## Test Index on USER_DEFINED_INVISIBLE
+
+Create table t1( a int default(99) invisible, b int);
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+insert into t1 values(4);
+select * from t1 order by b;
+alter table t1 add index(a);
+alter table t1 add index(a,b);
+show index from t1;
+drop table t1;
+
+## Test Index on PSEUDO_invisible_INVISIBLE
+
+set debug_dbug= "+d,test_pseudo_invisible";
+Create table t1( a int default(99) invisible, b int);
+
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+Create table t2( a int default(99) invisible, b int, unique(invisible));
+
+set debug_dbug=@old_debug;
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+insert into t1 values(4);
+select * from t1 order by b;
+select invisible, a, b from t1 order by b;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+alter table t1 add index(invisible);
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+alter table t1 add index(b,invisible);
+show index from t1;
+drop table t1;
+
+## Test Index on COMPLETELY_INVISIBLE
+
+set debug_dbug= "+d,test_completely_invisible";
+Create table t1( a int default(99) invisible, b int);
+
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+Create table t2( a int default(99) invisible, b int, unique(invisible));
+insert into t1 values(1);
+insert into t1 values(2);
+insert into t1 values(3);
+insert into t1 values(4);
+select * from t1 order by b;
+select invisible, a, b from t1 order by b;
+set debug_dbug=@old_debug;
+
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+alter table t1 add index(invisible);
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+alter table t1 add index(b,invisible);
+show index from t1;
+drop table t1;
+## Sytem Generated index on invisible column
+set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
+## index name will be invisible
+Create table t1( a int default(99) , b int,c int, index(b));
+set debug_dbug=@old_debug;
+Show index from t1;
+select * from INFORMATION_SCHEMA.STATISTICS where TABLE_SCHEMA ='test' and table_name='t1';
+show create table t1;
+insert into t1 values(1,1,1);
+insert into t1 values(2,2,2);
+insert into t1 values(3,3,3);
+insert into t1 values(4,4,4);
+insert into t1 values(5,5,5);
+insert into t1 values(6,6,6);
+insert into t1 values(7,7,7);
+set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
+select invisible, a ,b from t1 order by b;
+explain select * from t1 where invisible =9;
+alter table t1 add x int default 3;
+select invisible, a ,b from t1;
+set debug_dbug=@old_debug;
+Show index from t1;
+## Sytem Generated Index modification
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+create index a1 on t1(invisible);
+set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
+## index does not exist for user
+--error ER_CANT_DROP_FIELD_OR_KEY
+drop index invisible on t1;
+explain select * from t1 where invisible =9;
+## index name will be changed
+create index invisible on t1(c);
+explain select * from t1 where invisible =9;
+show indexes in t1;
+drop table t1;
+set @old_debug= @@debug_dbug;
+## MDEV 15127
+CREATE TABLE t1 (i INT );
+SET debug_dbug="+d,test_completely_invisible,test_invisible_index";
+CREATE TABLE t2 LIKE t1;
+SET debug_dbug= DEFAULT;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-20210
+--echo # If you have an INVISIBLE VIRTUAL column, SHOW CREATE TABLE doesn't list it as INVISIBLE
+--echo #
+
+CREATE TABLE t1 (i INT, v int GENERATED ALWAYS AS (1) VIRTUAL INVISIBLE);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

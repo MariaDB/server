@@ -1,0 +1,75 @@
+create table t (
+a int,
+b int without system versioning
+) with system versioning;
+insert into t values(1, 2);
+insert into t values(3, 4);
+select * from t;
+a	b
+1	2
+3	4
+select a from t for system_time as of timestamp now(6);
+a
+1
+3
+select a, b, b+0 from t for system_time as of timestamp now(6);
+a	b	b+0
+1	2	2
+3	4	4
+select * from t for system_time as of timestamp now(6);
+a	b
+1	2
+3	4
+select count(*) from t for system_time as of timestamp now(6) group by b;
+count(*)
+1
+1
+select * from t for system_time as of timestamp now(6) order by b asc;
+a	b
+1	2
+3	4
+select * from t for system_time as of timestamp now(6) order by b desc;
+a	b
+3	4
+1	2
+select * from t for system_time as of timestamp now(6) group by a having a=2;
+a	b
+select * from t for system_time as of timestamp now(6) group by b having b=2;
+a	b
+1	2
+select a from t for system_time as of timestamp now(6) where b=2;
+a
+1
+select a from t for system_time as of timestamp now(6) where b=NULL;
+a
+select a from t for system_time as of timestamp now(6) where b is NULL;
+a
+select count(*), b from t for system_time as of timestamp now(6) group by b having b=NULL;
+count(*)	b
+select a, b from t;
+a	b
+1	2
+3	4
+create or replace table t (
+a int,
+b int not null without system versioning
+) with system versioning;
+insert into t values (1, 2), (3, 4);
+select * from t for system_time as of timestamp now(6);
+a	b
+1	2
+3	4
+select * from t for system_time as of timestamp now(6) where b is NULL;
+a	b
+create or replace table t (x int with system versioning, y int);
+select column_name, extra from information_schema.columns where table_name='t';
+column_name	extra
+x	
+y	WITHOUT SYSTEM VERSIONING
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table t;

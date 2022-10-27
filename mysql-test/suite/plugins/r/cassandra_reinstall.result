@@ -1,0 +1,14 @@
+install soname 'ha_cassandra';
+select plugin_name,plugin_status,plugin_library from information_schema.plugins where plugin_name = 'cassandra';
+plugin_name	plugin_status	plugin_library
+CASSANDRA	ACTIVE	ha_cassandra.so
+uninstall plugin cassandra;
+select plugin_name,plugin_status,plugin_library from information_schema.plugins where plugin_name = 'cassandra';
+plugin_name	plugin_status	plugin_library
+install soname 'ha_cassandra';
+select plugin_name,plugin_status,plugin_library from information_schema.plugins where plugin_name = 'cassandra';
+plugin_name	plugin_status	plugin_library
+CASSANDRA	ACTIVE	ha_cassandra.so
+uninstall plugin cassandra;
+select plugin_name,plugin_status,plugin_library from information_schema.plugins where plugin_name = 'cassandra';
+plugin_name	plugin_status	plugin_library

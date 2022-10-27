@@ -1,0 +1,7 @@
+--innodb-immediate-scrub-data-uncompressed=OFF
+--innodb-background-scrub-data-uncompressed=ON
+--innodb-background-scrub-data-compressed=ON
+--loose-innodb-debug-force-scrubbing=ON
+--innodb-encryption-threads=0
+--innodb-encrypt-tables=OFF
+--innodb-tablespaces-scrubbing

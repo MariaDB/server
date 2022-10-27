@@ -1,0 +1,66 @@
+################################################################################
+# t/gcol_partition_innodb.test                                                 #
+#                                                                              #
+# Purpose:                                                                     #
+#   Testing partitioning tables with generated columns.                          #
+#                                                                              #
+#        InnoDB branch                                                         #
+#                                                                              #
+#------------------------------------------------------------------------------#
+# Original Author: Andrey Zhakov                                               #
+# Original Date: 2008-09-04                                                    #
+# Change Author:                                                               #
+# Change Date:                                                                 #
+# Change:                                                                      #
+################################################################################
+
+#
+# NOTE: PLEASE DO NOT ADD NOT MYISAM SPECIFIC TESTCASES HERE !
+#       TESTCASES WHICH MUST BE APPLIED TO ALL STORAGE ENGINES MUST BE ADDED IN
+#       THE SOURCED FILES ONLY.
+#
+
+#------------------------------------------------------------------------------#
+# General not engine specific settings and requirements
+
+#------------------------------------------------------------------------------#
+# Engine specific settings and requirements
+
+##### Storage engine to be tested
+# Set the session storage engine
+--source include/have_innodb.inc
+eval SET @@session.default_storage_engine = 'InnoDB';
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
+##### Workarounds for known open engine specific bugs
+#     none
+
+#------------------------------------------------------------------------------#
+# Execute the tests to be applied to all storage engines
+--source suite/gcol/inc/gcol_partition.inc
+
+#------------------------------------------------------------------------------#
+# Execute storage engine specific tests
+
+--echo #
+--echo # MDEV-16980 Wrongly set tablename len while opening the
+--echo #                table for purge thread
+--echo #
+
+CREATE TABLE t1(pk SERIAL, d DATE, vd DATE AS (d) VIRTUAL,
+                PRIMARY KEY(pk), KEY (vd))ENGINE=InnoDB
+                PARTITION BY HASH(pk) PARTITIONS 2;
+
+INSERT IGNORE INTO t1 (d) VALUES ('2015-04-14');
+SET sql_mode= '';
+REPLACE INTO t1 SELECT * FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+
+--source suite/innodb/include/wait_all_purged.inc
+#------------------------------------------------------------------------------#
+# Cleanup
+--source suite/gcol/inc/gcol_cleanup.inc
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

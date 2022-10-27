@@ -1,0 +1,359 @@
+-- source include/mysql_upgrade_preparation.inc
+-- source include/have_working_dns.inc
+-- source include/have_innodb.inc
+-- source include/have_partition.inc
+
+set sql_mode="";
+
+#
+# Basic test that we can run mysql_upgrde and that it finds the
+# expected binaries it uses.
+#
+--echo Run mysql_upgrade once
+--exec $MYSQL_UPGRADE --force 2>&1
+
+# It should have created a file in the MySQL Servers datadir
+let $MYSQLD_DATADIR= `select @@datadir`;
+file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
+
+--echo Run it again - should say already completed
+--replace_regex /upgraded to .*, use/upgraded to VERSION, use/
+--exec $MYSQL_UPGRADE 2>&1
+
+# It should have created a file in the MySQL Servers datadir
+file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
+
+--echo Force should run it regardless of whether it has been run before
+--exec $MYSQL_UPGRADE --force 2>&1
+
+# It should have created a file in the MySQL Servers datadir
+file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
+
+
+#
+# Bug #25452 mysql_upgrade access denied.
+#
+
+# Password protect a root account and run mysql_upgrade
+
+CREATE USER mysqltest1@'%' IDENTIFIED by 'sakila';
+GRANT ALL ON *.* TO mysqltest1@'%';
+--echo Run mysql_upgrade with password protected account
+--exec $MYSQL_UPGRADE --force --user=mysqltest1 --password=sakila 2>&1
+
+DROP USER mysqltest1@'%';
+
+#
+# check that we get proper error messages if wrong user
+
+--error 1
+--exec $MYSQL_UPGRADE --force --user=mysqltest1 --password=sakila 2>&1
+
+#
+# Bug #26639 mysql_upgrade exits successfully even if external command failed
+#
+
+--echo Run mysql_upgrade with a non existing server socket
+--replace_result $MYSQLTEST_VARDIR var
+--replace_regex /.*mysqlcheck.*: Got/mysqlcheck: Got/ /\([0-9|-]*\)/(errno)/
+--error 1
+# NC: Added --skip-version-check, as the version check would fail when
+# mysql_upgrade tries to get the server version.
+--exec $MYSQL_UPGRADE --verbose --force --host=not_existing_host --skip-version-check 2>&1
+
+#
+# Bug #28401 mysql_upgrade Failed with STRICT_ALL_TABLES, ANSI_QUOTES and NO_ZERO_DATE
+#
+
+# The SQL commands used by mysql_upgrade are written to be run
+# with sql_mode set to '' - thus the scripts should change sql_mode
+# for the session to make sure the SQL is legal.
+
+# Test by setting sql_mode before running mysql_upgrade
+set GLOBAL sql_mode='STRICT_ALL_TABLES,ANSI_QUOTES,NO_ZERO_DATE';
+--exec $MYSQL_UPGRADE --force 2>&1
+eval set GLOBAL sql_mode=default;
+
+--echo #
+--echo # Bug #41569 mysql_upgrade (ver 5.1) add 3 fields to mysql.proc table 
+--echo # but does not set values.
+--echo #
+
+# Create a stored procedure and set the fields in question to null. 
+# When running mysql_upgrade, a warning should be written.
+
+CREATE PROCEDURE testproc() BEGIN END;
+UPDATE mysql.proc SET character_set_client = NULL WHERE name LIKE 'testproc';
+UPDATE mysql.proc SET collation_connection = NULL WHERE name LIKE 'testproc';
+UPDATE mysql.proc SET db_collation = NULL WHERE name LIKE 'testproc';
+--exec $MYSQL_UPGRADE --force 2> $MYSQLTEST_VARDIR/tmp/41569.txt
+CALL testproc();
+DROP PROCEDURE testproc;
+--cat_file $MYSQLTEST_VARDIR/tmp/41569.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/41569.txt
+
+
+--echo #
+--echo # Bug #53613: mysql_upgrade incorrectly revokes 
+--echo #   TRIGGER privilege on given table
+--echo #
+
+GRANT USAGE ON *.* TO 'user3'@'%';
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
+--echo Run mysql_upgrade with all privileges on a user
+--exec $MYSQL_UPGRADE --force 2>&1
+SHOW GRANTS FOR 'user3'@'%';
+
+DROP USER 'user3'@'%';
+
+--echo # End of 5.1 tests
+
+#
+# Test the --upgrade-system-tables option
+#
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --force --upgrade-system-tables
+
+--echo #
+--echo # Bug#11827359 60223: MYSQL_UPGRADE PROBLEM WITH OPTION
+--echo #                     SKIP-WRITE-BINLOG
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo # Droping the previously created mysql_upgrade_info file..
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo # Running mysql_upgrade with --skip-write-binlog..
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --skip-write-binlog
+
+# mysql_upgrade must have created mysql_upgrade_info file,
+# so the following command should never fail.
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo #
+--echo # Bug #21489398: MYSQL_UPGRADE: FATAL ERROR: UPGRADE FAILED - IMPROVE ERROR
+--echo #
+
+--echo Run mysql_upgrade with unauthorized access
+--error 1
+--exec $MYSQL_UPGRADE --skip-verbose --user=root --password=wrong_password 2>&1
+
+--echo #
+--echo # MDEV-4332 Increase username length from 16 characters
+--echo # MDEV-6068, MDEV-6178 mysql_upgrade breaks databases with long user names
+--echo #
+
+connection default;
+GRANT SELECT ON mysql.* TO very_long_user_name_number_1;
+GRANT SELECT ON mysql.* TO very_long_user_name_number_2;
+GRANT ALL ON *.* TO even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost WITH GRANT OPTION;
+--change_user even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length
+
+GRANT INSERT ON mysql.user TO very_long_user_name_number_1;
+GRANT INSERT ON mysql.user TO very_long_user_name_number_2;
+GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_1;
+GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_2;
+
+CREATE PROCEDURE test.pr() BEGIN END;
+
+--change_user root
+
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --force 2>&1
+
+SELECT definer FROM mysql.proc WHERE db = 'test' AND name = 'pr';
+SELECT grantor FROM mysql.tables_priv WHERE db = 'mysql' AND table_name = 'user';
+DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
+DROP PROCEDURE test.pr;
+
+#
+# MDEV-13274 mysql_upgrade fails if dbname+tablename+partioname > 64 chars
+#
+use test;
+
+create table extralongname_extralongname_extralongname_extralongname_ext (
+  id int(10) unsigned not null,
+  created_date date not null,
+  created timestamp not null,
+  primary key (created,id,created_date)
+) engine=innodb stats_persistent=1 default charset=latin1
+  partition by range (year(created_date))
+  subpartition by hash (month(created_date))
+  subpartitions 2 (
+    partition p2007 values less than (2008),
+    partition p2008 values less than (2009)
+  );
+--exec $MYSQL_UPGRADE --skip-verbose --force 2>&1
+select length(table_name) from mysql.innodb_table_stats;
+drop table extralongname_extralongname_extralongname_extralongname_ext;
+
+--echo # End of 10.0 tests
+
+set sql_mode=default;
+
+#
+# Enforce storage engine option should not effect mysql_upgrade
+#
+--echo # Droping the previously created mysql_upgrade_info file..
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+create table test.t1(a int) engine=MyISAM;
+--echo # Trying to enforce InnoDB for all tables
+SET GLOBAL enforce_storage_engine=InnoDB;
+
+--replace_result $MYSQLTEST_VARDIR var
+--exec $MYSQL_UPGRADE --force 2>&1
+
+--echo # Should return 2
+SELECT count(*) FROM information_schema.tables where ENGINE="InnoDB";
+SHOW CREATE TABLE test.t1;
+DROP TABLE test.t1;
+# mysql_upgrade must have created mysql_upgrade_info file,
+# so the following command should never fail.
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+SET GLOBAL enforce_storage_engine=NULL;
+
+--echo # End of 10.1 tests
+
+--echo #
+--echo # MDEV-23201 'Roles' are created incorrectly on an install that was previously MySQL 5.7
+--echo #
+--echo #
+
+--exec $MYSQL_DUMP --result-file $MYSQLTEST_VARDIR/tmp/user.sql mysql user
+DROP VIEW mysql.user;
+
+--copy_file std_data/mysql57user.frm $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/mysql57user.MYI $MYSQLD_DATADIR/mysql/user.MYI
+--copy_file std_data/mysql57user.MYD $MYSQLD_DATADIR/mysql/user.MYD
+FLUSH TABLES mysql.user;
+FLUSH PRIVILEGES;
+SHOW CREATE TABLE mysql.user;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+SHOW CREATE TABLE mysql.user;
+
+CREATE ROLE `aRole`;
+SET ROLE `aRole`;
+
+FLUSH PRIVILEGES;
+
+SET ROLE `aRole`;
+SELECT `User`, `is_role` FROM `mysql`.`user`;
+
+DROP ROLE aRole;
+
+--echo #
+--echo # MDEV-24122 Fix previously MySQL-5.7 data directories that upgraded prior to MDEV-23201
+--echo #
+
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+drop table mysql.user;
+truncate table mysql.tables_priv;
+--copy_file std_data/mysql57user.frm $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/mysql57user.MYI $MYSQLD_DATADIR/mysql/user.MYI
+--copy_file std_data/mysql57user.MYD $MYSQLD_DATADIR/mysql/user.MYD
+FLUSH TABLES mysql.user;
+
+# What prior to MDEV-23201 would of done:
+ALTER TABLE mysql.user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE mysql.user ADD default_role char(80) binary DEFAULT '' NOT NULL;
+ALTER TABLE mysql.user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
+FLUSH PRIVILEGES;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+SHOW CREATE TABLE mysql.user;
+
+CREATE ROLE `aRole`;
+SET DEFAULT ROLE aRole;
+SHOW GRANTS;
+SET DEFAULT ROLE NONE;
+SHOW GRANTS;
+
+DROP ROLE `aRole`;
+--exec $MYSQL mysql < $MYSQLTEST_VARDIR/tmp/user.sql
+FLUSH PRIVILEGES;
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+
+--echo # End of 10.2 tests
+
+--echo #
+--echo # Ensure that mysql_upgrade correctly sets truncate_versioning_priv
+--echo # on upgrade from 10.2
+--echo #
+
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+CREATE USER 'user3'@'%';
+GRANT USAGE ON *.* TO 'user3'@'%';
+GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
+alter table mysql.user drop column Delete_history_priv;
+alter table mysql.db drop column Delete_history_priv;
+--source include/restart_mysqld.inc
+--echo Run mysql_upgrade with all privileges on a user
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+flush privileges;
+SHOW GRANTS FOR 'user3'@'%';
+DROP USER 'user3'@'%';
+update mysql.db set Delete_history_priv='Y' where db like 'test%';
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+
+--echo # End of 10.3 tests
+
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+create user 'user3'@'localhost' identified with mysql_native_password as password('a_password');
+show create user user3@localhost;
+update mysql.user set password=authentication_string, authentication_string='' where user='user3';
+select password,plugin,authentication_string from mysql.user where user='user3';
+flush privileges;
+show create user user3@localhost;
+connect con1,localhost,user3,a_password;
+select current_user();
+disconnect con1;
+connection default;
+--echo # mysql_upgrade --force --silent 2>&1
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+show create user user3@localhost;
+connect con1,localhost,user3,a_password;
+select current_user();
+disconnect con1;
+connection default;
+drop user user3@localhost;
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+
+#
+# MDEV-18275 Live upgrade from 5.5 does not work: InnoDB stat tables are used before creation
+#
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+drop table mysql.innodb_index_stats, mysql.innodb_table_stats;
+--echo # mysql_upgrade --force --silent 2>&1
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+
+#
+# MDEV-21244 mysql_upgrade creating empty global_priv table
+#
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+alter table mysql.user change authentication_string auth_string text collate utf8_bin not null;
+--echo # mysql_upgrade --force --silent 2>&1
+--exec $MYSQL_UPGRADE --force --silent 2>&1
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+select count(*) from mysql.global_priv;
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+
+--echo # End of 10.4 tests

@@ -1,0 +1,83 @@
+create database db;
+create role auto_create;
+create user auto_create;
+grant all on db.* to auto_create;
+create user foo@localhost;
+grant auto_create to foo@localhost;
+create user bar@localhost identified by 'baz';
+grant auto_create to bar@localhost;
+connect  con1,localhost,foo,,;
+set role 'auto_create';
+use db;
+create table t1 (i int);
+disconnect con1;
+connect  con1,localhost,bar,baz,;
+set role auto_create;
+use db;
+insert into t1 values (1);
+disconnect con1;
+connection default;
+drop user foo@localhost, bar@localhost;
+set sql_mode = 'no_auto_create_user';
+grant auto_create to foo@localhost;
+ERROR 28000: Can't find any matching row in the user table
+grant auto_create to bar@localhost identified by 'baz';
+select user, host from mysql.user where user = 'bar';
+User	Host
+bar	localhost
+set sql_mode = '';
+connect  con1,localhost,bar,baz,;
+set role auto_create;
+use db;
+drop table t1;
+disconnect con1;
+connection default;
+create user foo@localhost;
+connect  con1, localhost, foo,,;
+set sql_mode = '';
+grant auto_create to bar2@localhost;
+ERROR 28000: Access denied for user 'foo'@'localhost'
+grant auto_create to foo2@localhost;
+ERROR 28000: Access denied for user 'foo'@'localhost'
+set sql_mode = 'no_auto_create_user';
+grant auto_create to bar2@localhost;
+ERROR 28000: Access denied for user 'foo'@'localhost'
+grant auto_create to foo2@localhost identified by 'pass';
+ERROR 28000: Access denied for user 'foo'@'localhost'
+disconnect con1;
+connection default;
+grant auto_create to foo@localhost;
+connect  con1, localhost, foo,,;
+set sql_mode = '';
+grant auto_create to bar@localhost;
+ERROR 28000: Access denied for user 'foo'@'localhost'
+grant auto_create to bar2@localhost;
+ERROR 28000: Access denied for user 'foo'@'localhost'
+grant auto_create to foo2@localhost identified by 'pass';
+ERROR 28000: Access denied for user 'foo'@'localhost'
+set sql_mode = 'no_auto_create_user';
+grant auto_create to bar2@localhost;
+ERROR 28000: Access denied for user 'foo'@'localhost'
+grant auto_create to foo2@localhost identified by 'pass';
+ERROR 28000: Access denied for user 'foo'@'localhost'
+connection default;
+grant auto_create to foo@localhost with admin option;
+disconnect con1;
+connect  con1, localhost, foo,,;
+set sql_mode = '';
+grant auto_create to bar@localhost;
+grant auto_create to bar2@localhost;
+ERROR 42000: You are not allowed to create a user with GRANT
+grant auto_create to foo2@localhost identified by 'pass';
+ERROR 42000: You are not allowed to create a user with GRANT
+set sql_mode = 'no_auto_create_user';
+grant auto_create to bar2@localhost;
+ERROR 28000: Can't find any matching row in the user table
+grant auto_create to foo2@localhost identified by 'pass';
+ERROR 42000: You are not allowed to create a user with GRANT
+connection default;
+drop user foo@localhost;
+drop user bar@localhost;
+drop role auto_create;
+drop user auto_create;
+drop database db;

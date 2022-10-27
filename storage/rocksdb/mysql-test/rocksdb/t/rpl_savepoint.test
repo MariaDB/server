@@ -1,0 +1,91 @@
+--source include/have_rocksdb.inc
+
+source include/have_binlog_format_row.inc;
+source include/master-slave.inc;
+
+connection master;
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+connection master;
+
+create table t1 (id int primary key, value int);
+insert into t1 values (1,1), (2,2), (3,3);
+
+begin;
+insert into t1 values (11, 1);
+savepoint a;
+insert into t1 values (12, 1);
+--error ER_ROLLBACK_TO_SAVEPOINT
+rollback to savepoint a;
+--error ER_ROLLBACK_ONLY
+commit;
+commit;
+select * from t1;
+
+--source include/sync_slave_sql_with_master.inc
+connection slave;
+
+select * from t1;
+
+connection master;
+begin;
+insert into t1 values (21, 1);
+savepoint a;
+insert into t1 values (22, 1);
+--error ER_ROLLBACK_TO_SAVEPOINT
+rollback to savepoint a;
+--error ER_ROLLBACK_ONLY
+insert into t1 values (23, 1);
+--error ER_ROLLBACK_ONLY
+commit;
+commit;
+select * from t1;
+
+--source include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1;
+
+
+connection master;
+begin;
+insert into t1 values (31, 1);
+savepoint a;
+insert into t1 values (32, 1);
+savepoint b;
+insert into t1 values (33, 1);
+--error ER_ROLLBACK_TO_SAVEPOINT
+rollback to savepoint a;
+--error ER_ROLLBACK_ONLY
+insert into t1 values (34, 1);
+rollback;
+select * from t1;
+
+--source include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1;
+
+### GitHub Issue#195
+connection master;
+SET autocommit=off;
+select * from t1;
+SAVEPOINT A;
+select * from t1;
+SAVEPOINT A;
+insert into t1 values (35, 35);
+--error ER_ROLLBACK_TO_SAVEPOINT
+ROLLBACK TO SAVEPOINT A;
+--error ER_ROLLBACK_ONLY
+START TRANSACTION;
+select * from t1;
+--source include/sync_slave_sql_with_master.inc
+connection slave;
+select * from t1;
+
+
+connection master;
+drop table t1;
+
+--source include/rpl_end.inc
+

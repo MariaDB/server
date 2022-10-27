@@ -1,0 +1,37 @@
+drop table if exists t1;
+# Kill the server
+# restart
+drop table t1;
+# Kill the server
+# restart
+drop table t1;
+ERROR 42S02: Unknown table 'test.t1'
+# Kill the server
+# restart
+drop table t1;
+End of 5.1 tests
+#
+# Bug #11766306: 59393: HAVE_INNODB=YES WHEN MYSQLD 
+#  STARTED WITH --SKIP-INNODB
+#
+SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
+ and SUPPORT='YES';
+
+# Kill the server
+# restart
+End of 5.5 tests
+# Kill the server
+# restart
+flush tables;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+select * from mysql.plugin;
+name	dl
+EXAMPLE	ha_example.so
+truncate table mysql.plugin;
+# Kill the server
+# restart

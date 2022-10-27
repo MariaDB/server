@@ -1,0 +1,55 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+# Test causes OS error printout
+--source include/not_windows.inc
+--source include/default_charset.inc
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+
+
+# Ignore OS errors
+call mtr.add_suppression("InnoDB: File ./test/t1");
+call mtr.add_suppression("InnoDB: Error number");
+call mtr.add_suppression("InnoDB: Cannot rename file '.*/test/t1#[Pp]#p1#[Ss][Pp]#p1sp0\\.ibd' to");
+call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation.");
+
+# MDEV-7046: MySQL#74480 - Failing assertion: os_file_status(newpath, &exists, &type) 
+# after Operating system error number 36 in a file operation
+
+USE test;
+create table t1(f1 INT,f2 INT,f3 CHAR (10),primary key(f1,f2)) partition by range(f1) subpartition by hash(f2) subpartitions 2 (partition p1 values less than (0),partition p2 values less than (2),partition p3 values less than (2147483647));
+--replace_regex /'.*t2_new.*'/'t2_new'/
+--error 7
+RENAME TABLE t1 TO `t2_new..............................................end`;
+alter table t1 engine=innodb;
+--replace_regex /'.*t2_new.*'/'t2_new'/
+--error 1025
+RENAME TABLE t1 TO `t2_new..............................................end`;
+--replace_regex /'.*t2_new.*'/'t2_new'/
+show warnings;
+drop table t1;
+
+drop database test;
+create database test;
+use test;
+
+SET @@session.storage_engine=MYISAM;
+--error 0,1,1103
+CREATE TABLE t1(id INT,purchased DATE)PARTITION BY RANGE(YEAR(purchased)) SUBPARTITION BY HASH(TO_DAYS(purchased)) SUBPARTITIONS 2 (PARTITION p0 VALUES LESS THAN MAXVALUE (SUBPARTITION sp0 DATA DIRECTORY='/tmp/not-existing' INDEX DIRECTORY='/tmp/not-existing',SUBPARTITION sp1));
+drop table if exists t1;
+CREATE TABLE t1(id INT,purchased DATE)PARTITION BY RANGE(YEAR(purchased)) SUBPARTITION BY HASH(TO_DAYS(purchased)) SUBPARTITIONS 2 (PARTITION p0 VALUES LESS THAN MAXVALUE (SUBPARTITION sp0,SUBPARTITION sp1));
+ALTER TABLE t1 ENGINE=InnoDB;
+
+drop table t1;
+
+drop database test;
+create database test;
+use test;
+
+--enable_query_log
+--enable_result_log
+--enable_warnings
+
+show create database test;

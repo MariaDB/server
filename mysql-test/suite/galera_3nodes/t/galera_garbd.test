@@ -1,0 +1,90 @@
+#
+# A very basic test for the galera arbitrator. We shut down node #3 and use its port allocation to start garbd.
+# As MTR does not allow multiple servers to be down at the same time, we are limited as to what we can test.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_garbd.inc
+--source include/big_test.inc
+
+# Save galera ports
+--connection node_1
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_1 = $_NODE_GALERAPORT
+
+--connection node_2
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_3 = $_NODE_GALERAPORT
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--echo Killing node #3 to free ports for garbd ...
+--connection node_3
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--echo Starting garbd ...
+--exec $MTR_GARBD_EXE --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --options 'base_port=$NODE_GALERAPORT_3' > $MYSQL_TMP_DIR/garbd.log 2>&1 &
+
+--sleep 5
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+CREATE TABLE t1 (f1 INTEGER);
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+
+--echo Killing garbd ...
+# FreeBSD's /bin/pkill only supports short versions of the options:
+# -o Select only the oldest (least recently started)
+# -f Match against full argument lists
+--exec pkill -o -f garbd.*$NODE_GALERAPORT_3
+
+--sleep 5
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+INSERT INTO t1 VALUES (2);
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM t1;
+
+DROP TABLE t1;
+
+--echo Restarting node #3 to satisfy MTR's end-of-test checks
+--connection node_3
+let $restart_noprint=2;
+--source include/start_mysqld.inc
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc
+
+# Workaround for galera#101
+
+--connection node_1
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+
+--connection node_2
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");
+
+--connection node_3
+CALL mtr.add_suppression("WSREP: Protocol violation\. JOIN message sender 1\.0 \(.*\) is not in state transfer \(SYNCED\)");

@@ -1,0 +1,17 @@
+--source rest.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Testing REST query
+--echo #
+CREATE TABLE t1
+ENGINE=CONNECT DATA_CHARSET=utf8 TABLE_TYPE=JSON FILE_NAME='users.json'
+HTTP='http://jsonplaceholder.typicode.com/users';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/users.json

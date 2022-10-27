@@ -1,0 +1,316 @@
+--source include/have_innodb.inc
+--source include/have_innodb_64k.inc
+# Embedded server does not support restarting
+--source include/not_embedded.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
+                h blob,i blob,j blob,k blob,l blob,m blob,n blob,
+		o blob,p blob,q blob,r blob,s blob,t blob,u blob,
+		v blob, w blob, x blob, y blob, z blob,
+		aa blob,ba blob,ca blob,da blob,ea blob,fa blob,ga blob,
+                ha blob,ia blob,ja blob,ka blob,la blob,ma blob,na blob,
+		oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
+		va blob, wa blob, xa blob, ya blob, za blob,
+		ab blob,bb blob,cb blob,db blob,eb blob,fb blob,gb blob,
+                hb blob,ib blob,jb blob,kb blob,lb blob,mb blob,nb blob,
+		ob blob,pb blob,qb blob,rb blob,sb blob,tb blob,ub blob,
+		vb blob, wb blob, xb blob, yb blob, zb blob,
+		ac blob, bc blob, cc blob, dc blob, ec blob,fc blob,gc blob,
+                hc blob, ic blob, jc blob, kc blob, lc blob,mc blob,nc blob,
+		oc blob, pc blob, qc blob, rc blob, sc blob,tc blob,uc blob,
+		vc blob, wc blob, xc blob, yc blob, zc blob
+		) ENGINE=InnoDB ROW_FORMAT=dynamic;
+
+SET innodb_strict_mode=OFF;
+CREATE TABLE t2(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
+                h blob,i blob,j blob,k blob,l blob,m blob,n blob,
+		o blob,p blob,q blob,r blob,s blob,t blob,u blob,
+		v blob, w blob, x blob, y blob, z blob,
+		aa blob,ba blob,ca blob,da blob,ea blob,fa blob,ga blob,
+                ha blob,ia blob,ja blob,ka blob,la blob,ma blob,na blob,
+		oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
+		va blob, wa blob, xa blob, ya blob, za blob,
+		ab blob,bb blob,cb blob,db blob,eb blob,fb blob,gb blob,
+                hb blob,ib blob,jb blob,kb blob,lb blob,mb blob,nb blob,
+		ob blob,pb blob,qb blob,rb blob,sb blob,tb blob,ub blob,
+		vb blob, wb blob, xb blob, yb blob, zb blob,
+		ac blob, bc blob, cc blob, dc blob, ec blob,fc blob,gc blob,
+                hc blob, ic blob, jc blob, kc blob, lc blob,mc blob,nc blob,
+		oc blob, pc blob, qc blob, rc blob, sc blob,tc blob,uc blob,
+		vc blob, wc blob, xc blob, yc blob, zc blob
+		) ENGINE=InnoDB ROW_FORMAT=compact;
+SET innodb_strict_mode=ON;
+
+SET @a = repeat('a', 767);
+SET @b = repeat('b', 767);
+SET @c = repeat('c', 767);
+SET @d = repeat('d', 767);
+SET @e = repeat('e', 767);
+SET @f = repeat('f', 767);
+SET @f = repeat('g', 767);
+
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a
+);
+
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a
+);
+
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a
+);
+
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a
+);
+
+SET @h = repeat('h', 100);
+SET @i = repeat('i', 100);
+SET @j = repeat('j', 100);
+SET @k = repeat('k', 100);
+SET @l = repeat('l', 100);
+
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h,@h,@h,
+@h,@h,@h,@h,@h
+);
+
+UPDATE t1 SET a=@b,b=@b,c=@b,d=@b,e=@b,f=@b,g=@b,h=@b,i=@b,j=@b,
+              k=@b,l=@b,m=@b,n=@b,o=@b,p=@b,q=@b,r=@b,s=@b,t=@b,u=@b,
+	      v=@b,w=@b,x=@b,y=@b,z=@b,
+	      aa=@b,ba=@b,ca=@b,da=@b,ea=@b,fa=@b,ga=@b,ha=@b,ia=@b,ja=@b,
+              ka=@b,la=@b,ma=@b,na=@b,oa=@b,pa=@b,qa=@b,ra=@b,sa=@b,ta=@b,ua=@b,
+	      va=@b,wa=@b,xa=@b,ya=@b,za=@b,
+	      ab=@b,bb=@b,cb=@b,db=@b,eb=@b,fb=@b,gb=@b,hb=@b,ib=@b,jb=@b,
+              kb=@b,lb=@b,mb=@b,nb=@b,ob=@b,pb=@b,qb=@b,rb=@b,sb=@b,tb=@b,ub=@b,
+	      vb=@b,wb=@b,xb=@b,yb=@b,zb=@b,
+	      ab=@b,bb=@b,cb=@b,db=@b,eb=@b,fb=@b,gb=@b,hb=@b,ib=@b,jb=@b,
+              kb=@b,lb=@b,mb=@b,nb=@b,ob=@b,pb=@b,qb=@b,rb=@b,sb=@b,tb=@b,ub=@b,
+	      vb=@b,wb=@b,xb=@b,yb=@b,zb=@b,
+	      ac=@b,bc=@b,cc=@b,dc=@b,ec=@b,fc=@b,gc=@b,hc=@b,ic=@b,jc=@b,
+              kc=@b,lc=@b,mc=@b,nc=@b,oc=@b,pc=@b,qc=@b,rc=@b,sc=@b,tc=@b,uc=@b,
+	      vc=@b,wc=@b,xc=@b,yc=@b,zc=@b;
+
+UPDATE t2 SET a=@i,b=@i,c=@i,d=@i,e=@i,f=@i,g=@i,h=@i,i=@i,j=@i,
+              k=@i,l=@i,m=@i,n=@i,o=@i,p=@i,q=@i,r=@i,s=@i,t=@i,u=@i,
+	      v=@i,w=@i,x=@i,y=@i,z=@i,
+	      aa=@i,ba=@i,ca=@i,da=@i,ea=@i,fa=@i,ga=@i,ha=@i,ia=@i,ja=@i,
+              ka=@i,la=@i,ma=@i,na=@i,oa=@i,pa=@i,qa=@i,ra=@i,sa=@i,ta=@i,ua=@i,
+	      va=@i,wa=@i,xa=@i,ya=@i,za=@i,
+	      ab=@i,bb=@i,cb=@i,db=@i,eb=@i,fb=@i,gb=@i,hb=@i,ib=@i,jb=@i,
+              kb=@i,lb=@i,mb=@i,nb=@i,ob=@i,pb=@i,qb=@i,rb=@i,sb=@i,tb=@i,ub=@i,
+	      vb=@i,wb=@i,xb=@i,yb=@i,zb=@i,
+	      ab=@i,bb=@i,cb=@i,db=@i,eb=@i,fb=@i,gb=@i,hb=@i,ib=@i,jb=@i,
+              kb=@i,lb=@i,mb=@i,nb=@i,ob=@i,pb=@i,qb=@i,rb=@i,sb=@i,tb=@i,ub=@i,
+	      vb=@i,wb=@i,xb=@i,yb=@i,zb=@i,
+	      ac=@i,bc=@i,cc=@i,dc=@i,ec=@i,fc=@i,gc=@i,hc=@i,ic=@i,jc=@i,
+              kc=@i,lc=@i,mc=@i,nc=@i,oc=@i,pc=@i,qc=@i,rc=@i,sc=@i,tc=@i,uc=@i,
+	      vc=@i,wc=@i,xc=@i,yc=@i,zc=@i;
+
+# With this many indexes defined, we can still update all fields.
+CREATE INDEX t1a ON t1 (a(767),b(767));
+CREATE INDEX t1c ON t1 (c(767),d(767));
+CREATE INDEX t1e ON t1 (e(767),f(767));
+CREATE INDEX t1f2 ON t1 (g(767),h(767));
+CREATE INDEX t1f4 ON t1 (i(767),j(767));
+CREATE INDEX t1k ON t1 (k(767),m(767));
+CREATE INDEX t1f8 ON t1 (n(767),o(767));
+CREATE INDEX t1f11 ON t1 (p(767),q(767));
+CREATE INDEX t1f13 ON t1 (r(767),s(767));
+CREATE INDEX t1f15 ON t1 (t(767),u(767));
+CREATE INDEX t1f18 ON t1 (w(767),x(767));
+CREATE INDEX t1f20 ON t1 (y(767),z(767));
+CREATE INDEX ta1a6 ON t1 (aa(767),ba(767));
+CREATE INDEX tc1c6 ON t1 (ca(767),da(767));
+CREATE INDEX te1e6 ON t1 (ea(767),fa(767));
+
+
+CREATE INDEX t2a ON t2 (a(767),b(767));
+CREATE INDEX t2c ON t2 (c(767),d(767));
+CREATE INDEX t2e ON t2 (e(767),f(767));
+CREATE INDEX t2f2 ON t2 (g(767),h(767));
+CREATE INDEX t2f4 ON t2 (i(767),j(767));
+CREATE INDEX t2k ON t2 (k(767),m(767));
+CREATE INDEX t2f8 ON t2 (n(767),o(767));
+CREATE INDEX t2f11 ON t2 (p(767),q(767));
+CREATE INDEX t2f13 ON t2 (r(767),s(767));
+CREATE INDEX t2f15 ON t2 (t(767),u(767));
+CREATE INDEX t2f18 ON t2 (w(767),x(767));
+CREATE INDEX t2f20 ON t2 (y(767),z(767));
+CREATE INDEX ta2a6 ON t2 (aa(767),ba(767));
+CREATE INDEX tc2c6 ON t2 (ca(767),da(767));
+CREATE INDEX te2e6 ON t2 (ea(767),fa(767));
+
+UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
+              k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c,
+	      v=@c,w=@c,x=@c,y=@c,z=@c,
+	      aa=@c,ba=@c,ca=@c,da=@c,ea=@c,fa=@c,ga=@c,ha=@c,ia=@c,ja=@c,
+              ka=@c,la=@c,ma=@c,na=@c,oa=@c,pa=@c,qa=@c,ra=@c,sa=@c,ta=@c,ua=@c,
+	      va=@c,wa=@c,xa=@c,ya=@c,za=@c,
+	      ab=@c,bb=@c,cb=@c,db=@c,eb=@c,fb=@c,gb=@c,hb=@c,ib=@c,jb=@c,
+              kb=@c,lb=@c,mb=@c,nb=@c,ob=@c,pb=@c,qb=@c,rb=@c,sb=@c,tb=@c,ub=@c,
+	      vb=@c,wb=@c,xb=@c,yb=@c,zb=@c,
+	      ac=@c,bc=@c,cc=@c,dc=@c,ec=@c,fc=@c,gc=@c,hc=@c,ic=@c,jc=@c,
+              kc=@c,lc=@c,mc=@c,nc=@c,oc=@c,pc=@c,qc=@c,rc=@c,sc=@c,tc=@c,uc=@c,
+	      vc=@c,wc=@c,xc=@c,yc=@c,zc=@c;
+
+UPDATE t2 SET a=@k,b=@k,c=@k,d=@k,e=@k,f=@k,g=@k,h=@k,i=@k,j=@k,
+              k=@k,l=@k,m=@k,n=@k,o=@k,p=@k,q=@k,r=@k,s=@k,t=@k,u=@k,
+	      v=@k,w=@k,x=@k,y=@k,z=@k,
+	      aa=@k,ba=@k,ca=@k,da=@k,ea=@k,fa=@k,ga=@k,ha=@k,ia=@k,ja=@k,
+              ka=@k,la=@k,ma=@k,na=@k,oa=@k,pa=@k,qa=@k,ra=@k,sa=@k,ta=@k,ua=@k,
+	      va=@k,wa=@k,xa=@k,ya=@k,za=@k,
+	      ab=@k,bb=@k,cb=@k,db=@k,eb=@k,fb=@k,gb=@k,hb=@k,ib=@k,jb=@k,
+              kb=@k,lb=@k,mb=@k,nb=@k,ob=@k,pb=@k,qb=@k,rb=@k,sb=@k,tb=@k,ub=@k,
+	      vb=@k,wb=@k,xb=@k,yb=@k,zb=@k,
+	      ac=@k,bc=@k,cc=@k,dc=@k,ec=@k,fc=@k,gc=@k,hc=@k,ic=@k,jc=@k,
+              kc=@k,lc=@k,mc=@k,nc=@k,oc=@k,pc=@k,qc=@k,rc=@k,sc=@k,tc=@k,uc=@k,
+	      vc=@k,wc=@k,xc=@k,yc=@k,zc=@k;
+
+COMMIT;
+
+BEGIN;
+UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d;
+UPDATE t1 SET f=@d,g=@d,h=@d,i=@d,j=@d;
+UPDATE t1 SET k=@d,l=@d,m=@d,n=@d,o=@d;
+UPDATE t1 SET p=@d,q=@d,r=@d,s=@d,t=@d,u=@d;
+UPDATE t1 SET v=@d,w=@d,x=@d,y=@d,z=@d;
+UPDATE t1 SET aa=@d,ba=@d,ca=@d,da=@d;
+UPDATE t1 SET ea=@d,fa=@d,ga=@d,ha=@d,ia=@d,ja=@d;
+UPDATE t1 SET ka=@d,la=@d,ma=@d,na=@d,oa=@d,pa=@d;
+UPDATE t1 SET qa=@d,ra=@d,sa=@d,ta=@d,ua=@d;
+UPDATE t1 SET va=@d,wa=@d,xa=@d,ya=@d,za=@d;
+UPDATE t1 SET ab=@d,bb=@d,cb=@d,db=@d;
+UPDATE t1 SET eb=@d,fb=@d,gb=@d,hb=@d,ib=@d,ja=@d;
+UPDATE t1 SET kb=@d,lb=@d,mb=@d,nb=@d,ob=@d,pa=@d;
+UPDATE t1 SET qb=@d,rb=@d,sb=@d,tb=@d,ub=@d;
+UPDATE t1 SET vb=@d,wb=@d,xb=@d,yb=@d,zb=@d;
+UPDATE t1 SET ac=@d,bc=@d,cc=@d,dc=@d;
+UPDATE t1 SET ec=@d,fc=@d,gc=@d,hc=@d,ic=@d,jc=@d;
+UPDATE t1 SET kc=@d,lc=@d,mc=@d,nc=@d,oc=@d,pc=@d;
+UPDATE t1 SET qc=@d,rc=@d,sc=@d,tc=@d,uc=@d;
+UPDATE t1 SET vc=@d,wc=@d,xc=@d,yc=@d,zc=@d;
+COMMIT;
+
+BEGIN;
+UPDATE t2 SET a=@i,b=@i,c=@i,d=@i,e=@i;
+UPDATE t2 SET f=@i,g=@i,h=@i,i=@i,j=@i;
+UPDATE t2 SET k=@i,l=@i,m=@i,n=@i,o=@i;
+UPDATE t2 SET p=@i,q=@i,r=@i,s=@i,t=@i,u=@i;
+UPDATE t2 SET v=@i,w=@i,x=@i,y=@i,z=@i;
+UPDATE t2 SET aa=@i,ba=@i,ca=@i,da=@i;
+UPDATE t2 SET ea=@i,fa=@i,ga=@i,ha=@i,ia=@i,ja=@i;
+UPDATE t2 SET ka=@i,la=@i,ma=@i,na=@i,oa=@i,pa=@i;
+UPDATE t2 SET qa=@i,ra=@i,sa=@i,ta=@i,ua=@i;
+UPDATE t2 SET va=@i,wa=@i,xa=@i,ya=@i,za=@i;
+UPDATE t2 SET ab=@i,bb=@i,cb=@i,db=@i;
+UPDATE t2 SET eb=@i,fb=@i,gb=@i,hb=@i,ib=@i,ja=@i;
+UPDATE t2 SET kb=@i,lb=@i,mb=@i,nb=@i,ob=@i,pa=@i;
+UPDATE t2 SET qb=@i,rb=@i,sb=@i,tb=@i,ub=@i;
+UPDATE t2 SET vb=@i,wb=@i,xb=@i,yb=@i,zb=@i;
+UPDATE t2 SET ac=@i,bc=@i,cc=@i,dc=@i;
+UPDATE t2 SET ec=@i,fc=@i,gc=@i,hc=@i,ic=@i,jc=@i;
+UPDATE t2 SET kc=@i,lc=@i,mc=@i,nc=@i,oc=@i,pc=@i;
+UPDATE t2 SET qc=@i,rc=@i,sc=@i,tc=@i,uc=@i;
+UPDATE t2 SET vc=@i,wc=@i,xc=@i,yc=@i,zc=@i;
+COMMIT;
+
+
+BEGIN;
+UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
+              k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c,
+	      v=@c,w=@c,x=@c,y=@c,z=@c,
+	      aa=@c,ba=@c,ca=@c,da=@c,ea=@c,fa=@c,ga=@c,ha=@c,ia=@c,ja=@c,
+              ka=@c,la=@c,ma=@c,na=@c,oa=@c,pa=@c,qa=@c,ra=@c,sa=@c,ta=@c,ua=@c,
+	      va=@c,wa=@c,xa=@c,ya=@c,za=@c,
+	      ab=@c,bb=@c,cb=@c,db=@c,eb=@c,fb=@c,gb=@c,hb=@c,ib=@c,jb=@c,
+              kb=@c,lb=@c,mb=@c,nb=@c,ob=@c,pb=@c,qb=@c,rb=@c,sb=@c,tb=@c,ub=@c,
+	      vb=@c,wb=@c,xb=@c,yb=@c,zb=@c,
+	      ac=@c,bc=@c,cc=@c,dc=@c,ec=@c,fc=@c,gc=@c,hc=@c,ic=@c,jc=@c,
+              kc=@c,lc=@c,mc=@c,nc=@c,oc=@c,pc=@c,qc=@c,rc=@c,sc=@c,tc=@c,uc=@c,
+	      vc=@c,wc=@c,xc=@c,yc=@c,zc=@c;
+
+connect (con1,localhost,root,,);
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t2 LIMIT 1;
+disconnect con1;
+connection default;
+
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+--let $shutdown_timeout=
+
+check table t1,t2;
+drop table t1,t2;

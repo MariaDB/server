@@ -1,0 +1,122 @@
+
+--source include/load_sysvars.inc
+
+#################################################################
+#      START OF optimizer_use_condition_selectivity TESTS       # 
+#################################################################
+
+
+#############################################################
+#                 Save initial value                        #
+#############################################################
+
+SET @start_global_value = @@global.optimizer_use_condition_selectivity;
+SET @start_session_value = @@session.optimizer_use_condition_selectivity;
+
+--echo '#--------------------FN_DYNVARS_115_03-------------------------#'
+#############################################################################################
+# Change the value of optimizer_use_condition_selectivity to a valid value for GLOBAL Scope #
+#############################################################################################
+
+SET @@global.optimizer_use_condition_selectivity = 0;
+SELECT @@global.optimizer_use_condition_selectivity;
+SET @@global.optimizer_use_condition_selectivity = 1;
+SELECT @@global.optimizer_use_condition_selectivity;
+SET @@global.optimizer_use_condition_selectivity = 2;
+SELECT @@global.optimizer_use_condition_selectivity;
+SET @@global.optimizer_use_condition_selectivity = 3;
+SELECT @@global.optimizer_use_condition_selectivity;
+SET @@global.optimizer_use_condition_selectivity = 4;
+SELECT @@global.optimizer_use_condition_selectivity;
+SET @@global.optimizer_use_condition_selectivity = 5;
+SELECT @@global.optimizer_use_condition_selectivity;
+SET @@global.optimizer_use_condition_selectivity = 6;
+SELECT @@global.optimizer_use_condition_selectivity;
+
+
+--echo '#--------------------FN_DYNVARS_115_04-------------------------#'
+#############################################################################################
+# Change the value of optimizer_use_condition_selectivity to a valid value for SESSION Scope#
+#############################################################################################
+ 
+SET @@session.optimizer_use_condition_selectivity = 0;
+SELECT @@session.optimizer_use_condition_selectivity;
+SET @@session.optimizer_use_condition_selectivity = 1;
+SELECT @@session.optimizer_use_condition_selectivity;
+SET @@session.optimizer_use_condition_selectivity = 2;
+SELECT @@session.optimizer_use_condition_selectivity;
+SET @@session.optimizer_use_condition_selectivity = 3;
+SELECT @@session.optimizer_use_condition_selectivity;
+SET @@session.optimizer_use_condition_selectivity = 4;
+SELECT @@session.optimizer_use_condition_selectivity;
+SET @@session.optimizer_use_condition_selectivity = 5;
+SELECT @@session.optimizer_use_condition_selectivity;
+SET @@session.optimizer_use_condition_selectivity = 6;
+SELECT @@session.optimizer_use_condition_selectivity;
+
+
+--echo '#------------------FN_DYNVARS_115_05-----------------------#'
+###############################################################################
+# Change the value of optimizer_use_condition_selectivity to an invalid value #
+##############################################################################
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.optimizer_use_condition_selectivity = ON;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.optimizer_use_condition_selectivity = OFF;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@session.optimizer_use_condition_selectivity = 65530.34;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@session.optimizer_use_condition_selectivity = test;
+
+--echo '#------------------FN_DYNVARS_115_06-----------------------#'
+####################################################################
+#   Check if the value in GLOBAL Table matches value in variable   #
+####################################################################
+
+
+SELECT @@global.optimizer_use_condition_selectivity = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='optimizer_use_condition_selectivity';
+
+--echo '#------------------FN_DYNVARS_115_07-----------------------#'
+####################################################################
+#  Check if the value in SESSION Table matches value in variable   #
+####################################################################
+
+SELECT @@session.optimizer_use_condition_selectivity = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES 
+WHERE VARIABLE_NAME='optimizer_use_condition_selectivity';
+
+
+--echo '#---------------------FN_DYNVARS_115_08----------------------#'
+###############################################################################
+#  Check if global and session variable are independent of each other         #
+###############################################################################
+
+SET @@optimizer_use_condition_selectivity = 1;
+SET @@global.optimizer_use_condition_selectivity = 3;
+SELECT @@optimizer_use_condition_selectivity = @@global.optimizer_use_condition_selectivity;
+
+
+--echo '#---------------------FN_DYNVARS_115_09----------------------#'
+###############################################################################
+#    Check if accessing variable with SESSION,LOCAL and without SCOPE points  #
+#    to same session variable                                                 #
+###############################################################################
+
+SET @@optimizer_use_condition_selectivity = 2;
+SELECT @@optimizer_use_condition_selectivity = @@local.optimizer_use_condition_selectivity;
+SELECT @@local.optimizer_use_condition_selectivity = @@session.optimizer_use_condition_selectivity;
+
+
+####################################
+#     Restore initial value        #
+####################################
+
+SET @@global.optimizer_use_condition_selectivity = @start_global_value;
+
+########################################################################
+#                 END OF optimizer_use_condition_selectivity TESTS     #
+########################################################################
+

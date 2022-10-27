@@ -1,0 +1,102 @@
+#
+# Test the pc.recovery=1 option. Killing all nodes simultaneously and
+# restarting them should succeed and the cluster should re-form.
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+--source include/big_test.inc
+
+# Save galera ports
+--connection node_1
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_1 = $_NODE_GALERAPORT
+
+--connection node_2
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+# Instruct MTR to not restart the nodes automatically when they are killed
+
+--let $NODE_1_PIDFILE = `SELECT @@pid_file`
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+--let $NODE_2_PIDFILE = `SELECT @@pid_file`
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--exec kill -9 `cat $NODE_1_PIDFILE` `cat $NODE_2_PIDFILE`
+
+# Perform --wsrep-recover and preserve the positions into variables by placing them in $MYSQL_TMP_DIR/galera_wsrep_start_position.inc and then --source'ing it
+
+--exec $MYSQLD --defaults-group-suffix=.1 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-recover --log-error=$MYSQL_TMP_DIR/galera_wsrep_recover.1.log > $MYSQL_TMP_DIR/galera_wsrep_recover.1.log 2>&1
+--exec $MYSQLD --defaults-group-suffix=.2 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-recover --log-error=$MYSQL_TMP_DIR/galera_wsrep_recover.2.log > $MYSQL_TMP_DIR/galera_wsrep_recover.2.log 2>&1
+
+--perl
+        use strict;
+        my $wsrep_start_position1 = `grep 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.1.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'`;
+        chomp($wsrep_start_position1);
+
+        my $wsrep_start_position2 = `grep 'WSREP: Recovered position:' $ENV{MYSQL_TMP_DIR}/galera_wsrep_recover.2.log | sed 's/.*WSREP\:\ Recovered\ position://' | sed 's/^[ \t]*//'`;
+        chomp($wsrep_start_position2);
+
+        die if $wsrep_start_position1 eq '' || $wsrep_start_position2 eq '';
+
+        open(FILE, ">", "$ENV{MYSQL_TMP_DIR}/galera_wsrep_start_position.inc") or die;
+        print FILE "--let \$galera_wsrep_start_position1 = $wsrep_start_position1\n";
+        print FILE "--let \$galera_wsrep_start_position2 = $wsrep_start_position2\n";
+        close FILE;
+EOF
+
+--source $MYSQL_TMP_DIR/galera_wsrep_start_position.inc
+
+if ($galera_wsrep_start_position1 == '') {
+    --die "Could not obtain wsrep_start_position."
+}
+
+if ($galera_wsrep_start_position2 == '') {
+    --die "Could not obtain wsrep_start_position."
+}
+
+--remove_file $MYSQL_TMP_DIR/galera_wsrep_start_position.inc
+
+# Instruct MTR to perform the actual restart using --wsrep-start-position . Proper --wsrep_cluster_address is used as my.cnf only contains 'gcomm://' for node #1
+
+--exec echo "restart: --wsrep-start-position=$galera_wsrep_start_position1 --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1,127.0.0.1:$NODE_GALERAPORT_2" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--exec echo "restart: --wsrep-start-position=$galera_wsrep_start_position2 --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1,127.0.0.1:$NODE_GALERAPORT_2" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+
+--sleep 5
+--connection node_1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+# Confirm that the cluster has re-formed and data is present
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+SELECT COUNT(*) = 1 FROM t1;
+
+DROP TABLE t1;
+
+--connection node_1
+CALL mtr.add_suppression("points to own listening address, blacklisting");
+CALL mtr.add_suppression("non weight changing install in S_PRIM");
+CALL mtr.add_suppression("No re-merged primary component found");
+
+--connection node_2
+CALL mtr.add_suppression("points to own listening address, blacklisting");
+CALL mtr.add_suppression("non weight changing install in S_PRIM");
+CALL mtr.add_suppression("No re-merged primary component found");

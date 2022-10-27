@@ -1,0 +1,83 @@
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+DROP TABLE IF EXISTS t3;
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=1;
+create table t1 (a int) engine=rocksdb;
+drop table t1;
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type<>'DDL_DROP_INDEX_ONGOING';
+TYPE	NAME	VALUE
+MAX_INDEX_ID	MAX_INDEX_ID	max_index_id
+CF_FLAGS	0	default [0]
+CF_FLAGS	1	__system__ [0]
+select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type<>'DDL_DROP_INDEX_ONGOING';
+count(*)
+3
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
+select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
+CREATE TABLE t1 (i1 INT, i2 INT, PRIMARY KEY (i1)) ENGINE = ROCKSDB;
+INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
+set global rocksdb_force_flush_memtable_now = true;
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+TYPE	NAME	VALUE
+MAX_INDEX_ID	MAX_INDEX_ID	max_index_id
+CF_FLAGS	0	default [0]
+CF_FLAGS	1	__system__ [0]
+select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+count(*)
+3
+set global rocksdb_force_flush_memtable_now = true;
+set global rocksdb_compact_cf='default';
+select case when VALUE-@keysIn >= 3 then 'true' else 'false' end from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
+case when VALUE-@keysIn >= 3 then 'true' else 'false' end
+true
+CREATE INDEX tindex1 on t1 (i1);
+CREATE INDEX tindex2 on t1 (i2);
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where TYPE = 'CF_FLAGS';
+TYPE	NAME	VALUE
+CF_FLAGS	0	default [0]
+CF_FLAGS	1	__system__ [0]
+CREATE TABLE t2 (
+a int,
+b int,
+c int,
+d int,
+PRIMARY KEY (a) COMMENT "cf_a",
+KEY (b) COMMENT "cf_b",
+KEY (c) COMMENT "cf_c",
+KEY (d) COMMENT "rev:cf_d") ENGINE=ROCKSDB;
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where TYPE = 'CF_FLAGS';
+TYPE	NAME	VALUE
+CF_FLAGS	0	default [0]
+CF_FLAGS	1	__system__ [0]
+CF_FLAGS	2	cf_a [0]
+CF_FLAGS	3	cf_b [0]
+CF_FLAGS	4	cf_c [0]
+CF_FLAGS	5	rev:cf_d [1]
+CREATE TABLE t3 (a INT, PRIMARY KEY (a)) ENGINE=ROCKSDB;
+insert into t3 (a) values (1), (2), (3);
+SET @ORIG_ROCKSDB_PAUSE_BACKGROUND_WORK = @@GLOBAL.ROCKSDB_PAUSE_BACKGROUND_WORK;
+SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
+Variable_name	Value
+rocksdb_pause_background_work	OFF
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=1;
+SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
+Variable_name	Value
+rocksdb_pause_background_work	ON
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=1;
+SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
+Variable_name	Value
+rocksdb_pause_background_work	ON
+DROP TABLE t3;
+cf_id:0,index_id:264
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
+SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
+Variable_name	Value
+rocksdb_pause_background_work	OFF
+next line shouldn't cause assertion to fail
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
+SHOW GLOBAL VARIABLES LIKE 'ROCKSDB_PAUSE_BACKGROUND_WORK';
+Variable_name	Value
+rocksdb_pause_background_work	OFF
+SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_ROCKSDB_PAUSE_BACKGROUND_WORK;
+DROP TABLE t1;
+DROP TABLE t2;

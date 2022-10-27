@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES UTF8;
+CREATE TABLE diaries(
+title TEXT,
+FULLTEXT KEY (title)
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES("Start groonga");
+INSERT INTO diaries VALUES("Start mroonga");
+INSERT INTO diaries VALUES("Start groonga and Ruby");
+SELECT mroonga_command('select diaries --match_columns "title" --query "groonga"');
+mroonga_command('select diaries --match_columns "title" --query "groonga"')
+[[[2],[["_id","UInt32"],["title","LongText"]],[1,"Start groonga"],[3,"Start groonga and Ruby"]]]
+DROP TABLE diaries;

@@ -1,0 +1,40 @@
+#ifndef WOLFSSL_USER_SETTINGS_H
+#define WOLFSSL_USER_SETTINGS_H
+
+#define HAVE_CRL
+#define WOLFSSL_MYSQL_COMPATIBLE
+#define HAVE_ECC
+#define ECC_TIMING_RESISTANT
+#define HAVE_HASHDRBG
+#define WOLFSSL_AES_DIRECT
+#define WOLFSSL_SHA384
+#define WOLFSSL_SHA512
+#define WOLFSSL_SHA224
+#define SESSION_CERT
+#define KEEP_OUR_CERT
+#define WOLFSSL_STATIC_RSA
+#define WOLFSSL_USER_IO
+#define WC_RSA_BLINDING
+#define HAVE_TLS_EXTENSIONS
+#define HAVE_AES_ECB
+#define WOLFSSL_AES_COUNTER
+#define NO_WOLFSSL_STUB
+#define OPENSSL_ALL
+#undef WOLFSSL_ALLOW_TLSV10 /* see https://github.com/wolfSSL/wolfssl/issues/2960 */
+#define NO_OLD_TIMEVAL_NAME
+/*
+  FP_MAX_BITS is set high solely to satisfy ssl_8k_key.test
+  WolfSSL will use more stack space with it, with fastmath
+*/
+#define FP_MAX_BITS 16384
+
+#cmakedefine WOLFSSL_AESNI
+#cmakedefine USE_FAST_MATH
+#cmakedefine TFM_TIMING_RESISTANT
+#cmakedefine HAVE_INTEL_RDSEED
+#cmakedefine HAVE_INTEL_RDRAND
+#cmakedefine USE_INTEL_SPEEDUP
+#cmakedefine USE_FAST_MATH
+#cmakedefine WOLFSSL_X86_64_BUILD
+
+#endif  /* WOLFSSL_USER_SETTINGS_H */

@@ -1,0 +1,50 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-7222: Cluster Node Crash at CREATE DEFINER statement
+--echo #
+USE test;
+CREATE DEFINER=CURRENT_USER VIEW v1 AS SELECT 1;
+DROP VIEW v1;
+
+--echo #
+--echo # MDEV-8464 : ALTER VIEW not replicated in some cases
+--echo #
+--echo # On node_1
+--connection node_1
+USE test;
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+CREATE DEFINER=CURRENT_USER VIEW v1 AS SELECT * FROM t1;
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT * FROM t1;
+CREATE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t1;
+CREATE ALGORITHM=UNDEFINED DEFINER=CURRENT_USER VIEW v4 AS SELECT * FROM t1;
+
+--echo # On node_2
+--connection node_2
+USE test;
+SHOW CREATE VIEW v1;
+SHOW CREATE VIEW v2;
+SHOW CREATE VIEW v3;
+SHOW CREATE VIEW v4;
+
+--echo # On node_1
+--connection node_1
+ALTER ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1;
+ALTER ALGORITHM=UNDEFINED VIEW v2 AS SELECT * FROM t1;
+ALTER DEFINER=CURRENT_USER VIEW v3 AS SELECT * FROM t1;
+ALTER ALGORITHM=TEMPTABLE DEFINER=CURRENT_USER VIEW v4 AS SELECT * FROM t1;
+
+--echo # On node_2
+--connection node_2
+SHOW CREATE VIEW v1;
+SHOW CREATE VIEW v2;
+SHOW CREATE VIEW v3;
+SHOW CREATE VIEW v4;
+
+--echo # Cleanup
+DROP VIEW v1, v2, v3, v4;
+DROP TABLE t1;
+
+--echo # End of tests
+

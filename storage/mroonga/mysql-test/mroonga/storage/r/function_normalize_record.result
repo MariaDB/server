@@ -1,0 +1,7 @@
+CREATE TABLE memos (
+content text
+);
+INSERT INTO memos VALUES ('aBcＡｂＣ㍑');
+SELECT mroonga_normalize(content) FROM memos;
+mroonga_normalize(content)
+abcabcリットル

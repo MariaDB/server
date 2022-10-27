@@ -1,0 +1,190 @@
+SET NAMES utf8mb4;
+#
+# MDEV-11233 CREATE FULLTEXT INDEX with a token
+# longer than 127 bytes crashes server
+#
+CREATE TABLE t(t TEXT CHARACTER SET utf8mb3) ENGINE=InnoDB;
+INSERT INTO t SET t=REPEAT(CONCAT(REPEAT(_utf8mb3 0xE0B987, 4), REPEAT(_utf8mb3 0xE0B989, 5)), 5);
+INSERT INTO t SET t=REPEAT(_utf8 0xefbc90,84);
+INSERT INTO t SET t=REPEAT('befor',17);
+INSERT INTO t SET t='BeforeTheIndexCreation';
+CREATE FULLTEXT INDEX ft ON t(t);
+INSERT INTO t SET t='this was inserted after creating the index';
+INSERT INTO t SET t=REPEAT(_utf8 0xefbc91,84);
+INSERT INTO t SET t=REPEAT('after',17);
+INSERT INTO t SET t=REPEAT(_utf8mb3 0xe794b2e9aaa8e69687, 15);
+# The data below is not 3-byte UTF-8, but 4-byte chars.
+INSERT IGNORE INTO t SET t=REPEAT(_utf8mb4 0xf09f9695, 84);
+Warnings:
+Warning	1366	Incorrect string value: '\xF0\x9F\x96\x95\xF0\x9F...' for column `test`.`t`.`t` at row 1
+INSERT IGNORE INTO t SET t=REPEAT(_utf8mb4 0xf09f9696, 85);
+Warnings:
+Warning	1366	Incorrect string value: '\xF0\x9F\x96\x96\xF0\x9F...' for column `test`.`t`.`t` at row 1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST
+(REPEAT(CONCAT(REPEAT(_utf8mb3 0xE0B987, 4), REPEAT(_utf8mb3 0xE0B989, 5)), 5));
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST ('BeforeTheIndexCreation');
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT('befor',17));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST ('after');
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT('after',17));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 83));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 84));
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 85));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 83));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 84));
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 85));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9695, 83));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9695, 84));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9696, 84));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9696, 85));
+COUNT(*)
+0
+SELECT * FROM t;
+t
+็็็็้้้้้็็็็้้้้้็็็็้้้้้็็็็้้้้้็็็็้้้้้
+００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００
+beforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbefor
+BeforeTheIndexCreation
+this was inserted after creating the index
+１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１
+afterafterafterafterafterafterafterafterafterafterafterafterafterafterafterafterafter
+甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文
+????????????????????????????????????????????????????????????????????????????????????
+?????????????????????????????????????????????????????????????????????????????????????
+SELECT len,COUNT(*) FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS where name='word' GROUP BY len;
+len	COUNT(*)
+252	6
+DROP TABLE t;
+CREATE TABLE t(t TEXT CHARACTER SET utf8mb4) ENGINE=InnoDB;
+INSERT INTO t SET t=REPEAT(_utf8mb3 0xe794b2e9aaa8e69687, 15);
+INSERT INTO t SET t=REPEAT(_utf8 0xefbc90,84);
+INSERT INTO t SET t=REPEAT('befor',17);
+INSERT INTO t SET t='BeforeTheIndexCreation';
+CREATE FULLTEXT INDEX ft ON t(t);
+INSERT INTO t SET t='this was inserted after creating the index';
+INSERT INTO t SET t=REPEAT(_utf8 0xefbc91,84);
+INSERT INTO t SET t=REPEAT('after',17);
+INSERT INTO t SET t=REPEAT(concat(repeat(_utf8mb3 0xE0B987, 4), repeat(_utf8mb3 0xE0B989, 5)), 5);
+INSERT INTO t SET t=REPEAT(_utf8mb4 0xf09f9695, 84);
+# The token below exceeds the 84-character limit.
+INSERT INTO t SET t=REPEAT(_utf8mb4 0xf09f9696, 85);
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb3 0xe794b2e9aaa8e69687, 15));
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST ('BeforeTheIndexCreation');
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT('befor',17));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST ('after');
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT('after',17));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 83));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 84));
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc90, 85));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 83));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 84));
+COUNT(*)
+1
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8 0xefbc91, 85));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9695, 83));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9695, 84));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9696, 84));
+COUNT(*)
+0
+SELECT COUNT(*) FROM t WHERE MATCH t AGAINST (REPEAT(_utf8mb4 0xf09f9696, 85));
+COUNT(*)
+0
+SELECT * FROM t;
+t
+甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文甲骨文
+００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００００
+beforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbeforbefor
+BeforeTheIndexCreation
+this was inserted after creating the index
+１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１１
+afterafterafterafterafterafterafterafterafterafterafterafterafterafterafterafterafter
+็็็็้้้้้็็็็้้้้้็็็็้้้้้็็็็้้้้้็็็็้้้้้
+🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕🖕
+🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖🖖
+SELECT len,COUNT(*) FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS where name='word' GROUP BY len;
+len	COUNT(*)
+336	6
+DROP TABLE t;
+CREATE TABLE t(t TEXT CHARACTER SET latin1, FULLTEXT INDEX(t))
+ENGINE=InnoDB;
+SELECT len,COUNT(*) FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS where name='word' GROUP BY len;
+len	COUNT(*)
+84	6
+DROP TABLE t;
+#
+# MDEV-17923 Assertion memcmp(field, field_ref_zero, 7) failed in
+# trx_undo_page_report_modify upon optimizing table
+# under innodb_optimize_fulltext_only
+#
+CREATE TABLE t1 (f1 TEXT, f2 TEXT, FULLTEXT KEY (f2)) ENGINE=InnoDB;
+INSERT INTO t1 (f1) VALUES ('foo'),('bar');
+DELETE FROM t1 LIMIT 1;
+ALTER TABLE t1 ADD FULLTEXT KEY (f1);
+SET @optimize_fulltext.save= @@innodb_optimize_fulltext_only;
+SET GLOBAL innodb_optimize_fulltext_only= 1;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+DROP TABLE t1;
+SET GLOBAL innodb_optimize_fulltext_only= @optimize_fulltext.save;
+#
+# MDEV-24403 Segfault on CREATE TABLE with explicit FTS_DOC_ID_INDEX by multiple fields
+#
+create table t1 (
+f1 int, f2 text,
+FTS_DOC_ID bigint unsigned not null,
+unique key FTS_DOC_ID_INDEX(FTS_DOC_ID, f1),
+fulltext (f2))
+engine=innodb;
+ERROR 42000: Incorrect index name 'FTS_DOC_ID_INDEX'

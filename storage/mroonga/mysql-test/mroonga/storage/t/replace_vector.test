@@ -1,0 +1,46 @@
+# Copyright(C) 2013 Kentoku SHIBA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS vector_replace;
+DROP TABLE IF EXISTS vector_replace_vec;
+--enable_warnings
+
+CREATE TABLE vector_replace_vec (
+  vec CHAR(10) PRIMARY KEY
+) DEFAULT CHARSET=utf8
+  COMMENT='default_tokenizer "TokenDelimit"';
+
+CREATE TABLE vector_replace (
+  id INT NOT NULL,
+  vec TEXT COMMENT 'flags "COLUMN_VECTOR", type "vector_replace_vec"',
+  PRIMARY KEY(id)
+) DEFAULT CHARSET=utf8;
+INSERT INTO vector_replace VALUES(1, 'first second third');
+SELECT id, vec FROM vector_replace;
+REPLACE INTO vector_replace VALUES(1, 'fourth fifth');
+SELECT id, vec FROM vector_replace;
+INSERT INTO vector_replace VALUES(1, 'sixth seventh') ON DUPLICATE KEY UPDATE vec = 'sixth seventh';
+SELECT id, vec FROM vector_replace;
+UPDATE vector_replace SET vec = 'eighth nineth tenth';
+SELECT id, vec FROM vector_replace;
+
+DROP TABLE vector_replace;
+DROP TABLE vector_replace_vec;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

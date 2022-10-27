@@ -1,0 +1,6 @@
+[old2old]
+--disable-mysql56-temporal-format
+
+[old2new]
+--enable-mysql56-temporal-format
+

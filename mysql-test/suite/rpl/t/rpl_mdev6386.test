@@ -1,0 +1,70 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE = InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) Engine=InnoDB;
+--sync_slave_with_master
+
+--connection slave
+--source include/stop_slave.inc
+# Provoke a duplicate key error on replication.
+SET sql_log_bin= 0;
+INSERT INTO t1 VALUES (1, 2);
+SET sql_log_bin= 1;
+CHANGE MASTER TO master_use_gtid= current_pos;
+--echo Contents on slave before:
+SELECT * FROM t1 ORDER BY a;
+
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=8;
+
+--connection master
+
+CREATE TEMPORARY TABLE t2 LIKE t1;
+INSERT INTO t2 VALUE (1, 1);
+INSERT INTO t2 VALUE (2, 1);
+INSERT INTO t2 VALUE (3, 1);
+INSERT INTO t2 VALUE (4, 1);
+INSERT INTO t2 VALUE (5, 1);
+INSERT INTO t1 SELECT * FROM t2;
+DROP TEMPORARY TABLE t2;
+INSERT INTO t1 VALUE (6, 3);
+--source include/save_master_gtid.inc
+--echo Contents on master:
+SELECT * FROM t1 ORDER BY a;
+
+--connection slave
+START SLAVE;
+# The slave will stop with a duplicate key error.
+# The bug was 1) that the next DROP TEMPORARY TABLE would be allowed to run
+# anyway, and 2) that then record_gtid() would get an error during commit
+# (since the prior commit failed), and this error was not correctly handled,
+# which caused an assertion about closing tables while a statement was still
+# active.
+--let $slave_sql_errno=1062
+--source include/wait_for_slave_sql_error.inc
+
+STOP SLAVE IO_THREAD;
+--echo Contents on slave on slave error:
+SELECT * FROM t1 ORDER BY a;
+
+# Resolve the duplicate key error so replication can be resumed.
+SET sql_log_bin= 0;
+DELETE FROM t1 WHERE a=1;
+SET sql_log_bin= 1;
+
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+--echo Contents on slave after:
+SELECT * FROM t1 ORDER BY a;
+
+--connection master
+DROP TABLE t1;
+
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @old_parallel;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

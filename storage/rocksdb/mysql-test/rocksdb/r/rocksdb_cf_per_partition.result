@@ -1,0 +1,425 @@
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'testcomment'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='testcomment';
+cf_name
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'rev:testrevcomment'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='rev:testrevcomment';
+cf_name
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=my_custom_cf;custom_p2_cfname=baz'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+set @@global.rocksdb_compact_cf = 'foo';
+set @@global.rocksdb_compact_cf = 'my_custom_cf';
+set @@global.rocksdb_compact_cf = 'baz';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='foo';
+cf_name
+foo
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='my_custom_cf';
+cf_name
+my_custom_cf
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='baz';
+cf_name
+baz
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=t1-p0;custom_p1_cfname=rev:bar;custom_p2_cfname=t1-p2'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+set @@global.rocksdb_compact_cf = 't1-p0';
+set @@global.rocksdb_compact_cf = 'rev:bar';
+set @@global.rocksdb_compact_cf = 't1-p2';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='t1-p0';
+cf_name
+t1-p0
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='rev:bar';
+cf_name
+rev:bar
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='t1-p2';
+cf_name
+t1-p2
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=cf-zero;custom_p1_cfname=cf-one;custom_p2_cfname=cf-zero'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9),
+PARTITION custom_p3 VALUES IN (10, 20, 30)
+);
+set @@global.rocksdb_compact_cf = 'cf-zero';
+set @@global.rocksdb_compact_cf = 'cf-one';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='cf-zero';
+cf_name
+cf-zero
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='cf-one';
+cf_name
+cf-one
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+INSERT INTO t1 VALUES (1, 1, "one", null);
+INSERT INTO t1 VALUES (2, 2, "two", null);
+INSERT INTO t1 VALUES (3, 3, "three", null);
+INSERT INTO t1 VALUES (5, 5, "five", null);
+INSERT INTO t1 VALUES (9, 9, "nine", null);
+SELECT * FROM t1;
+c1	c2	name	event
+1	1	one	NULL
+2	2	two	NULL
+5	5	five	NULL
+3	3	three	NULL
+9	9	nine	NULL
+ALTER TABLE t1 DROP PRIMARY KEY;
+SELECT * FROM t1;
+c1	c2	name	event
+1	1	one	NULL
+2	2	two	NULL
+5	5	five	NULL
+3	3	three	NULL
+9	9	nine	NULL
+set @@global.rocksdb_compact_cf = 'foo';
+set @@global.rocksdb_compact_cf = 'bar';
+set @@global.rocksdb_compact_cf = 'baz';
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+INSERT INTO t1 VALUES (1, 1, "one", null);
+INSERT INTO t1 VALUES (2, 2, "two", null);
+INSERT INTO t1 VALUES (3, 3, "three", null);
+INSERT INTO t1 VALUES (5, 5, "five", null);
+INSERT INTO t1 VALUES (9, 9, "nine", null);
+ALTER TABLE t1 DROP PRIMARY KEY;
+ALTER TABLE t1 ADD PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=p0_cf;custom_p1_cfname=p1_cf';
+set @@global.rocksdb_compact_cf = 'p0_cf';
+set @@global.rocksdb_compact_cf = 'p1_cf';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='p0_cf';
+cf_name
+p0_cf
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='p1_cf';
+cf_name
+p1_cf
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=bar;custom_p2_cfname=baz'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+INSERT INTO t1 VALUES (1, 1, "one", null);
+INSERT INTO t1 VALUES (2, 2, "two", null);
+INSERT INTO t1 VALUES (3, 3, "three", null);
+INSERT INTO t1 VALUES (5, 5, "five", null);
+INSERT INTO t1 VALUES (9, 9, "nine", null);
+ALTER TABLE t1 PARTITION BY LIST(c1) (
+PARTITION custom_p3 VALUES IN (1, 4, 7),
+PARTITION custom_p4 VALUES IN (2, 5, 8, 3, 6, 9)
+);
+ALTER TABLE t1 DROP PRIMARY KEY;
+ALTER TABLE t1 ADD PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p3_cfname=p3_cf;custom_p4_cfname=p4_cf';
+set @@global.rocksdb_compact_cf = 'p3_cf';
+set @@global.rocksdb_compact_cf = 'p4_cf';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='p3_cf';
+cf_name
+p3_cf
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='p4_cf';
+cf_name
+p4_cf
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 INT,
+c2 INT,
+name VARCHAR(25) NOT NULL,
+event DATE,
+PRIMARY KEY (`c1`, `c2`) COMMENT 'custom_p0_cfname=foo;custom_p1_cfname=;'
+) ENGINE=ROCKSDB
+PARTITION BY LIST(c1) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+DROP TABLE t1;
+CREATE TABLE `t2` (
+`col1` bigint(20) NOT NULL,
+`col2` varbinary(64) NOT NULL,
+`col3` varbinary(256) NOT NULL,
+`col4` bigint(20) NOT NULL,
+`col5` mediumblob NOT NULL,
+PRIMARY KEY (`col1`,`col2`,`col3`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+PARTITION BY LIST COLUMNS (`col2`) (
+PARTITION custom_p0 VALUES IN (0x12345),
+PARTITION custom_p1 VALUES IN (0x23456),
+PARTITION custom_p2 VALUES IN (0x34567),
+PARTITION custom_p3 VALUES IN (0x45678),
+PARTITION custom_p4 VALUES IN (0x56789),
+PARTITION custom_p5 VALUES IN (0x6789A),
+PARTITION custom_p6 VALUES IN (0x789AB),
+PARTITION custom_p7 VALUES IN (0x89ABC)
+);
+DROP TABLE t2;
+CREATE TABLE `t2` (
+`col1` bigint(20) NOT NULL,
+`col2` varbinary(64) NOT NULL,
+`col3` varbinary(256) NOT NULL,
+`col4` bigint(20) NOT NULL,
+`col5` mediumblob NOT NULL,
+PRIMARY KEY (`col1`,`col2`,`col3`) COMMENT 'custom_p0_cfname=my_cf0;custom_p1_cfname=my_cf1'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+PARTITION BY LIST COLUMNS (`col2`) (
+PARTITION custom_p0 VALUES IN (0x12345),
+PARTITION custom_p1 VALUES IN (0x23456),
+PARTITION custom_p2 VALUES IN (0x34567),
+PARTITION custom_p3 VALUES IN (0x45678),
+PARTITION custom_p4 VALUES IN (0x56789),
+PARTITION custom_p5 VALUES IN (0x6789A),
+PARTITION custom_p6 VALUES IN (0x789AB),
+PARTITION custom_p7 VALUES IN (0x89ABC)
+);
+set @@global.rocksdb_compact_cf = 'my_cf0';
+set @@global.rocksdb_compact_cf = 'my_cf1';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='my_cf0';
+cf_name
+my_cf0
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='my_cf1';
+cf_name
+my_cf1
+INSERT INTO t2 VALUES (100, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (200, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (300, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (100, 0x23456, 0x2, 1, 0x3);
+INSERT INTO t2 VALUES (100, 0x34567, 0x4, 1, 0x5);
+INSERT INTO t2 VALUES (400, 0x89ABC, 0x4, 1, 0x5);
+SELECT col1, HEX(col2), HEX(col3), col4, HEX(col5) FROM t2;
+col1	HEX(col2)	HEX(col3)	col4	HEX(col5)
+100	012345	01	1	02
+200	012345	01	1	02
+300	012345	01	1	02
+100	023456	02	1	03
+100	034567	04	1	05
+400	089ABC	04	1	05
+EXPLAIN PARTITIONS SELECT HEX(col2) FROM t2 where col2 = 0x12345;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	custom_p0	index	NULL	PRIMARY	332	NULL	3	Using where; Using index
+EXPLAIN PARTITIONS SELECT HEX(col2) FROM t2 where col2 = 0x23456;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	custom_p1	index	NULL	PRIMARY	332	NULL	2	Using where; Using index
+ALTER TABLE t2 DROP PRIMARY KEY;
+ALTER TABLE t2 ADD  PRIMARY KEY (`col1`,`col2`,`col3`) COMMENT 'custom_p0_cfname=new_cf0;custom_p1_cfname=new_cf1';
+set @@global.rocksdb_compact_cf = 'new_cf0';
+set @@global.rocksdb_compact_cf = 'new_cf1';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='new_cf0';
+cf_name
+new_cf0
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='new_cf1';
+cf_name
+new_cf1
+INSERT INTO t2 VALUES (500, 0x12345, 0x5, 1, 0x2);
+INSERT INTO t2 VALUES (700, 0x23456, 0x7, 1, 0x3);
+EXPLAIN PARTITIONS SELECT HEX(col2) FROM t2 where col2 = 0x12345;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	custom_p0	index	NULL	PRIMARY	332	NULL	4	Using where; Using index
+EXPLAIN PARTITIONS SELECT HEX(col2) FROM t2 where col2 = 0x23456;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	custom_p1	index	NULL	PRIMARY	332	NULL	2	Using where; Using index
+SELECT col1, HEX(col2), HEX(col3), col4, HEX(col5) FROM t2;
+col1	HEX(col2)	HEX(col3)	col4	HEX(col5)
+100	012345	01	1	02
+200	012345	01	1	02
+300	012345	01	1	02
+500	012345	05	1	02
+100	023456	02	1	03
+700	023456	07	1	03
+100	034567	04	1	05
+400	089ABC	04	1	05
+DROP TABLE t2;
+CREATE TABLE `t2` (
+`col1` bigint(20) NOT NULL,
+`col2` varbinary(64) NOT NULL,
+`col3` varbinary(256) NOT NULL,
+`col4` bigint(20) NOT NULL,
+`col5` mediumblob NOT NULL,
+PRIMARY KEY (`col1`,`col2`,`col3`) COMMENT 'custom_p0_cfname=test_cf0;custom_p1_cfname=test_cf1',
+KEY (`col2`, `col4`) COMMENT 'custom_p5_cfname=test_cf5'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+PARTITION BY LIST COLUMNS (`col2`) (
+PARTITION custom_p0 VALUES IN (0x12345),
+PARTITION custom_p1 VALUES IN (0x23456),
+PARTITION custom_p2 VALUES IN (0x34567),
+PARTITION custom_p3 VALUES IN (0x45678),
+PARTITION custom_p4 VALUES IN (0x56789),
+PARTITION custom_p5 VALUES IN (0x6789A),
+PARTITION custom_p6 VALUES IN (0x789AB),
+PARTITION custom_p7 VALUES IN (0x89ABC)
+);
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='test_cf0';
+cf_name
+test_cf0
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='test_cf1';
+cf_name
+test_cf1
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='test_cf5';
+cf_name
+test_cf5
+INSERT INTO t2 VALUES (100, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (200, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (300, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (100, 0x23456, 0x2, 1, 0x3);
+INSERT INTO t2 VALUES (100, 0x34567, 0x4, 1, 0x5);
+INSERT INTO t2 VALUES (400, 0x89ABC, 0x4, 1, 0x5);
+INSERT INTO t2 VALUES (500, 0x6789A, 0x5, 1, 0x7);
+EXPLAIN PARTITIONS SELECT  * FROM t2 WHERE col2 = 0x6789A AND col4 = 1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	custom_p5	ref	col2	col2	74	const,const	1	Using where
+ALTER TABLE t2 DROP KEY `col2`;
+ALTER TABLE t2 ADD KEY (`col3`, `col4`) COMMENT 'custom_p5_cfname=another_cf_for_p5';
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='another_cf_for_p5';
+cf_name
+another_cf_for_p5
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	Warning	Engine-independent statistics are not collected for column 'col5'
+test.t2	analyze	status	OK
+EXPLAIN PARTITIONS SELECT  * FROM t2 WHERE col3 = 0x4 AND col2 = 0x34567;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	custom_p2	ref	col3	col3	258	const	#	Using where
+DROP TABLE t2;
+CREATE TABLE `t2` (
+`col1` bigint(20) NOT NULL,
+`col2` varbinary(64) NOT NULL,
+`col3` varbinary(256) NOT NULL,
+`col4` bigint(20) NOT NULL,
+`col5` mediumblob NOT NULL,
+PRIMARY KEY (`col1`,`col2`,`col3`) COMMENT 'custom_p0_cfname=test_cf0;custom_p1_cfname=test_cf1',
+UNIQUE KEY (`col2`, `col4`) COMMENT 'custom_p5_cfname=unique_test_cf5'
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+PARTITION BY LIST COLUMNS (`col2`) (
+PARTITION custom_p0 VALUES IN (0x12345),
+PARTITION custom_p1 VALUES IN (0x23456),
+PARTITION custom_p2 VALUES IN (0x34567),
+PARTITION custom_p3 VALUES IN (0x45678),
+PARTITION custom_p4 VALUES IN (0x56789),
+PARTITION custom_p5 VALUES IN (0x6789A),
+PARTITION custom_p6 VALUES IN (0x789AB),
+PARTITION custom_p7 VALUES IN (0x89ABC)
+);
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='unique_test_cf5';
+cf_name
+unique_test_cf5
+INSERT INTO t2 VALUES (100, 0x12345, 0x1, 1, 0x2);
+INSERT INTO t2 VALUES (200, 0x12345, 0x1, 1, 0x2);
+ERROR 23000: Duplicate entry '\x01#E-1' for key 'col2'
+INSERT INTO t2 VALUES (300, 0x12345, 0x1, 1, 0x2);
+ERROR 23000: Duplicate entry '\x01#E-1' for key 'col2'
+INSERT INTO t2 VALUES (100, 0x23456, 0x2, 1, 0x3);
+INSERT INTO t2 VALUES (100, 0x34567, 0x4, 1, 0x5);
+INSERT INTO t2 VALUES (400, 0x89ABC, 0x4, 1, 0x5);
+INSERT INTO t2 VALUES (500, 0x6789A, 0x5, 1, 0x7);
+DROP TABLE t2;
+CREATE TABLE t1 (
+`a` int,
+PRIMARY KEY (a) COMMENT "sharedcf"
+) ENGINE=ROCKSDB;
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='sharedcf';
+cf_name
+sharedcf
+CREATE TABLE t2 (
+`a` INT,
+`b` DATE,
+`c` VARCHAR(42),
+PRIMARY KEY (`a`) COMMENT "custom_p0_cfname=sharedcf;custom_p2_cfname=notsharedcf"
+) ENGINE=ROCKSDB
+PARTITION BY LIST(`a`) (
+PARTITION custom_p0 VALUES IN (1, 4, 7),
+PARTITION custom_p1 VALUES IN (2, 5, 8),
+PARTITION custom_p2 VALUES IN (3, 6, 9)
+);
+SELECT DISTINCT(cf_name) FROM information_schema.rocksdb_cfstats WHERE cf_name='notsharedcf';
+cf_name
+notsharedcf
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+CREATE TABLE t1 (
+a INT NOT NULL,
+PRIMARY KEY (a) COMMENT 'p1_cfname=foo;'
+) ENGINE=ROCKSDB
+PARTITION BY LIST COLUMNS(a)
+(PARTITION p1 VALUES IN (1) ENGINE = ROCKSDB);
+INSERT INTO t1 values (1);
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+a
+DROP TABLE t1;

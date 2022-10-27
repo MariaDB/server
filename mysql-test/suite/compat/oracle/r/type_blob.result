@@ -1,0 +1,26 @@
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a BLOB);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "a" longblob DEFAULT NULL
+)
+DROP TABLE t1;
+#
+# MDEV-20263 sql_mode=ORACLE: BLOB(65535) should not translate to LONGBLOB
+#
+CREATE TABLE t1 (
+c1 BLOB(100),
+c2 BLOB(65535),
+c3 BLOB(16777215),
+c4 BLOB(16777216)
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "c1" tinyblob DEFAULT NULL,
+  "c2" blob(65535) DEFAULT NULL,
+  "c3" mediumblob DEFAULT NULL,
+  "c4" longblob DEFAULT NULL
+)
+DROP TABLE t1;

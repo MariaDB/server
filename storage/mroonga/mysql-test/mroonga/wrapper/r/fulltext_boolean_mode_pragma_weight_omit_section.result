@@ -1,0 +1,20 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES utf8;
+CREATE TABLE diaries (
+id INT PRIMARY KEY,
+title VARCHAR(255),
+content TEXT,
+FULLTEXT INDEX (title, content)
+) DEFAULT CHARSET=utf8 COMMENT='ENGINE "InnoDB"';
+INSERT INTO diaries VALUES(1, "Hello", "今日からはじめました。");
+INSERT INTO diaries VALUES(2, "天気", "明日の富士山の天気について");
+INSERT INTO diaries VALUES(3, "富士山", "今日も天気がよくてきれいに見える。");
+SELECT *, MATCH(title, content)
+AGAINST("*W1:2 +天気" in BOOLEAN MODE) AS score
+FROM diaries
+WHERE MATCH(title, content)
+AGAINST("*W1:2 +天気" in BOOLEAN MODE);
+id	title	content	score
+2	天気	明日の富士山の天気について	3
+3	富士山	今日も天気がよくてきれいに見える。	1
+DROP TABLE diaries;

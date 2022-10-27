@@ -1,0 +1,37 @@
+#
+# The purpose of this test is to preserve the current state of the following:
+# * SHOW VARIABLES LIKE 'wsrep%'
+# * The names of the Galera status variables
+#
+# Note that wsrep_provider_options contains paths and other non-deterministic parts
+#
+# This way, if there is any change, inadvertent or not, the test will fail and the
+# developer and QA will be alerted.
+#
+
+--source include/galera_cluster.inc
+--source include/force_restart.inc
+
+# Make sure that the test is operating on the right version of galera library.
+--let $galera_version=26.4.6
+source ../wsrep/include/check_galera_version.inc;
+
+# Global Variables
+
+SELECT COUNT(*) `expect 49` FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_%';
+
+SELECT VARIABLE_NAME, VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME LIKE 'wsrep_%'
+AND VARIABLE_NAME NOT IN (
+	'WSREP_PROVIDER_OPTIONS',
+	'WSREP_SST_RECEIVE_ADDRESS',
+	'WSREP_NODE_ADDRESS',
+	'WSREP_NODE_NAME',
+	'WSREP_PROVIDER',
+	'WSREP_DATA_HOME_DIR',
+	'WSREP_NODE_INCOMING_ADDRESS',
+	'WSREP_START_POSITION',
+        'WSREP_PATCH_VERSION'
+)
+ORDER BY VARIABLE_NAME;

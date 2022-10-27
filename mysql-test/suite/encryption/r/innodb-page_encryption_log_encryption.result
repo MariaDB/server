@@ -1,0 +1,130 @@
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+show warnings;
+Level	Code	Message
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1;
+show warnings;
+Level	Code	Message
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed encrypted=yes encryption_key_id=2;
+show warnings;
+Level	Code	Message
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic encrypted=yes  encryption_key_id=33;
+show warnings;
+Level	Code	Message
+create table innodb_redundant(c1 bigint not null, b char(200))  engine=innodb row_format=redundant encrypted=yes  encryption_key_id=4;
+show warnings;
+Level	Code	Message
+show create table innodb_compact;
+Table	Create Table
+innodb_compact	CREATE TABLE `innodb_compact` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT `encrypted`=yes `encryption_key_id`=1
+show create table innodb_compressed;
+Table	Create Table
+innodb_compressed	CREATE TABLE `innodb_compressed` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED `encrypted`=yes `encryption_key_id`=2
+show create table innodb_dynamic;
+Table	Create Table
+innodb_dynamic	CREATE TABLE `innodb_dynamic` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC `encrypted`=yes `encryption_key_id`=33
+show create table innodb_redundant;
+Table	Create Table
+innodb_redundant	CREATE TABLE `innodb_redundant` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT `encrypted`=yes `encryption_key_id`=4
+FLUSH TABLES innodb_normal FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_compressed FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_redundant FOR EXPORT;
+UNLOCK TABLES;
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_ENCRYPTED';
+variable_value > 0
+1
+# restart
+BEGIN;
+INSERT INTO innodb_normal SET c1 = 1;
+INSERT INTO innodb_compact SET c1 = 1;
+INSERT INTO innodb_compressed SET c1 = 1;
+INSERT INTO innodb_dynamic SET c1 = 1;
+INSERT INTO innodb_redundant SET c1 = 1;
+COMMIT;
+FLUSH TABLES innodb_normal FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_compressed FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_redundant FOR EXPORT;
+UNLOCK TABLES;
+select variable_name from information_schema.global_status
+where variable_value > 0 and variable_name
+IN ('INNODB_NUM_PAGES_ENCRYPTED','INNODB_NUM_PAGES_DECRYPTED');
+variable_name
+INNODB_NUM_PAGES_ENCRYPTED
+INNODB_NUM_PAGES_DECRYPTED
+SET GLOBAL innodb_encrypt_tables=OFF;
+alter table innodb_compact engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
+show create table innodb_compact;
+Table	Create Table
+innodb_compact	CREATE TABLE `innodb_compact` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+alter table innodb_compressed engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
+show create table innodb_compressed;
+Table	Create Table
+innodb_compressed	CREATE TABLE `innodb_compressed` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+alter table innodb_dynamic engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
+show create table innodb_dynamic;
+Table	Create Table
+innodb_dynamic	CREATE TABLE `innodb_dynamic` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+alter table innodb_redundant engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
+show create table innodb_redundant;
+Table	Create Table
+innodb_redundant	CREATE TABLE `innodb_redundant` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+FLUSH TABLES innodb_normal FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_compressed FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_redundant FOR EXPORT;
+UNLOCK TABLES;
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_compressed;
+drop table innodb_dynamic;
+drop table innodb_redundant;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB ENCRYPTION_KEY_ID=2 ENCRYPTED=YES;
+INSERT INTO t1 VALUES (1),(2);
+# Restarting server...
+# restart
+SELECT * FROM t1;
+pk
+1
+2
+DROP TABLE t1;

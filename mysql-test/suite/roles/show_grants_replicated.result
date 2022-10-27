@@ -1,0 +1,58 @@
+include/master-slave.inc
+[connection master]
+create user u1;
+create role r1;
+#
+# On master SHOW GRANTS work both for the user and the role:
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO `u1`@`%`
+show grants for r1;
+Grants for r1
+GRANT USAGE ON *.* TO `r1`
+#
+connection slave;
+#
+# The role has been replicated,
+# it's visible in mysql.user and I_S:
+#
+select user, host, is_role from mysql.user where user in ('u1', 'r1');
+User	Host	is_role
+r1		Y
+u1	%	N
+select * from information_schema.applicable_roles;
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+root@localhost	r1	YES	NO
+#
+# Check show grants for the new user.
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO `u1`@`%`
+#
+# Check show grants for the new role.
+show grants for r1;
+Grants for r1
+GRANT USAGE ON *.* TO `r1`
+#
+# Check if flushing privileges preserves the state.
+flush privileges;
+show grants for r1;
+Grants for r1
+GRANT USAGE ON *.* TO `r1`
+#
+# Check SHOW GRANTS after setting the role.
+set role r1;
+show grants;
+Grants for root@localhost
+GRANT `r1` TO `root`@`localhost` WITH ADMIN OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `r1`
+show grants for r1;
+Grants for r1
+GRANT USAGE ON *.* TO `r1`
+connection master;
+drop role r1;
+drop user u1;
+connection slave;
+include/rpl_end.inc

@@ -1,0 +1,13 @@
+--source include/have_innodb.inc
+
+create table t(id int primary key, a int) engine=InnoDB;
+insert into t (id, a) values (1, 1);
+alter table t modify column id int auto_increment;
+check table t;
+insert into t (a) values (2);
+alter table t modify column id int, algorithm=instant;
+check table t;
+insert into t (id, a) values (3, 3);
+select * from t;
+check table t;
+drop table t;

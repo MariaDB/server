@@ -1,0 +1,4 @@
+-- source include/have_innodb.inc
+-- source include/long_test.inc
+let $engine_type=innodb;
+-- source include/rpl_deadlock.test

@@ -1,0 +1,5 @@
+create table t (a int primary key, b int, c int as (b), index (c));
+insert t (a,b) values (10,1);
+replace delayed t (a,b) values (10,5);
+check table t;
+drop table t;

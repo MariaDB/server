@@ -1,0 +1,43 @@
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+test
+select count(*) from performance_schema.performance_timers;
+count(*)
+5
+select count(*) from performance_schema.setup_consumers;
+count(*)
+12
+select count(*) > 3 from performance_schema.setup_instruments;
+count(*) > 3
+1
+select count(*) from performance_schema.setup_timers;
+count(*)
+4
+show engine PERFORMANCE_SCHEMA status;
+show status like "performance_schema%";
+show variables like "performance_schema_max_table_instances";
+Variable_name	Value
+performance_schema_max_table_instances	500
+show variables like "performance_schema_max_table_handles";
+Variable_name	Value
+performance_schema_max_table_handles	0
+drop table if exists test.instrument_me;
+create table test.instrument_me(a int);
+insert into test.instrument_me values (1), (2), (3);
+select * from test.instrument_me;
+a
+1
+2
+3
+drop table test.instrument_me;
+show variables like "performance_schema_max_table_instances";
+Variable_name	Value
+performance_schema_max_table_instances	500
+select variable_value > 0 from information_schema.global_status
+where variable_name like 'PERFORMANCE_SCHEMA_TABLE_HANDLES_LOST';
+variable_value > 0
+1

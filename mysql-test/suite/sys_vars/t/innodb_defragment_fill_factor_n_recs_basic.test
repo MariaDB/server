@@ -1,0 +1,31 @@
+--source include/have_innodb.inc
+
+SET @start_innodb_defragment_fill_factor_n_recs = @@global.innodb_defragment_fill_factor_n_recs;
+SELECT @start_innodb_defragment_fill_factor_n_recs;
+
+SELECT COUNT(@@global.innodb_defragment_fill_factor_n_recs);
+
+SET @@global.innodb_defragment_fill_factor_n_recs = 50;
+SELECT @@global.innodb_defragment_fill_factor_n_recs;
+
+SET @@global.innodb_defragment_fill_factor_n_recs = 100;
+SELECT @@global.innodb_defragment_fill_factor_n_recs;
+
+SET @@global.innodb_defragment_fill_factor_n_recs = 1;
+SELECT @@global.innodb_defragment_fill_factor_n_recs;
+
+SET @@global.innodb_defragment_fill_factor_n_recs = -1;
+SELECT @@global.innodb_defragment_fill_factor_n_recs;
+
+SET @@global.innodb_defragment_fill_factor_n_recs = 10000;
+SELECT @@global.innodb_defragment_fill_factor_n_recs;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_defragment_fill_factor_n_recs = 10.5;
+SELECT @@global.innodb_defragment_fill_factor_n_recs;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_defragment_fill_factor_n_recs = "abc";
+SELECT @@global.innodb_defragment_fill_factor_n_recs;
+
+SET @@global.innodb_defragment_fill_factor_n_recs = @start_innodb_defragment_fill_factor_n_recs;

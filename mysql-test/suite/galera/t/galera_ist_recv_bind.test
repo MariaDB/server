@@ -1,0 +1,55 @@
+#
+# Test ist.recv_bind option. Since MTR can not do proper testing with multiple interfaces and such, we
+# simply confirm that the option can be set (in the galera_ist_recv_bind.cnf file) and that IST works as expected
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/big_test.inc
+
+--connection node_1
+SELECT @@wsrep_provider_options LIKE '%ist.recv_bind = 127.0.0.1%';
+
+--connection node_2
+SELECT @@wsrep_provider_options LIKE '%ist.recv_bind = 127.0.0.1%';
+
+# Isolate node #2 
+
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+SET SESSION wsrep_on = OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+SET SESSION wsrep_on = ON;
+
+# Node #2 is now isolated. Run some transactions to accumulate writesets for IST
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+# Restore node #2
+
+--connection node_2
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+# Confirm that IST has taken place
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
+# Cleanup
+
+DROP TABLE t1;

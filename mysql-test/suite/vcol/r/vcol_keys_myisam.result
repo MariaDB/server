@@ -1,0 +1,420 @@
+SET @@session.storage_engine = 'MyISAM';
+#            - UNIQUE KEY
+#            - INDEX
+#            - FULLTEXT INDEX
+#            - SPATIAL INDEX (not supported)
+#            - FOREIGN INDEX (partially supported)
+#            - CHECK (allowed but not used)
+# UNIQUE
+create table t1 (a int, b int as (a*2) unique);
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent unique);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
+  UNIQUE KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	UNI	NULL	STORED GENERATED
+drop table t1;
+create table t1 (a int, b int as (a*2), unique key (b));
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent, unique (b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
+  UNIQUE KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	UNI	NULL	STORED GENERATED
+drop table t1;
+create table t1 (a int, b int as (a*2));
+alter table t1 add unique key (b);
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent);
+alter table t1 add unique key (b);
+drop table t1;
+# Testing data manipulation operations involving UNIQUE keys 
+# on virtual columns can be found in:
+#  - vcol_ins_upd.inc
+#  - vcol_select.inc
+# 
+# INDEX
+create table t1 (a int, b int as (a*2), index (b));
+drop table t1;
+create table t1 (a int, b int as (a*2), index (a,b));
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent, index (b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
+  KEY `b` (`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	MUL	NULL	STORED GENERATED
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent, index (a,b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
+  KEY `a` (`a`,`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES	MUL	NULL	
+b	int(11)	YES		NULL	STORED GENERATED
+drop table t1;
+create table t1 (a int, b int as (a*2));
+alter table t1 add index (b);
+alter table t1 add index (a,b);
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent);
+alter table t1 add index (b);
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent);
+alter table t1 add index (a,b);
+create table t2 like t1;
+drop table t2;
+drop table t1;
+# Testing data manipulation operations involving INDEX
+# on virtual columns can be found in:
+#  - vcol_select.inc
+#
+# TODO: FULLTEXT INDEX
+# SPATIAL INDEX
+# Error "All parts of a SPATIAL index must be NOT NULL"
+create table t1 (a int, b geometry as (a+1) persistent, spatial index (b));
+ERROR 42000: All parts of a SPATIAL index must be NOT NULL
+create table t1 (a int, b int as (a+1) persistent);
+alter table t1 add spatial index (b);
+ERROR HY000: Incorrect arguments to SPATIAL INDEX
+drop table t1;
+# FOREIGN KEY
+# Rejected FK options.
+create table t1 (a int, b int as (a+1) persistent,
+foreign key (b) references t2(a) on update set null);
+ERROR HY000: Cannot define foreign key with ON UPDATE SET NULL clause on a generated column
+create table t1 (a int, b int as (a+1) persistent,
+foreign key (b) references t2(a) on update cascade);
+ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a generated column
+create table t1 (a int, b int as (a+1) persistent,
+foreign key (b) references t2(a) on delete set null);
+ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a generated column
+create table t1 (a int, b int as (a+1) persistent);
+alter table t1 add foreign key (b) references t2(a) on update set null;
+ERROR HY000: Cannot define foreign key with ON UPDATE SET NULL clause on a generated column
+alter table t1 add foreign key (b) references t2(a) on update cascade;
+ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a generated column
+alter table t1 add foreign key (b) references t2(a) on delete set null;
+ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a generated column
+drop table t1;
+# Allowed FK options.
+create table t2 (a int primary key, b char(5));
+create table t1 (a int, b int as (a % 10) persistent,
+foreign key (b) references t2(a) on update restrict);
+drop table t1;
+create table t1 (a int, b int as (a % 10) persistent,
+foreign key (b) references t2(a) on update no action);
+drop table t1;
+create table t1 (a int, b int as (a % 10) persistent,
+foreign key (b) references t2(a) on delete restrict);
+drop table t1;
+create table t1 (a int, b int as (a % 10) persistent,
+foreign key (b) references t2(a) on delete cascade);
+drop table t1;
+create table t1 (a int, b int as (a % 10) persistent,
+foreign key (b) references t2(a) on delete no action);
+drop table t1;
+
+# Testing data manipulation operations involving FOREIGN KEY 
+# on virtual columns can be found in:
+#  - vcol_ins_upd.inc
+#  - vcol_select.inc
+create table t1 (a int, b timestamp as (now()), key (b));
+ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b timestamp as (now()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+create table t1 (a int, b varchar(100) as (user()), key (b));
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b varchar(100) as (user()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+create table t1 (a int, b double as (rand()), key (b));
+ERROR HY000: Function or expression 'rand()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b double as (rand()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'rand()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+CREATE OR REPLACE TABLE t1 (
+f2 DOUBLE NOT NULL DEFAULT '0',
+f3 DOUBLE NOT NULL DEFAULT '0',
+f4 DOUBLE,
+f5 DOUBLE DEFAULT '0',
+v4 DOUBLE AS (IF(f4,f3,f2)) VIRTUAL,
+KEY (f5),
+KEY (v4)
+);
+INSERT INTO t1 (f2,f3,f4,f5) VALUES (5,4,1,0),(5,7,NULL,0);
+INSERT INTO t1 (f2,f3,f4,f5) SELECT f2, f3, f5, f3 FROM t1;
+INSERT INTO t1 (f2,f3,f4,f5) VALUES (5,0,NULL,1);
+INSERT INTO t1 (f2,f3,f4,f5) SELECT f2, f5, f5, f3 FROM t1;
+DELETE FROM t1 WHERE f5 = 1 OR v4 = 4 ORDER BY f5,v4 LIMIT 9;
+SELECT * from t1;
+f2	f3	f4	f5	v4
+5	7	NULL	0	5
+5	4	0	4	5
+5	7	0	7	5
+5	0	0	4	5
+5	0	0	7	5
+5	7	7	7	7
+5	1	1	0	1
+DROP TABLE t1;
+CREATE TABLE t1 (
+d DECIMAL(63,0) NOT NULL DEFAULT 0,
+c VARCHAR(64) NOT NULL DEFAULT '',
+vd DECIMAL(63,0) AS (d) VIRTUAL,
+vc VARCHAR(2048) AS (c) VIRTUAL,
+pk BIGINT AUTO_INCREMENT,
+PRIMARY KEY(pk));
+INSERT INTO t1 (d,c) VALUES (0.5,'foo');
+Warnings:
+Note	1265	Data truncated for column 'd' at row 1
+SELECT * FROM t1 WHERE vc != 'bar' ORDER BY vd;
+d	c	vd	vc	pk
+1	foo	1	foo	1
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk BIGINT,
+c CHAR(64) NOT NULL DEFAULT '',
+vc CHAR(64) AS (c) VIRTUAL,
+PRIMARY KEY(pk),
+INDEX(vc(32))
+);
+DELETE FROM t1 WHERE vc IS NULL ORDER BY pk;
+DROP TABLE t1;
+#
+# Original test
+#
+create table t1 (a int, b int as (a+1), c int, index(b));
+insert t1 (a,c) values (0x7890abcd, 0x76543210);
+insert t1 (a,c) select seq, sin(seq)*10000 from seq_1_to_1000;
+explain select * from t1 where b=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	b	b	5	const	1	
+select * from t1 where b=10;
+a	b	c
+9	10	4121
+
+MyISAM file:         datadir/test/t1
+Record format:       Fixed length
+Character set:       latin1_swedish_ci (8)
+Data records:                 1001  Deleted blocks:                 0
+Recordlength:                    9
+
+table description:
+Key Start Len Index   Type
+1   10    4   multip. long NULL            
+update t1 set a=20 where b=10;
+select * from t1 where b=10;
+a	b	c
+select * from t1 where b=21;
+a	b	c
+20	21	4121
+20	21	9129
+delete from t1 where b=21;
+select * from t1 where b=21;
+a	b	c
+alter table t1 add column d char(20) as (concat(a,c));
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+create index i on t1 (d);
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+check table t1 quick;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+check table t1 medium;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	b	1	b	A	999	NULL	NULL	YES	BTREE		
+t1	1	i	1	d	A	999	NULL	NULL	YES	BTREE		
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+delete from t1 where b=12;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	b	1	b	A	998	NULL	NULL	YES	BTREE		
+t1	1	i	1	d	A	998	NULL	NULL	YES	BTREE		
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	b	1	b	A	998	NULL	NULL	YES	BTREE		
+t1	1	i	1	d	A	998	NULL	NULL	YES	BTREE		
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+repair table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+repair table t1 quick;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+repair table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+repair table t1 use_frm;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	warning	Number of rows changed from 0 to 998
+test.t1	repair	status	OK
+select * from t1 where b=11;
+a	b	c	d
+10	11	-5440	10-5440
+update t1 set a=30 where b=11;
+select * from t1 where b=11;
+a	b	c	d
+select * from t1 where b=31;
+a	b	c	d
+30	31	-5440	30-5440
+30	31	-9880	30-9880
+drop table t1;
+#
+# MDEV-11606 Server crashes in mi_make_key / sort_key_read
+#
+CREATE TABLE t1 ( 
+pk BIGINT AUTO_INCREMENT,
+col_date DATE NULL,
+col_datetime DATETIME(1) NULL,
+col_int TINYINT(13) UNSIGNED ZEROFILL NULL,
+col_varchar VARBINARY(2222) NULL,
+col_timestamp TIMESTAMP(2) NULL,
+col_bit BIT(64) NOT NULL DEFAULT 0,
+col_blob MEDIUMBLOB NULL,
+col_dec DECIMAL(10,9) ZEROFILL NOT NULL DEFAULT 0,
+col_time TIME(4) NULL,
+col_year YEAR NOT NULL DEFAULT '1970',
+col_char CHAR(129) NULL,
+col_enum SET('','a','b','c','d','e','f','foo','bar') NULL,
+vcol_dec DECIMAL(50,18) ZEROFILL AS (col_dec) VIRTUAL,
+vcol_bit BIT(48) AS (col_bit) VIRTUAL,
+vcol_char CHAR(224) AS (col_char) VIRTUAL,
+vcol_datetime DATETIME(4) AS (col_datetime) VIRTUAL,
+vcol_year YEAR AS (col_year) VIRTUAL,
+vcol_varchar VARBINARY(356) AS (col_varchar) VIRTUAL,
+vcol_blob MEDIUMBLOB AS (col_blob) VIRTUAL,
+vcol_timestamp TIMESTAMP(5) AS (col_timestamp) VIRTUAL,
+vcol_int BIGINT(46) AS (col_int) VIRTUAL,
+vcol_time TIME(1) AS (col_time) VIRTUAL,
+vcol_date DATE AS (col_date) VIRTUAL,
+vcol_enum SET('','a','b','c','d','e','f','foo','bar') AS (col_enum) VIRTUAL,
+UNIQUE(pk),
+PRIMARY KEY(pk)
+) ENGINE=MyISAM;
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+ALTER TABLE t1 ADD INDEX(col_enum,vcol_int);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+ALTER TABLE t1 ADD INDEX(col_year);
+DROP TABLE t1;
+create table t1 (
+pk int primary key auto_increment,
+b bit default null,
+key(b)
+) engine=myisam;
+insert into t1 values (null, 0);
+repair table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+drop table t1;
+create table t1 ( id int primary key,
+hexid  varchar(10) generated always as (hex(id)) stored,
+key (hexid)) engine=myisam;
+insert into t1 (id) select 100;
+select * from t1;
+id	hexid
+100	64
+drop table t1;
+#
+#  MDEV-15881 Assertion `is_valid_value_slow()' failed in Datetime::Datetime or corrupt data after ALTER with indexed persistent column
+#
+CREATE TABLE t1 (i INT, d1 DATE, d2 DATE NOT NULL, t TIMESTAMP, KEY(t)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES  (1,'2023-03-16','2023-03-15','2012-12-12 12:12:12');
+ALTER TABLE t1 MODIFY t FLOAT AS (i) PERSISTENT;
+SELECT i, d1, d2 INTO OUTFILE 'load_t1' FROM t1;
+DELETE FROM t1;
+LOAD DATA INFILE 'load_t1' INTO TABLE t1 (i,d1,d2);
+SELECT * FROM t1 WHERE d2 < d1;
+i	d1	d2	t
+1	2023-03-16	2023-03-15	1
+DROP TABLE t1;
+CREATE TABLE t1 (
+i INT DEFAULT NULL,
+d1 DATE DEFAULT NULL,
+d2 DATE NOT NULL,
+t FLOAT GENERATED ALWAYS AS (i) STORED,
+KEY (t)
+) ENGINE=MyISAM;
+LOAD DATA INFILE 'load_t1' INTO TABLE t1 (i,d1,d2);
+SELECT * FROM t1 WHERE d2 < d1;
+i	d1	d2	t
+1	2023-03-16	2023-03-15	1
+DROP TABLE t1;
+#
+# MDEV-20015 Assertion `!in_use->is_error()' failed in TABLE::update_virtual_field
+#
+create or replace table t1 (a int);
+insert into t1 (a) values (1), (1);
+create or replace table t2 (pk int, b int, c int as (b) virtual, primary key (pk), key(c));
+insert into t2 (pk) select a from t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+drop tables t1, t2;

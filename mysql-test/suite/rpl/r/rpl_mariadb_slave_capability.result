@@ -1,0 +1,157 @@
+include/master-slave.inc
+[connection master]
+connection master;
+set @old_master_binlog_checksum= @@global.binlog_checksum;
+connection slave;
+include/stop_slave.inc
+# Test slave with no capability gets dummy event, which is ignored.
+set @old_dbug= @@global.debug_dbug;
+SET @@global.debug_dbug='+d,simulate_slave_capability_none';
+include/start_slave.inc
+connection master;
+FLUSH LOGS;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (0);
+connection slave;
+connection master;
+ALTER TABLE t1 ORDER BY a;
+connection slave;
+connection slave;
+connection master;
+SET SESSION binlog_annotate_row_events = ON;
+DELETE FROM t1;
+INSERT INTO t1 /* A comment just to make the annotate event sufficiently long that the dummy event will need to get padded with spaces so that we can test that this works */ VALUES(1);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000002	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	INSERT INTO t1 /* A comment just to make the annotate event sufficiently long that the dummy event will need to get padded with spaces so that we can test that this works */ VALUES(1)
+master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Query	#	#	COMMIT
+connection slave;
+connection slave;
+SELECT * FROM t1;
+a
+1
+include/show_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-relay-bin.000005	#	Query	#	#	BEGIN
+slave-relay-bin.000005	#	Annotate_rows	#	#	DELETE FROM t1
+slave-relay-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
+slave-relay-bin.000005	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-relay-bin.000005	#	Query	#	#	COMMIT
+slave-relay-bin.000005	#	Query	#	#	BEGIN
+slave-relay-bin.000005	#	Annotate_rows	#	#	INSERT INTO t1 /* A comment just to make the annotate event sufficiently long that the dummy event will need to get padded with spaces so that we can test that this works */ VALUES(1)
+slave-relay-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
+slave-relay-bin.000005	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-relay-bin.000005	#	Query	#	#	COMMIT
+set @@global.debug_dbug= @old_dbug;
+# Test dummy event is checksummed correctly.
+connection master;
+set @@global.binlog_checksum = CRC32;
+TRUNCATE t1;
+INSERT INTO t1 VALUES(2);
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2)
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000003	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Query	#	#	COMMIT
+connection slave;
+connection slave;
+SELECT * FROM t1;
+a
+2
+include/show_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-relay-bin.000007	#	Query	#	#	BEGIN
+slave-relay-bin.000007	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2)
+slave-relay-bin.000007	#	Table_map	#	#	table_id: # (test.t1)
+slave-relay-bin.000007	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-relay-bin.000007	#	Query	#	#	COMMIT
+*** MDEV-5754: MySQL 5.5 slaves cannot replicate from MariaDB 10.0 ***
+connection master;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+connect  con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+INSERT INTO t2 VALUES (1);
+connection master;
+SET debug_sync='now WAIT_FOR master_queued1';
+connect  con2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+INSERT INTO t2 VALUES (2);
+connection master;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+connection con1;
+SET debug_sync='RESET';
+connection con2;
+SET debug_sync='RESET';
+connection master;
+SET debug_sync='RESET';
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+master-bin.000003	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (1)
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000003	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Xid	#	#	COMMIT /* XID */
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+master-bin.000003	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (2)
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t2)
+master-bin.000003	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Xid	#	#	COMMIT /* XID */
+connection slave;
+SELECT * FROM t2 ORDER BY a;
+a
+1
+2
+# Test that slave which cannot tolerate holes in binlog stream but
+# knows the event does not get dummy event
+include/stop_slave.inc
+SET @@global.debug_dbug='+d,simulate_slave_capability_old_53';
+include/start_slave.inc
+connection master;
+ALTER TABLE t1 ORDER BY a;
+connection slave;
+connection slave;
+connection master;
+UPDATE t1 SET a = 3;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Annotate_rows	#	#	UPDATE t1 SET a = 3
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000003	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Query	#	#	COMMIT
+connection slave;
+connection slave;
+SELECT * FROM t1;
+a
+3
+include/show_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-relay-bin.000008	#	Query	#	#	BEGIN
+slave-relay-bin.000008	#	Annotate_rows	#	#	UPDATE t1 SET a = 3
+slave-relay-bin.000008	#	Table_map	#	#	table_id: # (test.t1)
+slave-relay-bin.000008	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-relay-bin.000008	#	Query	#	#	COMMIT
+select @@global.log_slave_updates;
+@@global.log_slave_updates
+1
+select @@global.replicate_annotate_row_events;
+@@global.replicate_annotate_row_events
+1
+Clean up.
+connection master;
+set @@global.binlog_checksum = @old_master_binlog_checksum;
+DROP TABLE t1, t2;
+connection slave;
+set @@global.debug_dbug= @old_dbug;
+include/rpl_end.inc

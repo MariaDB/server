@@ -1,0 +1,22 @@
+##########################################################################
+# This test verifies if the start slave fails gracefuly when an 
+# invalid directory is used to set --slave-load-tmpdir.
+##########################################################################
+--source include/have_log_bin.inc
+--source include/not_embedded.inc
+
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+
+--connection slave
+START SLAVE;
+call mtr.add_suppression("Slave SQL.*Unable to use slave.s temporary directory");
+# 12 = EE_CANT_MKDIR
+--let $slave_sql_errno= 12
+source include/wait_for_slave_sql_error.inc;
+
+--source include/stop_slave_io.inc
+RESET SLAVE;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc

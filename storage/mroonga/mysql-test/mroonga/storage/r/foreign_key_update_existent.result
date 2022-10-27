@@ -1,0 +1,55 @@
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+CREATE TABLE comments (
+id int unsigned PRIMARY KEY,
+content varchar(140) NOT NULL
+);
+CREATE TABLE entries (
+content varchar(140) NOT NULL,
+comment_id int unsigned,
+FOREIGN KEY (comment_id) REFERENCES comments (id)
+);
+INSERT INTO comments (id, content) VALUES (100, 'Good entry!');
+INSERT INTO comments (id, content) VALUES (200, 'Very good entry!');
+INSERT INTO entries (content, comment_id) VALUES ('Hello!', 100);
+UPDATE entries SET comment_id = 200 WHERE content = 'Hello!';
+SELECT * FROM entries;
+content	comment_id
+Hello!	200
+SELECT * FROM comments;
+id	content
+100	Good entry!
+200	Very good entry!
+SELECT mroonga_command('dump --dump_plugins no');
+mroonga_command('dump --dump_plugins no')
+table_create comments TABLE_PAT_KEY UInt32
+column_create comments content COLUMN_SCALAR ShortText
+column_create comments id COLUMN_SCALAR UInt32
+
+table_create entries TABLE_NO_KEY
+column_create entries content COLUMN_SCALAR ShortText
+
+table_create mroonga_operations TABLE_NO_KEY
+column_create mroonga_operations record COLUMN_SCALAR UInt32
+column_create mroonga_operations table COLUMN_SCALAR ShortText
+column_create mroonga_operations type COLUMN_SCALAR ShortText
+
+column_create entries comment_id COLUMN_SCALAR comments
+
+load --table comments
+[
+["_key","content","id"],
+[100,"Good entry!",100],
+[200,"Very good entry!",200]
+]
+
+load --table entries
+[
+["_id","comment_id","content"],
+[1,200,"Hello!"]
+]
+
+column_create comments entries-comment_id----------------------------------------------- COLUMN_INDEX entries comment_id
+DROP TABLE entries;
+DROP TABLE comments;

@@ -1,0 +1,29 @@
+include/master-slave.inc
+[connection master]
+connection master;
+DROP PROCEDURE IF EXISTS test.p1;
+DROP TABLE IF EXISTS test.t2;
+CREATE TABLE test.t1 (a INT,PRIMARY KEY(a));
+CREATE TABLE test.t2 (a INT,PRIMARY KEY(a));
+INSERT INTO test.t1 VALUES(1),(2);
+CREATE PROCEDURE test.p1()
+BEGIN
+SELECT SQL_CALC_FOUND_ROWS * FROM test.t1 LIMIT 1;
+INSERT INTO test.t2 VALUES(FOUND_ROWS());
+END|
+CALL test.p1();
+a
+1
+SELECT * FROM test.t2;
+a
+2
+connection slave;
+SELECT * FROM test.t2;
+a
+2
+connection master;
+DROP PROCEDURE IF EXISTS test.p1;
+DROP TABLE IF EXISTS test.t1;
+DROP TABLE IF EXISTS test.t2;
+connection slave;
+include/rpl_end.inc

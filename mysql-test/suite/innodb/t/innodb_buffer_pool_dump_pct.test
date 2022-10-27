@@ -1,0 +1,99 @@
+# ************************************************************
+# wl6504: This testcase is to check the functionality of the
+# innodb_buffer_pool_dump_pct flag
+# step 1.Set innodb_buffer_pool_dump_pct=100 and take the dump
+# step 2.Set innodb_buffer_pool_dump_pct=1 and take the dump
+# step 3.Compare the size of both the dump files
+#*************************************************************
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+
+let MYSQLD_DATADIR = `SELECT @@datadir`;
+
+CREATE TABLE tab5 (col1 int auto_increment primary key,
+col2 VARCHAR(25), col3 varchar(25)) ENGINE=InnoDB;
+CREATE INDEX idx1 ON tab5(col2(10));
+CREATE INDEX idx2 ON tab5(col3(10));
+
+SET GLOBAL innodb_buffer_pool_filename=ib_buffer_pool100;
+SET GLOBAL innodb_buffer_pool_dump_pct=100;
+
+#***********************************************************
+# SELECT *
+# FROM information_schema.global_status
+# WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS'
+# gives
+# a) VARIABLE_NAME                   VARIABLE_VALUE
+#    INNODB_BUFFER_POOL_DUMP_STATUS  not started
+#    in case there was no innodb_buffer_pool_dump since server start.
+# b) Something like
+#    VARIABLE_NAME                   VARIABLE_VALUE
+#    INNODB_BUFFER_POOL_DUMP_STATUS  Buffer pool(s) dump completed at 130711 13:43:24
+#    in case there was a innodb_buffer_pool_dump since server start.
+# Attention:
+# - There is no guarantee that the current test is the first test which
+#   made an innodb_buffer_pool_dump since server startup.
+# - The granularity of the timestamp is one second.
+# - There could have been some dump caused by some previous test
+#   just a few milliseconds before.
+# In order to avoid conflict with previous tests, read the current value
+# of INNODB_BUFFER_POOL_DUMP_STATUS
+# and confirm that the timestamp is different after the dump
+#***********************************************************
+
+# Read the current value to compare with the new value.
+SELECT variable_value INTO @IBPDS
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS';
+SET GLOBAL innodb_buffer_pool_dump_now=ON;
+
+# Sleep one second in order to ensure that the time stamp is
+# different at next dump
+--sleep 1
+
+let $wait_condition = SELECT count(*) = 1
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS'
+AND variable_value != @IBPDS
+AND variable_value like 'Buffer pool(s) dump completed at%';
+--source include/wait_condition.inc
+
+--file_exists $MYSQLD_DATADIR/ib_buffer_pool100
+SET GLOBAL innodb_buffer_pool_filename=ib_buffer_pool1;
+SET GLOBAL innodb_buffer_pool_dump_pct=1;
+SELECT @@global.innodb_buffer_pool_dump_pct;
+
+# Read the current value to compare with the new value.
+--disable_warnings
+SELECT variable_value INTO @IBPDS
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS';
+--enable_warnings
+
+SET GLOBAL innodb_buffer_pool_dump_now=ON;
+
+# Sleep one second in order to ensure that the time stamp is
+# different at next dump
+--sleep 1
+
+let $wait_condition = SELECT count(*) = 1
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_DUMP_STATUS'
+AND variable_value != @IBPDS
+AND variable_value like 'Buffer pool(s) dump completed at%';
+--source include/wait_condition.inc
+
+--file_exists $MYSQLD_DATADIR/ib_buffer_pool1
+
+perl;
+my $size1 = -s "$ENV{MYSQLD_DATADIR}/ib_buffer_pool1";
+my $size100 = -s "$ENV{MYSQLD_DATADIR}/ib_buffer_pool100";
+die "$size100<=$size1\n" unless $size100 > $size1;
+EOF
+
+SET GLOBAL innodb_buffer_pool_dump_pct=DEFAULT;
+SET GLOBAL innodb_buffer_pool_filename=DEFAULT;
+
+--remove_file $MYSQLD_DATADIR/ib_buffer_pool100
+--remove_file $MYSQLD_DATADIR/ib_buffer_pool1
+DROP TABLE tab5;

@@ -1,0 +1,913 @@
+set sql_mode=oracle;
+#
+# MDEV-10697  sql_mode=ORACLE: GOTO statement
+#
+# matrice of tests in procedure
+# |--------------------------------------------------------
+# |               | Same  | Outside   | to sub | No       |
+# |               | block | one block | block  | matching |
+# |               |       |           |        | label    |
+# |--------------------------------------------------------
+# | Forward jump  | F1    | F3        | F5     | F7       |
+# |--------------------------------------------------------
+# | Backward jump | F2    | F4        | F6     | F8       |
+# |--------------------------------------------------------
+# Jump from handler to outside handling code block : F9
+# Jump from handler to handling code block : F10 (forbidden)
+# Jump inside handler : F21
+# Jump between handler : F22 (forbidden)
+# Jump from cascaded block with handler : F11
+# Duplicate label in same block : F12 (forbidden)
+# Duplicate label in different block : F13
+# Jump outside unlabeled block : F14
+# Jump inside/outside labeled block  : F15
+# Jump from if / else  : F16
+# Jump with cursors : F17
+# Jump outside case  : F18
+# Jump inside/outside case block : F19
+# Jump outside labeled loop : F20
+# Jump (continue) labeled loop : F23
+# Two consecutive label : P24
+# Two consecutive label (backward and forward jump) : P25
+# Two consecutive label, continue to wrong label : P26
+# Consecutive goto label and block label : P27
+# Test in function
+# backward jump : func1
+# forward jump : func2
+# Test in trigger
+# forward jump : trg1
+#
+# Forward jump in same block
+#
+CREATE or replace procedure f1(p2 IN OUT VARCHAR)
+AS
+BEGIN 
+p2:='a';
+goto lab1;
+<<lab1>>
+goto lab2;
+p2:='b';
+<<lab2>> 
+return ;
+END;
+$$
+call f1(@wp1);
+select 'f1',@wp1;
+f1	@wp1
+f1	a
+DROP PROCEDURE f1;
+#
+# Backward jump in same block
+#
+CREATE or replace procedure f2(p2 IN OUT VARCHAR)
+AS
+BEGIN 
+p2:='a';
+<<lab1>>
+if (p2='b') then
+return ;
+end if;
+p2:='b';
+goto lab1;
+END;
+$$
+call f2(@wp1);
+select 'f2',@wp1;
+f2	@wp1
+f2	b
+DROP PROCEDURE f2;
+#
+# Forward jump outside one block
+#
+CREATE or replace procedure f3(p2 IN OUT VARCHAR)
+AS
+BEGIN 
+p2:='a';
+if (p2='a') then
+goto lab1;
+end if;
+p2:='c';
+<<lab1>>
+return ;
+END;
+$$
+call f3(@wp1);
+select 'f3',@wp1;
+f3	@wp1
+f3	a
+DROP PROCEDURE f3;
+#
+# Backward jump outside one block
+#
+CREATE or replace procedure f4(p2 IN OUT VARCHAR)
+AS
+BEGIN 
+p2:='a';
+<<lab1>>
+if (p2='a') then
+p2:=p2||'b';
+goto lab1;
+end if; 
+if (p2='ab') then
+p2:=p2||'c';
+end if;
+return ;
+END;
+$$
+call f4(@wp1);
+select 'f4',@wp1;
+f4	@wp1
+f4	abc
+DROP PROCEDURE f4;
+#
+# Forward jump inside sub block
+CREATE or replace procedure f5(p2 IN OUT VARCHAR)
+AS
+BEGIN 
+p2:='a';
+goto lab5 ;
+if (p2='a') then
+<<lab5>>
+p2:=p2||'b';
+end if; 
+return ;
+END;
+$$
+ERROR 42000: GOTO with no matching label: lab5
+#
+# Backward jump inside sub block
+CREATE or replace procedure f6(p2 IN OUT VARCHAR)
+AS
+BEGIN 
+p2:='a';
+if (p2='a') then
+<<lab6>>
+p2:=p2||'b';
+return ;
+end if; 
+goto lab6 ;
+END;
+$$
+ERROR 42000: GOTO with no matching label: lab6
+#
+# Backward jump - missing label
+CREATE or replace procedure f7(p2 IN OUT VARCHAR)
+AS
+BEGIN 
+<<lab>>
+goto lab7 ;
+return ;
+END;
+$$
+ERROR 42000: GOTO with no matching label: lab7
+#
+# Forward jump - missing label
+CREATE or replace procedure f8(p2 IN OUT VARCHAR)
+AS
+BEGIN 
+goto lab8 ;
+<<lab>>
+return ;
+END;
+$$
+ERROR 42000: GOTO with no matching label: lab8
+#
+# Jump from handler to procedure code
+#
+CREATE or replace procedure f9(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+<<lab9>>
+if lim=-1 then
+res:=res||' -- goto end limit -1 --';
+goto lab9_end;
+end if;
+begin
+SELECT a INTO a FROM information_schema.tables LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN
+begin
+res:=res||'--- too_many_rows cought ---';
+lim:=0;
+goto lab9;
+end;
+WHEN NO_DATA_FOUND THEN
+begin
+res:=res||'--- no_data_found cought ---';
+lim:=-1;
+goto lab9;
+end;
+end;
+res:=res||'error';
+<<lab9_end>>
+return ;
+END;
+$$
+SET @res='';
+CALL f9(2, @res);
+SELECT 'f9',@res;
+f9	@res
+f9	--- too_many_rows cought ------ no_data_found cought --- -- goto end limit -1 --
+CALL f9(0, @res);
+SELECT 'f9',@res;
+f9	@res
+f9	--- no_data_found cought --- -- goto end limit -1 --
+DROP PROCEDURE f9;
+#
+# Jump from handler to handling bloc
+CREATE or replace procedure f10(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+begin
+<<lab10>>
+SELECT a INTO a FROM information_schema.tables LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN
+begin
+res:='--- too_many_rows cought ---';
+goto lab10;
+end;
+WHEN NO_DATA_FOUND THEN res:='--- no_data_found cought ---';
+end;
+return ;
+END;
+$$
+ERROR 42000: GOTO with no matching label: lab10
+#
+# Jump from cascaded block with handler
+#
+CREATE or replace procedure f11(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+<<lab11a>>
+begin
+SELECT a INTO a FROM information_schema.tables LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN
+begin
+res:=res||'--- too_many_rows cought 1 ---';
+goto lab11b;
+end;
+WHEN NO_DATA_FOUND THEN
+begin
+res:=res||'--- no_data_found cought 1 ---';
+lim:=2;
+SELECT a INTO a FROM information_schema.tables LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN
+begin
+res:=res||'--- too_many_rows cought 2 ---';              
+goto lab11a;
+end;
+WHEN NO_DATA_FOUND THEN res:='--- no_data_found cought 2 ---';
+end;
+end;
+set res:=res||' error ';
+<<lab11b>> 
+return ;
+END;
+$$
+SET @res='';
+CALL f11(0, @res);
+SELECT 'f11',@res;
+f11	@res
+f11	--- no_data_found cought 1 ------ too_many_rows cought 2 ------ too_many_rows cought 1 ---
+DROP PROCEDURE f11;
+#
+# Jump inside handler
+#
+CREATE or replace procedure f21(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+begin
+SELECT a INTO a FROM information_schema.tables LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN
+begin
+<<retry>>
+lim:=lim-1;
+loop
+begin
+SELECT a INTO a FROM information_schema.tables LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN
+begin
+lim:=lim-1;
+goto retry;
+end;
+end;
+exit ;
+end loop;
+end;
+end;
+res:=lim;
+return ;
+END;
+$$
+SET @res='';
+CALL f21(10, @res);
+SELECT 'f21',@res;
+f21	@res
+f21	1
+drop procedure f21;
+#
+# Jump beetween handler
+CREATE or replace procedure f22(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+res:='ok';
+begin
+SELECT a INTO a FROM information_schema.tables LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN
+goto nodata ;
+WHEN NO_DATA_FOUND THEN
+begin
+<<nodata>>      
+res:='error';
+end;
+end;
+return ;
+END;
+$$
+ERROR 42000: GOTO with no matching label: nodata
+#
+# Duplicate label in same bloc
+CREATE or replace procedure f12(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+<<lab12>>
+res:='error';
+<<lab12>> 
+return ;
+END;
+$$
+ERROR 42000: Redefining label lab12
+#
+# Duplicate label in different block
+#
+CREATE or replace procedure f13(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+a:=0;
+<<lab13>>
+a:=a+1;
+begin      
+<<lab13>> 
+a:=a+1;
+if (a<10) then
+goto lab13;
+end if;   
+end;
+res:=a;
+if (a=10) then
+goto lab13;
+end if;
+return ;
+END;
+$$
+SET @res='';
+CALL f13(0, @res);
+SELECT 'f13',@res;
+f13	@res
+f13	12
+DROP PROCEDURE f13;
+#
+# Jump outside unlabeled block
+#
+CREATE or replace procedure f14(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+a:=0;
+loop
+a:=a+1;
+if (a<10) then
+continue;
+end if;
+if (a>=lim) then
+goto lab14;
+end if;
+if (a>=20) then
+exit;
+end if;  
+end loop;
+<<lab14>>
+res:=a;
+return ;
+END;
+$$
+SET @res='';
+CALL f14(15, @res);
+SELECT 'f14',@res;
+f14	@res
+f14	15
+CALL f14(8, @res);
+SELECT 'f14',@res;
+f14	@res
+f14	10
+CALL f14(25, @res);
+SELECT 'f14',@res;
+f14	@res
+f14	20
+DROP PROCEDURE f14;
+#
+# Jump inside/outside labeled block 
+#
+CREATE or replace procedure f15(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+a:=0;
+<<looplabel>> loop
+<<beginlooplabel>>
+a:=a+1;
+if (a<10) then
+continue looplabel;
+end if;
+if (a>=lim) then
+goto lab15;
+end if;
+if (a>=20) then
+exit looplabel;
+end if;
+goto beginlooplabel;
+end loop;
+<<lab15>>
+res:=a;
+return ;
+END;
+$$
+SET @res='';
+CALL f15(15, @res);
+SELECT 'f15',@res;
+f15	@res
+f15	15
+CALL f15(8, @res);
+SELECT 'f15',@res;
+f15	@res
+f15	10
+CALL f15(25, @res);
+SELECT 'f15',@res;
+f15	@res
+f15	20
+DROP PROCEDURE f15;
+#
+# Jump from if / else 
+#
+CREATE or replace procedure f16(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+if (lim<10) then
+goto lab16_1;
+else
+goto lab16_2;
+end if;
+<<lab16_1>>
+res:='if lab16_1';
+goto lab16_3;
+<<lab16_2>>
+res:='else lab16_2';
+goto lab16_3; 
+res:='error lab16_3'; 
+<<lab16_3>>
+return ;
+END;
+$$
+SET @res='';
+CALL f16(15, @res);
+SELECT 'f16',@res;
+f16	@res
+f16	else lab16_2
+CALL f16(8, @res);
+SELECT 'f16',@res;
+f16	@res
+f16	if lab16_1
+DROP PROCEDURE f16;
+#
+# Jump with cursors
+#
+CREATE or replace procedure f17(lim INT, res OUT VARCHAR)
+AS
+v_a INT;
+v_b VARCHAR(10);
+CURSOR cur1 IS SELECT 1 FROM dual where 1=2;
+BEGIN
+OPEN cur1;
+LOOP
+FETCH cur1 INTO v_a;
+EXIT WHEN cur1%NOTFOUND; 
+END LOOP;
+CLOSE cur1;
+<<lab17>>
+lim:=lim-1;
+begin
+declare
+CURSOR cur1 IS SELECT 1 FROM dual;
+CURSOR cur2 IS SELECT 1 FROM dual where 1=2;
+begin
+LOOP
+OPEN cur1;
+FETCH cur1 INTO v_a;
+EXIT WHEN cur1%NOTFOUND; 
+res:=res||'-'||lim ;
+close cur1;
+if (lim>0) then
+goto lab17;
+else
+goto lab17_end;
+end if;
+END LOOP;
+end;
+<<lab17_end>>
+null;
+end;   
+END;
+$$
+SET @res='';
+CALL f17(5, @res);
+SELECT 'f17',@res;
+f17	@res
+f17	-4-3-2-1-0
+DROP PROCEDURE f17;
+#
+# Jump outside case 
+#
+CREATE or replace procedure f18(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+case lim
+when 1 then
+res:='case branch 18_1';
+goto lab18_1;
+res:='error';
+when 2 then
+res:='case branch 18_2';
+goto lab18_2;
+res:='error';
+else
+res:='default branch 18';
+end case;
+<<lab18_1>>
+null;
+<<lab18_2>>
+return ;
+END;
+$$
+SET @res='';
+CALL f18(0, @res);
+SELECT 'f18',@res;
+f18	@res
+f18	default branch 18
+CALL f18(1, @res);
+SELECT 'f18',@res;
+f18	@res
+f18	case branch 18_1
+CALL f18(2, @res);
+SELECT 'f18',@res;
+f18	@res
+f18	case branch 18_2
+DROP PROCEDURE f18;
+#
+# Jump inside/outside case block
+#
+CREATE or replace procedure f19(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+a:=1;
+case lim
+when 1 then
+<<lab19_0>>   
+a:=a+1;
+if (a<10) then
+goto lab19_0;
+else
+goto lab19_1;
+end if;
+res:='case branch 19_1';
+else
+res:='default branch 18';
+end case;
+goto lab19_end;
+<<lab19_1>>
+res:=a;
+<<lab19_end>>
+return ;
+END;
+$$
+SET @res='';
+CALL f19(1, @res);
+SELECT 'f19',@res;
+f19	@res
+f19	10
+DROP PROCEDURE f19;
+#
+# Jump outside labeled loop
+#
+CREATE OR REPLACE PROCEDURE f20(res OUT VARCHAR)
+AS
+a INT := 1;
+BEGIN
+<<lab>>
+FOR i IN a..10 LOOP
+IF i = 5 THEN
+a:= a+1;
+goto lab;
+END IF;
+END LOOP;
+res:=a;
+END;
+$$
+CALL f20(@res);
+SELECT 'f20',@res;
+f20	@res
+f20	6
+DROP PROCEDURE f20;
+#
+# Jump (continue) labeled loop
+#
+CREATE OR REPLACE PROCEDURE f23(res OUT VARCHAR)
+AS
+a INT := 1;
+BEGIN
+<<lab>>
+FOR i IN a..10 LOOP
+IF i = 5 THEN
+a:= a+1;
+continue lab;
+END IF;
+END LOOP;
+res:=a;
+END;
+$$
+CALL f23(@res);
+SELECT 'f23',@res;
+f23	@res
+f23	2
+DROP PROCEDURE f23;
+#
+# Two consecutive label (backward jump)
+#
+CREATE OR REPLACE PROCEDURE p24(action IN INT, res OUT varchar) AS
+a integer;
+BEGIN
+<<lab1>>
+<<lab2>>
+if (action = 1) then
+res:=res||' '||action;
+action:=2;
+goto lab1;
+end if;
+if (action = 2) then
+res:=res||' '||action;
+action:=3;
+goto lab2;
+end if;
+END;
+$$
+call p24(1,@res);
+select 'p24',@res;
+p24	@res
+p24	 1 2
+DROP PROCEDURE p24;
+#
+# Two consecutive label (backward and forward jump)
+#
+CREATE OR REPLACE PROCEDURE p25(action IN INT, res OUT varchar) AS
+a integer;
+BEGIN
+if (action = 1) then
+res:=res||' '||action;
+action:=2;
+goto lab2;
+end if;
+goto lab_end;
+<<lab1>>
+<<lab2>>
+res:=res||' '||action;
+if (action = 2) then
+res:=res||' '||action;
+action:=3;
+goto lab1;
+end if;
+<<lab_end>>
+null;
+END;
+$$
+call p25(1,@res);
+select 'p25',@res;
+p25	@res
+p25	 1 2 2 3
+DROP PROCEDURE p25;
+#
+# Two consecutive label, continue to wrong label
+CREATE OR REPLACE PROCEDURE p26(action IN INT, res OUT varchar) AS
+BEGIN
+<<lab1>>
+<<lab2>>
+FOR i IN 1..10 LOOP
+continue lab1;
+END LOOP;
+END;
+$$
+ERROR 42000: CONTINUE with no matching label: lab1
+#
+# Consecutive goto label and block label
+#
+CREATE OR REPLACE PROCEDURE p27(action IN INT, res OUT varchar) AS
+BEGIN
+res:='';
+<<lab1>>
+<<lab2>>
+FOR i IN 1..10 LOOP
+if (action = 1) then
+res:=res||' '||action||'-'||i;
+action:=2;
+continue lab2;
+end if;
+if (action = 2) then
+res:=res||' '||action||'-'||i;
+action:='3';
+goto lab2;
+end if;
+if (action = 3) then
+res:=res||' '||action||'-'||i;
+action:='4';
+goto lab1;
+end if;
+if (action = 4) then
+res:=res||' '||action||'-'||i;
+exit lab2;
+end if;
+END LOOP;
+END;
+$$
+call p27(1,@res);
+select 'p27',@res;
+p27	@res
+p27	 1-1 2-2 3-1 4-1
+DROP PROCEDURE p27;
+# ----------------------
+# -- TEST IN FUNCTION --
+# ----------------------
+#
+# FUNCTION : Backward jump
+#
+CREATE or replace function func1()
+return varchar
+AS
+p2 varchar(10);
+BEGIN 
+p2:='a';
+<<lab1>>
+if (p2='a') then
+p2:=p2||'b';
+goto lab1;
+end if; 
+if (p2='ab') then
+p2:=p2||'c';
+end if;
+return p2;
+END;
+$$
+select 'func1',func1();
+func1	func1()
+func1	abc
+DROP function func1;
+#
+# FUNCTION : forward jump
+#
+CREATE or replace function func2()
+return varchar
+AS
+p2 varchar(10);
+BEGIN 
+p2:='a';
+if (p2='a') then
+goto lab1;
+end if;
+p2:='b';
+<<lab1>>
+return p2;
+END;
+$$
+select 'func2',func2();
+func2	func2()
+func2	a
+DROP function func2;
+# ---------------------
+# -- TEST IN TRIGGER --
+# ---------------------
+#
+# TRIGGER : forward jump
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+IF :NEW.a IS NULL
+THEN
+:NEW.a:= 15;
+goto end_trg;
+END IF;
+:NEW.a:= 10;
+<<end_trg>>
+null; 
+END;
+$$
+insert into t1 values (1);
+insert into t1 values (null);
+SELECT * FROM t1;
+a
+10
+15
+DROP TRIGGER trg1;
+DROP TABLE t1;
+#
+# MDEV-20667 Server crash on pop_cursor
+#
+CREATE TABLE t1 (a VARCHAR(6));
+CREATE PROCEDURE p1() IS
+BEGIN
+IF 1=2 THEN
+BEGIN
+DECLARE
+CURSOR cur1 IS SELECT a FROM t1 ;
+BEGIN
+GOTO iac_err;
+END;
+END;
+END IF;
+IF 1=1 THEN
+GOTO iac_err;
+END IF;
+<< iac_err >>
+RETURN;
+END//
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE PROCEDURE p1() IS
+BEGIN
+IF 1=2 THEN
+BEGIN
+DECLARE
+CURSOR cur1 IS SELECT a FROM t1 ;
+BEGIN
+GOTO iac_err;
+END;
+END;
+END IF;
+IF 1=1 THEN
+GOTO iac_err;
+END IF;
+<< iac_err >>
+RETURN ;
+END//
+CALL p1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() IS
+BEGIN
+IF 1=2 THEN
+BEGIN
+DECLARE
+CURSOR cur1 IS SELECT a FROM t1 ;
+BEGIN
+GOTO iac_err;
+END;
+END;
+END IF;
+GOTO iac_err;
+<< iac_err >>
+RETURN ;
+END//
+CALL p1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() IS 
+BEGIN 
+IF 1=2 THEN 
+BEGIN 
+DECLARE
+CONTINUE HANDLER FOR SQLSTATE '23000' SET @x2 = 1;
+BEGIN
+GOTO iac_err;
+END; 
+END; 
+END IF; 
+IF 1=1 THEN
+GOTO iac_err;
+END IF; 
+<<iac_err >>
+RETURN; 
+END//
+CALL p1;
+DROP PROCEDURE p1;

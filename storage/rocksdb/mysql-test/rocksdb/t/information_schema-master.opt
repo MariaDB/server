@@ -1,0 +1,1 @@
+--binlog_format=row --log_slave_updates

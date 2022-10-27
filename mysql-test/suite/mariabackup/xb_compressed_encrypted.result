@@ -1,0 +1,14 @@
+CREATE TABLE t1(c1 INT, b VARCHAR(2400), index(b(100),c1))
+ENGINE=INNODB ROW_FORMAT=compressed ENCRYPTED=YES;
+BEGIN;
+COMMIT;
+# xtrabackup backup
+drop table t1;
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+select sum(c1) from t1;
+sum(c1)
+12497500
+DROP TABLE t1;

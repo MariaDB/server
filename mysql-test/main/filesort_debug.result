@@ -1,0 +1,81 @@
+call mtr.add_suppression("Sort aborted.*");
+SET @old_debug= @@session.debug;
+#
+# Bug#36022 please log more information about "Sort aborted" queries
+#
+CREATE TABLE t1(f0 int auto_increment primary key, f1 int);
+INSERT INTO t1(f1) VALUES (0),(1),(2),(3),(4),(5);
+SET session debug_dbug= '+d,alloc_sort_buffer_fail';
+CALL mtr.add_suppression("Out of sort memory");
+SELECT * FROM t1 ORDER BY f1 ASC, f0;
+ERROR HY001: Out of sort memory, consider increasing server sort buffer size
+SET session debug_dbug= @old_debug;
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+DELETE FROM t1 ORDER BY (f1(10)) LIMIT 1;
+ERROR 42000: Incorrect number of arguments for FUNCTION test.f1; expected 0, got 1
+DROP TABLE t1;
+DROP FUNCTION f1;
+#
+# Bug #11747102
+# 30771: LOG MORE INFO ABOUT THREADS KILL'D AND SORT ABORTED MESSAGES
+#
+connect  con1, localhost, root;
+connect  con2, localhost, root;
+connection con1;
+CREATE TABLE t1(f0 int auto_increment primary key, f1 int);
+INSERT INTO t1(f1) VALUES (0),(1),(2),(3),(4),(5);
+SET DEBUG_SYNC='filesort_start SIGNAL filesort_started WAIT_FOR filesort_killed';
+# Sending: (not reaped since connection is killed later)
+SELECT * FROM t1 ORDER BY f1 ASC, f0;
+connection con2;
+SET DEBUG_SYNC='now WAIT_FOR filesort_started';
+KILL @id;
+SET DEBUG_SYNC='now SIGNAL filesort_killed';
+connection default;
+disconnect con1;
+disconnect con2;
+SET DEBUG_SYNC= "RESET";
+DROP TABLE t1;
+#
+# Bug#13832772 ASSERTION `THD->IS_ERROR() || KILL_ERRNO'
+#              FAILED IN FILESORT/MYSQL_DELETE
+#
+CREATE TABLE t1 (
+c1 BLOB,
+c2 TEXT,
+c3 TEXT,
+c4 TEXT,
+c5 TEXT,
+c6 TEXT,
+c7 TEXT,
+c8 BLOB,
+c9 TEXT,
+c19 TEXT,
+pk INT,
+c20 TEXT,
+c21 BLOB,
+c22 TEXT,
+c23 TEXT,
+c24 TEXT,
+c25 TEXT,
+c26 BLOB,
+c27 TEXT,
+c28 TEXT,
+primary key (pk)
+);
+CALL mtr.add_suppression("Out of sort memory");
+DELETE IGNORE FROM t1 ORDER BY c26,c7,c23,c4,c25,c5,c20,
+c19,c21,c8,c1,c27,c28,c3,c9,c22,c24,c6,c2,pk LIMIT 2;
+ERROR HY001: Out of sort memory, consider increasing server sort buffer size
+SHOW WARNINGS;
+Level	Code	Message
+Error	1038	Out of sort memory, consider increasing server sort buffer size
+Error	1028	Sort aborted: Out of sort memory, consider increasing server sort buffer size
+DELETE FROM t1 ORDER BY c26,c7,c23,c4,c25,c5,c20,
+c19,c21,c8,c1,c27,c28,c3,c9,c22,c24,c6,c2,pk LIMIT 2;
+ERROR HY001: Out of sort memory, consider increasing server sort buffer size
+SHOW WARNINGS;
+Level	Code	Message
+Error	1038	Out of sort memory, consider increasing server sort buffer size
+Error	1028	Sort aborted: Out of sort memory, consider increasing server sort buffer size
+DROP TABLE t1;

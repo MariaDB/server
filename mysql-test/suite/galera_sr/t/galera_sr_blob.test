@@ -1,0 +1,38 @@
+#
+# Test that a single-blob will be replicated using SR if it is sufficiently
+# large.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 TEXT) ENGINE=InnoDB;
+
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_1
+INSERT INTO t1 VALUES (REPEAT('x', 65535));
+
+--connection node_2
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+# Confirm that exactly one fragment was replicated
+
+--disable_query_log
+--eval SELECT ($wsrep_last_committed_after - $wsrep_last_committed_before) = 1 AS wsrep_last_committed_delta;
+--enable_query_log
+
+--connection node_1
+COMMIT;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+SELECT LENGTH(f1) = 65535 FROM t1;
+
+DROP TABLE t1;

@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<Beers>
+  <table>
+    <th><td>Name</td><td>Origin</td><td>Description</td></th>
+    <tr>
+      <td><brandName>Huntsman</brandName></td>
+      <td><origin>Bath, UK</origin></td>
+      <td><details>Wonderful hop, light alcohol</details></td>
+    </tr>
+    <tr>
+      <td><brandName>Tuborg</brandName></td>
+      <td><origin>Danmark</origin></td>
+      <td><details>In small bottles</details></td>
+    </tr>
+  </table>
+</Beers>

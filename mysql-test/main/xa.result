@@ -1,0 +1,412 @@
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+drop table if exists t1, t2;
+create table t1 (a int) engine=innodb;
+xa start 'test1';
+insert t1 values (10);
+xa end 'test1';
+xa prepare 'test1';
+xa rollback 'test1';
+select * from t1;
+a
+xa start 'test2';
+xa start 'test-bad';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+insert t1 values (20);
+xa prepare 'test2';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+xa end 'test2';
+xa prepare 'test2';
+xa commit 'test2';
+select * from t1;
+a
+20
+xa start 'testa','testb';
+insert t1 values (30);
+commit;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+xa end 'testa','testb';
+begin;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+create table t2 (a int);
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+connect  con1,localhost,root,,;
+connection con1;
+xa start 'testa','testb';
+ERROR XAE08: XAER_DUPID: The XID already exists
+xa start 'testa','testb', 123;
+ERROR XAE08: XAER_DUPID: The XID already exists
+xa start 0x7465737462, 0x2030405060, 0xb;
+insert t1 values (40);
+xa end 'testb',' 0@P`',11;
+xa prepare 'testb',0x2030405060,11;
+start transaction;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+xa recover;
+formatID	gtrid_length	bqual_length	data
+11	5	5	testb 0@P`
+connection default;
+xa prepare 'testa','testb';
+xa recover;
+formatID	gtrid_length	bqual_length	data
+11	5	5	testb 0@P`
+1	5	5	testatestb
+xa commit 'testb',0x2030405060,11;
+ERROR XAE04: XAER_NOTA: Unknown XID
+xa rollback 'testa','testb';
+xa start 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+select * from t1;
+a
+20
+disconnect con1;
+connection default;
+xa start 'tr1';
+insert t1 values (40);
+xa end 'tr1';
+xa prepare 'tr1';
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+1	3	0	'tr1'
+xa rollback 'tr1';
+xa start 'tr1', 'bq';
+insert t1 values (40);
+xa end 'tr1', 'bq';
+xa prepare 'tr1', 'bq';
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+1	3	2	'tr1','bq'
+xa rollback 'tr1', 'bq';
+xa start 'tr1', 'bq', 3;
+insert t1 values (40);
+xa end 'tr1', 'bq', 3;
+xa prepare 'tr1', 'bq', 3;
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+3	3	2	'tr1','bq',3
+xa rollback 'tr1', 'bq', 3;
+xa start 'tr1#$';
+insert t1 values (40);
+xa end 'tr1#$';
+xa prepare 'tr1#$';
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+1	5	0	X'7472312324'
+xa rollback 'tr1#$';
+xa start 'tr1#$', 'bq';
+insert t1 values (40);
+xa end 'tr1#$', 'bq';
+xa prepare 'tr1#$', 'bq';
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+1	5	2	X'7472312324',X'6271'
+xa rollback 'tr1#$', 'bq';
+xa start 'tr1#$', 'bq', 3;
+insert t1 values (40);
+xa end 'tr1#$', 'bq', 3;
+xa prepare 'tr1#$', 'bq', 3;
+xa recover format='RAW';
+formatID	gtrid_length	bqual_length	data
+3	5	2	tr1#$bq
+xa recover format='PLAIN';
+ERROR HY000: Unknown XA RECOVER format name: 'PLAIN'
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+3	5	2	X'7472312324',X'6271',3
+xa rollback 'tr1#$', 'bq', 3;
+drop table t1;
+drop table if exists t1;
+create table t1(a int, b int, c varchar(20), primary key(a)) engine = innodb;
+insert into t1 values(1, 1, 'a');
+insert into t1 values(2, 2, 'b');
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+xa start 'a','b';
+update t1 set c = 'aa' where a = 1;
+connection con2;
+xa start 'a','c';
+update t1 set c = 'bb' where a = 2;
+connection con1;
+update t1 set c = 'bb' where a = 2;
+connection con2;
+update t1 set c = 'aa' where a = 1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+select count(*) from t1;
+count(*)
+2
+xa end 'a','c';
+ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
+xa rollback 'a','c';
+disconnect con2;
+connect  con3,localhost,root,,;
+connection con3;
+xa start 'a','c';
+disconnect con1;
+disconnect con3;
+connection default;
+drop table t1;
+#
+# BUG#51342 - more xid crashing
+#
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+XA START 'x';
+SET SESSION autocommit=0;
+INSERT INTO t1 VALUES(1);
+SET SESSION autocommit=1;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+SELECT @@autocommit;
+@@autocommit
+0
+INSERT INTO t1 VALUES(1);
+XA END 'x';
+XA COMMIT 'x' ONE PHASE;
+DROP TABLE t1;
+SET SESSION autocommit=1;
+End of 5.0 tests
+xa start 'a';
+xa end 'a';
+xa rollback 'a';
+xa start 'a';
+xa end 'a';
+xa rollback 'a';
+xa start 'a';
+xa end 'a';
+xa prepare 'a';
+xa commit 'a';
+xa start 'a';
+xa end 'a';
+xa prepare 'a';
+xa commit 'a';
+CREATE TABLE t1(a INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+connect con1,localhost,root,,;
+BEGIN;
+UPDATE t1 SET a=3 WHERE a=1;
+connection default;
+BEGIN;
+UPDATE t1 SET a=4 WHERE a=2;
+connection con1;
+UPDATE t1 SET a=5 WHERE a=2;
+connection default;
+UPDATE t1 SET a=5 WHERE a=1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+connection con1;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET a=3 WHERE a=1;
+connection default;
+XA START 'xid1';
+UPDATE t1 SET a=4 WHERE a=2;
+connection con1;
+UPDATE t1 SET a=5 WHERE a=2;
+connection default;
+UPDATE t1 SET a=5 WHERE a=1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+XA END 'xid1';
+ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
+XA ROLLBACK 'xid1';
+XA START 'xid1';
+XA END 'xid1';
+XA ROLLBACK 'xid1';
+disconnect con1;
+DROP TABLE t1;
+#
+# Bug#56448 Assertion failed: ! is_set() with second xa end
+#
+XA START 'x';
+XA END 'x';
+XA END 'x';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+XA PREPARE 'x';
+XA PREPARE 'x';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+XA ROLLBACK 'x';
+#
+# Bug#59986 Assert in Diagnostics_area::set_ok_status() for XA COMMIT
+#
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1(a INT, b INT, PRIMARY KEY(a)) engine=InnoDB;
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+connect  con1, localhost, root;
+XA START 'a';
+UPDATE t1 SET b= 3 WHERE a=1;
+connection default;
+XA START 'b';
+UPDATE t1 SET b=4 WHERE a=2;
+# Sending:
+UPDATE t1 SET b=5 WHERE a=1;
+connection con1;
+UPDATE t1 SET b=6 WHERE a=2;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+XA COMMIT 'a';
+ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
+connection default;
+# Reaping: UPDATE t1 SET b=5 WHERE a=1
+XA END 'b';
+XA ROLLBACK 'b';
+DROP TABLE t1;
+disconnect con1;
+#
+# Bug#11766752 59936: multiple xa assertions - transactional
+#              statement fuzzer
+#
+CREATE TABLE t1 (a INT) engine=InnoDB;
+XA START 'a';
+INSERT INTO t1 VALUES (1);
+SAVEPOINT savep;
+XA END 'a';
+SELECT * FROM t1;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+INSERT INTO t1 VALUES (2);
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+SAVEPOINT savep;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+SET @a=(SELECT * FROM t1);
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+XA PREPARE 'a';
+SELECT * FROM t1;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+INSERT INTO t1 VALUES (2);
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+SAVEPOINT savep;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+SET @a=(SELECT * FROM t1);
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+UPDATE t1 SET a=1 WHERE a=2;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+XA COMMIT 'a';
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+#
+# MDEV-14609 XA Transction unable to ROLLBACK TO SAVEPOINT
+#
+CREATE TABLE t1 (c1 INT) ENGINE=INNODB;
+XA START 'xa1';
+SAVEPOINT savepoint1;
+INSERT INTO t1 (c1) VALUES (1),(2),(3),(4);
+ROLLBACK TO SAVEPOINT savepoint1;
+XA END 'xa1';
+XA ROLLBACK 'xa1';
+DROP TABLE t1;
+#
+# Bug#12352846 - TRANS_XA_START(THD*):
+#                ASSERTION THD->TRANSACTION.XID_STATE.XID.IS_NULL()
+#                FAILED
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+COMMIT;
+BEGIN;
+INSERT INTO t2 VALUES (2);
+UPDATE t2 SET a=a+1;
+connect  con2,localhost,root;
+XA START 'xid1';
+INSERT INTO t1 VALUES (1);
+# Sending:
+DELETE FROM t2;
+connection default;
+DELETE FROM t1;
+connection con2;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+XA COMMIT 'xid1';
+ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
+connection default;
+COMMIT;
+connection con2;
+XA START 'xid1';
+XA END 'xid1';
+XA PREPARE 'xid1';
+XA ROLLBACK 'xid1';
+connection default;
+DROP TABLE t1, t2;
+disconnect con2;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (i INT) ENGINE=InnoDB;
+XA BEGIN 'xid1';
+REPLACE INTO t1 SELECT * FROM t2;
+connect  con1,localhost,root,,test;
+XA BEGIN 'xid2';
+INSERT INTO t1 SELECT * FROM t2;
+connection default;
+REPLACE INTO t2 SELECT * FROM t2;
+connection con1;
+disconnect con1;
+connect  con2,localhost,root,,test;
+INSERT INTO t3 VALUES (1);
+XA BEGIN 'xid3';
+disconnect con2;
+connection default;
+XA END 'xid1';
+XA ROLLBACK 'xid1';
+DROP TABLE t1, t2, t3;
+#
+# MDEV 15532 XA: Assertion `!log->same_pk' failed in
+# row_log_table_apply_delete
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+connect  con1,localhost,root,,test;
+XA START 'xid';
+UPDATE t1 SET a = 5;
+connection default;
+SET innodb_lock_wait_timeout= 2, lock_wait_timeout= 2;
+ALTER TABLE non_existing_table1;
+ERROR 42S02: Table 'test.non_existing_table1' doesn't exist
+ALTER TABLE t1 FORCE;;
+connection con1;
+ALTER TABLE non_existing_table2;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+DELETE FROM t1 LIMIT 1;
+connection default;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+XA END 'xid';
+XA ROLLBACK 'xid';
+DROP TABLE t1;
+disconnect con1;
+connection default;
+#
+# XA states and SHOW commands
+#
+create table t1 (pk int primary key) engine=innodb;
+xa start 'foo';
+insert t1 set pk=1;
+xa end 'foo';
+xa prepare 'foo';
+show status like 'foo';
+Variable_name	Value
+select table_name,table_comment from information_schema.tables where table_schema='test';
+table_name	t1
+table_comment	
+select table_name,table_rows,table_comment from information_schema.tables where table_schema='test';
+table_name	t1
+table_rows	NULL
+table_comment	XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+Warnings:
+Level	Warning
+Code	1399
+Message	XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+xa commit 'foo';
+drop table t1;
+#
+# End of 10.2 tests
+#
+XA BEGIN 'xid';
+CREATE TEMPORARY SEQUENCE s;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+XA END 'xid';
+XA ROLLBACK 'xid';
+XA BEGIN 'xid';
+CREATE SEQUENCE s;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+XA END 'xid';
+XA ROLLBACK 'xid';
+#
+# End of 10.3 tests
+#

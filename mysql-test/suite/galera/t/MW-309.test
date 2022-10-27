@@ -1,0 +1,32 @@
+#
+# MW-309 Regression: wsrep_max_ws_rows limit also applies to certain SELECT queries
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+
+SET GLOBAL wsrep_max_ws_rows = 2;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+SELECT * FROM t1 GROUP BY f1;
+SELECT * FROM t1 GROUP BY f1;
+
+--error 0
+SELECT * FROM t1 GROUP BY f1;
+
+--disable_result_log
+--error 0
+SHOW STATUS LIKE '%wsrep%';
+--enable_result_log
+
+SET GLOBAL wsrep_max_ws_rows = 0;
+DROP TABLE t1;

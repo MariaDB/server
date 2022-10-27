@@ -1,0 +1,22 @@
+call mtr.add_suppression("InnoDB: innodb_open_files=13 is exceeded");
+SET @save_tdc= @@GLOBAL.table_definition_cache;
+SET @save_toc= @@GLOBAL.table_open_cache;
+SET GLOBAL table_definition_cache= 400;
+SET GLOBAL table_open_cache= 1024;
+CREATE TABLE to_be_evicted(a INT PRIMARY KEY, b INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO to_be_evicted VALUES(1,2),(2,1);
+connect ddl,localhost,root,,;
+SET DEBUG_SYNC = 'row_log_apply_before SIGNAL scanned WAIT_FOR got_duplicate';
+ALTER TABLE to_be_evicted ADD UNIQUE INDEX(b);
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+BEGIN;
+INSERT INTO to_be_evicted VALUES(3, 2);
+SET DEBUG_SYNC = 'now SIGNAL got_duplicate';
+connection ddl;
+ERROR 23000: Duplicate entry '2' for key 'b'
+disconnect ddl;
+connection default;
+COMMIT;
+SET DEBUG_SYNC = RESET;
+FLUSH TABLES;

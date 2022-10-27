@@ -1,0 +1,96 @@
+--source include/have_rocksdb.inc
+
+#
+# Information Schema perf context
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+--enable_warnings
+
+
+SET @prior_rocksdb_perf_context_level = @@rocksdb_perf_context_level;
+SET GLOBAL rocksdb_perf_context_level=3;
+
+CREATE TABLE t1 (i INT, j INT, PRIMARY KEY (i)) ENGINE = ROCKSDB;
+CREATE TABLE t2 (k INT, PRIMARY KEY (k)) ENGINE = ROCKSDB;
+
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
+
+###############################################################################
+# Test that expected perf context stats exists
+###############################################################################
+
+# Check per-table perf context
+--replace_column 5 #
+SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT WHERE TABLE_NAME = 't1';
+
+# Check global perf context
+--replace_column 2 #
+SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT_GLOBAL;
+
+###############################################################################
+# Test iteration skip counters
+###############################################################################
+
+SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT
+WHERE TABLE_NAME = 't1'
+AND STAT_TYPE in ('INTERNAL_KEY_SKIPPED_COUNT', 'INTERNAL_DELETE_SKIPPED_COUNT');
+
+SELECT * FROM t1;
+
+SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT
+WHERE TABLE_NAME = 't1'
+AND STAT_TYPE in ('INTERNAL_KEY_SKIPPED_COUNT', 'INTERNAL_DELETE_SKIPPED_COUNT');
+
+SELECT * FROM t1 WHERE j BETWEEN 1 AND 5;
+
+SELECT * FROM INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT
+WHERE TABLE_NAME = 't1'
+AND STAT_TYPE in ('INTERNAL_KEY_SKIPPED_COUNT', 'INTERNAL_DELETE_SKIPPED_COUNT');
+
+###############################################################################
+# Test write I/O stats
+###############################################################################
+
+# Statistics for multi-statement transactions cannot be attributed to
+# individual tables but should show up in global perf context stats
+set @tmp_flush_log= @@rocksdb_flush_log_at_trx_commit;
+set global rocksdb_flush_log_at_trx_commit=1;
+
+BEGIN;
+INSERT INTO t2 VALUES (1), (2);
+INSERT INTO t2 VALUES (3), (4);
+COMMIT;
+
+SELECT COUNT(*) from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT
+WHERE TABLE_NAME = 't2'
+AND STAT_TYPE = 'IO_WRITE_NANOS'
+AND VALUE > 0;
+
+SELECT COUNT(*) from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT_GLOBAL
+WHERE STAT_TYPE = 'IO_WRITE_NANOS' AND VALUE > 0;
+
+SELECT VALUE INTO @a from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT_GLOBAL
+WHERE STAT_TYPE = 'IO_WRITE_NANOS';
+
+# Single statement writes do show up in per-table stats
+INSERT INTO t2 VALUES (5), (6), (7), (8);
+
+SELECT COUNT(*) from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT
+WHERE TABLE_NAME = 't2'
+AND STAT_TYPE = 'IO_WRITE_NANOS'
+AND VALUE > 0;
+
+SELECT VALUE INTO @b from INFORMATION_SCHEMA.ROCKSDB_PERF_CONTEXT_GLOBAL
+WHERE STAT_TYPE = 'IO_WRITE_NANOS';
+
+SELECT CASE WHEN @b - @a > 0 THEN 'true' ELSE 'false' END;
+
+# cleanup
+DROP TABLE t1;
+DROP TABLE t2;
+SET GLOBAL rocksdb_perf_context_level = @prior_rocksdb_perf_context_level;
+set global rocksdb_flush_log_at_trx_commit= @tmp_flush_log;
+

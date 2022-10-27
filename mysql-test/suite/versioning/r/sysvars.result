@@ -1,0 +1,198 @@
+create table t (a int) with system versioning;
+insert into t values (1);
+update t set a= 2;
+show global variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	DEFAULT
+show variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	DEFAULT
+select * from t;
+a
+2
+set system_versioning_asof= '2031-1-1 0:0:0';
+show variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	2031-01-01 00:00:00.000000
+select * from t;
+a
+2
+set system_versioning_asof= '2011-1-1 0:0:0';
+show variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	2011-01-01 00:00:00.000000
+select * from t;
+a
+set global system_versioning_asof= 'alley';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of 'alley'
+set global system_versioning_asof= null;
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of 'NULL'
+set global system_versioning_asof= 1;
+ERROR 42000: Incorrect argument type to variable 'system_versioning_asof'
+set global system_versioning_asof= 1.1;
+ERROR 42000: Incorrect argument type to variable 'system_versioning_asof'
+set global system_versioning_asof= '2011-02-29 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-02-29 00:00'
+set global system_versioning_asof= '2011-02-28 24:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-02-28 24:00'
+set global system_versioning_asof= '2011-00-28 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-00-28 00:00'
+set global system_versioning_asof= '0000-00-00 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '0000-00-00 00:00'
+set system_versioning_asof= 'alley';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of 'alley'
+set system_versioning_asof= null;
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of 'NULL'
+set system_versioning_asof= 1;
+ERROR 42000: Incorrect argument type to variable 'system_versioning_asof'
+set system_versioning_asof= 1.1;
+ERROR 42000: Incorrect argument type to variable 'system_versioning_asof'
+set system_versioning_asof= '2011-02-29 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-02-29 00:00'
+set system_versioning_asof= '2011-02-28 24:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-02-28 24:00'
+set system_versioning_asof= '2011-00-28 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '2011-00-28 00:00'
+set system_versioning_asof= '0000-00-00 00:00';
+ERROR 42000: Variable 'system_versioning_asof' can't be set to the value of '0000-00-00 00:00'
+# GLOBAL @@system_versioning_asof
+set global system_versioning_asof= '1911-11-11 11:11:11.1111119';
+Warnings:
+Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
+Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
+show global variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	1911-11-11 11:11:11.111111
+set global system_versioning_asof= '1900-01-01 00:00:00';
+show global variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	1900-01-01 00:00:00.000000
+set global system_versioning_asof= timestamp'1911-11-11 11:11:11.1111119';
+Warnings:
+Note	1292	Truncated incorrect DATETIME value: '1911-11-11 11:11:11.1111119'
+show global variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	1911-11-11 11:11:11.111111
+set @ts= timestamp'1900-01-01 00:00:00';
+set global system_versioning_asof= @ts;
+show global variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	1900-01-01 00:00:00.000000
+set global system_versioning_asof= default;
+select @@global.system_versioning_asof;
+@@global.system_versioning_asof
+DEFAULT
+# SESSION @@system_versioning_asof
+set system_versioning_asof= '1911-11-11 11:11:11.1111119';
+Warnings:
+Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
+Note	1292	Truncated incorrect datetime value: '1911-11-11 11:11:11.1111119'
+show variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	1911-11-11 11:11:11.111111
+set system_versioning_asof= '1900-01-01 00:00:00';
+show variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	1900-01-01 00:00:00.000000
+set system_versioning_asof= timestamp'1911-11-11 11:11:11.1111119';
+Warnings:
+Note	1292	Truncated incorrect DATETIME value: '1911-11-11 11:11:11.1111119'
+show variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	1911-11-11 11:11:11.111111
+set @ts= timestamp'1900-01-01 00:00:00';
+set system_versioning_asof= @ts;
+show variables like 'system_versioning_asof';
+Variable_name	Value
+system_versioning_asof	1900-01-01 00:00:00.000000
+# DEFAULT: value is copied from GLOBAL to SESSION
+set global system_versioning_asof= timestamp'1911-11-11 11:11:11.111111';
+set system_versioning_asof= '1900-01-01 00:00:00';
+select @@global.system_versioning_asof != @@system_versioning_asof as different;
+different
+1
+set system_versioning_asof= default;
+select @@global.system_versioning_asof = @@system_versioning_asof as equal;
+equal
+1
+set global system_versioning_asof= DEFAULT;
+set system_versioning_asof= DEFAULT;
+select @@global.system_versioning_asof, @@system_versioning_asof;
+@@global.system_versioning_asof	@@system_versioning_asof
+DEFAULT	DEFAULT
+select * from t for system_time all;
+a
+2
+1
+select * from t;
+a
+2
+select * from t for system_time as of timestamp current_timestamp(6);
+a
+2
+select * from t for system_time all;
+a
+2
+1
+select * from t for system_time from '1970-01-01 00:00' to current_timestamp(6);
+a
+2
+1
+select * from t for system_time between '1970-01-01 00:00' and current_timestamp(6);
+a
+2
+1
+show status like "Feature_system_versioning";
+Variable_name	Value
+Feature_system_versioning	2
+drop table t;
+#
+# MDEV-22906 Disallow system_versioning_asof in DML
+#
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int);
+insert into t1 values (1);
+insert into t2 values (1);
+set system_versioning_asof= '1970-01-01 00:00:00';
+delete t1, t2 from t1 join t2 where t1.x = t2.y;
+select * from t1 for system_time as of timestamp now(6);
+x
+insert into t1 values (1);
+insert into t2 values (1);
+update t1, t2 set x= 2, y= 2 where x = y;
+select * from t1 for system_time as of timestamp now(6);
+x
+2
+replace t2 select x + 1 from t1;
+select * from t2;
+y
+2
+3
+insert t2 select x + 2 from t1;
+select * from t2;
+y
+2
+3
+4
+drop tables t1, t2;
+#
+# MDEV-16991 Rounding vs truncation for TIME, DATETIME, TIMESTAMP
+#
+SET sql_mode=TIME_ROUND_FRACTIONAL;
+SET @@global.system_versioning_asof= timestamp'2001-12-31 23:59:59.9999999';
+Warnings:
+Note	1292	Truncated incorrect DATETIME value: '2001-12-31 23:59:59.9999999'
+SELECT @@global.system_versioning_asof;
+@@global.system_versioning_asof
+2002-01-01 00:00:00.000000
+SET @@global.system_versioning_asof= DEFAULT;
+#
+# MDEV-23562 Assertion `time_type == MYSQL_TIMESTAMP_DATETIME' failed upon SELECT from versioned table
+#
+CREATE TABLE t1 (a INT) WITH SYSTEM VERSIONING;
+SET system_versioning_asof= DATE(NOW());
+SELECT * FROM t1;
+a
+DROP TABLE t1;
+SET system_versioning_asof= DEFAULT;
+# End of 10.4 tests

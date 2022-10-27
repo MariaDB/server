@@ -1,0 +1,17 @@
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : MDEV-<xxxx> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+
+
+mdev_6832: wsrep_provider is read-only for security reasons
+MDEV-23092: wsrep_provider is read-only for security reasons
+wsrep_variables_no_provider: wsrep_provider is read-only for security reasons
+MDEV-22443: it is no longer allowed enable wsrep_on if wsrep_provider is 'none'

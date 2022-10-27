@@ -1,0 +1,40 @@
+#
+# This test kill -9-s a slave while no updates have been performed on the master.
+#
+
+--source include/galera_cluster.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+--source include/kill_galera.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_2
+--source include/start_mysqld.inc
+
+--let $galera_connection_name = node_2a
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+--connection node_2a
+
+SELECT COUNT(*) FROM t1;
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+--let $node_2=node_2a
+--source include/auto_increment_offset_restore.inc
+
+DROP TABLE t1;

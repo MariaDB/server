@@ -1,0 +1,34 @@
+#
+# Test very simply slave replication (to ensure it works at all)
+# In addition, test also:
+# MDEV-5829 STOP SLAVE resets global status variables
+#
+
+source include/master-slave.inc;
+--connection slave
+let $initial_com_insert= query_get_value(show global status like "Com_insert", Value, 1);
+--connection master
+create table t1 (n int);
+insert into t1 values(1);
+sync_slave_with_master;
+let $current_com_insert= query_get_value(show global status like "Com_insert", Value, 1);
+--let $delta_com_insert= `select $current_com_insert - $initial_com_insert from dual`
+--echo # Com_insert = $delta_com_insert
+stop slave;
+let $current_com_insert= query_get_value(show global status like "Com_insert", Value, 1);
+--let $delta_com_insert= `select $current_com_insert - $initial_com_insert from dual`
+--echo # Com_insert = $delta_com_insert
+--source include/wait_for_slave_to_stop.inc
+start slave;
+--source include/wait_for_slave_to_start.inc
+connection master;
+insert into t1 values(2);
+#let slave catch up
+sync_slave_with_master;
+select * from t1;
+connection master;
+drop table t1;
+sync_slave_with_master;
+
+# End of 4.1 tests
+--source include/rpl_end.inc

@@ -1,0 +1,965 @@
+call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation.");
+call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified.");
+call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them.");
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: .*");
+call mtr.add_suppression("InnoDB: Ignoring tablespace .* because it could not be opened.");
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .*");
+call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
+call mtr.add_suppression("InnoDB: Page for tablespace ");
+call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
+FLUSH TABLES;
+SET GLOBAL innodb_file_per_table = 1;
+CREATE TABLE t1 (c1 INT) ENGINE = InnoDB;
+INSERT INTO t1 VALUES(1),(2),(3);
+SET SESSION debug_dbug="+d,ib_discard_before_commit_crash";
+ALTER TABLE t1 DISCARD TABLESPACE;
+ERROR HY000: Lost connection to MySQL server during query
+DROP TABLE t1;
+SET GLOBAL innodb_file_per_table = 1;
+CREATE TABLE t1 (c1 INT) ENGINE = InnoDB;
+INSERT INTO t1 VALUES(1),(2),(3);
+SET SESSION debug_dbug="+d,ib_discard_after_commit_crash";
+ALTER TABLE t1 DISCARD TABLESPACE;
+ERROR HY000: Lost connection to MySQL server during query
+DROP TABLE t1;
+SET GLOBAL innodb_file_per_table = 1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1), (2), (3), (4);
+FLUSH TABLES t1 FOR EXPORT;
+backup: t1
+UNLOCK TABLES;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_before_commit_crash";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Lost connection to MySQL server during query
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_before_checkpoint_crash";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Lost connection to MySQL server during query
+unlink: t1.ibd
+unlink: t1.cfg
+DROP TABLE t1;
+SET @file_per_table= @@innodb_file_per_table;
+SET GLOBAL innodb_file_per_table = 1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+4
+INSERT INTO t1 VALUES(400), (500), (600);
+SELECT * FROM t1;
+c1
+1
+2
+3
+4
+400
+500
+600
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_1";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_2";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_3";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_4";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_5";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_6";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_7";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_8";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_9";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_10";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_11";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug="+d,ib_export_io_write_failure_12";
+FLUSH TABLES t1 FOR EXPORT;
+Warnings:
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flush() failed
+Warning	1811	IO Write error: (9, Bad file descriptor) t1.cfg flose() failed
+UNLOCK TABLES;
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (100), (200), (300);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+3
+FLUSH TABLES t1 FOR EXPORT;
+backup: t1
+UNLOCK TABLES;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_io_read_error_1";
+restore: t1 .cfg file
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: while reading index fields.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_io_read_error_2";
+restore: t1 .cfg file
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: while reading index meta-data, expected to read 44 bytes but read only 0 bytes
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_io_read_error_3";
+restore: t1 .cfg file
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: while reading number of indexes.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_io_read_error_4";
+restore: t1 .cfg file
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: while reading table column meta-data.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_io_read_error_5";
+restore: t1 .cfg file
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: while reading meta-data export hostname length.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_io_read_error_6";
+restore: t1 .cfg file
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: while reading meta-data table name length.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_io_read_error_7";
+restore: t1 .cfg file
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: while reading autoinc value.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_io_read_error_8";
+restore: t1 .cfg file
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: while reading meta-data header.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_io_read_error_9";
+restore: t1 .cfg file
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: while reading meta-data version.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_string_read_error";
+restore: t1 .cfg file
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: IO Read error: while parsing export hostname.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_OOM_1";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_OOM_2";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_OOM_4";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_OOM_5";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_OOM_6";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_OOM_7";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_OOM_8";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_OOM_9";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_OOM_10";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_internal_error";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Internal error: While updating the <space, root page number> of index GEN_CLUST_INDEX - Generic error
+SET SESSION debug_dbug=@saved_debug_dbug;
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_reset_space_and_lsn_failure";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`t1` : Too many concurrent transactions
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug=@saved_debug_dbug;
+SET SESSION debug_dbug="+d,ib_import_open_tablespace_failure";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Got error 44 'Tablespace not found' from ./test/t1.ibd
+SET SESSION debug_dbug=@saved_debug_dbug;
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_check_bitmap_failure";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+SET SESSION debug_dbug=@saved_debug_dbug;
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_cluster_root_adjust_failure";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+SET SESSION debug_dbug=@saved_debug_dbug;
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_cluster_failure";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+SET SESSION debug_dbug=@saved_debug_dbug;
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_sec_root_adjust_failure";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+SET SESSION debug_dbug=@saved_debug_dbug;
+restore: t1 .ibd and .cfg files
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 BIGINT,
+c3 VARCHAR(2048),
+c4 VARCHAR(2048),
+INDEX idx1(c2),
+INDEX idx2(c3(512)),
+INDEX idx3(c4(512))) Engine=InnoDB;
+connect  purge_control,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET GLOBAL innodb_disable_background_merge=ON;
+SET GLOBAL innodb_monitor_reset = ibuf_merges;
+SET GLOBAL innodb_monitor_reset = ibuf_merges_insert;
+INSERT INTO t1
+SELECT 1 + seq, 1 + (seq MOD 4),
+REPEAT(SUBSTR('abcd', 1 + (seq MOD 4), 1), 2048),
+REPEAT(SUBSTR('abcd', 1 + (seq MOD 4), 1), 2048)
+FROM seq_0_to_127;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c2 = c2 + c1;
+UPDATE t1 SET c3 = REPEAT("c2", 1024);
+UPDATE t1 SET c4 = REPEAT("c4", 1024);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) NOT NULL AUTO_INCREMENT,
+  `c2` bigint(20) DEFAULT NULL,
+  `c3` varchar(2048) DEFAULT NULL,
+  `c4` varchar(2048) DEFAULT NULL,
+  PRIMARY KEY (`c1`),
+  KEY `idx1` (`c2`),
+  KEY `idx2` (`c3`(512)),
+  KEY `idx3` (`c4`(512))
+) ENGINE=InnoDB AUTO_INCREMENT=129 DEFAULT CHARSET=latin1
+SELECT c1, c2 FROM t1;
+c1	c2
+1	16
+2	32
+3	48
+4	64
+5	76
+6	92
+7	108
+8	124
+9	136
+10	152
+11	168
+12	184
+13	196
+14	212
+15	228
+16	244
+17	256
+18	272
+19	288
+20	304
+21	316
+22	332
+23	348
+24	364
+25	376
+26	392
+27	408
+28	424
+29	436
+30	452
+31	468
+32	484
+33	496
+34	512
+35	528
+36	544
+37	556
+38	572
+39	588
+40	604
+41	616
+42	632
+43	648
+44	664
+45	676
+46	692
+47	708
+48	724
+49	736
+50	752
+51	768
+52	784
+53	796
+54	812
+55	828
+56	844
+57	856
+58	872
+59	888
+60	904
+61	916
+62	932
+63	948
+64	964
+65	976
+66	992
+67	1008
+68	1024
+69	1036
+70	1052
+71	1068
+72	1084
+73	1096
+74	1112
+75	1128
+76	1144
+77	1156
+78	1172
+79	1188
+80	1204
+81	1216
+82	1232
+83	1248
+84	1264
+85	1276
+86	1292
+87	1308
+88	1324
+89	1336
+90	1352
+91	1368
+92	1384
+93	1396
+94	1412
+95	1428
+96	1444
+97	1456
+98	1472
+99	1488
+100	1504
+101	1516
+102	1532
+103	1548
+104	1564
+105	1576
+106	1592
+107	1608
+108	1624
+109	1636
+110	1652
+111	1668
+112	1684
+113	1696
+114	1712
+115	1728
+116	1744
+117	1756
+118	1772
+119	1788
+120	1804
+121	1816
+122	1832
+123	1848
+124	1864
+125	1876
+126	1892
+127	1908
+128	1924
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+128
+SELECT SUM(c2) FROM t1;
+SUM(c2)
+124160
+SELECT name
+FROM information_schema.innodb_metrics
+WHERE name = 'ibuf_merges_insert' AND count = 0;
+name
+FLUSH TABLES t1 FOR EXPORT;
+backup: t1
+UNLOCK TABLES;
+SELECT name
+FROM information_schema.innodb_metrics
+WHERE name = 'ibuf_merges' AND count > 0;
+name
+ibuf_merges
+SELECT name
+FROM information_schema.innodb_metrics
+WHERE name = 'ibuf_merges_inserts' AND count > 0;
+name
+SET GLOBAL innodb_disable_background_merge=OFF;
+connection purge_control;
+COMMIT;
+disconnect purge_control;
+connection default;
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 BIGINT,
+c3 VARCHAR(2048),
+c4 VARCHAR(2048),
+INDEX idx1(c2),
+INDEX idx2(c3(512)),
+INDEX idx3(c4(512))) Engine=InnoDB;
+SELECT c1, c2 FROM t1;
+c1	c2
+ALTER TABLE t1 DISCARD TABLESPACE;
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT c1,c2 FROM t1;
+c1	c2
+1	16
+2	32
+3	48
+4	64
+5	76
+6	92
+7	108
+8	124
+9	136
+10	152
+11	168
+12	184
+13	196
+14	212
+15	228
+16	244
+17	256
+18	272
+19	288
+20	304
+21	316
+22	332
+23	348
+24	364
+25	376
+26	392
+27	408
+28	424
+29	436
+30	452
+31	468
+32	484
+33	496
+34	512
+35	528
+36	544
+37	556
+38	572
+39	588
+40	604
+41	616
+42	632
+43	648
+44	664
+45	676
+46	692
+47	708
+48	724
+49	736
+50	752
+51	768
+52	784
+53	796
+54	812
+55	828
+56	844
+57	856
+58	872
+59	888
+60	904
+61	916
+62	932
+63	948
+64	964
+65	976
+66	992
+67	1008
+68	1024
+69	1036
+70	1052
+71	1068
+72	1084
+73	1096
+74	1112
+75	1128
+76	1144
+77	1156
+78	1172
+79	1188
+80	1204
+81	1216
+82	1232
+83	1248
+84	1264
+85	1276
+86	1292
+87	1308
+88	1324
+89	1336
+90	1352
+91	1368
+92	1384
+93	1396
+94	1412
+95	1428
+96	1444
+97	1456
+98	1472
+99	1488
+100	1504
+101	1516
+102	1532
+103	1548
+104	1564
+105	1576
+106	1592
+107	1608
+108	1624
+109	1636
+110	1652
+111	1668
+112	1684
+113	1696
+114	1712
+115	1728
+116	1744
+117	1756
+118	1772
+119	1788
+120	1804
+121	1816
+122	1832
+123	1848
+124	1864
+125	1876
+126	1892
+127	1908
+128	1924
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+128
+SELECT SUM(c2) FROM t1;
+SUM(c2)
+124160
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) NOT NULL AUTO_INCREMENT,
+  `c2` bigint(20) DEFAULT NULL,
+  `c3` varchar(2048) DEFAULT NULL,
+  `c4` varchar(2048) DEFAULT NULL,
+  PRIMARY KEY (`c1`),
+  KEY `idx1` (`c2`),
+  KEY `idx2` (`c3`(512)),
+  KEY `idx3` (`c4`(512))
+) ENGINE=InnoDB AUTO_INCREMENT=129 DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
+INSERT IGNORE INTO t1 VALUES
+(100, REPEAT('Karanbir', 899), REPEAT('Ajeeth', 2731));
+Warnings:
+Warning	1265	Data truncated for column 'c2' at row 1
+INSERT INTO t1
+SELECT 100, REPEAT('Karanbir', 128), REPEAT('Ajeeth', 1200)
+FROM seq_1_to_256;
+FLUSH TABLES t1 FOR EXPORT;
+backup: t1
+UNLOCK TABLES;
+DROP TABLE t1;
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_trigger_corruption_1";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`t1` : Data structure corruption
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,buf_page_import_corrupt_failure";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`t1` : Data structure corruption
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_trigger_corruption_2";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Index corrupt: Externally stored column(5) has a reference length of 19 in the cluster index GEN_CLUST_INDEX
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,ib_import_trigger_corruption_3";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug="+d,ib_import_create_index_failure_1";
+ALTER TABLE t1 ADD INDEX idx(c1);
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t1`
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,fil_space_create_failure";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Got error 11 'Generic error' from ./test/t1.ibd
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,dict_tf_to_fsp_flags_failure";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Got error 39 'Data structure corruption' from ./test/t1.ibd
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(1024), c3 BLOB) ENGINE = Innodb;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT COUNT(*) FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+SET SESSION debug_dbug="+d,fsp_flags_is_valid_failure";
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`t1` : Data structure corruption
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t1;
+unlink: t1.ibd
+unlink: t1.cfg
+set global innodb_monitor_disable = all;
+set global innodb_monitor_reset_all = all;
+set global innodb_monitor_enable = default;
+set global innodb_monitor_disable = default;
+set global innodb_monitor_reset = default;
+set global innodb_monitor_reset_all = default;
+SET GLOBAL INNODB_FILE_PER_TABLE=@file_per_table;

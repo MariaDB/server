@@ -1,0 +1,217 @@
+--source suite/versioning/engines.inc
+--source suite/versioning/common.inc
+
+replace_result $default_engine ENGINE $sys_datatype_expl SYS_TYPE;
+eval create table t1(
+  x int unsigned,
+  y int unsigned,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time (sys_start, sys_end))
+with system versioning engine=$default_engine;
+
+insert into t1 (x, y) values
+  (0, 100),
+  (1, 101),
+  (2, 102),
+  (3, 103),
+  (4, 104),
+  (5, 105),
+  (6, 106),
+  (7, 107),
+  (8, 108),
+  (9, 109);
+set @t0= now(6);
+select sys_start from t1 limit 1 into @x0;
+
+delete from t1 where x = 3;
+delete from t1 where x > 7;
+
+insert into t1(x, y) values(3, 33);
+select sys_start from t1 where x = 3 and y = 33 into @t1;
+if($MTR_COMBINATION_TRX_ID) {
+  set @x1= @t1;
+  select trt_commit_ts(@x1) into @t1;
+}
+
+select x, y from t1;
+select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
+select x as FROMTO_x, y from t1 for system_time from '1970-01-01 00:00' to timestamp @t1;
+select x as BETWAND_x, y from t1 for system_time between '1970-01-01 00:00' and timestamp @t1;
+select x as ALL_x, y from t1 for system_time all;
+
+if($MTR_COMBINATION_TRX_ID) {
+  select x as ASOF2_x, y from t1 for system_time as of @x0;
+  select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
+  select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
+}
+if(!$MTR_COMBINATION_TRX_ID) {
+  select x as ASOF2_x, y from t1 for system_time as of @t0;
+  select x as FROMTO2_x, y from t1 for system_time from '1970-01-01 00:00' to @t1;
+  select x as BETWAND2_x, y from t1 for system_time between timestamp '1970-01-01 00:00' and timestamp @t1;
+}
+
+drop table t1;
+
+replace_result $default_engine ENGINE $sys_datatype_expl SYS_TYPE;
+eval create table t1(
+  x int,
+  y int,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time (sys_start, sys_end))
+with system versioning engine=$default_engine;
+
+create table t2 like t1;
+
+insert into t1 values (1, 1), (1, 2), (1, 3), (4, 4), (5, 5);
+insert into t2 values (1, 2), (2, 1), (3, 1);
+set @t0= now(6);
+
+select t1.x as IJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x;
+select t1.x as LJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x;
+select t1.x as RJ1_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x;
+
+delete from t1;
+delete from t2;
+
+select IJ2_x1,y1,x2,y2 from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+select LJ2_x1,y1,x2,y2 from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+select RJ2_x1,y1,x2,y2 from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
+for system_time as of timestamp @t0 as t;
+
+drop table t1;
+drop table t2;
+
+--echo # MDEV-14686 Server crashes in Item_field::used_tables on 2nd call of SP [#422]
+create or replace table t1 (called int, bad int) with system versioning;
+create or replace procedure bad() select * from t1 where bad in (select called from t1);
+--disable_query_log
+call bad; call bad; call bad; call bad; call bad; call bad; call bad; call bad;
+drop procedure bad;
+--enable_query_log
+--echo # bad() is good.
+
+--echo # MDEV-14751 Server crashes in TABLE::versioned on 2nd execution of SP [#431]
+create or replace table t1 (called_bad int);
+create or replace table t2 (b int);
+create or replace procedure bad() select * from t1 where ( 5, 6 ) in ( select b, b from t2 ) and called_bad in ( select max(b) from t2 );
+--disable_query_log
+call bad; call bad; call bad; call bad; call bad; call bad; call bad; call bad;
+drop procedure bad;
+--enable_query_log
+--echo # bad() is good.
+
+--echo # MDEV-14786 Server crashes in Item_cond::transform on 2nd execution of SP querying from a view [#436]
+create or replace table t1 (called_bad int) with system versioning;
+create or replace view v1 as select called_bad from t1 where called_bad < 5;
+create or replace procedure bad() select called_bad from v1;
+--disable_query_log
+call bad; call bad; call bad; call bad; call bad; call bad; call bad; call bad;
+drop procedure bad;
+--enable_query_log
+--echo # bad() is good.
+
+--echo # wildcard expansion on hidden fields.
+create or replace table t1(
+  A int
+) with system versioning;
+insert into t1 values(1);
+select * from t1;
+
+create or replace table t1 (x int);
+insert into t1 values (1);
+--error ER_VERS_NOT_VERSIONED
+select * from t1 for system_time all;
+
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+select * from t1 for system_time as of now() for update;
+
+create or replace table t1 (a int not null auto_increment primary key) with system versioning;
+select * from (t1 as t2 left join t1 as t3 using (a)) natural left join t1;
+
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (a int) with system versioning;
+insert into t1 values(1);
+insert into t2 values(1);
+create or replace view v1 as select * from t2 inner join t1 using (a);
+select * from v1;
+drop view v1;
+
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create view vt1 as select a from t1;
+select * from t1 natural join vt1;
+drop view vt1;
+
+create or replace table t1(x int) with system versioning;
+select * from (t1 as r left join t1 as u using (x)), t1;
+
+# @end should be max
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+create trigger read_end after update on t1
+  for each row set @end = old.row_end;
+update t1 set a=2;
+--replace_result 18446744073709551615 MAX_RESULT "2038-01-19 03:14:07.999999" MAX_RESULT
+select @end;
+
+create or replace table t1 (a int) with system versioning;
+create or replace table t2 (b int) with system versioning;
+insert into t1 values (1);
+insert into t2 values (2);
+select * from (select * from t1 cross join t2) as tmp;
+select * from (select * from (select * from t1 cross join t2) as tmp1) as tmp2;
+select * from (select * from t1 cross join t2 for system_time as of timestamp ('1970-01-01 00:00')) as tmp;
+
+create or replace table t1(a1 int) with system versioning;
+create or replace table t2(a2 int) with system versioning;
+insert into t1 values(1),(2);
+insert into t2 values(1),(2);
+select * from t1 for system_time all natural left join t2 for system_time all;
+
+# natural join of a view and table
+create or replace table t1(a1 int) with system versioning;
+create or replace table t2(a2 int) with system versioning;
+insert into t1 values(1),(2);
+insert into t2 values(1),(2);
+create or replace view v1 as select a1 from t1;
+
+select * from v1 natural join t2;
+select * from v1 natural left join t2;
+select * from v1 natural right join t2;
+
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (1);
+insert into t1 values (2);
+insert into t1 values (3);
+select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
+
+create or replace table t1 (x int) with system versioning;
+create or replace table t2 (y int) with system versioning;
+insert into t1 values (1), (2), (3);
+delete from t1 where x = 3;
+insert into t2 values (1);
+select * from t1, t2 for system_time all;
+
+--error ER_VERS_NOT_VERSIONED
+select * from (select * from t1 for system_time all, t2 for system_time all) for system_time all as t;
+--error ER_PARSE_ERROR
+select * from (t1 for system_time all join t2 for system_time all) for system_time all;
+
+--echo # MDEV-16043 Assertion thd->Item_change_list::is_empty() failed in mysql_parse upon SELECT from a view reading from a versioned table
+create or replace table t1 (a int) with system versioning;
+create or replace view v1 as select * from t1;
+prepare stmt from "select * from t1 where exp( '20010609211642053929' )";
+--error ER_DATA_OUT_OF_RANGE
+execute stmt;
+select a from v1;
+
+drop view v1;
+drop table t1, t2;
+
+-- source suite/versioning/common_finish.inc

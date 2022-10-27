@@ -1,0 +1,38 @@
+CREATE TABLE t1 (a INT, PRIMARY KEY (a) COMMENT 'update_cf1') ENGINE=ROCKSDB;
+SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS='update_cf1={write_buffer_size=8m;target_file_size_base=2m};';
+SELECT @@global.rocksdb_update_cf_options;
+@@global.rocksdb_update_cf_options
+update_cf1={write_buffer_size=8m;target_file_size_base=2m};
+SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS=NULL;
+SHOW GLOBAL VARIABLES LIKE 'rocksdb_update_cf_options';
+Variable_name	Value
+rocksdb_update_cf_options	
+SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS=NULL;
+SHOW GLOBAL VARIABLES LIKE 'rocksdb_update_cf_options';
+Variable_name	Value
+rocksdb_update_cf_options	
+SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS="";
+SHOW GLOBAL VARIABLES LIKE 'rocksdb_update_cf_options';
+Variable_name	Value
+rocksdb_update_cf_options	
+SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS=NULL;
+SHOW GLOBAL VARIABLES LIKE 'rocksdb_update_cf_options';
+Variable_name	Value
+rocksdb_update_cf_options	
+SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS='update_cf1={write_buffer_size=8m;target_file_size_base=2m};';
+SHOW GLOBAL VARIABLES LIKE 'rocksdb_update_cf_options';
+Variable_name	Value
+rocksdb_update_cf_options	update_cf1={write_buffer_size=8m;target_file_size_base=2m};
+SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS='update_cf2={write_buffer_size=8m;target_file_size_base=2m};';
+SHOW GLOBAL VARIABLES LIKE 'rocksdb_update_cf_options';
+Variable_name	Value
+rocksdb_update_cf_options	update_cf2={write_buffer_size=8m;target_file_size_base=2m};
+DROP TABLE t1;
+SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS='update_cf1={write_buffer_size=8m;target_file_size_base=2m};';
+SHOW GLOBAL VARIABLES LIKE 'rocksdb_update_cf_options';
+Variable_name	Value
+rocksdb_update_cf_options	update_cf1={write_buffer_size=8m;target_file_size_base=2m};
+SET @@GLOBAL.ROCKSDB_UPDATE_CF_OPTIONS=DEFAULT;
+SHOW GLOBAL VARIABLES LIKE 'rocksdb_update_cf_options';
+Variable_name	Value
+rocksdb_update_cf_options	

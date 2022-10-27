@@ -1,0 +1,107 @@
+--source include/not_embedded.inc
+--source include/have_partition.inc
+
+set @@global.connect_exact_info=ON;
+
+#
+# These will be used by the t1 table partition table
+#
+CREATE TABLE xt1 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=MyISAM;
+INSERT INTO xt1 VALUES(4, 'four'),(7,'seven'),(1,'one'),(8,'eight');
+SELECT * FROM xt1;
+
+CREATE TABLE xt2 (
+id INT KEY NOT NULL,
+msg VARCHAR(32));
+INSERT INTO xt2 VALUES(10,'ten'),(40,'forty'),(11,'eleven'),(35,'thirty five');
+SELECT * FROM xt2;
+
+CREATE TABLE xt3 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=6;
+INSERT INTO xt3 VALUES(60,'sixty'),(81,'eighty one'),(72,'seventy two');
+SELECT * FROM xt3;
+
+#
+# Based on PROXY the table is not indexable
+#
+CREATE TABLE t1 (
+id INT NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME='xt%s'
+PARTITION BY RANGE COLUMNS(id) (
+PARTITION `1` VALUES LESS THAN(10),
+PARTITION `2` VALUES LESS THAN(50),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+SELECT * FROM t1;
+DELETE FROM t1;
+--error ER_UNKNOWN_ERROR
+ALTER TABLE t1 ADD INDEX XID(id);
+INSERT INTO t1 VALUES(4, 'four');
+INSERT INTO t1 VALUES(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one');
+INSERT INTO t1 VALUES(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+SELECT * FROM t1;
+EXPLAIN PARTITIONS
+SELECT * FROM t1 WHERE id = 81;
+DELETE FROM t1;
+DROP TABLE t1;
+
+#
+# Based on MYSQL the table is indexable
+#
+CREATE TABLE t1 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='xt%s'
+PARTITION BY RANGE COLUMNS(id) (
+PARTITION `1` VALUES LESS THAN(10),
+PARTITION `2` VALUES LESS THAN(50),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+SHOW INDEX FROM t1;
+INSERT INTO t1 VALUES(4, 'four');
+INSERT INTO t1 VALUES(40, 'forty');
+INSERT INTO t1 VALUES(72,'seventy two');
+INSERT INTO t1 VALUES(7,'seven'),(10,'ten'),(60,'sixty'),(81,'eighty one'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+SELECT * FROM t1;
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 81;
+SELECT * FROM t1 WHERE id = 7;
+SELECT * FROM t1 WHERE id = 35;
+UPDATE t1 SET msg = 'number' WHERE id in (60,72);
+UPDATE t1 SET msg = 'soixante' WHERE id = 60;
+SELECT * FROM t1 WHERE id > 50;
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+UPDATE t1 SET msg = 'sept' WHERE id = 7;
+SELECT * FROM t1;
+DELETE FROM t1 WHERE id in (60,72);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Using a connection string
+#
+CREATE TABLE t1 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=MYSQL
+OPTION_LIST='connect=mysql://root@localhost/test/xt%s'
+PARTITION BY RANGE COLUMNS(id) (
+PARTITION `1` VALUES LESS THAN(10),
+PARTITION `2` VALUES LESS THAN(50),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP TABLE xt1;
+DROP TABLE xt2;
+DROP TABLE xt3;
+
+#
+# Clean up
+#
+set @@global.connect_exact_info=OFF;

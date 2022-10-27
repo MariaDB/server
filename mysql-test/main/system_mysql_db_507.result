@@ -1,0 +1,226 @@
+#
+# MDEV-11170: MariaDB 10.2 cannot start on MySQL 5.7 datadir:
+#             Fatal error: mysql.user table is damaged or in
+#             unsupported 3.20 format
+#
+# switching from mysql.global_priv to mysql.user
+#
+# Original mysql.user table
+#
+describe mysql.user;
+Field	Type	Null	Key	Default	Extra
+Host	char(60)	NO	PRI		
+User	char(80)	NO	PRI		
+Password	char(41)	NO			
+Select_priv	enum('N','Y')	NO		N	
+Insert_priv	enum('N','Y')	NO		N	
+Update_priv	enum('N','Y')	NO		N	
+Delete_priv	enum('N','Y')	NO		N	
+Create_priv	enum('N','Y')	NO		N	
+Drop_priv	enum('N','Y')	NO		N	
+Reload_priv	enum('N','Y')	NO		N	
+Shutdown_priv	enum('N','Y')	NO		N	
+Process_priv	enum('N','Y')	NO		N	
+File_priv	enum('N','Y')	NO		N	
+Grant_priv	enum('N','Y')	NO		N	
+References_priv	enum('N','Y')	NO		N	
+Index_priv	enum('N','Y')	NO		N	
+Alter_priv	enum('N','Y')	NO		N	
+Show_db_priv	enum('N','Y')	NO		N	
+Super_priv	enum('N','Y')	NO		N	
+Create_tmp_table_priv	enum('N','Y')	NO		N	
+Lock_tables_priv	enum('N','Y')	NO		N	
+Execute_priv	enum('N','Y')	NO		N	
+Repl_slave_priv	enum('N','Y')	NO		N	
+Repl_client_priv	enum('N','Y')	NO		N	
+Create_view_priv	enum('N','Y')	NO		N	
+Show_view_priv	enum('N','Y')	NO		N	
+Create_routine_priv	enum('N','Y')	NO		N	
+Alter_routine_priv	enum('N','Y')	NO		N	
+Create_user_priv	enum('N','Y')	NO		N	
+Event_priv	enum('N','Y')	NO		N	
+Trigger_priv	enum('N','Y')	NO		N	
+Create_tablespace_priv	enum('N','Y')	NO		N	
+Delete_history_priv	enum('N','Y')	NO		N	
+ssl_type	enum('','ANY','X509','SPECIFIED')	NO			
+ssl_cipher	blob	NO		NULL	
+x509_issuer	blob	NO		NULL	
+x509_subject	blob	NO		NULL	
+max_questions	int(11) unsigned	NO		0	
+max_updates	int(11) unsigned	NO		0	
+max_connections	int(11) unsigned	NO		0	
+max_user_connections	int(11)	NO		0	
+plugin	char(64)	NO			
+authentication_string	text	NO		NULL	
+password_expired	enum('N','Y')	NO		N	
+is_role	enum('N','Y')	NO		N	
+default_role	char(80)	NO			
+max_statement_time	decimal(12,6)	NO		0.000000	
+#
+# Drop the password column.
+#
+alter table mysql.user drop column password,
+drop column is_role,
+drop column default_role,
+add column password_last_changed timestamp null default null after password_expired,
+add column password_lifetime smallint unsigned after password_last_changed,
+add column account_locked enum('n','y') character set utf8 not null default 'n' after password_lifetime;
+flush privileges;
+#
+# Create users without the password column present.
+#
+create user foo;
+create user goo identified by "foo";
+select OLD_PASSWORD("ioo");
+OLD_PASSWORD("ioo")
+7a8f886d28473e85
+create user ioo identified with "mysql_old_password" as "7a8f886d28473e85";
+#
+# Check if users have grants loaded correctly.
+#
+show grants for foo;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+show grants for goo;
+Grants for goo@%
+GRANT USAGE ON *.* TO `goo`@`%` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+show grants for ioo;
+Grants for ioo@%
+GRANT USAGE ON *.* TO `ioo`@`%` IDENTIFIED BY PASSWORD '7a8f886d28473e85'
+select user, host, select_priv, plugin, authentication_string from mysql.user
+where user like "%oo"
+order by user;
+user	host	select_priv	plugin	authentication_string
+foo	%	N	mysql_native_password	
+goo	%	N	mysql_native_password	*F3A2A51A9B0F2BE2468926B4132313728C250DBF
+ioo	%	N	mysql_old_password	7a8f886d28473e85
+#
+# Test setting password.
+#
+SET PASSWORD FOR foo=PASSWORD("bar");
+show grants for foo;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%` IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
+show grants for goo;
+Grants for goo@%
+GRANT USAGE ON *.* TO `goo`@`%` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+show grants for ioo;
+Grants for ioo@%
+GRANT USAGE ON *.* TO `ioo`@`%` IDENTIFIED BY PASSWORD '7a8f886d28473e85'
+select user, host, select_priv, plugin, authentication_string from mysql.user
+where user like "%oo"
+order by user;
+user	host	select_priv	plugin	authentication_string
+foo	%	N	mysql_native_password	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB
+goo	%	N	mysql_native_password	*F3A2A51A9B0F2BE2468926B4132313728C250DBF
+ioo	%	N	mysql_old_password	7a8f886d28473e85
+#
+# Test flush privileges without password column.
+#
+flush privileges;
+show grants for foo;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%` IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
+show grants for goo;
+Grants for goo@%
+GRANT USAGE ON *.* TO `goo`@`%` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+show grants for ioo;
+Grants for ioo@%
+GRANT USAGE ON *.* TO `ioo`@`%` IDENTIFIED BY PASSWORD '7a8f886d28473e85'
+#
+# Test granting of privileges.
+#
+grant select on *.* to foo;
+grant select on *.* to goo;
+grant select on *.* to ioo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%` IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
+show grants for goo;
+Grants for goo@%
+GRANT SELECT ON *.* TO `goo`@`%` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+show grants for ioo;
+Grants for ioo@%
+GRANT SELECT ON *.* TO `ioo`@`%` IDENTIFIED BY PASSWORD '7a8f886d28473e85'
+#
+# Check to see if grants are stable on flush.
+#
+flush privileges;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%` IDENTIFIED BY PASSWORD '*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB'
+show grants for goo;
+Grants for goo@%
+GRANT SELECT ON *.* TO `goo`@`%` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+show grants for ioo;
+Grants for ioo@%
+GRANT SELECT ON *.* TO `ioo`@`%` IDENTIFIED BY PASSWORD '7a8f886d28473e85'
+#
+# Check internal table representation.
+#
+select user, host, select_priv, plugin, authentication_string from mysql.user
+where user like "%oo"
+order by user;
+user	host	select_priv	plugin	authentication_string
+foo	%	Y	mysql_native_password	*E8D46CE25265E545D225A8A6F1BAF642FEBEE5CB
+goo	%	Y	mysql_native_password	*F3A2A51A9B0F2BE2468926B4132313728C250DBF
+ioo	%	Y	mysql_old_password	7a8f886d28473e85
+#
+# Test account locking
+#
+create user user1@localhost account lock;
+connect(localhost,user1,,test,MYSQL_PORT,MYSQL_SOCK);
+connect con1,localhost,user1;
+ERROR HY000: Access denied, this account is locked
+flush privileges;
+connect(localhost,user1,,test,MYSQL_PORT,MYSQL_SOCK);
+connect con1,localhost,user1;
+ERROR HY000: Access denied, this account is locked
+show create user user1@localhost;
+CREATE USER for user1@localhost
+CREATE USER `user1`@`localhost` ACCOUNT LOCK
+alter user user1@localhost account unlock;
+connect con1,localhost,user1;
+disconnect con1;
+connection default;
+show create user user1@localhost;
+CREATE USER for user1@localhost
+CREATE USER `user1`@`localhost`
+#
+# Test password expiration fields are loaded correctly
+#
+create user user@localhost;
+show create user user@localhost;
+CREATE USER for user@localhost
+CREATE USER `user`@`localhost`
+alter user user@localhost password expire;
+show create user user@localhost;
+CREATE USER for user@localhost
+CREATE USER `user`@`localhost` PASSWORD EXPIRE
+set password for user@localhost= password('');
+alter user user@localhost password expire default;
+show create user user@localhost;
+CREATE USER for user@localhost
+CREATE USER `user`@`localhost`
+alter user user@localhost password expire never;
+show create user user@localhost;
+CREATE USER for user@localhost
+CREATE USER `user`@`localhost` PASSWORD EXPIRE NEVER
+alter user user@localhost password expire interval 123 day;
+show create user user@localhost;
+CREATE USER for user@localhost
+CREATE USER `user`@`localhost` PASSWORD EXPIRE INTERVAL 123 DAY
+alter user user@localhost password expire;
+show create user user@localhost;
+CREATE USER for user@localhost
+CREATE USER `user`@`localhost` PASSWORD EXPIRE
+ALTER USER `user`@`localhost` PASSWORD EXPIRE INTERVAL 123 DAY
+set password for user@localhost= password('');
+show create user user@localhost;
+CREATE USER for user@localhost
+CREATE USER `user`@`localhost` PASSWORD EXPIRE INTERVAL 123 DAY
+drop user user@localhost;
+#
+# Reset to final original state.
+#
+# switching back from mysql.user to mysql.global_priv

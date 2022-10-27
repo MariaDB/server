@@ -1,0 +1,25 @@
+#
+# MDEV-11757 KEY_BLOCK_SIZE strangeness when UNCOMPRESSing COMPRESSed InnoDB tables
+#
+source include/have_innodb.inc;
+
+create table t1 (
+  id1 bigint(20) not null,
+  id2 bigint(20) not null,
+  primary key (id1),
+  unique key id2 (id2)
+) engine=innodb row_format=compressed key_block_size=8;
+show create table t1;
+SET innodb_strict_mode=ON;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+alter table t1 row_format=dynamic;
+SET innodb_strict_mode=OFF;
+alter table t1 row_format=dynamic;
+show create table t1;
+SET innodb_strict_mode=ON;
+alter table t1 key_block_size=0;
+show create table t1;
+alter table t1 drop primary key, add primary key (id1),
+               drop key id2, add unique (id2);
+show create table t1;
+drop table t1;

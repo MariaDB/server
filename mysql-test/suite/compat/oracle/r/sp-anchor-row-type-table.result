@@ -1,0 +1,131 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-13581 ROW TYPE OF t1 and t1%ROWTYPE for routine parameters
+#
+CREATE TABLE t1 (a INT, b TEXT, c ENUM('a','b','c'));
+CREATE PROCEDURE p1 (a t1%ROWTYPE) AS
+BEGIN
+CREATE TABLE t2 AS SELECT a.a AS a, a.b AS b, a.c AS c;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+CREATE PROCEDURE p2 AS
+a t1%ROWTYPE;
+BEGIN
+CALL p1(a);
+END;
+$$
+CALL p2();
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" int(11) DEFAULT NULL,
+  "b" text DEFAULT NULL,
+  "c" char(1) DEFAULT NULL
+)
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b TEXT);
+CREATE PROCEDURE p1 (a OUT t1%ROWTYPE) AS
+BEGIN
+SET a.a=10;
+SET a.b='text';
+END;
+$$
+CREATE PROCEDURE p2 AS
+a t1%ROWTYPE;
+BEGIN
+CALL p1(a);
+SELECT a.a, a.b;
+END;
+$$
+CREATE FUNCTION f1(a t1%ROWTYPE) RETURN TEXT AS
+BEGIN
+RETURN CONCAT(a.a, ' ', a.b);
+END;
+$$
+CREATE FUNCTION f2 RETURN TEXT AS
+a t1%ROWTYPE;
+BEGIN
+CALL p1(a);
+RETURN f1(a);
+END;
+$$
+CALL p2();
+a.a	a.b
+10	text
+SELECT f2();
+f2()
+10 text
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a INT, b TEXT);
+CREATE PROCEDURE p1 (a OUT db1.t1%ROWTYPE) AS
+BEGIN
+SET a.a=10;
+SET a.b='text';
+END;
+$$
+CREATE PROCEDURE p2 AS
+a db1.t1%ROWTYPE;
+BEGIN
+CALL p1(a);
+SELECT a.a, a.b;
+END;
+$$
+CREATE FUNCTION f1(a db1.t1%ROWTYPE) RETURN TEXT AS
+BEGIN
+RETURN CONCAT(a.a, ' ', a.b);
+END;
+$$
+CREATE FUNCTION f2() RETURN TEXT AS
+a db1.t1%ROWTYPE;
+BEGIN
+CALL p1(a);
+RETURN f1(a);
+END;
+$$
+CALL p2();
+a.a	a.b
+10	text
+SELECT f2();
+f2()
+10 text
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP DATABASE db1;
+#
+# MDEV-14139 Anchored data types for variables
+#
+CREATE TABLE t1 (int11 INT, text0 TEXT);
+DECLARE
+row1 t1%ROWTYPE;
+a_row1 row1%TYPE;
+aa_row1 a_row1%TYPE;
+BEGIN
+CREATE TABLE t2 AS SELECT a_row1.int11 AS int11, a_row1.text0 AS text0;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT aa_row1.int11 AS int11, aa_row1.text0 AS text0;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "int11" int(11) DEFAULT NULL,
+  "text0" text DEFAULT NULL
+)
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "int11" int(11) DEFAULT NULL,
+  "text0" text DEFAULT NULL
+)
+DROP TABLE t1;

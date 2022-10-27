@@ -1,0 +1,35 @@
+CREATE TABLE t1(a VARCHAR(5),FULLTEXT KEY(a)) ENGINE=InnoDB;
+SET DEBUG_SYNC = 'get_next_FTS_DOC_ID SIGNAL prepared WAIT_FOR race';
+REPLACE INTO t1(a) values('aaa');
+connect dml, localhost, root, ,;
+SET DEBUG_SYNC = 'now WAIT_FOR prepared';
+REPLACE INTO t1(a) VALUES('aaa');
+SET DEBUG_SYNC = 'now SIGNAL race';
+disconnect dml;
+connection default;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+#
+# MDEV-19529 InnoDB hang on DROP FULLTEXT INDEX
+#
+CREATE TABLE t1(f1 CHAR(100), FULLTEXT(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES('test');
+CREATE TABLE t2 (f1 char(100), FULLTEXT idx1(f1))ENGINE=InnoDB;
+INSERT INTO t2 VALUES('mariadb');
+connection default;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug ='+d,fts_instrument_sync_request,ib_optimize_wq_hang';
+SET DEBUG_SYNC= 'fts_instrument_sync_request
+		 SIGNAL drop_index_start WAIT_FOR sync_op';
+INSERT INTO t1 VALUES('Keyword');
+connect con1,localhost,root,,,;
+SET DEBUG_SYNC='now WAIT_FOR drop_index_start';
+SET DEBUG_SYNC= 'norebuild_fts_drop SIGNAL sync_op WAIT_FOR fts_drop_index';
+ALTER TABLE t2 drop index idx1;
+connection default;
+set DEBUG_SYNC= 'now SIGNAL fts_drop_index';
+connection con1;
+drop table t1, t2;
+connection default;
+set DEBUG_SYNC=RESET;
+SET @@GLOBAL.debug_dbug = @saved_dbug;

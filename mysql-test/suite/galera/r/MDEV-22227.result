@@ -1,0 +1,16 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+LOCK TABLE t1 WRITE CONCURRENT;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET lock_wait_timeout= 1;
+CREATE VIEW v1 AS SELECT * FROM t1;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1b;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+UNLOCK TABLES;
+connection node_1a;
+DROP VIEW v1;
+DROP TABLE t1;

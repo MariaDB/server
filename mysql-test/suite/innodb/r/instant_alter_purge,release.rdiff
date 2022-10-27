@@ -1,0 +1,19 @@
+--- instant_alter_purge.result
++++ instant_alter_purge,release.result
+@@ -32,16 +32,11 @@
+ START TRANSACTION WITH CONSISTENT SNAPSHOT;
+ connection default;
+ DELETE FROM t1;
+-SET DEBUG_SYNC='innodb_commit_inplace_alter_table_enter SIGNAL go WAIT_FOR do';
+ ALTER TABLE t1 ADD COLUMN f3 INT;
+ connection purge_control;
+-SET DEBUG_SYNC='now WAIT_FOR go';
+ COMMIT;
+ SET GLOBAL innodb_max_purge_lag_wait= 0;
+-InnoDB		0 transactions not purged
+-SET DEBUG_SYNC='now SIGNAL do';
+ disconnect purge_control;
+ connection default;
+-SET DEBUG_SYNC=RESET;
+ DROP TABLE t1;
+ SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

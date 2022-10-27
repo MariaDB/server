@@ -1,0 +1,2818 @@
+drop table if exists t1, t2;
+#
+# Bug#11765667: bug#58655: ASSERTION FAILED,
+#                          SERVER CRASHES WITH MYSQLD GOT SIGNAL 6
+#
+CREATE TABLE t1 (
+id MEDIUMINT NOT NULL AUTO_INCREMENT,
+dt DATE, st VARCHAR(255), uid INT,
+id2nd LONGBLOB, filler VARCHAR(255), PRIMARY KEY(id, dt)
+);
+INSERT INTO t1 (dt, st, uid, id2nd, filler) VALUES
+('1991-03-14', 'Initial Insert', 200, 1234567, 'No Data'),
+('1991-02-26', 'Initial Insert', 201, 1234567, 'No Data'),
+('1992-03-16', 'Initial Insert', 234, 1234567, 'No Data'),
+('1992-07-02', 'Initial Insert', 287, 1234567, 'No Data'),
+('1991-05-26', 'Initial Insert', 256, 1234567, 'No Data'),
+('1991-04-25', 'Initial Insert', 222, 1234567, 'No Data'),
+('1993-03-12', 'Initial Insert', 267, 1234567, 'No Data'),
+('1993-03-14', 'Initial Insert', 291, 1234567, 'No Data'),
+('1991-12-20', 'Initial Insert', 298, 1234567, 'No Data'),
+('1994-10-31', 'Initial Insert', 220, 1234567, 'No Data');
+ALTER TABLE t1 PARTITION BY LIST (YEAR(dt)) (
+PARTITION d1 VALUES IN (1991, 1994),
+PARTITION d2 VALUES IN (1993),
+PARTITION d3 VALUES IN (1992, 1995, 1996)
+);
+INSERT INTO t1 (dt, st, uid, id2nd, filler) VALUES
+('1991-07-14', 'After Partitioning Insert', 299, 1234567, 'Insert row');
+UPDATE t1 SET filler='Updating the row' WHERE uid=298;
+DROP TABLE t1;
+#
+# Bug#59297: Can't find record in 'tablename' on update inner join
+#
+CREATE TABLE t1 (
+a char(2) NOT NULL,
+b char(2) NOT NULL,
+c int(10) unsigned NOT NULL,
+d varchar(255) DEFAULT NULL,
+e varchar(1000) DEFAULT NULL,
+PRIMARY KEY (a, b, c),
+KEY (a),
+KEY (a, b)
+)
+/*!50100 PARTITION BY KEY (a)
+PARTITIONS 20 */;
+INSERT INTO t1 (a, b, c, d, e) VALUES
+('07', '03', 343, '1', '07_03_343'),
+('01', '04', 343, '2', '01_04_343'),
+('01', '06', 343, '3', '01_06_343'),
+('01', '07', 343, '4', '01_07_343'),
+('01', '08', 343, '5', '01_08_343'),
+('01', '09', 343, '6', '01_09_343'),
+('03', '03', 343, '7', '03_03_343'),
+('03', '06', 343, '8', '03_06_343'),
+('03', '07', 343, '9', '03_07_343'),
+('04', '03', 343, '10', '04_03_343'),
+('04', '06', 343, '11', '04_06_343'),
+('05', '03', 343, '12', '05_03_343'),
+('11', '03', 343, '13', '11_03_343'),
+('11', '04', 343, '14', '11_04_343')
+;
+UPDATE t1 AS A,
+(SELECT '03' AS a, '06' AS b, 343 AS c, 'last' AS d) AS B
+SET A.e = B.d  
+WHERE A.a = '03'  
+AND A.b = '06' 
+AND A.c = 343;
+DROP TABLE t1;
+#
+# Bug#59503: explain extended crash in get_mm_leaf
+#
+CREATE TABLE t1 (a VARCHAR(51) CHARACTER SET latin1)
+ENGINE=MyISAM
+PARTITION BY KEY (a) PARTITIONS 1;
+INSERT INTO t1 VALUES ('a'),('b'),('c');
+EXPLAIN EXTENDED SELECT 1 FROM t1 WHERE a > 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select 1 AS `1` from `test`.`t1` where `test`.`t1`.`a` > 1
+DROP TABLE t1;
+#
+# Bug#57778: failed primary key add to partitioned innodb table
+#            inconsistent and crashes
+#
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL)
+PARTITION BY KEY (a) PARTITIONS 2;
+INSERT INTO t1 VALUES (0,1), (0,2);
+ALTER TABLE t1 ADD PRIMARY KEY (a);
+ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+PARTITIONS 2
+SELECT * FROM t1;
+a	b
+0	1
+0	2
+UPDATE t1 SET a = 1, b = 1 WHERE a = 0 AND b = 2;
+ALTER TABLE t1 ADD PRIMARY KEY (a);
+SELECT * FROM t1;
+a	b
+1	1
+0	1
+ALTER TABLE t1 DROP PRIMARY KEY;
+SELECT * FROM t1;
+a	b
+1	1
+0	1
+DROP TABLE t1;
+#
+# Bug#57113: ha_partition::extra(ha_extra_function):
+#            Assertion `m_extra_cache' failed
+CREATE TABLE t1
+(id INT NOT NULL PRIMARY KEY,
+name VARCHAR(16) NOT NULL,
+year YEAR,
+INDEX name (name(8))
+)
+PARTITION BY HASH(id) PARTITIONS 2;
+INSERT INTO t1 VALUES ( 1, 'FooBar', '1924' );
+CREATE TABLE t2 (id INT);
+INSERT INTO t2 VALUES (1),(2);
+UPDATE t1, t2 SET t1.year = '1955' WHERE t1.name = 'FooBar';
+DROP TABLE t1, t2;
+#
+# Bug#55458: Partitioned MyISAM table gets crashed by multi-table update 
+#
+CREATE TABLE t1 (
+`id` int NOT NULL,
+`user_num` int DEFAULT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=MyISAM CHARSET=latin1;
+INSERT INTO t1 VALUES (1,8601);
+INSERT INTO t1 VALUES (2,8601);
+INSERT INTO t1 VALUES (3,8601);
+INSERT INTO t1 VALUES (4,8601);
+CREATE TABLE t2 (
+`id` int(11) NOT NULL,
+`user_num` int DEFAULT NULL,
+`name` varchar(64) NOT NULL,
+PRIMARY KEY (`id`)
+) ENGINE=MyISAM CHARSET=latin1
+PARTITION BY HASH (id)
+PARTITIONS 2;
+INSERT INTO t2 VALUES (1,8601,'John');
+INSERT INTO t2 VALUES (2,8601,'JS');
+INSERT INTO t2 VALUES (3,8601,'John S');
+UPDATE t1, t2 SET t2.name = 'John Smith' WHERE t1.user_num = t2.user_num;
+DROP TABLE t1, t2;
+# Bug#39338: Fieldnames in
+#   INFORMATIONSCHEMA.PARTITIONS.PARTITION_EXPRESSION become unescaped
+# NOTE: the partition expression is saved as a string, so changing from
+#       normal quotes to ansi quotes does not change the expression, only
+#       for partition by KEY.
+CREATE TABLE t1 (
+ID int(11) NOT NULL,
+`aaaa,aaaaa` tinyint(3) UNSIGNED NOT NULL DEFAULT '0',
+ddddddddd int(11) NOT NULL DEFAULT '0',
+new_field0 varchar(50),
+PRIMARY KEY(ID, `aaaa,aaaaa`, ddddddddd))
+PARTITION BY RANGE(ID)
+PARTITIONS 3
+SUBPARTITION BY LINEAR KEY(ID,`aaaa,aaaaa`)
+SUBPARTITIONS 2 (
+PARTITION p01 VALUES LESS THAN(100),
+PARTITION p11 VALUES LESS THAN(200),
+PARTITION p21 VALUES LESS THAN MAXVALUE);
+SELECT PARTITION_EXPRESSION, SUBPARTITION_EXPRESSION FROM INFORMATION_SCHEMA.PARTITIONS WHERE TABLE_NAME='t1';
+PARTITION_EXPRESSION	SUBPARTITION_EXPRESSION
+`ID`	`ID`,`aaaa,aaaaa`
+`ID`	`ID`,`aaaa,aaaaa`
+`ID`	`ID`,`aaaa,aaaaa`
+`ID`	`ID`,`aaaa,aaaaa`
+`ID`	`ID`,`aaaa,aaaaa`
+`ID`	`ID`,`aaaa,aaaaa`
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `ID` int(11) NOT NULL,
+  `aaaa,aaaaa` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `ddddddddd` int(11) NOT NULL DEFAULT 0,
+  `new_field0` varchar(50) DEFAULT NULL,
+  PRIMARY KEY (`ID`,`aaaa,aaaaa`,`ddddddddd`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`ID`)
+SUBPARTITION BY LINEAR KEY (`ID`,`aaaa,aaaaa`)
+SUBPARTITIONS 2
+(PARTITION `p01` VALUES LESS THAN (100) ENGINE = MyISAM,
+ PARTITION `p11` VALUES LESS THAN (200) ENGINE = MyISAM,
+ PARTITION `p21` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+drop table t1;
+CREATE TABLE t1 (a INT, b INT)
+PARTITION BY LIST (a)
+SUBPARTITION BY HASH (b)
+(PARTITION p1 VALUES IN (1));
+ALTER TABLE t1 ADD COLUMN c INT;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a int NOT NULL,
+b int NOT NULL);
+CREATE TABLE t2 (
+a int NOT NULL,
+b int NOT NULL,
+INDEX(b)
+)
+PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1 VALUES (399, 22);
+INSERT INTO t2 VALUES (1, 22), (1, 42);
+INSERT INTO t2 SELECT 1, 399 FROM t2, t1
+WHERE t1.b = t2.b;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (
+a timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+b varchar(10),
+PRIMARY KEY (a)
+)
+PARTITION BY RANGE (UNIX_TIMESTAMP(a)) (
+PARTITION p1 VALUES LESS THAN (1199134800),
+PARTITION pmax VALUES LESS THAN MAXVALUE
+);
+INSERT INTO t1 VALUES ('2007-07-30 17:35:48', 'p1');
+INSERT INTO t1 VALUES ('2009-07-14 17:35:55', 'pmax');
+INSERT INTO t1 VALUES ('2009-09-21 17:31:42', 'pmax');
+SELECT * FROM t1;
+a	b
+2007-07-30 17:35:48	p1
+2009-07-14 17:35:55	pmax
+2009-09-21 17:31:42	pmax
+SELECT * FROM t1 where a between '2007-01-01' and '2007-08-01';
+a	b
+2007-07-30 17:35:48	p1
+EXPLAIN PARTITIONS SELECT * FROM t1 where a between '2007-01-01' and '2007-08-01';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1	system	PRIMARY	NULL	NULL	NULL	1	
+EXPLAIN PARTITIONS SELECT * FROM t1 where a = '2007-07-30 17:35:48';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1	system	PRIMARY	NULL	NULL	NULL	1	
+ALTER TABLE t1 REORGANIZE PARTITION pmax INTO (
+PARTITION p3 VALUES LESS THAN (1247688000),
+PARTITION pmax VALUES LESS THAN MAXVALUE);
+SELECT * FROM t1;
+a	b
+2007-07-30 17:35:48	p1
+2009-07-14 17:35:55	pmax
+2009-09-21 17:31:42	pmax
+SELECT * FROM t1 where a between '2007-01-01' and '2007-08-01';
+a	b
+2007-07-30 17:35:48	p1
+EXPLAIN PARTITIONS SELECT * FROM t1 where a between '2007-01-01' and '2007-08-01';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1	system	PRIMARY	NULL	NULL	NULL	1	
+EXPLAIN PARTITIONS SELECT * FROM t1 where a = '2007-07-30 17:35:48';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1	system	PRIMARY	NULL	NULL	NULL	1	
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` timestamp NOT NULL DEFAULT current_timestamp(),
+  `b` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (unix_timestamp(`a`))
+(PARTITION `p1` VALUES LESS THAN (1199134800) ENGINE = MyISAM,
+ PARTITION `p3` VALUES LESS THAN (1247688000) ENGINE = MyISAM,
+ PARTITION `pmax` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+DROP TABLE t1;
+create table t1 (a int NOT NULL, b varchar(5) NOT NULL)
+default charset=utf8
+partition by list (a)
+subpartition by key (b)
+(partition p0 values in (1),
+partition p1 values in (2));
+drop table t1;
+create table t1 (a int, b int, key(a))
+partition by list (a)
+( partition p0 values in (1),
+partition p1 values in (2));
+insert into t1 values (1,1),(2,1),(2,2),(2,3);
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+show indexes from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	2	NULL	NULL	YES	BTREE		
+drop table t1;
+create table t1 (a int)
+partition by hash (a);
+create index i on t1 (a);
+insert into t1 values (1);
+insert into t1 select * from t1;
+create index i on t1 (a);
+ERROR 42000: Duplicate key name 'i'
+create index i2 on t1 (a);
+Warnings:
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
+drop table t1;
+CREATE TABLE t1 (a INT, FOREIGN KEY (a) REFERENCES t0 (a))
+ENGINE=MyISAM
+PARTITION BY HASH (a);
+ERROR HY000: Foreign key clause is not yet supported in conjunction with partitioning
+CREATE TABLE t1 (
+pk INT NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (pk)
+)
+/*!50100 PARTITION BY HASH (pk)
+PARTITIONS 2 */;
+INSERT INTO t1 VALUES (NULL);
+INSERT INTO t1 VALUES (NULL);
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM t1 WHERE pk < 0 ORDER BY pk;
+pk
+DROP TABLE t1;
+SET sql_mode=no_engine_substitution;
+CREATE TABLE t1 (a INT)
+ENGINE=NonExistentEngine;
+ERROR 42000: Unknown storage engine 'NonExistentEngine'
+CREATE TABLE t1 (a INT)
+ENGINE=NonExistentEngine
+PARTITION BY HASH (a);
+ERROR 42000: Unknown storage engine 'NonExistentEngine'
+CREATE TABLE t1 (a INT)
+ENGINE=Memory;
+ALTER TABLE t1 ENGINE=NonExistentEngine;
+ERROR 42000: Unknown storage engine 'NonExistentEngine'
+ALTER TABLE t1
+PARTITION BY HASH (a)
+(PARTITION p0 ENGINE=Memory,
+PARTITION p1 ENGINE=NonExistentEngine);
+ERROR 42000: Unknown storage engine 'NonExistentEngine'
+ALTER TABLE t1 ENGINE=NonExistentEngine;
+ERROR 42000: Unknown storage engine 'NonExistentEngine'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SET sql_mode='';
+CREATE TABLE t1 (a INT)
+ENGINE=NonExistentEngine;
+Warnings:
+Warning	1286	Unknown storage engine 'NonExistentEngine'
+Warning	1266	Using storage engine MyISAM for table 't1'
+DROP TABLE t1;
+CREATE TABLE t1 (a INT)
+ENGINE=NonExistentEngine
+PARTITION BY HASH (a);
+Warnings:
+Warning	1286	Unknown storage engine 'NonExistentEngine'
+Warning	1266	Using storage engine MyISAM for table 't1'
+DROP TABLE t1;
+CREATE TABLE t1 (a INT)
+ENGINE=Memory;
+ALTER TABLE t1 ENGINE=NonExistentEngine;
+Warnings:
+Warning	1286	Unknown storage engine 'NonExistentEngine'
+ALTER TABLE t1
+PARTITION BY HASH (a)
+(PARTITION p0 ENGINE=Memory,
+PARTITION p1 ENGINE=NonExistentEngine);
+Warnings:
+Warning	1286	Unknown storage engine 'NonExistentEngine'
+ALTER TABLE t1 ENGINE=NonExistentEngine;
+Warnings:
+Warning	1286	Unknown storage engine 'NonExistentEngine'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+(PARTITION `p0` ENGINE = MEMORY,
+ PARTITION `p1` ENGINE = MEMORY)
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a INT NOT NULL, KEY(a))
+PARTITION BY RANGE(a)
+(PARTITION p1 VALUES LESS THAN (200), PARTITION pmax VALUES LESS THAN MAXVALUE);
+INSERT INTO t1 VALUES (2), (40), (40), (70), (60), (90), (199);
+SELECT a FROM t1 WHERE a BETWEEN 60 AND 95 ORDER BY a ASC;
+a
+60
+70
+90
+SELECT a FROM t1 WHERE a BETWEEN 60 AND 95;
+a
+60
+70
+90
+INSERT INTO t1 VALUES (200), (250), (210);
+SELECT a FROM t1 WHERE a BETWEEN 60 AND 220 ORDER BY a ASC;
+a
+60
+70
+90
+199
+200
+210
+SELECT a FROM t1 WHERE a BETWEEN 200 AND 220 ORDER BY a ASC;
+a
+200
+210
+SELECT a FROM t1 WHERE a BETWEEN 60 AND 95 ORDER BY a DESC;
+a
+90
+70
+60
+SELECT a FROM t1 WHERE a BETWEEN 60 AND 220 ORDER BY a DESC;
+a
+210
+200
+199
+90
+70
+60
+SELECT a FROM t1 WHERE a BETWEEN 200 AND 220 ORDER BY a DESC;
+a
+210
+200
+SELECT a FROM t1 WHERE a BETWEEN 60 AND 220;
+a
+199
+200
+210
+60
+70
+90
+SELECT a FROM t1 WHERE a BETWEEN 200 AND 220;
+a
+200
+210
+SELECT a FROM t1 WHERE a BETWEEN 60 AND 95;
+a
+60
+70
+90
+SELECT a FROM t1 WHERE a BETWEEN 60 AND 220;
+a
+199
+200
+210
+60
+70
+90
+SELECT a FROM t1 WHERE a BETWEEN 200 AND 220;
+a
+200
+210
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT NOT NULL,   
+b MEDIUMINT NOT NULL,   
+c INT NOT NULL,
+KEY b (b)
+) ENGINE=MyISAM
+PARTITION BY LIST (a) (
+PARTITION p0 VALUES IN (1) 
+);
+INSERT INTO t1 VALUES (1,1,0), (1,1,1), (1,1,2), (1,1,53), (1,1,4), (1,1,5),
+(1,1,6), (1,1,7), (1,1,8), (1,1,9), (1,1,10), (1,1,11), (1,1,12), (1,1,13),
+(1,1,14), (1,1,15), (1,1,16), (1,1,67), (1,1,18), (1,1,19), (1,1,20), (1,1,21),
+(1,1,22), (1,1,23), (1,1,24), (1,1,75), (1,1,26), (1,1,27), (1,1,128),
+(1,1,79), (1,1,30), (1,1,31), (1,1,32), (1,1,33), (1,1,34), (1,1,85), (1,1,36),
+(1,1,37), (1,1,38), (1,1,39), (1,1,40), (1,1,241), (1,1,42), (1,1,43),
+(1,1,44), (1,1,45), (1,1,46), (1,1,147), (1,1,48), (1,1,49), (1,2,0), (1,2,1),
+(1,2,2), (1,2,3), (1,2,4), (1,2,5), (1,2,6), (1,2,7), (1,2,8), (1,2,9),
+(1,2,10), (1,2,11), (1,2,12), (1,2,13), (1,2,14), (1,2,15), (1,2,16), (1,2,17),
+(1,2,18), (1,2,19), (1,2,20), (1,2,21), (1,2,22), (1,2,23), (1,2,24), (1,2,25),
+(1,2,26), (1,2,27), (1,2,28), (1,2,29), (1,2,30), (1,2,31), (1,2,32), (1,2,33),
+(1,2,34), (1,2,35), (1,2,36), (1,2,37), (1,2,38), (1,2,39), (1,2,40), (1,2,41),
+(1,2,42), (1,2,43), (1,2,44), (1,2,45), (1,2,46), (1,2,47), (1,2,48), (1,2,49),
+(1,6,0), (1,6,1), (1,6,2), (1,6,3), (1,6,4), (1,6,5), (1,6,6), (1,6,7),
+(1,6,8), (1,6,9), (1,6,10), (1,6,11), (1,6,12), (1,6,13), (1,6,14), (1,6,15),
+(1,6,16), (1,6,17), (1,6,18), (1,6,19), (1,6,20), (1,6,21), (1,6,22), (1,6,23),
+(1,6,24), (1,6,25), (1,6,26), (1,6,27), (1,6,28), (1,6,29), (1,6,30), (1,6,31),
+(1,6,32), (1,6,33), (1,6,34), (1,6,35), (1,6,36), (1,6,37), (1,6,38), (1,6,39),
+(1,6,40), (1,6,41), (1,6,42), (1,6,43), (1,6,44), (1,6,45), (1,6,46), (1,6,47),
+(1,6,48), (1,6,49), (1,7,0), (1,7,1), (1,7,2), (1,7,3), (1,7,4), (1,7,5),
+(1,7,6), (1,7,7), (1,7,8), (1,7,9), (1,7,10), (1,7,11), (1,7,12), (1,7,13),
+(1,7,14), (1,7,15), (1,7,16), (1,7,17), (1,7,18), (1,7,19), (1,7,20), (1,7,21),
+(1,7,22), (1,7,23), (1,7,24), (1,7,25), (1,7,26), (1,7,27), (1,7,28), (1,7,29),
+(1,7,30), (1,7,31), (1,7,32), (1,7,33), (1,7,34), (1,7,35), (1,7,38), (1,7,39),
+(1,7,90), (1,7,41), (1,7,43), (1,7,48), (1,7,49), (1,9,0), (1,9,1), (1,9,2),
+(1,9,3), (1,9,4), (1,9,5), (1,9,6), (1,9,7), (1,9,8), (1,9,9), (1,9,10),
+(1,9,11), (1,9,12), (1,9,13), (1,9,14), (1,9,15), (1,9,16), (1,9,17), (1,9,18),
+(1,9,19), (1,9,20), (1,9,21), (1,9,22), (1,9,23), (1,9,24), (1,9,25), (1,9,26),
+(1,9,29), (1,9,32), (1,9,35), (1,9,38), (1,10,0), (1,10,1), (1,10,2), (1,10,3),
+(1,10,4), (1,10,5), (1,10,6), (1,10,7), (1,10,8), (1,10,9), (1,10,10),
+(1,10,11), (1,10,13), (1,10,14), (1,10,15), (1,10,16), (1,10,17), (1,10,18),
+(1,10,22), (1,10,24), (1,10,25), (1,10,26), (1,10,28), (1,10,131), (1,10,33),
+(1,10,84), (1,10,35), (1,10,40), (1,10,42), (1,10,49), (1,11,0), (1,11,1),
+(1,11,2), (1,11,3), (1,11,4), (1,11,5), (1,11,6), (1,11,7), (1,11,8), (1,11,9),
+(1,11,10), (1,11,11), (1,11,12), (1,11,13), (1,11,14), (1,11,15), (1,11,16),
+(1,11,17), (1,11,18), (1,11,19), (1,11,20), (1,11,21), (1,11,22), (1,11,23),
+(1,11,24), (1,11,25), (1,11,26), (1,11,27), (1,11,28), (1,11,30), (1,11,31),
+(1,11,32), (1,11,33), (1,11,34), (1,11,35), (1,11,37), (1,11,39), (1,11,40),
+(1,11,42), (1,11,44), (1,11,45), (1,11,47), (1,11,48), (1,14,104), (1,14,58),
+(1,14,12), (1,14,13), (1,14,15), (1,14,16), (1,14,17), (1,14,34), (1,15,0),
+(1,15,1), (1,15,2), (1,15,3), (1,15,4), (1,15,5), (1,15,7), (1,15,9),
+(1,15,15), (1,15,27), (1,15,49), (1,16,0), (1,16,1), (1,16,3), (1,17,4),
+(1,19,1);
+SELECT COUNT(*) FROM t1 WHERE b NOT IN ( 1,2,6,7,9,10,11 );
+COUNT(*)
+24
+SELECT SUM(c) FROM t1 WHERE b NOT IN ( 1,2,6,7,9,10,11 );
+SUM(c)
+400
+SELECT SUM(c+0.0) FROM t1 WHERE b NOT IN ( 1,2,6,7,9,10,11 );
+SUM(c+0.0)
+400.0
+ALTER TABLE t1 DROP INDEX b;
+SELECT COUNT(*) FROM t1 WHERE b NOT IN ( 1,2,6,7,9,10,11 );
+COUNT(*)
+24
+SELECT SUM(c) FROM t1 WHERE b NOT IN ( 1,2,6,7,9,10,11 );
+SUM(c)
+400
+ALTER TABLE t1 ENGINE = Memory;
+SELECT COUNT(*) FROM t1 WHERE b NOT IN ( 1,2,6,7,9,10,11 );
+COUNT(*)
+24
+SELECT SUM(c) FROM t1 WHERE b NOT IN ( 1,2,6,7,9,10,11 );
+SUM(c)
+400
+ALTER TABLE t1 ADD INDEX b USING HASH (b);
+SELECT COUNT(*) FROM t1 WHERE b NOT IN ( 1,2,6,7,9,10,11 );
+COUNT(*)
+24
+SELECT SUM(c) FROM t1 WHERE b NOT IN ( 1,2,6,7,9,10,11 );
+SUM(c)
+400
+DROP TABLE t1;
+CREATE TABLE `t1` (
+`c1` int(11) DEFAULT NULL,
+KEY `c1` (`c1`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+CREATE TABLE `t2` (
+`c1` int(11) DEFAULT NULL,
+KEY `c1` (`c1`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 /*!50100 PARTITION BY RANGE (c1) (PARTITION a VALUES LESS THAN (100) ENGINE = MyISAM, PARTITION b VALUES LESS THAN MAXVALUE ENGINE = MyISAM) */;
+INSERT INTO `t1` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
+INSERT INTO `t2` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
+EXPLAIN PARTITIONS SELECT c1 FROM t1 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	c1	c1	5	NULL	20	Using where; Using index
+FLUSH STATUS;
+SELECT c1 FROM t1 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
+c1
+11
+12
+18
+19
+SHOW STATUS LIKE 'Handler_read_%';
+Variable_name	Value
+Handler_read_first	1
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	20
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+EXPLAIN PARTITIONS SELECT c1 FROM t2 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	a	index	c1	c1	5	NULL	20	Using where; Using index
+FLUSH STATUS;
+SELECT c1 FROM t2 WHERE (c1 > 10 AND c1 < 13) OR (c1 > 17 AND c1 < 20);
+c1
+11
+12
+18
+19
+SHOW STATUS LIKE 'Handler_read_%';
+Variable_name	Value
+Handler_read_first	1
+Handler_read_key	0
+Handler_read_last	0
+Handler_read_next	20
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+DROP TABLE t1,t2;
+CREATE TABLE `t1` (
+`c1` int(11) DEFAULT NULL,
+KEY `c1` (`c1`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+CREATE TABLE `t2` (
+`c1` int(11) DEFAULT NULL,
+KEY `c1` (`c1`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+/*!50100 PARTITION BY RANGE (c1)
+(PARTITION a VALUES LESS THAN (100) ENGINE = MyISAM,
+PARTITION b VALUES LESS THAN MAXVALUE ENGINE = MyISAM) */;
+INSERT INTO `t1` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
+INSERT INTO `t2` VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
+EXPLAIN PARTITIONS SELECT c1 FROM t1 WHERE (c1 > 2 AND c1 < 5);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	c1	c1	5	NULL	2	Using where; Using index
+FLUSH STATUS;
+SELECT c1 FROM t1 WHERE (c1 > 2 AND c1 < 5);
+c1
+3
+4
+SHOW STATUS LIKE 'Handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+EXPLAIN PARTITIONS SELECT c1 FROM t2 WHERE (c1 > 2 AND c1 < 5);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	a	range	c1	c1	5	NULL	2	Using where; Using index
+FLUSH STATUS;
+SELECT c1 FROM t2 WHERE (c1 > 2 AND c1 < 5);
+c1
+3
+4
+SHOW STATUS LIKE 'Handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+EXPLAIN PARTITIONS SELECT c1 FROM t1 WHERE (c1 > 12 AND c1 < 15);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	c1	c1	5	NULL	2	Using where; Using index
+FLUSH STATUS;
+SELECT c1 FROM t1 WHERE (c1 > 12 AND c1 < 15);
+c1
+13
+14
+SHOW STATUS LIKE 'Handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+EXPLAIN PARTITIONS SELECT c1 FROM t2 WHERE (c1 > 12 AND c1 < 15);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	a	range	c1	c1	5	NULL	2	Using where; Using index
+FLUSH STATUS;
+SELECT c1 FROM t2 WHERE (c1 > 12 AND c1 < 15);
+c1
+13
+14
+SHOW STATUS LIKE 'Handler_read_%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	1
+Handler_read_last	0
+Handler_read_next	2
+Handler_read_prev	0
+Handler_read_retry	0
+Handler_read_rnd	0
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	0
+DROP TABLE t1,t2;
+create table t1 (a int) partition by list ((a/3)*10 div 1)
+(partition p0 values in (0), partition p1 values in (1));
+ERROR HY000: This partition function is not allowed
+CREATE TABLE t1 (
+d DATE NOT NULL
+)
+PARTITION BY RANGE( YEAR(d) ) (
+PARTITION p0 VALUES LESS THAN (1960),
+PARTITION p1 VALUES LESS THAN (1970),
+PARTITION p2 VALUES LESS THAN (1980),
+PARTITION p3 VALUES LESS THAN (1990)
+);
+ALTER TABLE t1 ADD PARTITION (
+PARTITION `p5` VALUES LESS THAN (2010)
+COMMENT 'APSTART \' APEND'
+);
+SELECT * FROM t1 LIMIT 1;
+d
+DROP TABLE t1;
+create table t1 (id int auto_increment, s1 int, primary key (id));
+insert into t1 values (null,1);
+insert into t1 values (null,6);
+select * from t1;
+id	s1
+1	1
+2	6
+alter table t1 partition by range (id) (
+partition p0 values less than (3),
+partition p1 values less than maxvalue
+);
+drop table t1;
+create table t1 (a int)
+partition by key(a)
+partitions 0.2+e1;
+ERROR 42000: Only integers allowed as number here near '0.2+e1' at line 3
+create table t1 (a int)
+partition by key(a)
+partitions -1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1' at line 3
+create table t1 (a int)
+partition by key(a)
+partitions 1.5;
+ERROR 42000: Only integers allowed as number here near '1.5' at line 3
+create table t1 (a int)
+partition by key(a)
+partitions 1e+300;
+ERROR 42000: Only integers allowed as number here near '1e+300' at line 3
+create table t1 (a int)
+partition by list (a)
+(partition p0 values in (1));
+create procedure pz()
+alter table t1 engine = myisam;
+call pz();
+call pz();
+drop procedure pz;
+drop table t1;
+create table t1 (a bigint)
+partition by range (a)
+(partition p0 values less than (0xFFFFFFFFFFFFFFFF),
+partition p1 values less than (10));
+ERROR HY000: VALUES value for partition 'p0' must have type INT
+create table t1 (a bigint)
+partition by list (a)
+(partition p0 values in (0xFFFFFFFFFFFFFFFF),
+partition p1 values in (10));
+ERROR HY000: VALUES value for partition 'p0' must have type INT
+create table t1 (a bigint unsigned)
+partition by range (a)
+(partition p0 values less than (100),
+partition p1 values less than MAXVALUE);
+insert into t1 values (1);
+drop table t1;
+create table t1 (a bigint unsigned)
+partition by hash (a);
+insert into t1 values (0xFFFFFFFFFFFFFFFD);
+insert into t1 values (0xFFFFFFFFFFFFFFFE);
+select * from t1 where (a + 1) < 10;
+a
+select * from t1 where (a + 1) > 10;
+a
+18446744073709551613
+18446744073709551614
+drop table t1;
+create table t1 (a int)
+partition by key(a)
+(partition p0 engine = MEMORY);
+drop table t1;
+create table t1 (a int)
+partition by range (a)
+subpartition by key (a)
+(partition p0 values less than (1));
+alter table t1 add partition (partition p1 values less than (2));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`a`)
+SUBPARTITION BY KEY (`a`)
+(PARTITION `p0` VALUES LESS THAN (1) ENGINE = MyISAM,
+ PARTITION `p1` VALUES LESS THAN (2) ENGINE = MyISAM)
+alter table t1 reorganize partition p1 into (partition p1 values less than (3));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`a`)
+SUBPARTITION BY KEY (`a`)
+(PARTITION `p0` VALUES LESS THAN (1) ENGINE = MyISAM,
+ PARTITION `p1` VALUES LESS THAN (3) ENGINE = MyISAM)
+drop table t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+c int not null,
+primary key(a,b))
+partition by key (a);
+select count(*) from t1;
+count(*)
+0
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) NOT NULL,
+  `c` int(11) NOT NULL,
+  PRIMARY KEY (`a`,`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+drop table t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+c int not null,
+primary key(a,b))
+partition by key (a, b);
+drop table t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+c int not null,
+primary key(a,b))
+partition by key (a)
+partitions 3
+(partition x1, partition x2, partition x3);
+drop table t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+c int not null,
+primary key(a,b))
+partition by key (a)
+partitions 3
+(partition x1 nodegroup 0,
+partition x2 nodegroup 1,
+partition x3 nodegroup 2);
+drop table t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+c int not null,
+primary key(a,b))
+partition by key (a)
+partitions 3
+(partition x1 engine myisam,
+partition x2 engine myisam,
+partition x3 engine myisam);
+drop table t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+c int not null,
+primary key(a,b))
+partition by key (a)
+partitions 3
+(partition x1 tablespace ts1,
+partition x2 tablespace ts2,
+partition x3 tablespace ts3);
+CREATE TABLE t2 LIKE t1;
+drop table t2;
+drop table t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+c int not null,
+primary key(a,b))
+partition by list (a)
+partitions 3
+(partition x1 values in (1,2,9,4) tablespace ts1,
+partition x2 values in (3, 11, 5, 7) tablespace ts2,
+partition x3 values in (16, 8, 5+19, 70-43) tablespace ts3);
+drop table t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+c int not null,
+primary key(a,b))
+partition by list (b*a)
+partitions 3
+(partition x1 values in (1,2,9,4) tablespace ts1,
+partition x2 values in (3, 11, 5, 7) tablespace ts2,
+partition x3 values in (16, 8, 5+19, 70-43) tablespace ts3);
+drop table t1;
+CREATE TABLE t1 (
+a int not null,
+b int not null,
+c int not null,
+primary key(a,b))
+partition by list (b*a)
+(partition x1 values in (1) tablespace ts1,
+partition x2 values in (3, 11, 5, 7) tablespace ts2,
+partition x3 values in (16, 8, 5+19, 70-43) tablespace ts3);
+drop table t1;
+CREATE TABLE t1 (
+a int not null)
+partition by key(a);
+LOCK TABLES t1 WRITE;
+insert into t1 values (1);
+insert into t1 values (2);
+insert into t1 values (3);
+insert into t1 values (4);
+UNLOCK TABLES;
+drop table t1;
+CREATE TABLE t1 (a int, name VARCHAR(50), purchased DATE)
+PARTITION BY RANGE (a)
+(PARTITION p0 VALUES LESS THAN (3),
+PARTITION p1 VALUES LESS THAN (7),
+PARTITION p2 VALUES LESS THAN (9),
+PARTITION p3 VALUES LESS THAN (11));
+INSERT INTO t1 VALUES
+(1, 'desk organiser', '2003-10-15'),
+(2, 'CD player', '1993-11-05'),
+(3, 'TV set', '1996-03-10'),
+(4, 'bookcase', '1982-01-10'),
+(5, 'exercise bike', '2004-05-09'),
+(6, 'sofa', '1987-06-05'),
+(7, 'popcorn maker', '2001-11-22'),
+(8, 'acquarium', '1992-08-04'),
+(9, 'study desk', '1984-09-16'),
+(10, 'lava lamp', '1998-12-25');
+SELECT * from t1 ORDER BY a;
+a	name	purchased
+1	desk organiser	2003-10-15
+2	CD player	1993-11-05
+3	TV set	1996-03-10
+4	bookcase	1982-01-10
+5	exercise bike	2004-05-09
+6	sofa	1987-06-05
+7	popcorn maker	2001-11-22
+8	acquarium	1992-08-04
+9	study desk	1984-09-16
+10	lava lamp	1998-12-25
+ALTER TABLE t1 DROP PARTITION p0;
+SELECT * from t1 ORDER BY a;
+a	name	purchased
+3	TV set	1996-03-10
+4	bookcase	1982-01-10
+5	exercise bike	2004-05-09
+6	sofa	1987-06-05
+7	popcorn maker	2001-11-22
+8	acquarium	1992-08-04
+9	study desk	1984-09-16
+10	lava lamp	1998-12-25
+drop table t1;
+CREATE TABLE t1 (a int)
+PARTITION BY LIST (a)
+(PARTITION p0 VALUES IN (1,2,3), PARTITION p1 VALUES IN (4,5,6));
+insert into t1 values (1),(2),(3),(4),(5),(6);
+select * from t1;
+a
+1
+2
+3
+4
+5
+6
+truncate t1;
+select * from t1;
+a
+truncate t1;
+select * from t1;
+a
+drop table t1;
+CREATE TABLE t1 (a int, b int, primary key(a,b))
+PARTITION BY KEY(b,a) PARTITIONS 4;
+insert into t1 values (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6);
+select * from t1 where a = 4;
+a	b
+4	4
+drop table t1;
+CREATE TABLE t1 (c1 INT, c2 INT, PRIMARY KEY USING BTREE (c1,c2)) ENGINE=MEMORY
+PARTITION BY KEY(c2,c1) PARTITIONS 4;
+INSERT INTO t1 VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6);
+SELECT * FROM t1 WHERE c1 = 4;
+c1	c2
+4	4
+DROP TABLE t1;
+CREATE TABLE t1 (a int)
+PARTITION BY LIST (a)
+PARTITIONS 1
+(PARTITION x1 VALUES IN (1) ENGINE=MEMORY);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `x1` VALUES IN (1) ENGINE = MEMORY)
+drop table t1;
+CREATE TABLE t1 (a int, unique(a))
+PARTITION BY LIST (a)
+(PARTITION x1 VALUES IN (10), PARTITION x2 VALUES IN (20));
+REPLACE t1 SET a = 4;
+ERROR HY000: Table has no partition for value 4
+drop table t1;
+CREATE TABLE t1 (a int)
+PARTITION BY LIST (a)
+(PARTITION x1 VALUES IN (2), PARTITION x2 VALUES IN (3));
+insert into t1 values (2), (3);
+insert into t1 values (4);
+ERROR HY000: Table has no partition for value 4
+insert into t1 values (1);
+ERROR HY000: Table has no partition for value 1
+drop table t1;
+CREATE TABLE t1 (a int)
+PARTITION BY HASH(a)
+PARTITIONS 5;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+PARTITIONS 5
+drop table t1;
+CREATE TABLE t1 (a int)
+PARTITION BY RANGE (a)
+(PARTITION x1 VALUES LESS THAN (2));
+insert into t1 values (1);
+update t1 set a = 5;
+ERROR HY000: Table has no partition for value 5
+drop table t1;
+CREATE TABLE t1 (a int)
+PARTITION BY LIST (a)
+(PARTITION x1 VALUES IN (10), PARTITION x2 VALUES IN (20));
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+drop table t1;
+create table t1
+(a int)
+partition by range (a)
+( partition p0 values less than(10),
+partition p1 values less than (20),
+partition p2 values less than (25));
+alter table t1 reorganize partition p2 into (partition p2 values less than (30));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`a`)
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p1` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (30) ENGINE = MyISAM)
+drop table t1;
+CREATE TABLE t1 (a int, b int)
+PARTITION BY RANGE (a)
+(PARTITION x0 VALUES LESS THAN (2),
+PARTITION x1 VALUES LESS THAN (4),
+PARTITION x2 VALUES LESS THAN (6),
+PARTITION x3 VALUES LESS THAN (8),
+PARTITION x4 VALUES LESS THAN (10),
+PARTITION x5 VALUES LESS THAN (12),
+PARTITION x6 VALUES LESS THAN (14),
+PARTITION x7 VALUES LESS THAN (16),
+PARTITION x8 VALUES LESS THAN (18),
+PARTITION x9 VALUES LESS THAN (20));
+ALTER TABLE t1 REORGANIZE PARTITION x0,x1,x2 INTO
+(PARTITION x1 VALUES LESS THAN (6));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`a`)
+(PARTITION `x1` VALUES LESS THAN (6) ENGINE = MyISAM,
+ PARTITION `x3` VALUES LESS THAN (8) ENGINE = MyISAM,
+ PARTITION `x4` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `x5` VALUES LESS THAN (12) ENGINE = MyISAM,
+ PARTITION `x6` VALUES LESS THAN (14) ENGINE = MyISAM,
+ PARTITION `x7` VALUES LESS THAN (16) ENGINE = MyISAM,
+ PARTITION `x8` VALUES LESS THAN (18) ENGINE = MyISAM,
+ PARTITION `x9` VALUES LESS THAN (20) ENGINE = MyISAM)
+drop table t1;
+create table t1 (a int not null, b int not null) partition by LIST (a+b) (
+partition p0 values in (12),
+partition p1 values in (14)
+);
+insert into t1 values (10,1);
+ERROR HY000: Table has no partition for value 11
+drop table t1;
+create table t1 (f1 integer,f2 integer, f3 varchar(10), primary key(f1,f2))
+partition by range(f1) subpartition by hash(f2) subpartitions 2
+(partition p1 values less than (0),
+partition p2 values less than (2),
+partition p3 values less than (2147483647));
+insert into t1 values(10,10,'10');
+insert into t1 values(2,2,'2');
+select * from t1 where f1 = 2;
+f1	f2	f3
+2	2	2
+drop table t1;
+create table t1 (f1 integer,f2 integer, unique index(f1))
+partition by range(f1 div 2)
+subpartition by hash(f1) subpartitions 2
+(partition partb values less than (2),
+partition parte values less than (4),
+partition partf values less than (10000));
+insert into t1 values(10,1);
+select * from t1 where f1 = 10;
+f1	f2
+10	1
+drop table t1;
+set session default_storage_engine= 'memory';
+create table t1 (f_int1 int(11) default null) engine = memory
+partition by range (f_int1) subpartition by hash (f_int1)
+(partition part1 values less than (1000)
+(subpartition subpart11 engine = memory));
+drop table t1;
+set session default_storage_engine='myisam';
+create table t1 (f_int1 integer, f_int2 integer, primary key (f_int1))
+partition by hash(f_int1) partitions 2;
+insert into t1 values (1,1),(2,2);
+replace into t1 values (1,1),(2,2);
+drop table t1;
+create table t1 (s1 int, unique (s1)) partition by list (s1) (partition x1 VALUES in (10), partition x2 values in (20));
+alter table t1 add partition (partition x3 values in (30));
+drop table t1;
+create table t1 (a int)
+partition by key(a)
+partitions 2
+(partition p0 engine=myisam, partition p1 engine=myisam);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MyISAM,
+ PARTITION `p1` ENGINE = MyISAM)
+alter table t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MyISAM,
+ PARTITION `p1` ENGINE = MyISAM)
+alter table t1 engine=myisam;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MyISAM,
+ PARTITION `p1` ENGINE = MyISAM)
+alter table t1 engine=heap;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MEMORY,
+ PARTITION `p1` ENGINE = MEMORY)
+alter table t1 remove partitioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a int)
+engine=myisam
+partition by key(a)
+partitions 2
+(partition p0 engine=myisam, partition p1 engine=myisam);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MyISAM,
+ PARTITION `p1` ENGINE = MyISAM)
+alter table t1 add column b int remove partitioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1
+engine=myisam
+partition by key(a)
+(partition p0 engine=myisam, partition p1);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MyISAM,
+ PARTITION `p1` ENGINE = MyISAM)
+alter table t1
+engine=heap
+partition by key(a)
+(partition p0, partition p1 engine=heap);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MEMORY,
+ PARTITION `p1` ENGINE = MEMORY)
+alter table t1 engine=myisam, add column c int remove partitioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1
+engine=heap
+partition by key (a)
+(partition p0, partition p1);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MEMORY,
+ PARTITION `p1` ENGINE = MEMORY)
+alter table t1
+partition by key (a)
+(partition p0, partition p1);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MEMORY,
+ PARTITION `p1` ENGINE = MEMORY)
+alter table t1
+engine=heap
+partition by key (a)
+(partition p0, partition p1);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MEMORY,
+ PARTITION `p1` ENGINE = MEMORY)
+alter table t1
+partition by key(a)
+(partition p0, partition p1 engine=heap);
+alter table t1
+partition by key(a)
+(partition p0 engine=heap, partition p1);
+alter table t1
+engine=heap
+partition by key (a)
+(partition p0 engine=heap, partition p1 engine=myisam);
+ERROR HY000: The mix of handlers in the partitions is not allowed in this version of MariaDB
+alter table t1
+partition by key (a)
+(partition p0 engine=heap, partition p1 engine=myisam);
+ERROR HY000: The mix of handlers in the partitions is not allowed in this version of MariaDB
+drop table t1;
+CREATE TABLE t1 (
+f_int1 INTEGER, f_int2 INTEGER,
+f_char1 CHAR(10), f_char2 CHAR(10), f_charbig VARCHAR(1000)
+)
+PARTITION BY RANGE(f_int1 DIV 2)
+SUBPARTITION BY HASH(f_int1)
+SUBPARTITIONS 2
+(PARTITION parta VALUES LESS THAN (0),
+PARTITION partb VALUES LESS THAN (5),
+PARTITION parte VALUES LESS THAN (10),
+PARTITION partf VALUES LESS THAN (2147483647));
+INSERT INTO t1 SET f_int1 = NULL , f_int2 = -20, f_char1 = CAST(-20 AS CHAR),
+f_char2 = CAST(-20 AS CHAR), f_charbig = '#NULL#';
+SELECT * FROM t1 WHERE f_int1 IS NULL;
+f_int1	f_int2	f_char1	f_char2	f_charbig
+NULL	-20	-20	-20	#NULL#
+SELECT * FROM t1;
+f_int1	f_int2	f_char1	f_char2	f_charbig
+NULL	-20	-20	-20	#NULL#
+drop table t1;
+CREATE TABLE t1 (
+f_int1 INTEGER, f_int2 INTEGER,
+f_char1 CHAR(10), f_char2 CHAR(10), f_charbig VARCHAR(1000)  )
+PARTITION BY LIST(MOD(f_int1,2))
+SUBPARTITION BY KEY(f_int1)
+(PARTITION part1 VALUES IN (-1) (SUBPARTITION sp1, SUBPARTITION sp2),
+PARTITION part2 VALUES IN (0) (SUBPARTITION sp3, SUBPARTITION sp5),
+PARTITION part3 VALUES IN (1) (SUBPARTITION sp4, SUBPARTITION sp6));
+INSERT INTO t1 SET f_int1 = 2, f_int2 = 2, f_char1 = '2', f_char2 = '2', f_charbig = '===2===';
+INSERT INTO t1 SET f_int1 = 2, f_int2 = 2, f_char1 = '2', f_char2 = '2', f_charbig = '===2===';
+SELECT * FROM t1 WHERE f_int1  IS NULL;
+f_int1	f_int2	f_char1	f_char2	f_charbig
+drop table t1;
+create procedure p ()
+begin
+create table t1 (s1 mediumint,s2 mediumint)
+partition by list (s2)
+(partition p1 values in (0),
+partition p2 values in (1));
+end//
+call p()//
+drop procedure p//
+drop table t1//
+create procedure p ()
+begin
+create table t1 (a int not null,b int not null,c int not null,primary key (a,b))
+partition by range (a)
+subpartition by hash (a+b)
+(partition x1 values less than (1)
+(subpartition x11,
+subpartition x12),
+partition x2 values less than (5)
+(subpartition x21,
+subpartition x22));
+end//
+call p()//
+drop procedure p//
+drop table t1//
+create table t1 (a int,b int,c int,key(a,b))
+partition by range (a)
+partitions 3
+(partition x1 values less than (0) tablespace ts1,
+partition x2 values less than (10) tablespace ts2,
+partition x3 values less than maxvalue tablespace ts3);
+insert into t1 values (NULL, 1, 1);
+insert into t1 values (0, 1, 1);
+insert into t1 values (12, 1, 1);
+select partition_name, partition_description, table_rows
+from information_schema.partitions where table_schema ='test';
+partition_name	partition_description	table_rows
+x1	0	1
+x2	10	1
+x3	MAXVALUE	1
+drop table t1;
+create table t1 (a int,b int, c int)
+partition by list(a)
+partitions 2
+(partition x123 values in (11,12),
+partition x234 values in (1 ,NULL, NULL));
+ERROR HY000: Multiple definition of same constant in list partitioning
+create table t1 (a int,b int, c int)
+partition by list(a)
+partitions 2
+(partition x123 values in (11, NULL),
+partition x234 values in (1 ,NULL));
+ERROR HY000: Multiple definition of same constant in list partitioning
+create table t1 (a int,b int, c int)
+partition by list(a)
+partitions 2
+(partition x123 values in (11, 12),
+partition x234 values in (5, 1));
+insert into t1 values (NULL,1,1);
+ERROR HY000: Table has no partition for value NULL
+drop table t1;
+create table t1 (a int,b int, c int)
+partition by list(a)
+partitions 2
+(partition x123 values in (11, 12),
+partition x234 values in (NULL, 1));
+insert into t1 values (11,1,6);
+insert into t1 values (NULL,1,1);
+select partition_name, partition_description, table_rows
+from information_schema.partitions where table_schema ='test';
+partition_name	partition_description	table_rows
+x123	11,12	1
+x234	NULL,1	1
+drop table t1;
+create table t1 (a int)
+partition by list (a)
+(partition p0 values in (1));
+alter table t1 rebuild partition;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+drop table t1;
+create table t1 (a int)
+partition by list (a)
+(partition p0 values in (5));
+insert into t1 values (0);
+ERROR HY000: Table has no partition for value 0
+drop table t1;
+create table t1 (a int)
+partition by range (a) subpartition by hash (a)
+(partition p0 values less than (100));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`a`)
+SUBPARTITION BY HASH (`a`)
+(PARTITION `p0` VALUES LESS THAN (100) ENGINE = MyISAM)
+alter table t1 add partition (partition p1 values less than (200)
+(subpartition subpart21));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`a`)
+SUBPARTITION BY HASH (`a`)
+(PARTITION `p0` VALUES LESS THAN (100)
+ (SUBPARTITION `p0sp0` ENGINE = MyISAM),
+ PARTITION `p1` VALUES LESS THAN (200)
+ (SUBPARTITION `subpart21` ENGINE = MyISAM))
+drop table t1;
+create table t1 (a int)
+partition by key (a);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+alter table t1 add partition (partition p1);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+(PARTITION `p0` ENGINE = MyISAM,
+ PARTITION `p1` ENGINE = MyISAM)
+drop table t1;
+create table t1 (a int, b int)
+partition by range (a)
+subpartition by hash(a)
+(partition p0 values less than (0) (subpartition sp0),
+partition p1 values less than (1));
+ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near ')' at line 5
+create table t1 (a int, b int)
+partition by range (a)
+subpartition by hash(a)
+(partition p0 values less than (0),
+partition p1 values less than (1) (subpartition sp0));
+ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near 'subpartition sp0))' at line 5
+create table t1 (a int, b int)
+partition by list (a)
+subpartition by hash(a)
+(partition p0 values in (0),
+partition p1 values in (1) (subpartition sp0));
+ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near 'subpartition sp0))' at line 5
+create table t1 (a int)
+partition by hash (a)
+(partition p0 (subpartition sp0));
+ERROR HY000: It is only possible to mix RANGE/LIST partitioning with HASH/KEY partitioning for subpartitioning
+create table t1 (a int)
+partition by range (a)
+(partition p0 values less than (1));
+alter table t1 add partition (partition p1 values in (2));
+ERROR HY000: Only LIST PARTITIONING can use VALUES IN in partition definition
+alter table t1 add partition (partition p1);
+ERROR HY000: Syntax error: RANGE PARTITIONING requires definition of VALUES LESS THAN for each partition
+drop table t1;
+create table t1 (a int)
+partition by list (a)
+(partition p0 values in (1));
+alter table t1 add partition (partition p1 values less than (2));
+ERROR HY000: Only RANGE PARTITIONING can use VALUES LESS THAN in partition definition
+alter table t1 add partition (partition p1);
+ERROR HY000: Syntax error: LIST PARTITIONING requires definition of VALUES IN for each partition
+drop table t1;
+create table t1 (a int)
+partition by hash (a)
+(partition p0);
+alter table t1 add partition (partition p1 values less than (2));
+ERROR HY000: Only RANGE PARTITIONING can use VALUES LESS THAN in partition definition
+alter table t1 add partition (partition p1 values in (2));
+ERROR HY000: Only LIST PARTITIONING can use VALUES IN in partition definition
+drop table t1;
+create table t1 (a int)
+partition by list (a)
+(partition p0 values in (1));
+alter table t1 rebuild partition;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+drop table t1;
+create table t2 (s1 int not null auto_increment, primary key (s1)) partition by list (s1) (partition p1 values in (1),partition p2 values in (2),partition p3 values in (3),partition p4 values in (4));
+insert into t2 values (null),(null),(null);
+select * from t2;
+s1
+1
+2
+3
+select * from t2 where s1 < 2;
+s1
+1
+update t2 set s1 = s1 + 1 order by s1 desc;
+select * from t2 where s1 < 3;
+s1
+2
+select * from t2 where s1 = 2;
+s1
+2
+drop table t2;
+create temporary table t1 (a int) partition by hash(a);
+ERROR HY000: Cannot create temporary table with partitions
+create table t1 (a int, b int) partition by list (a)
+(partition p1 values in (1), partition p2 values in (2));
+alter table t1 add primary key (b);
+ERROR HY000: A PRIMARY KEY must include all columns in the table's partitioning function
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p1` VALUES IN (1) ENGINE = MyISAM,
+ PARTITION `p2` VALUES IN (2) ENGINE = MyISAM)
+drop table t1;
+create table t1 (a int unsigned not null auto_increment primary key)
+partition by key(a);
+alter table t1 rename t2, add c char(10), comment "no comment";
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `c` char(10) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='no comment'
+ PARTITION BY KEY (`a`)
+drop table t2;
+create table t1 (f1 int) partition by hash (f1) as select 1;
+drop table t1;
+prepare stmt1 from 'create table t1 (s1 int) partition by hash (s1)';
+execute stmt1;
+execute stmt1;
+ERROR 42S01: Table 't1' already exists
+drop table t1;
+CREATE PROCEDURE test.p1(IN i INT)
+BEGIN
+DECLARE CONTINUE HANDLER FOR sqlexception BEGIN END;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (num INT,PRIMARY KEY(num));
+START TRANSACTION;
+INSERT INTO t1 VALUES(i);
+savepoint t1_save;
+INSERT INTO t1 VALUES (14);
+ROLLBACK to savepoint t1_save;
+COMMIT;
+END|
+CALL test.p1(12);
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+CALL test.p1(13);
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+drop table t1;
+drop procedure test.p1;
+CREATE TABLE t1 (a int not null)
+partition by key(a)
+(partition p0 COMMENT='first partition');
+drop table t1;
+CREATE TABLE t1 (`a b` int not null)
+partition by key(`a b`);
+drop table t1;
+CREATE TABLE t1 (`a b` int not null)
+partition by hash(`a b`);
+drop table t1;
+create table t1 (f1 integer) partition by range(f1)
+(partition p1 values less than (0), partition p2 values less than (10));
+insert into t1 set f1 = null;
+select * from t1 where f1 is null;
+f1
+NULL
+explain partitions select * from t1 where f1 is null;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1	system	NULL	NULL	NULL	NULL	1	
+drop table t1;
+create table t1 (f1 integer) partition by list(f1)
+(partition p1 values in (1), partition p2 values in (null));
+insert into t1 set f1 = null;
+insert into t1 set f1 = 1;
+select * from t1 where f1 is null or f1 = 1;
+f1
+1
+NULL
+drop table t1;
+create table t1 (f1 smallint)
+partition by list (f1) (partition p0 values in (null));
+insert into t1 values (null);
+select * from t1 where f1 is null;
+f1
+NULL
+select * from t1 where f1 < 1;
+f1
+select * from t1 where f1 <= NULL;
+f1
+select * from t1 where f1 < NULL;
+f1
+select * from t1 where f1 >= NULL;
+f1
+select * from t1 where f1 > NULL;
+f1
+select * from t1 where f1 > 1;
+f1
+drop table t1;
+create table t1 (f1 smallint)
+partition by range (f1) (partition p0 values less than (0));
+insert into t1 values (null);
+select * from t1 where f1 is null;
+f1
+NULL
+drop table t1;
+create table t1 (f1 integer) partition by list(f1)
+(
+partition p1 values in (1),
+partition p2 values in (NULL),
+partition p3 values in (2),
+partition p4 values in (3),
+partition p5 values in (4)
+);
+insert into t1 values (1),(2),(3),(4),(null);
+select * from t1 where f1 < 3;
+f1
+1
+2
+explain partitions select * from t1 where f1 < 3;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,p3	ALL	NULL	NULL	NULL	NULL	2	Using where
+select * from t1 where f1 is null;
+f1
+NULL
+explain partitions select * from t1 where f1 is null;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+drop table t1;
+create table t1 (f1 int) partition by list(f1 div 2)
+(
+partition p1 values in (1),
+partition p2 values in (NULL),
+partition p3 values in (2),
+partition p4 values in (3),
+partition p5 values in (4)
+);
+insert into t1 values (2),(4),(6),(8),(null);
+select * from t1 where f1 < 3;
+f1
+2
+explain partitions select * from t1 where f1 < 3;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,p2,p3,p4,p5	ALL	NULL	NULL	NULL	NULL	5	Using where
+select * from t1 where f1 is null;
+f1
+NULL
+explain partitions select * from t1 where f1 is null;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+drop table t1;
+create table t1 (a int) partition by LIST(a) (
+partition pn values in (NULL),
+partition p0 values in (0),
+partition p1 values in (1),
+partition p2 values in (2)
+);
+insert into t1 values (NULL),(0),(1),(2);
+select * from t1 where a is null or a < 2;
+a
+NULL
+0
+1
+explain partitions select * from t1 where a is null or a < 2;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn,p0,p1	ALL	NULL	NULL	NULL	NULL	3	Using where
+select * from t1 where a is null or a < 0 or a > 1;
+a
+NULL
+2
+explain partitions select * from t1 where a is null or a < 0 or a > 1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn,p2	ALL	NULL	NULL	NULL	NULL	2	Using where
+drop table t1;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, name VARCHAR(20)) 
+ENGINE=MyISAM DEFAULT CHARSET=latin1
+PARTITION BY RANGE(id)
+(PARTITION p0  VALUES LESS THAN (10) ENGINE = MyISAM,
+PARTITION p1 VALUES LESS THAN (20) ENGINE = MyISAM,
+PARTITION p2 VALUES LESS THAN (30) ENGINE = MyISAM);
+SHOW TABLE STATUS;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Dynamic	0	0	0	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+DROP TABLE t1;
+create table t1 (a bigint unsigned)
+partition by list (a)
+(partition p0 values in (0-1));
+ERROR HY000: Partition constant is out of partition function domain
+create table t1 (a bigint unsigned)
+partition by range (a)
+(partition p0 values less than (10));
+insert into t1 values (0xFFFFFFFFFFFFFFFF);
+ERROR HY000: Table has no partition for value 18446744073709551615
+drop table t1;
+create table t1 (a int)
+partition by list (a)
+(partition `s1 s2` values in (0));
+drop table t1;
+create table t1 (a int)
+partition by list (a)
+(partition `7` values in (0));
+drop table t1;
+create table t1 (a int)
+partition by list (a)
+(partition `s1 s2 ` values in (0));
+ERROR HY000: Incorrect partition name
+create table t1 (a int)
+partition by list (a)
+subpartition by hash (a)
+(partition p1 values in (0) (subpartition `p1 p2 `));
+ERROR HY000: Incorrect partition name
+CREATE TABLE t1 (a int)
+PARTITION BY LIST (a)
+(PARTITION p0 VALUES IN (NULL));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY LIST (`a`)
+(PARTITION `p0` VALUES IN (NULL) ENGINE = MyISAM)
+DROP TABLE t1;
+CREATE TABLE t1 (a int)
+PARTITION BY RANGE(a)
+(PARTITION p0 VALUES LESS THAN (NULL));
+ERROR HY000: Not allowed to use NULL value in VALUES LESS THAN
+create table t1 (s1 int auto_increment primary key)
+partition by list (s1)
+(partition p1 values in (1),
+partition p2 values in (2),
+partition p3 values in (3));
+insert into t1 values (null);
+insert into t1 values (null);
+insert into t1 values (null);
+select auto_increment from information_schema.tables where table_name='t1';
+auto_increment
+4
+select * from t1;
+s1
+1
+2
+3
+drop table t1;
+create table t1 (a int) engine=memory
+partition by key(a);
+insert into t1 values (1);
+create index inx1 on t1(a);
+drop table t1;
+create table t1 (a int)
+PARTITION BY KEY (a)
+(PARTITION p0);
+set session sql_mode='no_table_options';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+)
+ PARTITION BY KEY (`a`)
+(PARTITION `p0`)
+set session sql_mode='';
+drop table t1;
+create table t1 (a int)
+partition by key (a)
+(partition p0 engine = MERGE);
+ERROR HY000: Engine cannot be used in partitioned tables
+create table t1 (a varchar(1))
+partition by key (a)
+as select 'a';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+drop table t1;
+CREATE TABLE t1 (a int) ENGINE = MYISAM PARTITION BY KEY(a);
+INSERT into t1 values (1), (2);
+SHOW TABLE STATUS;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	2	7	14	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+DELETE from t1 where a = 1;
+SHOW TABLE STATUS;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	14	14	0	0	7	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+ALTER TABLE t1 OPTIMIZE PARTITION p0;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+SHOW TABLE STATUS;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	7	7	0	1024	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+DROP TABLE t1;
+CREATE TABLE t1 (a int, index(a)) PARTITION BY KEY(a);
+ALTER TABLE t1 DISABLE KEYS;
+ALTER TABLE t1 ENABLE KEYS;
+DROP TABLE t1;
+create table t1 (a int)
+engine=MEMORY
+partition by key (a);
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	The storage engine for the table doesn't support optimize
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	note	The storage engine for the table doesn't support analyze
+drop table t1;
+drop procedure if exists mysqltest_1;
+create table t1 (a int)
+partition by list (a)
+(partition p0 values in (0));
+insert into t1 values (0);
+create procedure mysqltest_1 ()
+begin
+begin
+declare continue handler for sqlexception begin end;
+update ignore t1 set a = 1 where a = 0;
+end;
+prepare stmt1 from 'alter table t1';
+execute stmt1;
+end//
+call mysqltest_1()//
+drop table t1;
+drop procedure mysqltest_1;
+create table t1 (a int, index(a))
+partition by hash(a);
+insert into t1 values (1),(2);
+select * from t1 ORDER BY a DESC;
+a
+2
+1
+drop table t1;
+create table t1 (a bigint unsigned not null, primary key(a))
+engine = myisam
+partition by key (a)
+partitions 10;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`a`)
+PARTITIONS 10
+insert into t1 values (18446744073709551615), (0xFFFFFFFFFFFFFFFE),
+(18446744073709551613), (18446744073709551612);
+select * from t1;
+a
+18446744073709551612
+18446744073709551613
+18446744073709551614
+18446744073709551615
+select * from t1 where a = 18446744073709551615;
+a
+18446744073709551615
+delete from t1 where a = 18446744073709551615;
+select * from t1;
+a
+18446744073709551612
+18446744073709551613
+18446744073709551614
+drop table t1;
+CREATE TABLE t1 (
+num int(11) NOT NULL, cs int(11) NOT NULL)
+PARTITION BY RANGE (num) SUBPARTITION BY HASH (
+cs) SUBPARTITIONS 2 (PARTITION p_X VALUES LESS THAN MAXVALUE);
+ALTER TABLE t1 
+REORGANIZE PARTITION p_X INTO ( 
+PARTITION p_100 VALUES LESS THAN (100), 
+PARTITION p_X VALUES LESS THAN MAXVALUE 
+);
+drop table t1;
+CREATE TABLE t2 (
+taken datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+id int(11) NOT NULL DEFAULT '0',
+PRIMARY KEY (id,taken),
+KEY taken (taken)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+INSERT INTO t2 VALUES 
+('2006-09-27 21:50:01',16421),
+('2006-10-02 21:50:01',16421),
+('2006-09-27 21:50:01',19092),
+('2006-09-28 21:50:01',19092),
+('2006-09-29 21:50:01',19092),
+('2006-09-30 21:50:01',19092),
+('2006-10-01 21:50:01',19092),
+('2006-10-02 21:50:01',19092),
+('2006-09-27 21:50:01',22589),
+('2006-09-29 21:50:01',22589);
+CREATE TABLE t1 (
+id int(8) NOT NULL,
+PRIMARY KEY (id)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES 
+(16421),
+(19092),
+(22589);
+CREATE TABLE t4 (
+taken datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+id int(11) NOT NULL DEFAULT '0',
+PRIMARY KEY (id,taken),
+KEY taken (taken)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 
+PARTITION BY RANGE (to_days(taken)) 
+(
+PARTITION p01 VALUES LESS THAN (732920) , 
+PARTITION p02 VALUES LESS THAN (732950) , 
+PARTITION p03 VALUES LESS THAN MAXVALUE ) ;
+INSERT INTO t4 select * from t2;
+set @f_date='2006-09-28';
+set @t_date='2006-10-02';
+SELECT t1.id AS MyISAM_part
+FROM t1
+WHERE t1.id IN (
+SELECT distinct id
+FROM t4
+WHERE taken BETWEEN @f_date AND date_add(@t_date, INTERVAL 1 DAY))
+ORDER BY t1.id;
+MyISAM_part
+16421
+19092
+22589
+drop table t1, t2, t4;
+CREATE TABLE t1 (
+taken datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+id int(11) NOT NULL DEFAULT '0',
+status varchar(20) NOT NULL DEFAULT '',
+PRIMARY KEY (id,taken)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+PARTITION BY RANGE (to_days(taken))
+(
+PARTITION p15 VALUES LESS THAN (732950) ,
+PARTITION p16 VALUES LESS THAN MAXVALUE ) ;
+INSERT INTO t1 VALUES
+('2006-09-27 21:50:01',22589,'Open'),
+('2006-09-29 21:50:01',22589,'Verified');
+DROP TABLE IF EXISTS t2;
+Warnings:
+Note	1051	Unknown table 'test.t2'
+CREATE TABLE t2 (
+id int(8) NOT NULL,
+severity tinyint(4) NOT NULL DEFAULT '0',
+priority tinyint(4) NOT NULL DEFAULT '0',
+status varchar(20) DEFAULT NULL,
+alien tinyint(4) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+INSERT INTO t2 VALUES
+(22589,1,1,'Need Feedback',0);
+SELECT t2.id FROM t2 WHERE t2.id IN (SELECT id FROM t1 WHERE status = 'Verified');
+id
+22589
+drop table t1, t2;
+create table t1 (c1 varchar(255),c2 tinyint,primary key(c1))
+partition by key (c1) partitions 10 ;
+insert into t1 values ('aaa','1') on duplicate key update c2 = c2 + 1;
+insert into t1 values ('aaa','1') on duplicate key update c2 = c2 + 1;
+select * from t1;
+c1	c2
+aaa	2
+drop table t1;
+create table t1 (s1 bigint) partition by list (s1) (partition p1 values in (-9223372036854775808));
+drop table t1;
+create table t1(a int auto_increment, b int, primary key (b, a)) 
+partition by hash(b) partitions 2;
+insert into t1 values (null, 1);
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	9	9	0	0	0	1	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+drop table t1;
+create table t1(a int auto_increment primary key)
+partition by key(a) partitions 2;
+insert into t1 values (null), (null), (null);
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	3	7	21	0	0	0	4	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+drop table t1;
+CREATE TABLE t1(a INT NOT NULL, b TINYBLOB, KEY(a))
+PARTITION BY RANGE(a) ( PARTITION p0 VALUES LESS THAN (32));
+INSERT INTO t1 VALUES (1, REPEAT('a', 10));
+INSERT INTO t1 SELECT a + 1, b FROM t1;
+INSERT INTO t1 SELECT a + 2, b FROM t1;
+INSERT INTO t1 SELECT a + 4, b FROM t1;
+INSERT INTO t1 SELECT a + 8, b FROM t1;
+ALTER TABLE t1 ADD PARTITION (PARTITION p1 VALUES LESS THAN (64));
+ALTER TABLE t1 DROP PARTITION p1;
+DROP TABLE t1;
+create table t (s1 int) engine=myisam partition by key (s1);
+create trigger t_ad after delete on t for each row insert into t values (old.s1);
+insert into t values (1);
+drop table t;
+create table t2 (b int);
+create table t1 (b int)
+PARTITION BY RANGE (t2.b) (
+PARTITION p1 VALUES LESS THAN (10),
+PARTITION p2 VALUES LESS THAN (20)
+) select * from t2;
+ERROR 42S22: Unknown column 't2.b' in 'partition function'
+create table t1 (a int)
+PARTITION BY RANGE (b) (
+PARTITION p1 VALUES LESS THAN (10),
+PARTITION p2 VALUES LESS THAN (20)
+) select * from t2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`b`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = MyISAM)
+drop table t1, t2;
+create table t1
+(s1 timestamp on update current_timestamp, s2 int)
+partition by key(s1) partitions 3;
+insert into t1 values (null,null);
+drop table t1;
+create table t1 (
+c0 int,
+c1 bigint,
+c2 set('sweet'),
+key (c2,c1,c0), 
+key(c0)
+) engine=myisam partition by hash (c0) partitions 5;
+insert ignore into t1 set c0 = -6502262, c1 = 3992917, c2 = 35019;
+insert ignore into t1 set c0 = 241221, c1 = -6862346, c2 = 56644;
+select c1 from t1 group by (select c0 from t1 limit 1);
+c1
+-6862346
+drop table t1;
+CREATE TABLE t1(a int)
+PARTITION BY RANGE (a) (
+PARTITION p1 VALUES LESS THAN (10),
+PARTITION p2 VALUES LESS THAN (20)
+);
+ALTER TABLE t1 OPTIMIZE PARTITION p1 EXTENDED;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'EXTENDED' at line 1
+ALTER TABLE t1 ANALYZE PARTITION p1 EXTENDED;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'EXTENDED' at line 1
+ALTER TABLE t1 ANALYZE PARTITION p1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ALTER TABLE t1 CHECK PARTITION p1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+ALTER TABLE t1 REPAIR PARTITION p1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+ALTER TABLE t1 OPTIMIZE PARTITION p1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+DROP TABLE t1;
+CREATE TABLE t1 (s1 BIGINT UNSIGNED)
+PARTITION BY RANGE (s1) (
+PARTITION p0 VALUES LESS THAN (0), 
+PARTITION p1 VALUES LESS THAN (1), 
+PARTITION p2 VALUES LESS THAN (18446744073709551615)
+);
+INSERT INTO t1 VALUES (0), (18446744073709551614);
+INSERT INTO t1 VALUES (18446744073709551615);
+ERROR HY000: Table has no partition for value 18446744073709551615
+DROP TABLE t1;
+CREATE TABLE t1 (s1 BIGINT UNSIGNED)
+PARTITION BY RANGE (s1) (
+PARTITION p0 VALUES LESS THAN (0),
+PARTITION p1 VALUES LESS THAN (1),
+PARTITION p2 VALUES LESS THAN (18446744073709551614),
+PARTITION p3 VALUES LESS THAN MAXVALUE
+);
+INSERT INTO t1 VALUES (-1), (0), (18446744073709551613), 
+(18446744073709551614), (18446744073709551615);
+Warnings:
+Warning	1264	Out of range value for column 's1' at row 1
+SELECT * FROM t1;
+s1
+0
+0
+18446744073709551613
+18446744073709551614
+18446744073709551615
+SELECT * FROM t1 WHERE s1 = 0;
+s1
+0
+0
+SELECT * FROM t1 WHERE s1 = 18446744073709551614;
+s1
+18446744073709551614
+SELECT * FROM t1 WHERE s1 = 18446744073709551615;
+s1
+18446744073709551615
+DROP TABLE t1;
+CREATE TABLE t1 (s1 BIGINT UNSIGNED)  
+PARTITION BY RANGE (s1) (
+PARTITION p0 VALUES LESS THAN (0),
+PARTITION p1 VALUES LESS THAN (1),
+PARTITION p2 VALUES LESS THAN (18446744073709551615),
+PARTITION p3 VALUES LESS THAN MAXVALUE
+);
+DROP TABLE t1;
+CREATE TABLE t1
+(int_column INT, char_column CHAR(5),
+PRIMARY KEY(char_column,int_column))
+PARTITION BY KEY(char_column,int_column)
+PARTITIONS 101;
+INSERT INTO t1 (int_column, char_column) VALUES
+(      39868 ,'zZZRW'),       
+(     545592 ,'zZzSD'),       
+(       4936 ,'zzzsT'),       
+(       9274 ,'ZzZSX'),       
+(     970185 ,'ZZzTN'),       
+(     786036 ,'zZzTO'),       
+(      37240 ,'zZzTv'),       
+(     313801 ,'zzzUM'),       
+(     782427 ,'ZZZva'),       
+(     907955 ,'zZZvP'),       
+(     453491 ,'zzZWV'),       
+(     756594 ,'ZZZXU'),       
+(     718061 ,'ZZzZH');
+SELECT * FROM t1 ORDER BY char_column DESC;
+int_column	char_column
+718061	ZZzZH
+756594	ZZZXU
+453491	zzZWV
+907955	zZZvP
+782427	ZZZva
+313801	zzzUM
+37240	zZzTv
+786036	zZzTO
+970185	ZZzTN
+9274	ZzZSX
+4936	zzzsT
+545592	zZzSD
+39868	zZZRW
+DROP TABLE t1;
+CREATE TABLE t1(id MEDIUMINT NOT NULL AUTO_INCREMENT,
+user CHAR(25), PRIMARY KEY(id))
+PARTITION BY RANGE(id)
+SUBPARTITION BY hash(id) subpartitions 2
+(PARTITION pa1 values less than (10),
+PARTITION pa2 values less than (20),
+PARTITION pa11 values less than MAXVALUE);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` mediumint(9) NOT NULL AUTO_INCREMENT,
+  `user` char(25) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=16 DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`id`)
+SUBPARTITION BY HASH (`id`)
+SUBPARTITIONS 2
+(PARTITION `pa1` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `pa2` VALUES LESS THAN (20) ENGINE = MyISAM,
+ PARTITION `pa11` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+drop table t1;
+CREATE TABLE  t1 (
+`ID` bigint(20) NOT NULL AUTO_INCREMENT,
+`createdDate` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+`number` int,
+PRIMARY KEY (`ID`, number)
+)
+PARTITION BY RANGE (number) (
+PARTITION p0 VALUES LESS THAN (6),
+PARTITION p1 VALUES LESS THAN (11)
+);
+create table t2 (
+`ID` bigint(20),
+`createdDate` TIMESTAMP,
+`number` int
+);
+INSERT INTO t1 SET number=1;
+insert into t2 select * from t1;
+SELECT SLEEP(1);
+SLEEP(1)
+0
+UPDATE t1 SET number=6;
+select count(*) from t1, t2 where t1.createdDate = t2.createdDate;
+count(*)
+1
+drop table t1, t2;
+SET @orig_sql_mode = @@SQL_MODE;
+SET SQL_MODE='STRICT_ALL_TABLES,ERROR_FOR_DIVISION_BY_ZERO';
+CREATE TABLE t1 (c1 INT)
+PARTITION BY LIST(1 DIV c1) (
+PARTITION p0 VALUES IN (NULL),
+PARTITION p1 VALUES IN (1)
+);
+INSERT INTO t1 VALUES (0);
+ERROR 22012: Division by 0
+SELECT * FROM t1;
+c1
+TRUNCATE t1;
+INSERT INTO t1 VALUES (NULL), (0), (1), (2);
+ERROR 22012: Division by 0
+SELECT * FROM t1;
+c1
+NULL
+DROP TABLE t1;
+SET SQL_MODE= @orig_sql_mode;
+create table t1 (s1 int) partition by hash(s1) partitions 2;
+create index i on t1 (s1);
+insert into t1 values (1);
+insert into t1 select s1 from t1;
+insert into t1 select s1 from t1;
+insert into t1 select s1 from t1 order by s1 desc;
+select * from t1;
+s1
+1
+1
+1
+1
+1
+1
+1
+1
+drop table t1;
+create table t1 (s1 int) partition by range(s1) 
+(partition pa1 values less than (10),
+partition pa2 values less than MAXVALUE);
+create index i on t1 (s1);
+insert into t1 values (1);
+insert into t1 select s1 from t1;
+insert into t1 select s1 from t1;
+insert into t1 select s1 from t1 order by s1 desc;
+select * from t1;
+s1
+1
+1
+1
+1
+1
+1
+1
+1
+drop table t1;
+create table t1 (s1 int) partition by range(s1) 
+(partition pa1 values less than (10),
+partition pa2 values less than MAXVALUE);
+create index i on t1 (s1);
+insert into t1 values (20);
+insert into t1 select s1 from t1;
+insert into t1 select s1 from t1;
+insert into t1 select s1 from t1 order by s1 desc;
+select * from t1;
+s1
+20
+20
+20
+20
+20
+20
+20
+20
+drop table t1;
+create table t1 (s1 int) partition by range(s1) 
+(partition pa1 values less than (10),
+partition pa2 values less than MAXVALUE);
+create index i on t1 (s1);
+insert into t1 values (1), (2), (3), (4), (5), (6), (7), (8);
+insert into t1 select s1 from t1;
+insert into t1 select s1 from t1;
+insert into t1 select s1 from t1;
+insert into t1 select s1 from t1;
+insert into t1 select s1 from t1 order by s1 desc;
+insert into t1 select s1 from t1 where s1=3;
+select count(*) from t1;
+count(*)
+288
+drop table t1;
+#
+# Bug#42944: partition not pruned correctly
+#
+CREATE TABLE t1 (a int) PARTITION BY RANGE (a)
+(PARTITION p0 VALUES LESS THAN (100),
+PARTITION p1 VALUES LESS THAN (200),
+PARTITION p2 VALUES LESS THAN (300),
+PARTITION p3 VALUES LESS THAN MAXVALUE);
+INSERT INTO t1 VALUES (10), (100), (200), (300), (400);
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a>=200;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p2,p3	ALL	NULL	NULL	NULL	NULL	3	Using where
+DROP TABLE t1;
+CREATE TABLE t1 ( a INT, b INT, c INT, KEY bc(b, c) )
+PARTITION BY KEY (a, b) PARTITIONS 3
+;
+INSERT INTO t1 VALUES
+(17, 1, -8),
+(3,  1, -7),
+(23, 1, -6),
+(22, 1, -5),
+(11, 1, -4),
+(21, 1, -3),
+(19, 1, -2),
+(30, 1, -1),
+(20, 1, 1),
+(16, 1, 2),
+(18, 1, 3),
+(9,  1, 4),
+(15, 1, 5),
+(28, 1, 6),
+(29, 1, 7),
+(25, 1, 8),
+(10, 1, 9),
+(13, 1, 10),
+(27, 1, 11),
+(24, 1, 12),
+(12, 1, 13),
+(26, 1, 14),
+(14, 1, 15)
+;
+SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
+b	c
+1	-8
+1	-7
+1	-6
+1	-5
+1	-4
+1	-3
+1	-2
+1	-1
+1	1
+1	2
+1	3
+1	4
+1	5
+1	6
+1	7
+1	8
+1	9
+1	10
+1	11
+1	12
+1	13
+1	14
+1	15
+EXPLAIN
+SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
+DROP TABLE t1;
+#
+# Bug #45807: crash accessing partitioned table and sql_mode 
+#   contains ONLY_FULL_GROUP_BY
+# Bug#46923: select count(*) from partitioned table fails with
+# ONLY_FULL_GROUP_BY
+#
+SET SESSION SQL_MODE='ONLY_FULL_GROUP_BY';
+CREATE TABLE t1(id INT,KEY(id)) ENGINE=MYISAM 
+PARTITION BY HASH(id) PARTITIONS 2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP TABLE t1;
+SET SESSION SQL_MODE=DEFAULT;
+#
+# Bug#46198: Hang after failed ALTER TABLE on partitioned table.
+#
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (s1 INT PRIMARY KEY) PARTITION BY HASH(s1);
+LOCK TABLES t1 WRITE, t1 b READ;
+UNLOCK TABLES;
+ALTER TABLE t1 DROP PARTITION p1;
+ERROR HY000: DROP PARTITION can only be used on RANGE/LIST partitions
+SELECT * FROM t1;
+s1
+DROP TABLE t1;
+CREATE TABLE t1 (s1 VARCHAR(5) PRIMARY KEY) PARTITION BY KEY(s1);
+LOCK TABLES t1 WRITE, t1 b READ;
+UNLOCK TABLES;
+ALTER TABLE t1 ADD COLUMN (s3 VARCHAR(5) UNIQUE);
+ERROR HY000: A UNIQUE INDEX must include all columns in the table's partitioning function
+SELECT * FROM t1;
+s1
+DROP TABLE t1;
+#
+# BUG#51868 - crash with myisam_use_mmap and partitioned myisam tables
+#
+SET GLOBAL myisam_use_mmap=1;
+CREATE TABLE t1(a INT) PARTITION BY HASH(a) PARTITIONS 1;
+INSERT INTO t1 VALUES(0);
+FLUSH TABLE t1;
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES(0);
+DROP TABLE t1;
+SET GLOBAL myisam_use_mmap=default;
+#
+# Bug#13580775 ASSERTION FAILED: RECORD_LENGTH == M_RECORD_LENGTH,
+# FILE FILESORT_UTILS.CC
+#
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+c CHAR(1),
+d INT,
+KEY (c,d)
+) PARTITION BY KEY () PARTITIONS 1;
+INSERT INTO t1 VALUES (1,1,'a',1), (2,2,'a',1);
+SELECT 1 FROM t1 WHERE 1 IN
+(SELECT  group_concat(b)
+FROM t1
+WHERE c > geomfromtext('point(1 1)')
+GROUP BY b
+);
+1
+1
+1
+DROP TABLE t1;
+#
+# Bug#13011410 CRASH IN FILESORT CODE WITH GROUP BY/ROLLUP
+#
+CREATE TABLE t1 (
+a INT,
+b MEDIUMINT,
+c VARCHAR(300) CHARACTER SET hp8 COLLATE hp8_bin,
+PRIMARY KEY (a,c(299))) 
+ENGINE=myisam
+PARTITION BY LINEAR KEY () PARTITIONS 2;
+INSERT INTO t1 VALUES (1,2,'test'), (2,3,'hi'), (4,5,'bye');
+SELECT 1 FROM t1 WHERE b < SOME
+( SELECT 1 FROM t1 WHERE a >= 1
+GROUP BY b WITH ROLLUP
+HAVING b > geomfromtext("")
+);
+ERROR HY000: Illegal parameter data types mediumint and geometry for operation '>'
+DROP TABLE t1;
+
+MDEV-612  Valgrind error in  ha_maria::check_if_incompatible_data
+
+CREATE TABLE t1 (a INT, b INT, KEY(a)) ENGINE=Aria PARTITION BY KEY(a) PARTITIONS 2;
+ALTER TABLE t1 ADD KEY (b);
+drop table t1;
+End of 5.1 tests
+#
+# BUG#55385: UPDATE statement throws an error, but still updates
+#            the table entries
+CREATE TABLE t1_part (
+partkey int,
+nokey int
+) PARTITION BY LINEAR HASH(partkey) PARTITIONS 3;
+INSERT INTO t1_part VALUES (1, 1) , (10, 10);
+CREATE VIEW v1 AS SELECT * FROM t1_part;
+
+# Should be (1,1),(10,10)
+SELECT * FROM t1_part;
+partkey	nokey
+1	1
+10	10
+
+# Case 1
+# Update is refused because partitioning key is updated
+UPDATE t1_part AS A NATURAL JOIN t1_part B SET A.partkey = 2, B.nokey = 3;
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
+UPDATE t1_part AS A NATURAL JOIN t1_part B SET A.nokey = 2, B.partkey = 3;
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
+
+# Case 2
+# Like 1, but partition accessed through a view
+UPDATE t1_part AS A NATURAL JOIN v1 as B SET A.nokey = 2 , B.partkey = 3;
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
+UPDATE v1 AS A NATURAL JOIN t1_part as B SET A.nokey = 2 , B.partkey = 3;
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
+
+# Should be (1,1),(10,10)
+SELECT * FROM t1_part;
+partkey	nokey
+1	1
+10	10
+
+# Case 3
+# Update is accepted because partitioning key is not updated
+UPDATE t1_part AS A NATURAL JOIN t1_part B SET A.nokey = 2 , B.nokey = 3;
+
+# Should be (1,3),(10,3)
+SELECT * FROM t1_part;
+partkey	nokey
+1	3
+10	3
+
+DROP VIEW v1;
+DROP TABLE t1_part;
+#
+# BUG#598247: partition.test produces valgrind errors in 5.3-based branches
+#
+CREATE TABLE t1 (
+a INT DEFAULT NULL,
+b DOUBLE DEFAULT NULL,
+c INT DEFAULT NULL,
+KEY idx2(b,a)
+) engine=myisam PARTITION BY HASH(c) PARTITIONS 3;
+INSERT INTO t1 VALUES (6,8,9);
+INSERT INTO t1 VALUES (6,8,10);
+SELECT 1 FROM t1 JOIN t1 AS t2 USING (a);
+1
+1
+1
+1
+1
+drop table t1;
+#
+# LP BUG#1001117 Crash on a simple select that uses a temptable view
+# MySQL Bug #12330344 Crash and/or valgrind errors in free_io_cache with join, view,
+# partitioned table
+#
+CREATE TABLE t1(a INT PRIMARY KEY) PARTITION BY LINEAR KEY (a);
+CREATE ALGORITHM=TEMPTABLE VIEW vtmp AS
+SELECT 1 FROM t1 AS t1_0 JOIN t1 ON t1_0.a LIKE (SELECT 1 FROM t1);
+SELECT * FROM vtmp;
+1
+DROP VIEW vtmp;
+DROP TABLE t1;
+#
+# MDEV-365 "Got assertion when doing alter table on a partition"
+#
+CREATE TABLE t1 ( i INT ) ENGINE=Aria PARTITION BY HASH(i) PARTITIONS 2;
+INSERT INTO t1 VALUES (1),(2),(2),(3),(4);
+ALTER TABLE t1 ADD PARTITION PARTITIONS 2;
+SELECT * from t1 order by i;
+i
+1
+2
+2
+3
+4
+DROP TABLE t1;
+#
+# MDEV-5555: Incorrect index_merge on BTREE indices
+#
+CREATE TABLE t1 (
+id bigint(20) unsigned NOT NULL,
+id2 bigint(20) unsigned NOT NULL,
+dob date DEFAULT NULL,
+address char(100) DEFAULT NULL,
+city char(35) DEFAULT NULL,
+hours_worked_per_week smallint(5) unsigned DEFAULT NULL,
+weeks_worked_last_year tinyint(3) unsigned DEFAULT NULL,
+KEY dob (dob),
+KEY address (address),
+KEY city (city),
+KEY hours_worked_per_week (hours_worked_per_week),
+KEY weeks_worked_last_year (weeks_worked_last_year)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+PARTITION BY KEY (id) PARTITIONS 5;
+# Insert some rows 
+select * from t1 where hours_worked_per_week = 40 and weeks_worked_last_year = 52 and dob < '1949-11-21';
+id	id2	dob	address	city	hours_worked_per_week	weeks_worked_last_year
+16	16	1949-11-07	address16	city16	40	52
+50	50	1923-09-08	address50	city50	40	52
+select * from t1 IGNORE INDEX(dob, weeks_worked_last_year, hours_worked_per_week) where hours_worked_per_week = 40 and weeks_worked_last_year = 52 and dob < '1949-11-21';
+id	id2	dob	address	city	hours_worked_per_week	weeks_worked_last_year
+16	16	1949-11-07	address16	city16	40	52
+50	50	1923-09-08	address50	city50	40	52
+drop table t1;
+#
+# MDEV-6322: The PARTITION engine can return wrong query results
+#
+CREATE TABLE t1 (
+CustomerID varchar(5) DEFAULT NULL,
+CompanyName varchar(40) DEFAULT NULL,
+ContactName varchar(30) DEFAULT NULL,
+ContactTitle varchar(30) DEFAULT NULL,
+Address varchar(60) DEFAULT NULL,
+City varchar(15) DEFAULT NULL,
+Region varchar(15) DEFAULT NULL,
+PostalCode varchar(10) DEFAULT NULL,
+Country varchar(15) NOT NULL,
+Phone varchar(24) DEFAULT NULL,
+Fax varchar(24) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+PARTITION BY LIST  COLUMNS(Country)
+(PARTITION p1 VALUES IN ('Germany','Austria','Switzerland','Poland'),
+PARTITION p2 VALUES IN ('USA','Canada','Mexico'),
+PARTITION p3 VALUES IN ('Spain','Portugal','Italy'),
+PARTITION p4 VALUES IN ('UK','Ireland'),
+PARTITION p5 VALUES IN ('France','Belgium'),
+PARTITION p6 VALUES IN ('Sweden','Finland','Denmark','Norway'),
+PARTITION p7 VALUES IN ('Venezuela','Argentina','Brazil')
+);
+INSERT INTO t1 (CustomerID, City, Country) VALUES 
+('ANATR','México D.F','Mexico'),
+('ANTON','México D.F','Mexico'),
+('BOTTM','Tsawassen','Canada'),
+('CENTC','México D.F','Mexico'),
+('GREAL','Eugene','USA'),
+('HUNGC','Elgin','USA'),
+('LAUGB','Vancouver','Canada'),
+('LAZYK','Walla Walla','USA'),
+('LETSS','San Francisco','USA'),
+('LONEP','Portland','USA');
+SELECT * FROM t1 WHERE Country = 'USA';
+CustomerID	CompanyName	ContactName	ContactTitle	Address	City	Region	PostalCode	Country	Phone	Fax
+GREAL	NULL	NULL	NULL	NULL	Eugene	NULL	NULL	USA	NULL	NULL
+HUNGC	NULL	NULL	NULL	NULL	Elgin	NULL	NULL	USA	NULL	NULL
+LAZYK	NULL	NULL	NULL	NULL	Walla Walla	NULL	NULL	USA	NULL	NULL
+LETSS	NULL	NULL	NULL	NULL	San Francisco	NULL	NULL	USA	NULL	NULL
+LONEP	NULL	NULL	NULL	NULL	Portland	NULL	NULL	USA	NULL	NULL
+DROP TABLE t1;
+CREATE TABLE t1 ( d DATE NOT NULL)
+PARTITION BY RANGE( YEAR(d) ) (
+PARTITION p0 VALUES LESS THAN (1960),
+PARTITION p1 VALUES LESS THAN (1970),
+PARTITION p2 VALUES LESS THAN (1980),
+PARTITION p3 VALUES LESS THAN (1990)
+);
+ALTER TABLE t1 ADD PARTITION IF NOT EXISTS(
+PARTITION `p5` VALUES LESS THAN (2010)
+COMMENT 'APSTART \' APEND'
+);
+ALTER TABLE t1 ADD PARTITION IF NOT EXISTS(
+PARTITION `p5` VALUES LESS THAN (2010)
+COMMENT 'APSTART \' APEND'
+);
+Warnings:
+Note	1517	Duplicate partition name p5
+alter table t1 drop partition if exists p5;
+alter table t1 drop partition if exists p5;
+Warnings:
+Note	1507	Error in list of partitions to DROP
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM PARTITION BY RANGE(a) (PARTITION p1 VALUES LESS THAN (0));
+ALTER TABLE t1 ADD PARTITION (PARTITION p2 VALUES LESS THAN (1));
+PREPARE stmt FROM 'ALTER TABLE t1 ADD PARTITION IF NOT EXISTS (PARTITION p2 VALUES LESS THAN (2))';
+EXECUTE stmt;
+Warnings:
+Note	1517	Duplicate partition name p2
+EXECUTE stmt;
+Warnings:
+Note	1517	Duplicate partition name p2
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+#
+# MDEV-17032: Estimates are higher for partitions of a table with @@use_stat_tables= PREFERABLY
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (
+part_key int,
+a int,
+b int
+) partition by list(part_key) (
+partition p0 values in (0),
+partition p1 values in (1),
+partition p2 values in (2),
+partition p3 values in (3),
+partition p4 values in (4)
+);
+insert into t2
+select mod(a,5), a/100, mod(a,5) from t1;
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+#
+# Tests using stats provided by the storage engine
+#
+explain extended select * from t2 where part_key=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`part_key` = 1
+explain partitions select * from t2 where part_key=1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	p1	ALL	NULL	NULL	NULL	NULL	200	Using where
+explain extended select * from t2 where  part_key in (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	400	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`part_key` in (1,2)
+explain partitions select * from t2 where  part_key in (1,2);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	p1,p2	ALL	NULL	NULL	NULL	NULL	400	Using where
+explain extended select * from t2 where b=5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`b` = 5
+explain partitions select * from t2 where b=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	NULL	NULL	NULL	NULL	1000	Using where
+explain extended select * from t2 partition(p0)  where b=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` PARTITION (`p0`) where `test`.`t2`.`b` = 1
+set @save_histogram_size=@@histogram_size;
+set @@histogram_size=100;
+set @@use_stat_tables= PREFERABLY;
+set @@optimizer_use_condition_selectivity=4;
+analyze table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+#
+# Tests using EITS
+#
+# filtered should be 100
+explain extended select * from t2 where part_key=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`part_key` = 1
+explain partitions select * from t2 where part_key=1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	p1	ALL	NULL	NULL	NULL	NULL	200	Using where
+# filtered should be 100
+explain extended select * from t2 where  part_key in (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	400	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`part_key` in (1,2)
+explain partitions select * from t2 where  part_key in (1,2);
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	p1,p2	ALL	NULL	NULL	NULL	NULL	400	Using where
+explain extended select * from t2 where b=5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1000	19.61	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`b` = 5
+explain partitions select * from t2 where b=5;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	NULL	NULL	NULL	NULL	1000	Using where
+explain extended select * from t2 partition(p0)  where b=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	200	19.61	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` PARTITION (`p0`) where `test`.`t2`.`b` = 1
+set @@use_stat_tables= @save_use_stat_tables;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set @@histogram_size= @save_histogram_size;
+drop table t0,t1,t2;
+#
+# End of 10.0 tests
+#
+#
+# MDEV-8283 crash in get_mm_leaf with xor on binary col
+#
+CREATE TABLE t1(a BINARY(80)) PARTITION BY KEY(a) PARTITIONS 3;
+SELECT 1 FROM t1 WHERE a XOR 'a';
+1
+DROP TABLE t1;
+#
+# Bug #25207522: INCORRECT ORDER-BY BEHAVIOR ON A PARTITIONED TABLE
+# WITH A COMPOSITE PREFIX INDEX
+#
+create table t1(id int unsigned not null,
+data varchar(2) default null,
+key data_idx (data(1),id)
+) default charset=utf8
+partition by range (id) (
+partition p10 values less than (10),
+partition p20 values less than (20)
+);
+insert t1 values (6, 'ab'), (4, 'ab'), (5, 'ab'), (16, 'ab'), (14, 'ab'), (15, 'ab'), (5, 'ac'), (15, 'aa') ;
+select id from t1 where data = 'ab' order by id;
+id
+4
+5
+6
+14
+15
+16
+drop table t1;
+create table t1(id int unsigned not null,
+data text default null,
+key data_idx (data(1),id)
+) default charset=utf8
+partition by range (id) (
+partition p10 values less than (10),
+partition p20 values less than (20)
+);
+insert t1 values (6, 'ab'), (4, 'ab'), (5, 'ab'), (16, 'ab'), (14, 'ab'), (15, 'ab'), (5, 'ac'), (15, 'aa') ;
+select id from t1 where data = 'ab' order by id;
+id
+4
+5
+6
+14
+15
+16
+drop table t1;
+#
+# MDEV-5628: Assertion `! is_set()' or `!is_set() ||
+# (m_status == DA_OK_BULK && is_bulk_op())' fails on UPDATE on a
+# partitioned table with subquery (MySQL:71630)
+#
+CREATE TABLE t1 (a INT) PARTITION BY HASH(a) PARTITIONS 2;
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1),(2);
+UPDATE t1 SET a = 7 WHERE a = ( SELECT b FROM t2 ) ORDER BY a LIMIT 6;
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1,t2;
+#
+# End of 10.1 tests
+#

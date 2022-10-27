@@ -1,0 +1,12 @@
+--source include/have_wsrep_enabled.inc
+--source include/have_binlog_format_row.inc
+
+--echo
+--echo #
+--echo # MDEV#5687: Maria doesn't shutdown following upgrade to 5.5.35-galera
+--echo #
+
+# Note: This test is to ensure that server shuts down properly.
+SELECT @@GLOBAL.thread_handling;
+
+--echo # End of test.

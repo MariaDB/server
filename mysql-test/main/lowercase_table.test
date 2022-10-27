@@ -1,0 +1,141 @@
+#
+# Test of --lower-case-table-names
+#
+
+create table T1 (id int primary key, Word varchar(40) not null, Index(Word));
+create table t4 (id int primary key, Word varchar(40) not null);
+INSERT INTO T1 VALUES (1, 'a'), (2, 'b'), (3, 'c');
+INSERT INTO T4 VALUES(1,'match');
+SELECT * FROM t1;
+SELECT T1.id from T1 LIMIT 1;
+SELECT T2.id from t1 as T2 LIMIT 1;
+SELECT * from t1 left join t4 on (test.t1.id= TEST.t4.id) where TEST.t1.id >= test.t4.id;
+# This gave an error in 4.0, but it's fixed in 4.1
+SELECT T2.id from t1 as t2 LIMIT 1;
+RENAME TABLE T1 TO T2;
+ALTER TABLE T2 ADD new_col int not null;
+ALTER TABLE T2 RENAME T3;
+show tables like 't_';
+drop table t3,t4;
+#
+# Test alias
+#
+create table t1 (a int);
+select count(*) from T1;
+select count(*) from t1;
+select count(T1.a) from t1;
+select count(bags.a) from t1 as Bags;
+drop table t1;
+
+#
+# Test all caps database name
+#
+create database mysqltest;
+use MYSQLTEST;
+create table t1 (a int);
+select T1.a from MYSQLTEST.T1;
+select t1.a from MYSQLTEST.T1;
+select mysqltest.t1.* from MYSQLTEST.t1;
+select MYSQLTEST.t1.* from MYSQLTEST.t1;
+select MYSQLTEST.T1.* from MYSQLTEST.T1;
+select MYSQLTEST.T1.* from T1;
+alter table t1 rename to T1;
+select MYSQLTEST.t1.* from MYSQLTEST.t1;
+drop database mysqltest;
+use test;
+
+#
+# multiupdate/delete & --lower-case-table-names
+#
+create table t1 (a int);
+create table t2 (a int);
+delete p1.*,P2.* from t1 as p1, t2 as p2 where p1.a=P2.a;
+delete P1.*,p2.* from t1 as P1, t2 as P2 where P1.a=p2.a;
+update t1 as p1, t2 as p2 SET p1.a=1,P2.a=1 where p1.a=P2.a;
+update t1 as P1, t2 as P2 SET P1.a=1,p2.a=1 where P1.a=p2.a;
+drop table t1,t2;
+
+#
+# aliases case insensitive
+#
+create table t1 (a int);
+create table t2 (a int);
+--error ER_NONUNIQ_TABLE
+select * from t1 c, t2 C;
+--error ER_NONUNIQ_TABLE
+select C.a, c.a from t1 c, t2 C;
+drop table t1, t2;
+
+--echo #
+--echo # Bug #9761: CREATE TABLE ... LIKE ... not handled correctly when lower_case_table_names is set
+--echo #
+
+create table t1 (a int);
+create table t2 like T1;
+drop table t1, t2;
+
+show tables;
+--echo #
+--echo # End of 4.1 tests
+--echo #
+
+--echo #
+--echo # Bug#20404: SHOW CREATE TABLE fails with Turkish I
+--echo #
+set names utf8;
+create table İ (s1 int);
+show create table İ;
+show tables;
+drop table İ;
+create table İİ (s1 int);
+show create table İİ;
+show tables;
+drop table İİ;
+set names latin1;
+
+--echo #
+--echo # End of 5.0 tests
+--echo #
+
+--echo #
+--echo # Bug#21317: SHOW CREATE DATABASE does not obey to lower_case_table_names
+--echo #
+create database mysql_TEST character set latin2;
+create table mysql_TEST.T1 (a int);
+show create database mysql_TEST;
+show create table mysql_TEST.T1;
+show databases like "mysql%";
+show databases like "mysql_TE%";
+drop database mysql_TEST;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-17148 DROP DATABASE throw "Directory not empty" after changed lower_case_table_names.
+--echo #
+
+let $datadir=`select @@datadir`;
+create database db1;
+create table t1 (a int);
+copy_file $datadir/test/t1.frm $datadir/db1/T1.frm;
+drop database db1;
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-25109 Server crashes in sp_name::sp_name upon invalid data in mysql.proc
+--echo #
+call mtr.add_suppression("Stored routine ''.'': invalid value in column");
+insert ignore into mysql.proc () values ();
+--error ER_SP_WRONG_NAME
+show function status;
+delete from mysql.proc where name = '';
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

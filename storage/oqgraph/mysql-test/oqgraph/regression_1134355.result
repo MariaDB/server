@@ -1,0 +1,46 @@
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+CREATE TABLE graph_base (
+from_id INT UNSIGNED NOT NULL,
+to_id INT UNSIGNED NOT NULL,
+another_id INT UNSIGNED NOT NULL DEFAULT 1,
+w DOUBLE NOT NULL DEFAULT 1,
+PRIMARY KEY (from_id,to_id),
+INDEX (to_id)
+) ENGINE=MyISAM;
+CREATE TABLE graph (
+latch   VARCHAR(32) NULL,
+origid  BIGINT    UNSIGNED NULL,
+destid  BIGINT    UNSIGNED NULL,
+weight  DOUBLE    NULL,
+seq     BIGINT    UNSIGNED NULL,
+linkid  BIGINT    UNSIGNED NULL,
+KEY (latch, origid, destid) USING HASH,
+KEY (latch, destid, origid) USING HASH
+) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id', WEIGHT='w';
+INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
+INSERT INTO graph_base(from_id, to_id) VALUES (1,3), (3,1);
+INSERT INTO graph_base(from_id, to_id) VALUES (1,4), (4,1);
+INSERT INTO graph_base(from_id, to_id) VALUES (3,4), (4,3);
+SELECT * from graph;
+latch	origid	destid	weight	seq	linkid
+NULL	1	2	1	NULL	NULL
+NULL	2	1	1	NULL	NULL
+NULL	1	3	1	NULL	NULL
+NULL	3	1	1	NULL	NULL
+NULL	1	4	1	NULL	NULL
+NULL	4	1	1	NULL	NULL
+NULL	3	4	1	NULL	NULL
+NULL	4	3	1	NULL	NULL
+SELECT * FROM graph WHERE destid=2 and origid=1;
+latch	origid	destid	weight	seq	linkid
+NULL	1	2	1	NULL	NULL
+alter table graph ORIGID = 'another_id';
+ERROR HY000: Storage engine OQGRAPH of the table `test`.`graph` doesn't have this option
+alter table graph ORIGID = 'something_else';
+ERROR HY000: Storage engine OQGRAPH of the table `test`.`graph` doesn't have this option
+DELETE FROM graph_base;
+FLUSH TABLES;
+TRUNCATE TABLE graph_base;
+DROP TABLE graph_base;
+DROP TABLE graph;

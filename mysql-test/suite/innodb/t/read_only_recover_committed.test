@@ -1,0 +1,87 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+# need to restart server
+--source include/not_embedded.inc
+
+--disable_query_log
+# Ignore messages from the innodb_force_recovery=5 startup.
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Failed to find tablespace for table `test`\\.`t` in the cache");
+call mtr.add_suppression("\\[Warning\\] InnoDB: Allocated tablespace ID.* for test/t, old maximum was 0");
+FLUSH TABLES;
+--enable_query_log
+
+--connect(con1, localhost, root)
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES(1);
+BEGIN;
+# Generate insert_undo log.
+INSERT INTO t VALUES(2);
+# Generate update_undo log.
+UPDATE t SET a=20 WHERE a=2;
+--connect(con2, localhost, root)
+--echo # Normal MariaDB shutdown would roll back the above transaction.
+--echo # We want the transaction to remain open, so we will kill the server
+--echo # after ensuring that any non-transactional files are clean.
+FLUSH TABLES;
+--echo # Create another transaction that will be recovered as COMMITTED.
+BEGIN;
+# Generate multiple pages of both insert_undo and update_undo, so that
+# the state TRX_UNDO_CACHE will not be chosen.
+--disable_query_log
+let $n= 10000;
+while ($n) {
+dec $n;
+eval INSERT INTO t VALUES(-$n);
+eval DELETE FROM t WHERE a=-$n;
+}
+--enable_query_log
+SET DEBUG_SYNC='after_trx_committed_in_memory SIGNAL committed WAIT_FOR ever';
+send COMMIT;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR committed';
+--echo # Ensure that the above transactions become durable.
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+BEGIN;
+INSERT INTO t VALUES(-10000);
+ROLLBACK;
+--let $restart_parameters= --innodb-force-recovery=3
+--let $shutdown_timeout= 0
+--source include/restart_mysqld.inc
+--let $shutdown_timeout= 30
+--disconnect con1
+--disconnect con2
+SELECT * FROM t;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t;
+# refused on MySQL 5.6, MariaDB 10.0, 10.1, but not MariaDB 10.2+
+UPDATE t SET a=3 WHERE a=1;
+--let $restart_parameters= --innodb-read-only
+--source include/restart_mysqld.inc
+SET GLOBAL innodb_status_output= @@GLOBAL.innodb_status_output;
+--echo # Starting with MariaDB 10.2, innodb_read_only implies READ UNCOMMITTED.
+--echo # In earlier versions, this would return the last committed version
+--echo # (only a=3; no record for a=20)!
+SELECT * FROM t;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t;
+--let $restart_parameters= --innodb-force-recovery=5
+--source include/restart_mysqld.inc
+--echo #
+--echo # MDEV-15418 innodb_force_recovery=5 displays bogus warnings
+--echo #            about too new transaction identifier
+--echo #
+--echo # With the fix, innodb_force_recovery=5 implies READ UNCOMMITTED.
+SELECT * FROM t;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+SELECT * FROM t;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SELECT * FROM t;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM t;
+DROP TABLE t;
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--let SEARCH_PATTERN= Rolled back recovered transaction [^0]
+--source include/search_pattern_in_file.inc

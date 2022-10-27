@@ -1,0 +1,158 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Suppress expected warnings:
+
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("unknown option '--galera-unknown-option'");
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+#
+# We should count the number of "Assertion failed" warnings
+# in the log file before and after testing. To do this we need
+# to save original log file before testing:
+#
+--let TEST_LOG=$MYSQLTEST_VARDIR/log/mysqld.2.err
+--perl
+   use strict;
+   my $test_log=$ENV{'TEST_LOG'} or die "TEST_LOG not set";
+   my $test_log_copy=$test_log . '.copy';
+   if (-e $test_log_copy) {
+      unlink $test_log_copy;
+   }
+EOF
+--copy_file $TEST_LOG $TEST_LOG.copy
+
+--connection node_2
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a'), (3, 'a');
+
+SELECT * FROM t1;
+
+# Initiate normal shutdown on the node 2 and
+# waiting until shutdown has been completed:
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Some updates on node 1:
+
+UPDATE t1 SET f2 = 'b' WHERE f1 > 1;
+UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
+
+SELECT * FROM t1;
+
+# Remove the "grastate.dat" file (to initiate new SST)
+# and restart node 2 with unknown option:
+
+--connection node_2
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+
+--let $start_mysqld_params=--galera-unknown-option
+
+--echo Starting server ...
+--exec echo "try:$start_mysqld_params" > $_expect_file_name
+
+# Sleep to ensure that server exited...
+
+--sleep 30
+
+# Restart node 2 without unknown option:
+
+--let $start_mysqld_params=
+
+--echo Starting server ...
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Sanity check (node 2 is running now and can perform SQL operators):
+
+SELECT * FROM t1;
+
+# Initiate normal shutdown on the node 2 and
+# waiting until shutdown has been completed:
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Some updates on node 1 - to initiate IST next time:
+
+UPDATE t1 SET f2 = 'd' WHERE f1 > 1;
+UPDATE t1 SET f2 = 'd' WHERE f1 > 2;
+
+SELECT * FROM t1;
+
+# Restart node 2 with unknown option:
+
+--connection node_2
+
+--let $start_mysqld_params=--galera-unknown-option
+
+--echo Starting server ...
+--exec echo "try:$start_mysqld_params" > $_expect_file_name
+
+# Sleep to ensure that server exited...
+
+--sleep 30
+
+# Restart node 2 without unknown option:
+
+--let $start_mysqld_params=
+
+--echo Starting server ...
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Sanity check (node 2 is running now and can perform SQL operators):
+
+SELECT * FROM t1;
+
+--connection node_1
+
+DROP TABLE t1;
+--source include/auto_increment_offset_restore.inc
+
+#
+# We should count the number of "Assertion failed" warnings
+# in the log file during test phase - to print the error message
+# if quantity of such warnings in log file increased at the end
+# of the test:
+#
+--perl
+   use strict;
+   my $test_log=$ENV{'TEST_LOG'} or die "TEST_LOG not set";
+   my $test_log_copy=$test_log . '.copy';
+   open(FILE, $test_log_copy) or die("Unable to open $test_log_copy: $!\n");
+   my $initial=grep(/Assertion * failed/gi,<FILE>);
+   close(FILE);
+   open(FILE, $test_log) or die("Unable to open $test_log: $!\n");
+   my $count_warnings=grep(/Assertion * failed/gi,<FILE>);
+   close(FILE);
+   if ($count_warnings != $initial) {
+      my $diff=$count_warnings-$initial;
+      print "Assertion failed $diff times.\n";
+   }
+EOF
+--remove_file $TEST_LOG.copy
+
+--source include/auto_increment_offset_restore.inc

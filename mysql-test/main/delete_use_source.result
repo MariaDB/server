@@ -1,0 +1,156 @@
+create table t1(c1 integer not null,c2 integer not null, key (c1))
+ENGINE=InnoDB STATS_PERSISTENT=1;
+create view v1 as select * from t1 where c1 in (0,1);
+insert t1 select 0,seq from seq_1_to_500;
+insert t1 select 1,seq from seq_1_to_100;
+insert t1 select 2,seq from seq_1_to_50;
+insert t1 select 3,seq from seq_1_to_20;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+#
+# Delete with limit (quick select - range acces)
+#
+start transaction;
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 limit 1;
+affected rows: 1
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 limit 1;
+affected rows: 0
+select count(*) from v1 where c1=0;
+count(*)
+499
+rollback;
+#
+# Delete
+#
+start transaction;
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 ;
+affected rows: 500
+rollback;
+#
+# Delete with exists
+#
+start transaction;
+select count(*) from v1 where c1=2;
+count(*)
+0
+delete from t1 where c1=2 and exists(select 'x' from t1 b where b.c2<10);
+affected rows: 50
+delete from t1 where c1=2 and exists(select 'x' from t1 b where b.c2<10);
+affected rows: 0
+select count(*) from v1 where c1=2;
+count(*)
+0
+rollback;
+#
+# Delete through a view with limit (range access)
+#
+start transaction;
+explain delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	c1	c1	4	NULL	600	Using where
+2	DEPENDENT SUBQUERY	b	ref	c1	c1	4	test.t1.c1	167	Using index
+delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 limit 1;
+affected rows: 1
+delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 limit 1;
+affected rows: 0
+select count(*) from v1 where c1=0;
+count(*)
+499
+rollback;
+#
+# Delete through a view (ALL access)
+#
+start transaction;
+explain delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	c1	NULL	NULL	NULL	#	Using where
+2	DEPENDENT SUBQUERY	b	ref	c1	c1	4	test.t1.c1	#	Using index
+delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 ;
+affected rows: 500
+select count(*) from v1 where c1=0;
+count(*)
+0
+rollback;
+#
+# Delete failed due to trigger
+#
+create trigger trg after delete on t1 for each row
+begin
+declare c int;
+begin
+if old.c1 = 1 then
+select count(*) into c from t1 where c1!=old.c1;
+SIGNAL SQLSTATE '45000' set table_name=c;
+end if;
+end;
+end;
+/
+start transaction;
+delete from t1 where c1=1 and (select count(*) from t1 b where b.c1=t1.c1) > 0 order by c2 asc limit 10;
+ERROR 45000: Unhandled user-defined exception condition
+rollback;
+start transaction;
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) > 0 order by c1 desc limit 100;
+ERROR 45000: Unhandled user-defined exception condition
+select c1,count(*) from t1 group by c1;
+c1	count(*)
+0	500
+1	100
+2	50
+3	20
+rollback;
+drop trigger trg;
+#
+# Delete through a view with returning
+#
+start transaction;
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 order by c2 asc limit 10 returning c1,c2;
+c1	c2
+0	1
+0	2
+0	3
+0	4
+0	5
+0	6
+0	7
+0	8
+0	9
+0	10
+rollback;
+start transaction;
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 order by c2 desc limit 10 returning c1,c2;
+c1	c2
+0	491
+0	492
+0	493
+0	494
+0	495
+0	496
+0	497
+0	498
+0	499
+0	500
+rollback;
+drop view v1;
+drop table t1;
+#
+# Delete from table with more than 150000 rows
+#
+create table t1(c1 integer not null,c2 integer not null, key (c1));
+insert t1 select 0,seq from seq_1_to_128000;
+insert t1 select 1,seq from seq_1_to_25600;
+select count(*) from t1;
+count(*)
+153600
+# with a lot of memory for sort_buffer_size
+set session sort_buffer_size = 1024000;
+delete from t1 where c1=0 and exists(select 'x' from t1 b where b.c1<10);
+affected rows: 128000
+# with little memory for sort_buffer_size
+insert t1 select 0,seq from seq_1_to_128000;
+set session sort_buffer_size = 1024;
+delete from t1 where c1=0 and exists(select 'x' from t1 b where b.c1<10);
+affected rows: 128000
+drop table t1;

@@ -1,0 +1,12 @@
+# Tests for SSL connections, only run if mysqld is compiled
+# with support for SSL.
+
+-- source include/have_ssl_communication.inc
+--exec $MYSQL --host=localhost --ssl -e "show status like 'ssl_version';"
+--error 1
+--exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.2 -e "show status like 'ssl_version';"
+--error 1
+--exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.1 -e "show status like 'ssl_version';"
+--exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.0 -e "show status like 'ssl_version';"
+--exec $MYSQL --host=localhost --ssl -e "select @@tls_version;"
+

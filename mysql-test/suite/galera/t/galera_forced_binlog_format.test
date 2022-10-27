@@ -1,0 +1,52 @@
+#
+# Test that wsrep_forced_binlog_format=ROW indeed prevents the log to be switched to STATEMENT format on a per-connection basis
+# 
+
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+--connection node_1
+SET GLOBAL wsrep_on=OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on=ON;
+FLUSH BINARY LOGS;
+
+--disable_warnings
+SET SESSION binlog_format = 'STATEMENT';
+--enable_warnings
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--disable_warnings
+SET SESSION binlog_format = 'MIXED';
+--enable_warnings
+
+INSERT INTO t1 VALUES (2);
+
+--replace_regex /xid=[0-9]+/xid=###/ /table_id: [0-9]+/table_id: ###/
+--replace_column 2 <Pos> 5 <End_log_pos>
+SHOW BINLOG EVENTS IN 'mysqld-bin.000001' FROM 256;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-9401: wsrep_forced_binlog_format with binlog causes crash
+--echo #
+SET SESSION binlog_format = 'ROW';
+CREATE DATABASE testdb_9401;
+USE testdb_9401;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+CREATE USER dummy@localhost;
+GRANT ALL PRIVILEGES ON testdb_9401.t1 TO dummy@localhost;
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR dummy@localhost;
+# Cleanup
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM dummy@localhost;
+DROP USER dummy@localhost;
+DROP DATABASE testdb_9401;
+
+#--source include/galera_end.inc
+--echo # End of tests
+

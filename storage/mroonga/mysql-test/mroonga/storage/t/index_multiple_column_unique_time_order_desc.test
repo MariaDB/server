@@ -1,0 +1,43 @@
+# Copyright(C) 2012 Kentoku SHIBA
+# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_signed_64bit_time_t.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS ranges;
+--enable_warnings
+
+CREATE TABLE ranges (
+  id int PRIMARY KEY,
+  start time,
+  end time,
+  UNIQUE KEY range_key(start, end)
+);
+
+INSERT INTO ranges VALUES (1, "15:11:12", "838:59:59");
+INSERT INTO ranges VALUES (2, "00:00:00", "15:11:11");
+INSERT INTO ranges VALUES (3, "838:59:59", "00:00:00");
+INSERT INTO ranges VALUES (4, "00:00:00", "838:59:59");
+INSERT INTO ranges VALUES (5, "-838:59:59", "838:59:59");
+
+SELECT * FROM ranges FORCE INDEX(range_key)
+         ORDER BY start DESC, end DESC;
+
+DROP TABLE ranges;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

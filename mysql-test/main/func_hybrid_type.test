@@ -1,0 +1,827 @@
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8865 Wrong field type or metadata for COALESCE(signed_int_column, unsigned_int_column)
+--echo #
+
+--echo #
+CREATE TABLE t1 (a INT, b INT UNSIGNED);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-1,1);
+INSERT INTO t1 VALUES (-2147483648,4294967295);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-2147483648,2147483647);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a BIGINT, b BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-9223372036854775808,0xFFFFFFFFFFFFFFFF);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a BIGINT, b BIGINT);
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (-9223372036854775808,9223372036854775807);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+# Testing BIT(N) types.
+# Using safe BIT(N) type and value to make sure
+# that "file func_hybrid_type.test" tells "ASCII text".
+
+--echo #
+CREATE TABLE t1 (a INT, b BIT(8));
+INSERT INTO t1 VALUES (-2147483648,0x32);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a INT UNSIGNED, b BIT(8));
+INSERT INTO t1 VALUES (4294967295,0x32);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a BIT(7), b BIT(8));
+INSERT INTO t1 VALUES (0x32,0x32);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a FLOAT, b SMALLINT);
+INSERT INTO t1 VALUES (1,-32678);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a VARCHAR(10), b ENUM('b'));
+INSERT INTO t1 VALUES ('a','b');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a INT, b YEAR);
+INSERT INTO t1 VALUES (-2147483648,2015);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+CREATE TABLE t1 (a INT UNSIGNED, b YEAR);
+INSERT INTO t1 VALUES (4294967295,2015);
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATE, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01','10:20:30');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a TIMESTAMP, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00','10:20:30');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATETIME, b TIME);
+INSERT INTO t1 VALUES ('2010-01-01 00:00:00','10:20:30');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 01:02:03');
+CREATE TABLE t1 (a DATETIME, b DATE);
+INSERT INTO t1 VALUES ('2010-01-01 10:20:30','2001-01-02');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+
+--echo #
+--echo # MDEV-8873 Wrong field type or metadata for LEAST(int_column,string_column)
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (-2147483648,'100x');
+--source include/func_hybrid_type.inc
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-4848 Wrong metadata or column type for LEAST(1.0,'10')
+--echo #
+--disable_ps_protocol
+--enable_metadata
+SELECT LEAST(1.0,'10');
+--disable_metadata
+--enable_ps_protocol
+CREATE TABLE t1 AS SELECT LEAST(1.0,'10');
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-657 LP:873142 - GREATEST() does not always return same signness of argument types
+--echo #
+CREATE TABLE t1 (a BIGINT(20) UNSIGNED NOT NULL PRIMARY KEY);
+INSERT INTO t1 (a) VALUES (13836376518955650385) ON DUPLICATE KEY UPDATE a=GREATEST(a,VALUES(a));
+INSERT INTO t1 (a) VALUES (13836376518955650385) ON DUPLICATE KEY UPDATE a=GREATEST(a,VALUES(a));
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-5694 GREATEST(date, time) returns a wrong data type
+--echo #
+SET timestamp=UNIX_TIMESTAMP('2010-01-01 01:02:03');
+--disable_ps_protocol
+--enable_metadata
+# Expect DATETIME type (12) in metadata
+SELECT GREATEST(CURRENT_TIME, CURRENT_DATE), COALESCE(CURRENT_TIME, CURRENT_DATE);
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES ('2010-01-01 10:20:30');
+# Expect TIMESTAMP type (7) in metadata 
+SELECT GREATEST(a,a) FROM t1;
+# Similar to this one
+SELECT COALESCE(a,a) FROM t1;
+DROP TABLE t1;
+--disable_metadata
+--enable_ps_protocol
+CREATE TABLE t1 (a TIMESTAMP, b DATETIME);
+CREATE TABLE t2 AS SELECT LEAST(a,a),LEAST(b,b),LEAST(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # MDEV-8910 Wrong metadata or field type for MAX(COALESCE(string_field))
+--echo #
+CREATE TABLE t1 (c1 TINYBLOB, c2 MEDIUMBLOB, c3 BLOB, c4 LONGBLOB);
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3,
+  MAX(COALESCE(c4)) AS c4
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3,
+  MAX(COALESCE(c4)) AS c4
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1,
+  MAX(COALESCE(c2)) AS c2,
+  MAX(COALESCE(c3)) AS c3
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  MAX(COALESCE(c1)) AS c1
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-8912 Wrong metadata or type for @c:=string_or_blob_field
+--echo #
+CREATE TABLE t1 (c1 TINYBLOB, c2 BLOB, c3 MEDIUMBLOB, c4 LONGBLOB);
+CREATE TABLE t2 AS
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2,
+  @c3:=c3 AS c3,
+  @c4:=c4 AS c4
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2,
+  @c3:=c3 AS c3,
+  @c4:=c4 AS c4
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 CHAR(1), c2 CHAR(255)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c1:=c1 AS c1,
+  @c2:=c2 AS c2
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  @c:=c1 AS c1,
+  @c:=c2 AS c2,
+  @c:=c3 AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c:=c1 AS c1,
+  @c:=c2 AS c2,
+  @c:=c3 AS c3
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(1), c2 VARCHAR(255), c3 VARCHAR(20000)) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  @c:=c1 AS c1,
+  @c:=c2 AS c2,
+  @c:=c3 AS c3
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c:=c1 AS c1,
+  @c:=c2 AS c2,
+  @c:=c3 AS c3
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET latin1;
+CREATE TABLE t2 AS
+SELECT
+  @c:=c1 AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c:=c1 AS c1
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 ENUM('a')) CHARACTER SET utf8;
+CREATE TABLE t2 AS
+SELECT
+  @c:=c1 AS c1
+FROM t1;
+SHOW CREATE TABLE t2;
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  @c:=c1 AS c1
+FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-9653 Assertion `length || !scale' failed in uint my_decimal_length_to_precision(uint, uint, bool)
+--echo #
+SELECT CASE 0 WHEN 1 THEN (CASE 2 WHEN 3 THEN NULL END) WHEN 4 THEN 5 END;
+SELECT CASE 0 WHEN 1 THEN (COALESCE(NULL)) WHEN 4 THEN 5 END;
+SELECT CASE WHEN TRUE THEN COALESCE(NULL) ELSE 4 END;
+
+--disable_ps_protocol
+--enable_metadata
+SELECT COALESCE(COALESCE(NULL), 1.1) AS c0, IF(0, COALESCE(NULL), 1.1) AS c1;
+--disable_metadata
+--enable_ps_protocol
+
+
+--echo #
+--echo # MDEV-9752 Wrong data type for COALEASCE(?,1) in prepared statements
+--echo #
+PREPARE stmt FROM "CREATE TABLE t1 AS SELECT CONCAT(COALESCE(?,1)) AS a, CONCAT(CASE WHEN TRUE THEN ? ELSE 1 END) AS b";
+SET @a=1;
+EXECUTE stmt USING @a,@a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-11015 Assertion failed: precision > 0 in decimal_bin_size upon SELECT with DISTINCT, CAST and other functions
+--echo #
+
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATETIME ) ) AS f FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS TIME) ) AS f FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (b LONGBLOB);
+INSERT IGNORE INTO t1 VALUES ('foo'),('bar');
+SELECT DISTINCT - GREATEST( b, CAST( NULL AS DATE) ) AS f FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12497 Wrong data type for LEAST(latin1_expr, utf8_expr)
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  LEAST(_latin1'aaa',_utf8 0xC39F) AS c1,
+  COALESCE(_latin1'aaa',_utf8 0xC39F) AS c2;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12504 Wrong data type for LEAST(date_expr,time_expr)
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  LEAST(DATE'2001-01-01', TIME'10:20:30') AS c1,
+  CONCAT(LEAST(DATE'2001-01-01', TIME'10:20:30')) AS c2;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12505 Wrong data type for GREATEST(bit_column, int_column)
+--echo #
+
+CREATE TABLE t1 (a BIT(64),b INT);
+INSERT INTO t1 VALUES (0xFFFFFFFFFFFFFFFF,-1);
+SELECT a>b, COALESCE(a,b), GREATEST(a,b) FROM t1;
+CREATE TABLE t2 AS SELECT COALESCE(a,b),GREATEST(a,b) FROM t1;
+SELECT * FROM t2;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12601 Hybrid functions create a column of an impossible type DOUBLE(256,4)
+--echo #
+
+CREATE TABLE t1 (a DOUBLE(255,4),b DOUBLE(255,3));
+CREATE TABLE t2 AS SELECT COALESCE(a,b) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12617 CASE and CASE-alike hybrid functions do not preserve exact data types
+--echo #
+
+CREATE TABLE t1 (a FLOAT(10,2));
+CREATE TABLE t2 AS SELECT COALESCE(a) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+CREATE TABLE t1 (a FLOAT(10,2));
+CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+CREATE TABLE t1 (a TINYINT(1));
+CREATE TABLE t2 AS SELECT COALESCE(a) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+CREATE TABLE t1 (a TINYINT(1));
+CREATE TABLE t2 AS SELECT LEAST(a,a) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2, t1;
+
+--echo #
+--echo # MDEV-12875 Wrong VIEW column data type for COALESCE(int_column)
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE OR REPLACE VIEW v1 AS SELECT COALESCE(a) FROM t1;
+DESCRIBE v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10309 COALESCE(12345678900) makes a column of a wrong type and truncates the data
+--echo #
+
+CREATE TABLE t1 AS SELECT 12345678900 AS c1, COALESCE(12345678900) AS c2;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 AS SELECT
+  9 AS i1, COALESCE(9) AS c1,
+  99 AS i2, COALESCE(99) AS c2,
+  999 AS i3, COALESCE(999) AS c3,
+  9999 AS i4, COALESCE(9999) AS c4,
+  99999 AS i5, COALESCE(99999) AS c5,
+  999999 AS i6, COALESCE(999999) AS c6,
+  9999999 AS i7, COALESCE(9999999) AS c7,
+  99999999 AS i8, COALESCE(99999999) AS c8,
+  999999999 AS i9, COALESCE(999999999) AS c9,
+  2147483647, COALESCE(2147483647),
+  2147483648, COALESCE(2147483648),
+  9999999999 AS i10, COALESCE(9999999999) AS c10,
+  99999999999 AS i11, COALESCE(99999999999) AS c11,
+  999999999999 AS i12, COALESCE(999999999999) AS c12,
+  9999999999999 AS i13, COALESCE(9999999999999) AS c13,
+  99999999999999 AS i14, COALESCE(99999999999999) AS c14,
+  999999999999999 AS i15, COALESCE(999999999999999) AS c15,
+  9999999999999999 AS i16, COALESCE(9999999999999999) AS c16,
+  99999999999999999 AS i17, COALESCE(99999999999999999) AS c17,
+  999999999999999999 AS i18, COALESCE(999999999999999999) AS c18,
+  9223372036854775807, COALESCE(9223372036854775807),
+  9223372036854775808, COALESCE(9223372036854775808),
+  9999999999999999999 AS i19, COALESCE(9999999999999999999) AS c19,
+  18446744073709551615, COALESCE(18446744073709551615),
+  18446744073709551616, COALESCE(18446744073709551616),
+  99999999999999999999 AS i20, COALESCE(99999999999999999999) AS c20,
+  999999999999999999999 AS i21, COALESCE(999999999999999999999) AS c21,
+  9999999999999999999999 AS i22, COALESCE(9999999999999999999999) AS c22;
+SHOW CREATE TABLE t1;
+--vertical_results
+SELECT * FROM t1;
+--horizontal_results
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-9406 CREATE TABLE..SELECT creates different columns for IFNULL() and equivalent COALESCE,CASE,IF
+--echo #
+CREATE TABLE t1 (a SMALLINT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 AS SELECT
+  IFNULL(a,a) AS c1,
+  COALESCE(a,a) AS c2,
+  CASE WHEN a IS NOT NULL THEN a ELSE a END AS c3,
+  IF(a IS NULL,a,a) AS c4 FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 AS SELECT
+  connection_id() AS c0,
+  IFNULL(connection_id(),connection_id()) AS c1,
+  COALESCE(connection_id(), connection_id()) AS c2,
+  CASE WHEN 0 THEN connection_id() ELSE connection_id() END AS c3,
+  IF(0,connection_id(),connection_id()) AS c4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17759 Assertion `precision > 0' failed in decimal_bin_size upon CREATE TABLE .. SELECT
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (d DECIMAL(43,0) UNSIGNED);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 AS SELECT
+  IFNULL(SLEEP(0.01), NULL DIV d) AS f0,
+  IFNULL(SLEEP(0.01), '' DIV d) AS f1
+FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # MDEV-17325 NULL-ability problems with LEAST() in combination with NO_ZERO_DATE and NO_ZERO_IN_DATE
+--echo #
+
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+  LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+  LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+  LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+  LEAST(0,DATE'2001-01-01') AS i1,
+  LEAST(20010001,DATE'2001-01-01') AS i2,
+  LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+  LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+--disable_metadata
+--enable_ps_protocol
+
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+CREATE TABLE t1 AS SELECT
+  LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+  LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+  LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+  LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+  LEAST(0,DATE'2001-01-01') AS i1,
+  LEAST(20010001,DATE'2001-01-01') AS i2,
+  LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+  LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+
+# A TIME always converts to a non-NULL DATETIME with the new CAST style
+# Expect a NOT NULL column
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# A TIME can convert to a NULL DATETIME with old CAST style
+# Expect a NULL-able column
+SET old_mode=ZERO_DATE_TIME_CAST;
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET old_mode=DEFAULT;
+SET timestamp=DEFAULT;
+
+SET sql_mode=DEFAULT;
+
+SET sql_mode='';
+SELECT LEAST(999,TIME'10:20:30') AS c1;
+CREATE TABLE t1 AS SELECT LEAST(999,TIME'10:20:30') AS c1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-18456 Assertion `item->maybe_null' failed in Type_handler_temporal_result::make_sort_key
+--echo #
+
+CREATE TABLE t1 (t TIME NOT NULL);
+INSERT INTO t1 VALUES ('00:20:11'),('14:52:05');
+SELECT GREATEST('9999', t) FROM t1 ORDER BY 1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-17325 NULL-ability problems with LEAST() in combination with NO_ZERO_DATE and NO_ZERO_IN_DATE
+--echo #
+
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+  LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+  LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+  LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+  LEAST(0,DATE'2001-01-01') AS i1,
+  LEAST(20010001,DATE'2001-01-01') AS i2,
+  LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+  LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+--disable_metadata
+--enable_ps_protocol
+
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+CREATE TABLE t1 AS SELECT
+  LEAST('0000-00-00',DATE'2001-01-01') AS s1,
+  LEAST('0001-00-01',DATE'2001-01-01') AS s2,
+  LEAST('0000-00-00',TIMESTAMP'2001-01-01 00:00:00') AS s3,
+  LEAST('0001-00-01',TIMESTAMP'2001-01-01 00:00:00') AS s4,
+  LEAST(0,DATE'2001-01-01') AS i1,
+  LEAST(20010001,DATE'2001-01-01') AS i2,
+  LEAST(0,TIMESTAMP'2001-01-01 00:00:00') AS i3,
+  LEAST(20010001,TIMESTAMP'2001-01-01 00:00:00') AS i4;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+
+# A TIME always converts to a non-NULL DATETIME with the new CAST style
+# Expect a NOT NULL column
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# A TIME can convert to a NULL DATETIME with old CAST style
+# Expect a NULL-able column
+SET old_mode=ZERO_DATE_TIME_CAST;
+CREATE TABLE t1 AS SELECT LEAST(CURRENT_DATE,CURRENT_TIME) AS c1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET old_mode=DEFAULT;
+SET timestamp=DEFAULT;
+
+SET sql_mode=DEFAULT;
+
+SET sql_mode='';
+SELECT LEAST(999,TIME'10:20:30') AS c1;
+CREATE TABLE t1 AS SELECT LEAST(999,TIME'10:20:30') AS c1;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-17318 CAST(LEAST(zero_date,non_zero_date) AS numeric_data_type) returns a wrong result
+--echo #
+SET sql_mode='NO_ZERO_DATE,NO_ZERO_IN_DATE';
+SELECT
+  LEAST('0000-00-00',DATE'2001-01-01') AS c0,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS CHAR) AS string,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATE) AS date,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATETIME) AS datetime,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS TIME) AS time,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DECIMAL) AS dc,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DOUBLE) AS dbl,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS SIGNED) AS sint,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS UNSIGNED) AS uint;
+CREATE TABLE t1 AS SELECT
+  LEAST('0000-00-00',DATE'2001-01-01') AS c0,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS CHAR) AS string,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATE) AS date,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DATETIME) AS datetime,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS TIME) AS time,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DECIMAL) AS dc,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS DOUBLE) AS dbl,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS SIGNED) AS sint,
+  CAST(LEAST('0000-00-00',DATE'2001-01-01') AS UNSIGNED) AS uint;
+SELECT * FROM t1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-17330 Wrong result for 0 + LEAST(TIME'-10:00:00',TIME'10:00:00')
+--echo #
+SELECT 0 + LEAST(TIME'-10:00:00',TIME'10:00:00') AS c;
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

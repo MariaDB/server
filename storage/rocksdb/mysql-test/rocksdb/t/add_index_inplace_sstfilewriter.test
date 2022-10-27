@@ -1,0 +1,113 @@
+--source include/have_rocksdb.inc
+
+# This test requires ~1.3G of disk space
+--source include/big_test.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+# Create a table with a primary key and one secondary key as well as one
+# more column
+CREATE TABLE t1(pk CHAR(5) PRIMARY KEY, a char(30), b char(30)) COLLATE 'latin1_bin';
+
+--let $file = `SELECT CONCAT(@@datadir, "test_loadfile.txt")`
+
+# Create a text file with data to import into the table.
+# The primary key is in sorted order and the secondary keys are randomly generated
+--let ROCKSDB_INFILE = $file
+perl;
+my $fn = $ENV{'ROCKSDB_INFILE'};
+open(my $fh, '>>', $fn) || die "perl open($fn): $!";
+my $max = 300000;
+my @chars = ("A".."Z", "a".."z", "0".."9");
+my @lowerchars = ("a".."z");
+my @powers_of_26 = (26 * 26 * 26 * 26, 26 * 26 * 26, 26 * 26, 26, 1);
+for (my $ii = 0; $ii < $max; $ii++)
+{
+   my $pk;
+   my $tmp = $ii;
+   foreach (@powers_of_26)
+   {
+     $pk .= $lowerchars[$tmp / $_];
+     $tmp = $tmp % $_;
+   }
+
+   my $num = int(rand(25)) + 6;
+   my $a;
+   $a .= $chars[rand(@chars)] for 1..$num;
+
+   $num = int(rand(25)) + 6;
+   my $b;
+   $b .= $chars[rand(@chars)] for 1..$num;
+   print $fh "$pk\t$a\t$b\n";
+}
+close($fh);
+EOF
+
+--file_exists $file
+
+set rocksdb_bulk_load=1;
+set rocksdb_bulk_load_size=10000;
+--disable_query_log
+--echo LOAD DATA INFILE <input_file> INTO TABLE t1;
+eval LOAD DATA INFILE '$file' INTO TABLE t1;
+--enable_query_log
+set rocksdb_bulk_load=0;
+
+# Make sure all the data is there.
+select count(pk) from t1;
+select count(a) from t1;
+select count(b) from t1;
+
+# now do fast secondary index creation
+ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
+# disable duplicate index warning
+--disable_warnings
+# now do same index using copy algorithm
+# hitting max row locks (1M)
+set @tmp= @@rocksdb_max_row_locks;
+set session rocksdb_max_row_locks=1000;
+--error ER_GET_ERRMSG 
+ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
+set session rocksdb_bulk_load=1;
+ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
+set session rocksdb_bulk_load=0;
+--enable_warnings
+set session rocksdb_max_row_locks=@tmp;
+
+# checksum testing
+SELECT COUNT(*) as c FROM
+(SELECT COALESCE(LOWER(CONV(BIT_XOR(CAST(CRC32(CONCAT_WS('#', `b`, CONCAT(ISNULL(`b`)))) AS UNSIGNED)), 10, 16)), 0) AS crc FROM `t1` FORCE INDEX(`kb`)
+UNION DISTINCT
+SELECT COALESCE(LOWER(CONV(BIT_XOR(CAST(CRC32(CONCAT_WS('#',
+`b`, CONCAT(ISNULL(`b`)))) AS UNSIGNED)), 10, 16)), 0) AS crc FROM `t1` FORCE
+INDEX(`kb_copy`)) as temp;
+
+select count(*) from t1 FORCE INDEX(kb);
+select count(*) from t1 FORCE INDEX(kb_copy);
+select count(*) from t1 FORCE INDEX(PRIMARY);
+
+# drop the index
+ALTER TABLE t1 DROP INDEX kb, ALGORITHM=INPLACE;
+ALTER TABLE t1 DROP INDEX kb_copy, ALGORITHM=INPLACE;
+
+# add two indexes simultaneously
+ALTER TABLE t1 ADD INDEX kb(b), ADD INDEX kab(a,b), ALGORITHM=INPLACE;
+SELECT COUNT(*) FROM t1 FORCE INDEX(kab);
+SELECT COUNT(*) FROM t1 FORCE INDEX(kb);
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
+# Reverse CF testing, needs to be added to SSTFileWriter in reverse order
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 DROP INDEX kab, ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD INDEX kb(b) comment 'rev:cf1', ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) FROM t1 FORCE INDEX(kb);
+DROP TABLE t1;
+--remove_file $file

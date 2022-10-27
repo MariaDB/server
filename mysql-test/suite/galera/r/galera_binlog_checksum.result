@@ -1,0 +1,31 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+connection node_1;
+UPDATE t1 SET f1 = 2 WHERE f1 = 1;
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+COUNT(*) = 1
+1
+DROP TABLE t1;
+#
+# MDEV-11149: wsrep_replicate_mysaim: DML fails when binlog checksum
+# enabled
+#
+connection node_1;
+SET @@global.wsrep_replicate_myisam=1;
+CREATE TABLE t1 (i INT) ENGINE=MYISAM;
+INSERT INTO t1 VALUES(1);
+connection node_2;
+SELECT * FROM t1;
+i
+1
+connection node_1;
+DROP TABLE t1;
+SET @@global.wsrep_replicate_myisam=0;
+# End of tests.

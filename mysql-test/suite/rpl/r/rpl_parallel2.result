@@ -1,0 +1,166 @@
+include/rpl_init.inc [topology=1->2]
+*** MDEV-5509: Incorrect value for Seconds_Behind_Master if parallel replication ***
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+set @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=5;
+set global slave_parallel_mode= optimistic;
+include/start_slave.inc
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave");
+connection server_2;
+connection server_1;
+INSERT INTO t1 VALUES (1,sleep(2));
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+connection server_2;
+include/wait_for_slave_param.inc [Seconds_Behind_Master]
+Seconds_Behind_Master should be zero here because the slave is fully caught up and idle.
+Seconds_Behind_Master = '0'
+*** MDEV-8294: Inconsistent behavior of slave parallel threads at runtime ***
+connection server_1;
+INSERT INTO t1 VALUES (10,0);
+SET sql_log_bin= 0;
+DELETE FROM t1 WHERE a=10;
+SET sql_log_bin= 1;
+INSERT INTO t1 VALUES (10,0);
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a	b
+10	0
+connection server_2;
+include/wait_for_slave_sql_error.inc [errno=1062]
+SET GLOBAL slave_parallel_threads=8;
+STOP SLAVE;
+SET GLOBAL sql_slave_skip_counter= 1;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a	b
+10	0
+*** MDEV-7818: Deadlock occurring with parallel replication and FTWRL ***
+connection server_1;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,0), (2,0), (3,0);
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET @commit_id= 4242;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+BEGIN;
+UPDATE t2 SET b=b+1 WHERE a=2;
+COMMIT;
+BEGIN;
+INSERT INTO t2 VALUES (4,10);
+COMMIT;
+SET SESSION debug_dbug= @old_dbug;
+INSERT INTO t2 VALUES (5,0);
+INSERT INTO t2 VALUES (6,0);
+INSERT INTO t2 VALUES (7,0);
+INSERT INTO t2 VALUES (8,0);
+INSERT INTO t2 VALUES (9,0);
+INSERT INTO t2 VALUES (10,0);
+INSERT INTO t2 VALUES (11,0);
+INSERT INTO t2 VALUES (12,0);
+INSERT INTO t2 VALUES (13,0);
+INSERT INTO t2 VALUES (14,0);
+INSERT INTO t2 VALUES (15,0);
+INSERT INTO t2 VALUES (16,0);
+INSERT INTO t2 VALUES (17,0);
+INSERT INTO t2 VALUES (18,0);
+INSERT INTO t2 VALUES (19,0);
+connection server_2;
+connect  s1, 127.0.0.1, root,, test, $SLAVE_MYPORT,;
+BEGIN;
+SELECT * FROM t2 WHERE a=2 FOR UPDATE;
+a	b
+2	0
+connection server_2;
+include/start_slave.inc
+connect  s2, 127.0.0.1, root,, test, $SLAVE_MYPORT,;
+FLUSH TABLES WITH READ LOCK;
+connection s1;
+COMMIT;
+connection s1;
+STOP SLAVE;
+connection s2;
+connection server_1;
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	1
+3	0
+4	10
+5	0
+6	0
+7	0
+8	0
+9	0
+10	0
+11	0
+12	0
+13	0
+14	0
+15	0
+16	0
+17	0
+18	0
+19	0
+connection s2;
+UNLOCK TABLES;
+SELECT "after UNLOCK TABLES" as state;
+state
+after UNLOCK TABLES
+connection s1;
+SELECT "after reap of STOP SLAVE" as state;
+state
+after reap of STOP SLAVE
+connection server_2;
+include/wait_for_slave_to_stop.inc
+include/start_slave.inc
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	1
+3	0
+4	10
+5	0
+6	0
+7	0
+8	0
+9	0
+10	0
+11	0
+12	0
+13	0
+14	0
+15	0
+16	0
+17	0
+18	0
+19	0
+*** MDEV-8318: Assertion `!pool->busy' failed in pool_mark_busy(rpl_parallel_thread_pool*) on concurrent FTWRL ***
+connection server_1;
+LOCK TABLE t2 WRITE;
+connect  m1,localhost,root,,test;
+connection m1;
+FLUSH TABLES WITH READ LOCK;
+connect  m2,localhost,root,,test;
+FLUSH TABLES WITH READ LOCK;
+connection server_1;
+KILL QUERY CID;
+connection m1;
+ERROR 70100: Query execution was interrupted
+connection server_1;
+UNLOCK TABLES;
+connection m2;
+UNLOCK TABLES;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+set global slave_parallel_mode= @old_parallel_mode;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1, t2;
+include/rpl_end.inc

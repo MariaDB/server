@@ -1,0 +1,47 @@
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+#
+# MDEV-12288 Reset DB_TRX_ID when the history is removed,
+# to speed up MVCC
+#
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+CREATE TABLE t1(a INT PRIMARY KEY, b INT NOT NULL)
+ROW_FORMAT=REDUNDANT ENGINE=InnoDB;
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO t1 VALUES(1,2),(3,4);
+ALTER TABLE t1 ADD COLUMN c INT;
+UPDATE t1 SET b=-3 WHERE a=3;
+connect  con1,localhost,root;
+BEGIN;
+UPDATE t1 SET b=4 WHERE a=3;
+disconnect prevent_purge;
+connection default;
+InnoDB		0 transactions not purged
+disconnect con1;
+FLUSH TABLE t1 FOR EXPORT;
+Clustered index root page contents:
+N_RECS=3; LEVEL=0
+header=0x0100000300c6 (a=0x696e66696d756d00)
+header=0x1000200b0087 (a=0x80000000,
+ DB_TRX_ID=0x000000000000,
+ DB_ROLL_PTR=0x80000000000000,
+ b=0x80000000,
+ c=NULL(4 bytes))
+header=0x0000100900a6 (a=0x80000001,
+ DB_TRX_ID=0x000000000000,
+ DB_ROLL_PTR=0x80000000000000,
+ b=0x80000002)
+header=0x000018090074 (a=0x80000003,
+ DB_TRX_ID=0x000000000000,
+ DB_ROLL_PTR=0x80000000000000,
+ b=0x7ffffffd)
+header=0x040008030000 (a=0x73757072656d756d00)
+UNLOCK TABLES;
+SELECT * FROM t1;
+a	b	c
+1	2	NULL
+3	-3	NULL
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

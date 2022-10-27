@@ -1,0 +1,78 @@
+#
+# MDEV-11942 BLACKHOLE is no longer active in 10.1 by default, mysql_upgrade not handling the situation
+#
+source include/have_innodb.inc;
+source include/not_embedded.inc;
+
+if (!$HA_BLACKHOLE_SO) {
+  skip Need blackhole plugin;
+}
+if (!$HA_ARCHIVE_SO) {
+  skip Need Archive plugin;
+}
+
+source include/switch_to_mysql_user.inc;
+drop view mysql.user_bak;
+
+let $datadir= `select @@datadir`;
+
+install soname 'ha_blackhole';
+install soname 'ha_archive';
+
+vertical_results;
+create table t1 (a int) engine=blackhole;
+create table t2 (a int) engine=archive;
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
+
+flush tables;
+uninstall plugin blackhole;
+uninstall plugin archive;
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
+
+# upgrade from 10.1 - engines aren't enabled
+exec $MYSQL_UPGRADE 2>&1;
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
+
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+source include/switch_to_mysql_user.inc;
+drop view mysql.user_bak;
+
+# pretend it's an upgrade from 10.0
+alter table mysql.user drop column default_role, drop column max_statement_time;
+
+# but mysql_upgrade_info tells otherwise
+remove_file $datadir/mysql_upgrade_info;
+write_file $datadir/mysql_upgrade_info;
+10.1.10-MariaDB
+EOF
+
+# still upgrade from 10.1
+exec $MYSQL_UPGRADE 2>&1;
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
+
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+source include/switch_to_mysql_user.inc;
+drop view mysql.user_bak;
+
+alter table mysql.user drop column default_role, drop column max_statement_time;
+remove_file $datadir/mysql_upgrade_info;
+
+# upgrade from 10.0 - engines are enabled
+exec $MYSQL_UPGRADE 2>&1;
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t1';
+select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test' and table_name='t2';
+
+drop table t1, t2;
+
+remove_file $datadir/mysql_upgrade_info;
+uninstall plugin blackhole;
+uninstall plugin archive;
+
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;

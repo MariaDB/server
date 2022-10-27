@@ -1,0 +1,103 @@
+#
+# Testing chain/circular replication scenario of MDEV-9670
+# The effect of the bug was that we got a commit with a GTID with server_id
+#
+
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--let $rpl_topology= 1->2->1
+--source include/rpl_init.inc
+
+--let $rpl_connection_name= M4
+--let $rpl_server_number= 1
+--source include/rpl_connect.inc
+
+--let $rpl_connection_name= M2
+--let $rpl_server_number= 2
+--source include/rpl_connect.inc
+
+# The parameter reflects binlog-row-event-max-size @cnf.
+--let $row_size=1024
+
+--connection M2
+STOP SLAVE;
+SET @old_debug= @@global.debug_dbug;
+SET GLOBAL debug_dbug= "d,dbug.rows_events_to_delay_relay_logging";
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+
+--connection M2
+# This query also creates a Gtid event group whose Gtid will remain in
+# ignored status for too long causing a following group split.
+
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b VARCHAR(30000)) ENGINE=innodb;
+--sync_slave_with_master M4
+
+# This INSERT will be logged as two Write_log events which the buggy
+# slave applier would split.
+
+--connection M4
+eval INSERT INTO `t1` VALUES (null, repeat('a', $row_size)), (null, repeat('b', $row_size));
+
+# START M2 IO thread and wait for its signal to follow with the SQL
+# thread start.  At this moment the SQL thread shall be having 2 and
+# "half" groups to execute.  The "hafl" one would be committed by the
+# buggy applier after which the IO is released to queue the rest of
+# the 3rd group which the SQL thread commits separately to complete
+# the split.
+
+--connection M2
+
+# wait for IO signal to start the SQL thread. IO will be hanging upon that.
+SET debug_sync='now WAIT_FOR start_sql_thread';
+
+# Now the slave server has relay log whose last group is incomplete.
+# An unfixed slave server would go to "insert" a "fake"
+# Gtid_list_log_event event which actually would commit the incomplete
+# group. However before to actual commit do_apply_event() hits some assert.
+# In the fixed server the fake Gtid_list_log_event is *not* inserted
+# in the middle of a group.
+START SLAVE SQL_THREAD;
+
+# Sleep for a little time to give SQL thread a chance to commit while
+# the IO thread is hanging (see
+# DBUG_EXECUTE_IF("dbug.rows_events_to_delay_relay_logging"...) in
+# queue_event).  Alternatively to reproduce the case when buggy slave
+# wait for the 1st group commit
+
+#--let $count= 1
+#--let $table= t1
+#--source include/wait_until_rows_count.inc
+
+--sleep 2
+
+# Demonstrate either no split group in the correct slave or the 1nd
+# group in the buggy one
+--source include/show_binlog_events.inc
+
+# Release the IO thread
+SET debug_sync='now SIGNAL go_on_relay_logging';
+
+# Sync servers
+--sync_slave_with_master M4
+--connection M4
+--sync_slave_with_master M2
+--connection M2
+
+# Demonstrate replication goes correctly not to create any split, or
+# the 2nd group in the buggy slave
+--source include/show_binlog_events.inc
+
+#
+# Cleanup
+#
+--connection M4
+drop table t1;
+
+--connection M2
+SET GLOBAL debug_dbug= @old_debug;
+SET debug_sync='RESET';
+--source include/rpl_end.inc

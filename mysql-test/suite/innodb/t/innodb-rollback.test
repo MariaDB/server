@@ -1,0 +1,17 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-18632: wsrep_is_wsrep_xid: Conditional jump or move depends on uninitialised value
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+--connect (con1,localhost,root,,test)
+ALTER TABLE t1;
+--connect (con2,localhost,root,,test)
+--error ER_SP_DOES_NOT_EXIST
+SELECT f() FROM t1;
+
+# Cleanup
+--disconnect con2
+--disconnect con1
+--connection default
+DROP TABLE t1;

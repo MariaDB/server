@@ -1,0 +1,41 @@
+# bool global
+--source include/have_innodb.inc
+
+SET @start_global_value = @@global.innodb_background_scrub_data_interval;
+
+--echo #
+--echo # exists as global only
+--echo #
+select @@global.innodb_background_scrub_data_interval;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.innodb_background_scrub_data_interval;
+show global variables like 'innodb_background_scrub_data_interval';
+show session variables like 'innodb_background_scrub_data_interval';
+select * from information_schema.global_variables
+where variable_name='innodb_background_scrub_data_interval';
+select * from information_schema.session_variables
+where variable_name='innodb_background_scrub_data_interval';
+
+--echo #
+--echo # show that it's writable
+--echo #
+set global innodb_background_scrub_data_interval=100;
+select @@global.innodb_background_scrub_data_interval;
+set global innodb_background_scrub_data_interval=200;
+select @@global.innodb_background_scrub_data_interval;
+set global innodb_background_scrub_data_interval=300;
+select @@global.innodb_background_scrub_data_interval;
+--error ER_GLOBAL_VARIABLE
+set session innodb_background_scrub_data_interval=400;
+
+--echo #
+--echo # incorrect types
+--echo #
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_background_scrub_data_interval=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_background_scrub_data_interval=1e1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_background_scrub_data_interval="foo";
+
+SET @@global.innodb_background_scrub_data_interval = @start_global_value;

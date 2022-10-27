@@ -1,0 +1,80 @@
+skip Background Job Manager not supported in MariaDB;
+# This test for DB-938 tests a race condition where a scheduled background job
+# (analyze) ends up operating on a set of DB* key_file[] in TOKUDB_SHARE that
+# were set to NULL during a TRUNCATE TABLE operation.
+
+-- source include/have_tokudb.inc
+-- source include/have_debug.inc
+-- source include/have_debug_sync.inc
+
+-- enable_query_log
+
+set @orig_auto_analyze = @@session.tokudb_auto_analyze;
+set @orig_in_background = @@session.tokudb_analyze_in_background;
+set @orig_mode = @@session.tokudb_analyze_mode;
+set @orig_throttle = @@session.tokudb_analyze_throttle;
+set @orig_time = @@session.tokudb_analyze_time;
+set @orig_scale_percent = @@global.tokudb_cardinality_scale_percent;
+set @orig_default_storage_engine = @@session.default_storage_engine;
+set @orig_pause_background_job_manager = @@global.tokudb_debug_pause_background_job_manager;
+
+# first, lets set up to auto analyze in the background with about any activity
+set session default_storage_engine = 'tokudb';
+set session tokudb_auto_analyze = 1;
+set session tokudb_analyze_in_background = 1;
+set session tokudb_analyze_mode = tokudb_analyze_standard;
+set session tokudb_analyze_throttle = 0;
+set session tokudb_analyze_time = 0;
+set global tokudb_cardinality_scale_percent = DEFAULT;
+
+# in debug build, we can prevent the background job manager from running,
+# let's do it to hold a job from running until we get the TRUNCATE TABLE
+# in action
+set global tokudb_debug_pause_background_job_manager = TRUE;
+
+create table t1 (a int not null auto_increment, b int, c int, primary key(a), key kb(b), key kc(c), key kabc(a,b,c), key kab(a,b), key kbc(b,c));
+
+insert into t1(b,c) values(0,0), (1,1), (2,2), (3,3);
+
+# insert above should have triggered an analyze, but since the bjm is paused,
+# we will see it sitting in the queue
+select database_name, table_name, job_type, job_params, scheduler from information_schema.tokudb_background_job_status;
+
+# lets flip to another connection
+--source include/count_sessions.inc
+connect(conn1, localhost, root);
+
+# set up the DEBUG_SYNC point
+set DEBUG_SYNC = 'tokudb_after_truncate_all_dictionarys SIGNAL closed WAIT_FOR done';
+
+# send the truncat table
+send TRUNCATE TABLE t1;
+
+# back to default connection
+connection default;
+
+# release the bjm
+set global tokudb_debug_pause_background_job_manager = FALSE;
+
+# if the bug is present, the bjm should crash here within 1/4 of a second
+sleep 5;
+
+# lets release and clean up
+set DEBUG_SYNC = 'now SIGNAL done';
+
+connection conn1;
+reap;
+connection default;
+disconnect conn1;
+set DEBUG_SYNC = 'RESET';
+drop table t1;
+
+set session tokudb_auto_analyze = @orig_auto_analyze;
+set session tokudb_analyze_in_background = @orig_in_background;
+set session tokudb_analyze_mode = @orig_mode;
+set session tokudb_analyze_throttle = @orig_throttle;
+set session tokudb_analyze_time = @orig_time;
+set global tokudb_cardinality_scale_percent = @orig_scale_percent;
+set session default_storage_engine = @orig_default_storage_engine;
+set global tokudb_debug_pause_background_job_manager = @orig_pause_background_job_manager;
+--source include/wait_until_count_sessions.inc

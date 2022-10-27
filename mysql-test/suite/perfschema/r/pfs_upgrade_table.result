@@ -1,0 +1,11 @@
+"Testing mysql_upgrade with TABLE performance_schema.user_table"
+create table test.user_table(a int);
+use performance_schema;
+show tables like "user_table";
+Tables_in_performance_schema (user_table)
+user_table
+show tables like "user_table";
+Tables_in_performance_schema (user_table)
+user_table
+use test;
+drop table test.user_table;

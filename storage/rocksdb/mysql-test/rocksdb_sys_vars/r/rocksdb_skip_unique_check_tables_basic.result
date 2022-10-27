@@ -1,0 +1,67 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES("aaa");
+INSERT INTO valid_values VALUES("bbb");
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+SET @start_global_value = @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+SELECT @start_global_value;
+@start_global_value
+.*
+SET @start_session_value = @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+SELECT @start_session_value;
+@start_session_value
+.*
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES to aaa"
+SET @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES   = aaa;
+SELECT @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+@@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES
+aaa
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES = DEFAULT;
+SELECT @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+@@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES
+.*
+"Trying to set variable @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES to bbb"
+SET @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES   = bbb;
+SELECT @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+@@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES
+bbb
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES = DEFAULT;
+SELECT @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+@@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES
+.*
+'# Setting to valid values in session scope#'
+"Trying to set variable @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES to aaa"
+SET @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES   = aaa;
+SELECT @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+@@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES
+aaa
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES = DEFAULT;
+SELECT @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+@@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES
+.*
+"Trying to set variable @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES to bbb"
+SET @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES   = bbb;
+SELECT @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+@@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES
+bbb
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES = DEFAULT;
+SELECT @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+@@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES
+.*
+'# Testing with invalid values in global scope #'
+SET @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES = @start_global_value;
+SELECT @@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+@@global.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES
+.*
+SET @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES = @start_session_value;
+SELECT @@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES;
+@@session.ROCKSDB_SKIP_UNIQUE_CHECK_TABLES
+.*
+SET GLOBAL ROCKSDB_SKIP_UNIQUE_CHECK_TABLES=NULL;
+SET GLOBAL ROCKSDB_SKIP_UNIQUE_CHECK_TABLES=DEFAULT;
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

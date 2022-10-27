@@ -1,0 +1,3567 @@
+--source include/have_sequence.inc
+--source include/default_optimizer_switch.inc
+let $no_pushdown= set statement optimizer_switch='condition_pushdown_for_derived=off' for;
+set @@join_buffer_size=256*1024;
+
+create table t1 (a int, b int, c int);
+create table t2 (a int, b int, c int, d decimal);
+insert into t1 values
+  (1,21,345), (1,33,7), (8,33,114), (1,21,500), (1,19,107), (5,14,787),
+  (8,33,123), (9,10,211), (5,16,207), (1,33,988), (5,27,132), (1,21,104),
+  (6,20,309), (6,20,315), (1,21,101), (8,33,404), (9,10,800), (1,21,123),
+  (7,11,708), (6,20,214);
+insert into t2 values
+  (2,3,207,207.0000), (1,21,909,12.0000), (7,13,312,406.0000),
+  (8,64,248,107.0000), (6,20,315,279.3333), (1,19,203,107.0000),
+  (8,80,800,314.0000), (3,12,231,190.0000), (6,23,303,909.0000);
+
+create table t1_double(a int, b double, c double);
+insert into t1_double values
+  (1,23.4,14.3333), (1,12.5,18.9), (3,12.5,18.9),
+  (4,33.4,14.3333), (4,14.3333,13.65), (5,17.89,7.22),
+  (6,33.4,14.3), (10,33.4,13.65), (11,33.4,13.65);
+
+create table t2_double(a int, b double, c double);
+insert into t2_double values
+  (1,22.4,14.3333), (1,12.5,18.9), (2,22.4,18.9),
+  (4,33.4,14.3333), (5,22.4,13.65), (7,17.89,18.9),
+  (6,33.4,14.3333), (10,31.4,13.65), (12,33.4,13.65);
+
+create table t1_char(a char, b char(8), c int);
+insert into t1_char values
+  ('a','Ivan',1), ('b','Vika',2), ('b','Inga',6), ('c','Vika',7),
+  ('b','Ivan',7), ('a','Alex',6), ('b','Inga',5), ('d','Ron',9),
+  ('d','Harry',2), ('d','Hermione',3), ('c','Ivan',3), ('c','Harry',4);
+
+create table t2_char(a char, b char(8), c int);
+insert into t2_char values
+  ('b','Ivan',1), ('c','Vinny',3), ('c','Inga',9), ('a','Vika',1),
+  ('c','Ivan',2), ('b','Ali',6), ('c','Inga',2), ('a','Ron',9),
+  ('d','Harry',1), ('b','Hermes',3), ('b','Ivan',11), ('b','Harry',4);
+
+create table t1_decimal (a decimal(3,1), b decimal(3,1), c int);
+insert into t1_decimal values
+  (1,1,23),(2,2,11),(3,3,16),
+  (1,1,12),(1,1,14),(2,3,15),
+  (2,1,13),(2,3,11),(3,3,16);
+
+create table t2_decimal (a decimal(3,1), b decimal(3,1), c int);
+insert into t2_decimal values
+  (2,1,13),(2,2,11),(3,3,16),
+  (1,3,22),(1,3,14),(2,2,15),
+  (2,1,43),(2,3,11),(2,3,16);
+
+create view v1 as select a, b, max(c) as max_c, avg(c) as avg_c from t1
+  group by a,b having max_c < 707;
+
+create view v2 as select a, b, max(c) as max_c, avg(c) as avg_c from t1
+  where t1.a>5 group by a,b having max_c < 707;
+
+create view v3 as select a, b, min(c) as min_c from t1
+  where t1.a<10 group by a,b having min_c > 109;
+
+create view v4 as
+  select a, b, min(max_c) as min_c from v1
+    where (v1.a<15) group by a,b;
+
+create view v_union as
+  select a, b, min(c) as c from t1
+    where t1.a<10 group by a,b having c > 109
+      union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300;
+
+create view v2_union as
+  select a, b, min(c) as c from t1
+    where t1.a<10 group by a,b having c > 109
+      union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+      union
+  select a, b, avg(c) as c from t1
+    where t1.c>300 group by a,b having c < 707;
+
+create view v3_union as
+  select a, b, (a+1) as c from t1
+    where t1.a<10
+      union
+  select a, b, c from t1
+    where t1.b>10 and t1.c>100;
+
+create view v4_union as
+  select a, b, max(c)-100 as c from t1
+    where t1.a<10 group by a,b having c > 109
+      union
+  select a, b, (c+100) as c from t1
+    where t1.b>10;
+
+create view v_double as
+  select a, avg(a/4) as avg_a, b, c from t1_double
+    where (b>12.2) group by b,c having (avg_a<22.333);
+
+create view v_char as
+  select a, b, max(c) as max_c from t1_char
+    group by a,b having max_c < 9;
+
+create view v_decimal as
+  select a, b, avg(c) as avg_c from t1_decimal
+    group by a,b having (avg_c>12);
+
+--echo # conjunctive subformula : pushing into HAVING
+let $query= select * from v1,t2 where (v1.max_c>214) and (t2.a>v1.a);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from
+    (select a, b, max(c) as max_c, avg(c) as avg_c from t1
+      group by a,b having max_c < 707) v1,
+        t2 where (v1.a=t2.a) and (v1.max_c>300);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted or formula : pushing into HAVING
+let $query=
+  select * from v1,t2 where
+    ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,t2 where
+    ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
+      ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # conjunctive subformula : pushing into WHERE
+let $query= select * from v1,t2 where (v1.a>6) and (t2.b>v1.b);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query= select * from v2,t2 where (v2.b>25) and (t2.a<v2.a);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted or formula : pushing into WHERE
+let $query=
+  select * from v1,t2 where
+    ((v1.a>7) and (t2.c<v1.max_c)) or ((v1.a<2) and (t2.b<v1.b));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v2,t2 where
+   ((v2.a>7) and (t2.c<v2.max_c)) or ((v2.a>5) and (t2.b<v2.b));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,t2 where
+    ((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or
+      ((v1.a<2) and (v1.max_c<t2.c) and (v1.max_c=t2.d));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # conjunctive subformulas : pushing into HAVING and WHERE
+let $query=
+  select * from v1,t2 where (v1.a<2) and (v1.max_c>400) and (t2.b>v1.b);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v_double as v,t2_double as t where
+    (v.a=t.a) and (v.avg_a>0.45) and (v.b>10);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v_decimal as v,t2_decimal as t where
+    (v.a=t.a) and (v.avg_c>15) and (v.b>1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted or formula : pushing into HAVING and WHERE
+let $query=
+  select * from v1,t2 where
+    ((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or
+    ((v1.a<4) and (v1.max_c<500) and (t2.b<v1.b));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,t2 where ((v1.a<2) and (v1.max_c>120)) or (v1.a>7);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted or formulas : pushing into WHERE and HAVING
+let $query=
+  select * from v1,t2 where
+    ((v1.a<2) and (v1.max_c>120) and (v1.b=t2.b)) or (v1.a>7);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,t2 where
+    ((v1.a<2) and (v1.max_c<200) and (t2.c>v1.max_c) and (v1.max_c=t2.d)) or
+      ((v1.a>4) and (v1.max_c<500) and (t2.b<v1.b) and (v1.max_c=t2.c));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # prepare of a query containing extracted or formula
+prepare stmt from "select * from v1,t2 where
+  ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+prepare stmt from
+  "explain format=json select * from v1,t2 where
+    ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # conjunctive subformula : pushing into WHERE
+--echo # pushing equalities
+let $query=
+  select * from v1,t2 where (t2.a=v1.a) and (v1.b=t2.b) and (v1.a=1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query= select * from v1,t2 where (v1.a=5) and (v1.max_c=t2.d);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # conjunctive subformula : pushing into WHERE using equalities
+let $query= select * from v1,t2 where (t2.a<5) and (v1.a=t2.a);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # conjunctive subformula : pushing into HAVING using equalities
+let $query= select * from v1,t2 where (t2.c>150) and (v1.max_c=t2.c);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted and formula : pushing into WHERE
+--echo # pushing equalities
+let $query=
+  select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a) and (v1.a=3);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,t2 where (v1.a=1) and (v1.b=21) and (t2.a=2);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v_char as v,t2_char as t where
+    (v.a='c') and (v.b<'Hermes') and ((v.b=t.b) or (v.max_c>20));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted and formula : pushing into WHERE using equalities
+--echo # pushing equalities
+let $query=
+select * from v_decimal as v,t2_decimal as t where
+    (v.a=v.b) and (v.b=t.b) and ((t.b>1) or (v.a=1));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted or formula : pushing into HAVING using equalities
+let $query=
+  select * from v1,t2
+    where ((t2.a<4) and (v1.a=t2.a)) or ((t2.c>150) and (v1.max_c=t2.c));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # conjunctive subformulas : pushing into WHERE and HAVING using equalities
+let $query=
+  select * from v1,t2
+    where ((t2.a>5) and (v1.a=t2.a)) and ((t2.c>250) and (v1.max_c=t2.c));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+--echo # pushing equalities
+let $query=
+  select * from
+    (select a, b, max(c) as max_c, avg(c) as avg_c from t1
+      group by a,b having max_c < 707) v1,
+        t2 where (v1.a=8) and (v1.a=t2.a) and (v1.max_c=404);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+let $query=
+  select * from v1,t2 where
+    (v1.a>3) and (v1.max_c>200) and (t2.b<v1.b) and (t2.d=v1.max_c);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # conjunctive subformula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING using equalities
+--echo # pushing equalities
+let $query=
+  select * from v_double as v,t2_double as t where
+    (v.b=v.c) and (v.c=t.c) and ((t.c>10) or (v.a=1));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # conjunctive subformula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING using equalities
+let $query=
+  select * from v_double as v,t2_double as t where
+    (((v.a>0.2) or (v.b<17)) or (t.c>17)) and (t.c=v.c) and (v.c>18);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted or formula : pushing into WHERE
+--echo # conjunctive subformula : pushing into HAVING
+--echo # pushing equalities
+let $query=
+  select * from v_decimal as v,t2_decimal as t where
+    (((v.a>4) or (v.a=2)) or (v.b>3)) and (v.avg_c=13);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from
+    (select a, b, max(c) as max_c, avg(c) as avg_c from t1
+      where t1.a>5 group by a,b having max_c < 707) v1,
+        t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.a=v1.b);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # nothing to push
+let $query=
+  select * from v1,t2 where (t2.a<2) and (t2.c>900);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.b=t2.b);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,t2 where
+    (t2.a=v1.a) or (v1.b=t2.b) and ((v1.a=1) or (v1.a=6));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,t2 where (v1.a=1) or (v1.b=21) or (t2.a=2);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,t2 where
+    (t2.a<2) and (t2.c>900) and ((v1.a<t2.a) or (t2.a<11));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using several derived tables : nothing to push
+let $query= select * from v1,v2,t2 where
+  (v1.a=v2.a) and (v1.a=t2.a) and (v2.b<50);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,v2,t2 where
+    ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v1,v2,t2 where
+    ((v1.a=v2.a) and (v1.a=t2.a)) or ((v2.b>13) and (t2.c<115));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using several derived tables : pushing in all tables
+--echo # conjunctive subformula : pushing into HAVING
+--echo # extracted or formula : pushing into WHERE
+--echo # pushing equalities
+let $query=
+  select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and
+    ((v2.b<50) or (v2.b=19)) and (v1.max_c<300);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using several derived tables : pushing only in one table
+--echo # conjunctive subformula : pushing into WHERE
+--echo # pushing equalities
+let $query=
+  select * from v1,v2,t2 where
+    (v1.a=t2.a) and (v1.a=v1.b) and (v1.a=v2.a) and (v2.max_c<300);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using several derived tables : pushing only in one table
+--echo # extracted and formula : pushing into WHERE
+--echo # conjunctive subformula : pushing into WHERE using equalities
+--echo # pushing equalities
+let $query=
+  select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted or formula : pushing into WHERE
+--echo # conjunctive subformula : pushing into WHERE using equalities
+--echo # pushing equalities
+let $query=
+  select * from v_char as v,t2_char as t where
+    (v.a=t.a) and (t.a='b') and ((v.b='Vika') or (v.b='Ali'));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using several derived tables : pushing in all tables
+--echo # extracted or formula : pushing into WHERE
+--echo # conjunctive subformulas : pushing into HAVING
+--echo # pushing equalities
+let $query=
+  select * from v1,v2,v3,t2 where
+    ((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33))
+      and (v1.max_c<500) and (v3.a=t2.a) and (v2.max_c>300);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using several derived tables : pushing in all tables
+--echo # conjunctive subformulas : pushing into HAVING
+let $query=
+  select * from
+    (select a, b, max(c) as max_c, avg(c) as avg_c from t1
+      where t1.a>5 group by a,b having max_c < 707) v1,
+    (select a, b, min(c) as min_c from t1
+      where t1.a>5 group by a,b having min_c < 707) v2,
+      t2 where (v1.a=v2.a) and (v1.b=t2.b) and (v1.max_c>130) and (v2.min_c<130);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using several derived tables : pushing in all tables
+--echo # extracted or formulas : pushing into HAVING
+--echo # conjunctive subformula : pushing into HAVING
+let $query=
+  select * from
+    (select a, b, max(c) as max_c, avg(c) as avg_c from t1
+      where t1.a>5 group by a,b having max_c < 707) v1,
+    (select a, b, min(c) as min_c from t1
+      where t1.a>5 group by a,b having min_c < 707) v2,
+    (select a, b, avg(c) as avg_c from t1
+      where t1.a<8 group by a,b) v3,
+      t2 where (v1.a=v2.a) and (v1.b=v3.b) and ((v3.avg_c>170) or (v3.a<5))
+        and ((v1.avg_c<400) or (v1.a>1)) and (v2.min_c<200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted or formula : pushing into HAVING
+--echo # conjunctive subformula : pushing into WHERE
+let $query=
+  select * from
+    (select a, b, max(c) as max_c, avg(c) as avg_c from t1
+      group by a,b having max_c < 707) v1,
+        t2 where ((v1.a=1) or (v1.max_c<300)) and (v1.b>25);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # extracted and formula : pushing into WHERE
+--echo # conjunctive subformula : pushing into HAVING
+let $query=
+  select * from
+    (select a, b, max(c) as max_c, avg(c) as avg_c from t1
+      where t1.a>5 group by a,b having max_c < 707) v1,
+        t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.b<30);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using query with union
+--echo # conjunctive subformula : pushing into WHERE
+--echo # conjunctive subformulas : pushing into HAVING and WHERE
+let $query=
+  select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (t2.c>800)
+    union
+  select * from v1,t2 where (v1.max_c>100) and (v1.a>7) and (t2.d>800);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using query with union
+--echo # extracted and formula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING
+--echo # pushing equalities
+let $query=
+  select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (v1.b=19)
+    union
+  select * from v1,t2 where ((v1.max_c>400) or (v1.avg_c>270)) and (v1.a<t2.a);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using query with union
+--echo # extracted or formula : pushing into HAVING
+--echo # extracted or formula : pushing into WHERE
+--echo # pushing equalities
+let $query=
+  select * from v1,t2 where
+    ((t2.a=v1.a) or (v1.b=t2.b)) and ((v1.a=1) or (v1.a=6))
+      union
+  select * from v1,t2 where ((v1.a>3) and (v1.b>27)) or (v1.max_c>550);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using query with union
+--echo # extracted or formula : pushing into HAVING
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushing equalities
+let $query=
+  select * from v1,t2 where
+    ((v1.a=1) and (v1.a=t2.a)) and ((v1.max_c<500) or (v1.avg_c>500))
+      union
+  select * from v2,t2 where
+    ((v2.a<t2.b) or (v2.max_c>200)) and (v2.b>10) and (t2.a<2)
+      union
+  select * from v2,t2 where
+    (v2.max_c=t2.c) and (v2.b<10);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using derived table with union
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+let $query= select * from v_union,t2 where (v_union.a<3) and (v_union.c>100);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using derived table with union
+--echo # conjunctive subformula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING
+let $query=
+  select * from v_union,t2 where
+    ((v_union.a<2) or (v_union.c>800)) and (v_union.b>12);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using derived table with union
+--echo # conjunctive subformula : pushing into HAVING
+--echo # conjunctive subformula : pushing into WHERE
+--echo # pushing equalities
+let $query=
+  select * from v_union,t2 where
+    (v_union.a=1) and (v_union.a=t2.a) and (v_union.c<200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+let $query=
+  select * from v_char as v,t2_char as t where
+    (v.a=t.a) and (v.b='Vika') and (v.max_c>2);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using derived table with union
+--echo # using several derived tables : pushing in all tables
+--echo # conjunctive subformula : pushing into WHERE using equalities
+--echo # pushing equalities
+let $query=
+  select * from v_union,v1,t2 where
+    (v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1)
+    and ((v_union.c>800) or (v1.max_c>200));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using derived table with union
+--echo # extracted or formula : pushing into WHERE
+--echo # conjunctive subformula : pushing into HAVING
+--echo # pushing equalities
+let $query=
+  select * from v2_union as v,t2 where
+    ((v.a=6) or (v.a=8)) and (v.c>200) and (v.a=t2.a);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using derived table with union of selects without aggregation
+--echo # extracted conjunctive predicate: pushing in WHERE of both selects
+let $query=
+  select * from v3_union as v,t2 where (v.a=t2.a) and (v.c>6);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using derived table with union of selects without aggregation
+--echo # extracted conjunctive OR subformula: pushing in WHERE using equalities
+let $query=
+  select * from v3_union as v,t2 where (v.a=t2.a) and ((t2.a>1) or (v.b<20));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using derived table with union of selects without aggregation
+--echo # extracted the whole condition: in WHERE of both selects
+let $query=
+  select * from v3_union as v,t2 where
+    (v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using derived table with union of
+--echo # a select without aggregation and a select with aggregation
+--echo # extracted conjunctive predicate: pushing in WHERE of both selects
+let $query=
+  select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using derived table with union of
+--echo # a select without aggregation and a select with aggregation
+--echo # extracted subformula: pushing in WHERE of one select
+--echo # extracted subformula: pushing in HAVING of the other select
+--echo # extracted sub-subformula: pushing in WHERE of the other select
+--echo # using an equality in all pushdowns
+let $query=
+  select * from v4_union as v,t2 where
+    (v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using embedded derived table : pushing the same conditions
+--echo # using several derived tables : pushing in all tables
+--echo # conjunctive subformula : pushing into WHERE
+--echo # extracted and formula : pushing into WHERE
+let $query=
+select * from v4,v1 where
+    (v4.a<13) and (v1.a>5) and (v1.b>12);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using embedded view : nothing to push
+--echo # using several derived tables : pushing only in one table
+--echo # conjunctive subformula : pushing into WHERE
+let $query=
+  select * from v4,v1,t2 where
+    (v4.a=t2.a) and (v4.a=v1.a) and (v1.b>30);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using embedded view : pushing different conditions
+--echo # using several derived tables : pushing in all tables
+--echo # conjunctive subformula : pushing into WHERE using equalities
+--echo # extracted and formula : pushing into WHERE using equalities
+--echo # conjunctive subformula : pushing into HAVING
+let $query=
+  select * from v4,v1,t2 where
+    (v4.a=t2.a) and (v4.a>1) and (v4.a=v1.a) and (v4.min_c>100) and (v1.b<30);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using embedded view : pushing different conditions
+--echo # using several derived tables : pushing in all tables
+--echo # extracted or formula : pushing into WHERE
+--echo # conjunctive subformula : pushing into HAVING
+let $query=
+  select * from v4,v1,t2 where
+    (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using embedded view : pushing different conditions
+--echo # using several derived tables : pushing only in one table
+--echo # extracted or formula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING
+let $query=
+  select * from v4,v2 where
+    ((v4.a>12) and (v4.min_c<300) and (v4.b>13)) or (v4.a<1);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using embedded view : pushing different conditions
+--echo # using several derived tables : pushing only in one table
+--echo # conjunctive subformula : pushing into WHERE
+--echo # conjunctive subformula : pushing into HAVING
+--echo # pushing equalities
+let $query=
+  select * from v4,v2 where
+    (v4.a=v2.b) and (v4.a=v4.b) and (v4.min_c<100);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using embedded view : pushing the same conditions
+--echo # using several derived tables : pushing in all tables
+--echo # extracted and formula : pushing into WHERE using equalities
+--echo # conjunctive subformula : pushing into WHERE
+--echo # pushing equalities
+let $query=
+  select * from v4,v2 where
+    (v4.a=v2.b) and (v4.a=v4.b) and (v2.b<30);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using embedded view : pushing the same conditions
+--echo # using several derived tables : pushing in all tables
+--echo # extracted or formula : pushing into WHERE using equalities
+--echo # extracted and formula : pushing into WHERE using equalities
+--echo # pushing equalities
+let $query=
+  select * from v4,v2 where
+    (v4.a=v2.b) and (v4.a=v4.b) and ((v2.b<30) or (v4.a>2));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using embedded view : pushing the same conditions
+--echo # using several derived tables : pushing in all tables
+--echo # extracted or formula : pushing into WHERE
+--echo # conjunctive subformula : pushing into WHERE
+--echo # pushing equalities
+let $query=
+  select * from v4,v2 where
+    (((v4.a<12) and (v4.b>13)) or (v4.a>10)) and
+    (v4.min_c=v2.max_c) and (v4.min_c>100);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using embedded view : pushing the same conditions
+--echo # using several derived tables : pushing only in one table
+--echo # extracted or formula : pushing into WHERE
+let $query=
+  select * from v4,v2,t2 where
+    (((v4.a<12) and (t2.b>13)) or (v4.a>10)) and
+    (v4.min_c=t2.c) and (t2.c>100);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1,v2,v3,v4;
+drop view v_union,v2_union,v3_union,v4_union;
+drop view v_double,v_char,v_decimal;
+drop table t1,t2,t1_double,t2_double,t1_char,t2_char,t1_decimal,t2_decimal;
+
+--echo #
+--echo # MDEV-10782: condition extracted from a multiple equality
+--echo #             pushed into HAVING
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2);
+EXPLAIN EXTENDED
+SELECT *
+  FROM ( SELECT * FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
+    WHERE f = 8;
+SELECT *
+  FROM ( SELECT * FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
+    WHERE f = 8;
+SELECT *
+  FROM ( SELECT * FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
+    WHERE f = 1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10783: pushdown into constant view
+--echo #
+
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+CREATE VIEW v AS SELECT 5;
+SELECT * FROM t1 WHERE 1 IN ( SELECT * FROM v );
+DROP VIEW v;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10785: second execution of a query with condition
+--echo #             pushed into view
+--echo #
+
+CREATE TABLE t1 (i int);
+CREATE VIEW v1 AS SELECT i FROM t1 WHERE i < 5;
+CREATE FUNCTION f (in1 int) RETURNS int RETURN in1;
+CREATE VIEW v2 AS SELECT * FROM v1 GROUP BY i;
+PREPARE stmt FROM "SELECT * FROM v2 WHERE f(0) <> 2";
+EXECUTE stmt;
+EXECUTE stmt;
+DROP FUNCTION f;
+DROP VIEW v2,v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10884: condition pushdown into derived specified by
+--echo #             1. unit with  SELECT containing ORDER BY ... LIMIT
+--echo #             2. unit containing global ORDER BY ... LIMIT
+--echo #
+
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+select a from t1 order by a limit 5;
+
+set statement optimizer_switch='condition_pushdown_for_derived=off' for
+select * from (select a from t1 order by a limit 5) t where t.a not in (1,2,3);
+set statement optimizer_switch='condition_pushdown_for_derived=on' for
+select * from (select a from t1 order by a limit 5) t where t.a not in (1,2,3);
+
+select a from t1 where a < 4 union select a from t1 where a > 5
+  order by a limit 5;
+set statement optimizer_switch='condition_pushdown_for_derived=off' for
+select * from
+(select a from t1 where a < 4 union select a from t1 where a > 5
+ order by a limit 5) t where t.a not in (2,9);
+set statement optimizer_switch='condition_pushdown_for_derived=on' for
+select * from
+(select a from t1 where a < 4 union select a from t1 where a > 5
+ order by a limit 5) t where t.a not in (2,9);
+
+drop table t1;
+
+--echo #
+--echo # MDEV-11072: pushdown of the condition obtained
+--echo #             after constant row substitution
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+CREATE OR REPLACE VIEW v2 AS SELECT * FROM t2;
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
+
+SELECT * FROM t1 WHERE a IN (
+  SELECT b FROM v2 WHERE b < a OR b IN (
+    SELECT c FROM v3 WHERE c = a
+  )
+);
+
+INSERT INTO t1 VALUES (2);
+INSERT INTO t2 VALUES (3), (2);
+INSERT INTO t3 VALUES (4), (1), (2), (7);
+
+SELECT * FROM t1 WHERE a IN (
+  SELECT b FROM v2 WHERE b < a OR b IN (
+    SELECT c FROM v3 WHERE c = a
+  )
+);
+
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1 WHERE a IN (
+  SELECT b FROM v2 WHERE b < a OR b IN (
+    SELECT c FROM v3 WHERE c = a
+  )
+);
+
+CREATE TABLE t4 (d INT, e INT) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,10),(3,11),(2,10),(2,20),(3,21);
+CREATE OR REPLACE VIEW v4 AS
+SELECT d, sum(e) AS s FROM t4 GROUP BY d;
+
+let $query =
+SELECT * FROM t1 WHERE a IN (
+  SELECT b FROM v2 WHERE b < a OR b IN (
+    SELECT d FROM v4 WHERE s > a
+  )
+);
+
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+DROP VIEW v2,v3,v4;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-10800: pushdown of the condition obtained
+--echo #             after constant row substitution
+--echo #
+
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+
+SELECT * FROM
+( SELECT * FROM t1
+    WHERE EXISTS ( SELECT * FROM v2 WHERE b = a ) ) AS sq;
+
+EXPLAIN FORMAT=JSON
+SELECT * FROM
+( SELECT * FROM t1
+    WHERE EXISTS ( SELECT * FROM v2 WHERE b = a ) ) AS sq;
+
+DROP VIEW v2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-11102: condition pushdown into materialized inner table
+--echo #              of outer join is not applied as not being valid
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(2);
+
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1),(2);
+
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+
+SELECT * FROM t1 LEFT JOIN t2 ON a = b WHERE b IS NULL;
+
+SELECT * FROM t1 LEFT JOIN v2 ON a = b WHERE b IS NULL;
+
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1 LEFT JOIN v2 ON a = b WHERE b IS NULL;
+
+DROP VIEW v2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-11103: pushdown condition with ANY subquery
+--echo #
+
+CREATE TABLE t1 (i INT);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1),(2);
+
+EXPLAIN FORMAT=JSON
+SELECT * FROM v1 WHERE i <= ANY ( SELECT 3 );
+
+SELECT * FROM v1 WHERE i <= ANY ( SELECT 3 );
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11315: condition with outer reference to mergeable derived
+--echo #
+
+CREATE TABLE t1 (pk1 INT PRIMARY KEY, a INT, b INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (10,7,1),(11,0,2);
+
+CREATE TABLE t2 (pk2 INT PRIMARY KEY, c INT, d DATETIME) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+ (1,4,'2008-09-27 00:34:58'),
+ (2,5,'2007-05-28 00:00:00'),
+ (3,6,'2009-07-25 09:21:20');
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+
+SELECT * FROM v1 AS sq
+  WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
+EXPLAIN FORMAT=JSON
+SELECT * FROM v1 AS sq
+  WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
+
+SELECT * FROM ( SELECT * FROM t1 ) AS sq
+  WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT * FROM t1 ) AS sq
+  WHERE b IN ( SELECT pk2 FROM v2 WHERE c > sq.b ) OR b = 100;
+
+DROP VIEW v1,v2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-11313: pushdown of the condition obtained
+--echo #             after constant row substitution
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (50);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+
+SELECT ( SELECT COUNT(*) FROM v1 WHERE a = t2.b ) AS f FROM t2 GROUP BY f;
+EXPLAIN FORMAT=JSON
+SELECT ( SELECT COUNT(*) FROM v1 WHERE a = t2.b ) AS f FROM t2 GROUP BY f;
+
+CREATE TABLE t3 (a INT, b INT) ENGINE=MYISAM;
+INSERT INTO t3 VALUES (1,10),(3,11),(2,10),(2,20),(3,21);
+CREATE VIEW v2 AS SELECT a, sum(b) AS s FROM t3 GROUP BY a ;
+SELECT ( SELECT COUNT(*) FROM v2 WHERE s < t2.b ) AS f FROM t2 GROUP BY f;
+EXPLAIN FORMAT=JSON
+SELECT ( SELECT COUNT(*) FROM v2 WHERE s < t2.b ) AS f FROM t2 GROUP BY f;
+
+
+DROP VIEW v1,v2;
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-10882: pushdown of the predicate with cached value
+--echo #
+
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL) ENGINE=MyISAM;
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (1,2),(3,4);
+
+CREATE TABLE t2 (c INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (5),(6);
+
+SELECT a, GROUP_CONCAT(b) FROM v1
+  WHERE b IN ( SELECT COUNT(c) FROM t2 ) GROUP BY a;
+
+EXPLAIN FORMAT=JSON
+SELECT a, GROUP_CONCAT(b) FROM v1
+  WHERE b IN ( SELECT COUNT(c) FROM t2 ) GROUP BY a;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-10836: pushdown of the predicate with cached value
+--echo #
+
+CREATE TABLE t (pk INT PRIMARY KEY, f INT) ENGINE=MyISAM;
+CREATE ALGORITHM=TEMPTABLE VIEW v AS SELECT * FROM t;
+INSERT INTO t VALUES (1,1),(3,2);
+
+SELECT * FROM v AS v1, v AS v2
+  WHERE v2.pk > v1.f AND v1.f IN ( SELECT COUNT(pk) FROM t );
+
+EXPLAIN FORMAT=JSON
+SELECT * FROM v AS v1, v AS v2
+  WHERE v2.pk > v1.f AND v1.f IN ( SELECT COUNT(pk) FROM t );
+
+DROP VIEW v;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-11488: pushdown of the predicate with cached value
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(3),(2);
+
+CREATE TABLE t2 (j INT, KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+
+UPDATE t2 SET j = 2 WHERE j = 3;
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (i FLOAT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1.5),(3.2),(2.71);
+
+CREATE TABLE t2 (j FLOAT, KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3.2),(2.71);
+
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (i DECIMAL(10,2)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1.5),(3.21),(2.47);
+
+CREATE TABLE t2 (j DECIMAL(10,2), KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3.21),(4.55);
+
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (i VARCHAR(32)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('cc'),('aa'),('ddd');
+
+CREATE TABLE t2 (j VARCHAR(16), KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('bbb'),('aa');
+
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (i DATETIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+ ('2008-09-27 00:34:58'),('2007-05-28 00:00:00'), ('2009-07-25 09:21:20');
+
+CREATE TABLE t2 (j DATETIME, KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+ ('2007-05-28 00:00:00'), ('2010-08-25 00:00:00');
+
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (i DATE) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('2008-09-27'),('2007-05-28'), ('2009-07-25');
+
+CREATE TABLE t2 (j DATE, KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('2007-05-28'), ('2010-08-25');
+
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (i TIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('00:34:58'),('10:00:02'), ('09:21:20');
+
+CREATE TABLE t2 (j TIME, KEY(j)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('10:00:02'), ('11:00:10');
+
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+EXPLAIN FORMAT=JSON
+SELECT * FROM ( SELECT DISTINCT * FROM t1 ) AS sq
+  WHERE i IN ( SELECT MIN(j) FROM t2 );
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-11593: pushdown of condition with NULLIF
+--echo #
+
+CREATE TABLE t1 (i INT);
+CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+
+INSERT INTO t1 VALUES (2), (1);
+
+SELECT * FROM v1 WHERE NULLIF(1, i);
+EXPLAIN FORMAT=JSON
+SELECT * FROM v1 WHERE NULLIF(1, i);
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11608: pushdown of the predicate with cached null value
+--echo #
+
+CREATE TABLE t1 (c VARCHAR(3));
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+CREATE TABLE t2 (c VARCHAR(3));
+INSERT INTO t2 VALUES ('foo'),('xyz');
+
+SELECT * FROM v1 WHERE v1.c IN ( SELECT MIN(c) FROM t2 WHERE 0 );
+EXPLAIN FORMAT=JSON
+SELECT * FROM v1 WHERE v1.c IN ( SELECT MIN(c) FROM t2 WHERE 0 );
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (d DECIMAL(10,2));
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (5.37),(1.1);
+
+CREATE TABLE t2 (d DECIMAL(10,2));
+INSERT INTO t2 VALUES ('1.1'),('2.23');
+
+SELECT * FROM v1 WHERE v1.d IN ( SELECT MIN(d) FROM t2 WHERE 0 );
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-11820: second execution of PS for query
+--echo #             with false subquery predicate in WHERE
+--echo #
+
+CREATE TABLE t1 (c VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (3), (4);
+
+PREPARE stmt1 FROM
+" SELECT * FROM v1 WHERE 1 IN (SELECT a FROM t2) OR c = 'foo'";
+PREPARE stmt2 FROM
+"EXPLAIN FORMAT=JSON
+ SELECT * FROM v1 WHERE 1 IN (SELECT a FROM t2) OR c = 'foo'";
+EXECUTE stmt1;
+EXECUTE stmt2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+INSERT INTO t2 SELECT a+1 FROM t2;
+EXECUTE stmt1;
+EXECUTE stmt2;
+DEALLOCATE PREPARE stmt1;
+# the result here will change after the merge with the fix for mdev-11859
+DEALLOCATE PREPARE stmt2;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-12373: pushdown into derived with side effects is prohibited
+--echo #
+
+CREATE TABLE sales_documents (
+ id           int NOT NULL AUTO_INCREMENT,
+ sale_id      int NULL DEFAULT NULL,
+ type         tinyint unsigned NULL DEFAULT NULL,
+ data         text NULL DEFAULT NULL COLLATE 'utf8_unicode_ci',
+ date         date NULL DEFAULT NULL,
+ order_number int unsigned NULL DEFAULT NULL,
+ created_at   int NULL DEFAULT NULL,
+ updated_at   int NULL DEFAULT NULL,
+ generated    tinyint NOT NULL DEFAULT '0',
+ synced_at    int NOT NULL DEFAULT '0',
+ sum          decimal(13,2) NOT NULL DEFAULT '0',
+ PRIMARY KEY (id)
+);
+
+INSERT INTO sales_documents
+(id, sale_id, type, order_number, data, created_at,
+ updated_at, date, generated, synced_at, sum)
+VALUES
+(555, 165, 3, 5, '{}', 1486538300, 1486722835, '2017-02-17', 0, 1486538313, 2320.00),
+(556, 165, 2, 3, '{}', 1486538304, 1486563125, '2017-02-08', 1, 1486538302, 2320.00),
+(557, 158, 2, 2, '{}', 1486538661, 1486538661, '2017-02-08', 0, 1486538660, 2320.00),
+(558, 171, 1, 3, '{}', 1486539104, 1488203405, '2017-02-08', 1, 1486539102, 23230.00),
+(559, 171, 2, 5, '{}', 1486549233, 1487146010, '2017-02-08', 1, 1486549225, 37690.00),
+(560, 172, 1, 1, '{}', 1486658260, 1488203409, '2017-02-09', 1, 1486658256, 40312.00),
+(561, 172, 2, 1, '{}', 1486711997, 1486711997, '2017-02-10', 1, 1486711996, 40312.00),
+(562, 172, 3, 1, '{}', 1486712104, 1486721395, '2017-02-10', 1, 1486712101, 40312.00),
+(563, 171, 3, 2, '{}', 1486712953, 1486720244, '2017-02-10', 1, 1486712910, 23230.00),
+(564, 170, 1, 2, '{}', 1486715948, 1488203410, '2017-02-10', 1, 1486715930, 28873.00),
+(565, 170, 3, 3, '{}', 1486716782, 1486717426, '2017-02-10', 1, 1486716779, 61948.00),
+(566, 166, 3, 4, '{}', 1486720947, 1486720947, '2017-02-10', 1, 1486720945, 4640.00),
+(567, 167, 3, 5, '{}', 1486722741, 1486722783, '2017-02-26', 0, 1486722738, 14755.00),
+(568, 165, 1, 4, '{}', 1486722849, 1486722849, '2017-02-10', 0, 1486722846, 2320.00),
+(569, 173, 2, 2, '{}', 1486723073, 1487071275, '2017-02-10', 1, 1486723071, 14282.00),
+(570, 173, 1, 4, '{}', 1486723100, 1488203412, '2017-02-10', 1, 1486723099, 14282.00),
+(571, 167, 2, 4, '{}', 1486730859, 1486730859, '2017-02-10', 1, 1486730856, 18655.00),
+(572, 167, 1, 5, '{}', 1486730883, 1488203412, '2017-02-10', 1, 1486730877, 18655.00),
+(573, 174, 2, 51, '{}', 1486731622, 1487060259, '2017-02-10', 1, 1486731620, 7140.00),
+(574, 174, 3, 5, '{}', 1486993472, 1486993472, '2017-02-13', 1, 1488216147, 28020.00),
+(575, 174, 1, 6, '{}', 1486993530, 1488203412, '2017-02-13', 1, 1486993505, 7140.00),
+(576, 173, 3, 6, '{}', 1487071425, 1487071425, '2017-02-14', 0, 1487071422, 14282.00),
+(577, 178, 2, 6, '{}', 1487327372, 1487327372, '2017-02-17', 1, 1487327370, 12321.00),
+(578, 177, 2, 7, '{}', 1487327394, 1487327394, '2017-02-17', 0, 1487327391, 4270.00),
+(579, 182, 3, 6, '{}', 1487750589, 1487751693, '2017-02-22', 1, 1487751688, 4270.00),
+(580, 182, 2, 7, '{}', 1487750601, 1487750663, '2017-02-22', 1, 1487750598, 4270.00),
+(581, 182, 1, 7, '{}', 1487750694, 1488203412, '2017-02-22', 1, 1487750692, 4270.00),
+(582, 185, 3, 7, '{}', 1487774051, 1487774051, '2017-02-22', 0, 1487774043, 8913.00),
+(583, 184, 3, 7, '{}', 1487774071, 1487774235, '2017-02-22', 0, 1487774093, 3285.00),
+(584, 184, 2, 8, '{}', 1487774074, 1487774074, '2017-02-22', 0, 1487774073, 3285.00),
+(585, 184, 1, 8, '{}', 1487774081, 1487774081, '2017-02-22', 0, 1487774075, 3285.00),
+(586, 193, 2, 8, '{}', 1487955294, 1487955318, '2017-02-24', 0, 1487955311, 4270.00),
+(587, 193, 1, 8, '{}', 1487955324, 1487955324, '2017-02-24', 0, 1487955320, 4270.00),
+(588, 193, 3, 7, '{}', 1487955341, 1487955341, '2017-02-24', 0, 1487955325, 4270.00),
+(589, 186, 1, 8, '{}', 1487957291, 1487957464, '2017-02-24', 0, 1487957459, 6960.00),
+(590, 186, 2, 8, '{}', 1487957308, 1487957468, '2017-02-24', 0, 1487957465, 6960.00),
+(591, 186, 3, 7, '{}', 1487957312, 1487957473, '2017-02-24', 0, 1487957469, 6960.00),
+(592, 194, 1, 8, '{}', 1488193293, 1488203412, '2017-02-27', 1, 1488193280, 2320.00),
+(593, 194, 2, 8, '{}', 1488193304, 1488193304, '2017-02-27', 1, 1488193303, 2320.00),
+(594, 210, 1, 9, '{}', 1488198896, 1488198896, '2017-02-27', 0, 1488198885, 4270.00),
+(595, 210, 2, 12, '{}', 1488198901, 1488198901, '2017-02-27', 1, 1488532585, 4270.00),
+(596, 210, 3, 10, '{}', 1488198904, 1488198904, '2017-02-27', 1, 1488532565, 4270.00),
+(597, 209, 2, 9, '{}', 1488200016, 1488450772, '2017-02-27', 1, 1488450449, 4270.00),
+(598, 209, 1, 9, '{}', 1488200020, 1488200063, '2017-02-27', 1, 1488200017, 4271.00),
+(599, 209, 3, 7, '{}', 1488200053, 1488200053, '2017-02-27', 0, 1488200021, 4271.00),
+(600, 211, 2, 10, '{}', 1488216265, 1489402027, '2017-02-27', 1, 1488216264, 2320.00),
+(601, 211, 3, 7, '{}', 1488216281, 1488216281, '2017-02-27', 1, 1488216276, 2320.00),
+(602, 211, 1, 10, '{}', 1488216283, 1488216283, '2017-02-27', 1, 1488216282, 2320.00),
+(603, 198, 2, 11, '{}', 1488280125, 1488280125, '2017-02-28', 0, 1488280095, 4270.00),
+(604, 198, 1, 11, '{}', 1488280160, 1488280160, '2017-02-28', 0, 1488280126, 4270.00),
+(605, 198, 3, 8, '{}', 1488280440, 1488280440, '2017-02-28', 0, 1488280435, 4270.00),
+(606, 212, 1, 12, '{}', 1488286301, 1489402168, '2017-02-28', 1, 1488286295, 13825.00),
+(607, 212, 3, 8, '{}', 1488289644, 1488289690, '2017-02-28', 1, 1488289642, 25295.00),
+(608, 212, 2, 13, '{}', 1488290350, 1488290431, '2017-02-28', 1, 1488290347, 13133.75),
+(609, 213, 1, 11, '{}', 1488529470, 1488529470, '2017-03-03', 1, 1488529461, 5660.00),
+(610, 213, 2, 11, '{}', 1488529484, 1488529484, '2017-03-03', 1, 1488529479, 5660.00),
+(611, 213, 3, 9, '{}', 1488529493, 1488529493, '2017-03-03', 1, 1488529489, 5660.00),
+(612, 197, 2, 13, '{}', 1489400715, 1489400715, '2017-03-13', 0, 1489398959, 4270.00),
+(613, 219, 3, 11, '{}', 1490084337, 1490181958, '2017-03-21', 1, 1490084334, 73526.00),
+(614, 216, 3, 11, '{}', 1490085757, 1490086717, '2017-03-21', 0, 1490085755, 5377.00);
+
+SELECT * FROM
+(SELECT @row := @row + 1 as row, a.* from (
+	SELECT t.order_number
+	FROM sales_documents t
+	WHERE
+		t.type = 2 AND
+		t.date >= '2017-01-01' AND
+		t.date <= '2017-12-31' AND
+		t.order_number IS NOT NULL AND
+		t.generated = 1
+	GROUP BY t.order_number
+) a, (SELECT @row := 0) r) t
+WHERE row <> order_number;
+
+DROP TABLE sales_documents;
+
+--echo #
+--echo # MDEV-12845: pushdown from merged derived using equalities
+--echo #
+
+create table t1 (a int);
+insert into t1 values
+  (4), (8), (5), (3), (10), (2), (7);
+
+create table t2 (b int, c int);
+insert into t2 values
+  (2,1), (5,2), (2,2), (4,1), (4,3),
+  (5,3), (2,4), (4,6), (2,1);
+
+create view v1 as
+select b, sum(c) as s from t2 group by b;
+
+create view v2 as
+select distinct b, c from t2;
+
+create view v3 as
+select b, max(c) as m from t2 group by b;
+
+let $q1=
+select b
+from ( select t1.a, v1.b, v1.s from t1, v1 where t1.a = v1.b ) as t
+where b > 2;
+
+eval $q1;
+eval explain format=json $q1;
+
+let $q2=
+select a
+from ( select t1.a, v1.b, v1.s from t1, v1 where t1.a = v1.b ) as t
+where a > 2;
+
+eval $q2;
+eval explain format=json $q2;
+
+let $q3=
+select a
+from  ( select t1.a, v2.b, v2.c from t1, v2 where t1.a = v2.b ) as t
+where a > 2;
+
+eval $q3;
+eval explain format=json $q3;
+
+let $q4=
+select a
+from  ( select t1.a, v3.b, v3.m from t1, v3 where t1.a = v3.m ) as t
+where a > 2;
+
+eval $q4;
+eval explain format=json $q4;
+
+drop view v1,v2,v3;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-13166: pushdown from merged derived
+--echo #
+
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT MAX(i) AS f FROM t1;
+
+let $q=
+SELECT * FROM ( SELECT * FROM v1 ) AS sq WHERE f > 0;
+
+eval $q;
+eval explain format=json $q;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-13193: pushdown of equality extracted from multiple equality
+--echo #
+
+CREATE TABLE t1 (i1 int, KEY(i1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (i2 int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2),(4);
+
+CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
+
+let $q=
+SELECT * FROM t1, ( SELECT * FROM v2 ) AS sq
+  WHERE i1 = 1 AND ( i1 = i2 OR i1 = 2 );
+
+eval $q;
+eval explain format=json $q;
+
+DROP VIEW v2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-14237: derived with regexp_substr() in select list
+--echo #
+
+create table t1 (a char(8));
+insert into t1 values ('b'), ('a'), ('xx');
+
+let $q=
+select *
+from ( select distinct regexp_substr(t1.a,'^[A-Za-z]+') as f from t1) as t
+where t.f = 'a' or t.f = 'b';
+
+eval $q;
+eval explain format=json $q;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-13454: consequence of mdev-14368 fixed for 5.5
+--echo #
+
+SET  sql_mode = 'ONLY_FULL_GROUP_BY';
+
+create table t1 (id int, id2 int);
+insert into t1 values (1,1),(2,3),(3,4),(7,2);
+
+create table t2(id2 int);
+insert  t2 values (1),(2),(3);
+
+let $q=
+SELECT * FROM t1
+  LEFT OUTER JOIN
+  (SELECT id2, COUNT(*) as ct FROM t2 GROUP BY id2) vc USING (id2)
+WHERE (vc.ct>0);
+
+eval $q;
+eval EXPLAIN FORMAT=JSON $q;
+
+DROP TABLE t1,t2;
+
+SET  sql_mode = DEFAULT;
+
+--echo #
+--echo # MDEV-15579: incorrect removal of sub-formulas to be pushed
+--echo #             into WHERE of materialized derived with GROUP BY
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, d INT);
+CREATE TABLE t2 (x INT, y INT, z INT);
+
+INSERT INTO t1 VALUES (1,1,66,1), (1,1,56,2), (3,2,42,3);
+INSERT INTO t2 VALUES (1,1,66), (1,12,32);
+
+let $query=
+SELECT *
+FROM t2,
+(
+  SELECT a, b, max(c) AS max_c
+  FROM t1
+  GROUP BY a
+  HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND
+      (v1.a=t2.x) AND (v1.max_c>30);
+eval $query;
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+let $query=
+SELECT *
+FROM t2,
+(
+  SELECT a, b, d, max(c) AS max_c
+  FROM t1
+  GROUP BY a,d
+  HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND (v1.b=v1.d) AND
+      (v1.a=t2.x) AND (v1.max_c>30);
+eval $query;
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-15765: pushing condition with temporal constants
+--echo #             into constant tables
+--echo #
+
+select * from (select  date('2018-01-01') as d
+               union all
+               select  date('2018-01-01') as d) as t
+  where t.d between date ('2017-01-01') and date ('2019-01-01');
+
+select * from (select  date('2018-01-01') as d) as t
+  where t.d between date ('2017-01-01') and date ('2019-01-01');
+
+--echo #
+--echo # MDEV-16088: pushdown into derived defined in the IN subquery
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (e INT, f INT, g INT);
+INSERT INTO t1 VALUES (1,14),(2,13),(1,19),(2,32),(3,24);
+INSERT INTO t2 VALUES (1,19,2),(3,24,1),(1,12,2),(3,11,3),(2,32,1);
+
+let $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e,d_tab.max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) AS max_f
+      FROM t2
+      GROUP BY t2.e
+      HAVING max_f>18
+    ) as d_tab
+    WHERE d_tab.e>1
+  )
+;
+eval $query;
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+let $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e,d_tab.max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) AS max_f
+      FROM t2
+      GROUP BY t2.e
+      HAVING max_f>18
+    ) as d_tab
+    WHERE d_tab.max_f<25
+  )
+;
+eval $query;
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+let $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e, MAX(d_tab.max_f) AS max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) as max_f, t2.g
+      FROM t2
+      GROUP BY t2.e
+    ) as d_tab
+    WHERE d_tab.e>1
+    GROUP BY d_tab.g
+  )
+;
+eval $query;
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+let $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e, MAX(d_tab.max_f) AS max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) as max_f, t2.g
+      FROM t2
+      GROUP BY t2.e
+    ) as d_tab
+    WHERE d_tab.max_f>20
+    GROUP BY d_tab.g
+  )
+;
+eval $query;
+eval EXPLAIN $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-15765: pushing condition with IN subquery defined with constants
+--echo #             using substitution
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM
+(
+  SELECT DISTINCT * FROM t1
+) der_tab
+WHERE (a>0 AND a<2 OR a IN (2,3)) AND
+      (a=2 OR 0);
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16386: pushing condition into the HAVING clause when ambiguous
+--echo #             fields warning appears
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+
+INSERT INTO t1 VALUES (1,2),(2,3),(3,4);
+
+let $query=
+SELECT * FROM
+(
+  SELECT t1.b AS a
+  FROM t1
+  GROUP BY t1.a
+) dt
+WHERE (dt.a=2);
+eval $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+let $query=
+SELECT * FROM
+(
+  SELECT t1.b AS a
+  FROM t1
+  GROUP BY t1.a
+  HAVING (t1.a<3)
+) dt
+WHERE (dt.a>1);
+eval $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+let $query=
+SELECT * FROM
+(
+  SELECT 'ab' AS a
+  FROM t1
+  GROUP BY t1.a
+) dt
+WHERE (dt.a='ab');
+eval $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+let $query=
+SELECT * FROM
+(
+  SELECT 1 AS a
+  FROM t1
+  GROUP BY t1.a
+) dt
+WHERE (dt.a=1);
+eval $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16517: pushdown condition with the IN predicate defined
+--echo #             with non-constant values
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(1,3);
+
+let $query=
+SELECT * FROM
+(
+  SELECT t1.a
+  FROM t1
+  WHERE 1 IN (0,t1.a)
+  GROUP BY t1.a
+) AS dt1
+JOIN
+(
+  SELECT t1.a
+  FROM t1
+  WHERE 1 IN (0,t1.a)
+) AS dt2
+ON dt1.a = dt2.a;
+eval $query;
+eval EXPLAIN FORMAT=JSON $query;
+
+let $query=
+SELECT * FROM
+(
+  SELECT t1.a,MAX(t1.b)
+  FROM t1
+  GROUP BY t1.a
+) AS dt, t1
+WHERE dt.a=t1.a AND dt.a IN (1,t1.a);
+eval $query;
+eval EXPLAIN FORMAT=JSON $query;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15087: error from inexpensive subquery before check
+--echo #                   for condition pushdown into derived
+--echo #
+
+CREATE TABLE t1 (i1 int, v1 varchar(1));
+INSERT INTO t1 VALUES (7,'x');
+
+CREATE TABLE t2 (i1 int);
+INSERT INTO t2 VALUES (8);
+
+CREATE TABLE t3 (i1 int ,v1 varchar(1), v2 varchar(1));
+INSERT INTO t3 VALUES (4, 'v','v'),(62,'v','k'),(7, 'n', NULL);
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1
+FROM (t1 AS a1
+      JOIN (((SELECT  DISTINCT t3.*
+              FROM t3) AS a2
+             JOIN t1 ON (t1.v1 = a2.v2))) ON (t1.v1 = a2.v1))
+WHERE (SELECT  BIT_COUNT(t2.i1)
+       FROM (t2 JOIN t3)) IS NULL;
+
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-16614 signal 7 after calling stored procedure, that uses regexp
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(m1 varchar(5), m2 varchar(5))
+BEGIN
+SELECT a FROM
+	(SELECT "aa" a) t
+	JOIN (SELECT "aa" b) t1 on t.a=t1.b
+WHERE t.a regexp m1 and t1.b regexp m2
+GROUP BY a;
+END$$
+DELIMITER ;$$
+CALL p1('a','a');
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(m1 varchar(5))
+BEGIN
+  SELECT a FROM (SELECT "aa" a) t WHERE t.a regexp m1;
+END$$
+DELIMITER ;$$
+CALL p1('a');
+DROP PROCEDURE p1;
+
+
+SELECT a FROM (SELECT "aa" a) t WHERE REGEXP_INSTR(t.a, (SELECT MAX('aa') FROM DUAL LIMIT 1));
+
+
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1(a VARCHAR(10), b VARCHAR(10)) RETURNS INT
+BEGIN
+  RETURN 1;
+END;$$
+CREATE OR REPLACE PROCEDURE p1(m1 varchar(5))
+BEGIN
+  SELECT a FROM (SELECT "aa" a) t WHERE f1(t.a, m1);
+END$$
+DELIMITER ;$$
+CALL p1('a');
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1(a VARCHAR(10), b VARCHAR(10)) RETURNS INT
+BEGIN
+  RETURN 1;
+END;$$
+DELIMITER ;$$
+SELECT a FROM (SELECT "aa" a) t WHERE f1(t.a, (SELECT MAX('aa') FROM DUAL LIMIT 1));
+DROP FUNCTION f1;
+
+--echo #
+--echo # MDEV-17011: condition pushdown into materialized derived used
+--echo #             in INSERT SELECT, multi-table UPDATE and DELETE
+--echo #
+
+CREATE TABLE t1 (a int ,b int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+  (1, 1), (1, 2), (2, 1), (2, 2), (3,1), (3,3), (4,2);
+
+CREATE TABLE t2 (a int) ENGINE MYISAM;
+INSERT INTO t2 VALUES
+  (3), (7), (1), (4), (1);
+
+CREATE TABLE t3 (a int, b int) ENGINE MYISAM;
+
+let $q1=
+INSERT INTO t3
+SELECT * FROM (SELECT a, count(*) as c FROM t1 GROUP BY a) t WHERE a<=2;
+
+eval EXPLAIN FORMAT=JSON $q1;
+eval $q1;
+
+SELECT * FROM t3;
+
+let $q2=
+UPDATE t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t SET t2.a=t.c+10
+  WHERE t2.a= t.c and t.a>=3;
+
+eval EXPLAIN FORMAT=JSON $q2;
+eval $q2;
+
+SELECT * FROM t2;
+
+let $q3=
+DELETE t2 FROM t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t
+  WHERE t2.a= t.c+9 and t.a=2;
+
+eval EXPLAIN FORMAT=JSON $q3;
+eval $q3;
+
+SELECT * FROM t2;
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-16765: pushdown condition with the CASE structure
+--echo #             defined with Item_cond item
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,2), (3,4), (2,3);
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.max_a=1) OR (tab2.max_a=2))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.max_a=1) OR ((tab2.max_a>2) AND (tab2.max_a<4)))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.max_a>1) AND ((tab2.max_a=2) OR (tab2.max_a>2)))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.b=2) OR (tab2.b=4))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16803: pushdown condition with IN predicate in the derived table
+--echo #             defined with several SELECT statements
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(3,2),(1,1);
+
+SELECT * FROM
+(
+  SELECT a,b,1 as c
+  FROM t1
+  UNION ALL
+  SELECT a,b,2 as c
+  FROM t1
+) AS tab
+WHERE ((a,b) IN ((1,2),(3,2)));
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17354: INSERT SELECT with condition pushdown into derived
+--echo #
+
+CREATE TABLE t1 (f INT NOT NULL);
+INSERT INTO t1 VALUES (3), (7), (3);
+
+CREATE ALGORITHM= TEMPTABLE VIEW v1 AS SELECT * FROM ( SELECT * FROM t1 ) AS sq;
+
+let $q1=
+INSERT INTO t1
+SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
+
+eval $q1;
+eval EXPLAIN $q1;
+eval EXPLAIN FORMAT=JSON $q1;
+SELECT * FROM t1;
+
+DELETE FROM t1;
+INSERT INTO t1 VALUES (3), (7), (3);
+
+let $q2=
+INSERT INTO t1
+SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ON v1.f=t1.f) AS t
+  WHERE f IS NOT NULL;
+
+eval $q2;
+eval EXPLAIN FORMAT=JSON $q2;
+SELECT * FROM t1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17574: pushdown into derived from mergeable view
+--echo #             used in multi-table UPDATE
+--echo #             pushdown into materialized derived from mergeable view
+--echo #             used in SELECT
+--echo #
+
+CREATE TABLE t1 (f1 text, f2 int);
+INSERT INTO t1 VALUES ('x',1), ('y',2);
+
+CREATE VIEW v1 AS SELECT f2 FROM ( SELECT f2 FROM t1 ) AS t;
+let $q1 =
+UPDATE v1, t1 SET t1.f1 = 'z' WHERE v1.f2 < 2 AND t1.f2 = v1.f2;
+eval $q1;
+eval EXPLAIN FORMAT=JSON $q1;
+
+SELECT * FROM t1;
+
+CREATE VIEW v2 AS SELECT f2 FROM ( SELECT DISTINCT f2 FROM t1 ) AS t;
+let $q2 =
+SELECT * FROM v2, t1 WHERE v2.f2 < 2 AND t1.f2 = v2.f2;
+eval $q2;
+eval EXPLAIN FORMAT=JSON $q2;
+
+DROP VIEW v1,v2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18383: pushdown condition with the IF structure
+--echo #             defined with Item_cond item
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+CREATE TABLE t2(c INT, d INT);
+INSERT INTO t1 VALUES (1,2),(3,4),(5,6);
+INSERT INTO t2 VALUES (1,3),(3,7),(5,1);
+
+SELECT *
+FROM t1,
+(
+  SELECT MAX(d) AS max_d,c
+  FROM t2
+  GROUP BY c
+) AS tab
+WHERE t1.a=tab.c AND
+      IF(2,t1.a=1 OR t1.b>5,1=1);
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-19139: pushdown condition with Item_func_set_user_var
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE VIEW v1 AS SELECT a, MAX(b) FROM t1 GROUP BY a;
+
+SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+EXPLAIN FORMAT=JSON
+SELECT * FROM (SELECT 1 FROM v1 UNION (SELECT 1 FROM v1 WHERE @a := uuid())) dt;
+
+DROP TABLE t1;
+DROP VIEW v1;
+
+--echo #
+--echo # MDEV-21388 Wrong result of DAYNAME()=xxx in combination with condition_pushdown_for_derived=on
+--echo #
+
+CREATE TABLE t1 (a INT, b DATE, c INT);
+INSERT INTO t1 VALUES
+  (1,'2001-01-21',345),
+  (6,'2001-01-20',315),
+  (6,'2001-01-20',214);
+
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (2,19), (7,20);
+CREATE VIEW v1 AS SELECT a, b, max(c) AS max_c FROM t1
+  GROUP BY a,b HAVING max_c < 707;
+
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a);
+
+SET optimizer_switch='condition_pushdown_for_derived=off';
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a) AND dayname(v1.b)='Sunday';
+
+SET optimizer_switch='condition_pushdown_for_derived=on';
+SELECT *, dayname(v1.b) FROM v1,t2 WHERE (v1.max_c>214) AND (t2.a>v1.a) AND dayname(v1.b)='Sunday';
+
+DROP VIEW v1;
+DROP TABLE t1, t2;
+
+SET optimizer_switch=DEFAULT;
+
+
+
+--echo #
+--echo # MDEV-17177: an attempt to push down IN predicate when one of
+--echo #             the arguments is too complex to be cloned
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(8));
+INSERT INTO t1 VALUES ('abc'),('def');
+CREATE VIEW v1 AS SELECT * FROM t1 GROUP BY a;
+
+SELECT * FROM v1 WHERE IF( a REGEXP 'def', 'foo', a ) IN ('abc', 'foobar');
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19179: pushdown into UNION of aggregation selects whose
+--echo #             corresponding columns have different names
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+let $q=
+select *
+from (select min(a) as x from t1 union all select max(a) as y from t1) t
+where x>0;
+
+eval $q;
+eval explain extended $q;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+create view v1(m) as
+select min(a) as x from t1 union all select max(a) as y from t1;
+select * from v1 where m > 0;
+
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-25635: pushdown into grouping view using aggregate functions
+--echo #             with constant arguments via a mergeable derived table
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (3), (7), (7), (3);
+
+create view v1 as select a, sum(1) as f, sum(1) as g from t1 group by a;
+select * from v1;
+let $q1=
+select * from (select * from v1) as dt where a=f and a=g;
+eval $q1;
+eval explain extended $q1;
+
+create view v2 as select a, min(1) as f, min(1) as g from t1 group by a;
+select * from v2;
+let $q2=
+select * from (select * from v2) as dt where a=f and a=g;
+eval $q2;
+eval explain extended $q2;
+
+drop view v1,v2;
+drop table t1;
+
+--echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-14579: pushdown conditions into materialized views/derived tables
+--echo # that are defined with EXIST or/and INTERSECT
+--echo #
+
+create table t1 (a int, b int, c int);
+create table t2 (a int, b int, c int);
+
+insert into t1 values
+  (1,21,345), (1,33,7), (8,33,114), (1,21,500), (1,19,117), (5,14,787),
+  (8,33,123), (9,10,211), (5,16,207), (1,33,988), (5,27,132), (1,21,104),
+  (6,20,309), (6,20,315), (1,21,101), (4,33,404), (9,10,800), (1,21,123);
+
+insert into t2 values
+  (2,3,207), (1,16,909), (5,14,312),
+  (5,33,207), (6,20,211), (1,19,132),
+  (8,33,117), (3,21,231), (6,23,303);
+
+create view v1 as
+  select a, b, min(c) as c from t1
+  where t1.a<9 group by a,b having c < 300
+  intersect
+  select a, b, min(c) as c from t1
+  where t1.b>10 group by a,b having c > 100;
+
+--echo # using intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushing equalities
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE using equalities
+let $query= select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # conjunctive subformulas : pushing into HAVING
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # conjunctive subformulas : pushing into HAVING
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # extracted or formula : pushing into WHERE
+let $query=
+  select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # extracted or formula : pushing into HAVING
+let $query=
+  select * from v1,t2 where
+    (v1.a=t2.a) and ((v1.c>200) or (v1.c<105));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # extracted or formula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING using equalities
+--echo # pushing equalities
+let $query=
+  select * from v1,t2 where
+    ((v1.a>3) and (t2.c>110) and (v1.c=t2.c)) or
+    ((v1.a=1) and (v1.c<110));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using intersect in view definition
+--echo # prepare of a query
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # conjunctive subformulas : pushing into HAVING
+prepare stmt from "select * from v1,t2
+                   where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # using intersect in derived table definition
+--echo # extracted or formula : pushing into WHERE using equalities
+--echo # extracted or formula : pushing into HAVING
+--echo # pushing equalities
+let $query=
+  select *
+  from t2,
+      (select a, b, min(c) as c from t1
+       where t1.a<9 group by a,b having c < 300
+       intersect
+       select a, b, min(c) as c from t1
+       where t1.b>10 group by a,b having c > 100) as d1
+  where
+  (d1.b=t2.b) and
+  (((t2.b>13) and (t2.c=909)) or
+  ((d1.a<4) and (d1.c<200)));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+create view v1 as
+  select a, b, max(c) as c from t1
+  where t1.a<9 group by a,b having c > 200
+  except
+  select a, b, max(c) as c from t1
+  where t1.b>10 group by a,b having c < 300;
+
+--echo # using except in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushing equalities
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # conjunctive subformulas : pushing into WHERE using equalities
+let $query= select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # conjunctive subformulas : pushing into HAVING
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # conjunctive subformulas : pushing into HAVING
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # extracted or formula : pushing into WHERE
+let $query=
+  select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # extracted or formula : pushing into HAVING
+let $query=
+  select * from v1,t2 where
+    (v1.a=t2.a) and ((v1.c<400) or (v1.c>800));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # extracted or formula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING using equalities
+--echo # pushing equalities
+let $query=
+  select * from v1,t2 where
+    (v1.c=t2.c) and
+    ((v1.a>1) and (t2.c<500)) or
+    ((v1.a=1) and (v1.c>500));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+--echo # using except in view definition
+--echo # prepare of a query
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # conjunctive subformulas : pushing into HAVING
+prepare stmt from "select * from v1,t2
+                   where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # using except in view definition
+--echo # extracted or formula : pushing into WHERE using equalities
+--echo # extracted or formula : pushing into HAVING
+--echo # pushing equalities
+let $query=
+  select *
+  from t2,
+      (select a, b, max(c) as c from t1
+       where t1.a<9 group by a,b having c > 200
+       except
+       select a, b, max(c) as c from t1
+       where t1.b>10 group by a,b having c < 300) as d1
+  where
+  (d1.b=t2.b) and
+  (((t2.b>13) and (t2.c=988)) or
+  ((d1.a>4) and (d1.c>500)));
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union and intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, min(c) as c from t1
+    where t1.a<9 group by a,b having c > 200
+  union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a>3 group by a,b having c < 530;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union and intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, min(c) as c from t1
+    where t1.a<9 group by a,b having c > 200
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a>3 group by a,b having c < 500
+  union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union and except in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, min(c) as c from t1
+    where t1.a<9 group by a,b having c > 200
+  union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a>3 group by a,b having c < 530;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union and except in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, min(c) as c from t1
+    where t1.a<9 group by a,b having c > 200
+  except
+  select a, b, max(c) as c from t1
+    where t1.a>3 group by a,b having c < 500
+  union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using except and intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by a,b having c < 500
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a,b having c > 150;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using except and intersect in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a,b having c > 150
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by a,b having c < 500;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using except, intersect and union in view definition
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a,b having c > 150
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by a,b having c < 500
+  union
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by a,b having c < 120;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using intersect in view definition
+--echo # using embedded view
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a,b having c > 120;
+
+create view v2 as
+  select a, b, max(c) as c from v1
+    where v1.a<7 group by a,b;
+
+let $query= select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1,v2;
+
+--echo # using except in view definition
+--echo # using embedded view
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c < 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a,b having c > 150;
+
+create view v2 as
+  select a, b, max(c) as c from v1
+    where v1.a<7 group by a,b;
+
+let $query= select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1,v2;
+
+--echo # using intersect in view definition
+--echo # conditions are pushed in different parts of selects
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a having c > 300
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.b<21 group by b having c > 200;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and (v1.c<450);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using except in view definition
+--echo # conditions are pushed in different parts of selects
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>20 group by a having c > 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by b having c > 150;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and (v1.c>450);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using except and union in view definition
+--echo # conditions are pushed in different parts of selects
+--echo # conjunctive subformulas : pushing into HAVING
+--echo # extracted or formula : pushing into WHERE
+--echo # extracted or formula : pushing into HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.b>20 group by a having c > 300
+  except
+  select a, b, max(c) as c from t1
+    where t1.a<7 group by b having c > 150;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and (v1.c>450);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union and intersect in view definition
+--echo # conditions are pushed in different parts of selects
+--echo # conjunctive subformulas : pushing into WHERE and HAVING
+create view v1 as
+  select a, b, max(c) as c from t1
+    where t1.a<9 group by a having c > 100
+  intersect
+  select a, b, max(c) as c from t1
+    where t1.a>3 group by b having c < 800
+  union
+  select a, b, max(c) as c from t1
+    where t1.b>10 group by a,b having c > 300;
+
+let $query= select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+create table t3 (a int, b int, c int);
+insert into t3 values
+  (1,21,345), (2,33,7), (8,33,114), (3,21,500), (1,19,107), (5,14,787),
+  (4,33,123), (9,10,211), (11,16,207), (10,33,988), (5,27,132), (12,21,104),
+  (6,20,309), (16,20,315), (16,21,101), (18,33,404), (19,10,800), (10,21,123),
+  (17,11,708), (6,20,214);
+
+create index i1 on t3(a);
+
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushed condition gives range access
+create view v1 as
+  select a, b, max(c) as max_c from t3
+    where a>0 group by a;
+
+let $query= select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushed condition gives range access
+create view v1 as
+  select a, b, max(c) as c from t3
+    where t3.a>1 group by a
+  union
+  select a, b, max(c) as c from t3
+    where t3.a>2 group by a;
+
+let $query= select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+--echo # using union in view definition
+--echo # conjunctive subformulas : pushing into WHERE
+--echo # pushed condition gives range access in one of the selects
+create view v1 as
+  select a, b, max(c) as c from t3
+    where t3.a>1 group by a
+  union
+  select a, b, max(c) as c from t3
+    where t3.b<21 group by b;
+
+let $query= select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
+eval $no_pushdown $query;
+eval $query;
+eval explain $query;
+eval explain format=json $query;
+
+drop view v1;
+
+alter table t3 drop index i1;
+
+drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-10855: Pushdown into derived with window functions
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='split_materialized=off';
+
+create table t1 (a int, c varchar(16));
+insert into t1 values
+(8,'aa'), (5,'cc'), (1,'bb'), (2,'aa'), (9,'cc'),
+(7,'aa'), (2,'aa'), (7,'bb');
+
+create table t2 (a int, b int, c varchar(16), index idx(a,c));
+insert into t2 values
+  (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
+  (4,71,'xx'), (3,15,'aa'), (7,82,'bb'), (8,12,'dd'), (4,15,'aa'),
+  (11,33,'yy'), (10,42,'zz'), (4,53,'xx'), (10,17,'yy'), (7,12,'bb'),
+  (8,20,'dd'), (7,32,'bb'), (1,50,'aa'), (3,40,'bb'), (3,77,'aa');
+
+let $q1=
+select * from (select a, c, sum(b) over (partition by a,c) from t2) as t
+  where t.a > 2 and t.c in ('aa','bb','cc');
+
+--sorted_result
+eval $no_pushdown $q1;
+--sorted_result
+eval $q1;
+eval explain $q1;
+eval explain format=json $q1;
+
+let $q2=
+select * from
+(
+  select 1 as n, a, c, sum(b) over (partition by a,c) as s from t2
+  union all
+  select 2 as n, a, c, sum(b) over (partition by a) as s from t2
+) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+
+--sorted_result
+eval $no_pushdown $q2;
+--sorted_result
+eval $q2;
+eval explain $q2;
+eval explain format=json $q2;
+
+let $q3=
+select *
+from (select a, c, sum(b) over (partition by a,c) as s from t2) as t, t1
+  where t1.a=t.a and t1.c=t.c and t1.c in ('aa','bb','cc');
+
+eval $no_pushdown $q3;
+eval $q3;
+eval explain $q3;
+eval explain format=json $q3;
+
+let $q4=
+select * from
+(
+  select 1 as n, a, c, sum(b) over (partition by a,c) as s from t2
+  union all
+  select 2 as n, a, c, sum(b) over (partition by a) as s from t2
+  union all
+  select 3 as n, a, c, sum(b) as s from t2 group by a
+) as t
+where t.a > 2 and t.c in ('aa','bb','cc');
+
+--sorted_result
+eval $no_pushdown $q4;
+--sorted_result
+eval $q4;
+eval explain $q4;
+eval explain format=json $q4;
+
+let $q5=
+select * from (select a, c,
+                      sum(b) over (partition by a,c) as sum_b,
+                      avg(b) over (partition by a,c) as avg_b
+               from t2 ) as t
+  where t.a > 2 and t.c in ('aa','bb','cc');
+
+--sorted_result
+eval $no_pushdown $q5;
+--sorted_result
+eval $q5;
+eval explain $q5;
+eval explain format=json $q5;
+
+let $q6=
+select * from (select a, c,
+                      sum(b) over (partition by a,c) as sum_b,
+                      avg(b) over (partition by a) as avg_b
+               from t2 ) as t
+  where t.a > 2 and t.c in ('aa','bb','cc');
+
+--sorted_result
+eval $no_pushdown $q6;
+--sorted_result
+eval $q6;
+eval explain $q6;
+eval explain format=json $q6;
+
+let $q7=
+select * from (select a, c,
+                      sum(b) over (partition by a,c) as sum_b,
+                      avg(b) over (partition by c) as avg_b
+               from t2 ) as t
+  where t.a > 2 and t.c in ('aa','bb','cc');
+
+--sorted_result
+eval $no_pushdown $q7;
+--sorted_result
+eval $q7;
+eval explain $q7;
+eval explain format=json $q7;
+
+drop table t1,t2;
+
+set optimizer_switch= @save_optimizer_switch;
+
+--echo #
+--echo # MDEV-13369: Optimization for equi-joins of grouping derived tables
+--echo #             (Splitting derived tables / views with GROUP BY)
+--echo # MDEV-13389: Optimization for equi-joins of derived tables with WF
+--echo #             (Splitting derived tables / views with window functions)
+--echo #
+
+let
+$no_splitting= set statement optimizer_switch='split_materialized=off' for;
+
+create table t1 (a int, b int, index idx_b(b)) engine=myisam;
+insert into t1 values
+(8,3), (5,7), (1,2), (2,1), (9,7), (7,5), (2,2), (7,3),
+(9,3), (8,1), (4,5), (2,3);
+
+create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam;
+insert into t2 values
+  (7,10,'x'), (1,20,'a'), (2,23,'b'), (7,18,'z'), (1,30,'c'),
+  (4,71,'d'), (3,15,'x'), (7,82,'y'), (8,12,'t'), (4,15,'b'),
+  (11,33,'a'), (10,42,'u'), (4,53,'p'), (10,17,'r'), (2,90,'x'),
+  (17,10,'s'), (11,20,'v'), (12,23,'y'), (17,18,'a'), (11,30,'d'),
+  (24,71,'h'), (23,15,'i'), (27,82,'k'), (28,12,'p'), (24,15,'q'),
+  (31,33,'f'), (30,42,'h'), (40,53,'m'), (30,17,'o'), (21,90,'b'),
+  (37,10,'e'), (31,20,'g'), (32,23,'f'), (37,18,'n'), (41,30,'l'),
+  (54,71,'j'), (53,15,'w'), (57,82,'z'), (58,12,'k'), (54,15,'p'),
+  (61,33,'c'), (60,42,'a'), (62,53,'x'), (67,17,'g'), (64,90,'v');
+
+insert into t2 select a+10, b+10, concat(c,'f') from t2;
+
+analyze table t1,t2;
+
+let $q1=
+select t1.a,t.s,t.m
+from t1 join
+     (select a, sum(t2.b) as s, min(t2.c) as m from t2 group by t2.a) t
+     on t1.a=t.a
+where t1.b < 3;
+
+eval $no_splitting $q1;
+eval $q1;
+eval explain extended $q1;
+eval explain format=json $q1;
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q10=
+select t1.a,t.s,t.m
+from t1 join
+     (select a, sum(t2.b) as s, min(t2.b) as m from t2 group by t2.a) t
+     on t1.a=t.a
+where t1.b <= 5;
+
+eval $no_splitting $q10;
+eval $q10;
+eval explain extended $q10;
+eval explain format=json $q10;
+eval prepare stmt from "$q10";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+delete from t1 where t1.b between 2 and 5;
+
+let $q2=
+select t1.a,t.max,t.min
+from t1 left join
+     (select a, max(t2.b) max, min(t2.b) min from t2 group by t2.a) t
+     on t1.a=t.a;
+
+eval $no_splitting $q2;
+eval $q2;
+eval explain extended $q2;
+eval explain format=json $q2;
+
+create table t3 (a int, b int, c char(127), index idx_b(b)) engine=myisam;
+insert into t3 values
+(8,11,'aa'), (5,15,'cc'), (1,14,'bb'), (2,12,'aa'), (7,17,'cc'),
+(7,18,'aa'), (2,11,'aa'), (7,10,'bb'), (3,11,'dd'), (4,12,'ee'),
+(5,14,'dd'), (9,12,'ee');
+
+create table t4 (a int, b int, c char(127), index idx(a,c)) engine=myisam;
+insert into t4 values
+  (7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
+  (4,71,'xx'), (3,15,'aa'), (7,82,'aa'), (8,12,'dd'), (4,15,'aa'),
+  (11,33,'yy'), (10,42,'zz'), (4,53,'xx'), (10,17,'yy'), (7,12,'cc'),
+  (8,20,'dd'), (7,32,'bb'), (1,50,'aa'), (3,40,'bb'), (3,77,'aa');
+
+insert into t4 select a+10, b+10, concat(c,'f') from t4;
+
+analyze table t3,t4;
+
+let $q3=
+select t3.a,t3.c,t.max,t.min
+from t3 join
+     (select a, c, max(b) max, min(b) min from t4 group by a,c) t
+     on t3.a=t.a and t3.c=t.c
+where t3.b > 15;
+
+eval $no_splitting $q3;
+eval $q3;
+eval explain extended $q3;
+eval explain format=json $q3;
+
+let $q30=
+select t3.a,t3.c,t.max,t.min
+from t3 join
+     (select a, c, max(b) max, min(b) min from t4 group by a,c) t
+     on t3.a=t.a and t3.c=t.c
+where t3.b <= 15;
+
+eval $no_splitting $q30;
+eval $q30;
+eval explain extended $q30;
+eval explain format=json $q30;
+
+let $q4=
+select t3.a,t3.c,t.max,t.min
+from t3 join
+     (select a, c, max(b) max, min(b) min from t4 group by c,a) t
+     on t3.a=t.a and t3.c=t.c
+where t3.b > 15;
+
+eval $no_splitting $q4;
+eval $q4;
+eval explain extended $q4;
+eval explain format=json $q4;
+
+let $q40=
+select t3.a,t3.c,t.max,t.min
+from t3 join
+     (select a, c, max(b) max, min(b) min from t4 group by c,a) t
+     on t3.a=t.a and t3.c=t.c
+where t3.b <= 15;
+
+eval $no_splitting $q40;
+eval $q40;
+eval explain extended $q40;
+eval explain format=json $q40;
+
+drop index idx_a on t2;
+create index idx on t2(c,b);
+create index idx_a on t3(a);
+create index idx_c on t4(c);
+insert into t3 select a+10, b+10, concat(c,'f') from t3;
+insert into t3 select a+100, b+100, concat(c,'g')  from t3;
+insert into t4 select a+100, b+100, concat(c,'g') from t4;
+insert into t4 select a+1000, b+1000, concat(c,'h') from t4;
+
+analyze table t2,t3,t4;
+
+let $q5=
+select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
+from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
+where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
+
+--sorted_result
+eval $no_splitting $q5;
+--sorted_result
+eval $q5;
+eval explain extended $q5;
+eval explain format=json $q5;
+
+let $q50=
+select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
+from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
+where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
+
+eval $no_splitting $q50;
+eval $q50;
+eval explain extended $q50;
+eval explain format=json $q50;
+
+let $q6=
+select *
+from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
+where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
+
+--sorted_result
+eval $no_splitting $q6;
+--sorted_result
+eval $q6;
+eval explain extended $q6;
+eval explain format=json $q6;
+
+let $q60=
+select *
+from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
+where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
+
+--sorted_result
+eval $no_splitting $q60;
+--sorted_result
+eval $q60;
+eval explain extended $q60;
+eval explain format=json $q60;
+
+drop table t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-13709: Optimization for semi-joins of grouping derived tables
+--echo #             (Splitting derived tables / views with GROUP BY)
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(9),(3);
+
+CREATE TABLE t2 (a int, i int);
+INSERT INTO t2 VALUES (1,9),(2,3),(3,7),(4,1);
+
+CREATE TABLE t3 (a int, c char(127), index(c));
+INSERT INTO t3 VALUES (1,'foo'),(3,'bar'),(4,'foo'),(2,'bar');
+INSERT INTO t3 SELECT a, concat(c,'a') FROM t3;
+
+CREATE TABLE t4 (a int, c char(127), index(a));
+INSERT INTO t4 VALUES
+  (3,'abc'),(1,'foo'),(4,'def'),(8,'xxx'),(3,'yyy'),
+  (5,'zzz'),(9,'xyz'),(2,'yxz'),(5,'zxy'),(7,'zyx') ;
+
+ANALYZE TABLE t1,t2,t3,t4;
+
+CREATE VIEW v1 AS
+SELECT c FROM t3
+  WHERE a IN ( SELECT t2.a FROM t1 JOIN t2 WHERE t1.i = t2.i ) GROUP BY c ;
+
+let $q1=
+SELECT * FROM t4 WHERE c IN ( SELECT c FROM v1 ) and a < 2;
+
+eval $no_splitting $q1;
+eval $q1;
+eval explain extended $q1;
+eval explain format=json $q1;
+
+DROP VIEW v1;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-13710: Optimization for equi-joins of grouping derived tables
+--echo #             (Splitting derived tables / views with GROUP BY) :
+--echo #             FROM list of the derived table contains constant tables
+--echo #
+
+CREATE TABLE t1 (a int, INDEX(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (9),(5),(1);
+
+CREATE TABLE t2 (b int) ENGINE=MyISAM;
+
+CREATE TABLE t3 (c varchar(8), d int) ENGINE=MyISAM;
+INSERT INTO t3 VALUES ('foo',2),('bar',6);
+
+CREATE VIEW v1 AS SELECT a FROM t1, t2 GROUP BY a;
+
+SELECT * FROM t3
+  WHERE d IN ( SELECT * FROM v1 ) AND c LIKE 'z%' OR c IS NULL;
+
+DROP VIEW v1;
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-13734: Optimization for equi-joins of grouping derived tables
+--echo #             (Splitting derived tables / views with GROUP BY) :
+--echo #             derived table / view is empty
+--echo #
+
+CREATE TABLE t1 (a int, b int, INDEX(a)) ENGINE=MyISAM;
+CREATE TABLE t2 (c int) ENGINE=MyISAM;
+
+CREATE VIEW v1 AS SELECT a, b FROM t1 STRAIGHT_JOIN t2;
+CREATE VIEW v2 AS SELECT a, max(b) as bmax FROM v1 GROUP BY a;
+CREATE VIEW v3 AS SELECT v2.* FROM t1 JOIN v2 ON t1.b = v2.bmax ;
+
+SELECT * FROM v3 JOIN t1 ON (bmax = b);
+
+DROP VIEW v1,v2,v3;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-14845: Impossible where for derived with GROUP BY
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+
+INSERT INTO t1 VALUES (1),(2);
+
+let $q=
+WITH cte AS ( SELECT pk FROM t1 WHERE pk IS NULL GROUP BY pk )
+SELECT * FROM cte;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14880: assertion failure in optimizer when splitting is applied
+--echo #
+
+CREATE TABLE t1 (pk1 INT PRIMARY KEY, f INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1,0),(2,0);
+
+CREATE TABLE t2 (pk2 INT PRIMARY KEY) ENGINE=Aria;
+INSERT INTO t2 VALUES (1),(2),(3);
+
+CREATE VIEW v2 AS SELECT pk2, COUNT(*) AS cnt FROM t2 GROUP BY pk2;
+
+let $q=
+SELECT * FROM t1 INNER JOIN v2 ON pk1 = pk2 WHERE f <> 5;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+eval EXPLAIN FORMAT=JSON $q;
+
+DROP VIEW v2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-15017: splittable table is constant table
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+
+CREATE TABLE t2 (pk INT, b INT, PRIMARY KEY (pk)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,2),(3,4);
+
+CREATE VIEW v2 AS SELECT pk, MIN(b) FROM t2 GROUP BY pk;
+
+SELECT * FROM t1 LEFT JOIN v2 ON (a = pk);
+
+DROP VIEW v2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-14994: splittable table with no rows
+--echo #
+
+CREATE TABLE t1 (f INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE VIEW v1 AS SELECT a.* FROM t1 AS a STRAIGHT_JOIN t1 AS b;
+CREATE VIEW v2 AS SELECT f FROM v1 GROUP BY f;
+
+SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
+EXPLAIN EXTENDED
+SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
+
+DROP VIEW v1,v2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15899: derived with WF without any key access
+--echo #
+
+create table t1 (f1 int, f2 int, f4 int);
+insert into t1 values
+  (3,1,1), (3,0,9), (0,1,8), (9,0,0), (3,0,9);
+
+let $q=
+with
+cte as (select  median(f2) over (partition by f1) as k1 from t1 order by f1),
+cte1 as (select median(f4) over (partition by f1) as k2 from t1)
+select k1,k2 from cte1, cte;
+
+--sorted_result
+eval $q;
+eval explain $q;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-16104: embedded splittable materialized derived/views
+--echo #
+
+CREATE TABLE t1 (f int PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1
+  VALUES (3), (7), (1), (4), (8), (5), (9);
+
+CREATE ALGORITHM=MERGE VIEW v1 AS
+SELECT a2.*
+FROM
+  ( SELECT f, COUNT(*) as c FROM t1 GROUP BY f ) AS a1
+  JOIN
+  t1 AS a2
+  USING (f);
+
+EXPLAIN EXTENDED
+SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
+SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16801: splittable materialized derived/views with
+--echo #             one grouping field from table without keys
+--echo #
+
+CREATE TABLE t1 (a int, b int, INDEX idx_a(a), INDEX idx_b(b)) ENGINE=MYISAM;
+CREATE TABLE t2 (c int) ENGINE=MYISAM;
+CREATE TABLE t3 (d int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES
+  (77,7), (11,1), (33,3), (44,4), (8,88),
+  (78,7), (98,9), (38,3), (28,2), (79,7),
+  (58,5), (42,4), (71,7), (27,2), (91,9);
+INSERT INTO t1 SELECT a+100, b+10 FROM t1;
+INSERT INTO t2 VALUES
+  (100), (700), (200), (100), (200);
+INSERT INTO t3 VALUES
+  (3), (4), (1), (8), (3);
+
+ANALYZE tables t1,t2,t3;
+
+let $q=
+SELECT *
+  FROM t3,
+       (SELECT t1.b, t2.c
+          FROM  t1, t2
+            GROUP BY t1.b,t2.c) dt
+WHERE t3.d = dt.b;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-17419: splittable materialized derived/view
+--echo #             when join_cache_level = 4
+--echo #
+
+set join_cache_level = 4;
+
+CREATE TABLE t1 (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  username VARCHAR(50) NULL DEFAULT '0',
+  PRIMARY KEY (id)
+) COLLATE='utf8_general_ci';
+
+CREATE TABLE t2 (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  userid INT UNSIGNED NOT NULL,
+  logindate DATETIME NOT NULL,
+  PRIMARY KEY (id)
+) COLLATE='utf8_general_ci';
+
+INSERT INTO t1 (id, username) VALUES
+  (1,"user1"), (2, "user2");
+INSERT INTO t2 (id, userid, logindate) VALUES
+  (1,1,"2015-06-19 12:17:02.828"),
+  (2,1,"2016-06-19 12:17:02.828"),
+  (3,2,"2017-06-19 12:17:02.828"),
+  (4,2,"2018-06-19 12:17:02.828");
+
+let $q=
+select * from t1 as u
+              left join
+              (select * from t2 as au group by au.userid) as auditlastlogin
+              on u.id=auditlastlogin.userid;
+
+eval EXPLAIN $q;
+eval $q;
+
+set join_cache_level=default;
+
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # MDEV-21614: potentially splittable materialized derived/view
+--echo #             within materialized semi-join
+--echo #
+
+create table t1 (
+  id int not null auto_increment primary key,
+  a int not null
+) engine=myisam;
+
+create table t2 (
+  id int not null auto_increment primary key,
+  ro_id int not null,
+  flag int not null, key (ro_id)
+) engine=myisam;
+
+insert into t1(a) select seq+100 from seq_1_to_20;
+insert into t2(ro_id,flag) select seq, 1 from seq_1_to_20;
+insert into t2(ro_id,flag) select seq, 0 from seq_1_to_20;
+
+create view v1 as
+select t1.* from t1 left join t2 on (t1.id = t2.ro_id AND t2.flag = 1)
+  group by t1.id;
+
+let $q1=
+select id, a from t1 where  id in (select id from v1);
+eval $q1;
+eval explain extended $q1;
+
+let $q2=
+select id, a from t1
+  where id in (select id
+               from (select t1.* from t1 left join t2
+                                      on (t1.id = t2.ro_id AND t2.flag = 1)
+                     group by t1.id) dt);
+eval $q2;
+eval explain extended $q2;
+
+drop view v1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-21883: potentially splittable materialized derived
+--echo #             that uses a join of 32 tables
+--echo #
+
+CREATE TABLE t (id INT NOT NULL PRIMARY KEY);
+INSERT INTO t values (1),(2),(3);
+
+let $q=
+SELECT t.id FROM t
+LEFT JOIN (
+    SELECT t0.id FROM t AS t0
+    LEFT JOIN t AS t1 ON 0=1
+    LEFT JOIN t AS t2 ON 0=1
+    LEFT JOIN t AS t3 ON 0=1
+    LEFT JOIN t AS t4 ON 0=1
+    LEFT JOIN t AS t5 ON 0=1
+    LEFT JOIN t AS t6 ON 0=1
+    LEFT JOIN t AS t7 ON 0=1
+    LEFT JOIN t AS t8 ON 0=1
+    LEFT JOIN t AS t9 ON 0=1
+    LEFT JOIN t AS t10 ON 0=1
+    LEFT JOIN t AS t11 ON 0=1
+    LEFT JOIN t AS t12 ON 0=1
+    LEFT JOIN t AS t13 ON 0=1
+    LEFT JOIN t AS t14 ON 0=1
+    LEFT JOIN t AS t15 ON 0=1
+    LEFT JOIN t AS t16 ON 0=1
+    LEFT JOIN t AS t17 ON 0=1
+    LEFT JOIN t AS t18 ON 0=1
+    LEFT JOIN t AS t19 ON 0=1
+    LEFT JOIN t AS t20 ON 0=1
+    LEFT JOIN t AS t21 ON 0=1
+    LEFT JOIN t AS t22 ON 0=1
+    LEFT JOIN t AS t23 ON 0=1
+    LEFT JOIN t AS t24 ON 0=1
+    LEFT JOIN t AS t25 ON 0=1
+    LEFT JOIN t AS t26 ON 0=1
+    LEFT JOIN t AS t27 ON 0=1
+    LEFT JOIN t AS t28 ON 0=1
+    LEFT JOIN t AS t29 ON 0=1
+    LEFT JOIN t AS t30 ON 0=1
+    LEFT JOIN t AS t31 ON 0=1
+    GROUP BY t0.id) AS dt ON dt.id = t.id;
+
+eval set statement optimizer_switch='split_materialized=off' for $q;
+
+eval set statement optimizer_switch='split_materialized=on' for $q;
+
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-23804: Server crashes in st_select_lex::collect_grouping_fields_for_derived
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(4);
+CREATE VIEW v1 AS SELECT a FROM t1 UNION VALUES (3),(4);
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT * from v1 WHERE a=3;
+SELECT * from v1 WHERE a=3;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25128: Split optimization for join with materialized semi-join
+--echo #
+
+create table t1 (id int, a int, index (a), index (id, a)) engine=myisam;
+insert into t1 values
+(17,1),(17,3010),(17,3013),(17,3053),(21,2446),(21,2467),(21,2);
+
+create table t2 (a int) engine=myisam;
+insert into t2 values (1),(2),(3);
+
+create  table t3 (id int) engine=myisam;
+insert into t3 values (1),(2);
+
+analyze table t1,t2,t3;
+
+let $q=
+select * from t1, (select a from t1 cp2 group by a) dt, t3
+  where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+
+set optimizer_switch="split_materialized=off";
+eval $q;
+eval explain $q;
+eval explain format=json $q;
+
+set optimizer_switch="split_materialized=default";
+eval $q;
+eval explain $q;
+eval explain format=json $q;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table t1,t2,t3;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-18679: materialized view with SELECT S containing materialized
+--echo #             derived when impossible WHERE has been detected for S
+--echo #
+
+create table t1 (pk int, f varchar(1));
+insert into t1 values
+  (3,'y'), (1,'x'), (7,'z');
+
+create view v1 as
+select t1.f
+  from t1, (select distinct * from t1) t
+  where t.f = t1.f and 1 = 0
+group by t1.f;
+
+select * from v1;
+explain select * from v1;
+
+drop view v1;
+drop table t1;
+
+--echo # End of 10.4 tests

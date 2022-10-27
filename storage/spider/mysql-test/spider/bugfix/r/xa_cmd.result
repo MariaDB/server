@@ -1,0 +1,68 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+this test is for MDEV-19794
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+XA START 'test';
+INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+XA END 'test';
+XA PREPARE 'test';
+XA COMMIT 'test';
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+argument
+insert into `auto_test_remote`.`tbl_a`(`pkey`)values(0),(1),(2),(3),(4),(5),(6),(7),(8),(9)
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %'
+SELECT pkey FROM tbl_a ORDER BY pkey;
+pkey
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

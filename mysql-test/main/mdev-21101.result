@@ -1,0 +1,43 @@
+SELECT
+@@global.wait_timeout, @@global.thread_pool_max_threads, @@global.thread_pool_size,
+@@global.thread_pool_oversubscribe,  @@global.thread_pool_stall_limit
+INTO
+@_wait_timeout,@_thread_pool_max_threads,@_thread_pool_size,
+@_thread_pool_oversubscribe,@_thread_pool_stall_limit;
+SET @@global.wait_timeout=1,
+@@global.thread_pool_max_threads=2,
+@@global.thread_pool_size=1,
+@@global.thread_pool_oversubscribe=1,
+@@global.thread_pool_stall_limit=10;
+connect  c1, localhost, root,,;
+connect  c2, localhost, root,,;
+connect  c3, localhost, root,,;
+connection c1;
+select sleep(1.1);
+connection c2;
+select sleep(1.1);
+connection c3;
+select sleep(1.1);
+connection default;
+select sleep(1.1);
+connection c1;
+sleep(1.1)
+0
+connection c2;
+sleep(1.1)
+0
+connection c3;
+sleep(1.1)
+0
+connection default;
+sleep(1.1)
+0
+disconnect c1;
+disconnect c2;
+disconnect c3;
+connection default;
+SET @@global.wait_timeout=@_wait_timeout,
+@@global.thread_pool_max_threads=@_thread_pool_max_threads,
+@@global.thread_pool_size=@_thread_pool_size,
+@@global.thread_pool_oversubscribe=@_thread_pool_oversubscribe,
+@@global.thread_pool_stall_limit=@_thread_pool_stall_limit;

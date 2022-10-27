@@ -1,0 +1,291 @@
+SET @@session.storage_engine = 'InnoDB';
+#            - UNIQUE KEY
+#            - INDEX
+#            - FULLTEXT INDEX
+#            - SPATIAL INDEX (not supported)
+#            - FOREIGN INDEX (partially supported)
+#            - CHECK (allowed but not used)
+# UNIQUE
+create table t1 (a int, b int as (a*2) unique);
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent unique);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
+  UNIQUE KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	UNI	NULL	STORED GENERATED
+drop table t1;
+create table t1 (a int, b int as (a*2), unique key (b));
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent, unique (b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
+  UNIQUE KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	UNI	NULL	STORED GENERATED
+drop table t1;
+create table t1 (a int, b int as (a*2));
+alter table t1 add unique key (b);
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent);
+alter table t1 add unique key (b);
+drop table t1;
+# Testing data manipulation operations involving UNIQUE keys 
+# on virtual columns can be found in:
+#  - vcol_ins_upd.inc
+#  - vcol_select.inc
+# 
+# INDEX
+create table t1 (a int, b int as (a*2), index (b));
+drop table t1;
+create table t1 (a int, b int as (a*2), index (a,b));
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent, index (b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+b	int(11)	YES	MUL	NULL	STORED GENERATED
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent, index (a,b));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
+  KEY `a` (`a`,`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+describe t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES	MUL	NULL	
+b	int(11)	YES		NULL	STORED GENERATED
+drop table t1;
+create table t1 (a int, b int as (a*2));
+alter table t1 add index (b);
+alter table t1 add index (a,b);
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent);
+alter table t1 add index (b);
+drop table t1;
+create table t1 (a int, b int as (a*2) persistent);
+alter table t1 add index (a,b);
+create table t2 like t1;
+drop table t2;
+drop table t1;
+# Testing data manipulation operations involving INDEX
+# on virtual columns can be found in:
+#  - vcol_select.inc
+#
+# TODO: FULLTEXT INDEX
+# SPATIAL INDEX
+# Error "All parts of a SPATIAL index must be NOT NULL"
+create table t1 (a int, b geometry as (a+1) persistent, spatial index (b));
+ERROR 42000: All parts of a SPATIAL index must be NOT NULL
+create table t1 (a int, b int as (a+1) persistent);
+alter table t1 add spatial index (b);
+ERROR HY000: Incorrect arguments to SPATIAL INDEX
+drop table t1;
+# FOREIGN KEY
+# Rejected FK options.
+create table t1 (a int, b int as (a+1) persistent,
+foreign key (b) references t2(a) on update set null);
+ERROR HY000: Cannot define foreign key with ON UPDATE SET NULL clause on a generated column
+create table t1 (a int, b int as (a+1) persistent,
+foreign key (b) references t2(a) on update cascade);
+ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a generated column
+create table t1 (a int, b int as (a+1) persistent,
+foreign key (b) references t2(a) on delete set null);
+ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a generated column
+create table t1 (a int, b int as (a+1) persistent);
+alter table t1 add foreign key (b) references t2(a) on update set null;
+ERROR HY000: Cannot define foreign key with ON UPDATE SET NULL clause on a generated column
+alter table t1 add foreign key (b) references t2(a) on update cascade;
+ERROR HY000: Cannot define foreign key with ON UPDATE CASCADE clause on a generated column
+alter table t1 add foreign key (b) references t2(a) on delete set null;
+ERROR HY000: Cannot define foreign key with ON DELETE SET NULL clause on a generated column
+drop table t1;
+create table t1 (a int, b int as (a+1), foreign key (b) references t2(a));
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+create table t1 (a int, b int as (a+1));
+alter table t1 add foreign key (b) references t2(a);
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+drop table t1;
+# Allowed FK options.
+create table t2 (a int primary key, b char(5));
+create table t1 (a int, b int as (a % 10) persistent,
+foreign key (b) references t2(a) on update restrict);
+drop table t1;
+create table t1 (a int, b int as (a % 10) persistent,
+foreign key (b) references t2(a) on update no action);
+drop table t1;
+create table t1 (a int, b int as (a % 10) persistent,
+foreign key (b) references t2(a) on delete restrict);
+drop table t1;
+create table t1 (a int, b int as (a % 10) persistent,
+foreign key (b) references t2(a) on delete cascade);
+drop table t1;
+create table t1 (a int, b int as (a % 10) persistent,
+foreign key (b) references t2(a) on delete no action);
+drop table t1;
+
+# Testing data manipulation operations involving FOREIGN KEY 
+# on virtual columns can be found in:
+#  - vcol_ins_upd.inc
+#  - vcol_select.inc
+create table t1 (a int, b timestamp as (now()), key (b));
+ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b timestamp as (now()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'current_timestamp()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+create table t1 (a int, b varchar(100) as (user()), key (b));
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b varchar(100) as (user()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'user()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+create table t1 (a int, b double as (rand()), key (b));
+ERROR HY000: Function or expression 'rand()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int, b double as (rand()));
+alter table t1 add index (b);
+ERROR HY000: Function or expression 'rand()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+drop table t1;
+CREATE OR REPLACE TABLE t1 (
+f2 DOUBLE NOT NULL DEFAULT '0',
+f3 DOUBLE NOT NULL DEFAULT '0',
+f4 DOUBLE,
+f5 DOUBLE DEFAULT '0',
+v4 DOUBLE AS (IF(f4,f3,f2)) VIRTUAL,
+KEY (f5),
+KEY (v4)
+);
+INSERT INTO t1 (f2,f3,f4,f5) VALUES (5,4,1,0),(5,7,NULL,0);
+INSERT INTO t1 (f2,f3,f4,f5) SELECT f2, f3, f5, f3 FROM t1;
+INSERT INTO t1 (f2,f3,f4,f5) VALUES (5,0,NULL,1);
+INSERT INTO t1 (f2,f3,f4,f5) SELECT f2, f5, f5, f3 FROM t1;
+DELETE FROM t1 WHERE f5 = 1 OR v4 = 4 ORDER BY f5,v4 LIMIT 9;
+SELECT * from t1;
+f2	f3	f4	f5	v4
+5	7	NULL	0	5
+5	4	0	4	5
+5	7	0	7	5
+5	0	0	4	5
+5	0	0	7	5
+5	7	7	7	7
+5	1	1	0	1
+DROP TABLE t1;
+CREATE TABLE t1 (
+d DECIMAL(63,0) NOT NULL DEFAULT 0,
+c VARCHAR(64) NOT NULL DEFAULT '',
+vd DECIMAL(63,0) AS (d) VIRTUAL,
+vc VARCHAR(2048) AS (c) VIRTUAL,
+pk BIGINT AUTO_INCREMENT,
+PRIMARY KEY(pk));
+INSERT INTO t1 (d,c) VALUES (0.5,'foo');
+Warnings:
+Note	1265	Data truncated for column 'd' at row 1
+SELECT * FROM t1 WHERE vc != 'bar' ORDER BY vd;
+d	c	vd	vc	pk
+1	foo	1	foo	1
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk BIGINT,
+c CHAR(64) NOT NULL DEFAULT '',
+vc CHAR(64) AS (c) VIRTUAL,
+PRIMARY KEY(pk),
+INDEX(vc(32))
+);
+DELETE FROM t1 WHERE vc IS NULL ORDER BY pk;
+DROP TABLE t1;
+#
+# MDEV-11737 Failing assertion: block->magic_n == MEM_BLOCK_MAGIC_N
+# 
+CREATE TABLE t1 (i INT PRIMARY KEY, vi INT AS (i*2) VIRTUAL UNIQUE)
+ENGINE=InnoDB;
+CREATE TABLE t2 (i INT) ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN col INT;
+SELECT * FROM t1 WHERE vi < 2;
+i	vi	col
+DROP TABLE t1, t2;
+create table t1 (
+pk int auto_increment,
+col_varchar varchar(847) not null default '',
+col_int bigint(15) unsigned zerofill,
+col_datetime datetime(3) not null default '1900-01-01 00:00:00',
+col_time time(5) not null default '00:00:00',
+col_blob text,
+col_bit bit(34),
+col_year year,
+col_char char(10),
+col_dec decimal(18,9) not null default 0,
+col_enum enum('','a','b','c','d','e','f','foo','bar') not null default '',
+col_date date not null default '1900-01-01',
+col_timestamp timestamp(3) not null default '1971-01-01 00:00:00',
+vcol_datetime datetime as (col_datetime) virtual,
+vcol_dec decimal(18,9) zerofill as (col_dec) virtual,
+vcol_bit bit(63) as (col_bit) virtual,
+vcol_char binary(51) as (col_char) virtual,
+vcol_timestamp timestamp(5) as (col_timestamp) virtual,
+vcol_enum enum('','a','b','c','d','e','f','foo','bar') as (col_enum) virtual,
+vcol_int tinyint(48) zerofill as (col_int) virtual,
+vcol_time time(4) as (col_time) virtual,
+vcol_varchar varbinary(3873) as (col_varchar) virtual,
+vcol_year year as (col_year) virtual,
+vcol_date date as (col_date) virtual,
+vcol_blob longtext as (col_blob) virtual,
+primary key(pk)
+) engine=innodb;
+insert into t1 (col_varchar,col_int,col_datetime,col_time,col_blob,col_bit,col_year,col_char,col_dec,col_enum,col_date,col_timestamp) values
+('foo',1,'2010-05-08 13:08:12.034783','18:32:14','foo',b'0111110101001001',1992,'f',0.2,'','1994-12-26','2019-01-11 00:00:00'),
+('bar',6,'1900-01-01 00:00:00','00:00:00','bar',b'10011000001101011000101',1985,'b',0.7,'','2028-04-06','1971-01-01 00:00:00');
+alter table t1 add index(vcol_datetime);
+Warnings:
+Warning	1901	Function or expression '`col_datetime`' cannot be used in the GENERATED ALWAYS AS clause of `vcol_datetime`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+Warning	1901	Function or expression '`col_datetime`' cannot be used in the GENERATED ALWAYS AS clause of `vcol_datetime`
+Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
+drop table t1;
+create table t1 (
+pk int,
+col_blob mediumtext not null default '',
+vcol_blob tinyblob as (col_blob) virtual,
+col_char char(22) null,
+primary key(pk),
+index(col_char,vcol_blob(64))
+) engine=innodb;
+insert ignore into t1 (pk) values (1),(2);
+update t1 set col_char = 'foo' where pk = 1;
+drop table t1;
+create table t1 (
+id int not null primary key,
+a varchar(200),
+b varchar(200),
+c int,
+va char(200)  generated always as (ucase(a)) virtual,
+vb char(200) generated always as (ucase(b)) virtual,
+key (c,va,vb)
+) engine=innodb;
+insert t1 (id,a,c) select seq,seq,seq from seq_1_to_330;
+select IF(@@innodb_sort_buffer_size < count(*)*200, 'GOOD', 'WRONG SIZE') from t1;
+IF(@@innodb_sort_buffer_size < count(*)*200, 'GOOD', 'WRONG SIZE')
+GOOD
+alter table t1 drop column va;
+drop table t1;

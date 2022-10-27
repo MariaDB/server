@@ -1,0 +1,149 @@
+#
+# MDEV-11455 - add status variable innodb_buffer_pool_load_abort
+#
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--echo
+--echo # innodb_buffer_pool_load_incomplete defaults 0
+SELECT variable_name, variable_value
+    FROM information_schema.global_status
+    WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_incomplete';
+
+--echo
+--echo # populate with data
+
+CREATE TABLE t1 (
+c01 blob, c02 blob, c03 blob, c04 blob, c05 blob,
+c06 blob, c07 blob, c08 blob, c09 blob, c10 blob,
+c11 blob, c12 blob, c13 blob, c14 blob, c15 blob,
+c16 blob, c17 blob, c18 blob, c19 blob, c20 blob,
+c21 blob, c22 blob, c23 blob, c24 blob, c25 blob,
+c26 blob, c27 blob, c28 blob, c29 blob, c30 blob,
+c31 blob, c32 blob, c33 blob, c34 blob, c35 blob,
+c36 blob, c37 blob, c38 blob, c39 blob, c40 blob,
+c41 blob, c42 blob, c43 blob, c44 blob, c45 blob,
+c46 blob, c47 blob, c48 blob, c49 blob, c50 blob,
+c51 blob, c52 blob, c53 blob, c54 blob, c55 blob,
+c56 blob, c57 blob, c58 blob, c59 blob, c60 blob,
+c61 blob, c62 blob, c63 blob, c64 blob
+) ROW_FORMAT=dynamic;
+
+SET @a = repeat('a', 16 * 1024);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a
+);
+
+SET GLOBAL innodb_buffer_pool_dump_now=1;
+# Wait for for the dump to complete
+let $wait_condition =
+  SELECT SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) dump completed at '
+    FROM information_schema.global_status
+    WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status';
+-- source include/wait_condition.inc
+
+--echo
+--echo # Restart server
+--source include/restart_mysqld.inc
+
+--echo
+--echo # Abort after 16 pages
+SET GLOBAL innodb_buffer_pool_load_pages_abort=16,
+    GLOBAL innodb_buffer_pool_load_now=1,
+    GLOBAL innodb_buffer_pool_dump_at_shutdown=1;
+
+let $wait_condition =
+  SELECT SUBSTR(variable_value, 1, 19) = 'Buffer pool(s) load'
+    FROM information_schema.global_status
+    WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status';
+-- source include/wait_condition.inc
+
+SELECT variable_name, SUBSTR(variable_value, 1, 38) as VALUE
+    FROM information_schema.global_status
+    WHERE LOWER(variable_name) IN ('innodb_buffer_pool_load_incomplete','innodb_buffer_pool_load_status')
+    ORDER BY variable_name;
+
+--let $incomplete=`select count(*) as BLOB_PAGES from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE`
+
+# Shouldn't dump at shutdown due to innodb_buffer_pool_load_incomplete
+
+--echo
+--echo # Restart server
+--source include/restart_mysqld.inc
+
+--echo
+--echo # Load buffer pool
+SET GLOBAL innodb_buffer_pool_load_now=1;
+
+# Wait for for the load to complete
+let $wait_condition =
+  SELECT SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) load completed at '
+    FROM information_schema.global_status
+    WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status';
+-- source include/wait_condition.inc
+
+--echo
+--echo # Should be more than previous as we didn't overwrite our save file
+--replace_result $incomplete Previous_loaded
+--eval select count(*) > $incomplete as Loaded_more from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE;
+
+--echo
+--echo # Successful, so innodb_buffer_pool_load_incomplete should be FALSE
+SELECT variable_name, SUBSTR(variable_value, 1, 33) as VALUE
+    FROM information_schema.global_status
+    WHERE LOWER(variable_name) IN ('innodb_buffer_pool_load_incomplete','innodb_buffer_pool_load_status')
+    ORDER BY variable_name;
+
+--echo
+--echo # innodb_buffer_pool_dump_now=1 should reset the innodb_buffer_pool_load_incomplete status
+
+SET GLOBAL innodb_buffer_pool_dump_now=1;
+# Wait for for the dump to complete
+let $wait_condition =
+  SELECT SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) dump completed at '
+    FROM information_schema.global_status
+    WHERE LOWER(variable_name) = 'innodb_buffer_pool_dump_status';
+-- source include/wait_condition.inc
+
+SELECT variable_name, SUBSTR(variable_value, 1, 33) as VALUE
+    FROM information_schema.global_status
+    WHERE LOWER(variable_name) IN ('innodb_buffer_pool_load_incomplete', 'innodb_buffer_pool_dump_status');
+
+--let $fulldump=`select count(*) as BLOB_PAGES from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE`
+
+--echo
+--echo # Restart server
+--source include/restart_mysqld.inc
+
+--echo
+--echo # Load buffer pool
+SET GLOBAL innodb_buffer_pool_load_now=1;
+
+# Wait for for the load to complete
+let $wait_condition =
+  SELECT SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) load completed at '
+    FROM information_schema.global_status
+    WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status';
+-- source include/wait_condition.inc
+
+--echo
+--echo # Should be same amount
+--replace_result $fulldump Previously_dumped
+--eval select abs($fulldump - count(*)) <= 2 as Loaded_about_same_size from information_schema.INNODB_BUFFER_PAGE WHERE PAGE_TYPE='BLOB' group by PAGE_TYPE;
+
+--echo
+--echo # Clean up
+
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/data/ib_buffer_pool
+DROP TABLE t1;

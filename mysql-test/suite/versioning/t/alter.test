@@ -1,0 +1,655 @@
+--source include/default_charset.inc
+--source suite/versioning/common.inc
+
+select @@system_versioning_alter_history;
+
+create table t(
+  a int
+);
+show create table t;
+--error ER_VERS_NOT_VERSIONED
+alter table t drop system versioning;
+
+alter table t add system versioning;
+show create table t;
+
+--error ER_VERS_ALTER_NOT_ALLOWED
+alter table t add column y int;
+--error ER_VERS_ALTER_NOT_ALLOWED
+alter table t add primary key (a);
+--error ER_VERS_ALTER_NOT_ALLOWED
+alter table t add unique key (a);
+--error ER_VERS_ALTER_ENGINE_PROHIBITED
+alter table t engine innodb;
+
+alter table t drop system versioning;
+show create table t;
+
+set system_versioning_alter_history= keep;
+
+alter table t add system versioning;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t drop system versioning, drop column row_start;
+alter table t drop system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+alter table t
+  add column trx_start bigint(20) unsigned as row start invisible,
+  add column trx_end bigint(20) unsigned as row end invisible,
+  add period for system_time(trx_start, trx_end),
+  add system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+alter table t
+  add column trx_start timestamp as row start invisible,
+  add column trx_end timestamp as row end invisible,
+  add period for system_time(trx_start, trx_end),
+  add system versioning;
+
+--error ER_PARSE_ERROR
+alter table t
+  add column trx_start timestamp(6) not null as row start invisible,
+  add column trx_end timestamp(6) not null as row end invisible,
+  add period for system_time(trx_start, trx_end),
+  add system versioning;
+
+alter table t
+  add column trx_start timestamp(6) as row start invisible,
+  add column trx_end timestamp(6) as row end invisible,
+  add period for system_time(trx_start, trx_end),
+  add system versioning;
+show create table t;
+
+--error ER_MISSING
+alter table t drop system versioning;
+
+alter table t drop column trx_start, drop column trx_end;
+select row_start from t;
+alter table t drop system versioning;
+show create table t;
+
+--error ER_VERS_NOT_VERSIONED
+alter table t add column trx_start timestamp(6) as row start;
+
+alter table t add system versioning;
+show create table t;
+
+--error ER_VERS_DUPLICATE_ROW_START_END
+alter table t add column trx_start timestamp(6) as row start;
+--error ER_VERS_DUPLICATE_ROW_START_END
+alter table t modify a int as row start;
+
+alter table t add column b int;
+show create table t;
+
+alter table t add column c int;
+show create table t;
+
+alter table t add column d int first;
+show create table t;
+
+alter table t add column e int after d;
+show create table t;
+
+alter table t drop column a;
+show create table t;
+
+create or replace table t (
+  a int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end))
+with system versioning;
+
+select * from t for system_time all;
+--error ER_MISSING
+alter table t drop column row_start;
+--error ER_MISSING
+alter table t drop column row_end;
+alter table t drop column row_start, drop column row_end;
+select * from t for system_time all;
+show create table t;
+
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t drop column row_start;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t drop column row_end;
+
+create or replace table t (
+  a int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end))
+with system versioning;
+
+select * from t for system_time all;
+alter table t drop column row_start, drop column row_end;
+select * from t for system_time all;
+
+create or replace table t(
+  a int
+);
+insert into t values(1);
+alter table t add system versioning;
+show create table t;
+insert into t values(2);
+select * from t for system_time all;
+select * from t;
+
+update t set a=3 where a=1;
+select * from t;
+select * from t for system_time all;
+select row_start from t where a=3 into @tm;
+alter table t add column b int;
+select @tm=row_start from t where a=3;
+show create table t;
+select * from t;
+select * from t for system_time all;
+
+alter table t drop system versioning;
+select * from t;
+show create table t;
+
+--error ER_VERS_NOT_VERSIONED
+alter table t modify a int with system versioning;
+--error ER_VERS_NOT_VERSIONED
+alter table t modify a int without system versioning;
+
+alter table t add system versioning;
+
+alter table t modify a int without system versioning;
+show create table t;
+
+alter table t modify a int with system versioning;
+show create table t;
+
+# TODO: move TRX_ID cases to separate test
+create or replace table t(
+  a int
+) engine=innodb;
+
+alter table t
+  add column trx_start timestamp(6) as row start invisible,
+  add column trx_end timestamp(6) as row end invisible,
+  add period for system_time(trx_start, trx_end),
+  add system versioning;
+
+show create table t;
+--echo # Issue #211: drop of system columns required before drop system versioning
+alter table t drop column trx_start, drop column trx_end;
+show create table t;
+
+alter table t drop system versioning;
+
+insert into t values(1);
+
+call verify_trt;
+alter table t
+  add column trx_start bigint(20) unsigned as row start invisible,
+  add column trx_end bigint(20) unsigned as row end invisible,
+  add period for system_time(trx_start, trx_end),
+  add system versioning;
+call verify_trt;
+
+show create table t;
+alter table t drop column trx_start, drop column trx_end;
+
+call verify_trt;
+alter table t drop system versioning, algorithm=copy;
+call verify_trt;
+
+alter table t add system versioning, algorithm=copy;
+call verify_trt;
+
+show create table t;
+
+update t set a= 2;
+select * from t for system_time all;
+
+alter table t add column b int, algorithm=copy;
+show create table t;
+select * from t;
+call verify_trt;
+
+alter table t drop column b, algorithm=copy;
+show create table t;
+select * from t for system_time all;
+call verify_trt;
+
+## FIXME: #414 IB: inplace for VERS_TIMESTAMP versioning
+if (0)
+{
+alter table t drop system versioning, algorithm=inplace;
+call verify_trt;
+
+alter table t add system versioning, algorithm=inplace;
+call verify_trt;
+show create table t;
+
+update t set a= 1;
+select * from t for system_time all;
+call verify_trt;
+
+alter table t add column b int, algorithm=inplace;
+show create table t;
+select * from t;
+call verify_trt;
+
+alter table t drop column b, algorithm=inplace;
+show create table t;
+select * from t for system_time all;
+}
+## FIXME END
+
+alter table t drop system versioning, algorithm=copy;
+show create table t;
+call verify_trt;
+
+# nullable autoinc test w/o versioning
+create or replace table t (a int);
+insert t values (1),(2),(3),(4);
+alter table t add b int auto_increment null unique;
+select * from t;
+drop table t;
+
+create or replace table t (a int) with system versioning engine=innodb;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+--error ER_DUP_ENTRY, ER_DUP_ENTRY
+alter table t add b int not null unique;
+--error ER_UNSUPPORTED_EXTENSION, ER_UNSUPPORTED_EXTENSION
+alter table t add b int auto_increment unique;
+alter table t add b int auto_increment null unique;
+select * from t;
+select * from t for system_time all;
+insert into t values (4, 0);
+select * from t for system_time all;
+
+create or replace table t (a int) with system versioning;
+insert into t values (1), (2), (3);
+delete from t where a<3;
+--error ER_DUP_ENTRY, ER_DUP_ENTRY
+alter table t add b int not null unique;
+--error ER_UNSUPPORTED_EXTENSION, ER_UNSUPPORTED_EXTENSION
+alter table t add b int auto_increment unique;
+alter table t add b int auto_increment null unique;
+select * from t;
+select * from t for system_time all;
+insert into t values (4, 0);
+select * from t for system_time all;
+
+create or replace table t (a int, b int primary key, c int unique) with system versioning;
+insert t values (1,2,3),(1,3,4),(1,4,5);
+alter table t drop system versioning;
+show create table t;
+select * from t;
+
+create or replace table t (
+  a int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning;
+--error ER_VERS_ALTER_SYSTEM_FIELD
+alter table t change column row_start asdf timestamp(6);
+insert into t values (1);
+--error ER_VERS_ALTER_SYSTEM_FIELD
+alter table t modify column row_start bigint unsigned;
+
+## These experimental options are now disabled
+
+--error ER_WRONG_VALUE_FOR_VAR
+set system_versioning_alter_history= SURVIVE;
+
+--error ER_WRONG_VALUE_FOR_VAR
+set system_versioning_alter_history= 'DROP';
+
+if (0)
+{
+create or replace table t (a int) with system versioning engine innodb;
+insert into t values (1);
+update t set a = 2;
+select * from t for system_time all;
+alter table t add column b int;
+select * from t for system_time all;
+
+create or replace table t (a int) with system versioning engine myisam;
+insert into t values (1);
+update t set a = 2;
+select * from t for system_time all;
+alter table t add column b int;
+select * from t for system_time all;
+
+create or replace table non_empty (
+  a int,
+  row_start bigint(20) unsigned,
+  row_end bigint(20) unsigned
+) engine innodb;
+insert into non_empty values (1, 100, 200);
+
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
+alter table non_empty
+  change column row_start row_start bigint(20) unsigned as row start invisible;
+--error ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
+alter table non_empty
+  change column row_end row_end bigint(20) unsigned as row end invisible;
+drop table non_empty;
+
+create or replace table t (a int primary key) with system versioning;
+insert into t values (1);
+update t set a=2;
+alter table t drop primary key, add primary key (a), drop system versioning;
+select * from t;
+--replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+show create table t;
+
+create or replace table t (a int primary key) with system versioning;
+insert into t values (1);
+update t set a=2;
+alter table t drop system versioning;
+select * from t;
+--replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+show create table t;
+
+
+call verify_trt;
+}
+
+create or replace table t (a int) with system versioning;
+--error ER_VERS_ALREADY_VERSIONED
+alter table t add system versioning;
+--error ER_VERS_ALREADY_VERSIONED
+alter table t add system versioning, drop system versioning;
+
+set @@system_versioning_alter_history=keep;
+create or replace table t(x int, y int) with system versioning engine=innodb;
+alter table t modify y int without system versioning;
+insert into t values(1, 1);
+update t set y=2;
+
+--echo # MDEV-14681 Bogus ER_UNSUPPORTED_EXTENSION
+create or replace table t1 (pk int auto_increment unique) with system versioning;
+insert into t1 values (1);
+delete from t1;
+alter table t1 engine=myisam;
+
+--echo # MDEV-14692 crash in MDL_context::upgrade_shared_lock()
+create or replace temporary table t (a int);
+--error ER_VERS_NOT_SUPPORTED
+alter table t change column if exists b c bigint unsigned generated always as row start;
+--error ER_VERS_NOT_SUPPORTED
+alter table t change column if exists b c bigint unsigned generated always as row end;
+--error ER_VERS_NOT_SUPPORTED
+alter table t add system versioning;
+drop table t;
+
+--echo # MDEV-14744 trx_id-based and transaction-based mixup in assertion
+create or replace table t (c text) engine=innodb with system versioning;
+show create table t;
+alter table t add fulltext key (c);
+
+create or replace table t (a int) with system versioning;
+--error ER_VERS_TABLE_MUST_HAVE_COLUMNS
+alter table t drop column a;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t drop column a, drop column a;
+
+create or replace table t1 (row_start int);
+--error ER_DUP_FIELDNAME
+alter table t1 with system versioning;
+
+create or replace table t1 (row_end int);
+--error ER_DUP_FIELDNAME
+alter table t1 with system versioning;
+
+--error ER_DUP_FIELDNAME
+create or replace table t1 (a int, row_start int) with system versioning;
+
+create or replace table t1 (a int) with system versioning;
+
+--error ER_DUP_FIELDNAME
+set statement system_versioning_alter_history=keep for
+alter table t1 add column row_start int;
+
+--error ER_DUP_FIELDNAME
+set statement system_versioning_alter_history=keep for
+alter table t1 add column row_start timestamp(6);
+
+--echo # MDEV-14798 Add, drop system versioning semantic and syntax
+create or replace table t (
+  a int,
+  row_start timestamp(6) generated always as row start,
+  row_end timestamp(6) generated always as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+show create table t;
+
+alter table t
+  drop column row_start,
+  drop column row_end,
+  drop period for system_time,
+  drop system versioning;
+show create table t;
+
+--error ER_VERS_NOT_VERSIONED
+alter table t drop period for system_time;
+
+create or replace table t (
+  a int,
+  row_start timestamp(6) generated always as row start,
+  row_end timestamp(6) generated always as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+--error ER_MISSING
+alter table t drop period for system_time;
+--error ER_MISSING
+alter table t drop column sys_trx_start, drop period for system_time;
+--error ER_MISSING
+alter table t drop column sys_trx_end, drop period for system_time;
+
+--error ER_VERS_ALREADY_VERSIONED
+alter table t add period for system_time(sys_trx_start, sys_trx_end);
+
+--echo #
+--echo # MDEV-14790 System versioning for system tables does not work as expected
+--echo #
+use mysql;
+--error ER_VERS_DB_NOT_SUPPORTED
+create or replace table t (x int) with system versioning;
+--error ER_VERS_DB_NOT_SUPPORTED
+alter table db add system versioning;
+use test;
+
+--echo # MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column
+create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
+--error ER_VERS_DUPLICATE_ROW_START_END
+alter table t1 modify s timestamp(6) as row start;
+
+--echo # ignore CHECK for historical rows
+create or replace table t (a int) with system versioning;
+insert into t values (0), (1);
+delete from t where a = 0;
+--error ER_CONSTRAINT_FAILED
+alter table t add check (a > 1);
+alter table t add check (a > 0);
+--error ER_CONSTRAINT_FAILED
+insert into t values (0);
+insert into t values (2);
+drop table t;
+
+--echo #
+--echo # MDEV-18869 Assertion `!((field)->vcol_info && (field)->stored_in_db())' failed in innodb_col_no upon altering table with system versioning
+--echo #
+set system_versioning_alter_history= keep;
+create or replace table t1 (a int, b int generated always as (0) stored) engine=innodb with system versioning;
+insert into t1 (a) values (1);
+--enable_info
+alter table t1 modify a int without system versioning, algorithm=copy;
+alter table t1 modify a int with system versioning, algorithm=copy;
+alter table t1 modify a int without system versioning;
+alter table t1 modify a int with system versioning;
+--disable_info
+show create table t1;
+select * from t1;
+--enable_info
+--error ER_PARSE_ERROR
+alter table t1 modify b int generated always as (0) stored without system versioning;
+--error ER_PARSE_ERROR
+alter table t1 modify b int generated always as (0) stored with system versioning;
+alter table t1 modify b int without system versioning;
+--disable_info
+show create table t1;
+select * from t1;
+
+create or replace table t1 (a int, b int generated always as (0) virtual) engine=innodb with system versioning;
+insert into t1 (a) values (1);
+--enable_info
+alter table t1 modify a int without system versioning, algorithm=copy;
+alter table t1 modify a int with system versioning, algorithm=copy;
+alter table t1 modify a int without system versioning;
+alter table t1 modify a int with system versioning;
+select * from t1;
+--disable_info
+
+--echo #
+--echo # MDEV-19304 Segfault in ALTER TABLE after UPDATE for SIMULTANEOUS_ASSIGNMENT
+--echo #
+create or replace table t1 (a int, s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) engine=myisam with system versioning;
+insert into t1 values (null, null, null);
+insert into t1 values (null, null, null);
+set sql_mode= 'simultaneous_assignment';
+update t1 set e= 1;
+alter table t1 force;
+set sql_mode= default;
+
+--echo #
+--echo # MDEV-18862 Unfortunate error message upon attempt to drop system versioning
+--echo #
+set system_versioning_alter_history= keep;
+create or replace table t1 (x int) with system versioning;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column `row_start`, drop column `row_end`, drop period for system_time, drop system versioning;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop period for system_time;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column `row_start`, drop column `row_end`, drop system versioning;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop column `row_end`;
+
+--echo #
+--echo # MDEV-19127 Assertion `row_start_field' failed in vers_prepare_keys upon ALTER TABLE
+--echo #
+set system_versioning_alter_history=keep;
+create or replace table t1 (f1 int) with system versioning;
+alter table t1 add f2 int with system versioning, drop system versioning;
+create or replace table t1 (f1 int) with system versioning;
+--error ER_VERS_NOT_VERSIONED
+alter table t1 drop system versioning, add f2 int with system versioning;
+
+drop table t1;
+--source suite/versioning/common_finish.inc
+--echo # MDEV-16490 It's possible to make a system versioned table without any versioning field
+
+set @@system_versioning_alter_history=keep;
+create or replace table t (a int) with system versioning engine=innodb;
+--error ER_VERS_TABLE_MUST_HAVE_COLUMNS
+alter table t change column a a int without system versioning;
+
+alter table t
+  change column a a int without system versioning,
+  add column b int with system versioning;
+show create table t;
+
+alter table t
+  change column a new_a int,
+  drop system versioning;
+show create table t;
+
+alter table t add system versioning;
+alter table t change column new_a a int without system versioning;
+show create table t;
+
+--error ER_VERS_TABLE_MUST_HAVE_COLUMNS
+alter table t
+  add column c int,
+  change column c c int without system versioning,
+  change column b b int without system versioning;
+
+alter table t
+  add column c int without system versioning,
+  change column c c int,
+  change column b b int without system versioning;
+
+drop table t;
+
+--echo #
+--echo # MDEV-21688 Assertion or ER_WARN_DATA_OUT_OF_RANGE upon ALTER on previously versioned table
+--echo #
+create or replace table t1 (a int) with system versioning;
+insert into t1 values (128);
+delete from t1;
+set statement system_versioning_alter_history=keep for
+alter table t1 drop system versioning, modify column a tinyint;
+
+# cleanup
+drop table t1;
+
+--echo #
+--echo # MDEV-24690 Dropping primary key column from versioned table always fails with 1072
+--echo #
+create table t1 (a int, b int primary key) with system versioning;
+alter table t1 drop column b;
+
+create or replace table t1 (
+  a int, b int primary key,
+  row_start timestamp(6) as row start,
+  row_end timestamp(6) as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+show create table t1;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+alter table t1 drop column b;
+
+create or replace table t1 (
+a int, b int primary key,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning;
+show create table t1;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+alter table t1 drop column b;
+
+# cleanup
+drop table t1;
+
+--echo #
+--echo # MDEV-25172 Wrong error message for ADD COLUMN .. AS ROW START
+--echo #
+create or replace table t1 (x int);
+--error ER_VERS_NOT_VERSIONED
+alter table t1 add column y timestamp(6) as row start;
+# cleanup
+drop table t1;
+
+
+--echo #
+--echo # MDEV-25327 Unexpected ER_DUP_ENTRY upon dropping PK column from system-versioned table
+--echo #
+create table t1 (pk int, a int, primary key (pk), key (a))
+with system versioning;
+insert into t1 values (1, 1), (2, 2);
+delete from t1;
+set system_versioning_alter_history= keep;
+alter table t1 drop pk;
+# cleanup
+drop table t1;
+
+create table t1 (pk int, a int, primary key (pk), key (a))
+with system versioning;
+insert into t1 values (1, 2), (2, 8), (3, 4), (4, 4), (5, 0);
+delete from t1;
+set system_versioning_alter_history= keep;
+alter ignore table t1 drop pk;
+# cleanup
+drop table t1;

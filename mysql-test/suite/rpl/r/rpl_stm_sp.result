@@ -1,0 +1,26 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-11815 SP variables of temporal data types do not replicate correctly
+#
+connection master;
+CREATE TABLE t1(a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a TIME DEFAULT '01:01:01';
+INSERT INTO t1 VALUES (a=10101);
+END;
+$$
+CALL p1;
+SELECT * FROM t1;
+a
+1
+connection slave;
+SELECT * FROM t1;
+a
+1
+connection master;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+connection slave;
+include/rpl_end.inc

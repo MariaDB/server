@@ -1,0 +1,29 @@
+#
+# MDEV-4285 Server crashes in ptr_compare on NOW and CAST in ORDER BY
+#
+create table t1 (pk int primary key);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+# In strict mode the query produces result in a different order
+# (not ordered implicitly by PK and indeterministic), so we force sorting.
+# However, sorting also affects warnings, so we'll check them separately.
+--disable_warnings
+--sorted_result
+select * from t1 order by now(), cast(pk as char(0));
+--enable_warnings
+show warnings;
+drop table t1;
+
+--echo #
+--echo # MDEV-17020: Assertion `length > 0' failed in ptr_compare upon ORDER BY with bad conversion
+--echo #
+
+set @save_sql_mode= @@sql_mode;
+SET @@sql_mode= '';
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+explain
+SELECT * FROM t1 ORDER BY 'foo', CONVERT(pk, CHAR(0)) LIMIT 2;
+SELECT * FROM t1 ORDER BY 'foo', Cast(pk as CHAR(0)) LIMIT 2;
+set @@sql_mode= @save_sql_mode;
+drop table t1;

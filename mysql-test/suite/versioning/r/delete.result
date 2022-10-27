@@ -1,0 +1,151 @@
+# Basic + delete from view
+create or replace table t1(
+XNo int unsigned,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning;
+insert into t1(XNo) values(0);
+insert into t1(XNo) values(1);
+insert into t1(XNo) values(2);
+insert into t1(XNo) values(3);
+insert into t1(XNo) values(4);
+insert into t1(XNo) values(5);
+insert into t1(XNo) values(6);
+insert into t1(XNo) values(7);
+insert into t1(XNo) values(8);
+insert into t1(XNo) values(9);
+select XNo, sys_end < MAXVAL from t1 for system_time all;
+XNo	sys_end < MAXVAL
+0	0
+1	0
+2	0
+3	0
+4	0
+5	0
+6	0
+7	0
+8	0
+9	0
+delete from t1 where XNo = 0;
+delete from t1 where XNo = 1;
+delete from t1 where XNo > 5;
+create view vt1 as select XNo from t1;
+select XNo as XNo_vt1 from vt1;
+XNo_vt1
+2
+3
+4
+5
+delete from vt1 where XNo = 3;
+select XNo as XNo_vt1 from vt1;
+XNo_vt1
+2
+4
+5
+drop view vt1;
+drop table t1;
+# Check sys_start, sys_end
+create or replace table t1(
+x int,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning;
+insert into t1(x) values (1);
+select sys_start into @sys_start from t1;
+delete from t1;
+select * from t1;
+x
+select x = 1 as A, sys_start = @sys_start as B, sys_end > sys_start as C from t1 for system_time all;
+A	B	C
+1	1	1
+drop table t1;
+# Multi-delete
+create or replace table t1(
+x int,
+y int,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_start, sys_end))
+with system versioning;
+create or replace table t2 like t1;
+insert into t1(x, y) values (1, 1), (2, 2), (3, 3), (14, 4);
+insert into t2(x, y) values (11, 1), (12, 2), (13, 32), (14, 4);
+delete t1, t2 from t1 join t2 where t1.y = 3 and t2.y = 32;
+select x as t1_x from t1;
+t1_x
+1
+2
+14
+select x as t2_x from t2;
+t2_x
+11
+12
+14
+delete t1, t2 from t1 join t2 where t1.x = t2.x;
+select x as t1_x from t1;
+t1_x
+1
+2
+select x as t2_x from t2;
+t2_x
+11
+12
+select x as t1_x_all from t1 for system_time all;
+t1_x_all
+1
+2
+3
+14
+select x as t2_x_all from t2 for system_time all;
+t2_x_all
+11
+12
+13
+14
+drop table t1;
+drop table t2;
+# Update + delete
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+update t1 set x= 2;
+delete from t1;
+select x from t1 for system_time all;
+x
+2
+1
+drop table t1;
+#
+# MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+#
+create or replace table t1 (a int) with system versioning;
+replace into t1 values (1), (2);
+create or replace trigger tr before delete on t1 for each row delete from xx;
+create or replace procedure pr() delete from t1;
+call pr;
+ERROR 42S02: Table 'test.xx' doesn't exist
+call pr;
+ERROR 42S02: Table 'test.xx' doesn't exist
+drop procedure pr;
+drop trigger tr;
+drop table t1;
+#
+# MDEV-21138 Assertion `col->ord_part' or `f.col->ord_part' failed in row_build_index_entry_low
+#
+create table t1 (
+f1 int, f2 text, f3 int, fulltext (f2), key(f1), key(f3),
+foreign key r (f3) references t1 (f1) on delete set null)
+with system versioning engine innodb;
+insert into t1 values (1, repeat('a', 8193), 1), (1, repeat('b', 8193), 1);
+select f1, f3, check_row_ts(row_start, row_end) from t1;
+f1	f3	check_row_ts(row_start, row_end)
+1	1	CURRENT ROW
+1	1	CURRENT ROW
+delete from t1;
+select f1, f3, check_row_ts(row_start, row_end) from t1 for system_time all;
+f1	f3	check_row_ts(row_start, row_end)
+1	1	HISTORICAL ROW
+1	NULL	ERROR: row_end == row_start
+1	1	HISTORICAL ROW
+drop table t1;

@@ -1,0 +1,103 @@
+--echo #
+--echo # MDEV-10092: Server crashes in in ha_heap::rnd_pos / Table_read_cursor::get_next
+--echo #
+
+CREATE TABLE `orders` (
+  `o_orderkey` int(11) NOT NULL,
+  `o_custkey` double DEFAULT NULL,
+  `o_orderstatus` char(1) DEFAULT NULL,
+  `o_totalprice` double DEFAULT NULL,
+  `o_orderDATE` date DEFAULT NULL,
+  `o_orderpriority` char(15) DEFAULT NULL,
+  `o_clerk` char(15) DEFAULT NULL,
+  `o_shippriority` int(11) DEFAULT NULL,
+  `o_comment` varchar(79) DEFAULT NULL,
+  KEY `i_o_orderdate` (`o_orderDATE`),
+  KEY `i_o_custkey` (`o_custkey`)
+) DEFAULT CHARSET=latin1; 
+
+delimiter //;
+
+create procedure add_data()
+begin
+INSERT INTO `orders` VALUES (593793,3220,'O',181553.02,'1996-10-12','5-LOW','Clerk#000000921',0,'carefully unusual instructions are final pl');
+INSERT INTO `orders` VALUES (593794,4681,'F',32306.35,'1994-03-15','2-HIGH','Clerk#000000776',0,'slyly ironic depths are blithely. final excuses across the unusual instruction');
+INSERT INTO `orders` VALUES (593795,7213,'O',206579.47,'1998-03-04','2-HIGH','Clerk#000000746',0,'ruthlessly regular theodolites atop the blith');
+INSERT INTO `orders` VALUES (593796,10486,'F',181299.81,'1993-01-13','3-MEDIUM','Clerk#000000787',0,'special theodolites detect slyly. p');
+INSERT INTO `orders` VALUES (593797,3316,'O',208149.32,'1996-12-22','1-URGENT','Clerk#000000355',0,'carefully silent theodolites use blithely acco');
+INSERT INTO `orders` VALUES (593798,1613,'F',254625.5,'1995-01-26','2-HIGH','Clerk#000000504',0,'fluffily even requests ar');
+INSERT INTO `orders` VALUES (593799,4418,'F',45122.99,'1993-07-12','1-URGENT','Clerk#000000838',0,'blithely ironic ideas boost furiously above the ironic foxes. special pac');
+INSERT INTO `orders` VALUES (593824,12013,'F',216314.23,'1992-02-28','1-URGENT','Clerk#000000074',0,'quickly furious requests play above the fur');
+INSERT INTO `orders` VALUES (593825,8101,'O',123101.26,'1997-01-23','5-LOW','Clerk#000000649',0,'regular deposits haggle after the carefully i');
+INSERT INTO `orders` VALUES (593826,6958,'O',280097.59,'1995-12-14','2-HIGH','Clerk#000000080',0,'slyly even ideas about the slyly pending escapades cajole above th');
+INSERT INTO `orders` VALUES (593827,14116,'O',103011.78,'1995-12-16','3-MEDIUM','Clerk#000000567',0,'blithely bold decoys are furiously. fluffy deposits serve flu');
+INSERT INTO `orders` VALUES (593828,6839,'F',106697.51,'1993-12-11','4-NOT SPECIFIED','Clerk#000000065',0,'carefully final theodolites wake quickly final theodolites! unus');
+INSERT INTO `orders` VALUES (593829,14605,'O',44147.73,'1997-02-18','3-MEDIUM','Clerk#000000474',0,'ironic requests use carefully against the iro');
+INSERT INTO `orders` VALUES (593830,12976,'F',167393.6,'1994-06-21','1-URGENT','Clerk#000000424',0,'dolphins haggle careful');
+INSERT INTO `orders` VALUES (593831,14107,'O',208417.51,'1997-11-18','4-NOT SPECIFIED','Clerk#000000336',0,'furiously express pinto beans after the blithely pending requests need to ');
+INSERT INTO `orders` VALUES (593856,5623,'O',143236.09,'1998-03-24','5-LOW','Clerk#000000382',0,'carefully ironic accounts impress slyly according to the ironic');
+INSERT INTO `orders` VALUES (593857,1828,'O',217673.82,'1996-01-12','1-URGENT','Clerk#000000060',0,'special, special pinto beans haggle blithely. blithel');
+INSERT INTO `orders` VALUES (593858,14755,'O',8032.07,'1997-07-20','4-NOT SPECIFIED','Clerk#000000110',0,'regular excuses use ironic pinto ');
+INSERT INTO `orders` VALUES (593859,8780,'F',356852.14,'1992-10-09','2-HIGH','Clerk#000000510',0,'furiously regular accounts eat across the carefully ');
+INSERT INTO `orders` VALUES (593860,13318,'O',18413.14,'1998-01-10','2-HIGH','Clerk#000000673',0,'pending pains cajole furiously alo');
+INSERT INTO `orders` VALUES (593861,1175,'O',28859.21,'1996-09-10','4-NOT SPECIFIED','Clerk#000000680',0,'carefully silent instructi');
+INSERT INTO `orders` VALUES (593862,7787,'F',202891.72,'1992-02-27','5-LOW','Clerk#000000988',0,'slyly express requests sleep. express dependencies wake bli');
+INSERT INTO `orders` VALUES (593863,1897,'O',33062.05,'1998-06-29','1-URGENT','Clerk#000000117',0,'accounts integrate carefully across the fluffily even warhorses');
+INSERT INTO `orders` VALUES (593888,5656,'O',20952.26,'1997-02-04','3-MEDIUM','Clerk#000000735',0,'requests could have to cajole about the special, final ');
+INSERT INTO `orders` VALUES (593889,2692,'F',282718.42,'1992-08-02','4-NOT SPECIFIED','Clerk#000000669',0,'regular deposits haggle fluff');
+INSERT INTO `orders` VALUES (593890,3685,'O',34012.74,'1996-06-17','5-LOW','Clerk#000000993',0,'furiously even requests');
+INSERT INTO `orders` VALUES (593891,10333,'F',182791.4,'1993-01-23','4-NOT SPECIFIED','Clerk#000000098',0,'slyly final platelets doubt');
+INSERT INTO `orders` VALUES (593892,5687,'F',224381.48,'1994-09-18','2-HIGH','Clerk#000000294',0,'blithely bold epitaphs sleep after the carefully express in');
+INSERT INTO `orders` VALUES (593893,5437,'F',124300.91,'1993-08-04','4-NOT SPECIFIED','Clerk#000000302',0,'daring instructions alongside of the si');
+INSERT INTO `orders` VALUES (593894,1732,'F',150438.64,'1993-11-07','3-MEDIUM','Clerk#000000046',0,'quickly special accounts integrate by the even, dogged platelets? slowly ');
+INSERT INTO `orders` VALUES (593895,12230,'O',47380.97,'1997-03-23','2-HIGH','Clerk#000000168',0,'fluffily permanent instructions alongside of the furiously even pack');
+INSERT INTO `orders` VALUES (593920,13871,'F',2919.68,'1992-01-29','5-LOW','Clerk#000000597',0,'quickly regular foxes across the furiously bold accounts wake car');
+INSERT INTO `orders` VALUES (593921,6664,'F',139065.79,'1992-04-21','5-LOW','Clerk#000000017',0,'fluffily final deposits are carefully. quickly special pinto beans bel');
+INSERT INTO `orders` VALUES (593922,2504,'O',179041.45,'1997-04-05','2-HIGH','Clerk#000000902',0,'final pinto beans are furiously. ');
+INSERT INTO `orders` VALUES (593923,4978,'O',258843,'1998-02-27','1-URGENT','Clerk#000000654',0,'carefully final asymptotes according to the regular dependencie');
+INSERT INTO `orders` VALUES (593924,7550,'O',232280.81,'1995-10-28','3-MEDIUM','Clerk#000000063',0,'fluffily ironic packages haggle carefully pending platelets. q');
+INSERT INTO `orders` VALUES (593925,12226,'O',319755.48,'1995-09-01','3-MEDIUM','Clerk#000000308',0,'quickly pending packages throughout the quickly unusual requests');
+INSERT INTO `orders` VALUES (593926,2819,'F',204662.4,'1994-11-07','4-NOT SPECIFIED','Clerk#000000298',0,'blithely special grouches cajole ironic instructions. slyly pendin');
+INSERT INTO `orders` VALUES (593927,593,'F',188162.64,'1995-03-04','1-URGENT','Clerk#000000263',0,'express, unusual deposits boost furiously after the unusual dolphi');
+INSERT INTO `orders` VALUES (593952,9362,'P',318688.16,'1995-03-05','4-NOT SPECIFIED','Clerk#000000468',0,'ruthless requests must have to are carefully? special pa');
+INSERT INTO `orders` VALUES (593953,11410,'O',166717.28,'1998-07-29','5-LOW','Clerk#000000509',0,'even, regular instructions snooze. slyly ironic packages nag fluffily.');
+INSERT INTO `orders` VALUES (593954,8875,'O',132909.37,'1996-08-29','3-MEDIUM','Clerk#000000825',0,'special decoys integrate carefully. care');
+INSERT INTO `orders` VALUES (593955,12494,'O',73329.07,'1995-08-05','1-URGENT','Clerk#000000561',0,'quickly special request');
+INSERT INTO `orders` VALUES (593956,1390,'O',187837.11,'1995-10-17','5-LOW','Clerk#000000797',0,'silent, pending foxes');
+INSERT INTO `orders` VALUES (593957,10106,'F',196969.46,'1993-04-03','2-HIGH','Clerk#000000566',0,'blithely ruthless excuses boost slyly about the requests. careful');
+INSERT INTO `orders` VALUES (593958,14770,'F',103528.82,'1993-12-27','3-MEDIUM','Clerk#000000598',0,'carefully special deposits eat above the q');
+INSERT INTO `orders` VALUES (593959,14566,'O',156600.32,'1996-11-16','2-HIGH','Clerk#000000030',0,'accounts are quickly bold packages. carefully ironic depos');
+INSERT INTO `orders` VALUES (593984,4924,'O',47149.15,'1995-05-06','3-MEDIUM','Clerk#000000120',0,'regular asymptotes haggle slyly abo');
+INSERT INTO `orders` VALUES (593985,5185,'O',152533.91,'1997-08-04','3-MEDIUM','Clerk#000000575',0,'blithely special dolphins are even requests. carefully eve');
+INSERT INTO `orders` VALUES (593986,14257,'O',109734.28,'1998-06-05','3-MEDIUM','Clerk#000000930',0,'carefully final instructions against the slyly');
+INSERT INTO `orders` VALUES (593987,5818,'F',64541.52,'1994-04-13','3-MEDIUM','Clerk#000000259',0,'slyly pending deposits are furiously. regular requests h');
+INSERT INTO `orders` VALUES (593988,1178,'F',249608.42,'1994-10-01','2-HIGH','Clerk#000000266',0,'fluffily regular foxes toward the furiously bold accounts sleep furiously');
+INSERT INTO `orders` VALUES (593989,5173,'P',61508.55,'1995-03-02','2-HIGH','Clerk#000000374',0,'slyly express deposits wake between ');
+INSERT INTO `orders` VALUES (593990,8395,'O',129696.17,'1997-12-30','4-NOT SPECIFIED','Clerk#000000570',0,'carefully final requests haggle furiously fluffily final accou');
+INSERT INTO `orders` VALUES (593991,1894,'O',145691.27,'1998-04-09','5-LOW','Clerk#000000294',0,'slyly final notornis haggle carefull');
+INSERT INTO `orders` VALUES (594016,14935,'F',144592.29,'1992-10-20','3-MEDIUM','Clerk#000000602',0,'furiously express ideas cajole quickl');
+INSERT INTO `orders` VALUES (594017,892,'F',147267.55,'1994-12-10','1-URGENT','Clerk#000000419',0,'close, pending packages affix blithely. slyly regular reque');
+end;
+//
+
+delimiter ;//
+call add_data();
+call add_data();
+set sort_buffer_size = 1024;
+
+flush status;
+select o_custkey, Avg(o_custkey) OVER ( ORDER BY o_custkey ) from orders;
+select variable_name,
+       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+from information_schema.session_status
+where variable_name like 'Sort_merge_passes';
+
+flush status;
+select o_custkey, Avg(o_custkey) OVER ( ORDER BY o_custkey RANGE CURRENT ROW ) from orders;
+select variable_name,
+       case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
+from information_schema.session_status
+where variable_name like 'Sort_merge_passes';
+
+drop table orders;
+drop procedure add_data;

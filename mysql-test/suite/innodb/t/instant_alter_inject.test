@@ -1,0 +1,46 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_partition.inc
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, KEY(b)) ENGINE=InnoDB
+ROW_FORMAT=REDUNDANT PARTITION BY KEY() PARTITIONS 3;
+INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5);
+SET @saved_dbug= @@SESSION.debug_dbug;
+SET DEBUG_DBUG='+d,ib_commit_inplace_fail_2';
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 ADD COLUMN c CHAR(3) DEFAULT 'lie';
+SET DEBUG_DBUG= @saved_dbug;
+CHECK TABLE t1;
+BEGIN;
+UPDATE t1 SET b=a+1;
+INSERT INTO t1 VALUES (0,1);
+ROLLBACK;
+SELECT * FROM t1;
+ALTER TABLE t1 ADD COLUMN c CHAR(3) DEFAULT 'lie';
+SET DEBUG_DBUG='+d,ib_commit_inplace_fail_1';
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 ADD COLUMN d INT NOT NULL DEFAULT -42;
+SET DEBUG_DBUG= @saved_dbug;
+CHECK TABLE t1;
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,2,'foo');
+ROLLBACK;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t2(a INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+SET DEBUG_DBUG='+d,ib_commit_inplace_fail_1';
+--error ER_INTERNAL_ERROR
+ALTER TABLE t2 ADD COLUMN b INT;
+SET DEBUG_DBUG= @saved_dbug;
+CHECK TABLE t2;
+BEGIN;
+DELETE FROM t2;
+INSERT INTO t2 VALUES (1);
+ROLLBACK;
+
+SHOW CREATE TABLE t2;
+DROP TABLE t2;

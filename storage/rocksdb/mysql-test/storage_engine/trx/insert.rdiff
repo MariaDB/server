@@ -1,0 +1,24 @@
+--- /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/insert.result	2017-06-22 00:33:46.423995639 +0300
++++ /data/src/bb-10.2-mdev12528/mysql-test/suite/storage_engine/trx/insert.reject	2017-06-22 19:29:39.131567262 +0300
+@@ -37,18 +37,18 @@
+ INSERT INTO t1 SET a = 11, b = 'f';
+ INSERT t1 SET b = DEFAULT;
+ ROLLBACK TO SAVEPOINT spt1;
++ERROR HY000: MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows.
+ INSERT INTO t1 (b,a) VALUES ('test1',10);
++ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+ COMMIT;
++ERROR HY000: This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction.
+ SELECT a,b FROM t1;
+ a	b
+ 1	a
+-10	NULL
+ 10	foo
+-10	test1
+ 100	foo
+ 11	abc
+ 2	b
+-20	NULL
+ 3	c
+ 4	d
+ 5	e

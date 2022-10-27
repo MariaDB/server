@@ -1,0 +1,3 @@
+SELECT plugin_name,plugin_version,plugin_maturity   FROM information_schema.plugins    where plugin_name like 'wsrep' ORDER BY plugin_maturity,plugin_name;
+plugin_name	plugin_version	plugin_maturity
+wsrep	1.0	Stable

@@ -1,0 +1,128 @@
+create database mysqltest1;
+create table mysqltest1.t1 (a int, b int);
+create table mysqltest1.t2 (a int, b int);
+insert mysqltest1.t1 values (1,2),(3,4);
+insert mysqltest1.t2 values (5,6),(7,8);
+create procedure mysqltest1.pr1() select "pr1";
+create user foo@localhost;
+create role role1;
+create role role2;
+grant role2 to role1;
+grant role1 to foo@localhost;
+grant reload on *.* to role2;
+grant select on mysql.* to role2;
+grant execute on procedure mysqltest1.pr1 to role2;
+grant select on mysqltest1.t1 to role2;
+grant select (a) on mysqltest1.t2 to role2;
+connect  foo,localhost,foo;
+flush tables;
+ERROR 42000: Access denied; you need (at least one of) the RELOAD privilege(s) for this operation
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+show tables from mysqltest1;
+ERROR 42000: Access denied for user 'foo'@'localhost' to database 'mysqltest1'
+set role role1;
+flush tables;
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+	role1	role2	N
+localhost	foo	role1	N
+localhost	root	role1	Y
+localhost	root	role2	Y
+show tables from mysqltest1;
+Tables_in_mysqltest1
+t1
+t2
+select * from mysqltest1.t1;
+a	b
+1	2
+3	4
+select * from mysqltest1.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+select a from mysqltest1.t2;
+a
+5
+7
+call mysqltest1.pr1();
+pr1
+pr1
+connection default;
+revoke execute on procedure mysqltest1.pr1 from role2;
+connection foo;
+call mysqltest1.pr1();
+ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'mysqltest1.pr1'
+connection default;
+drop role role2;
+connection foo;
+show grants;
+Grants for foo@localhost
+GRANT `role1` TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role1`
+select * from information_schema.enabled_roles;
+ROLE_NAME
+role1
+flush tables;
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+select * from mysqltest1.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select a from mysqltest1.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+set role none;
+connection default;
+grant reload on *.* to role1;
+grant select on mysql.* to role1;
+grant execute on procedure mysqltest1.pr1 to role1;
+grant select on mysqltest1.t1 to role1;
+grant select (a) on mysqltest1.t2 to role1;
+connection foo;
+set role role1;
+flush tables;
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+localhost	foo	role1	N
+localhost	root	role1	Y
+show tables from mysqltest1;
+Tables_in_mysqltest1
+t1
+t2
+select * from mysqltest1.t1;
+a	b
+1	2
+3	4
+select * from mysqltest1.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+select a from mysqltest1.t2;
+a
+5
+7
+call mysqltest1.pr1();
+pr1
+pr1
+connection default;
+drop role role1;
+connection foo;
+flush tables;
+select * from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+select * from mysqltest1.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select a from mysqltest1.t2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
+show grants;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO `foo`@`localhost`
+select * from information_schema.enabled_roles;
+ROLE_NAME
+NULL
+select * from information_schema.enabled_roles;
+ROLE_NAME
+NULL
+select current_role();
+current_role()
+role1
+disconnect foo;
+connection default;
+drop user foo@localhost;
+drop database mysqltest1;

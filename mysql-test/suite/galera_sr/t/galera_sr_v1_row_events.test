@@ -1,0 +1,27 @@
+#
+# Test that Galera SR continues to run even with --log-bin-use-v1-row-events=1
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_1
+COMMIT;
+
+SET AUTOCOMMIT=ON;
+UPDATE t1 SET f1 = 2 WHERE f1 = 1;
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2;
+
+DROP TABLE t1;

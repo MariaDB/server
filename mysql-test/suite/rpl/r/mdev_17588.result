@@ -1,0 +1,34 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection master;
+create table t1 (a int) engine=innodb;
+create table t2 (a int);
+create table t3 (a int) engine=innodb;
+connection slave;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1286]
+# Asserted this: Status should be 'Slave has read all relay log...'
+show tables;
+Tables_in_test
+t2
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show create table t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+show create table t3;
+ERROR 42S02: Table 'test.t3' doesn't exist
+connection master;
+drop table if exists t1;
+drop table if exists t2;
+drop table if exists t3;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+CALL mtr.add_suppression('Slave: Unknown storage engine .* Error_code: 1286');
+include/rpl_end.inc

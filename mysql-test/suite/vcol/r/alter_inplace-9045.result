@@ -1,0 +1,45 @@
+create table t1(id int auto_increment primary key, handle int, data bigint not null default 0) engine = innodb;
+insert into t1(handle) values(12),(54),(NULL);
+select *, md5(handle) from t1;
+id	handle	data	md5(handle)
+1	12	0	c20ad4d76fe97759aa27a0c99bff6710
+2	54	0	a684eceee76fc522773286a895bc8436
+3	NULL	0	NULL
+alter table t1 add index handle(handle), algorithm=inplace;
+alter table t1 add column hash varchar(32) as (md5(handle)) persistent, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 add column hash varchar(32) as (md5(handle)) persistent, add unique index hash(hash), algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 add column hash varchar(32) as (md5(handle)) persistent, add unique index hash(hash), algorithm=copy;
+select * from t1;
+id	handle	data	hash
+1	12	0	c20ad4d76fe97759aa27a0c99bff6710
+2	54	0	a684eceee76fc522773286a895bc8436
+3	NULL	0	NULL
+alter table t1 modify column hash varchar(32) as (md5(handle+1)) persistent, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 modify column hash varchar(32) as (md5(handle+1)) persistent, algorithm=copy;
+select * from t1;
+id	handle	data	hash
+1	12	0	c51ce410c124a10e0db5e4b97fc2af39
+2	54	0	b53b3a3d6ab90ce0268229151c9bde11
+3	NULL	0	NULL
+alter table t1 modify column handle int not null, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+alter table t1 modify column handle int not null, algorithm=copy;
+Warnings:
+Warning	1265	Data truncated for column 'handle' at row 3
+select * from t1;
+id	handle	data	hash
+1	12	0	c51ce410c124a10e0db5e4b97fc2af39
+2	54	0	b53b3a3d6ab90ce0268229151c9bde11
+3	0	0	c4ca4238a0b923820dcc509a6f75849b
+alter table t1 drop index handle, algorithm=inplace;
+create index data on t1(data) algorithm=inplace;
+alter table t1 drop column data, algorithm=inplace;
+alter table t1 add column sha varchar(32) as (sha1(handle)) persistent, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table t1 add column sha varchar(32), algorithm=inplace;
+alter table t1 drop column hash, algorithm=inplace;
+drop table t1;

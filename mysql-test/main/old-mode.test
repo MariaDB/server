@@ -1,0 +1,151 @@
+#
+# Test 'old' mode
+#
+
+# Initialise
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+create table t1 (a int, b varchar(200), c text not null) checksum=1;
+create table t2 (a int, b varchar(200), c text not null) checksum=0;
+insert t1 values (1, "aaa", "bbb"), (NULL, "", "ccccc"), (0, NULL, "");
+insert t2 select * from t1;
+checksum table t1, t2;
+checksum table t1, t2 quick;
+checksum table t1, t2 extended;
+drop table t1,t2;
+
+#
+# Test that SHOW PROCESSLIST doesn't have the Progress column
+#
+
+--replace_column 1 <Id> 3 <Host> 6 <Time> 7 <State>
+# Embedded server is hardcoded to show "Writing to net" as STATE.
+# ps-protocol will have Execute not Query
+--replace_result "Writing to net" "NULL" "Execute" "Query"
+--replace_regex /localhost[:0-9]*/localhost/
+SHOW PROCESSLIST;
+
+--echo #
+--echo # MDEV-5372 Make "CAST(time_expr AS DATETIME)" compatible with the SQL Standard)
+--echo #
+set @@old_mode=zero_date_time_cast;
+SELECT CAST(TIME'-10:30:30' AS DATETIME);
+SELECT CAST(TIME'10:20:30' AS DATETIME);
+SELECT CAST(TIME'830:20:30' AS DATETIME);
+CREATE TABLE t1 (a DATETIME);
+INSERT IGNORE INTO t1 VALUES (TIME'-10:20:30');
+INSERT INTO t1 VALUES (TIME'10:20:30');
+INSERT INTO t1 VALUES (TIME'830:20:30');
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT IGNORE INTO t1 VALUES (TIME'-10:20:30');
+INSERT IGNORE INTO t1 VALUES (TIME'10:20:30');
+INSERT IGNORE INTO t1 VALUES (TIME'830:20:30');
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES (TIME'-10:20:30');
+INSERT INTO t1 VALUES (TIME'10:20:30');
+INSERT INTO t1 VALUES (TIME'830:20:30');
+SELECT a, CAST(a AS DATETIME), TO_DAYS(a) FROM t1;
+DROP TABLE t1;
+# Note, it was actually a bug that TO_DAYS('830:20:30') returned NULL
+# for a column, while 3 for an expression. We won't fix this,
+# it's "old_mode" anyway.
+SELECT TO_DAYS(TIME'-10:20:30');
+SELECT TO_DAYS(TIME'10:20:30');
+SELECT TO_DAYS(TIME'830:20:30');
+
+# This is to cover Item_temporal_hybrid_func::fix_temporal_type in old_mode:
+CREATE TABLE t1 (a DATETIME, b TIME);
+INSERT INTO t1 VALUES (NULL, '00:20:12');
+INSERT INTO t1 VALUES (NULL, '-00:20:12');
+SELECT IF(1,ADDDATE(IFNULL(a,b),0),1) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-6649 Different warnings for TIME and TIME(N) when @@old_mode=zero_date_time_cast
+--echo #
+SET @@global.mysql56_temporal_format=true;
+SET @@old_mode=zero_date_time_cast;
+CREATE TABLE t1 (a TIME,b TIME(1));
+INSERT INTO t1 VALUES (TIME'830:20:30',TIME'830:20:30');
+SELECT TO_DAYS(a), TO_DAYS(b) FROM t1;
+DROP TABLE t1;
+
+SET @@global.mysql56_temporal_format=false;
+SET @@old_mode=zero_date_time_cast;
+CREATE TABLE t1 (a TIME,b TIME(1));
+INSERT INTO t1 VALUES (TIME'830:20:30',TIME'830:20:30');
+SELECT TO_DAYS(a), TO_DAYS(b) FROM t1;
+DROP TABLE t1;
+SET @@global.mysql56_temporal_format=DEFAULT;
+
+#
+# MDEV-12672 Replicated TIMESTAMP fields given wrong value near DST change
+#
+
+# Copy_field
+set time_zone='Europe/Moscow';
+set global mysql56_temporal_format=false;
+create table t1 (a timestamp);
+set timestamp=1288477526;
+insert t1 values (null);
+insert t1 values ();
+set timestamp=1288481126;
+insert t1 values (null);
+insert t1 values ();
+select a, unix_timestamp(a) from t1;
+set global mysql56_temporal_format=true;
+select a, unix_timestamp(a) from t1;
+alter table t1 modify a timestamp;
+select a, unix_timestamp(a) from t1;
+drop table t1;
+
+# field_conv_incompatible()
+set global mysql56_temporal_format=false;
+create table t1 (a timestamp);
+set timestamp=1288477526;
+insert t1 values (null);
+set timestamp=1288481126;
+insert t1 values (null);
+select a, unix_timestamp(a) from t1;
+set global mysql56_temporal_format=true;
+select a, unix_timestamp(a) from t1;
+create table t2 (a timestamp);
+insert t2 select a from t1;
+select a, unix_timestamp(a) from t2;
+drop table t1, t2;
+set time_zone=DEFAULT;
+
+
+--echo #
+--echo # MDEV-13995 MAX(timestamp) returns a wrong result near DST change
+--echo #
+
+# This tests:
+#   Field_timestamp::val_native()
+#   Field_timestamp_hires::val_native()
+#   Type_handler_timestamp_common::type_handler_for_native_format()
+
+SET global mysql56_temporal_format=false;
+SET time_zone='+00:00';
+CREATE TABLE t1 (a TIMESTAMP(0));
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526)      /*summer time in Moscow*/);
+INSERT INTO t1 VALUES (FROM_UNIXTIME(1288477526+3599) /*winter time in Moscow*/);
+SET time_zone='Europe/Moscow';
+SELECT a, COALESCE(a), UNIX_TIMESTAMP(a) FROM t1;
+SELECT MIN(a), UNIX_TIMESTAMP(MIN(a)) AS a FROM t1;
+SELECT MAX(a), UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
+SELECT t1.a, UNIX_TIMESTAMP(t1.a), t2.a, UNIX_TIMESTAMP(t2.a) FROM t1 t1, t1 t2 WHERE t1.a=t2.a;
+ALTER TABLE t1 MODIFY a TIMESTAMP(1);
+SELECT a, COALESCE(a), UNIX_TIMESTAMP(a) FROM t1;
+SELECT MIN(a), UNIX_TIMESTAMP(MIN(a)) AS a FROM t1;
+SELECT MAX(a), UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
+SELECT t1.a, UNIX_TIMESTAMP(t1.a), t2.a, UNIX_TIMESTAMP(t2.a) FROM t1 t1, t1 t2 WHERE t1.a=t2.a;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+SET global mysql56_temporal_format=true;

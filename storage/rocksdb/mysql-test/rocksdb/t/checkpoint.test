@@ -1,0 +1,107 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+DROP TABLE IF EXISTS t3;
+DROP TABLE IF EXISTS t4;
+DROP TABLE IF EXISTS t5;
+--enable_warnings
+
+# Start from clean slate
+#--source include/restart_mysqld.inc
+
+CREATE TABLE t1 (
+  a int not null,
+  b int not null,
+  primary key (a,b) comment 'cf1',
+  key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+
+CREATE TABLE t2 (
+  a int not null,
+  b int not null,
+  primary key (a,b) comment 'cf1',
+  key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+
+CREATE TABLE t3 (
+  a int not null,
+  b int not null,
+  primary key (a,b) comment 'cf1',
+  key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+
+CREATE TABLE t4 (
+  a int not null,
+  b int not null,
+  primary key (a,b) comment 'cf1',
+  key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+
+# Populate tables
+let $max = 1000;
+let $table = t1;
+--source drop_table_repopulate_table.inc
+let $table = t2;
+--source drop_table_repopulate_table.inc
+let $table = t3;
+--source drop_table_repopulate_table.inc
+let $table = t4;
+--source drop_table_repopulate_table.inc
+
+# Make sure new table gets unique indices
+CREATE TABLE t5 (
+  a int not null,
+  b int not null,
+  primary key (a,b) comment 'cf1',
+  key (b) comment 'rev:cf2'
+) ENGINE=RocksDB;
+
+let $max = 1000;
+let $table = t5;
+--source drop_table_repopulate_table.inc
+
+# Create checkpoint without trailing '/'
+let $checkpoint = $MYSQL_TMP_DIR/checkpoint;
+let $succeeds = 1;
+--source set_checkpoint.inc
+
+# Create checkpoint with a trailing '/'
+let $checkpoint = $MYSQL_TMP_DIR/checkpoint/;
+let $succeeds = 1;
+--source set_checkpoint.inc
+
+# Set checkpoint dir as empty string, which fails
+let $checkpoint = ;
+let $succeeds = 0;
+--source set_checkpoint.inc
+
+# Set checkpoint as a directory that does not exist, which fails
+let $checkpoint = /does/not/exist;
+let $succeeds = 0;
+--source set_checkpoint.inc
+
+# Set checkpoint as a directory that already exists, which fails
+let $checkpoint = $MYSQL_TMP_DIR/already-existing-directory;
+--mkdir $checkpoint
+let $succeeds = 0;
+--source set_checkpoint.inc
+rmdir $checkpoint;
+
+--disable_result_log
+truncate table t1;
+optimize table t1;
+truncate table t2;
+optimize table t2;
+truncate table t3;
+optimize table t3;
+truncate table t4;
+optimize table t4;
+truncate table t5;
+optimize table t5;
+drop table if exists t1;
+drop table if exists t2;
+drop table if exists t3;
+drop table if exists t4;
+drop table if exists t5;

@@ -1,0 +1,45 @@
+drop table if exists diaries;
+create table diaries (
+id int primary key auto_increment,
+body text,
+fulltext index body_index (body)
+) default charset utf8 COMMENT = 'engine "innodb"';
+insert into diaries (body) values ("will start groonga!");
+insert into diaries (body) values ("starting groonga...");
+insert into diaries (body) values ("started groonga.");
+select * from diaries;
+id	body
+1	will start groonga!
+2	starting groonga...
+3	started groonga.
+set mroonga_dry_write=true;
+delete from diaries where id = 2;
+select * from diaries;
+id	body
+1	will start groonga!
+3	started groonga.
+select * from diaries where match (body) against ("starting");
+id	body
+select * from diaries where match (body) against ("started");
+id	body
+3	started groonga.
+set mroonga_dry_write=false;
+delete from diaries where id = 3;
+select * from diaries;
+id	body
+1	will start groonga!
+select * from diaries where match (body) against ("starting");
+id	body
+select * from diaries where match (body) against ("started");
+id	body
+insert into diaries (id, body) values (2, "sleeping...");
+select * from diaries;
+id	body
+1	will start groonga!
+2	sleeping...
+select * from diaries where match (body) against ("starting");
+id	body
+2	sleeping...
+select * from diaries where match (body) against ("started");
+id	body
+drop table diaries;

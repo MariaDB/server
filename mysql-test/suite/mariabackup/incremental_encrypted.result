@@ -1,0 +1,21 @@
+call mtr.add_suppression("InnoDB: New log files created");
+CREATE TABLE t(i INT) ENGINE INNODB ENCRYPTED=YES;
+INSERT INTO t VALUES(1);
+# Create full backup , modify table, then create incremental/differential backup
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
+INSERT INTO t VALUES(2);
+SELECT * FROM t;
+i
+1
+2
+# Prepare full backup, apply incremental one
+# Restore and check results
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t;
+i
+1
+2
+DROP TABLE t;

@@ -1,0 +1,55 @@
+source include/not_embedded.inc;
+
+create role role1;
+
+--error ER_INVALID_ROLE
+create role none;
+--error ER_INVALID_ROLE
+create role public;
+--error ER_CANNOT_USER
+drop role none;
+
+--error ER_INVALID_ROLE
+grant none to role1;
+--error ER_INVALID_ROLE
+grant role1 to none;
+--error ER_INVALID_ROLE
+grant select on *.* to none;
+--error ER_INVALID_ROLE
+grant public to role1;
+--error ER_INVALID_ROLE
+grant role1 to public;
+--error ER_INVALID_ROLE
+grant select on *.* to public;
+
+--error ER_INVALID_ROLE
+grant role1 to current_role;
+
+--error ER_INVALID_ROLE
+revoke none from role1;
+--error ER_INVALID_ROLE
+revoke role1 from none;
+--error ER_INVALID_ROLE
+revoke select on *.* from none;
+--error ER_INVALID_ROLE
+revoke public from role1;
+--error ER_INVALID_ROLE
+revoke role1 from public;
+--error ER_INVALID_ROLE
+revoke select on *.* from public;
+
+--error ER_INVALID_ROLE
+show grants for none;
+--error ER_INVALID_ROLE
+show grants for public;
+
+--error ER_INVALID_ROLE
+create definer=none view test.v1 as select 1;
+--error ER_INVALID_ROLE
+create definer=public view test.v1 as select 1;
+
+drop role role1;
+
+insert mysql.global_priv values ('', 'none', '{"is_role":true}'), ('', 'public', '{"is_role":true}');
+flush privileges;
+delete from mysql.global_priv where host='';

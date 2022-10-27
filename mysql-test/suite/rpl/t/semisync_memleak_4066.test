@@ -1,0 +1,14 @@
+# 
+# MDEV-4066 semisync_master + temporary tables causes memory leaks
+#
+source include/have_binlog_format_row.inc;
+source include/master-slave.inc;
+
+connection master;
+
+--connect (con1,localhost,root,,)
+CREATE TEMPORARY TABLE tmp (i INT);
+--disconnect con1 
+
+source include/rpl_end.inc;
+

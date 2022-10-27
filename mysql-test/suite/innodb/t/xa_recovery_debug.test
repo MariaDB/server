@@ -1,0 +1,43 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+# Embedded server does not support restarting
+--source include/not_embedded.inc
+
+--disable_query_log
+FLUSH TABLES;
+--enable_query_log
+
+--echo #
+--echo # Bug#20872655 XA ROLLBACK IS NOT CRASH-SAFE
+--echo #
+
+CREATE TABLE t(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=INNODB;
+INSERT INTO t SET a=0;
+connect (con1,localhost,root);
+XA START 'zombie';
+INSERT INTO t SET a=1;
+UPDATE t SET b=1 WHERE a=1;
+SELECT COUNT(*) FROM t;
+XA END 'zombie';
+XA PREPARE 'zombie';
+SET DEBUG_SYNC='trx_after_rollback_row SIGNAL s1 WAIT_FOR s2';
+--send XA ROLLBACK 'zombie'
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s1';
+# Ensure that the state change from XA PREPARE to ACTIVE gets flushed
+# to the redo log. Without this, it could be that we will recover to
+# a state that precedes the start of the XA ROLLBACK.
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t LIMIT 1;
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+disconnect con1;
+# If the trx_undo_set_state_at_prepare() is omitted at the start of
+# XA ROLLBACK, then the XA COMMIT would succeed and the table would
+# incorrectly show the result of the INSERT but not the UPDATE,
+# because we would commit a partially rolled back transaction.
+--error ER_XAER_NOTA
+XA COMMIT 'zombie';
+SELECT * FROM t;
+DROP TABLE t;

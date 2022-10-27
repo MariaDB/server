@@ -1,0 +1,10 @@
+call mtr.add_suppression("InnoDB: New log files created");
+CREATE TABLE t(a varchar(60)) ENGINE INNODB;
+start transaction;
+INSERT INTO t VALUES(1);
+NOT FOUND /Rolled back recovered transaction/ in current_test
+# expect NOT FOUND
+SELECT count(*) FROM t;
+count(*)
+1
+DROP TABLE t;

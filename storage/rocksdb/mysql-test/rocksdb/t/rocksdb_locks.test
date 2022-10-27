@@ -1,0 +1,94 @@
+--source include/have_rocksdb.inc
+
+#
+# MyRocks-specific tests for locking
+#
+--source include/have_debug.inc
+
+--enable_connect_log
+create table t1 (pk int not null primary key) engine=rocksdb;
+
+insert into t1 values (1),(2),(3);
+
+set autocommit=0; 
+begin;
+select * from t1 where pk=1 for update;
+
+--connect (con1,localhost,root,,)
+--connection con1
+call mtr.add_suppression("Got snapshot conflict errors");
+--echo ### Connection con1
+let $ID= `select connection_id()`;
+set @@rocksdb_lock_wait_timeout=500;
+set autocommit=0;
+begin;
+--send select * from t1 where pk=1 for update;
+
+--connection default
+--echo ### Connection default
+
+let $wait_condition=
+    select 1 from INFORMATION_SCHEMA.PROCESSLIST
+    where (ID = $ID /* or SRV_ID = $ID */) and STATE = "Waiting for row lock";
+--source include/wait_condition.inc
+## Waiting for row lock
+## select connection_id();
+## select state='Waiting for row lock' from information_schema.processlist where id=2;
+
+rollback;
+
+connection con1;
+reap;
+rollback;
+connection default;
+
+##
+## Now, repeat the same test but let the wait time out.
+##
+begin;
+select * from t1 where pk=1 for update;
+
+--connection con1
+--echo ### Connection con1
+set @@rocksdb_lock_wait_timeout=2;
+set autocommit=0;
+begin;
+--error ER_LOCK_WAIT_TIMEOUT
+select * from t1 where pk=1 for update;
+
+--connection default
+
+rollback;
+set autocommit=1;
+
+--connection con1
+drop table t1;
+--connection default
+
+--echo #
+--echo #  Now, test what happens if another transaction modified the record and committed
+--echo #
+
+CREATE TABLE t1 (
+  id int primary key, 
+  value int
+) engine=rocksdb collate latin1_bin;
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10);
+
+--connection con1
+BEGIN;
+SELECT * FROM t1 WHERE id=3;
+
+--connection default
+BEGIN;
+UPDATE t1 SET value=30 WHERE id=3;
+COMMIT;
+
+--connection con1
+--error ER_LOCK_DEADLOCK
+SELECT * FROM t1 WHERE id=3 FOR UPDATE;
+
+ROLLBACK;
+--disconnect con1
+--connection default
+drop table t1;

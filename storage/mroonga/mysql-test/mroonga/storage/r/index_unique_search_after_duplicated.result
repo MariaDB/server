@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS users;
+CREATE TABLE users (
+id int PRIMARY KEY,
+name varchar(100) NOT NULL,
+UNIQUE KEY (name)
+) DEFAULT CHARSET=utf8;
+INSERT INTO users VALUES (1, "Alice");
+INSERT INTO users VALUES (2, "Bob");
+INSERT INTO users VALUES (3, "Bob");
+ERROR 23000: Duplicate entry 'Bob' for key 'name'
+SELECT * FROM users;
+id	name
+1	Alice
+2	Bob
+SELECT * FROM users WHERE name = "Bob";
+id	name
+2	Bob
+DROP TABLE users;

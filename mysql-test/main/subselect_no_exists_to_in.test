@@ -1,0 +1,11 @@
+# 
+# Run subselect.test with exists to in transformation
+#
+select @@optimizer_switch like '%exists_to_in=off%';
+set optimizer_switch='exists_to_in=off';
+
+--source subselect.test
+
+set optimizer_switch=default;
+select @@optimizer_switch like '%exists_to_in=off%';
+

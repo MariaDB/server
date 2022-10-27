@@ -1,0 +1,16 @@
+set names utf8mb4;
+CREATE TABLE logs (
+id INT,
+record JSON
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4;
+INSERT INTO logs(id, record) VALUES (1, '{"level": "info", "message": "start"}');
+INSERT INTO logs(id, record) VALUES (1, json_object('message', repeat('☹', 253)));
+ALTER TABLE logs ADD COLUMN message VARCHAR(255) GENERATED ALWAYS AS (json_extract(`record`, '$.message')) STORED;
+ALTER TABLE logs ADD FULLTEXT INDEX(message) comment 'tokenizer "TokenBigramSplitSymbolAlphaDigit"';
+INSERT INTO logs(id, record) VALUES (2, '{"level": "info", "message": "restart"}');
+INSERT INTO logs(id, record) VALUES (3, '{"level": "warn", "message": "abort"}');
+SELECT * FROM logs WHERE MATCH(message) AGAINST("ar" IN BOOLEAN MODE);
+id	record	message
+1	{"level": "info", "message": "start"}	"start"
+2	{"level": "info", "message": "restart"}	"restart"
+DROP TABLE logs;

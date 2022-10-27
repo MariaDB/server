@@ -1,0 +1,31 @@
+--source include/innodb_page_size_small.inc
+--source include/have_file_key_management.inc
+
+CREATE TABLE t1(c1 INT, b VARCHAR(2400), index(b(100),c1))
+ENGINE=INNODB ROW_FORMAT=compressed ENCRYPTED=YES;
+
+BEGIN;
+let $n= 5000;
+let $i= $n;
+let $u= `SELECT uuid()`;
+--disable_query_log
+while ($i) {
+  eval INSERT INTO t1
+  VALUES($n-$i, concat('$u', $n-$i, repeat('ab', floor(rand()*100)), '$u'));
+  dec $i;
+}
+--enable_query_log
+COMMIT;
+
+echo # xtrabackup backup;
+--disable_result_log
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --no-timestamp $targetdir;
+drop table t1;
+exec $INNOBACKUPEX --apply-log $targetdir;
+
+-- source include/restart_and_restore.inc
+--enable_result_log
+select sum(c1) from t1;
+DROP TABLE t1;
+rmdir $targetdir;

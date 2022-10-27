@@ -1,0 +1,129 @@
+# Test max data length
+# This test will use around 1.3G of disk space!
+
+--source include/have_maria.inc
+--source include/have_sequence.inc
+--source include/big_test.inc
+
+drop table if exists t1,t2;
+
+create table t1 (id int(10) unsigned not null auto_increment primary key, v varchar(1000), b blob) row_format=page max_rows=2 engine=aria;
+create table t2 (id int(10) unsigned not null auto_increment primary key, v varchar(1000), b blob) row_format=page max_rows=20000000 engine=aria;
+lock tables t1 write,t2 write;
+--replace_column 12 # 13 # 14 #
+show table status like "t_";
+insert into t1 values(null, repeat("ab",100),repeat("def",1000));
+insert into t1 values(null, repeat("de",200),repeat("ghi",2000));
+insert into t1 values(null, repeat("fe",300),repeat("ghi",3000));
+insert into t1 values(null, repeat("gh",400),repeat("jkl",10000));
+insert into t1 (v,b) select v,b from t2;
+insert into t2 (v,b) select v,b from t1;
+insert into t1 (v,b) select v,b from t2;
+insert into t2 (v,b) select v,b from t1;
+insert into t1 (v,b) select v,b from t2;
+insert into t2 (v,b) select v,b from t1;
+insert into t1 (v,b) select v,b from t2;
+insert into t2 (v,b) select v,b from t1;
+insert into t1 (v,b) select v,b from t2;
+insert into t2 (v,b) select v,b from t1;
+insert into t1 (v,b) select v,b from t2;
+insert into t2 (v,b) select v,b from t1;
+insert into t1 (v,b) select v,b from t2;
+insert into t2 (v,b) select v,b from t1;
+insert into t1 (v,b) select v,b from t2;
+insert into t2 (v,b) select v,b from t1;
+insert into t1 (v,b) select v,b from t2;
+insert into t2 (v,b) select v,b from t1;
+insert into t1 (v,b) select v,b from t2;
+insert into t2 (v,b) select v,b from t1;
+unlock tables;
+
+--error ER_RECORD_FILE_FULL
+insert into t1 (v,b) select v,b from t2;
+check table t1;
+--error ER_RECORD_FILE_FULL
+insert into t1 values(null, repeat("gh",400),repeat("jkl",10000));
+check table t1;
+# Test also with inserting into empty table (different code)
+truncate table t1;
+--error ER_RECORD_FILE_FULL
+insert into t1 (v,b) select v,b from t2;
+check table t1;
+
+drop table t1,t2;
+
+#
+# Check that we don't get table-is-full
+#
+
+create table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=FIXED min_rows=1000000;
+show create table t1;
+insert into t1 select seq,seq from seq_1_to_100000;
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=FIXED;
+show create table t1;
+insert into t1 select seq,seq from seq_1_to_100000;
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=PAGE TRANSACTIONAL=0;
+show create table t1;
+insert into t1 select seq,seq from seq_1_to_100000;
+
+#
+# For these we should get table is full error
+#
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=FIXED MAX_ROWS=10;
+show create table t1;
+--error ER_RECORD_FILE_FULL
+insert into t1 select seq,seq from seq_1_to_100000;
+select count(*) from t1;
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=DYNAMIC MAX_ROWS=10;
+show create table t1;
+--error ER_RECORD_FILE_FULL
+insert into t1 select seq,seq from seq_1_to_100000;
+select count(*) from t1;
+check table t1;
+
+# PAGE uses 3 byte pointers as minimum, which can handle up to 200M files
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=PAGE MAX_ROWS=10;
+show create table t1;
+insert into t1 select seq,seq from seq_1_to_100000;
+select count(*) from t1;
+check table t1;
+drop table t1;
+
+create or replace table t1 (
+c1 int unsigned,
+c2 char(80)
+) Engine=ARIA ROW_FORMAT=PAGE MAX_ROWS=10;
+show create table t1;
+--error ER_RECORD_FILE_FULL
+insert into t1 select seq,seq from seq_1_to_10000000;
+select count(*) from t1;
+check table t1;
+--replace_column 12 # 13 # 14 #
+show table status like "t1";
+create index seq on t1(c1);
+--replace_column 12 # 13 # 14 #
+show table status like "t1";
+drop table t1;

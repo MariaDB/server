@@ -1,0 +1,2 @@
+partition_basic_symlink_tokudb : tokudb_file_per_table is not supported
+partition_reorganize_tokudb : tokudb_file_per_table is not supported

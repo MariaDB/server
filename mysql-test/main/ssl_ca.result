@@ -1,0 +1,8 @@
+#
+# Bug#21920657: SSL-CA FAILS SILENTLY IF THE PATH CANNOT BE FOUND
+#
+# try to connect with wrong '--ssl-ca' path : should fail
+ERROR 2026 (HY000): SSL connection error: xxxx
+# try to connect with correct '--ssl-ca' path : should connect
+have_ssl
+1

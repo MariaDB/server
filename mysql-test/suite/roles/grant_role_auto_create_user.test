@@ -1,0 +1,123 @@
+#
+# MDEV-5221 User auto-creation does not work upon GRANT <role>
+#
+--source include/not_embedded.inc
+
+create database db;
+create role auto_create;
+create user auto_create;
+grant all on db.* to auto_create;
+create user foo@localhost;
+grant auto_create to foo@localhost;
+create user bar@localhost identified by 'baz';
+grant auto_create to bar@localhost;
+
+# Test if the users have been created and the role has been granted to them
+--connect (con1,localhost,foo,,)
+set role 'auto_create';
+use db;
+create table t1 (i int);
+--disconnect con1
+
+--connect (con1,localhost,bar,baz,)
+set role auto_create;
+use db;
+insert into t1 values (1);
+--disconnect con1
+
+--connection default
+drop user foo@localhost, bar@localhost;
+
+set sql_mode = 'no_auto_create_user';
+--error ER_PASSWORD_NO_MATCH
+grant auto_create to foo@localhost;
+grant auto_create to bar@localhost identified by 'baz';
+select user, host from mysql.user where user = 'bar';
+set sql_mode = '';
+
+--connect (con1,localhost,bar,baz,)
+set role auto_create;
+use db;
+drop table t1;
+--disconnect con1
+
+--connection default
+
+create user foo@localhost;
+
+# test all possible cases with a user who has no rights to grant the role
+--connect (con1, localhost, foo,,)
+
+set sql_mode = '';
+#try and grant roles, no rights however
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant auto_create to bar2@localhost;
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant auto_create to foo2@localhost;
+
+set sql_mode = 'no_auto_create_user';
+#try and grant roles, no rights however
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant auto_create to bar2@localhost;
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant auto_create to foo2@localhost identified by 'pass';
+--disconnect con1
+--connection default
+grant auto_create to foo@localhost;
+
+--connect (con1, localhost, foo,,)
+
+#we now have the role granted to us, but we don't have insert privileges,
+#we should not be able to create a new user
+
+set sql_mode = '';
+#also test that we can not grant a role without admin option
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant auto_create to bar@localhost;
+
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant auto_create to bar2@localhost;
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant auto_create to foo2@localhost identified by 'pass';
+
+set sql_mode = 'no_auto_create_user';
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant auto_create to bar2@localhost;
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+grant auto_create to foo2@localhost identified by 'pass';
+
+#test that we can grant a role with admin option to an existing user, but not
+#create one
+
+--connection default
+grant auto_create to foo@localhost with admin option;
+
+--disconnect con1
+--connect (con1, localhost, foo,,)
+
+#we now have the role granted to us, but we don't have insert privileges,
+#we should not be able to create a new user
+
+set sql_mode = '';
+#also test that we can grant a role with admin option
+grant auto_create to bar@localhost;
+
+#test that we don't create users if we don't have insert privileges
+--error ER_CANT_CREATE_USER_WITH_GRANT
+grant auto_create to bar2@localhost;
+--error ER_CANT_CREATE_USER_WITH_GRANT
+grant auto_create to foo2@localhost identified by 'pass';
+
+set sql_mode = 'no_auto_create_user';
+--error ER_PASSWORD_NO_MATCH
+grant auto_create to bar2@localhost;
+--error ER_CANT_CREATE_USER_WITH_GRANT
+grant auto_create to foo2@localhost identified by 'pass';
+
+
+--connection default
+drop user foo@localhost;
+drop user bar@localhost;
+drop role auto_create;
+drop user auto_create;
+drop database db;

@@ -1,0 +1,62 @@
+--source include/have_innodb.inc
+
+create table t1(a int not null primary key, b geometry not null) engine=innodb;
+--error 1846
+ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b), ALGORITHM=INSTANT;
+show warnings;
+show errors;
+ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b), LOCK=SHARED, ALGORITHM=NOCOPY;
+show warnings;
+show errors;
+drop table t1;
+create table t1(a int not null, b geometry not null, d int,spatial key c(b), key d(d)) engine=innodb;
+show create table t1;
+--error 1846
+ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d;
+show warnings;
+show errors;
+ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d, LOCK=SHARED;
+show warnings;
+show errors;
+drop table t1;
+
+--echo #
+--echo # MDEV-14038 ALTER TABLE does not exit on error with InnoDB + bad default function
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+ALTER TABLE t1 ADD COLUMN b LINESTRING DEFAULT POINT(1,1);
+DESCRIBE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #19077964 ASSERT PAGE_SIZE.EQUALS_TO SPACE_PAGE_SIZE
+--echo # BTR_COPY_BLOB_PREFIX
+--echo #
+
+CREATE TABLE t1(f1 INT PRIMARY KEY, f3 LINESTRING NOT NULL,
+	  	SPATIAL KEY(f3))ENGINE=InnoDB ROW_FORMAT=COMPRESSED
+		KEY_BLOCK_SIZE=1;
+SHOW CREATE TABLE t1;
+
+let $points = 80;
+let $x = 0;
+let $y = 0;
+let $linestr = (;
+
+while ($points)
+{
+  let $linestr = $linestr $x $y,;
+  dec $points;
+  inc $x;
+  inc $y;
+}
+
+let $linestr = $linestr 9999 9999);
+
+--eval INSERT INTO t1 VALUES (1, ST_linefromtext(concat('linestring', '$linestr')));
+
+ALTER TABLE t1 ROW_FORMAT = DYNAMIC, KEY_BLOCK_SIZE=0, ALGORITHM=INPLACE;
+
+DROP TABLE t1;

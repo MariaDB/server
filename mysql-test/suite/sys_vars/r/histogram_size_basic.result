@@ -1,0 +1,127 @@
+SET @start_global_value = @@global.histogram_size;
+SET @start_session_value = @@session.histogram_size;
+SELECT @start_global_value = @start_session_value;
+@start_global_value = @start_session_value
+1
+'#--------------------FN_DYNVARS_053_01-------------------------#'
+SET @@global.histogram_size = DEFAULT;
+SELECT @@global.histogram_size;
+@@global.histogram_size
+254
+SET @@session.histogram_size = DEFAULT;
+SELECT @@session.histogram_size;
+@@session.histogram_size
+254
+'#--------------------FN_DYNVARS_053_03-------------------------#'
+SET @@global.histogram_size = 1;
+SELECT @@global.histogram_size;
+@@global.histogram_size
+1
+SET @@global.histogram_size = 31;
+SELECT @@global.histogram_size;
+@@global.histogram_size
+31
+SET @@global.histogram_size = 255;
+SELECT @@global.histogram_size;
+@@global.histogram_size
+255
+'#--------------------FN_DYNVARS_053_04-------------------------#'
+SET @@session.histogram_size = 1;
+SELECT @@session.histogram_size;
+@@session.histogram_size
+1
+SET @@session.histogram_size = 31;
+SELECT @@session.histogram_size;
+@@session.histogram_size
+31
+SET @@session.histogram_size = 255;
+SELECT @@session.histogram_size;
+@@session.histogram_size
+255
+'#------------------FN_DYNVARS_053_05-----------------------#'
+SET @@global.histogram_size = -1;
+Warnings:
+Warning	1292	Truncated incorrect histogram_size value: '-1'
+SELECT @@global.histogram_size;
+@@global.histogram_size
+0
+SET @@global.histogram_size = 256;
+Warnings:
+Warning	1292	Truncated incorrect histogram_size value: '256'
+SELECT @@global.histogram_size;
+@@global.histogram_size
+255
+SET @@global.histogram_size = 1024;
+Warnings:
+Warning	1292	Truncated incorrect histogram_size value: '1024'
+SELECT @@global.histogram_size;
+@@global.histogram_size
+255
+SET @@global.histogram_size = 4.5;
+ERROR 42000: Incorrect argument type to variable 'histogram_size'
+SELECT @@global.histogram_size;
+@@global.histogram_size
+255
+SET @@global.histogram_size = test;
+ERROR 42000: Incorrect argument type to variable 'histogram_size'
+SELECT @@global.histogram_size;
+@@global.histogram_size
+255
+SET @@session.histogram_size = -1;
+Warnings:
+Warning	1292	Truncated incorrect histogram_size value: '-1'
+SELECT @@session.histogram_size;
+@@session.histogram_size
+0
+SET @@session.histogram_size = 256;
+Warnings:
+Warning	1292	Truncated incorrect histogram_size value: '256'
+SELECT @@session.histogram_size;
+@@session.histogram_size
+255
+SET @@session.histogram_size = 1024;
+Warnings:
+Warning	1292	Truncated incorrect histogram_size value: '1024'
+SELECT @@session.histogram_size;
+@@session.histogram_size
+255
+SET @@session.histogram_size = 4.5;
+ERROR 42000: Incorrect argument type to variable 'histogram_size'
+SELECT @@session.histogram_size;
+@@session.histogram_size
+255
+SET @@session.histogram_size = test;
+ERROR 42000: Incorrect argument type to variable 'histogram_size'
+SELECT @@session.histogram_size;
+@@session.histogram_size
+255
+'#------------------FN_DYNVARS_053_06-----------------------#'
+SELECT @@global.histogram_size = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='histogram_size';
+@@global.histogram_size = VARIABLE_VALUE
+1
+'#------------------FN_DYNVARS_053_07-----------------------#'
+SELECT @@session.histogram_size = VARIABLE_VALUE 
+FROM INFORMATION_SCHEMA.SESSION_VARIABLES
+WHERE VARIABLE_NAME='histogram_size';
+@@session.histogram_size = VARIABLE_VALUE
+1
+'#------------------FN_DYNVARS_053_08-----------------------#'
+SET @@global.histogram_size = TRUE;
+SET @@global.histogram_size = FALSE;
+'#---------------------FN_DYNVARS_001_09----------------------#'
+SET @@global.histogram_size = 10;
+SELECT @@histogram_size = @@global.histogram_size;
+@@histogram_size = @@global.histogram_size
+0
+'#---------------------FN_DYNVARS_001_10----------------------#'
+SET @@histogram_size = 100;
+SELECT @@histogram_size = @@local.histogram_size;
+@@histogram_size = @@local.histogram_size
+1
+SELECT @@local.histogram_size = @@session.histogram_size;
+@@local.histogram_size = @@session.histogram_size
+1
+SET @@global.histogram_size = @start_global_value;
+SET @@session.histogram_size = @start_session_value;

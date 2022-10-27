@@ -1,0 +1,106 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+# Since we inject an error updating mysql.gtid_slave_pos, we will get different
+# output depending on whether it is InnoDB or MyISAM (roll back or no roll
+# back). So fix it to make sure we are consistent, in case an earlier test case
+# left it as InnoDB.
+SET sql_log_bin=0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
+SET sql_log_bin=1;
+--source include/start_slave.inc
+
+--connection master
+CREATE TABLE t1 (i int) ENGINE=InnoDB;
+
+--sync_slave_with_master
+
+--echo *** MDEV-4484, incorrect error handling when entries in gtid_slave_pos not found. ***
+TRUNCATE TABLE mysql.gtid_slave_pos;
+
+--connection master
+INSERT INTO t1 VALUES (1);
+--sync_slave_with_master
+
+# Inject an artificial error deleting entries, and check that the error handling code works.
+--connection slave
+--source include/stop_slave.inc
+SET @old_gtid_cleanup_batch_size= @@GLOBAL.gtid_cleanup_batch_size;
+SET GLOBAL gtid_cleanup_batch_size= 2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,gtid_slave_pos_simulate_failed_delete";
+SET sql_log_bin= 0;
+CALL mtr.add_suppression("<DEBUG> Error deleting old GTID row");
+SET sql_log_bin= 1;
+--source include/start_slave.inc
+
+--connection master
+--disable_query_log
+let $i = 20;
+while ($i) {
+  eval INSERT INTO t1 VALUES ($i+10);
+  dec $i;
+}
+--enable_query_log
+--save_master_pos
+
+--connection slave
+--sync_with_master
+
+# Now wait for the slave background thread to try to delete old rows and
+# hit the error injection.
+--let _TEST_MYSQLD_ERROR_LOG=$MYSQLTEST_VARDIR/log/mysqld.2.err
+--perl
+  open F, '<', $ENV{'_TEST_MYSQLD_ERROR_LOG'} or die;
+  outer: while (1) {
+    inner: while (<F>) {
+      last outer if /<DEBUG> Error deleting old GTID row/;
+    }
+    # Easy way to do sub-second sleep without extra modules.
+    select(undef, undef, undef, 0.1);
+  }
+EOF
+
+# Since we injected error in the cleanup code, the rows should remain in
+# mysql.gtid_slave_pos. Check that we have at least 20 (more robust against
+# non-deterministic cleanup and future changes than checking for exact number).
+SELECT COUNT(*), MAX(seq_no) INTO @pre_count, @pre_max_seq_no
+  FROM mysql.gtid_slave_pos;
+SELECT IF(@pre_count >= 20, "OK", CONCAT("Error: too few rows seen while errors injected: ", @pre_count));
+SET GLOBAL debug_dbug= @old_dbug;
+
+--connection master
+--disable_query_log
+let $i = 20;
+while ($i) {
+  eval INSERT INTO t1 VALUES ($i+40);
+  dec $i;
+}
+--enable_query_log
+--sync_slave_with_master
+
+--connection slave
+# Now check that 1) rows are being deleted again after removing error
+# injection, and 2) old rows are left that failed their delete while errors
+# where injected (again compensating for non-deterministic deletion).
+# Deletion is async and slightly non-deterministic, so we wait for at
+# least 10 of the 20 new rows to be deleted.
+let $wait_condition=
+  SELECT COUNT(*) <= 20-10
+    FROM mysql.gtid_slave_pos
+   WHERE seq_no > @pre_max_seq_no;
+--source include/wait_condition.inc
+SELECT IF(COUNT(*) >= 1, "OK", CONCAT("Error: too few rows seen after errors no longer injected: ", COUNT(*)))
+  FROM mysql.gtid_slave_pos
+ WHERE seq_no <= @pre_max_seq_no;
+
+# Clean up
+--connection master
+DROP TABLE t1;
+--connection slave
+SET GLOBAL gtid_cleanup_batch_size= @old_gtid_cleanup_batch_size;
+
+--source include/rpl_end.inc

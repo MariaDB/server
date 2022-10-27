@@ -1,0 +1,72 @@
+set default_storage_engine=innodb;
+#
+# MDEV-18295 IMPORT TABLESPACE fails with instant-altered tables
+#
+create table t2 (x int, z int default 41);
+alter table t2 discard tablespace;
+create table t1 (x int);
+insert into t1 values (1);
+alter table t1 add z int default 42, algorithm instant;
+select * from t1;
+x	z
+1	42
+flush tables t1 for export;
+unlock tables;
+# The metadata has to be updated to instant ADD COLUMN.
+alter table t2 import tablespace;
+select * from t2;
+x	z
+1	42
+insert into t2 set x=2;
+select * from t2;
+x	z
+1	42
+2	41
+alter table t1 discard tablespace;
+flush tables t2 for export;
+unlock tables;
+# Both the metadata and the data file used instant ADD COLUMN.
+alter table t1 import tablespace;
+select * from t1;
+x	z
+1	42
+2	41
+drop table t2;
+create table t2 select * from t1;
+alter table t1 discard tablespace;
+flush tables t2 for export;
+unlock tables;
+# The instant ADD COLUMN has to be removed from the metadata.
+alter table t1 import tablespace;
+select * from t1;
+x	z
+1	42
+2	41
+# Remove metadata for instant DROP COLUMN, then import
+alter table t1 drop x, add column x int first, algorithm instant;
+select * from t1;
+x	z
+NULL	42
+NULL	41
+alter table t1 discard tablespace;
+alter table t1 import tablespace;
+select * from t1;
+x	z
+1	42
+2	41
+# Import a data file that contains instant DROP COLUMN metadata
+alter table t2 drop x;
+alter table t1 drop x, force;
+alter table t1 discard tablespace;
+flush tables t2 for export;
+unlock tables;
+alter table t1 import tablespace;
+ERROR HY000: Schema mismatch (Index field count 4 doesn't match tablespace metadata file value 5)
+select * from t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+alter table t1 import tablespace;
+ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`t1` : Unsupported
+select * from t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+drop table t2;
+drop table t1;

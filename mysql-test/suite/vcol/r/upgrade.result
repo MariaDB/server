@@ -1,0 +1,34 @@
+check table vcol_autoinc for upgrade;
+Table	Op	Msg_type	Msg_text
+test.vcol_autoinc	check	Warning	Function or expression 'AUTO_INCREMENT' cannot be used in the GENERATED ALWAYS AS clause of `pk`
+test.vcol_autoinc	check	status	OK
+show create table vcol_autoinc;
+Table	Create Table
+vcol_autoinc	CREATE TABLE `vcol_autoinc` (
+  `pk` int(11) NOT NULL AUTO_INCREMENT,
+  `v3` int(11) GENERATED ALWAYS AS (`pk`) VIRTUAL,
+  PRIMARY KEY (`pk`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+select * from vcol_autoinc;
+pk	v3
+insert vcol_autoinc (pk) values (1);
+select * from vcol_autoinc;
+pk	v3
+1	1
+drop table vcol_autoinc;
+check table t1  for upgrade;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+flush tables;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `Date` datetime(6) NOT NULL,
+  `Data` varbinary(2000) NOT NULL,
+  `a` varchar(100) GENERATED ALWAYS AS (column_get(`Data`,1 as char(100) charset latin1)) VIRTUAL,
+  PRIMARY KEY (`Date`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (to_days(`Date`))
+(PARTITION `p20181029` VALUES LESS THAN (737361) ENGINE = MyISAM,
+ PARTITION `p20181128` VALUES LESS THAN (737391) ENGINE = MyISAM)
+drop table t1;

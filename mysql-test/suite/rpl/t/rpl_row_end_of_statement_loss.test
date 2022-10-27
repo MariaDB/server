@@ -1,0 +1,66 @@
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+# Loss of STMT_END flagged event must error out the IO thread
+--connection slave
+call mtr.add_suppression("Slave IO thread did not receive an expected Rows-log end-of-statement");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+
+SET @save_debug= @@global.debug;
+SET GLOBAL debug_dbug="+d,simulate_stmt_end_rows_event_loss";
+--source include/stop_slave.inc
+--replace_result $MASTER_MYPORT MASTER_PORT
+--eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,  MASTER_USE_GTID=SLAVE_POS
+
+--connection master
+--let $max_row_size=8192
+--eval CREATE TABLE t (a INT, b text($max_row_size));
+--eval INSERT INTO t values (1, repeat('b', $max_row_size)), (1, repeat('b', $max_row_size))
+
+# Prove that the missed STMT_END marked rows-event  causes the io thread stop.
+--connection slave
+START SLAVE IO_THREAD;
+--let $slave_io_errno=1595
+--source include/wait_for_slave_io_error.inc
+SET GLOBAL debug_dbug="-d,simulate_stmt_end_rows_event_loss";
+--source include/start_slave.inc
+
+--connection master
+sync_slave_with_master;
+
+# Compressed version of the above
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+SET @save_log_bin_compress= @@GLOBAL.log_bin_compress;
+SET @save_log_bin_compress_min_len= @@GLOBAL.log_bin_compress_min_len;
+
+SET @@GLOBAL.log_bin_compress=ON;
+SET @@GLOBAL.log_bin_compress_min_len=10;
+
+--eval INSERT INTO t values (2, repeat('b', $max_row_size)), (2, repeat('b', $max_row_size))
+
+# Prove that the missed STMT_END marked rows-event causes the io thread stop.
+--connection slave
+SET GLOBAL debug_dbug="+d,simulate_stmt_end_rows_event_loss";
+START SLAVE IO_THREAD;
+--let $slave_io_errno=1595
+--source include/wait_for_slave_io_error.inc
+SET GLOBAL debug_dbug="-d,simulate_stmt_end_rows_event_loss";
+--source include/start_slave.inc
+
+--connection master
+sync_slave_with_master;
+
+# cleanup
+
+--connection master
+SET @@GLOBAL.log_bin_compress= @save_log_bin_compress;
+SET @@GLOBAL.log_bin_compress_min_len= @save_log_bin_compress_min_len;
+DROP TABLE t;
+sync_slave_with_master;
+SET GLOBAL debug_dbug= @save_debug;
+
+--source include/rpl_end.inc

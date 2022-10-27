@@ -1,0 +1,597 @@
+# We are using .opt file since we need small binlog size
+# TODO: Need to look at making a row based version once the new row based client is completed. [jbm]
+-- source include/have_binlog_format_statement.inc
+
+-- source include/have_log_bin.inc
+-- source include/binlog_start_pos.inc
+
+--disable_query_log
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+--enable_query_log
+
+# Deletes all the binary logs
+reset master;
+
+# we need this for getting fixed timestamps inside of this test
+set timestamp=1000000000;
+
+--disable_warnings
+drop table if exists t1,t2,t3,t4,t5,t03,t04;
+--enable_warnings
+
+create table t1 (word varchar(20));
+create table t2 (id int auto_increment not null primary key);
+
+# simple test for simple statement and various events
+insert into t1 values ("abirvalg");
+insert into t2 values ();
+# Should be uncommented in 4.1
+# set @a:=1
+# insert into t2 values (@a);
+
+# test for load data and load data distributed among the several
+# files (we need to fill up first binlog)
+load data infile '../../std_data/words3.dat' into table t1;
+load data infile '../../std_data/words3.dat' into table t1;
+load data infile '../../std_data/words3.dat' into table t1;
+load data infile '../../std_data/words3.dat' into table t1;
+load data infile '../../std_data/words3.dat' into table t1;
+# simple query to show more in second binlog
+--let $binlog_start_pos=query_get_value(SHOW MASTER STATUS, Position, 1)
+insert into t1 values ("Alas");
+
+### Starting master-bin.000003
+flush logs;
+
+# delimiters are for easier debugging in future
+--disable_query_log
+select "--- Local --" as "";
+--enable_query_log
+
+#
+# We should use --short-form everywhere because in other case output will
+# be time dependend. Better than nothing.
+#
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000001
+
+# this should not fail but shouldn't produce any working statements
+--disable_query_log
+select "--- Broken LOAD DATA --" as "";
+--enable_query_log
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000002 2> /dev/null
+
+# this should show almost nothing
+--disable_query_log
+select "--- --database --" as "";
+--enable_query_log
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --database=nottest $MYSQLD_DATADIR/master-bin.000001 2> /dev/null
+
+# this test for start-position option
+--disable_query_log
+select "--- --start-position --" as "";
+--enable_query_log
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --start-position=$binlog_start_pos $MYSQLD_DATADIR/master-bin.000002
+
+# These are tests for remote binlog.
+# They should return the same as previous test.
+
+--disable_query_log
+select "--- Remote --" as "";
+--enable_query_log
+
+# This is broken now
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001
+
+# This is broken too
+--disable_query_log
+select "--- Broken LOAD DATA --" as "";
+--enable_query_log
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000002 2> /dev/null
+
+# And this too ! (altough it is documented)
+--disable_query_log
+select "--- --database --" as "";
+--enable_query_log
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT --database=nottest master-bin.000001 2> /dev/null
+
+# Strangely but this works
+--disable_query_log
+select "--- --start-position --" as "";
+--enable_query_log
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ --read-from-remote-server --start-position=$binlog_start_pos --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000002
+
+# Bug#7853 mysqlbinlog does not accept input from stdin
+--disable_query_log
+select "--- reading stdin --" as "";
+--enable_query_log
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form - < $MYSQL_TEST_DIR/std_data/trunc_binlog.000001
+
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+# postion is constant to correspond to an event in pre-recorded binlog
+--let $binlog_start_pos=79
+--exec $MYSQL_BINLOG --short-form --start-position=$binlog_start_pos - < $MYSQL_TEST_DIR/std_data/trunc_binlog.000001
+drop table t1,t2;
+
+#
+# Bug#14157 utf8 encoding in binlog without set character_set_client
+#
+### Starting master-bin.000004
+flush logs;
+
+--write_file $MYSQLTEST_VARDIR/tmp/bug14157.sql
+create table if not exists t5 (a int);
+set names latin1;
+create temporary table `äöüÄÖÜ` (a int);
+insert into `äöüÄÖÜ` values (1);
+insert into t5 select * from `äöüÄÖÜ`
+EOF
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug14157.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/bug14157.sql
+
+# resulted binlog, parly consisting of multi-byte utf8 chars,
+# must be digestable for both client and server. In 4.1 the client
+# should use default-character-set same as the server.
+
+### Starting master-bin.000005
+flush logs;
+# Due to BUG#18337 that wrongly suppresses the BINLOG EVENTS when
+# --short-form is used, the "insert into t5 select * from `äöüÄÖÜ`"
+# which is unsafe and thus written to the binary log in the row
+# format is not executed. This makes the assertion select * from t5 
+# /* must be (1),(1) */; to fail. To temporary fix the bug, we
+# removed the option --short-form.
+#--exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000004 | $MYSQL
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000004 | $MYSQL
+select * from t5  /* must be (1),(1) */;
+drop table t5;
+
+#
+# Bug#22645 LC_TIME_NAMES: Statement not replicated
+# Check that a dump created by mysqlbinlog reproduces
+# lc_time_names dependent values correctly
+#
+
+### Starting master-bin.000006
+flush logs;
+create table t5 (c1 int, c2 varchar(128) character set latin1 not null);
+insert into t5 values (1, date_format('2001-01-01','%W'));
+set lc_time_names=de_DE;
+insert into t5 values (2, date_format('2001-01-01','%W'));
+set lc_time_names=en_US;
+insert into t5 values (3, date_format('2001-01-01','%W'));
+select * from t5 order by c1;
+
+### Starting master-bin.000007
+flush logs;
+
+drop table t5;
+--exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000006 | $MYSQL
+select * from t5 order by c1;
+drop table t5;
+
+#
+# Bug#20396 Bin Log does not get DELIMETER cmd - Recover StoredProc fails
+#
+--disable_warnings
+drop procedure if exists p1;
+--enable_warnings
+
+### Starting master-bin.000008
+flush logs;
+
+delimiter //;
+create procedure p1()
+begin
+select 1;
+end;
+//
+delimiter ;//
+
+### Starting master-bin.000009
+flush logs;
+
+call p1();
+drop procedure p1;
+--error ER_SP_DOES_NOT_EXIST
+call p1();
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000008
+--exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000008 | $MYSQL
+call p1();
+drop procedure p1;
+
+#
+# Some coverage of not normally used parts
+#
+--disable_query_log
+--exec $MYSQL_BINLOG --version 2>&1 > /dev/null
+--exec $MYSQL_BINLOG --help 2>&1 > /dev/null
+--enable_query_log
+
+#
+# Bug#15126 character_set_database is not replicated
+# (LOAD DATA INFILE need it)
+#
+
+### Starting master-bin.000010
+flush logs;
+
+create table t1 (a varchar(64) character set utf8);
+load data infile '../../std_data/loaddata6.dat' into table t1;
+set character_set_database=koi8r;
+load data infile '../../std_data/loaddata6.dat' into table t1;
+set character_set_database=latin1;
+load data infile '../../std_data/loaddata6.dat' into table t1;
+load data infile '../../std_data/loaddata6.dat' into table t1;
+set character_set_database=koi8r;
+load data infile '../../std_data/loaddata6.dat' into table t1;
+set character_set_database=latin1;
+load data infile '../../std_data/loaddata6.dat' into table t1;
+load data infile '../../std_data/loaddata6.dat' into table t1 character set koi8r;
+select hex(a) from t1;
+drop table t1;
+
+### Starting master-bin.000011
+flush logs;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /SQL_LOAD_MB-[0-9a-f]+-[0-9a-f]+/SQL_LOAD_MB-#-#/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --short-form --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000010
+
+#
+# Bug#28293 missed '#' sign in the hex dump when the dump length
+#           is divisible by 16.
+#
+
+CREATE TABLE t1 (c1 CHAR(10));
+# we need this for getting fixed timestamps inside of this test
+### Starting master-bin.000012
+FLUSH LOGS;
+
+INSERT INTO t1 VALUES ('0123456789');
+
+### Starting master-bin.000013
+FLUSH LOGS;
+
+DROP TABLE t1;
+
+# We create a table named "patch", and load the output into it.
+# By using LIKE, we can easily see if the output is missing the '#'
+# character, as described in the bug.
+
+--disable_query_log
+CREATE TABLE patch (a BLOB);
+--exec $MYSQL_BINLOG --hexdump --local-load=$MYSQLTEST_VARDIR/tmp/ $MYSQLD_DATADIR/master-bin.000012 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat
+### Starting master-bin.000014
+eval LOAD DATA LOCAL INFILE '$MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat'
+     INTO TABLE patch FIELDS TERMINATED BY '';
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_tmp.dat
+--enable_query_log
+
+--echo We expect this value to be 2 (one for the INSERT, one for COMMIT).
+--echo The bug being tested was that 'Query' lines were not preceded by '#'
+--echo If the line is in the table, it had to have been preceded by a '#'
+--echo
+SELECT COUNT(*) AS `BUG#28293_expect_2` FROM patch WHERE a LIKE '#%Query%';
+DROP TABLE patch;
+
+#
+# Bug#29928 incorrect connection_id() restoring from mysqlbinlog out
+#
+### Starting master-bin.000015
+FLUSH LOGS;
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES(connection_id());
+let $a= `SELECT a FROM t1`;
+
+### Starting master-bin.000016
+FLUSH LOGS;
+
+let $outfile= $MYSQLTEST_VARDIR/tmp/bug29928.sql;
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000015 > $outfile
+DROP TABLE t1;
+connect (con1, localhost, root, , test);
+connection con1;
+--exec $MYSQL test < $outfile
+--remove_file $outfile
+let $b= `SELECT a FROM t1`;
+disconnect con1;
+connection default;
+let $c= `SELECT $a=$b`;
+--echo $c
+DROP TABLE t1;
+
+echo shell> mysqlbinlog std_data/corrupt-relay-bin.000624 > var/tmp/bug31793.sql;
+error 1;
+exec $MYSQL_BINLOG $MYSQL_TEST_DIR/std_data/corrupt-relay-bin.000624 > $MYSQLTEST_VARDIR/tmp/bug31793.sql;
+--remove_file $MYSQLTEST_VARDIR/tmp/bug31793.sql
+
+#
+# Test --disable-force-if-open and --force-if-open
+#
+### Starting master-bin.000017
+FLUSH LOGS;
+
+--error 1
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000017 >/dev/null 2>/dev/null
+--exec $MYSQL_BINLOG --force-if-open $MYSQLD_DATADIR/master-bin.000017 >/dev/null 2>/dev/null
+
+--echo Bug#31611 Security risk with BINLOG statement
+
+SET BINLOG_FORMAT=ROW;
+CREATE DATABASE mysqltest1;
+CREATE USER untrusted@localhost;
+GRANT SELECT ON mysqltest1.* TO untrusted@localhost;
+
+SHOW GRANTS FOR untrusted@localhost;
+USE mysqltest1;
+CREATE TABLE t1 (a INT, b CHAR(64));
+
+### Starting master-bin.000018
+flush logs;
+
+INSERT INTO t1 VALUES (1,USER());
+
+### Starting master-bin.000019
+flush logs;
+echo mysqlbinlog var/log/master-bin.000018 > var/tmp/bug31611.sql;
+exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000018 > $MYSQLTEST_VARDIR/tmp/bug31611.sql;
+connect (unsecure,localhost,untrusted,,mysqltest1);
+echo mysql mysqltest1 -uuntrusted < var/tmp/bug31611.sql;
+error 1;
+exec $MYSQL mysqltest1 -uuntrusted < $MYSQLTEST_VARDIR/tmp/bug31611.sql;
+--remove_file $MYSQLTEST_VARDIR/tmp/bug31611.sql
+connection unsecure;
+error ER_TABLEACCESS_DENIED_ERROR;
+INSERT INTO t1 VALUES (1,USER());
+
+SELECT * FROM t1;
+connection default;
+DROP DATABASE mysqltest1;
+DROP USER untrusted@localhost;
+
+--echo Bug#32580 mysqlbinlog cannot read binlog event with user variables
+
+# Testing that various kinds of events can be read and restored properly.
+
+connection default;
+USE test;
+SET BINLOG_FORMAT = STATEMENT;
+
+### Starting master-bin.000020
+FLUSH LOGS;
+
+CREATE TABLE t1 (a_real FLOAT, an_int INT, a_decimal DECIMAL(5,2), a_string CHAR(32));
+SET @a_real = rand(20) * 1000;
+SET @an_int = 1000;
+SET @a_decimal = CAST(rand(19) * 999 AS DECIMAL(5,2));
+SET @a_string = 'Just a test';
+INSERT INTO t1 VALUES (@a_real, @an_int, @a_decimal, @a_string);
+
+### Starting master-bin.000021
+FLUSH LOGS;
+
+query_vertical SELECT * FROM t1;
+DROP TABLE t1;
+
+echo >> mysqlbinlog var/log/master-bin.000020 > var/tmp/bug32580.sql;
+exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000020 > $MYSQLTEST_VARDIR/tmp/bug32580.sql;
+echo >> mysql test < var/tmp/bug32580.sql;
+exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/bug32580.sql;
+remove_file $MYSQLTEST_VARDIR/tmp/bug32580.sql;
+
+query_vertical SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Bug#37313 BINLOG Contains Incorrect server id
+#
+
+let $binlog_file=  $MYSQLTEST_VARDIR/tmp/mysqlbinlog_bug37313.binlog;
+let $save_server_id= `SELECT @@global.server_id`;
+let $s_id_max= `SELECT (1 << 32) - 1`;
+eval SET @@global.server_id= $s_id_max;
+
+RESET MASTER;
+FLUSH LOGS;
+
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $binlog_file
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval SELECT
+(@a:=LOAD_FILE("$binlog_file"))
+IS NOT NULL;
+let $s_id_unsigned= `SELECT @a LIKE "%server id $s_id_max%" /* must return 1 */`;
+echo *** Unsigned server_id $s_id_max is found: $s_id_unsigned ***;
+
+eval SET @@global.server_id= $save_server_id;
+--remove_file $binlog_file
+
+#
+# Bug #41943: mysqlbinlog.exe crashes if --hexdump option is used
+#
+
+RESET MASTER;
+FLUSH LOGS;
+
+# We do not need the results, just make sure that mysqlbinlog does not crash
+--exec $MYSQL_BINLOG --hexdump --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT  master-bin.000001 >/dev/null
+
+#
+# #46998
+# This test verifies if the 'BEGIN', 'COMMIT' and 'ROLLBACK' are output 
+# in regardless of database filtering
+#
+
+RESET MASTER;
+FLUSH LOGS;
+
+# The following three test cases were wrtten into binlog_transaction.000001
+# Test case1: Test if the 'BEGIN' and 'COMMIT' are output for the 'test' database 
+# in transaction1 base on innodb engine tables
+# use test;
+# create table t1(a int) engine= innodb;
+# use mysql;
+# create table t2(a int) engine= innodb;
+# Transaction1 begin
+# begin;
+# use test;
+# insert into t1 (a) values (1);
+# use mysql;
+# insert into t2 (a) values (1);
+# commit;
+# Transaction1 end
+
+# Test case2: Test if the 'BEGIN' and 'ROLLBACK' are output for the 'test' database 
+# in transaction2 base on innodb and myisam engine tables
+# use test;
+# create table t3(a int) engine= innodb;
+# use mysql;
+# create table t4(a int) engine= myisam;
+# Transaction2 begin
+# begin;
+# use test;
+# insert into t3 (a) values (2);
+# use mysql;
+# insert into t4 (a) values (2);
+# rollback;
+# Transaction2 end
+
+--echo #
+--echo # Test if the 'BEGIN', 'ROLLBACK' and 'COMMIT' are output if the database specified exists
+--exec $MYSQL_BINLOG --database=test --short-form $MYSQLTEST_VARDIR/std_data/binlog_transaction.000001
+--echo #
+--echo # Test if the 'BEGIN', 'ROLLBACK' and 'COMMIT' are output if the database specified does not exist
+--exec $MYSQL_BINLOG --database=not_exist --short-form $MYSQLTEST_VARDIR/std_data/binlog_transaction.000001
+
+--echo #
+--echo # Test if the 'SAVEPOINT', 'ROLLBACK TO' are output if the database specified exists
+--exec $MYSQL_BINLOG --database=db1 --short-form $MYSQLTEST_VARDIR/std_data/binlog_savepoint.000001
+--echo #
+--echo # Test if the 'SAVEPOINT', 'ROLLBACK TO' are output if the database specified does not exist
+--exec $MYSQL_BINLOG --database=not_exist --short-form $MYSQLTEST_VARDIR/std_data/binlog_savepoint.000001
+
+--echo End of 5.0 tests
+
+--echo End of 5.1 tests
+
+#
+# BUG#38468 Memory leak detected when using mysqlbinlog utility;
+#
+disable_query_log;
+RESET MASTER;
+CREATE TABLE t1 SELECT 1;
+FLUSH LOGS;
+DROP TABLE t1;
+enable_query_log;
+
+# Write an empty file for comparison
+write_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn.empty;
+EOF
+
+# Before fix of BUG#38468, this would generate some warnings
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 >/dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+
+# Make sure the command above does not generate any error or warnings
+diff_files $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn.empty;
+
+# Cleanup for this part of test
+remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn.empty;
+remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn;
+
+#
+# WL#5625: Deprecate mysqlbinlog options --base64-output=always and --base64-output
+#
+--echo # Expect deprecation warning.
+--exec $MYSQL_BINLOG --base64-output=always std_data/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+--cat_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+
+--echo # Expect deprecation warning again.
+--exec $MYSQL_BINLOG --base64-output std_data/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+--cat_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+
+# Clean up this part of the test.
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+
+# BUG#50914
+# This test verifies if the approach of the mysqlbinlog prints
+# "use $database" statements to its output stream will cause
+# "No Database Selected" error when dropping and recreating
+# that database.
+#
+RESET MASTER;
+CREATE DATABASE test1;
+USE test1;
+CREATE TABLE t1(id int);
+DROP DATABASE test1;
+CREATE DATABASE test1;
+USE test1;
+CREATE TABLE t1(id int);
+DROP TABLE t1;
+DROP DATABASE test1;
+let $master_binlog= query_get_value(SHOW MASTER STATUS, File, 1);
+FLUSH LOGS;
+--source include/wait_for_binlog_checkpoint.inc
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+exec $MYSQL_BINLOG $MYSQLD_DATADIR/$master_binlog | $MYSQL test 2>&1;
+
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+source include/show_binlog_events.inc;
+
+#
+# BUG#11766427 BUG#59530: Filter by server id in mysqlbinlog fails
+# This test checks that the format description log event is not
+# filtered out by the --server-id option.
+#
+RESET MASTER;
+USE test;
+CREATE TABLE t1 (a INT);
+--let $old_server_id= `SELECT @@GLOBAL.SERVER_ID`
+SET GLOBAL SERVER_ID = 2;
+DROP TABLE t1;
+--let $master_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+FLUSH LOGS;
+# The following should only create t1, not drop it.
+--exec $MYSQL_BINLOG --server-id=1 $MYSQLD_DATADIR/$master_binlog | $MYSQL
+SHOW TABLES IN test;
+# The following should only drop t1, not create it.
+--exec $MYSQL_BINLOG --server-id=2 $MYSQLD_DATADIR/$master_binlog | $MYSQL
+SHOW TABLES IN test;
+eval SET GLOBAL SERVER_ID = $old_server_id;
+
+--echo #
+--echo # MDEV-4645: Incorrect reads of frozen binlog events;
+--echo # FDE corrupted in relay log
+--echo #
+--let TZ=GMT
+--exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_checksum.binlog
+--exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_group_id.binlog
+--exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_group_id_checksum.binlog
+--exec $MYSQL_BINLOG --hexdump std_data/mdev-4645-binlog_none.binlog
+
+#
+# MDEV-12372 mysqlbinlog --version output is the same on 10.x as on 5.5.x, and contains not only version
+#
+replace_regex /.*mysqlbinlog(\.exe)? Ver .* for .* at [-_a-zA-Z0-9]+/mysqlbinlog Ver VER for OS at ARCH/;
+exec $MYSQL_BINLOG --version;

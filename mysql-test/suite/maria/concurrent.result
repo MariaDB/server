@@ -1,0 +1,33 @@
+CREATE TABLE t1 (a INT, b CHAR(12), c INT, FULLTEXT KEY(b), KEY (c)) ENGINE=Aria;
+CREATE TABLE t2 (a INT, b CHAR(12), c INT) ENGINE=Aria;
+INSERT INTO t2 VALUES (1,'foo',8), (2,'bar',9);
+connect  con1,localhost,root,,test;
+INSERT INTO t1 SELECT * FROM t2;
+connection default;
+select 1;
+1
+1
+select 1;
+1
+1
+select 1;
+1
+1
+select 1;
+1
+1
+select 1;
+1
+1
+select 1;
+1
+1
+select 1;
+1
+1
+SELECT * FROM t1 WHERE a = ( SELECT 1 FROM non_existing_table2 );
+ERROR 42S02: Table 'test.non_existing_table2' doesn't exist
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE t1, t2;

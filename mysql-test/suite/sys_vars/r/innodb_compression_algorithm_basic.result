@@ -1,0 +1,47 @@
+SET @start_global_value = @@global.innodb_compression_algorithm;
+SELECT @start_global_value;
+@start_global_value
+zlib
+select @@global.innodb_compression_algorithm;
+@@global.innodb_compression_algorithm
+zlib
+select @@session.innodb_compression_algorithm;
+ERROR HY000: Variable 'innodb_compression_algorithm' is a GLOBAL variable
+show global variables like 'innodb_compression_algorithm';
+Variable_name	Value
+innodb_compression_algorithm	zlib
+show session variables like 'innodb_compression_algorithm';
+Variable_name	Value
+innodb_compression_algorithm	zlib
+select * from information_schema.global_variables where variable_name='innodb_compression_algorithm';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_COMPRESSION_ALGORITHM	zlib
+select * from information_schema.session_variables where variable_name='innodb_compression_algorithm';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_COMPRESSION_ALGORITHM	zlib
+set global innodb_compression_algorithm=1;
+select @@global.innodb_compression_algorithm;
+@@global.innodb_compression_algorithm
+zlib
+select * from information_schema.global_variables where variable_name='innodb_compression_algorithm';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_COMPRESSION_ALGORITHM	zlib
+select * from information_schema.session_variables where variable_name='innodb_compression_algorithm';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_COMPRESSION_ALGORITHM	zlib
+set session innodb_compression_algorithm=0;
+ERROR HY000: Variable 'innodb_compression_algorithm' is a GLOBAL variable and should be set with SET GLOBAL
+set global innodb_compression_algorithm=1.1;
+ERROR 42000: Incorrect argument type to variable 'innodb_compression_algorithm'
+set global innodb_compression_algorithm=1e1;
+ERROR 42000: Incorrect argument type to variable 'innodb_compression_algorithm'
+set global innodb_compression_algorithm="foo";
+ERROR 42000: Variable 'innodb_compression_algorithm' can't be set to the value of 'foo'
+set global innodb_compression_algorithm=0;
+select @@global.innodb_compression_algorithm;
+@@global.innodb_compression_algorithm
+none
+SET @@global.innodb_compression_algorithm = @start_global_value;
+SELECT @@global.innodb_compression_algorithm;
+@@global.innodb_compression_algorithm
+zlib

@@ -1,0 +1,505 @@
+drop table if exists t1;
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `ka` (`a`),
+  KEY `kab` (`a`,`b`),
+  KEY `kb` (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 FORCE INDEX(kb) WHERE b > 5;
+a	b
+2	6
+3	7
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > 2;
+a	b
+3	7
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 ADD INDEX kb(b), DROP INDEX ka, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `kab` (`a`,`b`),
+  KEY `kb` (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 FORCE INDEX(kb) WHERE b > 5;
+a	b
+2	6
+3	7
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > 2;
+a	b
+3	7
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 DROP INDEX ka, DROP INDEX kab, ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD INDEX kb(b), ADD INDEX kab(a,b), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `kb` (`b`),
+  KEY `kab` (`a`,`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 FORCE INDEX(kb) WHERE b > 5;
+a	b
+2	6
+3	7
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > 2;
+a	b
+3	7
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+ALTER TABLE t1 ADD INDEX kb(b), DROP INDEX ka, ADD INDEX kba(b,a), DROP INDEX kab, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `kb` (`b`),
+  KEY `kba` (`b`,`a`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 FORCE INDEX(kb) WHERE b > 5;
+a	b
+2	6
+3	7
+SELECT * FROM t1 FORCE INDEX(kba) WHERE a > 2;
+a	b
+3	7
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+ALTER TABLE t1 DROP INDEX ka, ADD INDEX ka(b), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `kab` (`a`,`b`),
+  KEY `ka` (`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 FORCE INDEX(ka) WHERE b > 5;
+a	b
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > 2;
+a	b
+DROP TABLE t1;
+CREATE TABLE t1 (pk CHAR(8) PRIMARY KEY, a VARCHAR(11), b INT UNSIGNED) ENGINE=rocksdb charset utf8 collate utf8_bin;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` char(8) COLLATE utf8_bin NOT NULL,
+  `a` varchar(11) COLLATE utf8_bin DEFAULT NULL,
+  `b` int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+pk	char(8)	NO	PRI	NULL	
+a	varchar(11)	YES		NULL	
+b	int(10) unsigned	YES		NULL	
+INSERT INTO t1 VALUES ('aaa', '1111', 1);
+INSERT INTO t1 VALUES ('bbb', '2222', 2);
+INSERT INTO t1 VALUES ('ccc', '3333', 3);
+ALTER TABLE t1 ADD INDEX kab(a,b), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` char(8) COLLATE utf8_bin NOT NULL,
+  `a` varchar(11) COLLATE utf8_bin DEFAULT NULL,
+  `b` int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `kab` (`a`,`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > '2' AND b < 3;
+pk	a	b
+bbb	2222	2
+DROP TABLE t1;
+CREATE TABLE t1 (pk CHAR(8) PRIMARY KEY, a VARCHAR(11), b INT UNSIGNED) ENGINE=rocksdb charset utf8 collate utf8_bin;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` char(8) COLLATE utf8_bin NOT NULL,
+  `a` varchar(11) COLLATE utf8_bin DEFAULT NULL,
+  `b` int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+pk	char(8)	NO	PRI	NULL	
+a	varchar(11)	YES		NULL	
+b	int(10) unsigned	YES		NULL	
+INSERT INTO t1 VALUES ('aaa', '1111', 1);
+INSERT INTO t1 VALUES ('bbb', '2222', 2);
+INSERT INTO t1 VALUES ('ccc', '3333', 3);
+ALTER TABLE t1 ADD INDEX kab(a,b), ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD INDEX ka(a), DROP INDEX kab, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` char(8) COLLATE utf8_bin NOT NULL,
+  `a` varchar(11) COLLATE utf8_bin DEFAULT NULL,
+  `b` int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `ka` (`a`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 FORCE INDEX(ka) WHERE a > '2' AND b < 3;
+pk	a	b
+bbb	2222	2
+DROP TABLE t1;
+CREATE TABLE t1 (pk CHAR(8) PRIMARY KEY, a VARCHAR(11), b INT UNSIGNED) ENGINE=rocksdb charset utf8 collate utf8_bin;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` char(8) COLLATE utf8_bin NOT NULL,
+  `a` varchar(11) COLLATE utf8_bin DEFAULT NULL,
+  `b` int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY (`pk`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+pk	char(8)	NO	PRI	NULL	
+a	varchar(11)	YES		NULL	
+b	int(10) unsigned	YES		NULL	
+INSERT INTO t1 VALUES ('aaa', '1111', 1);
+INSERT INTO t1 VALUES ('bbb', '2222', 2);
+INSERT INTO t1 VALUES ('ccc', '3333', 3);
+ALTER TABLE t1 ADD INDEX kab(a,b), ADD INDEX ka(a), ADD INDEX kb(b), ALGORITHM=INPLACE;
+ALTER TABLE t1 DROP INDEX ka, DROP INDEX kb, ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `pk` char(8) COLLATE utf8_bin NOT NULL,
+  `a` varchar(11) COLLATE utf8_bin DEFAULT NULL,
+  `b` int(10) unsigned DEFAULT NULL,
+  PRIMARY KEY (`pk`),
+  KEY `kab` (`a`,`b`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 FORCE INDEX(kab) WHERE a > '2' AND b < 3;
+pk	a	b
+bbb	2222	2
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, KEY ka(a), KEY kab(a,b)) ENGINE=RocksDB;
+INSERT INTO t1 (a, b) VALUES (1, 5);
+INSERT INTO t1 (a, b) VALUES (2, 6);
+INSERT INTO t1 (a, b) VALUES (3, 7);
+CREATE INDEX kb on t1 (b);
+CREATE INDEX kba on t1 (b,a);
+DROP INDEX ka on t1;
+DROP INDEX kab on t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `kb` (`b`),
+  KEY `kba` (`b`,`a`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 FORCE INDEX(kb) WHERE b > 5;
+a	b
+2	6
+3	7
+SELECT * FROM t1 FORCE INDEX(kba) WHERE a > 2;
+a	b
+3	7
+DROP TABLE t1;
+CREATE TABLE t1 (i INT, j INT, k INT, PRIMARY KEY (i), KEY(j)) ENGINE = ROCKSDB PARTITION BY KEY(i) PARTITIONS 4;
+ALTER TABLE t1 ADD INDEX kij(i,j), ALGORITHM=INPLACE;
+DROP INDEX kij ON t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) NOT NULL,
+  `j` int(11) DEFAULT NULL,
+  `k` int(11) DEFAULT NULL,
+  PRIMARY KEY (`i`),
+  KEY `j` (`j`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`i`)
+PARTITIONS 4
+SELECT * FROM t1 ORDER BY i LIMIT 10;
+i	j	k
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+8	8	8
+9	9	9
+10	10	10
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+100
+DROP TABLE t1;
+set @tmp_rocksdb_strict_collation_check= @@rocksdb_strict_collation_check;
+set global rocksdb_strict_collation_check=1;
+CREATE TABLE t1 (a INT, b TEXT);
+# MariaDB no longer gives ER_UNSUPPORTED_COLLATION
+ALTER TABLE t1 ADD KEY kb(b(10));
+ALTER TABLE t1 ADD PRIMARY KEY(a);
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b TEXT collate utf8_general_ci);
+# MariaDB no longer gives ER_UNSUPPORTED_COLLATION
+ALTER TABLE t1 ADD KEY kb(b(10));
+Warnings:
+Warning	1815	Internal error: Indexed column test.t1.b uses a collation that does not allow index-only access in secondary key and has reduced disk space efficiency in primary key.
+ALTER TABLE t1 ADD PRIMARY KEY(a);
+DROP TABLE t1;
+set global rocksdb_strict_collation_check= @tmp_rocksdb_strict_collation_check;
+set global rocksdb_bulk_load=1;
+# Establish connection con1 (user=root)
+connect  con1,localhost,root,,;
+# Switch to connection con1
+connection con1;
+show global variables like 'rocksdb_bulk_load%';
+Variable_name	Value
+rocksdb_bulk_load	ON
+rocksdb_bulk_load_allow_sk	OFF
+rocksdb_bulk_load_allow_unsorted	OFF
+rocksdb_bulk_load_size	1000
+show session variables like 'rocksdb_bulk_load%';
+Variable_name	Value
+rocksdb_bulk_load	ON
+rocksdb_bulk_load_allow_sk	OFF
+rocksdb_bulk_load_allow_unsorted	OFF
+rocksdb_bulk_load_size	1000
+CREATE TABLE t1 (i INT, j INT, PRIMARY KEY (i)) ENGINE = ROCKSDB;
+INSERT INTO t1 VALUES (1,1);
+# Disconnecting on con1
+disconnect con1;
+# Establish connection con2 (user=root)
+connect  con2,localhost,root,,;
+# Switch to connection con2
+connection con2;
+ALTER TABLE t1 ADD INDEX kj(j), ALGORITHM=INPLACE;
+SELECT COUNT(*) FROM t1 FORCE INDEX(PRIMARY);
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 FORCE INDEX(kj);
+COUNT(*)
+1
+DROP TABLE t1;
+disconnect con2;
+# Establish connection con1 (user=root)
+connect  con1,localhost,root,,;
+# Establish connection con2 (user=root)
+connect  con2,localhost,root,,;
+# Switch to connection con1
+connection con1;
+CREATE TABLE t1 (i INT, j INT, PRIMARY KEY (i)) ENGINE = ROCKSDB;
+set rocksdb_bulk_load=1;
+INSERT INTO t1 VALUES (1,1);
+# Switch to connection con2
+connection con2;
+SELECT COUNT(*) FROM t1 FORCE INDEX(PRIMARY);
+COUNT(*)
+0
+ALTER TABLE t1 ADD INDEX kj(j), ALGORITHM=INPLACE;
+SELECT COUNT(*) FROM t1 FORCE INDEX(PRIMARY);
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 FORCE INDEX(kj);
+COUNT(*)
+1
+set global rocksdb_bulk_load=0;
+DROP TABLE t1;
+connection default;
+SET @prior_rocksdb_merge_combine_read_size= @@rocksdb_merge_combine_read_size;
+SET @prior_rocksdb_strict_collation_check= @@rocksdb_strict_collation_check;
+SET @prior_rocksdb_merge_buf_size = @@rocksdb_merge_buf_size;
+SET global rocksdb_strict_collation_check = off;
+SET session rocksdb_merge_combine_read_size = 566;
+SET session rocksdb_merge_buf_size = 340;
+show variables like 'rocksdb_bulk_load%';
+Variable_name	Value
+rocksdb_bulk_load	OFF
+rocksdb_bulk_load_allow_sk	OFF
+rocksdb_bulk_load_allow_unsorted	OFF
+rocksdb_bulk_load_size	1000
+CREATE TABLE t1 (a VARCHAR(80)) ENGINE=RocksDB;
+INSERT INTO t1 (a) VALUES (REPEAT("a", 80));
+INSERT INTO t1 (a) VALUES (REPEAT("a", 80));
+INSERT INTO t1 (a) VALUES (REPEAT("a", 80));
+INSERT INTO t1 (a) VALUES (REPEAT("a", 80));
+ALTER TABLE t1 ADD INDEX ka(a), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(80) DEFAULT NULL,
+  KEY `ka` (`a`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1 FORCE INDEX(ka) WHERE a > "";
+a
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+DROP TABLE t1;
+SET session rocksdb_merge_buf_size = @prior_rocksdb_merge_buf_size;
+SET session rocksdb_merge_combine_read_size = @prior_rocksdb_merge_combine_read_size;
+SET global rocksdb_strict_collation_check = @prior_rocksdb_strict_collation_check;
+CREATE TABLE t1 (i INT, j INT, PRIMARY KEY (i)) ENGINE = ROCKSDB;
+set global rocksdb_force_flush_memtable_now=1;
+ALTER TABLE t1 ADD INDEX kj(j), ALGORITHM=INPLACE;
+larger
+1
+# restart
+larger
+1
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+larger
+1
+# restart
+larger
+1
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select 1300 < 1300 * 1.5 as "same";
+same
+1
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b INT,
+c INT,
+KEY kbc(b,c)) ENGINE = ROCKSDB;
+INSERT INTO t1 (a,b,c) VALUES (1,1,1);
+INSERT INTO t1 (a,b,c) VALUES (2,2,2);
+INSERT INTO t1 (a,b,c) VALUES (3,3,3);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `kbc` (`b`,`c`)
+) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
+ALTER TABLE t1 DROP INDEX kbc, ADD INDEX kbc(b,c), ALGORITHM=INPLACE;
+ALTER TABLE t1 DROP INDEX kbc;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a INT PRIMARY KEY,
+b varchar(10),
+index kb(b(5))
+) ENGINE = ROCKSDB charset utf8 collate utf8_bin;
+INSERT INTO t1 (a,b) VALUES (1,'1111122222');
+INSERT INTO t1 (a,b) VALUES (2,'2222233333');
+INSERT INTO t1 (a,b) VALUES (3,'3333344444');
+ALTER TABLE t1 DROP INDEX kb, ADD INDEX kb(b(8)), ALGORITHM=INPLACE;
+SELECT * FROM t1 FORCE INDEX(kb);
+a	b
+1	1111122222
+2	2222233333
+3	3333344444
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(10) COLLATE utf8_bin DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `kb` (`b`(8))
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin
+DROP TABLE t1;
+SET @prior_rocksdb_table_stats_sampling_pct = @@rocksdb_table_stats_sampling_pct;
+set global rocksdb_table_stats_sampling_pct = 100;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
+Warnings:
+Warning	1280	Name 'ka' ignored for PRIMARY key.
+INSERT INTO t1 (a, b) VALUES (1, 10);
+INSERT INTO t1 (a, b) VALUES (2, 10);
+INSERT INTO t1 (a, b) VALUES (3, 20);
+INSERT INTO t1 (a, b) VALUES (4, 20);
+set global rocksdb_force_flush_memtable_now=1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SHOW INDEX in t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	a	A	4	NULL	NULL		LSMTREE		
+ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
+SHOW INDEX in t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	a	A	4	NULL	NULL		LSMTREE		
+t1	1	kb	1	b	A	2	NULL	NULL	YES	LSMTREE		
+DROP TABLE t1;
+SET global rocksdb_table_stats_sampling_pct = @prior_rocksdb_table_stats_sampling_pct;

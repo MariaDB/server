@@ -1,0 +1,81 @@
+create role r1;
+create role r2;
+create role r3;
+create user u1;
+grant r2 to r1;
+grant r3 to r2;
+grant r1 to u1;
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO `u1`@`%`
+GRANT `r1` TO `u1`@`%`
+show grants for r1;
+Grants for r1
+GRANT USAGE ON *.* TO `r1`
+GRANT USAGE ON *.* TO `r2`
+GRANT USAGE ON *.* TO `r3`
+GRANT `r2` TO `r1`
+GRANT `r3` TO `r2`
+grant SELECT on *.* to u1;
+grant INSERT on mysql.* to r1;
+grant DELETE on mysql.roles_mapping to r2;
+grant UPDATE on mysql.user to r3;
+create function mysql.test_func (s CHAR(20))
+returns CHAR(50) DETERMINISTIC
+return concat('Test string: ',s);
+create procedure mysql.test_proc (OUT param1 INT)
+begin
+select COUNT(*) into param1 from mysql.roles_mapping;
+end|
+grant execute on function mysql.test_func to r2;
+grant execute on procedure mysql.test_proc to r3;
+revoke execute on procedure mysql.test_proc from r2;
+ERROR 42000: There is no such grant defined for user 'r2' on host '' on routine 'test_proc'
+show grants for r1;
+Grants for r1
+GRANT DELETE ON `mysql`.`roles_mapping` TO `r2`
+GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO `r2`
+GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO `r3`
+GRANT INSERT ON `mysql`.* TO `r1`
+GRANT UPDATE ON `mysql`.`user` TO `r3`
+GRANT USAGE ON *.* TO `r1`
+GRANT USAGE ON *.* TO `r2`
+GRANT USAGE ON *.* TO `r3`
+GRANT `r2` TO `r1`
+GRANT `r3` TO `r2`
+show grants for r2;
+Grants for r2
+GRANT DELETE ON `mysql`.`roles_mapping` TO `r2`
+GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO `r2`
+GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO `r3`
+GRANT UPDATE ON `mysql`.`user` TO `r3`
+GRANT USAGE ON *.* TO `r2`
+GRANT USAGE ON *.* TO `r3`
+GRANT `r3` TO `r2`
+show grants for r3;
+Grants for r3
+GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO `r3`
+GRANT UPDATE ON `mysql`.`user` TO `r3`
+GRANT USAGE ON *.* TO `r3`
+drop function mysql.test_func;
+drop procedure mysql.test_proc;
+create function mysql.test_func (s CHAR(20))
+returns CHAR(50) DETERMINISTIC
+return concat('Test string: ',s);
+show grants for r2;
+Grants for r2
+GRANT DELETE ON `mysql`.`roles_mapping` TO `r2`
+GRANT UPDATE ON `mysql`.`user` TO `r3`
+GRANT USAGE ON *.* TO `r2`
+GRANT USAGE ON *.* TO `r3`
+GRANT `r3` TO `r2`
+connect  u1,localhost,u1,,;
+select mysql.test_func("none");
+ERROR 42000: execute command denied to user 'u1'@'%' for routine 'mysql.test_func'
+set role r1;
+select mysql.test_func("r1");
+ERROR 42000: execute command denied to user 'u1'@'%' for routine 'mysql.test_func'
+connection default;
+drop function mysql.test_func;
+drop role r1, r2, r3;
+drop user u1;

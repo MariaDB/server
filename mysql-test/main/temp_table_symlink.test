@@ -1,0 +1,32 @@
+source include/not_windows.inc;
+
+#
+# MDEV-23569 temporary tables can overwrite existing files
+#
+
+let datadir=`select @@datadir`;
+create table d1 (a int);
+create temporary table t1 (a int);
+perl;
+chdir "$ENV{MYSQL_TMP_DIR}/mysqld.1/";
+for (<#sql*.MYI>) {
+  /^#sql(.*)_([0-9a-f]+_)([0-9a-f]+)\.MYI$/ or die;
+  symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MYI", hex($3)+1;
+  symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MAI", hex($3)+1;
+  symlink "$ENV{datadir}/test/d1.MYI", sprintf "#sql$1_$2%x.MAI", hex($3)+2;
+  symlink "$ENV{datadir}/test/d1.MYI", "#sql_$1_0.MAI";
+}
+EOF
+
+error 1,1030;
+create temporary table t2 (a int);
+error 1,1030;
+create temporary table t3 (a int) engine=Aria;
+error 1,1030;
+select * from information_schema.columns where table_schema='test';
+
+flush tables;
+select * from d1;
+drop temporary table t1;
+remove_files_wildcard $MYSQL_TMP_DIR/mysqld.1 *sql*;
+drop table d1;

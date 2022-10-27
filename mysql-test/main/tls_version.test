@@ -1,0 +1,24 @@
+# Tests for SSL connections, only run if mysqld is compiled
+# with support for SSL.
+
+-- source include/have_ssl_communication.inc
+#default is highest available version: TLSv1.2
+--exec $MYSQL --host=localhost --ssl -e "show status like 'ssl_version';"
+# TLSv1.2
+--exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.2 -e "show status like 'ssl_version';"
+# TLSv1.1
+--exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.1 -e "show status like 'ssl_version';"
+# if a gap is between TLS versions, lowest version number should be used (TLS1.1)
+--exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.1,TLSv1.3 -e "show status like 'ssl_version';"
+# TLSv1.3 is not enabled, so TLSv1.2 should be used
+--exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.2,TLSv1.3 -e "show status like 'ssl_version';"
+# Highest TLS version number should be used (TLSv1.2)
+--exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.1,TLSv1.2 -e "show status like 'ssl_version';"
+# Errors:
+# TLS v1.0 is disabled on server, so we should get an error
+--replace_regex /2026 SSL connection error.*/2026 SSL connection error: xxxx/
+--error 1
+--exec $MYSQL --host=localhost --ssl --tls_version=TLSv1.0 -e "show status like 'ssl_version';"
+# finally list available protocols
+--exec $MYSQL --host=localhost --ssl -e "select @@tls_version;"
+

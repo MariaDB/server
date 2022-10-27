@@ -1,0 +1,20 @@
+#
+# MDEV-15359 Thread stay in "cleaning up" status after finishing
+#
+source include/have_innodb.inc;
+
+create table t1 (a int) engine=innodb;
+start transaction;
+insert t1 values (1);
+let id=`select connection_id()`;
+connect con2,localhost,root;
+let $wait_condition=select state='' from information_schema.processlist where id = $id;
+--source include/wait_condition.inc
+replace_regex /\"/-/; #"
+let s=`show engine innodb status`;
+disable_query_log;
+eval select regexp_replace("$s", '(?s)^.*MySQL thread id $id,.*root([^\n]*)\n.*', '\\\\1') as `state from show engine innodb status, must be empty`;
+enable_query_log;
+disconnect con2;
+connection default;
+drop table t1;

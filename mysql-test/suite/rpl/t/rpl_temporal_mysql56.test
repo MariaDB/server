@@ -1,0 +1,48 @@
+--source include/master-slave.inc
+
+connection master;
+SET TIME_ZONE='+00:00';
+let $MYSQLD_MASTER_DATADIR= `select @@datadir`;
+
+connection slave;
+SET TIME_ZONE='+00:00';
+let $MYSQLD_SLAVE_DATADIR= `select @@datadir`;
+
+--copy_file std_data/mysql56time.frm $MYSQLD_MASTER_DATADIR/test/mysql56time.frm
+--copy_file std_data/mysql56time.MYD $MYSQLD_MASTER_DATADIR/test/mysql56time.MYD
+--copy_file std_data/mysql56time.MYI $MYSQLD_MASTER_DATADIR/test/mysql56time.MYI
+--copy_file std_data/mysql56time.frm $MYSQLD_SLAVE_DATADIR/test/mysql56time.frm
+--copy_file std_data/mysql56time.MYD $MYSQLD_SLAVE_DATADIR/test/mysql56time.MYD
+--copy_file std_data/mysql56time.MYI $MYSQLD_SLAVE_DATADIR/test/mysql56time.MYI
+
+--copy_file std_data/mysql56datetime.frm $MYSQLD_MASTER_DATADIR/test/mysql56datetime.frm
+--copy_file std_data/mysql56datetime.MYD $MYSQLD_MASTER_DATADIR/test/mysql56datetime.MYD
+--copy_file std_data/mysql56datetime.MYI $MYSQLD_MASTER_DATADIR/test/mysql56datetime.MYI
+--copy_file std_data/mysql56datetime.frm $MYSQLD_SLAVE_DATADIR/test/mysql56datetime.frm
+--copy_file std_data/mysql56datetime.MYD $MYSQLD_SLAVE_DATADIR/test/mysql56datetime.MYD
+--copy_file std_data/mysql56datetime.MYI $MYSQLD_SLAVE_DATADIR/test/mysql56datetime.MYI
+
+--copy_file std_data/mysql56timestamp.frm $MYSQLD_MASTER_DATADIR/test/mysql56timestamp.frm
+--copy_file std_data/mysql56timestamp.MYD $MYSQLD_MASTER_DATADIR/test/mysql56timestamp.MYD
+--copy_file std_data/mysql56timestamp.MYI $MYSQLD_MASTER_DATADIR/test/mysql56timestamp.MYI
+--copy_file std_data/mysql56timestamp.frm $MYSQLD_SLAVE_DATADIR/test/mysql56timestamp.frm
+--copy_file std_data/mysql56timestamp.MYD $MYSQLD_SLAVE_DATADIR/test/mysql56timestamp.MYD
+--copy_file std_data/mysql56timestamp.MYI $MYSQLD_SLAVE_DATADIR/test/mysql56timestamp.MYI
+
+connection master;
+INSERT INTO mysql56time VALUES ('01:01:01','01:01:01.1','01:01:01.11','01:01:01.111','01:01:01.1111','01:01:01.11111','01:01:01.111111');
+INSERT INTO mysql56datetime VALUES ('2001-01-01 01:01:01','2001-01-01 01:01:01.1','2001-01-01 01:01:01.11','2001-01-01 01:01:01.111','2001-01-01 01:01:01.1111','2001-01-01 01:01:01.11111','2001-01-01 01:01:01.111111');
+INSERT INTO mysql56timestamp VALUES ('2001-01-01 01:01:01','2001-01-01 01:01:01.1','2001-01-01 01:01:01.11','2001-01-01 01:01:01.111','2001-01-01 01:01:01.1111','2001-01-01 01:01:01.11111','2001-01-01 01:01:01.111111');
+sync_slave_with_master;
+
+connection slave;
+--query_vertical SELECT * FROM mysql56time
+--query_vertical SELECT * FROM mysql56datetime
+--query_vertical SELECT * FROM mysql56timestamp
+
+connection master;
+DROP TABLE mysql56time;
+DROP TABLE mysql56datetime;
+DROP TABLE mysql56timestamp;
+
+--source include/rpl_end.inc

@@ -1,0 +1,56 @@
+--source include/not_embedded.inc
+--source include/default_charset.inc
+
+drop database if exists db;
+
+create role r1;
+create user beep@'%';
+
+create database db;
+create table db.t1 (i int);
+create table db.t2 (b int);
+grant select on db.* to r1;
+grant r1 to beep@'%';
+
+--connect (con1,localhost,beep,,)
+show databases;
+--error ER_DBACCESS_DENIED_ERROR
+show create database db;
+select table_schema, table_name from information_schema.tables
+where table_schema = 'db' order by table_name;
+
+set role r1;
+show databases;
+show create database db;
+select table_schema, table_name from information_schema.tables
+where table_schema = 'db' order by table_name;
+
+
+connection default;
+create role r2;
+create user beep2@'%';
+
+grant update on db.* to r2;
+grant r2 to beep2;
+--connect (con2,localhost,beep2,,)
+show databases;
+--error ER_DBACCESS_DENIED_ERROR
+show create database db;
+select table_schema, table_name from information_schema.tables
+where table_schema = 'db' order by table_name;
+
+set role r2;
+show databases;
+
+show create database db;
+select table_schema, table_name from information_schema.tables
+where table_schema = 'db' order by table_name;
+
+
+connection default;
+
+drop database db;
+drop role r1;
+drop user beep;
+drop role r2;
+drop user beep2;

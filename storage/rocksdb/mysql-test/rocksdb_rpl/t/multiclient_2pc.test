@@ -1,0 +1,77 @@
+--source include/have_rocksdb.inc
+--source include/have_binlog_format_row.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/big_test.inc
+# The test involves a crash which does not seem to be handled well with
+# mysql-test/lib/My/SafeProcess/my_safe_process under valgrind as it hangs
+# forever. The test did not mean to verify the memory leaks so not much
+# coverage should be missed by not running it under valgrind.
+--source include/not_valgrind.inc
+
+--exec echo > $MYSQLTEST_VARDIR/log/mysqld.1.err
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+# Set it to the minimum so that we can make the binlog rotate with a few inserts
+SET GLOBAL MAX_BINLOG_SIZE = 4096;
+SET GLOBAL ROCKSDB_ENABLE_2PC = ON;
+create table t1 (a int primary key, b int, c varchar(255)) engine=rocksdb;
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+
+# On connection one we insert a row and pause after prepare marker is written to
+# WAL. Connection two then inserts many rows to rotate the binlog. After
+# connection two completes, connection one continues only to crash before commit
+# but after binlog write. On crash recovery we see that connection one's value
+# has been recovered and commited
+connection con1;
+--echo 'con1'
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+SET SESSION debug="d,crash_commit_after_log";
+SET DEBUG_SYNC='rocksdb.prepared SIGNAL parked WAIT_FOR go';
+--error 0,2013
+--send insert into t1 values (1, 1, "iamtheogthealphaandomega");
+
+connection con2;
+--echo 'con2'
+insert into t1 values (2, 1, "i_am_just_here_to_trigger_a_flush");
+
+# Disable 2PC and syncing for faster inserting of dummy rows
+# These rows only purpose is to rotate the binlog
+SET GLOBAL ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT = 0;
+SET GLOBAL SYNC_BINLOG = 0;
+
+SET DEBUG_SYNC='now WAIT_FOR parked';
+--disable_query_log
+--let $pk= 3
+# binlog size is 4096 bytes so with that many insertion it will definitely rotate
+while ($pk < 4096) {
+  eval insert into t1 values ($pk, 1, "foobardatagoesheresothatmorelogsrollwhichiswhatwewant");
+  --inc $pk
+}
+--enable_query_log
+
+# re-enable 2PC an syncing then write to trigger a flush
+# before we trigger the crash to simulate full-durability
+SET GLOBAL ROCKSDB_FLUSH_LOG_AT_TRX_COMMIT = 2;
+SET GLOBAL SYNC_BINLOG = 1;
+
+insert into t1 values (1000000, 1, "i_am_just_here_to_trigger_a_flush");
+
+--error 0,2013
+SET DEBUG_SYNC='now SIGNAL go';
+--source include/wait_until_disconnected.inc
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+--exec python suite/rocksdb/t/check_log_for_xa.py $MYSQLTEST_VARDIR/log/mysqld.1.err commit,prepare,rollback
+
+select * from t1 where a=1;
+select count(*) from t1;
+
+drop table t1;

@@ -1,0 +1,46 @@
+--source ../include/spider_table_sts_init.inc
+--echo
+--echo this test is for MDEV-19842
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+--enable_warnings
+
+--echo
+--echo create table
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+--enable_query_log
+
+--echo
+--echo select test 1
+
+--connection master_1
+--error 12609
+SELECT pkey FROM tbl_a;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+--error 12609
+DROP DATABASE IF EXISTS auto_test_local;
+
+--enable_warnings
+--source ../include/spider_table_sts_deinit.inc
+--echo
+--echo end of test

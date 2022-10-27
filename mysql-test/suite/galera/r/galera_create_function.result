@@ -1,0 +1,66 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE USER 'user1';
+CREATE
+DEFINER = 'user1'
+FUNCTION f1 (param INTEGER)
+RETURNS VARCHAR(200)
+COMMENT 'f1_comment'
+LANGUAGE SQL
+NOT DETERMINISTIC
+MODIFIES SQL DATA
+SQL SECURITY DEFINER
+RETURN 'abc';
+GRANT EXECUTE ON FUNCTION f1 TO user1;
+CREATE
+DEFINER = CURRENT_USER
+FUNCTION f2 (param VARCHAR(100))
+RETURNS INTEGER
+DETERMINISTIC
+NO SQL
+SQL SECURITY INVOKER
+RETURN 123;
+connection node_1;
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user1`@`%` FUNCTION `f1`(param INTEGER) RETURNS varchar(200) CHARSET latin1
+    MODIFIES SQL DATA
+    COMMENT 'f1_comment'
+RETURN 'abc'	latin1	latin1_swedish_ci	latin1_swedish_ci
+connection node_2;
+SELECT 1 FROM DUAL;
+1
+1
+SHOW CREATE FUNCTION f1;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`user1`@`%` FUNCTION `f1`(param INTEGER) RETURNS varchar(200) CHARSET latin1
+    MODIFIES SQL DATA
+    COMMENT 'f1_comment'
+RETURN 'abc'	latin1	latin1_swedish_ci	latin1_swedish_ci
+connection node_1;
+SHOW CREATE FUNCTION f2;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f2`(param VARCHAR(100)) RETURNS int(11)
+    NO SQL
+    DETERMINISTIC
+    SQL SECURITY INVOKER
+RETURN 123	latin1	latin1_swedish_ci	latin1_swedish_ci
+connection node_2;
+SHOW CREATE FUNCTION f2;
+Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
+f2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` FUNCTION `f2`(param VARCHAR(100)) RETURNS int(11)
+    NO SQL
+    DETERMINISTIC
+    SQL SECURITY INVOKER
+RETURN 123	latin1	latin1_swedish_ci	latin1_swedish_ci
+SELECT f1(1) = 'abc';
+f1(1) = 'abc'
+1
+SELECT f2('abc') = 123;
+f2('abc') = 123
+1
+connection node_1;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP USER 'user1';

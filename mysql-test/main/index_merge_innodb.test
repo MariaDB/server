@@ -1,0 +1,226 @@
+# t/index_merge_innodb.test
+#
+# Index merge tests
+#
+# Last update:
+# 2006-08-07 ML test refactored (MySQL 5.1)
+#               Main code of several index_merge tests
+#                            -> include/index_merge*.inc
+#               wrapper t/index_merge_innodb.test sources now several 
+#               include/index_merge*.inc files
+#
+
+# Slow test, don't run during staging part
+--source include/not_staging.inc
+--source include/have_innodb.inc
+
+connect disable_purge,localhost,root,,;
+--echo # Disable the purge of InnoDB history, to make the test run faster.
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
+SET STORAGE_ENGINE = InnoDB;
+# InnoDB does not support Merge tables (affects include/index_merge1.inc)
+let $merge_table_support= 0;
+
+set @optimizer_switch_save= @@optimizer_switch;
+set optimizer_switch='index_merge_sort_intersection=off';
+set optimizer_switch='rowid_filter=off';
+
+# The first two tests are disabled because of non deterministic explain output.
+# If include/index_merge1.inc can be enabled for InnoDB and all other
+# storage engines, please remove the subtest for Bug#21277 from
+# include/index_merge2.inc.
+# This test exists already in include/index_merge1.inc.
+# --source include/index_merge1.inc
+# --source include/index_merge_ror.inc
+#the next one is disabled in MySQL too: Bug#45727
+--source include/index_merge2.inc
+
+--source include/index_merge_2sweeps.inc
+--source include/index_merge_ror_cpk.inc
+
+--echo # 
+--echo # BUG#56862/640419: Wrong result with sort_union index merge when one
+--echo #                   of the merged index scans is the primary key scan
+--echo #
+
+CREATE TABLE t0(a int, b int) ENGINE=MyISAM;
+
+CREATE TABLE t1 (
+  pk int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  a int,
+  b int,
+  INDEX idx(a))
+ENGINE=INNODB;
+
+INSERT INTO t0(a,b) VALUES
+  (11, 1100), (2, 200), (1, 100), (14, 1400), (5, 500),
+  (3, 300), (17, 1700), (4, 400), (12, 1200), (8, 800),
+  (6, 600), (18, 1800), (9, 900), (10, 1000), (7, 700),
+  (13, 1300), (15, 1500), (19, 1900), (16, 1600), (20, 2000);
+INSERT INTO t0(a,b) SELECT a+20, b+2000 FROM t0;
+INSERT INTO t0(a,b) SELECT a+40, b+4000 FROM t0;
+INSERT INTO t0(a,b) SELECT a+80, b+8000 FROM t0;
+begin;
+INSERT INTO t1(a,b) SELECT t0.a,t0.b FROM t0, seq_1_to_1024;
+INSERT INTO t1 VALUES (1000000, 0, 0);
+commit;
+DROP TABLE t0;
+
+SET SESSION sort_buffer_size = 1024*36;
+set @tmp_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='derived_merge=off,derived_with_keys=off';
+
+# We have to use FORCE INDEX here as Innodb gives inconsistent estimates
+# which causes different query plans.
+--replace_column 9 #
+EXPLAIN
+SELECT COUNT(*) FROM 
+  (SELECT * FROM t1 FORCE INDEX(primary,idx)
+     WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
+SELECT COUNT(*) FROM 
+  (SELECT * FROM t1 FORCE INDEX(primary,idx)
+     WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
+
+--replace_column 9 #
+EXPLAIN
+SELECT COUNT(*) FROM 
+  (SELECT * FROM t1 IGNORE INDEX(idx)
+     WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
+SELECT COUNT(*) FROM 
+  (SELECT * FROM t1 IGNORE INDEX(idx)
+     WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
+
+DROP TABLE t1;
+set optimizer_switch=@tmp_optimizer_switch;
+
+--echo #
+--echo # Testcase Backport: BUG#48093: 6.0 Server not processing equivalent IN clauses properly
+--echo #            with Innodb tables
+--echo #
+
+CREATE TABLE t1 (
+  i int(11) DEFAULT NULL,
+  v1 varchar(1) DEFAULT NULL,
+  v2 varchar(20) DEFAULT NULL,
+  KEY i (i),
+  KEY v (v1,i)
+) ENGINE=innodb;
+
+INSERT INTO t1 VALUES (1,'f','no');
+INSERT INTO t1 VALUES (2,'u','yes-u');
+INSERT INTO t1 VALUES (2,'h','yes-h');
+INSERT INTO t1 VALUES (3,'d','no');
+
+--echo
+SELECT v2
+FROM t1
+WHERE v1  IN  ('f', 'd', 'h', 'u' ) AND i  =  2;
+
+--echo
+--echo # Should not use index_merge
+EXPLAIN
+SELECT v2
+FROM t1
+WHERE v1  IN  ('f', 'd', 'h', 'u' ) AND i  =  2;
+
+DROP TABLE t1;
+
+--echo #
+--echo # BUG#1006164: Multi-table DELETE that uses innodb + index_merge/intersect may fail to delete rows
+--echo #
+
+create table t1 (
+  pk int auto_increment, 
+  zone_id int,
+  modified tinyint,
+  primary key(pk),
+  key (zone_id),
+  key (modified)
+) engine=innodb;
+
+insert into t1 (zone_id, modified) select 0,0 from seq_1_to_10000;
+update t1 set zone_id=487, modified=9 where pk=7259;
+update t1 set zone_id=487, modified=9 where pk=7260;
+update t1 set zone_id=830, modified=9 where pk=8434;
+update t1 set zone_id=830, modified=9 where pk=8435;
+update t1 set zone_id=830, modified=9 where pk=8436;
+update t1 set zone_id=830, modified=9 where pk=8437;
+
+select * from t1 where t1.zone_id=830 AND modified=9;
+begin;
+DELETE t1 FROM t1 WHERE t1.zone_id=830 AND modified=9;
+commit;
+select * from t1 where t1.zone_id=830 AND modified=9;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-376: Wrong result (missing rows) with index_merge+index_merge_intersection, join
+--echo #
+CREATE TABLE t1 (
+  a INT, b CHAR(1), c CHAR(1), KEY(a), KEY(b)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (8,'v','v'),(8,'m','m'),(9,'d','d');
+
+
+SELECT ta.* FROM t1 AS ta, t1 AS tb
+WHERE ( tb.b != ta.b OR tb.a = ta.a )
+  AND ( tb.b = ta.c OR tb.b = ta.b );
+
+DROP TABLE t1;
+set optimizer_switch= @optimizer_switch_save;
+
+--echo #
+--echo # MDEV-10927: Crash When Using sort_union Optimization
+--echo #
+
+set @tmp_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='index_merge_sort_intersection=on';
+SET SESSION sort_buffer_size = 1024;
+
+create table t1 (
+pk int(11) NOT NULL AUTO_INCREMENT,
+col1 int(11) NOT NULL,
+col2 int(11) NOT NULL,
+col3 int(11) NOT NULL,
+key2 int(11) NOT NULL,
+col4 int(11) NOT NULL,
+key1 int(11) NOT NULL,
+PRIMARY KEY (pk),
+KEY key1 (key1),
+KEY key2 (key2)
+) ENGINE=InnoDB AUTO_INCREMENT=12860259 DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
+
+insert into t1 (key1, key2, col1,col2,col3,col4)
+select seq,seq,seq,seq,seq,seq from seq_1_to_10000;
+SELECT sum(col1) FROM t1 FORCE INDEX (key1,key2) WHERE  (key1 between 10 and 8191+10) or (key2= 5);
+drop table t1;
+set optimizer_switch=@tmp_optimizer_switch;
+
+--echo #
+--echo # MDEV-22728: SIGFPE in Unique::get_cost_calc_buff_size from prepare_search_best_index_intersect
+--echo # on optimized builds
+--echo #
+
+SET @save_sort_buffer_size=@@sort_buffer_size;
+SET @save_innodb_file_format= @@innodb_file_format;
+SET @save_innodb_large_prefix= @@innodb_large_prefix;
+SET sort_buffer_size=2048;
+
+CREATE TABLE t1 (
+  a VARCHAR(1024) CHARACTER SET UTF8 PRIMARY KEY,
+  b INT,
+  c INT,
+  INDEX (b)
+) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
+EXPLAIN SELECT * FROM t1 WHERE a='1' OR b < 5;
+SELECT * FROM t1 WHERE a='1' OR b < 5;
+DROP TABLE t1;
+
+SET sort_buffer_size= @save_sort_buffer_size;
+
+disconnect disable_purge;

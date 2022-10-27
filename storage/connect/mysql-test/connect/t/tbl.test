@@ -1,0 +1,53 @@
+--source include/not_embedded.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+let $PORT= `select @@port`;
+
+--echo #
+--echo # Checking TBL tables
+--echo #
+CREATE TABLE t1 (
+a INT NOT NULL,
+message CHAR(10)) ENGINE=connect;
+INSERT INTO t1 VALUES (1,'Testing'),(2,'dos table'),(3,'t1');
+SELECT * FROM t1;
+
+CREATE TABLE t2 (
+a INT NOT NULL,
+message CHAR(10)) ENGINE=connect TABLE_TYPE=BIN;
+INSERT INTO t2 VALUES (1,'Testing'),(2,NULL),(3,'t2');
+SELECT * FROM t2;
+
+CREATE TABLE t3 (
+a INT NOT NULL,
+message CHAR(10)) ENGINE=connect TABLE_TYPE=CSV;
+INSERT INTO t3 VALUES (1,'Testing'),(2,'csv table'),(3,'t3');
+SELECT * FROM t3;
+
+CREATE TABLE t4 (
+ta INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+message CHAR(20)) ENGINE=MyISAM;
+INSERT INTO t4 (message) VALUES ('Testing'),('myisam table'),('t4');
+SELECT * FROM t4;
+
+--replace_result $PORT PORT
+--eval CREATE TABLE total (tabname CHAR(8) NOT NULL SPECIAL='TABID', ta TINYINT NOT NULL FLAG=1, message CHAR(20)) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2,t3,t4' OPTION_LIST='port=$PORT'
+
+SELECT * FROM total;
+SELECT * FROM total WHERE tabname = 't2';
+SELECT * FROM total WHERE tabname = 't2' AND ta = 3;
+SELECT * FROM total WHERE tabname IN ('t1','t4');
+SELECT * FROM total WHERE ta = 3 AND tabname IN ('t1','t2');
+SELECT * FROM total WHERE tabname <> 't2';
+SELECT * FROM total WHERE tabname != 't2' AND ta = 3;
+SELECT * FROM total WHERE tabname NOT IN ('t2','t3');
+SELECT * FROM total WHERE ta = 3 AND tabname IN ('t2','t3');
+SELECT * FROM total WHERE ta = 3 OR tabname IN ('t2','t4');
+SELECT * FROM total WHERE NOT tabname = 't2';
+SELECT * FROM total WHERE tabname = 't2' OR tabname = 't1';
+
+DROP TABLE total;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+DROP TABLE t4;

@@ -1,0 +1,37 @@
+include/master-slave.inc
+[connection master]
+Verify that example engine is not installed.
+SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+Get binlog position before install plugin.
+Install example engine.
+INSTALL PLUGIN example SONAME 'ha_example.so';
+Get binlog position after install plugin.
+Compute the difference of the  binlog positions.
+Should be zero as install plugin should not be replicated.
+Delta
+0
+Verify that example engine is installed.
+SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+EXAMPLE	YES	Example storage engine	NO	NO	NO
+connection slave;
+Verify that example engine is not installed.
+connection slave;
+SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+Uninstall example engine.
+connection master;
+Get binlog position before uninstall plugin.
+UNINSTALL PLUGIN example;
+Get binlog position after uninstall plugin.
+Compute the difference of the  binlog positions.
+Should be zero as uninstall plugin should not be replicated.
+Delta
+0
+Verify that example engine is not installed.
+SELECT * FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='EXAMPLE';
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+connection slave;
+include/rpl_end.inc
+End of test

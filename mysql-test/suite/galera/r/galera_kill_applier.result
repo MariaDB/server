@@ -1,0 +1,20 @@
+connection node_2;
+connection node_1;
+connection node_2;
+SET GLOBAL wsrep_slave_threads=2;
+Got one of the listed errors
+Got one of the listed errors
+Got one of the listed errors
+Got one of the listed errors
+SET GLOBAL wsrep_slave_threads=1;
+connection node_1;
+create table t1(a int not null primary key) engine=innodb;
+insert into t1 values (1);
+insert into t1 values (2);
+connection node_2;
+set global wsrep_sync_wait=15;
+select count(*) from t1;
+count(*)
+2
+connection node_1;
+drop table t1;

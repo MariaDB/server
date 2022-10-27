@@ -1,0 +1,155 @@
+create user foo@localhost;
+grant create user on *.* to foo@localhost;
+create role role1;
+create role role2 with admin current_user;
+create role role3 with admin current_role;
+ERROR 0L000: Invalid definer
+create role role3 with admin role1;
+create role role4 with admin root@localhost;
+connect  c1, localhost, foo,,;
+create role role5 with admin root@localhost;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+create role role5 with admin role3;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+create role role5 with admin foo@localhost;
+connection default;
+call mtr.add_suppression("Invalid roles_mapping table entry user:'foo@bar', rolename:'role6'");
+create role role6 with admin foo@bar;
+Warnings:
+Note	1449	The user specified as a definer ('foo'@'bar') does not exist
+create user bar with admin current_user;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'admin current_user' at line 1
+grant role1 to foo@localhost with admin option;
+grant role2 to foo@localhost;
+grant role2 to role1;
+grant role4 to role3 with admin option;
+grant select on *.* to foo@localhost with admin option;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'admin option' at line 1
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT CREATE USER ON *.* TO `foo`@`localhost`
+GRANT `role1` TO `foo`@`localhost` WITH ADMIN OPTION
+GRANT `role2` TO `foo`@`localhost`
+GRANT `role5` TO `foo`@`localhost` WITH ADMIN OPTION
+show grants for role1;
+Grants for role1
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT `role2` TO `role1`
+GRANT `role3` TO `role1` WITH ADMIN OPTION
+GRANT `role4` TO `role3` WITH ADMIN OPTION
+show grants for role4;
+Grants for role4
+GRANT USAGE ON *.* TO `role4`
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+	role1	role2	N
+	role1	role3	Y
+	role3	role4	Y
+bar	foo	role6	Y
+localhost	foo	role1	Y
+localhost	foo	role2	N
+localhost	foo	role5	Y
+localhost	root	role1	Y
+localhost	root	role2	Y
+localhost	root	role4	Y
+flush privileges;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT CREATE USER ON *.* TO `foo`@`localhost`
+GRANT `role1` TO `foo`@`localhost` WITH ADMIN OPTION
+GRANT `role2` TO `foo`@`localhost`
+GRANT `role5` TO `foo`@`localhost` WITH ADMIN OPTION
+show grants for role1;
+Grants for role1
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT `role2` TO `role1`
+GRANT `role3` TO `role1` WITH ADMIN OPTION
+GRANT `role4` TO `role3` WITH ADMIN OPTION
+show grants for role4;
+Grants for role4
+GRANT USAGE ON *.* TO `role4`
+select * from information_schema.applicable_roles;
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+role1	role2	NO	NULL
+role1	role3	YES	NULL
+role3	role4	YES	NULL
+root@localhost	role1	YES	NO
+root@localhost	role2	YES	NO
+root@localhost	role4	YES	NO
+grant role2 to role1 with admin option;
+revoke role1 from foo@localhost;
+revoke admin option for role4 from role3;
+revoke admin option for role2 from foo@localhost;
+revoke admin option for role1 from root@localhost;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT CREATE USER ON *.* TO `foo`@`localhost`
+GRANT `role2` TO `foo`@`localhost`
+GRANT `role5` TO `foo`@`localhost` WITH ADMIN OPTION
+show grants for role1;
+Grants for role1
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT `role2` TO `role1` WITH ADMIN OPTION
+GRANT `role3` TO `role1` WITH ADMIN OPTION
+GRANT `role4` TO `role3`
+show grants for role4;
+Grants for role4
+GRANT USAGE ON *.* TO `role4`
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+	role1	role2	Y
+	role1	role3	Y
+	role3	role4	N
+bar	foo	role6	Y
+localhost	foo	role2	N
+localhost	foo	role5	Y
+localhost	root	role1	N
+localhost	root	role2	Y
+localhost	root	role4	Y
+flush privileges;
+show grants for foo@localhost;
+Grants for foo@localhost
+GRANT CREATE USER ON *.* TO `foo`@`localhost`
+GRANT `role2` TO `foo`@`localhost`
+GRANT `role5` TO `foo`@`localhost` WITH ADMIN OPTION
+show grants for role1;
+Grants for role1
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT `role2` TO `role1` WITH ADMIN OPTION
+GRANT `role3` TO `role1` WITH ADMIN OPTION
+GRANT `role4` TO `role3`
+show grants for role4;
+Grants for role4
+GRANT USAGE ON *.* TO `role4`
+select * from information_schema.applicable_roles;
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+role1	role2	YES	NULL
+role1	role3	YES	NULL
+role3	role4	NO	NULL
+root@localhost	role1	NO	NO
+root@localhost	role2	YES	NO
+root@localhost	role4	YES	NO
+grant role1 to role4;
+ERROR 28000: Access denied for user 'root'@'localhost'
+grant role1 to role4 with admin option;
+ERROR 28000: Access denied for user 'root'@'localhost'
+grant role3 to role2;
+revoke role3 from role2;
+grant role4 to role2 with admin option;
+revoke role2 from current_user;
+revoke role4 from current_user;
+grant role4 to current_user;
+drop role role1, role2, role3, role4, role5, role6;
+drop user foo@localhost;

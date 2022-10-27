@@ -1,0 +1,22 @@
+!include my.cnf
+
+[mysqld.1]
+log-bin
+log-slave-updates
+
+[mysqld.2]
+log-bin
+log-slave-updates
+
+[mysqld.3]
+log-bin
+log-slave-updates
+
+[mysqld.4]
+server-id=4
+log-bin=server4-bin
+log-slave-updates
+
+[ENV]
+SERVER_MYPORT_4=		@mysqld.4.port
+SERVER_MYSOCK_4=		@mysqld.4.socket

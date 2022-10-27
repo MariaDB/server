@@ -1,0 +1,62 @@
+# 
+# This test is intended to check that when blind replace is enabled,
+# mysqlbinlog is able to pass this information in the captured binlog
+# events and we are able to reapply such events
+#
+
+--source include/have_log_bin.inc
+--source include/have_rocksdb.inc
+--source include/have_debug.inc
+
+reset master;
+set GLOBAL binlog_format= 'ROW';
+SET GLOBAL enable_blind_replace=ON;
+set binlog_format=row;
+
+create table t5 (c1 int primary key, c2 int);
+insert into t5 values (1, 1);
+insert into t5 values (2, 2);
+insert into t5 values (3, 3);
+select * from t5;
+select variable_value into @c from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+replace into t5 values (1, 11);
+replace into t5 values (2, 22);
+replace into t5 values (3, 33);
+
+# Ensure that this was a blind replace
+select case when variable_value-@c = 3 then 'true' else 'false' end as read_free from information_schema.global_status where variable_name='rocksdb_num_get_for_update_calls';
+select * from t5;
+--source include/show_binlog_events.inc
+
+flush logs;
+
+# Capture binlog events using mysqlbinlog
+let $MYSQLD_DATADIR= `select @@datadir`;
+--let $log_file_name = query_get_value("SHOW BINARY LOGS", Log_name, 1)
+--exec $MYSQL_BINLOG  $MYSQLD_DATADIR/$log_file_name > $MYSQLTEST_VARDIR/tmp/mysqlbinlog-output
+
+# Drop the table. This will be recreated when we reapply binlog events
+drop table t5;
+reset master;
+
+# Now replay the binlog events
+--echo Replaying binlog events containing blind replace statements should work
+--exec $MYSQL < $MYSQLTEST_VARDIR/tmp/mysqlbinlog-output
+select * from t5;
+--source include/show_binlog_events.inc
+
+drop table t5;
+reset master;
+
+# Replay the same binlog events again, but with blind_replace turned off
+--echo Replaying the same binlog events with blind replace disabled should work
+--echo The server should internally convert such events into updates
+SET GLOBAL enable_blind_replace=OFF;
+--exec $MYSQL < $MYSQLTEST_VARDIR/tmp/mysqlbinlog-output
+select * from t5;
+
+--source include/show_binlog_events.inc
+
+set GLOBAL binlog_format=DEFAULT;
+SET GLOBAL enable_blind_replace=DEFAULT;
+drop table t5;

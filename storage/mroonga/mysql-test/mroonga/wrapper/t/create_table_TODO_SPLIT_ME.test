@@ -1,0 +1,101 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+# Copyright(C) 2011 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/have_innodb.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+# simple test
+create table t1 (c1 int primary key) COMMENT = 'engine "innodb"';
+create table t2 (c1 int primary key) COMMENT = 'engine "innodb"';
+create table t3 (c1 int primary key) COMMENT = 'engine "innodb"';
+drop table t1,t2,t3;
+create table t1 (c1 int primary key, c2 int, c3 int) COMMENT = 'engine "innodb"';
+drop table t1;
+
+# data type support
+create table t1 (c1 bit primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 tinyint primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 smallint primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 mediumint primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 int primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 bigint primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 double primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 float primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 decimal primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 date primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 time primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 timestamp primary key) COMMENT = 'engine "innodb"';
+# For MariaDB 10.2.3
+-- replace_result current_timestamp() CURRENT_TIMESTAMP
+desc t1;
+drop table t1;
+create table t1 (c1 datetime primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 year primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 char(10) primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 varchar(10) primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 binary(10) primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 varbinary(10) primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 enum("yes","no") primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+create table t1 (c1 set("A","B","AB","O") primary key) COMMENT = 'engine "innodb"';
+desc t1;
+drop table t1;
+
+# error test
+--error ER_REQUIRES_PRIMARY_KEY
+create table t1 (c1 int) COMMENT = 'engine "innodb"';
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

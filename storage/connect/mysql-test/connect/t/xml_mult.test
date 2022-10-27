@@ -1,0 +1,64 @@
+--source windows.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+SET NAMES utf8;
+
+--copy_file $MTR_SUITE_DIR/std_data/bookstore.xml $MYSQLD_DATADIR/test/bookstore.xml
+
+#--echo $MYSQL_TEST_DIR
+#--exec pwd
+#SELECT LOAD_FILE('test/bookstore.xml');
+
+
+--echo #
+--echo # Testing expanded values
+--echo #
+CREATE TABLE `bookstore` (
+  `category` CHAR(16) NOT NULL XPATH='@',
+  `title` VARCHAR(50) NOT NULL,
+  `lang` char(2) NOT NULL XPATH='title/@',
+  `author` VARCHAR(24) NOT NULL,
+  `year` INT(4) NOT NULL,
+  `price` DOUBLE(8,2) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='bookstore.xml' OPTION_LIST='expand=1,mulnode=author,limit=6,xmlsup=domdoc';
+SELECT * FROM bookstore;
+SELECT category, title, price FROM bookstore;
+SELECT category, title, author, price FROM bookstore WHERE author LIKE '%K%';
+SELECT category, title, price FROM bookstore WHERE author LIKE 'J%';
+
+
+--echo #
+--echo # Limiting expanded values
+--echo #
+ALTER TABLE bookstore OPTION_LIST='expand=1,mulnode=author,limit=3,xmlsup=domdoc';
+SELECT * FROM bookstore;
+--echo # One line lost because the where clause is applied only on the first 3 rows
+SELECT category, title, author, price FROM bookstore WHERE author LIKE 'J%';
+
+
+--echo #
+--echo # Testing concatenated values
+--echo #
+ALTER TABLE bookstore OPTION_LIST='mulnode=author,limit=6,xmlsup=domdoc';
+--echo # truncated
+SELECT * FROM bookstore;
+--echo # increase author size
+ALTER TABLE bookstore MODIFY `author` VARCHAR(128) NOT NULL;
+SELECT * FROM bookstore;
+
+
+--echo #
+--echo # Limiting concatenated values
+--echo #
+ALTER TABLE bookstore OPTION_LIST='mulnode=author,limit=4,xmlsup=domdoc';
+SELECT * FROM bookstore;
+--echo # The where clause is applied on the concatenated column result
+SELECT category, title, author, price FROM bookstore WHERE author LIKE 'J%';
+DROP TABLE bookstore;
+
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/bookstore.xml

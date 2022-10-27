@@ -1,0 +1,71 @@
+--source include/have_udf.inc
+# Grant tests not performed with embedded server
+-- source include/not_embedded.inc
+
+set local sql_mode="";
+set global sql_mode="";
+--echo #
+--echo # Tests for checking permission denied on CREATE OR REPLACE if DROP
+--echo # access is revoked
+--echo #
+
+--echo # These statements do not need special tests for CREATE OR REPLACE,
+--echo # because they do not have separate permissions for create and drop:
+--echo # CREATE OR REPLACE EVENT (uses EVENT_ACL for both CREATE and DROP)
+--echo # CREATE OR DROP SERVER (uses SUPER_ALC for both CREATE and DROP)
+--echo # CREATE OR DROP TRIGGER (uses TRIGGER_ACL for both CREATE and DROP)
+
+SELECT CURRENT_USER;
+CREATE DATABASE db1;
+GRANT ALL ON db1.* TO mysqltest_1@localhost;
+REVOKE DROP ON db1.* FROM mysqltest_1@localhost;
+REVOKE ALTER ROUTINE ON db1.* FROM mysqltest_1@localhost;
+GRANT DELETE ON mysql.* TO mysqltest_1@localhost;
+REVOKE DELETE ON mysql.* FROM mysqltest_1@localhost;
+FLUSH PRIVILEGES;
+
+connect (user_a, localhost, mysqltest_1,,);
+connection user_a;
+SELECT CURRENT_USER;
+
+# mysqltest_1 has CREATE privilege on db1
+--error ER_DB_CREATE_EXISTS
+CREATE DATABASE db1;
+
+# mysqltest_1 has no DROP privilege on db1
+--error ER_DBACCESS_DENIED_ERROR
+CREATE OR REPLACE DATABASE db1;
+
+# mysqltest_1 has no any privileges on db2
+--error ER_DBACCESS_DENIED_ERROR
+CREATE OR REPLACE DATABASE db2;
+
+USE db1;
+--error ER_TABLEACCESS_DENIED_ERROR
+CREATE OR REPLACE TABLE t1(id INT);
+
+--error ER_PROCACCESS_DENIED_ERROR
+CREATE OR REPLACE PROCEDURE proc1 (OUT cnt INT) BEGIN END;
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--error ER_DBACCESS_DENIED_ERROR
+eval CREATE OR REPLACE FUNCTION lookup RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
+
+--error ER_PROCACCESS_DENIED_ERROR
+CREATE OR REPLACE FUNCTION hello(str char(20)) RETURNS TEXT RETURN CONCAT('Hello, ', str, '!');
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE OR REPLACE USER u1@localhost;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE OR REPLACE ROLE developer;
+
+connection default;
+SELECT CURRENT_USER;
+REVOKE ALL ON db1.* FROM mysqltest_1@localhost;
+DROP DATABASE IF EXISTS db2;
+DROP DATABASE db1;
+DROP USER mysqltest_1@localhost;
+
+
+set global sql_mode=default;

@@ -1,0 +1,76 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+SET DEBUG_SYNC = "wsrep_before_commit_order_leave SIGNAL bcol_reached WAIT_FOR bcol_continue";
+SET DEBUG_SYNC = "wsrep_after_commit_order_leave SIGNAL acol_reached WAIT_FOR acol_continue";
+SET DEBUG_SYNC = "after_group_after_commit SIGNAL after_group_reached WAIT_FOR after_group_continue";
+INSERT INTO t1 VALUES (1);
+connection ctrl;
+SET DEBUG_SYNC = "now WAIT_FOR bcol_reached";
+wsrep_last_seen_gtid_match
+1
+SELECT * FROM t1;
+f1
+1
+SET DEBUG_SYNC = "now SIGNAL bcol_continue";
+SET DEBUG_SYNC = "now WAIT_FOR acol_reached";
+wsrep_last_seen_gtid_match
+1
+SELECT * FROM t1;
+f1
+1
+SET DEBUG_SYNC = "now SIGNAL acol_continue";
+SET DEBUG_SYNC = "now WAIT_FOR after_group_reached";
+wsrep_last_seen_gtid_do_not_match
+1
+SET DEBUG_SYNC = "now SIGNAL after_group_continue";
+connection node_1;
+SET SESSION wsrep_sync_wait = 0;
+connection ctrl;
+connection node_1;
+SET DEBUG_SYNC = "wsrep_before_commit_order_leave SIGNAL bcol_reached_1 WAIT_FOR bcol_continue_1";
+SET DEBUG_SYNC = "wsrep_after_commit_order_leave SIGNAL acol_reached_1 WAIT_FOR acol_continue_1";
+SET DEBUG_SYNC = "after_group_after_commit SIGNAL agac_reached_1 WAIT_FOR agac_continue_1";
+INSERT INTO t1 VALUES (2);;
+connection ctrl;
+SET DEBUG_SYNC = "now WAIT_FOR bcol_reached_1";
+wsrep_last_seen_gtid_match
+1
+connection node_1a;
+SET DEBUG_SYNC = "wsrep_before_commit_order_leave SIGNAL bcol_reached_2 WAIT_FOR bcol_continue_2";
+SET DEBUG_SYNC = "wsrep_after_commit_order_leave SIGNAL acol_reached_2 WAIT_FOR acol_continue_2";
+SET DEBUG_SYNC = "after_group_after_commit SIGNAL agac_reached_2 WAIT_FOR agac_continue_2";
+INSERT INTO t1 VALUES (3);;
+connection ctrl;
+SET DEBUG_SYNC = "now SIGNAL bcol_continue_1";
+SET DEBUG_SYNC = "now WAIT_FOR acol_reached_1";
+SET DEBUG_SYNC = "now WAIT_FOR bcol_reached_2";
+wsrep_last_seen_gtid_match
+1
+SET DEBUG_SYNC = "now SIGNAL bcol_continue_2";
+SET DEBUG_SYNC = "now WAIT_FOR acol_reached_2";
+wsrep_last_seen_gtid_match
+1
+SET DEBUG_SYNC = "now SIGNAL acol_continue_1";
+SET DEBUG_SYNC = "now WAIT_FOR agac_reached_1";
+wsrep_last_seen_gtid_no_match
+1
+SET DEBUG_SYNC = "now SIGNAL acol_continue_2";
+SET DEBUG_SYNC = "now WAIT_FOR agac_reached_2";
+wsrep_last_seen_gtid_no_match
+1
+SET DEBUG_SYNC = "now SIGNAL agac_continue_1";
+connection node_1;
+connection ctrl;
+SET DEBUG_SYNC = "now SIGNAL agac_continue_2";
+connection node_1a;
+connection ctrl;
+SET DEBUG_SYNC = "RESET";
+DROP TABLE t1;
+disconnect ctrl;
+disconnect node_1a;
+disconnect node_2;
+disconnect node_1;

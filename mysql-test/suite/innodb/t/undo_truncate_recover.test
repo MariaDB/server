@@ -1,0 +1,54 @@
+#
+# WL#6965: Truncate UNDO logs.
+#
+
+--source include/big_test.inc
+# With larger innodb_page_size, the undo log tablespaces do not grow enough.
+--source include/innodb_page_size_small.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_undo_tablespaces.inc
+# Tests with embedded server do not support restarting
+--source include/not_embedded.inc
+
+SET GLOBAL innodb_undo_logs = 4;
+SET GLOBAL innodb_undo_log_truncate = 1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
+let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+
+create table t1(keyc int primary key, c char(100)) engine = innodb;
+begin;
+--disable_query_log
+let $i=30000;
+while ($i) {
+  eval insert into t1 values(30000-$i, '');
+  dec $i;
+}
+--enable_query_log
+commit;
+
+let $checksum_algorithm = `SELECT @@GLOBAL.innodb_checksum_algorithm`;
+let SEARCH_PATTERN = ib_undo_trunc;
+begin;
+update t1 set c = 'MariaDB';
+update t1 set c = 'InnoDB';
+eval set global debug_dbug = '+d,$SEARCH_PATTERN';
+commit;
+drop table t1;
+call mtr.add_suppression("InnoDB: innodb_undo_tablespaces=0 disables dedicated undo log tablespaces");
+SET GLOBAL innodb_fast_shutdown=0;
+--source include/shutdown_mysqld.inc
+--source include/search_pattern_in_file.inc
+--let $restart_parameters= --innodb-undo-tablespaces=1
+--let $restart_noprint=1
+if ($checksum_algorithm == "strict_full_crc32")
+{
+  let $restart_parameters= $restart_parameters --innodb_checksum_algorithm=strict_crc32;
+}
+
+if ($checksum_algorithm == "strict_crc32")
+{
+  let $restart_parameters= $restart_parameters --innodb_checksum_algorithm=strict_full_crc32;
+}
+--source include/start_mysqld.inc

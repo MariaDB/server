@@ -1,0 +1,113 @@
+--source include/not_embedded.inc
+#
+# test setting and dropping a role
+#
+
+create database mysqltest1;
+create table mysqltest1.t1 (a int, b int);
+create table mysqltest1.t2 (a int, b int);
+insert mysqltest1.t1 values (1,2),(3,4);
+insert mysqltest1.t2 values (5,6),(7,8);
+
+create procedure mysqltest1.pr1() select "pr1";
+
+create user foo@localhost;
+create role role1;
+create role role2;
+
+grant role2 to role1;
+grant role1 to foo@localhost;
+grant reload on *.* to role2;
+grant select on mysql.* to role2;
+grant execute on procedure mysqltest1.pr1 to role2;
+grant select on mysqltest1.t1 to role2;
+grant select (a) on mysqltest1.t2 to role2;
+
+connect (foo,localhost,foo);
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+flush tables;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+--error ER_DBACCESS_DENIED_ERROR
+show tables from mysqltest1;
+
+set role role1;
+
+flush tables;
+--sorted_result
+select * from mysql.roles_mapping;
+show tables from mysqltest1;
+select * from mysqltest1.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysqltest1.t2;
+select a from mysqltest1.t2;
+call mysqltest1.pr1();
+
+connection default;
+revoke execute on procedure mysqltest1.pr1 from role2;
+connection foo;
+
+--error ER_PROCACCESS_DENIED_ERROR
+call mysqltest1.pr1();
+
+connection default;
+drop role role2;
+connection foo;
+
+show grants;
+select * from information_schema.enabled_roles;
+
+flush tables;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysqltest1.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+select a from mysqltest1.t2;
+
+set role none;
+
+connection default;
+
+grant reload on *.* to role1;
+grant select on mysql.* to role1;
+grant execute on procedure mysqltest1.pr1 to role1;
+grant select on mysqltest1.t1 to role1;
+grant select (a) on mysqltest1.t2 to role1;
+
+connection foo;
+set role role1;
+
+flush tables;
+--sorted_result
+select * from mysql.roles_mapping;
+show tables from mysqltest1;
+select * from mysqltest1.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysqltest1.t2;
+select a from mysqltest1.t2;
+call mysqltest1.pr1();
+
+connection default;
+drop role role1;
+connection foo;
+
+flush tables;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysqltest1.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+select a from mysqltest1.t2;
+
+show grants;
+select * from information_schema.enabled_roles;
+select * from information_schema.enabled_roles; # yes, repeat it twice
+select current_role();
+
+disconnect foo;
+connection default;
+
+drop user foo@localhost;
+drop database mysqltest1;

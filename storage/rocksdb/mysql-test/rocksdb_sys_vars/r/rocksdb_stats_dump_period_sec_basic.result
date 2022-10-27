@@ -1,0 +1,7 @@
+SET @start_global_value = @@global.ROCKSDB_STATS_DUMP_PERIOD_SEC;
+SELECT @start_global_value;
+@start_global_value
+600
+"Trying to set variable @@global.ROCKSDB_STATS_DUMP_PERIOD_SEC to 444. It should fail because it is readonly."
+SET @@global.ROCKSDB_STATS_DUMP_PERIOD_SEC   = 444;
+ERROR HY000: Variable 'rocksdb_stats_dump_period_sec' is a read only variable

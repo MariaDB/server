@@ -1,0 +1,462 @@
+--source include/no_valgrind_without_big.inc
+# Tests for setting innodb-page-size=16k; default value
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+
+call mtr.add_suppression("InnoDB: Cannot add field .* in table");
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo # Test 1) Show the page size from Information Schema
+SELECT variable_value FROM information_schema.global_status
+       WHERE LOWER(variable_name) = 'innodb_page_size';
+
+--echo # Test 4) The maximum row size is dependent upon the page size.
+--echo #         Redundant: 8123, Compact: 8126.
+--echo #         Compressed: 8126, Dynamic: 8126.
+--echo #         Each row format has its own amount of overhead that
+--echo #         varies depending on number of fields and other overhead.
+
+SET SESSION innodb_strict_mode = ON;
+
+
+# Compressed table; 7959 bytes with 40 CHAR fields
+CREATE TABLE t1 (
+c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
+c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
+c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
+c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
+c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
+c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
+c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
+c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(157)
+) ROW_FORMAT=compressed;
+
+DROP TABLE t1;
+
+--error ER_TOO_BIG_ROWSIZE
+CREATE TABLE t1 (
+c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
+c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
+c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
+c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
+c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
+c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
+c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
+c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(160)
+) ROW_FORMAT=compressed;
+
+#
+# Test the maximum key length
+# Max Key Length is 3072 for 16k pages.
+# Max key Part length is 767
+# InnoDB assumes 3 bytes for each UTF8 character.
+#
+CREATE TABLE t1 (a varchar(255) character set utf8,
+                 b varchar(255) character set utf8,
+                 c varchar(255) character set utf8,
+                 d varchar(255) character set utf8,
+                 e varchar(4) character set utf8,
+                 PRIMARY KEY (a,b,c,d,e))
+		 ENGINE=innodb;
+
+DROP TABLE t1;
+
+--error ER_TOO_LONG_KEY
+CREATE TABLE t1 (a varchar(255) character set utf8,
+                 b varchar(255) character set utf8,
+                 c varchar(255) character set utf8,
+                 d varchar(255) character set utf8,
+                 e varchar(5) character set utf8,
+                 PRIMARY KEY (a,b,c,d,e))
+		 ENGINE=innodb;
+
+CREATE TABLE t1 (a varchar(255) character set utf8,
+                 b varchar(255) character set utf8,
+                 c varchar(255) character set utf8,
+                 d varchar(255) character set utf8,
+                 e varchar(255) character set utf8,
+                 f varchar(4)   character set utf8,
+                 PRIMARY KEY (a), KEY (b,c,d,e,f))
+		 ENGINE=innodb;
+
+DROP TABLE t1;
+
+--error ER_TOO_LONG_KEY
+CREATE TABLE t1 (a varchar(255) character set utf8,
+                 b varchar(255) character set utf8,
+                 c varchar(255) character set utf8,
+                 d varchar(255) character set utf8,
+                 e varchar(255) character set utf8,
+                 f varchar(5)   character set utf8,
+                 PRIMARY KEY (a), KEY (b,c,d,e,f))
+		 ENGINE=innodb;
+
+--echo # Test 5) Make sure that KEY_BLOCK_SIZE=16, 8, 4, 2 & 1
+--echo #         are all accepted.
+
+SET SESSION innodb_strict_mode = ON;
+
+CREATE TABLE t1 (i int) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+ALTER TABLE t1 KEY_BLOCK_SIZE=8;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+ALTER TABLE t1 KEY_BLOCK_SIZE=4;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+ALTER TABLE t1 KEY_BLOCK_SIZE=2;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+ALTER TABLE t1 KEY_BLOCK_SIZE=1;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+ALTER TABLE t1 KEY_BLOCK_SIZE=0;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+DROP TABLE t1;
+
+SET SESSION innodb_strict_mode = OFF;
+
+CREATE TABLE t1 (i int) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+ALTER TABLE t1 KEY_BLOCK_SIZE=8;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+ALTER TABLE t1 KEY_BLOCK_SIZE=4;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+ALTER TABLE t1 KEY_BLOCK_SIZE=2;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+ALTER TABLE t1 KEY_BLOCK_SIZE=1;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+ALTER TABLE t1 KEY_BLOCK_SIZE=0;
+SHOW WARNINGS;
+
+SELECT table_name, row_format, create_options
+   FROM information_schema.tables WHERE table_name = 't1';
+
+DROP TABLE t1;
+
+CREATE TABLE t2(d varchar(17) PRIMARY KEY) ENGINE=innodb DEFAULT CHARSET=utf8;
+CREATE TABLE t3(a int PRIMARY KEY) ENGINE=innodb;
+INSERT INTO t3 VALUES (22),(44),(33),(55),(66);
+INSERT INTO t2 VALUES ('jejdkrun87'),('adfd72nh9k'),
+('adfdpplkeock'),('adfdijnmnb78k'),('adfdijn0loKNHJik');
+CREATE TABLE t1(a int, b blob, c text, d text NOT NULL)
+ENGINE=innodb DEFAULT CHARSET=utf8;
+INSERT INTO t1
+SELECT a,LEFT(REPEAT(d,100*a),65535),REPEAT(d,20*a),d FROM t2,t3;
+DROP TABLE t2, t3;
+SELECT COUNT(*) FROM t1 WHERE a=44;
+SELECT a,
+LENGTH(b),b=LEFT(REPEAT(d,100*a),65535),LENGTH(c),c=REPEAT(d,20*a),d FROM t1;
+
+# in-place alter table should trigger ER_PRIMARY_CANT_HAVE_NULL
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD PRIMARY KEY (a), ADD KEY (b(20));
+DELETE FROM t1 WHERE d='null';
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD PRIMARY KEY (a), ADD KEY (b(20));
+DELETE FROM t1 WHERE a%2;
+CHECK TABLE t1;
+ALTER TABLE t1 ADD PRIMARY KEY (a,b(255),c(255)), ADD KEY (b(767));
+SELECT COUNT(*) FROM t1 WHERE a=44;
+SELECT a,
+LENGTH(b), b=LEFT(REPEAT(d,100*a), 65535),LENGTH(c), c=REPEAT(d,20*a), d FROM t1;
+SHOW CREATE TABLE t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo # Test 8) Test creating a table that could lead to undo log overflow.
+
+CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
+                h blob,i blob,j blob,k blob,l blob,m blob,n blob,
+		o blob,p blob,q blob,r blob,s blob,t blob,u blob)
+		ENGINE=InnoDB ROW_FORMAT=dynamic;
+
+SET @a = repeat('a', 767);
+SET @b = repeat('b', 767);
+SET @c = repeat('c', 767);
+SET @d = repeat('d', 767);
+SET @e = repeat('e', 767);
+
+# With no indexes defined, we can update all columns to max key part length.
+
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+
+UPDATE t1 SET a=@b,b=@b,c=@b,d=@b,e=@b,f=@b,g=@b,h=@b,i=@b,j=@b,
+              k=@b,l=@b,m=@b,n=@b,o=@b,p=@b,q=@b,r=@b,s=@b,t=@b,u=@b;
+
+
+# With this many indexes defined, we can still update all fields.
+CREATE INDEX t1a ON t1 (a(767));
+CREATE INDEX t1b ON t1 (b(767));
+CREATE INDEX t1c ON t1 (c(767));
+CREATE INDEX t1d ON t1 (d(767));
+CREATE INDEX t1e ON t1 (e(767));
+
+UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
+              k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c;
+
+
+# Add one more index and the UNDO record becomes too big to update all columns.
+# But a single transaction can update the columns in separate statements.
+# because the UNDO records will be smaller.
+
+CREATE INDEX t1f ON t1 (f(767));
+BEGIN;
+UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d,f=@d,g=@d,h=@d,i=@d,j=@d,
+              k=@d,l=@d,m=@d,n=@d,o=@d,p=@d,q=@d,r=@d,s=@d,t=@d,u=@d;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d;
+UPDATE t1 SET f=@d,g=@d,h=@d,i=@d,j=@d,k=@d,l=@d,m=@d,
+              n=@d,o=@d,p=@d,q=@d,r=@d,s=@d,t=@d,u=@d;
+COMMIT;
+
+# More indexes can still be added and a single field can still be updated
+CREATE INDEX t1g ON t1 (g(767));
+UPDATE t1 SET g=@e;
+CREATE INDEX t1h ON t1 (h(767));
+UPDATE t1 SET h=@e;
+CREATE INDEX t1i ON t1 (i(767));
+UPDATE t1 SET i=@e;
+CREATE INDEX t1j ON t1 (j(767));
+UPDATE t1 SET j=@e;
+CREATE INDEX t1k ON t1 (k(767));
+UPDATE t1 SET k=@e;
+CREATE INDEX t1l ON t1 (l(767));
+UPDATE t1 SET l=@e;
+CREATE INDEX t1m ON t1 (m(767));
+UPDATE t1 SET m=@e;
+CREATE INDEX t1n ON t1 (n(767));
+UPDATE t1 SET n=@e;
+CREATE INDEX t1o ON t1 (o(767));
+UPDATE t1 SET o=@e;
+CREATE INDEX t1p ON t1 (p(767));
+UPDATE t1 SET p=@e;
+CREATE INDEX t1q ON t1 (q(767));
+UPDATE t1 SET q=@e;
+CREATE INDEX t1r ON t1 (r(767));
+UPDATE t1 SET r=@e;
+CREATE INDEX t1s ON t1 (s(767));
+UPDATE t1 SET s=@e;
+
+# Add one more index and we cannot update a column to its defined index length.
+# This is a problem.  It means that the DDL is allowed to create a table
+# that CANNOT be updated.
+
+CREATE INDEX t1t ON t1 (t(767));
+BEGIN;
+UPDATE t1 SET t=@e;
+ROLLBACK;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo Test an assertion failure on purge.
+
+# This test is not in innodb_8k or innodb_4k since the bug is not about
+# page size.  It just tests the condition that caused the assertion.
+
+CREATE TABLE t1_purge (
+A int,
+B blob, C blob, D blob, E blob,
+F blob, G blob, H blob,
+PRIMARY KEY (B(767), C(767), D(767), E(767), A),
+INDEX (A)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+INSERT INTO t1_purge VALUES (1,
+REPEAT('b', 766), REPEAT('c', 766), REPEAT('d', 766), REPEAT('e', 766),
+REPEAT('f', 766), REPEAT('g', 766), REPEAT('h', 766));
+
+CREATE TABLE t2_purge (
+A int PRIMARY KEY,
+B blob, C blob, D blob, E blob,
+F blob, G blob, H blob, I blob,
+J blob, K blob, L blob,
+INDEX (B(767))) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+INSERT INTO t2_purge VALUES (1,
+REPEAT('b', 766), REPEAT('c', 766), REPEAT('d', 766), REPEAT('e', 766),
+REPEAT('f', 766), REPEAT('g', 766), REPEAT('h', 766), REPEAT('i', 766),
+REPEAT('j', 766), REPEAT('k', 766), REPEAT('l', 766));
+
+CREATE TABLE t3_purge (
+A int,
+B varchar(800), C varchar(800), D varchar(800), E varchar(800),
+F varchar(800), G varchar(800), H varchar(800),
+PRIMARY KEY (B(767), C(767), D(767), E(767), A),
+INDEX (A)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+INSERT INTO t3_purge SELECT * FROM t1_purge;
+
+CREATE TABLE t4_purge (
+A int PRIMARY KEY,
+B varchar(800), C varchar(800), D varchar(800), E varchar(800),
+F varchar(800), G varchar(800), H varchar(800), I varchar(800),
+J varchar(800), K varchar(800), L varchar(800),
+INDEX (B(767))) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+INSERT INTO t4_purge SELECT * FROM t2_purge;
+
+# This would trigger the failure
+# if purge gets a chance to run before DROP TABLE t1_purge, ....
+DELETE FROM t1_purge;
+DELETE FROM t2_purge;
+DELETE FROM t3_purge;
+DELETE FROM t4_purge;
+
+# A secondary index tuple is found to be too long to fit into a page.
+SET @r=REPEAT('a',500);
+
+CREATE TABLE tlong(a int,
+ v1 varchar(500), v2 varchar(500), v3 varchar(500),
+ v4 varchar(500), v5 varchar(500), v6 varchar(500),
+ v7 varchar(500), v8 varchar(500), v9 varchar(500),
+ v10 varchar(500), v11 varchar(500), v12 varchar(500),
+ v13 varchar(500), v14 varchar(500), v15 varchar(500),
+ v16 varchar(500), v17 varchar(500), v18 varchar(500)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+CREATE INDEX idx1 ON tlong(a,v1);
+INSERT INTO tlong VALUES(9,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r,@r);
+UPDATE tlong SET a=1000;
+DELETE FROM tlong;
+
+# the number of indexes has changed since the UNDO record was logged.
+# page size.  It just tests the condition that caused the crash.
+
+CREATE TABLE tlong2(a blob,b blob,c blob,d blob,e blob,f blob,g blob,h blob,
+		       i blob,j blob,k blob,l blob,m blob,n blob,o blob,p blob)
+	ENGINE=innodb ROW_FORMAT=dynamic;
+
+SET @r = REPEAT('a', 767);
+INSERT INTO tlong2 VALUES (@r,@r,@r,@r, @r,@r,@r,@r, @r,@r,@r,@r, @r,@r,@r,@r);
+CREATE INDEX ndx_a ON tlong2 (a(500));
+CREATE INDEX ndx_b ON tlong2 (b(500));
+CREATE INDEX ndx_c ON tlong2 (c(500));
+CREATE INDEX ndx_d ON tlong2 (d(500));
+CREATE INDEX ndx_e ON tlong2 (e(500));
+CREATE INDEX ndx_f ON tlong2 (f(500));
+CREATE INDEX ndx_k ON tlong2 (k(500));
+CREATE INDEX ndx_l ON tlong2 (l(500));
+
+SET @r = REPEAT('b', 500);
+UPDATE tlong2 set a=@r,b=@r,c=@r,d=@r;
+UPDATE tlong2 set e=@r,f=@r,g=@r,h=@r;
+UPDATE tlong2 set i=@r,j=@r,k=@r,l=@r;
+UPDATE tlong2 set m=@r,n=@r,o=@r,p=@r;
+
+ALTER TABLE tlong2 DROP INDEX ndx_a;
+ALTER TABLE tlong2 DROP INDEX ndx_b;
+CREATE INDEX ndx_g ON tlong2 (g(500));
+CREATE INDEX ndx_h ON tlong2 (h(500));
+CREATE INDEX ndx_i ON tlong2 (i(500));
+CREATE INDEX ndx_j ON tlong2 (j(500));
+CREATE INDEX ndx_m ON tlong2 (m(500));
+CREATE INDEX ndx_n ON tlong2 (n(500));
+CREATE INDEX ndx_o ON tlong2 (o(500));
+CREATE INDEX ndx_p ON tlong2 (p(500));
+SHOW CREATE TABLE tlong2;
+
+# InnoDB cannot know that this undo record would be too big for the undo
+# page. Too much of text field is stored in the clustered record in this
+# DYNAMIC row formatted record.
+
+SET SESSION innodb_strict_mode = ON;
+
+CREATE TABLE bug12547647(
+a int NOT NULL, b blob NOT NULL, c text,
+PRIMARY KEY (b(10), a), INDEX (c(767)), INDEX(b(767))
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+INSERT INTO bug12547647 VALUES (5,REPEAT('khdfo5AlOq',1900),REPEAT('g',7751));
+COMMIT;
+
+# The following used to cause a hang while doing infinite undo log allocation.
+BEGIN;
+UPDATE bug12547647 SET c = REPEAT('b',16928);
+SHOW WARNINGS;
+ROLLBACK;
+DROP TABLE bug12547647;
+
+SET SESSION innodb_strict_mode = on;
+--error ER_TOO_BIG_ROWSIZE
+CREATE TABLE t1(
+	c text NOT NULL, d text NOT NULL,
+	PRIMARY KEY (c(767),d(767)))
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
+
+--error ER_TOO_BIG_ROWSIZE
+CREATE TABLE t1(
+	c text NOT NULL, d text NOT NULL,
+	PRIMARY KEY (c(767),d(767)))
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2 CHARSET=ASCII;
+
+CREATE TABLE t1(
+	c text NOT NULL, d text NOT NULL,
+	PRIMARY KEY (c(767),d(767)))
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4 CHARSET=ASCII;
+
+drop table t1;
+
+--error ER_TOO_BIG_ROWSIZE
+CREATE TABLE t1(c text, PRIMARY KEY (c(440)))
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
+
+CREATE TABLE t1(c text, PRIMARY KEY (c(438)))
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
+
+INSERT INTO t1 VALUES(REPEAT('A',512)),(REPEAT('B',512));
+
+DROP TABLE t1;
+
+# The tests that uses these tables required the purge thread to run.
+# Just in case it has not by now, provide a 10 second wait.
+
+--sleep 10
+
+DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge;
+DROP TABLE tlong;
+DROP TABLE tlong2;

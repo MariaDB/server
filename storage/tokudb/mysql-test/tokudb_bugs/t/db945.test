@@ -1,0 +1,25 @@
+skip Background Job Manager not supported in MariaDB;
+source include/have_tokudb.inc;
+set default_storage_engine='tokudb';
+disable_warnings;
+drop table if exists t1;
+enable_warnings;
+
+set session tokudb_auto_analyze = 1;
+set session tokudb_analyze_in_background = true;
+set session tokudb_analyze_mode = TOKUDB_ANALYZE_STANDARD;
+set session tokudb_analyze_throttle = 0;
+set session tokudb_analyze_time = 0;
+
+create table t1(a int, b text(1), c text(1), filler text(1), primary key(a, b(1)), unique key (a, c(1)));
+lock tables t1 write, t1 as a read, t1 as b read;
+insert ignore into t1(a) values(1);
+alter table t1 drop key a;
+unlock tables;
+
+# wait for the bjm queue to empty
+-- disable_query_log
+let $wait_condition=select count(*)=0 from information_schema.tokudb_background_job_status;
+-- source include/wait_condition.inc
+
+drop table t1;

@@ -1,0 +1,49 @@
+--source include/have_tokudb_backup.inc
+--source include/have_binlog_format_statement.inc
+--source include/have_debug_sync.inc
+
+--let $SLAVE_INFO_FILE=tokubackup_slave_info
+--let $MASTER_INFO_FILE=tokubackup_binlog_info
+
+--let BACKUP_DIR_SLAVE=$MYSQL_TMP_DIR/tokudb_backup_slave
+--let $S_SLAVE_INFO_FILE_PATH=$BACKUP_DIR_SLAVE/$SLAVE_INFO_FILE
+
+--let BACKUP_DIR_MASTER=$MYSQL_TMP_DIR/tokudb_backup_master
+--let $M_MASTER_INFO_FILE_PATH=$BACKUP_DIR_MASTER/$MASTER_INFO_FILE
+
+# Settings for include/filter_file.inc
+--delimiter |
+let $script=
+  s{filename: [^,]+,}{filename: ####,};
+  s{position: [^,]+,}{position: ####,};
+  s{GTID of last change: [^ ]+}{GTID of last change: #####};
+  s{host: [^,]+,}{host: #.#.#.#,};
+  s{user: [^,]+,}{user: ####,};
+  s{port: [^,]+,}{port: ####,};
+  s{master log file: [^,]+,}{master log file: ####,};
+  s{relay log file: [^,]+,}{relay log file: ####,};
+  s{exec master log pos: [^,]+,}{exec master log pos: ####,};
+  s{executed gtid set: [^,]+, }{executed gtid set: ####, };
+  s{executed gtid set: [^,]+,[^,]+, }{executed gtid set: ####,####, };
+|
+--delimiter ;
+--let $skip_column_names= 1
+
+--disable_query_log
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+CALL mtr.add_suppression("Sending passwords in plain text without SSL/TLS is extremely insecure");
+--enable_query_log
+
+--echo ###
+--echo # Master-slave test
+--echo ####
+
+--let $rpl_server_count=3
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--connect (slave_2,localhost,root,,test,$SLAVE_MYPORT,$SLAVE_MYSOCK)
+
+--source rpl_safe_slave.inc
+
+--source include/rpl_end.inc

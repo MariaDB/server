@@ -1,0 +1,3 @@
+-- source include/have_tokudb.inc
+let $engine_type=TokuDB;
+-- source suite/rpl/include/rpl_sv_relay_space.test

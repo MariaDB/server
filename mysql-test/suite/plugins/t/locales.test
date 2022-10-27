@@ -1,0 +1,13 @@
+if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'locales' and plugin_status='active'`)
+{
+  --skip LOCALES plugin is not active
+}
+
+select * from information_schema.locales;
+show locales;
+--error ER_PARSE_ERROR
+show locales like '%spanish%';
+show locales where description like '%spanish%';
+--error ER_PARSE_ERROR
+flush locales;
+

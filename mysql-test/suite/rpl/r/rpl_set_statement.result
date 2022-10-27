@@ -1,0 +1,146 @@
+include/master-slave.inc
+[connection master]
+set sql_mode="";
+connection slave;
+set sql_mode="";
+connection master;
+DROP TABLE IF EXISTS t1;
+DROP TABLE IF EXISTS t2;
+call mtr.add_suppression("Unsafe statement written to the binary log*");
+CREATE TABLE t1 (a bigint unsigned not null);
+CREATE TABLE t2 (a char(255) not null);
+
+There are the following types of variables:
+1) variables that are NOT replicated correctly when using STATEMENT mode;
+
+connection master;
+SELECT @@max_join_size;
+@@max_join_size
+18446744073709551615
+connection slave;
+SELECT @@max_join_size;
+@@max_join_size
+18446744073709551615
+connection master;
+SET STATEMENT max_join_size=2 FOR
+INSERT INTO t1 VALUES(@@max_join_size);
+SELECT @@max_join_size;
+@@max_join_size
+18446744073709551615
+connection slave;
+SELECT * FROM t1;
+a
+18446744073709551615
+SELECT @@max_join_size;
+@@max_join_size
+18446744073709551615
+connection master;
+DELETE FROM t1;
+
+2) variables thar ARE replicated correctly 
+They must be replicated correctly with "SET STATEMENT" too.
+
+connection master;
+SELECT @@auto_increment_increment;
+@@auto_increment_increment
+1
+connection slave;
+SELECT @@auto_increment_increment;
+@@auto_increment_increment
+1
+connection master;
+SET STATEMENT auto_increment_increment=10 FOR
+INSERT INTO t1 VALUES(@@auto_increment_increment);
+SELECT @@auto_increment_increment;
+@@auto_increment_increment
+1
+connection slave;
+SELECT * FROM t1;
+a
+10
+SELECT @@auto_increment_increment;
+@@auto_increment_increment
+1
+connection master;
+DELETE FROM t1;
+
+3) sql_mode which is replicated correctly exept NO_DIR_IN_CREATE value;
+
+connection master;
+SELECT @@sql_mode;
+@@sql_mode
+
+connection slave;
+SELECT @@sql_mode;
+@@sql_mode
+
+connection master;
+SET STATEMENT sql_mode='ERROR_FOR_DIVISION_BY_ZERO' FOR
+INSERT INTO t2 VALUES(@@sql_mode);
+SELECT @@sql_mode;
+@@sql_mode
+
+connection slave;
+SELECT * FROM t2;
+a
+ERROR_FOR_DIVISION_BY_ZERO
+SELECT @@sql_mode;
+@@sql_mode
+
+connection master;
+DELETE FROM t2;
+connection master;
+SELECT @@sql_mode;
+@@sql_mode
+
+connection slave;
+SELECT @@sql_mode;
+@@sql_mode
+
+connection master;
+SET STATEMENT sql_mode='NO_DIR_IN_CREATE' FOR
+INSERT INTO t2 VALUES(@@sql_mode);
+SELECT @@sql_mode;
+@@sql_mode
+
+connection slave;
+SELECT * FROM t2;
+a
+
+SELECT @@sql_mode;
+@@sql_mode
+
+connection master;
+DELETE FROM t2;
+
+4) variables that are not replicated at all:
+default_storage_engine, storage_engine, max_heap_table_size
+
+connection master;
+SELECT @@max_heap_table_size;
+@@max_heap_table_size
+1048576
+connection slave;
+SELECT @@max_heap_table_size;
+@@max_heap_table_size
+1048576
+connection master;
+SET STATEMENT max_heap_table_size=16384 FOR
+INSERT INTO t1 VALUES(@@max_heap_table_size);
+SELECT @@max_heap_table_size;
+@@max_heap_table_size
+1048576
+connection slave;
+SELECT * FROM t1;
+a
+1048576
+SELECT @@max_heap_table_size;
+@@max_heap_table_size
+1048576
+connection master;
+DELETE FROM t1;
+connection master;
+DROP TABLE t1;
+DROP TABLE t2;
+connection slave;
+include/stop_slave.inc

@@ -1,0 +1,3089 @@
+--source include/default_optimizer_switch.inc
+
+create table t1 (a int, b varchar(32));
+insert into t1 values
+(4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');
+insert into t1 values
+(3,'eee'), (7,'bb'), (1,'fff'), (4,'ggg');
+
+--ERROR ER_UNACCEPTABLE_MUTUAL_RECURSION
+with recursive
+t as 
+(
+  select * from t1 where t1.b >= 'c'
+  union
+  select * from r
+),
+r as
+(
+  select * from t
+  union
+  select t1.* from t1,r where r.a+1 = t1.a
+)
+select * from r;
+
+
+--ERROR ER_UNACCEPTABLE_MUTUAL_RECURSION
+with recursive
+a1(a,b) as
+(select * from t1 where t1.a>3
+union
+select * from b1 where b1.a >3
+union
+select * from c1 where c1.a>3),
+b1(a,b) as
+(select * from a1 where a1.b > 'ccc'
+union
+select * from c1 where c1.b > 'ddd'),
+c1(a,b) as
+(select * from a1 where a1.a<6 and a1.b< 'zz'
+union
+select * from b1 where b1.b > 'auu')
+select * from c1; 
+
+drop table t1;
+
+
+--echo # WITH RECURSIVE vs just WITH
+
+create table t1 (a int);
+insert into t1 values
+  (0), (1), (2), (3), (4);
+create table t2 (a int);
+insert into t2 values
+  (1), (2), (3), (4), (5);
+
+
+--echo # just WITH : s refers to t defined after s
+--ERROR ER_NO_SUCH_TABLE
+with 
+ s(a) as (select t.a + 10 from t),
+ t(a) as (select t1.a from t1)
+select * from s;
+
+--echo # WITH RECURSIVE: s refers to t defined after s
+with recursive 
+ s(a) as (select t.a + 10 from t),
+ t(a) as (select t1.a from t1)
+select * from s;
+
+--echo # just WITH : defined t1 is non-recursive and uses base tables t1,t2
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+explain
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+
+--echo #WITH RECURSIVE : defined t1 is recursive and uses only base table t2
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+explain
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+    
+--echo # just WITH : types of t1 columns are determined by all parts of union 
+
+create view v1 as
+with
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a+1 from t1,t2 where t1.a=t2.a
+)
+select * from t1;
+
+show columns from v1;
+
+
+--echo # WITH RECURSIVE : types of t1 columns are determined by anchor parts 
+
+create view v2 as
+with recursive
+t1 as
+(
+select a  from t2 where t2.a=3
+union
+select t2.a+1 from t1,t2 where t1.a=t2.a
+)
+select * from t1;
+
+show columns from v2;
+
+drop view v1,v2;
+
+drop table t1,t2;
+
+
+create table  folks(id int, name char(32), dob date, father int, mother int);
+
+insert into folks values
+(100, 'Me', '2000-01-01', 20, 30),
+(20, 'Dad', '1970-02-02', 10, 9),
+(30, 'Mom', '1975-03-03', 8, 7),
+(10, 'Grandpa Bill', '1940-04-05', null, null),
+(9, 'Grandma Ann', '1941-10-15', null, null),
+(25, 'Uncle Jim', '1968-11-18', 8, 7),
+(98, 'Sister Amy', '2001-06-20', 20, 30),
+(7, 'Grandma Sally', '1943-08-23', null, 6),
+(8, 'Grandpa Ben', '1940-10-21', null, null),
+(6, 'Grandgrandma Martha', '1923-05-17', null, null),
+(67, 'Cousin Eddie', '1992-02-28', 25, 27),
+(27, 'Auntie Melinda', '1971-03-29', null, null); 
+
+--echo # simple recursion with one anchor and one recursive select
+--echo # the anchor is the first select in the specification 
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Me' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+--echo # simple recursion with one anchor and one recursive select
+--echo # the anchor is the last select in the specification 
+with recursive 
+ancestors
+as
+(
+  select p.*
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+  union
+  select *
+    from folks
+      where name = 'Me' and dob = '2000-01-01'
+)
+select * from ancestors;
+
+--echo # simple recursion with one anchor and one recursive select
+--echo # the anchor is the first select in the specification 
+with recursive
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Cousin Eddie'
+  union 
+  select p.*
+    from folks as p, ancestors as a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+--echo # simple recursion with or in anchor and or in recursive part 
+with recursive
+ancestors
+as
+(
+  select *
+    from  folks
+      where name = 'Me' or name='Sister Amy'
+   union 
+   select  p.*
+     from folks as p, ancestors as a
+       where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+--echo # two recursive definition, one uses another
+with recursive 
+prev_gen
+as
+(
+  select folks.*
+    from folks, prev_gen
+      where folks.id=prev_gen.father or folks.id=prev_gen.mother
+  union
+  select * 
+    from folks
+      where name='Me'
+),
+ancestors
+as
+(
+  select *
+    from folks
+      where name='Me'
+  union 
+  select *
+    from ancestors
+  union
+    select *
+     from prev_gen
+)
+select ancestors.name, ancestors.dob from ancestors;
+
+--echo # recursive definition with two attached non-recursive
+with recursive 
+ancestors(id,name,dob)
+as
+(
+  with 
+  father(child_id,id,name,dob)
+  as
+  (
+    select folks.id, f.id, f.name, f.dob
+      from folks, folks f
+        where folks.father=f.id 
+        
+  ),
+  mother(child_id,id,name,dob)
+  as
+  (
+    select folks.id, m.id, m.name, m.dob
+      from folks, folks m
+        where folks.mother=m.id 
+        
+  )  
+  select folks.id, folks.name, folks.dob
+    from folks
+      where name='Me'
+  union 
+  select f.id, f.name, f.dob
+    from ancestors a, father f
+      where f.child_id=a.id
+  union 
+  select m.id, m.name, m.dob
+    from ancestors a, mother m
+      where m.child_id=a.id
+  
+)
+select ancestors.name, ancestors.dob from ancestors;
+
+--echo # simple recursion with one anchor and one recursive select
+--echo # the anchor is the first select in the specification 
+with recursive
+descendants
+as
+(
+  select *
+    from folks
+      where name = 'Grandpa Bill'
+  union 
+  select folks.*
+    from folks, descendants as d
+      where d.id=folks.father or d.id=folks.mother
+)
+select * from descendants;
+
+--echo # simple recursion with one anchor and one recursive select
+--echo # the anchor is the first select in the specification 
+with recursive
+descendants
+as
+(
+  select *
+    from folks
+      where name = 'Grandma Sally'
+  union 
+  select folks.*
+    from folks, descendants as d
+      where d.id=folks.father or d.id=folks.mother
+)
+select * from descendants;
+
+
+--echo # simple recursive table used three times in the main query
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me' and dob = '2000-01-01'
+  union
+  select p.*   
+    from folks as p, ancestors AS a   
+      where p.id = a.father OR p.id = a.mother
+)
+select *
+  from ancestors t1, ancestors t2 
+    where exists (select * from ancestors a 
+                  where a.father=t1.id AND a.mother=t2.id);
+
+
+--echo # simple recursive table used three times in the main query
+with 
+ancestor_couples(husband, h_dob, wife, w_dob)
+as
+(
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks 
+       where name = 'Me'
+  union
+  select p.*   
+    from folks as p, ancestors AS a   
+      where p.id = a.father OR p.id = a.mother
+)
+select t1.name, t1.dob, t2.name, t2.dob
+  from ancestors t1, ancestors t2 
+    where exists (select * from ancestors a 
+                    where a.father=t1.id AND a.mother=t2.id)
+)
+select * from ancestor_couples;
+
+
+--echo # simple recursion with two selects in recursive part
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me'
+  union 
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+
+--echo # mutual recursion with renaming
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+  union
+  select h.*, w.*
+    from folks v, folks h, folks w
+      where v.name = 'Me' and
+            (v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+
+--echo # mutual recursion with union all
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+  union 
+  select h.*, w.*
+    from folks v, folks h, folks w
+      where v.name = 'Me' and
+            (v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union all
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+
+--echo # mutual recursion with renaming
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+  union
+  select h.*, w.*
+    from folks v, folks h, folks w
+      where v.name = 'Me' and
+            (v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+
+--echo # mutual recursion with union all
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select * 
+    from folks 
+      where name = 'Me'
+  union all
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union all
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+--echo # mutual recursion with one select in the first definition
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+  select a.father, a.mother
+    from coupled_ancestors a
+      where a.father is not null and a.mother is not null
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select * 
+    from folks 
+      where name = 'Me'
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids fa
+      where p.id = fa.h_id
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids ma
+      where p.id = ma.w_id
+)
+select *
+  from ancestor_couple_ids;
+
+
+--echo # join of a mutually recursive table with base tables
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+  select a.father, a.mother
+    from coupled_ancestors a
+      where a.father is not null and a.mother is not null
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select * 
+    from folks 
+      where name = 'Me'
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids fa
+      where p.id = fa.h_id
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids ma
+      where p.id = ma.w_id
+)
+select h.name, h.dob, w.name, w.dob
+  from ancestor_couple_ids c, folks h, folks w
+    where c.h_id = h.id and c.w_id= w.id;
+
+
+--echo # join of two mutually recursive tables
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+  select a.father, a.mother
+    from coupled_ancestors a
+      where a.father is not null and a.mother is not null
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select * 
+    from folks 
+      where name = 'Me'
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids fa
+      where p.id = fa.h_id
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids ma
+      where p.id = ma.w_id
+)
+select h.name, h.dob, w.name, w.dob
+  from ancestor_couple_ids c, coupled_ancestors h, coupled_ancestors w
+    where c.h_id = h.id and c.w_id= w.id;
+
+explain extended
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+  select a.father, a.mother
+    from coupled_ancestors a
+      where a.father is not null and a.mother is not null
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select * 
+    from folks 
+      where name = 'Me'
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids fa
+      where p.id = fa.h_id
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids ma
+      where p.id = ma.w_id
+)
+select h.name, h.dob, w.name, w.dob
+  from ancestor_couple_ids c, coupled_ancestors h, coupled_ancestors w
+    where c.h_id = h.id and c.w_id= w.id;
+
+
+--echo # simple mutual recursion
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+  select a.father, a.mother
+    from coupled_ancestors a
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select * 
+    from folks 
+      where name = 'Me'
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids fa
+      where p.id = fa.h_id
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids ma
+      where p.id = ma.w_id
+)
+select *
+  from ancestor_couple_ids;
+
+
+--echo # join of two mutually recursive tables
+with recursive
+ancestor_couple_ids(h_id, w_id)
+as
+(
+  select a.father, a.mother
+    from coupled_ancestors a
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select * 
+    from folks 
+      where name = 'Me'
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids fa
+      where p.id = fa.h_id
+  union all
+  select p.*
+    from folks p, ancestor_couple_ids ma
+      where p.id = ma.w_id
+)
+select h.name, h.dob, w.name, w.dob
+  from ancestor_couple_ids c, coupled_ancestors h, coupled_ancestors w
+    where c.h_id = h.id and c.w_id= w.id;
+
+
+--echo # execution of prepared query using a recursive table
+prepare stmt1 from "
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Me' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+";
+
+execute stmt1;
+execute stmt1;
+
+deallocate prepare stmt1;
+
+
+--echo # view using a recursive table
+create view v1 as
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Me' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+show create view v1;
+
+select * from v1;
+
+create view v2 as
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me'
+  union 
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+show create view v2;
+
+select * from v2;
+
+drop view v1,v2;
+
+
+explain extended
+with recursive 
+ancestors
+as
+(
+  select *
+    from folks
+      where name = 'Me' and dob = '2000-01-01'
+  union 
+  select p.id, p.name, p.dob, p.father, p.mother
+    from folks as p, ancestors AS a
+      where p.id = a.father or p.id = a.mother
+)
+select * from ancestors;
+
+
+--echo # recursive spec with two anchor selects and two recursive ones 
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+
+--echo # recursive spec using union all 
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me'
+  union all
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union all
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me' and  father is not null
+  union all
+  select mother, 1 from folks where name = 'Me' and  mother is not null
+  union all
+  select father, fa.generation+1 from folks, ancestor_ids fa
+    where folks.id = fa.id and (father not in (select id from ancestor_ids))
+  union all
+  select mother, ma.generation+1 from folks, ancestor_ids ma
+    where folks.id = ma.id and (mother not in (select id from ancestor_ids))
+)
+select generation, name from ancestor_ids a, folks
+  where a.id = folks.id;
+
+set standard_compliant_cte=0;
+
+--ERROR ER_WITH_COL_WRONG_LIST
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father from folks where name = 'Me' and  father is not null
+  union all
+  select mother from folks where name = 'Me' and  mother is not null
+  union all
+  select father, fa.generation+1 from folks, ancestor_ids fa
+    where folks.id = fa.id and (father not in (select id from ancestor_ids))
+  union all
+  select mother, ma.generation+1 from folks, ancestor_ids ma
+    where folks.id = ma.id and (mother not in (select id from ancestor_ids))
+)
+select generation, name from ancestor_ids a, folks
+  where a.id = folks.id;
+
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me' and  father is not null
+  union all
+  select mother, 1 from folks where name = 'Me' and  mother is not null
+  union all
+  select father, fa.generation+1 from folks, ancestor_ids fa
+    where folks.id = fa.id and father is not null and
+          (father not in (select id from ancestor_ids))
+  union all
+  select mother, ma.generation+1 from folks, ancestor_ids ma
+    where folks.id = ma.id and mother is not null and
+          (mother not in (select id from ancestor_ids))
+)
+select generation, name from ancestor_ids a, folks
+  where a.id = folks.id;
+
+set standard_compliant_cte=1;
+
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
+with recursive
+coupled_ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me' and father is not null
+  union 
+  select mother from folks where name = 'Me' and mother is not null
+  union
+  select n.father 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and
+            (fa.id = n.id or ma.id = n.id) and
+            n.father is not null and n.mother is not null 
+  union
+  select n.mother 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and 
+            (fa.id = n.id or ma.id = n.id) and 
+            n.father is not null and n.mother is not null 
+)
+select p.* from coupled_ancestor_ids a, folks p
+  where a.id = p.id;
+
+set statement standard_compliant_cte=0 for
+with recursive
+coupled_ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me' and father is not null
+  union 
+  select mother from folks where name = 'Me' and mother is not null
+  union
+  select n.father 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and
+            (fa.id = n.id or ma.id = n.id) and
+            n.father is not null and n.mother is not null 
+  union
+  select n.mother 
+    from folks, coupled_ancestor_ids fa, coupled_ancestor_ids ma, folks n
+      where folks.father = fa.id and folks.mother = ma.id and 
+            (fa.id = n.id or ma.id = n.id) and 
+            n.father is not null and n.mother is not null 
+)
+select p.* from coupled_ancestor_ids a, folks p
+  where a.id = p.id;
+
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks left join ancestor_ids a on folks.id = a.id
+  union
+  select mother from folks left join ancestor_ids a on folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+set statement standard_compliant_cte=0 for
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks left join ancestor_ids a on folks.id = a.id
+  union
+  select mother from folks left join ancestor_ids a on folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me'
+  union
+  select mother, 1 from folks where name = 'Me'
+  union
+  select father, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+  union
+  select mother, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me'
+  union
+  select mother, 1 from folks where name = 'Me'
+  union
+  select max(father), max(a.generation)+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+  union
+  select max(mother), max(a.generation)+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+set statement standard_compliant_cte=0 for
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me'
+  union
+  select mother, 1 from folks where name = 'Me'
+  union
+  select max(father), a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+  union
+  select max(mother), a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+      group by a.generation
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+set statement max_recursive_iterations=1 for
+with recursive
+ancestor_ids (id, generation)
+as
+(
+  select father, 1 from folks where name = 'Me'
+  union
+  select mother, 1 from folks where name = 'Me'
+  union
+  select father, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+  union
+  select mother, a.generation+1 from folks, ancestor_ids a
+    where folks.id = a.id
+),
+ancestors 
+as
+(
+  select generation, name from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+--echo # query with recursive tables using key access
+
+alter table folks add primary key (id);
+
+explain
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me'
+  union 
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+
+with recursive
+ancestors
+as
+(
+  select *
+    from folks 
+      where name = 'Me'
+  union 
+  select p.*
+    from folks as p, ancestors as fa
+      where p.id = fa.father
+  union
+  select p.*
+    from folks as p, ancestors as ma
+      where p.id = ma.mother
+)
+select * from ancestors;
+
+
+--echo #
+--echo # EXPLAIN FORMAT=JSON on a query where one recursive CTE uses another:
+--echo #
+explain 
+with recursive 
+prev_gen
+as
+(
+  select folks.*
+    from folks, prev_gen
+      where folks.id=prev_gen.father or folks.id=prev_gen.mother
+  union
+  select * 
+    from folks
+      where name='Me'
+),
+ancestors
+as
+(
+  select *
+    from folks
+      where name='Me'
+  union 
+  select *
+    from ancestors
+  union
+    select *
+     from prev_gen
+)
+select ancestors.name, ancestors.dob from ancestors;
+
+explain FORMAT=JSON
+with recursive 
+prev_gen
+as
+(
+  select folks.*
+    from folks, prev_gen
+      where folks.id=prev_gen.father or folks.id=prev_gen.mother
+  union
+  select * 
+    from folks
+      where name='Me'
+),
+ancestors
+as
+(
+  select *
+    from folks
+      where name='Me2'
+  union 
+  select *
+    from ancestors where id < 234
+  union
+    select *
+     from prev_gen where id < 345
+)
+select ancestors.name, ancestors.dob from ancestors;
+
+--echo #
+explain format=json
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+  union 
+  select h.*, w.*
+    from folks v, folks h, folks w
+      where v.name = 'Me' and
+            (v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union all
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+
+create table my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+
+select * from my_ancestors;
+
+delete from my_ancestors;
+
+insert into my_ancestors 
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+
+select * from my_ancestors;
+
+drop table my_ancestors;
+
+#
+# MDEV-17967 Add a solution of the 8 queens problem to the regression test for CTE
+#
+# adapted to MariaDB from https://rosettacode.org/wiki/N-queens_problem#SQL
+#
+let $N=4; # 8 takes too long for a test
+eval WITH RECURSIVE
+  positions(i) AS (
+    VALUES(0)
+    UNION SELECT ALL
+    i+1 FROM positions WHERE i < $N*$N-1
+    ),
+  solutions(board, n_queens) AS (
+    SELECT REPEAT('-', $N*$N), 0
+      FROM positions
+    UNION
+    SELECT
+      concat(substr(board, 1, i),'*',substr(board, i+2)),n_queens + 1 AS n_queens
+      FROM positions AS ps, solutions
+    WHERE n_queens < $N
+      AND substr(board,1,i) != '*'
+      AND NOT EXISTS (
+        SELECT 1 FROM positions WHERE
+          substr(board,i+1,1) = '*' AND
+            (
+                i % $N = ps.i % $N OR
+                i div $N = ps.i div $N OR
+                i div $N + (i % $N) = ps.i div $N + (ps.i % $N) OR
+                i div $N - (i % $N) = ps.i div $N - (ps.i % $N)
+            )
+        )
+  )
+SELECT regexp_replace(board,concat('(',REPEAT('.', $N),')'),'\\\\1\\n') n_queens FROM solutions WHERE n_queens = $N;
+
+--echo #
+--echo # MDEV-10883: execution of prepared statement from SELECT
+--echo #             with recursive CTE that renames columns
+--echo #
+
+prepare stmt from"
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+
+--echo #
+--echo # MDEV-10881: execution of prepared statement from
+--echo #             CREATE ... SELECT, INSERT ... SELECT       
+--echo #
+
+prepare stmt from"
+create table my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+select * from my_ancestors;
+
+delete from my_ancestors;
+
+prepare stmt from"
+insert into my_ancestors
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id;
+";
+execute stmt;
+deallocate prepare stmt;
+select * from my_ancestors;
+
+drop table my_ancestors;
+
+--echo #
+--echo # MDEV-10933: WITH clause together with SELECT in parenthesis
+--echo #             CREATE SELECT      
+--echo #
+
+create table my_ancestors
+(
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from folks, ancestor_ids a  where folks.id = a.id
+  union
+  select mother from folks, ancestor_ids a  where folks.id = a.id
+)
+select p.* from folks as p, ancestor_ids as a where p.id = a.id
+);
+select * from my_ancestors;
+drop table my_ancestors;
+
+drop table folks;
+
+--echo #
+--echo # MDEV-10372: [bb-10.2-mdev9864 tree] EXPLAIN with recursive CTE enters endless recursion
+--echo #
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+ 
+explain format=json 
+with recursive t as (select a from t1 union select a+10 from t where a < 1000) 
+select  * from t;
+
+drop table t1;
+
+
+--echo #
+--echo # MDEV-10737: recursive union with several anchors at the end
+--echo #
+
+WITH RECURSIVE cte(n) AS
+  ( SELECT n+1 FROM cte WHERE n < 5 UNION SELECT 1 UNION SELECT 1 )
+SELECT * FROM cte;
+
+--echo #
+--echo # MDEV-10736: recursive definition with anchor over a table with blob
+--echo #
+
+CREATE TABLE t1 (f VARCHAR(1024));
+WITH RECURSIVE cte(f) AS
+  (SELECT t1.f FROM t1 UNION ALL SELECT cte.f FROM cte) 
+SELECT * FROM cte as t;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-10899: mergeable derived in the spec of recursive CTE
+--echo #
+
+create table t1 (a int);
+insert into t1 values
+  (0), (1), (2), (3), (4);
+create table t2 (a int);
+insert into t2 values
+  (1), (2), (3), (4), (5);
+
+with recursive
+t1 as
+(
+select x.a from (select a from t2 where t2.a=3) x
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+explain
+with recursive
+t1 as
+(
+select x.a from (select a from t2 where t2.a=3) x
+union
+select t2.a from t1,t2 where t1.a+1=t2.a
+)
+select * from t1;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-11278: non-mergeable view in the spec of recursive CTE
+--echo #
+
+create table t1 (a int);
+insert into t1 values
+  (0), (1), (2), (3), (4);
+create table t2 (a int);
+insert into t2 values
+  (1), (2), (3), (4), (5);
+
+create view v1 as
+  select a from t2 where a < 3
+  union
+  select a from t2 where a > 4; 
+
+with recursive
+t1 as
+(
+select a from v1 where a=1 
+union
+select v1.a from t1,v1 where t1.a+1=v1.a
+)
+select * from t1;
+
+drop view v1;
+drop table t1,t2;
+
+
+--echo #
+--echo # MDEV-11259: recursive CTE with concatenation operation
+--echo #
+
+DROP TABLE IF EXISTS edges;
+CREATE TABLE edges(
+  a int(10) unsigned NOT NULL,
+  b int(10) unsigned NOT NULL,
+  PRIMARY KEY (a,b),
+  KEY b(b)
+);
+
+INSERT INTO edges
+  VALUES (1,3),(2,1),(2,4),(3,4),(3,5),(3,6),(4,7),(5,1),(5,6),(6,1);
+
+DROP TABLE IF EXISTS edges2;
+CREATE VIEW edges2 (a, b) AS 
+ SELECT a, b FROM edges   UNION ALL   SELECT b, a FROM edges;
+
+--sorted_result
+WITH RECURSIVE transitive_closure(a, b, distance, path_string) AS
+( SELECT a, b, 1 AS distance,
+   concat(a, '.', b, '.') AS path_string
+  FROM edges
+ 
+  UNION ALL
+ 
+  SELECT tc.a, e.b, tc.distance + 1,
+  concat(tc.path_string, e.b, '.') AS path_string
+  FROM edges AS e
+    JOIN transitive_closure AS tc
+      ON e.a = tc.b
+  WHERE tc.path_string NOT LIKE concat('%', e.b, '.%')
+)
+SELECT * FROM transitive_closure
+ORDER BY a, b, distance;
+
+--sorted_result
+WITH RECURSIVE transitive_closure(a, b, distance, path_string) AS
+( SELECT a, b, 1 AS distance,
+         concat(a, '.', b, '.') AS path_string
+  FROM edges
+ WHERE a = 1 -- source
+ 
+  UNION ALL
+ 
+  SELECT tc.a, e.b, tc.distance + 1,
+         concat(tc.path_string, e.b, '.') AS path_string
+  FROM edges AS e
+  JOIN transitive_closure AS tc ON e.a = tc.b
+ WHERE tc.path_string NOT LIKE concat('%', e.b, '.%')
+)
+  SELECT * FROM transitive_closure
+   WHERE b = 6 -- destination
+ORDER BY a, b, distance;
+
+--sorted_result
+WITH RECURSIVE transitive_closure(a, b, distance, path_string) AS
+( SELECT  a, b, 1 AS distance,
+          concat(a, '.', b, '.') AS path_string
+  FROM edges2
+ 
+  UNION ALL
+ 
+  SELECT tc.a, e.b, tc.distance + 1,
+  concat(tc.path_string, e.b, '.') AS path_string
+  FROM edges2 AS e
+    JOIN transitive_closure AS tc ON e.a = tc.b
+  WHERE tc.path_string NOT LIKE concat('%', e.b, '.%')
+)
+SELECT * FROM transitive_closure
+ORDER BY a, b, distance;
+
+--sorted_result
+WITH RECURSIVE transitive_closure(a, b, distance, path_string)
+AS
+( SELECT a, b, 1 AS distance,
+         concat(a, '.', b, '.') AS path_string
+  FROM edges2
+ 
+  UNION ALL
+ 
+  SELECT tc.a, e.b, tc.distance + 1,
+         concat(tc.path_string, e.b, '.') AS path_string
+  FROM edges2 AS e
+  JOIN transitive_closure AS tc ON e.a = tc.b
+ WHERE tc.path_string NOT LIKE concat('%', e.b, '.%')
+)
+SELECT a, b, min(distance) AS dist FROM transitive_closure
+GROUP BY a, b
+ORDER BY a, dist, b;
+
+DROP VIEW edges2;
+DROP TABLE edges;
+
+
+--echo #
+--echo # MDEV-11674: recursive CTE table that cannot be stored
+--echo #             in a heap table
+--echo #
+
+create table t1 (id int, test_data varchar(36));
+
+insert into t1(id, test_data)
+select id, test_data
+    from (
+        with recursive data_generator(id, test_data) as (
+                select 1 as id, uuid() as test_data
+                union all
+                select id + 1, uuid() from data_generator where id < 150000
+            )
+        select * from data_generator
+    ) as a;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-10773: ANALYZE for query with recursive CTE
+--echo #
+
+--source include/analyze-format.inc
+analyze format=json 
+with recursive src(counter) as 
+(select 1 
+ union 
+ select counter+1 from src where counter<10
+) select * from src;
+
+--echo #
+--echo # mdev-12360: recursive reference in left operand of LEFT JOIN
+--echo #
+
+create table  folks(id int, name char(32), dob date, father int, mother int);
+
+insert into folks values
+(100, 'Me', '2000-01-01', 20, 30),
+(20, 'Dad', '1970-02-02', 10, 9),
+(30, 'Mom', '1975-03-03', 8, 7),
+(10, 'Grandpa Bill', '1940-04-05', null, null),
+(9, 'Grandma Ann', '1941-10-15', null, null),
+(25, 'Uncle Jim', '1968-11-18', 8, 7),
+(98, 'Sister Amy', '2001-06-20', 20, 30),
+(7, 'Grandma Sally', '1943-08-23', null, 6),
+(8, 'Grandpa Ben', '1940-10-21', null, null),
+(6, 'Grandgrandma Martha', '1923-05-17', null, null),
+(67, 'Cousin Eddie', '1992-02-28', 25, 27),
+(27, 'Auntie Melinda', '1971-03-29', null, null); 
+
+with recursive
+ancestor_ids (id)
+as
+(
+  select father from folks where name = 'Me'
+  union
+  select mother from folks where name = 'Me'
+  union
+  select father from ancestor_ids as a left join folks on folks.id = a.id
+  union
+  select mother from ancestor_ids as a left join folks on folks.id = a.id
+),
+ancestors 
+as
+(
+  select p.* from folks as p, ancestor_ids as a
+    where p.id = a.id
+)
+select * from ancestors;
+
+drop table folks;
+
+--echo #
+--echo # mdev-12368: crash with mutually recursive CTE
+--echo #             that arenot Standard compliant 
+--echo #
+
+create table value_nodes (v char(4));
+create table module_nodes(m char(4));
+create table module_arguments(m char(4), v char(4));
+create table module_results(m char(4), v char(4));
+
+--ERROR ER_NOT_STANDARD_COMPLIANT_RECURSIVE
+with recursive
+reached_values as 
+(
+  select v from value_nodes where v in ('v3','v7','v9')
+  union
+  select module_results.v from module_results, applied_modules
+     where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+  select module_nodes.m
+  from
+    module_nodes
+    left join
+    ( 
+      module_arguments
+      left join
+      reached_values
+      on module_arguments.v = reached_values.v
+     )
+     on reached_values.v is null and
+     module_nodes.m = module_arguments.m
+  where module_arguments.m is null
+)
+select * from reached_values;
+
+drop table value_nodes, module_nodes, module_arguments, module_results;
+
+--echo #
+--echo # mdev-12375: query using one of two mutually recursive CTEs
+--echo #             whose non-recursive part returns an empty set
+--echo #
+
+create table value_nodes (v char(4));
+insert into value_nodes values
+  ('v1'), ('v2'), ('v3'), ('v4'), ('v5'), ('v6'), ('v7'), ('v8'), ('v9'),
+  ('v10'), ('v11'), ('v12'), ('v13'), ('v14'), ('v15'), ('v16');
+create table module_nodes(m char(4));
+insert into module_nodes values
+  ('m1'), ('m2'), ('m3'), ('m4'), ('m5'), ('m6'), ('m7');
+create table module_arguments(m char(4), v char(4));
+insert into module_arguments values
+  ('m1','v3'), ('m1','v9'),
+  ('m2','v4'), ('m2','v3'), ('m2','v7'),
+  ('m3','v6'),
+  ('m4','v4'), ('m4','v1'),
+  ('m5','v10'), ('m5','v8'), ('m5','v3'),
+  ('m6','v8'), ('m6','v1'),
+  ('m7','v11'), ('m7','v12');
+create table module_results(m char(4), v char(4));
+insert into module_results values
+  ('m1','v4'),
+  ('m2','v1'), ('m2','v6'),
+  ('m3','v10'),
+  ('m4','v8'),
+  ('m5','v11'), ('m5','v9'),
+  ('m6','v12'), ('m6','v4'),
+  ('m7','v2');
+
+set statement max_recursive_iterations=2, standard_compliant_cte=0 for
+with recursive
+reached_values as 
+(
+  select v from value_nodes where v in ('v3','v7','v9')
+  union
+  select module_results.v from module_results, applied_modules
+     where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+  select * from module_nodes where 1=0
+  union
+  select module_nodes.m
+  from
+    module_nodes
+    left join
+    ( 
+      module_arguments
+      left join
+      reached_values
+      on module_arguments.v = reached_values.v
+     )
+     on reached_values.v is null and
+     module_nodes.m = module_arguments.m
+  where module_arguments.m is null
+)
+select * from applied_modules;
+
+drop table value_nodes, module_nodes, module_arguments, module_results;
+
+--echo #
+--echo # mdev-12519: recursive references in subqueries 
+--echo #             
+
+create table t1 (lp char(4) not null, rp char(4) not null);
+insert into t1 values
+   ('p1','p2'), ('p2','p3'), ('p3','p4'), ('p4','p5'),
+   ('p2','p7'), ('p7','p8'), ('p8','p3'), ('p8','p4');
+
+set standard_compliant_cte=0;
+
+with recursive
+reachables(p) as 
+( 
+   select lp from t1 where lp = 'p1'
+   union 
+   select t1.rp from reachables, t1 
+       where t1.lp = reachables.p
+)
+select * from reachables;
+
+with recursive 
+reachables(p) as
+(
+   select lp from t1 where lp = 'p1'
+   union 
+   select t1.rp from reachables, t1 
+      where 'p3' not in (select * from reachables) and
+                 t1.lp = reachables.p
+)
+select * from reachables;
+
+with recursive 
+reachables(p) as
+(
+   select lp from t1 where lp = 'p1'
+   union 
+   select t1.rp from reachables, t1 
+      where 'p3' not in (select p from reachables where p <= 'p5'
+                         union
+                         select p from reachables where p > 'p5') and
+                 t1.lp = reachables.p
+)
+select * from reachables;
+
+prepare stmt from "
+with recursive 
+reachables(p) as
+(
+   select lp from t1 where lp = 'p1'
+   union 
+   select t1.rp from reachables, t1 
+      where 'p3' not in (select p from reachables where p <= 'p5'
+                         union
+                         select p from reachables where p > 'p5') and
+                 t1.lp = reachables.p
+)
+select * from reachables;
+";
+
+execute stmt;
+execute stmt;
+
+deallocate prepare stmt;
+
+drop table t1;
+
+create table objects(v char(4) not null);
+insert into objects values
+  ('v1'), ('v2'), ('v3'), ('v4'), ('v5'),
+  ('v6'), ('v7'), ('v8'), ('v9'), ('v10');
+
+create table modules(m char(4) not null);
+insert into modules values
+  ('m1'), ('m2'), ('m3'), ('m4');
+
+create table module_arguments(m char(4) not null, v char(4) not null);
+insert into module_arguments values
+  ('m1','v3'), ('m1','v9'),
+  ('m2','v4'), ('m2','v7'),
+  ('m3','v6'), ('m4','v2');
+
+create table module_results(m char(4) not null, v char(4) not null);
+insert into module_results values
+  ('m1','v4'),
+  ('m2','v1'), ('m2','v6'),
+  ('m3','v10'), ('m4','v7');
+
+set standard_compliant_cte=0;
+
+with recursive
+reached_objects as 
+(
+  select v, 'init' as m from objects where v in ('v3','v7','v9')
+  union
+  select module_results.v, module_results.m from module_results, applied_modules
+     where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+  select * from modules where 1=0
+  union
+  select modules.m
+  from
+    modules
+    where
+      not exists (select * from module_arguments
+                    where module_arguments.m = modules.m and
+                          module_arguments.v not in 
+                          (select v from reached_objects))
+)
+select * from reached_objects;
+
+with recursive
+reached_objects as 
+(
+  select v, 'init' as m from objects where v in ('v3','v7','v9')
+  union
+  select module_results.v, module_results.m from module_results, applied_modules
+     where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+  select * from modules where 1=0
+  union
+  select modules.m
+  from
+    modules
+    where 
+      'v6' not in (select v from reached_objects) and
+      not exists (select * from module_arguments
+                    where module_arguments.m = modules.m and
+                          module_arguments.v not in 
+                          (select v from reached_objects))
+)
+select * from reached_objects;
+
+prepare stmt from "
+with recursive
+reached_objects as 
+(
+  select v, 'init' as m from objects where v in ('v3','v7','v9')
+  union
+  select module_results.v, module_results.m from module_results, applied_modules
+     where module_results.m = applied_modules.m
+),
+applied_modules as
+(
+  select * from modules where 1=0
+  union
+  select modules.m
+  from
+    modules
+    where 
+      'v6' not in (select v from reached_objects) and
+      not exists (select * from module_arguments
+                    where module_arguments.m = modules.m and
+                          module_arguments.v not in 
+                          (select v from reached_objects))
+)
+select * from reached_objects;
+";
+
+execute stmt;
+execute stmt;
+
+deallocate prepare stmt;
+
+drop table objects, modules, module_arguments, module_results;
+
+set standard_compliant_cte=default;
+select @@standard_compliant_cte;
+
+--echo #
+--echo # mdev-12554: impossible where in recursive select 
+--echo #             
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2);
+
+WITH RECURSIVE
+cte(f) AS ( SELECT i FROM t1 UNION SELECT f FROM t1, cte WHERE 1=0 )
+SELECT * FROM cte;
+
+DROP TABLE t1;
+
+--echo #
+--echo # mdev-12556: recursive execution uses Aria temporary tables 
+--echo #             
+
+CREATE TABLE t (c1 varchar(255), c2 tinytext);
+INSERT INTO t VALUES ('a','a'),('b','b'),('c','c'),('d','d');
+
+let $q1=
+WITH RECURSIVE cte(f) AS (
+  SELECT c1 FROM t
+  UNION
+  SELECT c1 FROM t, cte
+) SELECT COUNT(*) FROM cte;
+
+let $q2=
+WITH RECURSIVE cte(f) AS (
+  SELECT c2 FROM t
+  UNION
+  SELECT c2 FROM t, cte
+) SELECT COUNT(*) FROM cte;
+
+eval ANALYZE $q1;
+eval $q1;
+
+eval ANALYZE $q2;
+eval $q2;
+
+DROP TABLE t;
+
+--echo #
+--echo # mdev-12563: no recursive references on the top level of the CTE spec 
+--echo #  
+
+CREATE TABLE t (i int);
+INSERT INTO t VALUES (3), (1),(2);
+ 
+SET standard_compliant_cte=0;
+ 
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte )
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte WHERE i < 2 )
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte WHERE i > 2 )
+) SELECT * FROM cte;
+           
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t
+    WHERE i NOT IN ( SELECT * FROM cte WHERE i < 2
+                     UNION
+                     SELECT * FROM cte WHERE i > 2)
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t 
+    WHERE i NOT IN ( SELECT * FROM t
+                       WHERE i IN ( SELECT * FROM cte ) GROUP BY i )
+) SELECT * FROM cte;           
+
+WITH RECURSIVE cte(f) AS (
+  SELECT i FROM t
+  UNION
+  SELECT i FROM t WHERE i NOT IN ( SELECT * FROM cte )
+  UNION 
+  SELECT * FROM cte WHERE f > 2
+) SELECT * FROM cte;           
+
+set standard_compliant_cte=default;
+
+DROP TABLE t;
+
+--echo #
+--echo # mdev-14184: recursive CTE embedded into CTE with multiple references 
+--echo #
+
+WITH
+cte1 AS (
+  SELECT n FROM (
+    WITH RECURSIVE rec_cte(n) AS (
+      SELECT 1 as n1
+      UNION ALL
+      SELECT n+1 as n2 FROM rec_cte WHERE n < 3
+    ) SELECT n FROM rec_cte
+  ) AS X
+),
+cte2 as (
+ SELECT 2 FROM cte1
+)
+SELECT *
+FROM cte1;
+
+--echo #
+--echo # mdev-14629: a user-defined variable is defined by the recursive CTE
+--echo #
+
+set @var=
+(
+  with recursive cte_tab(a) as (
+    select 1
+    union
+    select a+1 from cte_tab
+    where a<3)
+  select count(*) from cte_tab
+);
+
+select @var;
+
+create table t1(a int, b int);
+insert into t1 values (3,8),(1,5),(5,7),(7,4),(4,3);
+
+set @var=
+(
+  with recursive summ(a,s) as (
+    select 1, 0 union
+    select t1.b, t1.b+summ.s from summ, t1
+    where summ.a=t1.a)
+  select s from summ
+    order by a desc
+    limit 1
+);
+
+select @var;
+
+--ERROR ER_UNACCEPTABLE_MUTUAL_RECURSION
+set @var=
+(
+  with recursive
+  cte_1 as (
+    select 1
+    union
+    select * from cte_2),
+  cte_2 as (
+    select * from cte_1
+    union
+    select a from t1, cte_2
+    where t1.a=cte_2.a)
+  select * from cte_2
+  limit 1
+);
+
+drop table t1;
+
+--echo #
+--echo # mdev-14777: crash caused by the same as in mdev-14755
+--echo #
+
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (i1 int NOT NULL, i2 int);
+CREATE TABLE t2 (d1 int NOT NULL PRIMARY KEY);
+CREATE TABLE t3 (i int );
+
+insert into t1 select seq,seq from seq_1_to_100000;
+insert into t2 select seq from  seq_1000_to_100000;
+insert into t3 select seq from seq_1_to_1000;
+
+SELECT *
+FROM
+(
+  SELECT *
+  FROM
+  (
+    WITH RECURSIVE rt AS
+    (
+      SELECT i2 P, i1 C FROM t1 WHERE i1 IN (SELECT d1 FROM t2)
+      UNION
+      SELECT t1.i2 P, rt.C C FROM t1, rt
+    )
+    SELECT C,P
+      FROM ( SELECT P,C FROM rt WHERE NOT EXISTS (SELECT 1 FROM t1) ) Y
+  ) X
+  WHERE 1 = 1
+) K, t3;
+
+drop table t1,t2,t3;
+
+--echo #
+--echo # mdev-14879: subquery with recursive reference in WHERE of CTE
+--echo #
+
+create table flights
+(departure varchar(32),
+ arrival varchar(32),
+ carrier varchar(20),
+ flight_number char(7));
+
+insert into flights values
+('Seattle', 'Frankfurt', 'Lufthansa', 'LH 491'),
+('Seattle', 'Chicago', 'American', 'AA 2573'),
+('Seattle', 'Los Angeles', 'Alaska Air', 'AS 410'),
+('Chicago', 'New York', 'American', 'AA 375'),
+('Chicago', 'Montreal', 'Air Canada', 'AC 3053'),
+('Los Angeles', 'New York', 'Delta', 'DL 1197'),
+('Moscow', 'Tokyo', 'Aeroflot', 'SU 264'),
+('New York', 'Paris', 'Air France', 'AF 23'),
+('Frankfurt', 'Moscow', 'Lufthansa', 'LH 1444'),
+('Tokyo', 'Seattle', 'ANA', 'NH 178'),
+('Los Angeles', 'Tokyo', 'ANA', 'NH 175'),
+('Moscow', 'Los Angeles', 'Aeroflot', 'SU 106'),
+('Montreal', 'Paris', 'Air Canada', 'AC 870'),
+('Cairo', 'Paris', 'Air France', 'AF 503'),
+('New York', 'Seattle', 'American', 'AA 45'),
+('Paris', 'Chicago', 'Air France', 'AF 6734');
+
+with recursive destinations (city) as
+( select a.arrival from flights a where a.departure='Cairo'
+  union
+  select b.arrival from destinations r, flights b where r.city=b.departure)
+select * from destinations;
+
+set standard_compliant_cte=0;
+
+let $q=
+with recursive destinations (city, legs) as
+(
+  select a.arrival, 1 from flights a where a.departure='Cairo'
+  union
+  select b.arrival, r.legs + 1 from destinations r, flights b
+  where r.city=b.departure and b.arrival not in (select city from destinations)
+)
+select * from destinations;
+
+eval $q;
+eval explain extended $q;
+
+set standard_compliant_cte=default;
+
+drop table flights;
+
+--echo #
+--echo # MDEV-15162: Setting user variable in recursive CTE
+--echo #
+
+SET @c=1;
+
+WITH RECURSIVE cte AS
+	(SELECT 5
+	UNION
+	SELECT @c:=@c+1 FROM cte WHERE @c<3)
+SELECT * FROM cte;
+
+--echo #
+--echo # MDEV-15575: using recursive cte with big_tables enabled
+--echo #
+
+set big_tables=1;
+
+with recursive qn as
+(select 123 as a union all select 1+a from qn where a<130)
+select * from qn;
+
+set big_tables=default;
+
+--echo #
+--echo # MDEV-15571: using recursive cte with big_tables enabled
+--echo #
+
+create table t1 (a bigint);
+insert into t1 values(1);
+
+set big_tables=1;
+
+--error ER_DATA_OUT_OF_RANGE
+with recursive qn as
+(
+  select  a from t1
+  union all
+  select a*2000 from qn where a<10000000000000000000
+)
+select * from qn;
+
+set big_tables=default;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-15556: using recursive cte with big_tables enabled
+--echo #             when recursive tables are accessed by key
+--echo #
+
+SET big_tables=1;
+
+CREATE TABLE t1 (id int, name char(10), leftpar int, rightpar int);
+INSERT INTO t1 VALUES
+  (1, "A", 2, 3), (2, "LA", 4, 5), (4, "LLA", 6, 7),
+  (6, "LLLA", NULL, NULL), (7, "RLLA", NULL, NULL), (5, "RLA", 8, 9),
+  (8, "LRLA", NULL, NULL), (9, "RRLA", NULL, NULL), (3, "RA", 10, 11),
+  (10, "LRA", 12, 13), (11, "RRA", 14, 15), (15, "RRRA", NULL, NULL),
+  (16, "B", 17, 18), (17, "LB", NULL, NULL), (18, "RB", NULL, NULL);
+
+CREATE TABLE t2 SELECT * FROM t1 ORDER BY rand();
+
+let $q=
+WITH RECURSIVE tree_of_a AS
+  (SELECT *, cast(id AS char(200)) AS path FROM t2 WHERE name="A"
+    UNION ALL
+  SELECT t2.*, concat(tree_of_a.path,",",t2.id)
+    FROM t2 JOIN tree_of_a ON t2.id=tree_of_a.leftpar
+  UNION ALL
+  SELECT t2.*, concat(tree_of_a.path,",",t2.id)
+    FROM t2 JOIN tree_of_a ON t2.id=tree_of_a.rightpar)
+SELECT * FROM tree_of_a
+ORDER BY path;
+
+eval $q;
+eval EXPLAIN $q;
+
+DROP TABLE t1,t2;
+
+SET big_tables=0;
+
+--echo #
+--echo # MDEV-15840: recursive tables are accessed by key
+--echo #             (the same problem as for MDEV-15556)
+--echo #
+
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (p1 text,k2 int, p2 text, k1 int);
+INSERT INTO t1 select seq, seq, seq, seq from seq_1_to_1000;
+
+DELIMITER |;
+CREATE PROCEDURE getNums()
+BEGIN
+WITH RECURSIVE cte as
+(
+  SELECT * FROM t1
+  UNION
+  SELECT c.* FROM t1 c JOIN cte p ON c.p1 = p.p2 AND c.k2 = p.k1
+)
+SELECT * FROM cte LIMIT 10;
+END |
+
+DELIMITER ;|
+call getNums();
+
+DROP PROCEDURE getNums;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15894: aggregate/winfow functions in non-recorsive part
+--echo #
+
+create table t1(b int);
+insert into t1 values(10),(20),(10);
+
+with recursive qn as
+  (select max(b) as a from t1 union
+   select a from qn)
+select * from qn;
+
+with recursive qn as
+  (select rank() over (order by b) as a from t1 union
+   select a from qn)
+select * from qn;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-16086: tmp table for CTE is created as ARIA tables
+--echo #
+
+CREATE TABLE t1 (
+  Id int(11) not null AUTO_INCREMENT,
+  Parent varchar(15) not null,
+  Child varchar(15) not null,
+  PRIMARY KEY (Id)
+) ENGINE = MyISAM;
+
+INSERT INTO t1 (Parent, Child) VALUES
+  ('123', '456'),('456', '789'),('321', '654'),('654', '987');
+
+WITH RECURSIVE cte AS
+  ( SELECT b.Parent,
+           b.Child,
+           CAST(CONCAT(b.Child,',') AS CHAR(513)) Path
+   FROM t1 b
+   LEFT OUTER JOIN t1 bc ON b.Child = bc.Parent
+   WHERE bc.Id IS NULL
+   UNION ALL SELECT c.Parent,
+                    c.Child,
+                    CONCAT(p.Path,c.Child,',') Path
+   FROM t1 c
+   INNER JOIN cte p ON c.Child = p.Parent)
+SELECT *
+FROM cte
+ORDER BY Path;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16212: recursive CTE with global ORDER BY
+--echo #
+
+--error ER_NOT_SUPPORTED_YET
+set statement max_recursive_iterations = 2 for
+WITH RECURSIVE qn AS (
+SELECT 1 FROM dual UNION ALL
+SELECT 1 FROM qn
+ORDER BY (SELECT * FROM qn))
+SELECT count(*) FROM qn;
+
+--echo #
+--echo # MDEV-15581: mix of ALL and DISTINCT UNION in recursive CTE
+--echo #
+
+create table t1(a int);
+insert into t1 values(1),(2);
+insert into t1 values(1),(2);
+
+set @c=0, @d=0;
+--error ER_NOT_SUPPORTED_YET
+WITH RECURSIVE qn AS
+(
+select 1,0 as col from t1
+union distinct
+select 1,0 from t1
+union all
+select 3, 0*(@c:=@c+1) from qn where @c<1
+union all
+select 3, 0*(@d:=@d+1) from qn where @d<1
+)
+select * from qn;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-16629: function with recursive CTE using a base table
+--echo #
+
+CREATE TABLE t1 (id int);
+INSERT INTO t1 VALUES (0), (1),(2);
+
+WITH recursive cte AS
+(SELECT id FROM t1 UNION SELECT 3 FROM cte)
+SELECT count(id) FROM cte;
+
+CREATE OR REPLACE FUNCTION func() RETURNS int
+RETURN
+(
+  WITH recursive cte AS
+  (SELECT id FROM t1 UNION SELECT 3 FROM cte)
+  SELECT count(id) FROM cte
+);
+
+SELECT func();
+
+DROP FUNCTION func;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16661: function with recursive CTE using no base tables
+--echo #             (fixed by the patch for MDEV-16629)
+--echo #
+
+CREATE OR REPLACE FUNCTION func() RETURNS int
+RETURN
+(
+  WITH RECURSIVE cte AS
+  (SELECT 1 as id UNION SELECT * FROM cte)
+  SELECT count(id) FROM cte
+);
+
+SELECT func();
+
+DROP FUNCTION func;
+
+--echo #
+--echo # MDEV-17024: two materialized CTEs using the same recursive CTE
+--echo #
+
+create table t1 (id int);
+insert into t1 values (1), (2), (3);
+
+let $q=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2;
+
+eval $q;
+eval explain extended $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+
+create table t2 (c1 int, c2 int);
+eval create procedure p() insert into t2 $q;
+call p();
+select * from t2;
+
+let $q1=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1;
+
+eval $q1;
+
+let $q2=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from t1),
+cte2 as
+(select count(*) as c2 from t2)
+select * from cte1,cte2;
+
+eval $q2;
+
+let $q3=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2 where cte1.c1 = 3;
+
+eval $q3;
+
+let $q4=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte2, cte1;
+
+eval $q4;
+eval explain extended $q4;
+eval prepare stmt from "$q4";
+execute stmt;
+execute stmt;
+
+drop procedure p;
+drop table t2;
+
+create table t2 (c1 int, c2 int);
+eval create procedure p() insert into t2 $q4;
+call p();
+select * from t2;
+
+drop procedure p;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-17201: recursive part with LIMIT
+--echo #
+
+CREATE TABLE purchases (
+  id int unsigned NOT NULL AUTO_INCREMENT,
+  pdate date NOT NULL,
+  quantity int unsigned NOT NULL,
+  p_id int unsigned NOT NULL,
+  PRIMARY KEY (id)
+);
+INSERT INTO purchases(pdate, quantity, p_id) VALUES
+  ('2014-11-01',5 ,1),('2014-11-03', 3 ,1),
+  ('2014-11-01',2 ,2),('2014-11-03', 4 ,2);
+
+CREATE TABLE expired (
+  edate date NOT NULL,
+  quantity int unsigned NOT NULL,
+  p_id int unsigned NOT NULL,
+  PRIMARY KEY (edate,p_id)
+);
+
+INSERT INTO expired VALUES ('2014-11-12', 5 ,1),('2014-11-08', 1 ,2);
+
+WITH RECURSIVE expired_map AS (
+   SELECT edate AS expired_date,
+          CAST(NULL AS date) AS purchase_date,
+          0 AS quantity,
+          e.p_id,
+          (SELECT MAX(id)+1 FROM purchases p
+             WHERE pdate <= edate AND p.p_id =p_id) AS purchase_processed,
+          quantity AS unresolved
+   FROM expired e
+   UNION
+   ( SELECT expired_date,
+            pdate,
+            IF(p.quantity < m.unresolved, p.quantity, m.unresolved),
+            p.p_id,
+            p.id,
+            IF(p.quantity < m.unresolved, m.unresolved - p.quantity, 0)
+     FROM purchases p JOIN expired_map m ON p.p_id = m.p_id
+     WHERE p.id < m.purchase_processed AND m.unresolved > 0
+     ORDER BY p.id DESC
+     LIMIT 1
+   )
+)
+SELECT  * FROM expired_map;
+
+DROP TABLE purchases, expired;
+
+--echo #
+--echo # MDEV-17635: Two recursive CTEs, the second using the first
+--echo #
+
+WITH RECURSIVE
+x AS (SELECT 0 as k UNION ALL SELECT k + 1 FROM x WHERE k < 1),
+z AS
+  ( SELECT  k1 AS cx, k2 AS cy, k1, k2
+      FROM (SELECT k  AS k1 FROM x) x1 JOIN (SELECT k  AS k2 FROM x) y1
+    UNION
+    SELECT 1,1,1,1 FROM z)
+SELECT * FROM z;
+
+--echo # https://wiki.postgresql.org/wiki/Mandelbrot_set:
+
+WITH RECURSIVE x(i) AS (
+    SELECT CAST(0 AS DECIMAL(13, 10))
+     UNION ALL
+    SELECT i + 1
+      FROM x
+     WHERE i < 101
+),
+Z(Ix, Iy, Cx, Cy, X, Y, I) AS (
+    SELECT Ix, Iy, X, Y, X, Y, 0
+      FROM (SELECT CAST(-2.2 + 0.031 * i AS DECIMAL(13, 10)) AS X,
+                  i AS Ix FROM x) AS xgen
+           CROSS JOIN (
+               SELECT CAST(-1.5 + 0.031 * i AS DECIMAL(13, 10)) AS Y,
+                      i AS iY FROM x
+           ) AS ygen
+    UNION ALL
+    SELECT Ix, Iy, Cx, Cy,
+           CAST(X * X - Y * Y + Cx AS DECIMAL(13, 10)) AS X,
+           CAST(Y * X * 2 + Cy AS DECIMAL(13, 10)), I + 1
+      FROM Z
+     WHERE X * X + Y * Y < 16.0
+           AND I < 27
+),
+Zt (Ix, Iy, I) AS (
+    SELECT Ix, Iy, MAX(I) AS I
+      FROM Z
+     GROUP BY Iy, Ix
+     ORDER BY Iy, Ix
+)
+SELECT GROUP_CONCAT(
+           SUBSTRING(
+               ' .,,,-----++++%%%%@@@@#### ',
+               GREATEST(I, 1),
+               1
+           ) ORDER BY Ix SEPARATOR ''
+       ) AS 'Mandelbrot Set'
+  FROM Zt
+GROUP BY Iy
+ORDER BY Iy;
+
+--echo #
+--echo # MDEV-17871: EXPLAIN for query with not used recursive cte
+--echo #
+
+create table t1 (a int);
+insert into t1 values (2), (1), (4), (3);
+
+let $rec_cte =
+with recursive cte as
+  (select * from t1 where a=1 union select a+1 from cte where a<3);
+
+eval
+explain extended
+$rec_cte
+select * from cte as t;
+
+eval
+$rec_cte
+select * from cte as t;
+
+eval
+explain extended
+$rec_cte
+select * from t1 as t;
+
+eval
+$rec_cte
+select * from t1 as t;
+
+create table t2 ( i1 int, i2 int);
+insert into t2 values (1,1),(2,2);
+
+explain
+with recursive cte as
+ ( select * from t1 union select s1.* from t1 as s1, cte where s1.i1 = cte.i2 )
+select * from t1 as t;
+
+drop table t1,t2;
+
+
+--echo #
+--echo # MDEV-22042: ANALYZE of query using stored function and recursive CTE
+--echo #
+
+create table t1 (a1 varchar(20),a2 varchar(20)) engine=myisam;
+insert into t1 values (1,1),(2,2),(3,3);
+
+create table t2 (
+a2 varchar(20) primary key, b1 varchar(20), key (b1)
+) engine=myisam;
+insert into t2 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7);
+insert into t2 values (11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17);
+
+delimiter $$;
+create  function f1(id varchar(20)) returns varchar(50)
+begin
+  declare res  varchar (50);
+  select a2 into res from t2 where a2=id and b1=1 limit 1;
+  return res;
+end$$
+delimiter ;$$
+
+let q=
+select fv
+from (select t1.a1, f1(t1.a2) fv from t1) dt
+where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
+   union select tt2.a2 from t2 tt2 join cte on tt2.b1=cte.a2)
+select a2 from cte);
+
+eval $q;
+eval explain $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+
+drop function f1;
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-22748: two materialized CTEs using the same recursive CTE
+--echo # (see also test case for MDEV-17024)
+--echo #
+
+CREATE TABLE t1 (YEAR int(4), d1 date , d2 date) ;
+INSERT INTO t1 VALUES (2018,'2018-01-01','2018-09-20');
+CREATE TABLE t2 (id int, tm date);
+INSERT INTO t2 VALUES (1,'2018-08-30'),(2,'2018-08-30'),(3,'2018-08-30');
+CREATE TABLE t3 (id int, tm date);
+INSERT INTO t3 VALUES (1,'2018-08-30'),(2,'2018-08-30');
+
+let $q=
+WITH RECURSIVE
+cte AS
+  (SELECT  YEAR(t1.d1) AS YEAR, t1.d1 AS st, t1.d1 + INTERVAL 1 MONTH AS fn
+     FROM t1
+   UNION ALL
+   SELECT YEAR(cte.st + INTERVAL 1 MONTH),
+          cte.st + INTERVAL 1 MONTH,  t1.d2 + INTERVAL 1 DAY
+     FROM cte JOIN t1
+   WHERE cte.st + INTERVAL 1 MONTH < t1.d2 ),
+cte2 AS (SELECT YEAR, COUNT(*)
+        FROM cte JOIN t2 ON t2.tm BETWEEN cte.st AND cte.fn),
+cte3 AS (SELECT YEAR, COUNT(*)
+        FROM cte JOIN t3 ON t3.tm BETWEEN cte.st AND cte.fn)
+SELECT t1.* FROM t1 JOIN cte2 USING (YEAR) JOIN cte3 USING (YEAR);
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+eval PREPARE stmt FROM "$q";
+EXECUTE stmt;
+EXECUTE stmt;
+
+CREATE TABLE t4 (YEAR int(4), d1 date , d2 date);
+eval CREATE PROCEDURE p() INSERT INTO t4 $q;
+CALL p();
+SELECT * FROM t4;
+
+DROP PROCEDURE p;
+DROP TABLE t1,t2,t3,t4;
+
+--echo #
+--echo # MDEV-23619: recursive CTE used only in the second operand of UNION
+--echo #
+
+create table t1 (
+  a bigint(10) not null auto_increment,
+  b int(5) not null,
+  c bigint(10) default null,
+  primary key (a)
+) engine myisam;
+insert into t1 values
+  (1,3,12), (2,7,15), (3,1,3), (4,3,1);
+
+let $q=
+with recursive r_cte as
+( select * from t1 as s
+  union
+  select t1.* from t1, r_cte as r where t1.c = r.a )
+select 0 as b FROM dual union all select b FROM r_cte as t;
+
+eval explain $q;
+eval $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo #checking hanging cte that uses a recursive cte
+let $q1=
+with h_cte as
+( with recursive r_cte as
+  ( select * from t1 as s
+    union
+    select t1.* from t1, r_cte as r where t1.c = r.a )
+  select 0 as b FROM dual union all select b FROM r_cte as t)
+select * from t1 as tt;
+
+eval explain $q1;
+eval $q1;
+--source include/analyze-format.inc
+eval analyze format=json $q1;
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-24019: query with recursive CTE when no default database is set
+--echo #
+
+drop database test;
+
+let $q=
+with recursive a as
+   (select 1 from dual union select * from a as r)
+select * from a;
+
+eval $q;
+
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3), (7), (1);
+
+let $q=
+with recursive cte as
+  (select * from db1.t1 union select * from (select * from cte) as t)
+select * from cte;
+
+eval $q;
+eval explain $q;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop database db1;
+
+create database test;
+use test;
+
+--echo #
+--echo # MDEV-23406: query with mutually recursive CTEs when big_tables=1
+--echo #
+
+set @save_big_tables=@@big_tables;
+set big_tables=1;
+
+create table  folks(id int, name char(32), dob date, father int, mother int);
+
+insert into folks values
+(100, 'Me', '2000-01-01', 20, 30),
+(20, 'Dad', '1970-02-02', 10, 9),
+(30, 'Mom', '1975-03-03', 8, 7),
+(10, 'Grandpa Bill', '1940-04-05', null, null),
+(9, 'Grandma Ann', '1941-10-15', null, null),
+(25, 'Uncle Jim', '1968-11-18', 8, 7),
+(98, 'Sister Amy', '2001-06-20', 20, 30),
+(7, 'Grandma Sally', '1943-08-23', null, 6),
+(8, 'Grandpa Ben', '1940-10-21', null, null),
+(6, 'Grandgrandma Martha', '1923-05-17', null, null),
+(67, 'Cousin Eddie', '1992-02-28', 25, 27),
+(27, 'Auntie Melinda', '1971-03-29', null, null);
+
+let q=
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+  union
+  select h.*, w.*
+    from folks v, folks h, folks w
+      where v.name = 'Me' and
+            (v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+eval $q;
+eval explain $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q=
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+                 w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+  select h.*, w.*
+    from folks h, folks w,  coupled_ancestors a
+      where a.father = h.id AND a.mother = w.id
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+  select *
+    from folks
+      where name = 'Me'
+  union all
+  select h_id, h_name, h_dob, h_father, h_mother
+    from ancestor_couples
+  union all
+  select w_id, w_name, w_dob, w_father, w_mother
+    from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+  from ancestor_couples;
+
+eval $q;
+eval explain $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table folks;
+
+set big_tables=@save_big_tables;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field
+--echo #
+
+CREATE TEMPORARY TABLE a_tbl (
+  a VARCHAR(33) PRIMARY KEY,
+  b VARCHAR(33)
+);
+
+INSERT INTO a_tbl VALUES ('block0', 'block0'), ('block1', NULL);
+
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+WITH RECURSIVE Q0 AS (
+  SELECT T0.a, T0.b, 5
+  FROM a_tbl T0
+  WHERE b IS NULL
+  UNION ALL
+  SELECT T1.a, T1.b
+  FROM Q0
+  JOIN a_tbl T1
+  ON T1.a=Q0.a
+) SELECT distinct(Q0.a), Q0.b
+  FROM Q0;
+DROP TABLE a_tbl;
+
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+WITH RECURSIVE x AS (SELECT 1,2 UNION ALL SELECT 1 FROM x) SELECT * FROM x;
+
+--echo #
+--echo # MDEV-15162: Setting user variable in recursive CTE
+--echo #
+
+SET @c=1;
+
+WITH RECURSIVE cte AS
+	(SELECT 5
+	UNION
+	SELECT @c:=@c+1 FROM cte WHERE @c<3)
+SELECT * FROM cte;
+
+--echo #
+--echo # MDEV-14883: recursive references in operands of INTERSECT / EXCEPT
+--echo #
+
+create table flights
+(departure varchar(32),
+ arrival varchar(32),
+ carrier varchar(20),
+ flight_number char(7));
+
+insert into flights values
+('Seattle', 'Frankfurt', 'Lufthansa', 'LH 491'),
+('Seattle', 'Amsterdam', 'KLM', 'KL 6032'),
+('Seattle', 'Chicago', 'American', 'AA 2573'),
+('Seattle', 'Los Angeles', 'Alaska Air', 'AS 410'),
+('Chicago', 'New York', 'American', 'AA 375'),
+('Chicago', 'Montreal', 'Air Canada', 'AC 3053'),
+('Los Angeles', 'New York', 'Delta', 'DL 1197'),
+('New York', 'London', 'British Airways', 'BA 1511'),
+('London', 'Moscow', 'British Airways', 'BA 233'),
+('Moscow', 'Tokyo', 'Aeroflot', 'SU 264'),
+('Moscow', 'Dubai', 'Emirates', 'EK 2421'),
+('Dubai', 'Tokyo', 'Emirates', 'EK 318'),
+('Dubai', 'Bangkok', 'Emirates', 'EK 2142'),
+('Beijing', 'Bangkok', 'Air China', 'CA 757'),
+('Beijing', 'Tokyo', 'Air China', 'CA 6653'),
+('Moscow', 'Bangkok', 'Aeroflot', 'SU 270'),
+('New York', 'Reykjavik', 'Icelandair', 'FL 416'),
+('New York', 'Paris', 'Air France', 'AF 23'),
+('Amsterdam', 'Moscow', 'KLM', 'KL 903'),
+('Frankfurt', 'Dubai', 'Lufthansa', 'LH 630'),
+('Frankfurt', 'Moscow', 'Lufthansa', 'LH 1444'),
+('Reykjavik', 'London', 'British Airways', 'BA 2229'),
+('Frankfurt', 'Beijing', 'Air China', 'CA 966'),
+('Tokyo', 'Seattle', 'ANA', 'NH 178'),
+('Los Angeles', 'Tokyo', 'ANA', 'NH 175'),
+('Moscow', 'Los Angeles', 'Aeroflot', 'SU 106'),
+('Montreal', 'Paris', 'Air Canada', 'AC 870'),
+('London', 'Delhi', 'British Airways', 'BA 143'),
+('Delhi', 'Bangkok', 'Air India', 'AI 306'),
+('Delhi', 'Dubai', 'Air India', 'AI 995'),
+('Dubai', 'Cairo', 'Emirates', 'EK 927'),
+('Cairo', 'Paris', 'Air France', 'AF 503'),
+('Amsterdam', 'New York', 'Delta', 'DL 47'),
+('New York', 'Seattle', 'American', 'AA 45'),
+('Paris', 'Chicago', 'Air France', 'AF 6734');
+
+create table distances
+(city1 varchar(32),
+ city2 varchar(32),
+ dist int);
+
+insert into distances values
+('Seattle', 'Frankfurt', 5080),
+('Seattle', 'Amsterdam', 4859),
+('Seattle', 'Chicago', 1733),
+('Seattle', 'Los Angeles', 960),
+('Chicago', 'New York', 712),
+('Chicago', 'Montreal', 746),
+('Los Angeles', 'New York', 2446),
+('New York', 'London', 3459),
+('London', 'Moscow', 1554),
+('Moscow', 'Tokyo', 4647),
+('Moscow', 'Dubai', 2298),
+('Dubai', 'Tokyo', 4929),
+('Dubai', 'Bangkok', 3050),
+('Beijing', 'Bangkok', 2046),
+('Beijing', 'Tokyo', 1301),
+('Moscow', 'Bangkok', 4390),
+('New York', 'Reykjavik', 2613),
+('New York', 'Paris', 3625),
+('Amsterdam', 'Moscow', 1334),
+('Frankfurt', 'Dubai', 3003),
+('Frankfurt', 'Moscow', 1256),
+('Reykjavik', 'London', 1173),
+('Frankfurt', 'Beijing', 4836),
+('Tokyo', 'Seattle', 4783),
+('Los Angeles', 'Tokyo', 5479),
+('Moscow', 'Los Angeles', 6071),
+('Moscow', 'Reykjavik', 2052),
+('Montreal', 'Paris', 3425),
+('London', 'Delhi', 4159),
+('London', 'Paris', 214),
+('Delhi', 'Bangkok', 1810),
+('Delhi', 'Dubai', 1369),
+('Delhi', 'Beijing', 2350),
+('Dubai', 'Cairo', 1501),
+('Cairo', 'Paris', 1992),
+('Amsterdam', 'New York', 3643),
+('New York', 'Seattle', 2402),
+('Paris', 'Chicago', 4136),
+('Paris', 'Los Angeles', 5647);
+
+with recursive destinations (city) as
+(
+  select a.arrival from flights a where a.departure = 'Seattle'
+  union
+  select b.arrival from destinations r, flights b where r.city = b.departure
+)
+select * from destinations;
+
+with recursive destinations (city) as
+(
+  select a.arrival from flights a, distances d
+    where a.departure = 'Seattle' and
+          a.departure = d.city1 and a.arrival = d.city2 and
+          d.dist < 4000
+  union
+  select b.arrival from destinations r, flights b, distances d
+    where r.city = b.departure and
+          b.departure = d.city1 and b.arrival = d.city2 and
+          d.dist < 4000
+)
+select * from destinations;
+
+set standard_compliant_cte=0;
+
+with recursive legs_to_destinations
+  (departure, arrival, dist, leg_no, acc_mileage) as
+(
+  select a.departure, a.arrival, d.dist, 1, d.dist
+    from flights a, distances d
+    where a.departure = 'Seattle' and
+          a.departure = d.city1 and a.arrival = d.city2 and
+          d.dist < 4000
+  union all
+  select b.departure, b.arrival, d.dist, r.leg_no + 1, r.acc_mileage + d.dist
+    from legs_to_destinations r, flights b, distances d
+    where r.arrival = b.departure and
+          b.departure = d.city1 and b.arrival = d.city2 and
+          d.dist < 4000 and
+          b.arrival not in (select arrival from legs_to_destinations)
+)
+select * from legs_to_destinations;
+
+set standard_compliant_cte=default;
+
+with recursive destinations (city) as
+(
+  select a.arrival from flights a, distances d
+    where a.departure = 'Seattle' and
+          a.departure = d.city1 and a.arrival = d.city2 and
+          d.dist < 4000
+  union
+  select b.arrival from destinations r, flights b
+    where r.city = b.departure
+  intersect
+  select city2 from destinations s, distances d
+    where s.city = d.city1 and d.dist < 4000
+)
+select * from destinations;
+
+with recursive destinations (city) as
+(
+  select a.arrival from flights a where a.departure = 'Seattle'
+  union
+  select * from
+  (
+    select b.arrival from destinations r, flights b
+      where r.city = b.departure
+    except
+    select arrival from flights
+      where arrival in
+            ('New York', 'London', 'Moscow', 'Dubai', 'Cairo', 'Tokyo')
+  ) t
+)
+select * from destinations;
+
+drop table flights, distances;
+
+--echo #
+--echo # MDEV-15159: Forced nullability of columns in recursive CTE
+--echo #
+
+WITH RECURSIVE cte AS (
+	SELECT 1 AS a UNION ALL
+	SELECT NULL FROM cte WHERE a IS NOT NULL)
+SELECT * FROM cte;
+
+CREATE TABLE t1 (a int NOT NULL);
+INSERT INTO t1 VALUES (0);
+
+WITH RECURSIVE cte AS
+  (SELECT a FROM t1 where a=0 UNION SELECT NULL FROM cte)
+SELECT * FROM cte;
+
+DROP TABLE t1;
+
+--echo # End of 10.3 tests

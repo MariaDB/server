@@ -1,0 +1,105 @@
+include/master-slave.inc
+[connection master]
+include/rpl_reset.inc
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+connection slave;
+include/stop_slave.inc
+==== Create some events on master ====
+connection master;
+create table t1(n int not null auto_increment primary key);
+insert into t1 values (1),(2),(3),(4);
+drop table t1;
+create table t2(n int not null auto_increment primary key);
+insert into t2 values (1),(2);
+insert into t2 values (3),(4);
+drop table t2;
+==== Replicate one event at a time on slave ====
+connection slave;
+start slave until master_log_file='MASTER_LOG_FILE', master_log_pos=MASTER_LOG_POS;
+include/wait_for_slave_io_to_start.inc
+include/wait_for_slave_sql_to_stop.inc
+select * from t1;
+n
+1
+2
+3
+4
+include/check_slave_param.inc [Exec_Master_Log_Pos]
+start slave until master_log_file='master-no-such-bin.000001', master_log_pos=291;
+include/wait_for_slave_io_to_start.inc
+include/wait_for_slave_sql_to_stop.inc
+select * from t1;
+n
+1
+2
+3
+4
+include/check_slave_param.inc [Exec_Master_Log_Pos]
+start slave until relay_log_file='slave-relay-bin.000003', relay_log_pos=RELAY_LOG_POS;
+include/wait_for_slave_io_to_start.inc
+include/wait_for_slave_sql_to_stop.inc
+select * from t2;
+n
+1
+2
+include/check_slave_param.inc [Exec_Master_Log_Pos]
+start slave;
+connection master;
+connection slave;
+include/stop_slave.inc
+start slave until master_log_file='MASTER_LOG_FILE', master_log_pos=MASTER_LOG_POS;
+include/wait_for_slave_io_to_start.inc
+include/wait_for_slave_sql_to_stop.inc
+include/check_slave_param.inc [Exec_Master_Log_Pos]
+==== Test various error conditions ====
+start slave until master_log_file='master-bin', master_log_pos=561;
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+start slave until master_log_file='master-bin.000001', master_log_pos=561, relay_log_pos=12;
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+start slave until master_log_file='master-bin.000001';
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+start slave until relay_log_file='slave-relay-bin.000002';
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+start slave until relay_log_file='slave-relay-bin.000002', master_log_pos=561;
+ERROR HY000: Incorrect parameter or combination of parameters for START SLAVE UNTIL
+start slave sql_thread;
+start slave until master_log_file='master-bin.000001', master_log_pos=776;
+Warnings:
+Note	1254	Slave is already running
+connection slave;
+include/stop_slave.inc
+drop table if exists t1;
+reset slave;
+change master to master_host='127.0.0.1',master_port=MASTER_PORT, master_user='root';
+connection master;
+drop table if exists t1;
+reset master;
+create table t1 (a int primary key auto_increment);
+connection slave;
+start slave;
+include/stop_slave.inc
+master and slave are in sync now
+select 0 as zero;
+zero
+0
+connection master;
+insert into t1 set a=null;
+insert into t1 set a=null;
+select count(*) as two from t1;
+two
+2
+connection slave;
+start slave until master_log_file='MASTER_LOG_FILE', master_log_pos= UNTIL_POS;;
+include/wait_for_slave_sql_to_stop.inc
+slave stopped at the prescribed position
+select 0 as zero;
+zero
+0
+select count(*) as one from t1;
+one
+1
+connection master;
+drop table t1;
+connection slave;
+start slave;
+include/rpl_end.inc

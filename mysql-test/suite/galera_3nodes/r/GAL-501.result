@@ -1,0 +1,20 @@
+connection node_2;
+connection node_1;
+connection node_3;
+SELECT VARIABLE_VALUE LIKE '%[::1]%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_incoming_addresses';
+VARIABLE_VALUE LIKE '%[::1]%'
+1
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 3
+1
+connection node_2;
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
+1
+DROP TABLE t1;

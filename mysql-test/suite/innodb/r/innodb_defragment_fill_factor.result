@@ -1,0 +1,118 @@
+Testing tables with large records
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), c VARCHAR(256), KEY SECOND(a, b,c)) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1, REPEAT('A', 256), REPEAT('B', 256));
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+SET GLOBAL innodb_fast_shutdown = 0;
+# restart
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+select count(*) from t1;
+count(*)
+927
+select count(*) from t1 force index (second);
+count(*)
+927
+# A few more insertions on the page should not cause a page split.
+insert into t1 values (81, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (83, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (87, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (82, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (86, REPEAT('A', 256), REPEAT('B', 256));
+# Insert more rows to cause a page split
+insert into t1 values (180, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (181, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (182, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (183, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (184, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (185, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (186, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (187, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (188, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (189, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (190, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (191, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (192, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (193, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (194, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (195, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (196, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (197, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (198, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (199, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (200, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (201, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (202, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (203, REPEAT('A', 256), REPEAT('B', 256));
+insert into t1 values (204, REPEAT('A', 256), REPEAT('B', 256));
+DROP TABLE t1;
+Testing table with small records
+CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(16), c VARCHAR(32), KEY SECOND(a,b,c)) ENGINE=INNODB;
+SET GLOBAL innodb_fast_shutdown = 0;
+# restart
+optimize table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	optimize	status	OK
+select count(*) from t2;
+count(*)
+3701
+select count(*) from t2 force index(second);
+count(*)
+3701
+The page should have room for about 20 insertions
+insert into t2 values(1181, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1191, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1182, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1192, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1183, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1193, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1184, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1194, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1185, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1195, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1186, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1196, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1187, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1197, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1188, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1198, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1189, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1199, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1190, REPEAT('A', 16), REPEAT('B',32));
+insert into t2 values(1180, REPEAT('A', 16), REPEAT('B',32));
+# Insert more rows to cause a page split
+insert into t2 values (180, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (181, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (182, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (183, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (184, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (185, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (186, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (187, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (188, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (189, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (190, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (191, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (192, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (193, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (194, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (195, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (196, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (197, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (198, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (199, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (200, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (201, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (202, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (203, REPEAT('A', 16), REPEAT('B', 32));
+insert into t2 values (204, REPEAT('A', 16), REPEAT('B', 32));
+DROP TABLE t2;

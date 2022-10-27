@@ -1,0 +1,485 @@
+Codership Oy
+http://www.codership.com
+<info@codership.com>
+
+DISCLAIMER
+
+THIS SOFTWARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER
+EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+IN NO EVENT SHALL CODERSHIP OY BE HELD LIABLE TO ANY PARTY FOR ANY DAMAGES
+RESULTING DIRECTLY OR INDIRECTLY FROM THE USE OF THIS SOFTWARE.
+
+Trademark Information.
+
+MySQL is a trademark or registered trademark of Oracle and/or its affiliates.
+Other trademarks are the property of their respective owners.
+
+Licensing Information.
+
+Please see file COPYING that came with this distribution
+
+Source code can be found at
+wsrep API:    https://launchpad.net/wsrep
+MySQL patch:  https://launchpad.net/codership-mysql
+
+
+ABOUT THIS DOCUMENT
+
+This document covers installation and configuration issues specific to this
+wsrep-patched MySQL distribution by Codership. It does not cover the use or
+administration of MySQL server per se. The reader is assumed to know how to
+install, configure, administer and use standard MySQL server version 5.1.xx.
+
+
+                        MYSQL-5.5.x/wsrep-23.x
+
+CONTENTS:
+=========
+1. WHAT IS WSREP PATCH FOR MYSQL
+2. INSTALLATION
+3. FIRST TIME SETUP
+   3.1 CONFIGURATION FILES
+   3.2 DATABASE PRIVILEGES
+   3.3 CHECK AND CORRECT FIREWALL SETTINGS
+   3.4 SELINUX
+   3.5 APPARMOR
+   3.6 CONNECT TO CLUSTER
+4. UPGRADING FROM MySQL 5.1.x
+5. CONFIGURATION OPTIONS
+   5.1 MANDATORY MYSQL OPTIONS
+   5.2 WSREP OPTIONS
+6. ONLINE SCHEMA UPGRADE
+   6.1 TOTAL ORDER ISOLATION (TOI)
+   6.2 ROLLING SCHEMA UPGRADE (RSU)
+7. LIMITATIONS
+
+
+1. WHAT IS WSREP PATCH FOR MYSQL/INNODB
+
+Wsrep API developed by Codership Oy is a modern generic (database-agnostic)
+replication API for transactional databases with a goal to make database
+replication/logging subsystem completely modular and pluggable. It is developed
+with flexibility and completeness in mind to satisfy a broad range of modern
+replication scenarios. It is equally suitable for synchronous and asynchronous,
+master-slave and multi-master replication.
+
+wsrep stands for Write Set REPlication.
+
+Wsrep patch for MySQL/InnoDB allows MySQL server to load and use various wsrep
+API implementations ("wsrep providers") with different qualities of service.
+Without wsrep provider MySQL-wsrep server will function like a regular
+standalone server.
+
+
+2. INSTALLATION
+
+In the examples below mysql authentication options are omitted for brevity.
+
+2.1 Download and install mysql-wsrep package.
+
+Download binary package for your Linux distribution from
+https://launchpad.net/codership-mysql/
+
+2.1.1 On Debian and Debian-derived distributions.
+
+Upgrade from mysql-server-5.0 to mysql-wsrep is not supported yet, please 
+upgrade to mysql-server-5.1 first.
+
+If you're installing over an existing mysql installation, mysql-server-wsrep
+will conflict with the mysql-server-5.1 package, so remove it first:
+
+$ sudo apt-get remove mysql-server-5.1 mysql-server-core-5.1
+
+mysql-server-wsrep requires psmisc and mysql-client-5.1.47 (or later).
+MySQL 5.1 packages can be found from backports repositories.
+For further information about configuring and using Debian or Ubuntu
+backports, see:
+
+* http://backports.debian.org
+
+* https://help.ubuntu.com/community/UbuntuBackports
+
+For example, installation of required packages on Debian Lenny:
+
+$ sudo apt-get install psmisc
+$ sudo apt-get -t lenny-backports install mysql-client-5.1
+
+Now you should be able to install the mysql-wsrep package:
+
+$ sudo dpkg -i <mysql-server-wsrep DEB>
+
+2.1.2 On CentOS and similar RPM-based distributions.
+
+If you're migrating from existing MySQL installation, there are two variants:
+
+  a) If you're already using official MySQL-server-community 5.1.x RPM from
+     Oracle:
+
+     # rpm -e mysql-server
+
+  b) If you're upgrading from the stock mysql-5.0.77 on CentOS:
+
+     1) Make sure that the following packages are not installed:
+     # rpm --nodeps --allmatches -e mysql-server mysql-test mysql-bench
+
+     2) Install *official* MySQL-shared-compat-5.1.x from
+        http://dev.mysql.com/downloads/mysql/5.1.html
+
+Actual installation:
+
+   # rpm -Uvh <MySQL-server-wsrep RPM>
+
+   If this fails due to unsatisfied dependencies, install missing packages
+   (e.g. yum install perl-DBI) and retry.
+
+Additional packages to consider (if not yet installed):
+   * galera (multi-master replication provider, https://launchpad.net/galera)
+   * MySQL-client-community (for connecting to server and mysqldump-based SST)
+   * rsync (for rsync-based SST)
+   * mariabackup and nc (for mariabackup-based SST)
+
+2.2 Upgrade system tables.
+
+If you're upgrading a previous MySQL installation, it might be advisable to
+upgrade system tables. To do that start mysqld and run mysql_upgrade command.
+Consult MySQL documentation in case of errors. Normally they are not critical
+and can be ignored unless specific functionality is needed.
+
+
+3. FIRST TIME SETUP
+
+Unless you're upgrading an already installed mysql-wsrep package, you will need
+to set up a few things to prepare the server for operation.
+
+3.1 CONFIGURATION FILES
+
+* Make sure system-wide my.cnf does not bind mysqld to 127.0.0.1. That is, if
+  you have the following line in [mysqld] section, comment it out:
+
+  #bind-address = 127.0.0.1
+
+* Make sure system-wide my.cnf contains "!includedir /etc/mysql/conf.d/" line.
+
+* Edit /etc/mysql/conf.d/wsrep.cnf and set wsrep_provider option by specifying
+  a path to the provider library. If you don't have a provider, leave it as it is.
+
+* When a new node joins the cluster it'll have to receive a state snapshot from
+  one of the peers. This requires a privileged MySQL account with access from
+  the rest of the cluster. Edit /etc/mysql/conf.d/wsrep.cnf and set mysql
+  login/password pair for SST, for example:
+
+  wsrep_sst_auth=wsrep_sst:wspass
+
+* See CONFIGURATION section below about other configuration parameters that you
+  might want to change at this point.
+
+3.2 DATABASE PRIVILEGES
+
+Restart MySQL server and connect to it as root to grant privileges to SST
+account (empty users confuse MySQL authentication matching rules, we need to
+delete them too):
+
+$ mysql -e "SET wsrep_on=OFF; DELETE FROM mysql.user WHERE user='';"
+$ mysql -e "SET wsrep_on=OFF; GRANT ALL ON *.* TO wsrep_sst@'%' IDENTIFIED BY 'wspass'";
+
+3.3 CHECK AND CORRECT FIREWALL SETTINGS.
+
+MySQL-wsrep server needs to be accessible from other cluster members through
+its client listening socket and through wsrep provider socket. See your
+distribution and wsrep provider documentation for details. For example on
+CentOS you might need to do something along these lines:
+
+# iptables --insert RH-Firewall-1-INPUT 1 --proto tcp --source <my IP>/24 --destination <my IP>/32 --dport 3306 -j ACCEPT
+# iptables --insert RH-Firewall-1-INPUT 1 --proto tcp --source <my IP>/24 --destination <my IP>/32 --dport 4567 -j ACCEPT
+
+If there is a NAT firewall between the nodes, it must be configured to allow
+direct connections between the nodes (e.g. via port forwarding).
+
+3.4 SELINUX
+
+If you have SELinux enabled, it may block mysqld from doing required operations.
+You'll need to either disable it or configure to allow mysqld to run external
+programs and open listen sockets at unprivileged ports (i.e. things that
+an unprivileged user can do). See SELinux documentation about it.
+
+To quickly disable SELinux:
+1) run 'setenforce 0' as root.
+2) set 'SELINUX=permissive' in  /etc/selinux/config
+
+3.5 APPARMOR
+
+AppArmor automatically comes with Ubuntu and may also prevent mysqld to from
+opening additional ports or run scripts. See AppArmor documentation about its
+configuration. To disable AppArmor for mysqld:
+
+$ cd /etc/apparmor.d/disable/
+$ sudo ln -s /etc/apparmor.d/usr.sbin.mysqld
+$ sudo service apparmor restart
+
+
+3.6 CONNECT TO CLUSTER
+
+Now you're ready to connect to cluster by setting wsrep_cluster_address variable
+and monitor status of wsrep provider:
+
+mysql> SET GLOBAL wsrep_cluster_address='<cluster address string>';
+mysql> SHOW STATUS LIKE 'wsrep%';
+
+
+4 UPGRADING FROM MySQL 5.1.x
+
+!!! THESE INSTRUCTIONS ARE PRELIMINARY AND INCOMPLETE !!!
+
+1) BEFORE UPGRADE (while running 5.1.x):
+   - comment out 'wsrep_provider' setting from configuration files
+     (my.cnf and/or wsrep.cnf)
+   - If performing a rolling upgrade on a running cluster, set
+     wsrep_sst_method=mysqldump.
+     You might also need to configure wsrep_sst_receive_address and
+     wsrep_sst_auth appropriately. mysqldump is the only way to transfer data
+     from 5.1.x to 5.5.x reliably.
+   - remove innodb_plugin settings from configuration files.
+
+2) Perform upgrade as usual:
+   http://dev.mysql.com/doc/refman/5.5/en/upgrading-from-previous-series.html
+   Don't forget to run 'mysql_upgrade' command.
+
+3) AFTER UPGRADING individual node:
+   - uncomment 'wsrep_provider' line in configuration file.
+   - restart the server and join the cluster.
+
+4) AFTER UPGRADING the whole cluster:
+   - revert to usual wsrep SST settings if not 'mysqldump'.
+
+
+5. CONFIGURATION OPTIONS
+
+5.1 MANDATORY MYSQL OPTIONS
+
+binlog_format=ROW
+   This option is required to use row-level replication as opposed to
+   statement-level. For performance and consistency considerations don't change
+   that. As a side effect, binlog, if turned on, can be ROW only. In future this
+   option won't have special meaning.
+
+innodb_autoinc_lock_mode=2
+   This is a required parameter. Without it INSERTs into tables with
+   AUTO_INCREMENT column may fail.
+   autoinc lock modes 0 and 1 can cause unresolved deadlock, and make
+   the system unresponsive.
+
+5.2 WSREP OPTIONS
+
+All options are optional except for wsrep_provider, wsrep_cluster_address, and
+wsrep_sst_auth.
+
+wsrep_provider=none
+   A full path to the library that implements WSREP interface. If none is
+   specified, the server behaves like a regular mysqld.
+
+wsrep_provider_options=
+   Provider-specific option string. Check wsrep provider documentation or
+   http://www.codership.com/wiki
+
+wsrep_cluster_address=
+   Provider-specific cluster address string. This is used to connect a node to
+   the desired cluster. This option can be given either on mysqld startup or set
+   during runtime. See wsrep provider documentation for possible values.
+
+wsrep_cluster_name="my_wsrep_cluster"
+   Logical cluster name, must be the same for all nodes of the cluster.
+
+wsrep_node_address=
+   An option to explicitly specify the network address of the node in the form
+   <address>[:port] if autoguessing for some reason does not produce desirable
+   results (multiple network interfaces, NAT, etc.)
+   If not explicitly overridden by wsrep_sst_receive_address, the <address> part
+   will be used to listen for SST (see below). And the whole <address>[:port]
+   will be passed to the wsrep provider to be used as a base address in its
+   communications.
+
+wsrep_node_name=
+   Human readable node name (for easier log reading only). Defaults to hostname.
+
+wsrep_slave_threads=1
+   The number of threads dedicated to the processing of writesets from other nodes.
+   For best performance should be few per CPU core.
+
+wsrep_dbug_option
+   Options for the built-in DBUG library (independent from what MySQL uses).
+   Empty by default. Not currently in use.
+
+wsrep_debug=0
+   Enable debug-level logging.
+
+wsrep_convert_LOCK_to_trx=0
+   Implicitly convert locking sessions into transactions inside mysqld. By
+   itself it does not mean support for locking sessions, but it prevents the
+   database from going into logically inconsistent state. Note however, that
+   loading large database dump with LOCK statements might result in abnormally
+   large transactions and cause an out-of-memory condition
+
+wsrep_retry_autocommit=1
+   Retry autocommit queries and single statement transactions should they fail
+   certification test. This is analogous to rescheduling an autocommit query
+   should it go into a deadlock with other transactions in the database lock
+   manager.
+
+wsrep_auto_increment_control=1
+   Automatically adjust auto_increment_increment and auto_increment_offset
+   variables based on the number of nodes in the cluster. Significantly reduces
+   certification conflict rate for INSERTS.
+
+wsrep_drupal_282555_workaround=1
+   MySQL seems to have an obscure bug when INSERT into table with
+   AUTO_INCREMENT column with NULL value for that column can fail with a 
+   duplicate key error. When this option is on, it retries such INSERTs.
+   Required for stable Drupal operation. Documented at:
+      http://bugs.mysql.com/bug.php?id=41984
+      http://drupal.org/node/282555
+
+wsrep_causal_reads=0
+   Enforce strict READ COMMITTED semantics on reads and transactions. May
+   result in additional latencies. It is a session variable.
+
+wsrep_OSU_method=TOI
+   Online Schema Upgrade (OSU) can be performed with two alternative  methods:
+   Total Order Isolation (TOI) runs DDL statement in all cluster nodes in
+   same total order sequence locking the affected table for the duration of the
+   operation. This may result in the whole cluster being blocked for the
+   duration of the operation.
+   Rolling Schema Upgrade (RSU) executes the DDL statement only locally, thus
+   blocking only one cluster node. During the DDL processing, the node
+   is not replicating and may be unable to process replication events (due to
+   table lock). Once DDL operation is complete, the node will catch up and sync
+   with the cluster to become fully operational again. The DDL statement or
+   its effects are not replicated, so it is the user's responsibility to manually
+   perform this operation on each of the nodes.
+
+wsrep_forced_binlog_format=none
+   Force every transaction to use given binlog format. When this variable is 
+   set to something else than NONE, all transactions will use the given forced
+   format, regardless of what the client session has specified in binlog_format.
+   Valid choices for wsrep_forced_binlog_format are: ROW, STATEMENT, MIXED and
+   special value NONE, meaning that there is no forced binlog format in effect.
+   This variable was introduced to support STATEMENT format replication during
+   rolling schema upgrade processing. However, in most cases ROW replication 
+   is valid for asymmetrict schema replication.
+
+State snapshot transfer options.
+
+When a new node joins the cluster it has to synchronize its initial state with
+the other cluster members by transferring state snapshot from one of them.
+The options below govern how this happens and should be set up before attempting
+to join or start a cluster.
+
+wsrep_sst_method=rsync
+   What method to use to copy database state to a newly joined node. Supported
+   methods:
+   - mysqldump:   slow (except for small datasets) but allows for upgrade
+                  between major MySQL versions or InnoDB features.
+   - rsync:       much faster on large datasets (default).
+   - rsync_wan:   same as rsync but with deltaxfer to minimize network traffic.
+   - mariabackup: very fast and practically non-blocking SST method based on
+                  mariabackup tool (enhanced version of Percona's xtrabackup).
+
+   (for mariabackup to work the following settings must be present in my.cnf
+    on all nodes:
+      [mysqld]
+      wsrep_sst_auth=root:<root password>
+      datadir=<path to data dir>
+      [client]
+      socket=<path to socket>
+   )
+
+wsrep_sst_receive_address=
+   Address (hostname:port) at which this node wants to receive state snapshot.
+   Defaults to mysqld bind address, and if that is not specified (0.0.0.0) -
+   to the first IP of eth0 + mysqld bind port.
+   NOTE: check that your firewall allows connections to this address from other
+         cluster nodes.
+
+wsrep_sst_auth=
+   Authentication information needed for state transfer. Depends on the state
+   transfer method. For mysqldump-based SST it is
+   <mysql_root_user>:<mysql_root_password>
+   and should be the same on all nodes - it is used to authenticate with both
+   state snapshot receiver and state snapshot donor.
+
+wsrep_sst_donor=
+   A name of the node which should serve as state snapshot donor. This allows
+   controlling which node will serve the state snapshot request. By default the
+   most suitable node is chosen by the wsrep provider. This is the same as given in
+   wsrep_node_name.
+
+
+6. ONLINE SCHEMA UPGRADE
+
+   Schema upgrades mean any data definition statements (DDL statemnents) run
+   for the database. They change the database structure and are non-
+   transactional.
+
+   Release 22.3 brings a new method for performing schema upgrades. A user can
+   now choose whether to use the traditional total order isolation or new
+   rolling schema upgrade method. The OSU method choice is done by global
+   parameter: 'wsrep_OSU_method'.
+
+6.1 Total Order Isolation (TOI)
+
+   With earlier releases, DDL processing happened always by Total Order
+   Isolation (TOI) method. With TOI, the DDL was scheduled to be processed in
+   same transaction seqeuncing 'slot' in each cluster node.
+   The processing is secured by locking the affected table from any other use.
+   With TOI method, the whole cluster has part of the database locked for the
+   duration of the DDL processing.
+
+6.2 Rolling Schema Upgrade (RSU)
+
+   Rolling schema upgrade is a new DDL processing method, where DDL will be
+   processed locally for the node. The node is disconnected of the replication
+   for the duration of the DDL processing, so that there is only DDL statement
+   processing in the node and it does not block the rest of the cluster. When
+   the DDL processing is complete, the node applies delayed replication events
+   and synchronizes back with the cluster.
+   The DDL can then be executed cluster-wide by running the same DDL statement
+   for each node in turn. When this rolling schema upgrade proceeds, part of
+   the cluster will have old schema structure and part of the cluster will have
+   new schema structure.
+
+
+7. LIMITATIONS
+
+1) Currently replication works only with InnoDB storage engine. Any writes to 
+   tables of other types, including system (mysql.*) tables are not replicated. 
+   However, DDL statements are replicated in statement level, and changes
+   to mysql.* tables will get replicated that way.
+   So, you can safely issue: CREATE USER...,
+   but issuing: INSERT INTO mysql.user..., will not be replicated.
+
+2) DELETE operation is unsupported on tables without primary key. Also rows in
+   tables without primary key may appear in different order on different nodes.
+   As a result SELECT...LIMIT... may return slightly different sets.
+
+3) Unsupported queries:
+    * LOCK/UNLOCK TABLES cannot be supported in multi-master setups.
+    * lock functions (GET_LOCK(), RELEASE_LOCK()... )
+
+4) Query log cannot be directed to a table. If you enable query logging,
+   you must forward the log to a file:
+       log_output = FILE
+   Use general_log and general_log_file to choose query logging and the 
+   log file name
+
+5) Maximum allowed transaction size is defined by wsrep_max_ws_rows and
+   wsrep_max_ws_size. Anything bigger (e.g. huge LOAD DATA) will be rejected.
+
+6) Due to cluster level optimistic concurrency control, transaction issuing
+   COMMIT may still be aborted at that stage. There can be two transactions.
+   writing to same rows and committing in separate cluster nodes, and only one
+   of them can successfully commit. The failing one will be aborted.
+   For cluster level aborts, MySQL/galera cluster gives back deadlock error.
+   code (Error: 1213 SQLSTATE: 40001  (ER_LOCK_DEADLOCK)).
+
+7) XA transactions can not be supported due to possible rollback on commit.
+

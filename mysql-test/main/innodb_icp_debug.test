@@ -1,0 +1,6 @@
+--source include/have_innodb.inc
+
+set default_storage_engine=innodb;
+--source include/icp_debug_kill.inc
+set default_storage_engine=default;
+

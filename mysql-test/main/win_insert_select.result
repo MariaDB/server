@@ -1,0 +1,93 @@
+CREATE TABLE t1 (c1 INT, c2 VARCHAR(30));
+PREPARE populate_table FROM "INSERT into t1 values (1, 'manual_insert_1'),
+                                                   (4, 'manual_insert_2')";
+INSERT INTO t1 SELECT row_number() over(), "should_not_add_any_rows" FROM t1;
+INSERT INTO t1 SELECT 1 + row_number() over(), "should_not_add_any_rows" FROM t1;
+EXECUTE populate_table;
+INSERT INTO t1 SELECT 10 + row_number() over(), "should repeat 2 times [11-12]" FROM t1;
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+c1	c2
+1	manual_insert_1
+4	manual_insert_2
+11	should repeat 2 times [11-12]
+12	should repeat 2 times [11-12]
+DELETE FROM t1;
+EXECUTE populate_table;
+INSERT INTO t1
+SELECT 10 + (dense_rank() over(order by c1)), "dense_rank_insert" from t1;
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+c1	c2
+11	dense_rank_insert
+12	dense_rank_insert
+1	manual_insert_1
+4	manual_insert_2
+DELETE FROM t1;
+EXECUTE populate_table;
+INSERT INTO t1
+SELECT 100 + (rank() over(order by c1)), "rank_insert" from t1;
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+c1	c2
+1	manual_insert_1
+4	manual_insert_2
+101	rank_insert
+102	rank_insert
+DELETE FROM t1;
+EXECUTE populate_table;
+INSERT INTO t1
+SELECT 100 + (ntile(10) over(order by c1)), "ntile_insert" from t1;
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+c1	c2
+1	manual_insert_1
+4	manual_insert_2
+101	ntile_insert
+102	ntile_insert
+DELETE FROM t1;
+EXECUTE populate_table;
+INSERT INTO t1
+SELECT 1000 + (percent_rank() over(order by c1)), "percent_rank_insert" from t1;
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+c1	c2
+1	manual_insert_1
+4	manual_insert_2
+1000	percent_rank_insert
+1001	percent_rank_insert
+DELETE FROM t1;
+EXECUTE populate_table;
+INSERT INTO t1
+SELECT 1000 + (count(*) over(order by c1)), "count_insert" from t1;
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+c1	c2
+1001	count_insert
+1002	count_insert
+1	manual_insert_1
+4	manual_insert_2
+DELETE FROM t1;
+EXECUTE populate_table;
+#
+# Test how avg interacts when the results need to be rounded.
+#
+SELECT 1000 + (avg(c1) over(order by c1)) as avg_expr, c1, "This will be inserted into t1" from t1;
+avg_expr	c1	This will be inserted into t1
+1001.0000	1	This will be inserted into t1
+1002.5000	4	This will be inserted into t1
+INSERT INTO t1
+SELECT 1000 + (avg(c1) over(order by c1)), "avg_insert" from t1;
+SELECT c1, c2 FROM t1 ORDER BY c2, c1;
+c1	c2
+1001	avg_insert
+1003	avg_insert
+1	manual_insert_1
+4	manual_insert_2
+DELETE FROM t1;
+EXECUTE populate_table;
+INSERT INTO t1
+SELECT 1000 + (sum(c1) over(order by c1)), "sum_insert" from t1;
+SELECT c1, c2
+FROM t1
+ORDER BY c2, c1;
+c1	c2
+1	manual_insert_1
+4	manual_insert_2
+1001	sum_insert
+1005	sum_insert
+DROP table t1;

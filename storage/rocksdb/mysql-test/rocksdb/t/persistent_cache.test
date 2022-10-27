@@ -1,0 +1,41 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--let $_cache_file_name= $MYSQLTEST_VARDIR/tmp/persistent_cache
+--exec echo "wait" >$_expect_file_name
+
+# restart server with correct parameters
+shutdown_server;
+--exec echo "restart:--rocksdb_persistent_cache_path=$_cache_file_name --rocksdb_persistent_cache_size_mb=100" >$_expect_file_name
+--sleep 5
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+
+# insert values and flush out of memtable
+CREATE TABLE t1 (a int primary key) ENGINE=ROCKSDB;
+insert into t1 values (1);
+set global rocksdb_force_flush_memtable_now=1;
+
+# pull data through cache
+select * from t1 where a = 1;
+
+# restart server to re-read cache
+--exec echo "wait" >$_expect_file_name
+shutdown_server;
+--exec echo "restart:--rocksdb_persistent_cache_path=$_cache_file_name --rocksdb_persistent_cache_size_mb=100" >$_expect_file_name
+--sleep 5
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_reconnect
+
+# pull values from cache again
+select * from t1 where a = 1;
+
+drop table t1;

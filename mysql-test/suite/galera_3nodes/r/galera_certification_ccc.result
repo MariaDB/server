@@ -1,0 +1,30 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 3
+1
+connection node_3;
+SET GLOBAL wsrep_cluster_address = '';
+connection node_1;
+INSERT INTO t1 VALUES (2);
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+COMMIT;
+connection node_2;
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+connection node_3;
+connection node_1;
+DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

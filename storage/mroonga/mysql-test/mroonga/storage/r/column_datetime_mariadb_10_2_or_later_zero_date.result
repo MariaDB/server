@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS timestamps;
+CREATE TABLE timestamps (
+id INT PRIMARY KEY AUTO_INCREMENT,
+create_dt DATETIME
+) DEFAULT CHARSET UTF8;
+INSERT INTO timestamps (create_dt) VALUES ("0000-00-00 00:00:00");
+ERROR 22003: Out of range value for column 'create_dt' at row 1
+SELECT * FROM timestamps;
+id	create_dt
+INSERT INTO timestamps (create_dt) VALUES ("2015-06-17 00:00:00");
+SELECT * FROM timestamps;
+id	create_dt
+2	2015-06-17 00:00:00
+DROP TABLE timestamps;

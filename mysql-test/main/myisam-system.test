@@ -1,0 +1,29 @@
+#
+# Test how DROP TABLE works if the index or data file doesn't exists
+
+# Initialise
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+create table t1 (a int) engine=myisam;
+let $MYSQLD_DATADIR= `select @@datadir`;
+--remove_file $MYSQLD_DATADIR/test/t1.MYI
+--replace_result $MYSQLD_DATADIR ./
+drop table if exists t1;
+create table t1 (a int) engine=myisam;
+--remove_file $MYSQLD_DATADIR/test/t1.MYI
+--replace_result $MYSQLD_DATADIR ./
+--error ER_FILE_NOT_FOUND
+select * from t1;
+--replace_result $MYSQLD_DATADIR ./
+drop table t1;
+create table t1 (a int) engine=myisam;
+--remove_file $MYSQLD_DATADIR/test/t1.MYD
+--replace_result $MYSQLD_DATADIR ./
+--error 29
+select * from t1;
+--replace_result $MYSQLD_DATADIR ./
+drop table t1;
+--error ER_BAD_TABLE_ERROR
+drop table t1;

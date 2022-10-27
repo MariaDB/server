@@ -1,0 +1,29 @@
+SET @old_gtid_domain_id= @@global.gtid_domain_id;
+SELECT @@global.gtid_domain_id;
+@@global.gtid_domain_id
+0
+SET GLOBAL gtid_domain_id= 10;
+SET SESSION gtid_domain_id= 20;
+SELECT @@global.gtid_domain_id;
+@@global.gtid_domain_id
+10
+SELECT @@session.gtid_domain_id;
+@@session.gtid_domain_id
+20
+SET GLOBAL gtid_domain_id= DEFAULT;
+SELECT @@global.gtid_domain_id;
+@@global.gtid_domain_id
+0
+SET GLOBAL gtid_domain_id= -10;
+Warnings:
+Warning	1292	Truncated incorrect gtid_domain_id value: '-10'
+SELECT @@global.gtid_domain_id;
+@@global.gtid_domain_id
+0
+SET SESSION gtid_domain_id= -1;
+Warnings:
+Warning	1292	Truncated incorrect gtid_domain_id value: '-1'
+SELECT @@session.gtid_domain_id;
+@@session.gtid_domain_id
+0
+SET GLOBAL gtid_domain_id= @old_gtid_domain_id;

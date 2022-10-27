@@ -1,0 +1,38 @@
+SET GLOBAL innodb_file_per_table = ON;
+set global innodb_compression_algorithm = 1;
+# Create and populate a tables
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+CREATE TABLE t2 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+CREATE TABLE t3 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED ENCRYPTED=NO;
+CREATE TABLE t4 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB PAGE_COMPRESSED=1;
+CREATE TABLE t5 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=YES ENCRYPTION_KEY_ID=4;
+CREATE TABLE t6 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
+# Run innochecksum on t1
+# Run innochecksum on t2
+# Run innochecksum on t3
+# Run innochecksum on t4
+# Run innochecksum on t4
+# Run innochecksum on t5
+# Run innochecksum on t6
+# Backup tables before corrupting
+# Corrupt FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+# Run innochecksum on t2
+# Run innochecksum on t3
+# no encryption corrupting the field should not have effect
+# Run innochecksum on t6
+# In new checksum format, checksum calculated for whole page.
+# So It should affected.
+# Restore the original tables
+# Corrupt FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+4 (post encryption checksum)
+# Run innochecksum on t2
+# Run innochecksum on t3
+# Run innochecksum on t6
+# Space ID mismatch
+# Restore the original tables
+# Corrupt FIL_DATA+10 (data)
+# Run innochecksum on t2
+# Run innochecksum on t3
+# Run innochecksum on t6
+# Restore the original tables
+# restart
+DROP TABLE t1, t2, t3, t4, t5, t6;

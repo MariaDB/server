@@ -1,0 +1,43 @@
+--source include/galera_cluster.inc
+
+SET SESSION wsrep_trx_fragment_size=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+SET SESSION wsrep_trx_fragment_size=0;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+SET GLOBAL wsrep_trx_fragment_size=DEFAULT;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+SET GLOBAL wsrep_trx_fragment_size=0;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+SET GLOBAL wsrep_trx_fragment_size=-1;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+SET SESSION wsrep_trx_fragment_size=-1;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+SET GLOBAL wsrep_trx_fragment_size=100;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+SET SESSION wsrep_trx_fragment_size=100;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+--error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL wsrep_trx_fragment_size='A';
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+--error ER_WRONG_TYPE_FOR_VAR
+SET SESSION wsrep_trx_fragment_size='A';
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+--error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL wsrep_trx_fragment_size=NULL;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+--error ER_WRONG_TYPE_FOR_VAR
+SET SESSION wsrep_trx_fragment_size=NULL;
+SHOW SESSION VARIABLES LIKE 'wsrep_trx_fragment_size';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_trx_fragment_size';
+SET GLOBAL wsrep_trx_fragment_size=DEFAULT;

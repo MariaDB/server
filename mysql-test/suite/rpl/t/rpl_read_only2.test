@@ -1,0 +1,30 @@
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # Ensure that read-only slave logs temporary table statements under statement based
+--echo # replication. This is related to MDEV-17863.
+--echo #
+
+connection slave;
+set global read_only=1;
+
+connection master;
+
+create table t1(a int) engine=MyISAM;
+create temporary table tmp1 (a int) engine=MyISAM;
+insert into t1 values(1);
+insert into tmp1 values (2);
+insert into t1 select * from tmp1;
+insert into t1 values(3);
+select * from t1;
+analyze table t1;
+drop table t1;
+drop temporary table tmp1;
+
+sync_slave_with_master;
+--source include/show_binlog_events.inc
+set global read_only=0;
+connection master;
+
+--source include/rpl_end.inc

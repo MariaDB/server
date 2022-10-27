@@ -1,0 +1,113 @@
+SET GLOBAL innodb_file_per_table=ON;
+FLUSH TABLES;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3(a INT PRIMARY KEY) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t3 VALUES (33101),(347);
+INSERT INTO t1 VALUES (42),(9),(101);
+RENAME TABLE t1 TO t2;
+UPDATE t2 SET a=347 where a=42;
+COMMIT;
+# Kill the server
+# Fault 0 (no real fault): Orphan file with duplicate space_id.
+# Fault 1: Two dirty files with the same space_id.
+# restart
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND 1 /InnoDB: Ignoring data file '.*t2.ibd' with space ID \d+. Another data file called .*t1.ibd exists with the same space ID/ in mysqld.1.err
+# Fault 2: Wrong space_id in a dirty file, and a missing file.
+# restart
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND 1 /InnoDB: Tablespace \d+ was not found at.*t3.ibd/ in mysqld.1.err
+# Fault 3: Wrong space_id in a dirty file, and no missing file.
+# restart
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND 1 /InnoDB: Ignoring data file '.*t[23].ibd' with space ID/ in mysqld.1.err
+FOUND 1 /InnoDB: Tablespace \d+ was not found at .*t1.ibd/ in mysqld.1.err
+FOUND 1 /InnoDB: Tablespace \d+ was not found at .*t3.ibd/ in mysqld.1.err
+FOUND 2 /InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace/ in mysqld.1.err
+# Fault 4: Missing data file
+# restart
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND 1 /InnoDB: Tablespace \d+ was not found at .*t[12].ibd.
+.*InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace/ in mysqld.1.err
+# Fault 5: Wrong type of data file
+# restart
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# restart
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+NOT FOUND /\[Note\] InnoDB: Cannot read first page of .*t2.ibd/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Datafile .*t2.*\. Cannot determine the space ID from the first 64 pages/ in mysqld.1.err
+# restart
+SELECT * FROM t2;
+a
+9
+101
+347
+SELECT * FROM t3;
+a
+347
+33101
+SHOW TABLES;
+Tables_in_test
+t2
+t3
+DROP TABLE t2,t3;
+CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
+ERROR HY000: Tablespace for table '`test`.`t0`' exists. Please DISCARD the tablespace before IMPORT
+CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t0;
+CREATE TABLE u1(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE u2(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE u3(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE u4(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO u4 VALUES(1);
+RENAME TABLE u4 TO u5;
+RENAME TABLE u5 TO u6;
+INSERT INTO u6 VALUES(2);
+# Kill the server
+# Fault 6: All-zero data file and innodb_force_recovery
+# restart: --innodb-force-recovery=1
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND 1 /\[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Datafile .*u1.*\. Cannot determine the space ID from the first 64 pages/ in mysqld.1.err
+NOT FOUND /\[Note\] InnoDB: Cannot read first page of .*u2.ibd/ in mysqld.1.err
+# Fault 7: Missing or wrong data file and innodb_force_recovery
+# restart: --innodb-force-recovery=1
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+FOUND 1 /\[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd/ in mysqld.1.err
+FOUND 1 /InnoDB: At LSN: \d+: unable to open file .*u[1-5].ibd for tablespace/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Cannot rename '.*u5.ibd' to '.*u6.ibd' because the target file exists/ in mysqld.1.err
+# restart: --innodb-force-recovery=1
+FOUND 1 /\[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd/ in mysqld.1.err
+FOUND 1 /InnoDB: At LSN: \d+: unable to open file .*u[1-5].ibd for tablespace/ in mysqld.1.err
+FOUND 1 /\[Warning\] InnoDB: Tablespace \d+ was not found at .*u[1-5].ibd, and innodb_force_recovery was set. All redo log for this tablespace will be ignored!/ in mysqld.1.err
+# restart
+DROP TABLE u1,u2,u3,u6;
+# List of files:
+db.opt
+SHOW TABLES;
+Tables_in_test

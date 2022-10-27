@@ -1,0 +1,67 @@
+create role r1;
+create user u1;
+grant r1 to u1;
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO `u1`@`%`
+GRANT `r1` TO `u1`@`%`
+create user u2;
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO `u1`@`%`
+GRANT `r1` TO `u1`@`%`
+show grants for u2;
+Grants for u2@%
+GRANT USAGE ON *.* TO `u2`@`%`
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+%	u1	r1	N
+localhost	root	r1	Y
+revoke r1 from u1;
+revoke r1 from u1;
+ERROR HY000: Cannot revoke role 'r1' from: 'u1'@'%'
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO `u1`@`%`
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+localhost	root	r1	Y
+grant r1 to u1;
+grant r1 to u1;
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO `u1`@`%`
+GRANT `r1` TO `u1`@`%`
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+%	u1	r1	N
+localhost	root	r1	Y
+drop role r1;
+show grants for u1;
+Grants for u1@%
+GRANT USAGE ON *.* TO `u1`@`%`
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+create role r1;
+grant r1 to u1;
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+%	u1	r1	N
+localhost	root	r1	Y
+drop user u1;
+show grants for u1;
+ERROR 42000: There is no such grant defined for user 'u1' on host '%'
+select * from mysql.roles_mapping;
+Host	User	Role	Admin_option
+localhost	root	r1	Y
+drop role r1;
+drop user u2;
+create user foo@localhost;
+grant create user on *.* to foo@localhost;
+connect  con1, localhost, foo,,;
+create role look, isp, xxx, ppp;
+rename user current_user to nnnn@'%';
+drop role look, isp, xxx, ppp;
+connection default;
+disconnect con1;
+drop user nnnn@'%';

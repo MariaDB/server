@@ -1,0 +1,85 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file $MTR_SUITE_DIR/std_data/funny.txt $MYSQLD_DATADIR/test/funny.txt
+--copy_file $MTR_SUITE_DIR/std_data/funny2.txt $MYSQLD_DATADIR/test/funny2.txt
+
+--echo #
+--echo # Testing errors
+--echo #
+CREATE TABLE t1
+(
+  ID INT NOT NULL field_format=' %n%d%n'
+) Engine=CONNECT table_type=FMT file_name='nonexistent.txt';
+--replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
+# TODO: check why this is needed for Windows
+--replace_result Open(rt) Open(rb)
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing update on FMT tables
+--echo #
+CREATE TABLE t1
+(
+  id INT NOT NULL field_format=' %n%d%n'
+) ENGINE=CONNECT TABLE_TYPE=FMT FILE_NAME='t1.txt';
+--error ER_GET_ERRMSG
+INSERT INTO t1 VALUES (10),(20);
+# TODO:
+#--error ER_GET_ERRMSG
+#UPDATE t1 SET id=20;
+#TRUNCATE TABLE t1;
+#DELETE FROM t1 WHERE id=10;
+#SELECT * FROM t1;
+DROP TABLE t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.txt
+
+
+--echo #
+--echo # Testing manual examples
+--echo #
+CREATE TABLE t1
+(
+  ID Integer(5) not null field_format=' %n%d%n',
+  NAME Char(16) not null field_format=" , '%n%[^']%n'",
+  DEPNO Integer(4) not null field_format=' , #%n%d%n',
+  SALARY Double(12,2) not null field_format=' ; %n%f%n'
+) Engine=CONNECT table_type=FMT file_name='funny.txt';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# TODO: shoudn't a warning instead of error be returned on bad format?
+#
+CREATE TABLE t1
+(
+  ID Integer(5) not null field_format=' %n%d%n',
+  NAME Char(16) not null field_format=" , '%n%[^']%n'",
+  DEPNO Integer(4) not null field_format=' , #%n%d%n',
+  SALARY Double(12,2) not null field_format=' ; %n%f%n'
+) Engine=CONNECT table_type=FMT file_name='funny2.txt';
+--error ER_GET_ERRMSG
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  ID Integer(5) not null field_format=' %n%d%n',
+  NAME Char(16) not null field_format=' , ''%n%[^'']%m',
+  DEPNO Integer(4) not null field_format=''' , #%n%d%m',
+  SALARY Double(12,2) not null field_format=' ; %n%f%n'
+) Engine=CONNECT table_type=FMT file_name='funny2.txt';
+SELECT * FROM t1;
+--error ER_GET_ERRMSG
+UPDATE t1 SET SALARY=1234;
+# TODO: this query crashes
+# UPDATE t1 SET SALARY=1234 WHERE ID=56;
+DELETE FROM t1 WHERE ID=56;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/funny.txt
+--remove_file $MYSQLD_DATADIR/test/funny2.txt

@@ -1,0 +1,98 @@
+# The test verifies a few server/engine recovery option combinations.
+# Specifically, MDEV-13437,13438 are concerned with no crashes
+# due to InnoDB being read-only during --tc-heuristic-recover=ROLLBACK|COMMIT.
+#
+# Initially the test commits a transaction and in the following proceeds
+# throughout some phases.
+# Within them the server is shut down and attempted to restart, to succeed
+# that in the end.
+# All this proves no crashes and effective rollback of the transaction.
+#
+--source include/have_innodb.inc
+# The test logic really requires --log-bin.
+--source include/have_binlog_format_mixed.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+call mtr.add_suppression("Can't init tc log");
+call mtr.add_suppression("Found 1 prepared transactions!");
+call mtr.add_suppression("Aborting");
+
+# Now take a shapshot of the last time server options.
+#
+# The "restart" expect-file facility can't be engaged because the server
+#  having conflicting options may not succeed to boot up.
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+FLUSH TABLES; # we need the table post crash-restart, see MDEV-8841.
+
+# Run transaction in a separate "prey" connection
+--connect (con1,localhost,root,,)
+# The signal won't arrive though
+set debug_sync='ha_commit_trans_after_prepare WAIT_FOR go';
+--send INSERT INTO t1 VALUES (1);
+
+--connection default
+
+--let $table= information_schema.processlist
+--let $where= where state = 'debug sync point: ha_commit_trans_after_prepare'
+--let $wait_condition= SELECT count(*) = 1 FROM $table $where
+--source include/wait_condition.inc
+
+--echo # Prove that no COMMIT or ROLLBACK occurred yet.
+SELECT * FROM t1;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t1;
+
+# TODO: MDEV-12700 Allow innodb_read_only startup without prior slow shutdown.
+--source include/kill_mysqld.inc
+--error 1
+--exec $MYSQLD_LAST_CMD --log-bin=master-bin --binlog-format=mixed --core-file --loose-debug-sync-timeout=300 --innodb-force-recovery=4
+
+--let SEARCH_PATTERN= was in the XA prepared state
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= Found 1 prepared transactions!
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \\[ERROR\\] Can\\'t init tc log
+--source include/search_pattern_in_file.inc
+
+--error 1
+--exec $MYSQLD_LAST_CMD --log-bin=master-bin --binlog-format=mixed --core-file --loose-debug-sync-timeout=300 --innodb-force-recovery=4 --tc-heuristic-recover=COMMIT
+--let SEARCH_PATTERN= was in the XA prepared state
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= Found 1 prepared transactions!
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \\[ERROR\\] Can\\'t init tc log
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= Please restart mysqld without --tc-heuristic-recover
+--source include/search_pattern_in_file.inc
+
+--error 1
+--exec $MYSQLD_LAST_CMD --log-bin=master-bin --binlog-format=mixed --core-file --loose-debug-sync-timeout=300 --tc-heuristic-recover=ROLLBACK
+
+--let SEARCH_PATTERN= was in the XA prepared state
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= Found 1 prepared transactions!
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= \\[ERROR\\] Can\\'t init tc log
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= Please restart mysqld without --tc-heuristic-recover
+--source include/search_pattern_in_file.inc
+
+--source include/start_mysqld.inc
+
+--let SEARCH_PATTERN= was in the XA prepared state
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= Found 1 prepared transactions!
+--source include/search_pattern_in_file.inc
+
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SELECT * FROM t1;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT * FROM t1;
+#
+# Cleanup
+#
+DROP TABLE t1;

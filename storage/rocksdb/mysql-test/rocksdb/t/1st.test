@@ -1,0 +1,36 @@
+--source include/have_rocksdb.inc
+
+# 
+# This test checks some very basic capabilities
+# which will be used in almost every other test,
+# and will not be checked through support* variables.
+# If this test does not pass, there is no point
+# at executing other ones.
+#
+# Minimal requirements:
+# - supported column types: INT, CHAR (default CHAR(8), INT(11));
+# - column attributes as declared in define_engine.inc ($default_col_opts)
+#     (by default empty, which means no additional attributes apart from the type);
+# - table attributes as declared in define_engine.inc ($default_tbl_opts)
+#     (by default empty, which means no additional attributes apart from ENGINE);
+# - CREATE TABLE .. (column1 <column options>, column2 <column options>) ENGINE=<storage_engine>;
+# - INSERT INTO TABLE .. VALUES (val1,val2);
+# - DROP TABLE ..
+# - SELECT a,b FROM ..
+# - SHOW CREATE TABLE ..
+# - SHOW COLUMNS IN ...
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (pk INT PRIMARY KEY DEFAULT '0', a INT(11), b CHAR(8)) ENGINE=rocksdb;
+SHOW CREATE TABLE t1;
+SHOW COLUMNS IN t1;
+INSERT INTO t1 VALUES (1, 1,'a');
+INSERT INTO t1 (a,b) VALUES (2,'b');
+--sorted_result
+SELECT a,b FROM t1;
+DROP TABLE t1;
+

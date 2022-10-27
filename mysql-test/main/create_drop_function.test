@@ -1,0 +1,65 @@
+source include/have_log_bin.inc;
+
+SET timestamp=UNIX_TIMESTAMP('2014-09-30 08:00:00');
+
+CREATE FUNCTION f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello, ', str, '!');
+SELECT * FROM mysql.proc WHERE name like 'f1';
+SELECT f1('world');
+
+--error ER_SP_ALREADY_EXISTS
+CREATE FUNCTION f1(str char(20))
+RETURNS TEXT
+RETURN CONCAT('Hello2, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+
+CREATE FUNCTION IF NOT EXISTS f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello3, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+
+--error ER_WRONG_USAGE
+CREATE OR REPLACE FUNCTION IF NOT EXISTS f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello4, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+
+CREATE OR REPLACE FUNCTION f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello5, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+
+DROP FUNCTION f1;
+CREATE FUNCTION IF NOT EXISTS f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello6, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+SELECT f1('world');
+
+DROP FUNCTION IF EXISTS f1;
+SELECT body FROM mysql.proc WHERE name like 'f1';
+DROP FUNCTION IF EXISTS f1;
+
+--echo #
+--echo # 10.1 Test
+--echo #
+--echo # MDEV-22654: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo # is_bulk_op())' failed in Diagnostics_area::set_ok_status on FUNCTION replace
+--echo #
+
+SET GLOBAL log_bin_trust_function_creators=0;
+
+CREATE FUNCTION f(c INT) RETURNS NUMERIC NO SQL RETURN 0;
+
+--error ER_BINLOG_UNSAFE_ROUTINE
+CREATE OR REPLACE FUNCTION f(c INT) RETURNS INT RETURN 0;
+
+--error ER_TOO_LONG_IDENT
+CREATE OR REPLACE FUNCTION sp1_thisisaveryverylongnamelongnameverylongname_thisisaveryverylongname234872934(a INT) RETURNS INT RETURN 0;
+
+DROP FUNCTION IF EXISTS f;
+
+SET GLOBAL log_bin_trust_function_creators=1;
+
+--echo # End of 10.1 Test

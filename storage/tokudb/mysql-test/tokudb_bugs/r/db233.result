@@ -1,0 +1,27 @@
+SET SESSION tokudb_auto_analyze = 0;
+SET SESSION tokudb_analyze_in_background = 0;
+CREATE TABLE t1(
+`id` int(10) unsigned NOT NULL,
+`k` int(10) unsigned NOT NULL DEFAULT '0',
+`c` char(120) NOT NULL DEFAULT '',
+`pad` char(60) NOT NULL DEFAULT '',
+KEY `xid` (`id`),
+KEY `k` (`k`)
+) ENGINE=TokuDB DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES(1, 1, '1', '1'), (2, 2, '2', '2'), (3, 3, '3', '3'), (4, 4, '4', '4'),
+(5, 5, '5', '5'), (6, 6, '6', '6'), (6, 6, '6', '6'), (7, 7, '7', '7'),
+(8, 8, '8', '8'), (9, 9, '9', '9'), (10, 10, '10', '10'), (11, 11, '11', '11');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+set DEBUG_SYNC = 'tokudb_icp_asc_scan_out_of_range SIGNAL hit2 WAIT_FOR done2';
+SELECT c FROM t1 WHERE id BETWEEN 5 AND 8 ORDER BY id ASC;
+set DEBUG_SYNC = 'now WAIT_FOR hit2';
+set DEBUG_SYNC = 'now SIGNAL done2';
+c
+5
+6
+6
+7
+8
+drop table t1;

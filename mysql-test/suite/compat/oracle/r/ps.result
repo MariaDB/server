@@ -1,0 +1,264 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10801 sql_mode: dynamic SQL placeholders
+#
+SET @a=10, @b=20;
+PREPARE stmt FROM 'SELECT ?,?';
+EXECUTE stmt USING @a, @b;
+?	?
+10	20
+PREPARE stmt FROM 'SELECT :a,:b';
+EXECUTE stmt USING @a, @b;
+:a	:b
+10	20
+PREPARE stmt FROM 'SELECT :aaa,:bbb';
+EXECUTE stmt USING @a, @b;
+:aaa	:bbb
+10	20
+PREPARE stmt FROM 'SELECT :"a",:"b"';
+EXECUTE stmt USING @a, @b;
+:"a"	:"b"
+10	20
+PREPARE stmt FROM 'SELECT :"aaa",:"bbb"';
+EXECUTE stmt USING @a, @b;
+:"aaa"	:"bbb"
+10	20
+PREPARE stmt FROM 'SELECT :1,:2';
+EXECUTE stmt USING @a, @b;
+:1	:2
+10	20
+PREPARE stmt FROM 'SELECT :222,:111';
+EXECUTE stmt USING @a, @b;
+:222	:111
+10	20
+PREPARE stmt FROM 'SELECT :0,:65535';
+EXECUTE stmt USING @a, @b;
+:0	:65535
+10	20
+PREPARE stmt FROM 'SELECT :65535,:0';
+EXECUTE stmt USING @a, @b;
+:65535	:0
+10	20
+#
+# MDEV-10709 Expressions as parameters to Dynamic SQL
+#
+#
+# Testing disallowed expressions in USING
+#
+PREPARE stmt FROM 'SELECT :1 FROM DUAL';
+EXECUTE stmt USING (SELECT 1);
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+DEALLOCATE PREPARE stmt;
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+BEGIN
+RETURN 'test';
+END;
+$$
+PREPARE stmt FROM 'SELECT ? FROM DUAL';
+EXECUTE stmt USING f1();
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+DEALLOCATE PREPARE stmt;
+DROP FUNCTION f1;
+#
+# Using a user variable as a EXECUTE..USING out parameter
+#
+CREATE PROCEDURE p1(a OUT INT)
+AS
+BEGIN
+a:= 10;
+END;
+/
+SET @a=1;
+CALL p1(@a);
+SELECT @a;
+@a
+10
+SET @a=2;
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING @a;
+SELECT @a;
+@a
+10
+DROP PROCEDURE p1;
+#
+# Using an SP variable as a EXECUTE..USING out parameter
+#
+CREATE PROCEDURE p1 (a OUT INT)
+AS
+BEGIN
+a:=10;
+END;
+/
+CREATE PROCEDURE p2 (a OUT INT)
+AS
+BEGIN
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING a;
+END;
+/
+SET @a= 1;
+CALL p2(@a);
+SELECT @a;
+@a
+10
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# Using a trigger field as a EXECUTE..USING out parameter
+#
+CREATE PROCEDURE p1 (a OUT INT)
+AS
+BEGIN
+a:= 10;
+END;
+/
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW CALL p1(:NEW.a);
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+a
+10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Testing re-prepare on a table metadata update between PREPARE and EXECUTE
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1(a IN INT)
+AS
+BEGIN
+INSERT INTO t1 VALUES (a);
+END;
+/
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING 10;
+SELECT * FROM t1;
+a
+10
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW NEW.a:=NEW.a+1;
+EXECUTE stmt USING 20;
+SELECT * FROM t1;
+a
+10
+21
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# End of MDEV-10709 Expressions as parameters to Dynamic SQL
+#
+#
+# MDEV-10585 EXECUTE IMMEDIATE statement
+#
+#
+# Testing disallowed expressions in USING
+#
+EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING (SELECT 1);
+ERROR 42000: EXECUTE..USING does not support subqueries or stored functions
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+BEGIN
+RETURN 'test';
+END;
+$$
+EXECUTE IMMEDIATE 'SELECT ? FROM DUAL' USING f1();
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
+DROP FUNCTION f1;
+#
+# Testing simple expressions
+#
+EXECUTE IMMEDIATE 'SELECT :1 FROM DUAL' USING 10;
+:1
+10
+#
+# MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+#
+#
+# Testing erroneous and diallowed prepare source
+#
+EXECUTE IMMEDIATE _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat_operator_oracle'
+PREPARE stmt FROM _latin1'SELECT 1 AS c FROM ' || _latin2 'DUAL';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation 'concat_operator_oracle'
+EXECUTE IMMEDIATE (SELECT 'SELECT 1');
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
+PREPARE stmt FROM (SELECT 'SELECT 1');
+ERROR 42000: PREPARE..FROM does not support subqueries or stored functions
+EXECUTE IMMEDIATE a;
+ERROR 42S22: Unknown column 'a' in 'field list'
+PREPARE stmt FROM a;
+ERROR 42S22: Unknown column 'a' in 'field list'
+EXECUTE IMMEDIATE NULL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+PREPARE stmt FROM NULL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+EXECUTE IMMEDIATE COALESCE(NULL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+PREPARE stmt FROM COALESCE(NULL);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+BEGIN
+RETURN 't1';
+END;
+$$
+EXECUTE IMMEDIATE f1();
+ERROR 42000: EXECUTE IMMEDIATE does not support subqueries or stored functions
+PREPARE stmt FROM f1();
+ERROR 42000: PREPARE..FROM does not support subqueries or stored functions
+DROP FUNCTION f1;
+#
+# Testing user variables in prepare source
+#
+SET @table_name='DUAL';
+EXECUTE IMMEDIATE 'SELECT 1 AS a FROM ' || @table_name;
+a
+1
+PREPARE stmt FROM 'SELECT 1 AS a FROM ' || @table_name;
+EXECUTE stmt;
+a
+1
+DEALLOCATE PREPARE stmt;
+#
+# Testing SP parameters and variables in prepare source
+#
+CREATE PROCEDURE p1(table_name VARCHAR)
+AS
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1 AS c FROM '|| table_name;
+END;
+$$
+CALL p1('DUAL');
+c
+1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+table_name VARCHAR(64):='DUAL';
+BEGIN
+EXECUTE IMMEDIATE 'SELECT 1 AS c FROM ' || table_name;
+END;
+$$
+CALL p1();
+c
+1
+DROP PROCEDURE p1;
+#
+# End of MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
+#
+#
+# MDEV-12846 sql_mode=ORACLE: using Oracle-style placeholders in direct query execution makes the server crash
+#
+SELECT ? FROM DUAL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '? FROM DUAL' at line 1
+SELECT :a FROM DUAL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':a FROM DUAL' at line 1
+SELECT :1 FROM DUAL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':1 FROM DUAL' at line 1
+SELECT 1+? FROM DUAL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '? FROM DUAL' at line 1
+SELECT 1+:a FROM DUAL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':a FROM DUAL' at line 1
+SELECT 1+:1 FROM DUAL;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':1 FROM DUAL' at line 1

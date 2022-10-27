@@ -1,0 +1,2 @@
+SET storage_engine=InnoDB;
+connection default;

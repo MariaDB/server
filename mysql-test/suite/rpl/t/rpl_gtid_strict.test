@@ -1,0 +1,179 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--connection server_1
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET sql_log_bin= 0;
+call mtr.add_suppression("Error writing file .*errno: 1950");
+
+SET sql_log_bin= 1;
+
+SET @old_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+--connection server_2
+--source include/stop_slave.inc
+SET @old_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode=1;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--source include/show_binlog_events.inc
+
+SET server_id= 3;
+--error ER_GTID_STRICT_OUT_OF_ORDER
+SET gtid_seq_no= 3;
+SET @old_dbug = @@session.debug_dbug;
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
+SET gtid_seq_no= 3;
+SET SESSION debug_dbug=@old_dbug;
+--error ER_GTID_STRICT_OUT_OF_ORDER
+INSERT INTO t1 VALUES (2);
+
+--error ER_GTID_STRICT_OUT_OF_ORDER
+SET gtid_seq_no= 2;
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
+SET gtid_seq_no= 2;
+SET SESSION debug_dbug=@old_dbug;
+--error ER_GTID_STRICT_OUT_OF_ORDER
+INSERT INTO t1 VALUES (3);
+SET server_id= 1;
+SET gtid_seq_no= 4;
+INSERT INTO t1 VALUES (4);
+SELECT * FROM t1 ORDER BY 1;
+--source include/show_binlog_events.inc
+
+--echo *** Test non-transactional GTID error (cannot be rolled back). ***
+SET server_id= 3;
+--error ER_GTID_STRICT_OUT_OF_ORDER
+SET gtid_seq_no= 1;
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
+SET gtid_seq_no= 1;
+SET SESSION debug_dbug=@old_dbug;
+--error ER_GTID_STRICT_OUT_OF_ORDER
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
+# The table is still created, DDL cannot be rolled back.
+# Fix it up for replication.
+SET sql_log_bin= 0;
+DROP TABLE t2;
+SET sql_log_bin= 1;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=MyISAM;
+
+--error ER_GTID_STRICT_OUT_OF_ORDER
+SET gtid_seq_no= 1;
+SET SESSION debug_dbug="d,ignore_set_gtid_seq_no_check";
+SET gtid_seq_no= 1;
+SET SESSION debug_dbug=@old_dbug;
+--error ER_GTID_STRICT_OUT_OF_ORDER
+INSERT INTO t2 VALUES (1);
+# The value is still inserted, cannot be rolled back.
+SET server_id= 1;
+SET gtid_seq_no= 6;
+INSERT INTO t2 VALUES (2);
+SELECT * FROM t2 ORDER BY a;
+--source include/show_binlog_events.inc
+
+
+--echo *** Test that slave stops if it tries to apply a GTID that would create out-of-order binlog GTID sequence numbers. ***
+
+--save_master_pos
+--connection server_2
+--sync_with_master
+
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+SET sql_log_bin= 0;
+call mtr.add_suppression("An attempt was made to binlog GTID .* which would create an out-of-order sequence number with existing GTID .*, and gtid strict mode is enabled");
+call mtr.add_suppression("The binlog on the master is missing the GTID [-0-9]+ requested by the slave");
+SET sql_log_bin= 1;
+
+# Create some out-of-order stuff on slave.
+INSERT INTO t1 VALUES (5);
+
+--connection server_1
+INSERT INTO t1 VALUES (6);
+--save_master_pos
+
+--connection server_2
+--let $slave_sql_errno=1950
+--source include/wait_for_slave_sql_error.inc
+STOP SLAVE IO_THREAD;
+SET GLOBAL gtid_strict_mode=0;
+--source include/start_slave.inc
+--sync_with_master
+SET GLOBAL gtid_strict_mode=1;
+SELECT * FROM t1 ORDER BY a;
+
+INSERT INTO t1 VALUES (7);
+--connection server_1
+CREATE TABLE t3 (a INT PRIMARY KEY);
+--save_master_pos
+
+--connection server_2
+--let $slave_sql_errno=1950
+--source include/wait_for_slave_sql_error.inc
+--error ER_NO_SUCH_TABLE
+--query_vertical SHOW CREATE TABLE t3
+STOP SLAVE IO_THREAD;
+SET GLOBAL gtid_strict_mode=0;
+--source include/start_slave.inc
+--sync_with_master
+SET GLOBAL gtid_strict_mode=1;
+--query_vertical SHOW CREATE TABLE t3
+
+INSERT INTO t1 VALUES (8);
+--connection server_1
+INSERT INTO t2 VALUES (3);
+--save_master_pos
+
+--connection server_2
+--let $slave_sql_errno=1950
+--source include/wait_for_slave_sql_error.inc
+SELECT * FROM t2 ORDER BY a;
+STOP SLAVE IO_THREAD;
+SET GLOBAL gtid_strict_mode=0;
+--source include/start_slave.inc
+--sync_with_master
+SET GLOBAL gtid_strict_mode=1;
+SELECT * FROM t2 ORDER BY a;
+
+
+--echo *** Check slave requests starting from a hole on the master. ***
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (10);
+SET gtid_seq_no= 100;
+INSERT INTO t1 VALUES (11);
+INSERT INTO t1 VALUES (12);
+--save_master_pos
+
+--connection server_2
+SET GLOBAL gtid_slave_pos= "0-1-50";
+START SLAVE;
+--let $slave_io_errno=1236
+--source include/wait_for_slave_io_error.inc
+STOP SLAVE SQL_THREAD;
+SET GLOBAL gtid_strict_mode= 0;
+--source include/start_slave.inc
+--sync_with_master
+
+SELECT * FROM t1 ORDER BY a;
+SET GLOBAL gtid_strict_mode= 1;
+
+
+# Clean up.
+--connection server_1
+DROP TABLE t1, t2, t3;
+SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
+--connection server_2
+SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
+
+--source include/rpl_end.inc

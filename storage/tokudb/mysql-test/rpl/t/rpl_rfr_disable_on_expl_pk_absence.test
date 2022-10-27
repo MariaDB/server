@@ -1,0 +1,48 @@
+# Test case for bug#1536663
+#
+# When read-free-replication is enabled for tokudb and there is no explicit
+# pk for replicated table there can be dublicated records in the table on
+# update operation.
+#
+# Consider this update operation:
+# UPDATE t SET a = a + 10 WHERE b = 'b';
+# The master does rows lookup and updates the rows which values correspond to
+# the condition. The update events are written to binary log with
+# rows values from the master. As rows lookup is forbidden for slave
+# the new rows are added instead of updating corresponding rows.
+#
+# Without the fix there will be several rows with b = 'b' in the table on slave
+# instead of one updated row.
+#
+
+--source include/have_tokudb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+call mtr.add_suppression("read free replication is disabled for tokudb table");
+
+--connection master
+CREATE TABLE t (a int(11), b char(20)) ENGINE = TokuDB;
+INSERT INTO t (a, b) VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e');
+
+--sync_slave_with_master
+--sorted_result
+SELECT * FROM t;
+
+--let $i = 2
+--while($i) {
+  --dec $i
+  --connection master
+  UPDATE t SET a = a + 10 WHERE b = 'b';
+  --sorted_result
+  SELECT * FROM t;
+  --sync_slave_with_master
+  --sorted_result
+  SELECT * FROM t;
+}
+
+--connection master
+DROP TABLE t;
+--sync_slave_with_master
+
+--source include/rpl_end.inc

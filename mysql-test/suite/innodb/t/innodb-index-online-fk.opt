@@ -1,0 +1,4 @@
+--loose-innodb-sys-tables
+--loose-innodb-sys-columns
+--loose-innodb-sys-foreign
+--loose-innodb-sys-foreign-cols

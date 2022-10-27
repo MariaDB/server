@@ -1,0 +1,10 @@
+[x509v3]
+--loose-enable-ssl
+--loose-ssl-cert=$MYSQL_TEST_DIR/std_data/serversan-cert.pem
+--loose-ssl-key=$MYSQL_TEST_DIR/std_data/serversan-key.pem
+
+[ssl]
+--loose-enable-ssl
+
+[nossl]
+--loose-disable-ssl

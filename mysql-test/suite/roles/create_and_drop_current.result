@@ -1,0 +1,34 @@
+create user foo@localhost;
+grant create user on *.* to foo@localhost;
+create user current_user;
+ERROR HY000: Operation CREATE USER failed for CURRENT_USER
+create user current_role;
+ERROR HY000: Operation CREATE USER failed for CURRENT_ROLE
+create role current_user;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'current_user' at line 1
+create role current_role;
+ERROR HY000: Operation CREATE ROLE failed for CURRENT_ROLE
+drop user current_user;
+drop user current_role;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'current_role' at line 1
+drop role current_user;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'current_user' at line 1
+drop role current_role;
+ERROR HY000: Operation DROP ROLE failed for CURRENT_ROLE
+show warnings;
+Level	Code	Message
+Error	1446	Invalid definer
+Error	1396	Operation DROP ROLE failed for CURRENT_ROLE
+create role r1;
+grant r1 to current_user;
+set role r1;
+select current_role();
+current_role()
+r1
+create user current_role;
+ERROR HY000: Operation CREATE USER failed for CURRENT_ROLE
+create role current_role;
+ERROR HY000: Operation CREATE ROLE failed for CURRENT_ROLE
+drop user current_role;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'current_role' at line 1
+drop role current_role;

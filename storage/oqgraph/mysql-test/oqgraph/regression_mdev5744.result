@@ -1,0 +1,42 @@
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+call mtr.add_suppression("graph_base is open on delete");
+CREATE TABLE graph_base (
+from_id INT UNSIGNED NOT NULL,
+to_id INT UNSIGNED NOT NULL,
+PRIMARY KEY (from_id,to_id),
+INDEX (to_id)
+) ENGINE=MyISAM;
+CREATE TABLE graph (
+latch   VARCHAR(32) NULL,
+origid  BIGINT    UNSIGNED NULL,
+destid  BIGINT    UNSIGNED NULL,
+weight  DOUBLE    NULL,
+seq     BIGINT    UNSIGNED NULL,
+linkid  BIGINT    UNSIGNED NULL,
+KEY (latch, origid, destid) USING HASH,
+KEY (latch, destid, origid) USING HASH
+) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
+SET @query_cache_size.saved = @@query_cache_size;
+SET GLOBAL query_cache_size = 1024*1024;
+SELECT * FROM graph;
+latch	origid	destid	weight	seq	linkid
+NULL	1	2	1	NULL	NULL
+NULL	2	1	1	NULL	NULL
+UPDATE graph_base SET to_id = 20 WHERE from_id = 1;
+SELECT * FROM graph;
+latch	origid	destid	weight	seq	linkid
+NULL	1	20	1	NULL	NULL
+NULL	2	1	1	NULL	NULL
+SELECT SQL_NO_CACHE * FROM graph;
+latch	origid	destid	weight	seq	linkid
+NULL	1	20	1	NULL	NULL
+NULL	2	1	1	NULL	NULL
+SET GLOBAL query_cache_size = 0;
+SELECT SQL_NO_CACHE * FROM graph;
+latch	origid	destid	weight	seq	linkid
+NULL	1	20	1	NULL	NULL
+NULL	2	1	1	NULL	NULL
+DROP TABLE graph_base, graph;
+SET GLOBAL query_cache_size = @query_cache_size.saved;

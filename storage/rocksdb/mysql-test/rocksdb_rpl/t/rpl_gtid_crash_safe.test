@@ -1,0 +1,11 @@
+-- source include/have_rocksdb.inc
+-- source include/have_gtid.inc
+-- source include/master-slave.inc
+-- source include/have_debug.inc
+-- source include/not_valgrind.inc
+
+if (`select count(*) = 1 from information_schema.global_variables where variable_name = 'slave_gtid_info' and variable_value = 'optimized';`) {
+  --skip Test does not support row_write_committed_slave_gtid_optimized policy due to subtle behavioral differences. rpl_gtid_crash_safe_optimized covers slave_gtid_info=optimized.
+}
+
+-- source ../include/rpl_gtid_crash_safe.inc

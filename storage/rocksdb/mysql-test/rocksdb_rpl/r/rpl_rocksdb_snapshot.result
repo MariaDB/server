@@ -1,0 +1,222 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+DROP TABLE IF EXISTS t1;
+# Establish connection con1 (user=root)
+# Establish connection con2 (user=root)
+# Establish connection con3 (user=root)
+# Establish connection con4 (user=root)
+# reset replication to guarantee that master-bin.000001 is used
+include/stop_slave.inc
+RESET SLAVE;
+RESET MASTER;
+RESET MASTER;
+CHANGE MASTER TO master_host="127.0.0.1",master_port=MASTER_PORT,master_user="root";
+Warnings:
+Note	1759	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	1760	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+include/start_slave.inc
+# Switch to connection con1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1);
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+ERROR HY000: Only REPEATABLE READ isolation level is supported for START TRANSACTION WITH CONSISTENT|SHARED|EXISTING SNAPSHOT in RocksDB Storage Engine.
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+ERROR HY000: Only REPEATABLE READ isolation level is supported for START TRANSACTION WITH CONSISTENT|SHARED|EXISTING SNAPSHOT in RocksDB Storage Engine.
+ROLLBACK;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	531	UUID:1-2
+# Switch to connection con2
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(3);
+# Switch to connection con1
+SELECT * FROM t1;
+a
+1
+COMMIT;
+SELECT * FROM t1;
+a
+1
+2
+3
+DROP TABLE t1;
+# Switch to connection con1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1);
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	1510	UUID:1-7
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	1510	UUID:1-7
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	1510	UUID:1-7
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	1510	UUID:1-7
+# Switch to connection con2
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(3);
+# Switch to connection con1
+SELECT * FROM t1;
+a
+1
+SELECT * INTO OUTFILE '<MYSQLTEST_VARDIR>/tmp/rpl_rocksdb_snapshot.out.file' FROM t1;
+COMMIT;
+# Switch to slave
+CREATE TABLE t1_backup LIKE t1;
+INSERT INTO t1_backup SELECT * FROM t1;
+include/stop_slave.inc
+RESET SLAVE;
+RESET MASTER;
+DELETE FROM t1;
+LOAD DATA INFILE '<MYSQLTEST_VARDIR>/tmp/rpl_rocksdb_snapshot.out.file' INTO TABLE t1;
+SELECT * FROM t1;
+a
+1
+CHANGE MASTER TO master_host="127.0.0.1",master_port=MASTER_PORT,master_user="root",master_log_file="master-bin.000001",master_log_pos=binlog_pos;
+Warnings:
+Note	1759	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	1760	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+include/start_slave.inc
+SELECT * FROM t1;
+a
+1
+2
+3
+SELECT * FROM t1_backup;
+a
+1
+2
+3
+DROP TABLE t1_backup;
+DROP TABLE t1;
+# Switch to connection con1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1);
+# async queries from con2
+INSERT INTO t1 VALUES(2);
+# async queries from con3
+INSERT INTO t1 VALUES(21);
+# Switch to connection con1
+# Switch to connection con4
+INSERT INTO t1 VALUES(9);
+# Switch to connection con1
+SELECT * INTO OUTFILE '<MYSQLTEST_VARDIR>/tmp/rpl_rocksdb_snapshot.out.file' FROM t1;
+COMMIT;
+# reap async statements
+# Switch to slave
+CREATE TABLE t1_backup LIKE t1;
+INSERT INTO t1_backup SELECT * FROM t1;
+include/stop_slave.inc
+RESET SLAVE;
+RESET MASTER;
+DELETE FROM t1;
+LOAD DATA INFILE '<MYSQLTEST_VARDIR>/tmp/rpl_rocksdb_snapshot.out.file' INTO TABLE t1;
+CHANGE MASTER TO master_host="127.0.0.1",master_port=MASTER_PORT,master_user="root",master_log_file="master-bin.000001",master_log_pos=binlog_pos;
+Warnings:
+Note	1759	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	1760	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+include/start_slave.inc
+# sync and then query slave
+ShouldBeZero
+0
+DROP TABLE t1_backup;
+DROP TABLE t1;
+# Switch to connection con1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1);
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	3688	UUID:1-18
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	3688	UUID:1-18
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	3688	UUID:1-18
+START TRANSACTION WITH CONSISTENT ROCKSDB SNAPSHOT;
+File	Position	Gtid_executed
+master-bin.000001	3688	UUID:1-18
+# Switch to connection con2
+INSERT INTO t1 VALUES(2);
+INSERT INTO t1 VALUES(3);
+# Switch to connection con1
+SELECT * FROM t1;
+a
+1
+SELECT * INTO OUTFILE '<MYSQLTEST_VARDIR>/tmp/rpl_rocksdb_snapshot.out.file' FROM t1;
+COMMIT;
+# Switch to slave
+CREATE TABLE t1_backup LIKE t1;
+INSERT INTO t1_backup SELECT * FROM t1;
+include/stop_slave.inc
+RESET SLAVE;
+RESET MASTER;
+SET @@global.gtid_purged='gtid_executed_from_snapshot';
+DELETE FROM t1;
+LOAD DATA INFILE '<MYSQLTEST_VARDIR>/tmp/rpl_rocksdb_snapshot.out.file' INTO TABLE t1;
+SELECT * FROM t1;
+a
+1
+CHANGE MASTER TO master_host="127.0.0.1",master_port=MASTER_PORT,master_user="root", master_auto_position=1;
+Warnings:
+Note	1759	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	1760	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+include/start_slave.inc
+SELECT * FROM t1;
+a
+1
+2
+3
+SELECT * FROM t1_backup;
+a
+1
+2
+3
+DROP TABLE t1_backup;
+DROP TABLE t1;
+# Switch to connection con1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 VALUES(1);
+# async queries from con2
+INSERT INTO t1 VALUES(2);
+# async queries from con3
+INSERT INTO t1 VALUES(21);
+# Switch to connection con1
+# Switch to connection con4
+INSERT INTO t1 VALUES(9);
+# Switch to connection con1
+SELECT * INTO OUTFILE '<MYSQLTEST_VARDIR>/tmp/rpl_rocksdb_snapshot.out.file' FROM t1;
+COMMIT;
+# reap async statements
+# Switch to slave
+CREATE TABLE t1_backup LIKE t1;
+INSERT INTO t1_backup SELECT * FROM t1;
+include/stop_slave.inc
+RESET SLAVE;
+RESET MASTER;
+SET @@global.gtid_purged='gtid_executed_from_snapshot';
+DELETE FROM t1;
+LOAD DATA INFILE '<MYSQLTEST_VARDIR>/tmp/rpl_rocksdb_snapshot.out.file' INTO TABLE t1;
+CHANGE MASTER TO master_host="127.0.0.1",master_port=MASTER_PORT,master_user="root", master_auto_position=1;
+Warnings:
+Note	1759	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	1760	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+include/start_slave.inc
+# sync and then query slave
+ShouldBeZero
+0
+DROP TABLE t1_backup;
+DROP TABLE t1;
+# Switch to connection default + close connections con1 and con2
+include/stop_slave.inc
+CHANGE MASTER to master_auto_position=0;
+include/start_slave.inc
+include/rpl_end.inc

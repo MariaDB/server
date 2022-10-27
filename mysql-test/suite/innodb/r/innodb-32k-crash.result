@@ -1,0 +1,293 @@
+CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
+h blob,i blob,j blob,k blob,l blob,m blob,n blob,
+o blob,p blob,q blob,r blob,s blob,t blob,u blob,
+v blob, w blob, x blob, y blob, z blob,
+aa blob,ba blob,ca blob,da blob,ea blob,fa blob,ga blob,
+ha blob,ia blob,ja blob,ka blob,la blob,ma blob,na blob,
+oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
+va blob, wa blob, xa blob, ya blob, za blob)
+ENGINE=InnoDB ROW_FORMAT=dynamic;
+SET innodb_strict_mode=OFF;
+CREATE TABLE t2(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
+h blob,i blob,j blob,k blob,l blob,m blob,n blob,
+o blob,p blob,q blob,r blob,s blob,t blob,u blob,
+v blob, w blob, x blob, y blob, z blob,
+aa blob,ba blob,ca blob,da blob,ea blob,fa blob,ga blob,
+ha blob,ia blob,ja blob,ka blob,la blob,ma blob,na blob,
+oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
+va blob, wa blob, xa blob, ya blob, za blob)
+ENGINE=InnoDB ROW_FORMAT=compact;
+Warnings:
+Warning	139	Row size too large (> 16318). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
+SET innodb_strict_mode=ON;
+SET @a = repeat('a', 767);
+SET @b = repeat('b', 767);
+SET @c = repeat('c', 767);
+SET @d = repeat('d', 767);
+SET @e = repeat('e', 767);
+SET @f = repeat('f', 767);
+SET @f = repeat('g', 767);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,@a);
+SET @f = repeat('h', 500);
+SET @f = repeat('i', 500);
+SET @f = repeat('j', 500);
+SET @f = repeat('k', 500);
+SET @f = repeat('l', 500);
+SET @f = repeat('m', 500);
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h);
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h);
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h);
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h);
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h);
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h);
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h);
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h);
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h);
+INSERT INTO t2 VALUES (@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h,@h);
+UPDATE t1 SET a=@b,b=@b,c=@b,d=@b,e=@b,f=@b,g=@b,h=@b,i=@b,j=@b,
+k=@b,l=@b,m=@b,n=@b,o=@b,p=@b,q=@b,r=@b,s=@b,t=@b,u=@b,
+v=@b,w=@b,x=@b,y=@b,z=@b,
+aa=@b,ba=@b,ca=@b,da=@b,ea=@b,fa=@b,ga=@b,ha=@b,ia=@b,ja=@b,
+ka=@b,la=@b,ma=@b,na=@b,oa=@b,pa=@b,qa=@b,ra=@b,sa=@b,ta=@b,ua=@b,
+va=@b,wa=@b,xa=@b,ya=@b,za=@b;
+UPDATE t2 SET a=@i,b=@i,c=@i,d=@i,e=@i,f=@i,g=@i,h=@i,i=@i,j=@i,
+k=@i,l=@i,m=@i,n=@i,o=@i,p=@i,q=@i,r=@i,s=@i,t=@i,u=@i,
+v=@i,w=@i,x=@i,y=@i,z=@i,
+aa=@i,ba=@i,ca=@i,da=@i,ea=@i,fa=@i,ga=@i,ha=@i,ia=@i,ja=@i,
+ka=@i,la=@i,ma=@i,na=@i,oa=@i,pa=@i,qa=@i,ra=@i,sa=@i,ta=@i,ua=@i,
+va=@i,wa=@i,xa=@i,ya=@i,za=@i;
+CREATE INDEX t1a ON t1 (a(767));
+CREATE INDEX t1b ON t1 (b(767));
+CREATE INDEX t1c ON t1 (c(767));
+CREATE INDEX t1d ON t1 (d(767));
+CREATE INDEX t1e ON t1 (e(767));
+CREATE INDEX t1f1 ON t1 (f(767));
+CREATE INDEX t1f2 ON t1 (g(767));
+CREATE INDEX t1f3 ON t1 (h(767));
+CREATE INDEX t1f4 ON t1 (i(767));
+CREATE INDEX t1f5 ON t1 (j(767));
+CREATE INDEX t1a ON t2 (a(767));
+CREATE INDEX t1b ON t2 (b(767));
+CREATE INDEX t1c ON t2 (c(767));
+CREATE INDEX t1d ON t2 (d(767));
+CREATE INDEX t1e ON t2 (e(767));
+CREATE INDEX t1f1 ON t2 (f(767));
+CREATE INDEX t1f2 ON t2 (g(767));
+CREATE INDEX t1f3 ON t2 (h(767));
+UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
+k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c,
+v=@c,w=@c,x=@b,y=@c,z=@c,
+aa=@c,ba=@c,ca=@c,da=@c,ea=@c,fa=@c,ga=@c,ha=@c,ia=@c,ja=@c,
+ka=@c,la=@c,ma=@c,na=@c,oa=@c,pa=@c,qa=@c,ra=@c,sa=@c,ta=@b,ua=@c,
+va=@c,wa=@c,xa=@c,ya=@c,za=@c;
+UPDATE t2 SET a=@k,b=@k,c=@k,d=@k,e=@k,f=@k,g=@k,h=@k,i=@k,j=@k,
+k=@k,l=@k,m=@k,n=@k,o=@k,p=@k,q=@k,r=@k,s=@k,t=@k,u=@k,
+v=@k,w=@k,x=@b,y=@k,z=@k,
+aa=@k,ba=@k,ca=@k,da=@k,ea=@k,fa=@k,ga=@k,ha=@k,ia=@k,ja=@k,
+ka=@k,la=@k,ma=@k,na=@k,oa=@k,pa=@k,qa=@k,ra=@k,sa=@k,ta=@b,ua=@k,
+va=@k,wa=@k,xa=@k,ya=@k,za=@k;
+BEGIN;
+UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d;
+UPDATE t1 SET f=@d,g=@d,h=@d,i=@d,j=@d;
+UPDATE t1 SET k=@d,l=@d,m=@d,n=@d,o=@d;
+UPDATE t1 SET p=@d,q=@d,r=@d,s=@d,t=@d,u=@d;
+UPDATE t1 SET v=@d,w=@d,x=@d,y=@d,z=@d;
+UPDATE t1 SET aa=@d,ba=@d,ca=@d,da=@d;
+UPDATE t1 SET ea=@d,fa=@d,ga=@d,ha=@d,ia=@d,ja=@d;
+UPDATE t1 SET ka=@d,la=@d,ma=@d,na=@d,oa=@d,pa=@d;
+UPDATE t1 SET qa=@d,ra=@d,sa=@d,ta=@d,ua=@d;
+UPDATE t1 SET va=@d,wa=@d,xa=@d,ya=@d,za=@d;
+COMMIT;
+BEGIN;
+UPDATE t2 SET a=@l,b=@l,c=@l,d=@l,e=@l;
+UPDATE t2 SET f=@l,g=@l,h=@l,i=@l,j=@l;
+UPDATE t2 SET k=@l,l=@l,m=@l,n=@l,o=@l;
+UPDATE t2 SET p=@l,q=@l,r=@l,s=@l,t=@l,u=@l;
+UPDATE t2 SET v=@l,w=@l,x=@l,y=@l,z=@l;
+UPDATE t2 SET aa=@l,ba=@l,ca=@l,da=@l;
+UPDATE t2 SET ea=@l,fa=@l,ga=@l,ha=@l,ia=@l,ja=@l;
+UPDATE t2 SET ka=@l,la=@l,ma=@l,na=@l,oa=@l,pa=@l;
+UPDATE t2 SET qa=@l,ra=@l,sa=@l,ta=@l,ua=@l;
+UPDATE t2 SET va=@l,wa=@l,xa=@l,ya=@l,za=@l;
+COMMIT;
+BEGIN;
+INSERT INTO t1 SELECT * from t2;
+BEGIN;
+UPDATE t1 SET a=@e,b=@e,c=@e,d=@e,e=@e;
+# restart
+UPDATE t1 SET a=@f,b=@f,c=@f,d=@f,e=@f,f=@f,g=@f,h=@f,i=@f,j=@f,
+k=@f,l=@f,m=@f,n=@f,o=@f,p=@f,q=@f,r=@f,s=@f,t=@f,u=@f,
+v=@f,w=@f,x=@b,y=@f,z=@f,
+aa=@f,ba=@f,ca=@f,da=@f,ea=@f,fa=@f,ga=@f,ha=@f,ia=@f,ja=@f,
+ka=@f,la=@f,ma=@f,na=@f,oa=@f,pa=@f,qa=@f,ra=@f,sa=@f,ta=@b,ua=@f,
+va=@f,wa=@f,xa=@f,ya=@f,za=@f;
+UPDATE t2 SET a=@h,b=@h,c=@h,d=@h,e=@h,f=@h,g=@h,h=@h,i=@h,j=@h,
+k=@h,l=@h,m=@h,n=@h,o=@h,p=@h,q=@h,r=@h,s=@h,t=@h,u=@h,
+v=@h,w=@h,x=@b,y=@h,z=@h,
+aa=@h,ba=@h,ca=@h,da=@h,ea=@h,fa=@h,ga=@h,ha=@h,ia=@h,ja=@h,
+ka=@h,la=@h,ma=@h,na=@h,oa=@h,pa=@h,qa=@h,ra=@h,sa=@h,ta=@b,ua=@h,
+va=@h,wa=@h,xa=@h,ya=@h,za=@h;
+BEGIN;
+UPDATE t1 SET a=@g,b=@g,c=@g,d=@g,e=@g;
+UPDATE t1 SET f=@g,g=@g,h=@g,i=@g,j=@g;
+UPDATE t1 SET k=@g,l=@g,m=@g,n=@g,o=@g;
+UPDATE t1 SET p=@g,q=@g,r=@g,s=@g,t=@g,u=@g;
+UPDATE t1 SET v=@g,w=@g,x=@g,y=@g,z=@g;
+UPDATE t1 SET aa=@g,ba=@g,ca=@g,da=@g;
+UPDATE t1 SET ea=@g,fa=@g,ga=@g,ha=@g,ia=@g,ja=@g;
+UPDATE t1 SET ka=@g,la=@g,ma=@g,na=@g,oa=@g,pa=@g;
+UPDATE t1 SET qa=@g,ra=@g,sa=@g,ta=@g,ua=@g;
+UPDATE t1 SET va=@g,wa=@g,xa=@g,ya=@g,za=@g;
+COMMIT;
+BEGIN;
+UPDATE t2 SET a=@m,b=@m,c=@m,d=@m,e=@m;
+UPDATE t2 SET f=@m,g=@m,h=@m,i=@m,j=@m;
+UPDATE t2 SET k=@m,l=@m,m=@m,n=@m,o=@m;
+UPDATE t2 SET p=@m,q=@m,r=@m,s=@m,t=@m,u=@m;
+UPDATE t2 SET v=@m,w=@m,x=@m,y=@m,z=@m;
+UPDATE t2 SET aa=@m,ba=@m,ca=@m,da=@m;
+UPDATE t2 SET ea=@m,fa=@m,ga=@m,ha=@m,ia=@m,ja=@m;
+UPDATE t2 SET ka=@m,la=@m,ma=@m,na=@m,oa=@m,pa=@m;
+UPDATE t2 SET qa=@m,ra=@m,sa=@m,ta=@m,ua=@m;
+UPDATE t2 SET va=@m,wa=@m,xa=@m,ya=@m,za=@m;
+COMMIT;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` blob DEFAULT NULL,
+  `b` blob DEFAULT NULL,
+  `c` blob DEFAULT NULL,
+  `d` blob DEFAULT NULL,
+  `e` blob DEFAULT NULL,
+  `f` blob DEFAULT NULL,
+  `g` blob DEFAULT NULL,
+  `h` blob DEFAULT NULL,
+  `i` blob DEFAULT NULL,
+  `j` blob DEFAULT NULL,
+  `k` blob DEFAULT NULL,
+  `l` blob DEFAULT NULL,
+  `m` blob DEFAULT NULL,
+  `n` blob DEFAULT NULL,
+  `o` blob DEFAULT NULL,
+  `p` blob DEFAULT NULL,
+  `q` blob DEFAULT NULL,
+  `r` blob DEFAULT NULL,
+  `s` blob DEFAULT NULL,
+  `t` blob DEFAULT NULL,
+  `u` blob DEFAULT NULL,
+  `v` blob DEFAULT NULL,
+  `w` blob DEFAULT NULL,
+  `x` blob DEFAULT NULL,
+  `y` blob DEFAULT NULL,
+  `z` blob DEFAULT NULL,
+  `aa` blob DEFAULT NULL,
+  `ba` blob DEFAULT NULL,
+  `ca` blob DEFAULT NULL,
+  `da` blob DEFAULT NULL,
+  `ea` blob DEFAULT NULL,
+  `fa` blob DEFAULT NULL,
+  `ga` blob DEFAULT NULL,
+  `ha` blob DEFAULT NULL,
+  `ia` blob DEFAULT NULL,
+  `ja` blob DEFAULT NULL,
+  `ka` blob DEFAULT NULL,
+  `la` blob DEFAULT NULL,
+  `ma` blob DEFAULT NULL,
+  `na` blob DEFAULT NULL,
+  `oa` blob DEFAULT NULL,
+  `pa` blob DEFAULT NULL,
+  `qa` blob DEFAULT NULL,
+  `ra` blob DEFAULT NULL,
+  `sa` blob DEFAULT NULL,
+  `ta` blob DEFAULT NULL,
+  `ua` blob DEFAULT NULL,
+  `va` blob DEFAULT NULL,
+  `wa` blob DEFAULT NULL,
+  `xa` blob DEFAULT NULL,
+  `ya` blob DEFAULT NULL,
+  `za` blob DEFAULT NULL,
+  KEY `t1a` (`a`(767)),
+  KEY `t1b` (`b`(767)),
+  KEY `t1c` (`c`(767)),
+  KEY `t1d` (`d`(767)),
+  KEY `t1e` (`e`(767)),
+  KEY `t1f1` (`f`(767)),
+  KEY `t1f2` (`g`(767)),
+  KEY `t1f3` (`h`(767)),
+  KEY `t1f4` (`i`(767)),
+  KEY `t1f5` (`j`(767))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` blob DEFAULT NULL,
+  `b` blob DEFAULT NULL,
+  `c` blob DEFAULT NULL,
+  `d` blob DEFAULT NULL,
+  `e` blob DEFAULT NULL,
+  `f` blob DEFAULT NULL,
+  `g` blob DEFAULT NULL,
+  `h` blob DEFAULT NULL,
+  `i` blob DEFAULT NULL,
+  `j` blob DEFAULT NULL,
+  `k` blob DEFAULT NULL,
+  `l` blob DEFAULT NULL,
+  `m` blob DEFAULT NULL,
+  `n` blob DEFAULT NULL,
+  `o` blob DEFAULT NULL,
+  `p` blob DEFAULT NULL,
+  `q` blob DEFAULT NULL,
+  `r` blob DEFAULT NULL,
+  `s` blob DEFAULT NULL,
+  `t` blob DEFAULT NULL,
+  `u` blob DEFAULT NULL,
+  `v` blob DEFAULT NULL,
+  `w` blob DEFAULT NULL,
+  `x` blob DEFAULT NULL,
+  `y` blob DEFAULT NULL,
+  `z` blob DEFAULT NULL,
+  `aa` blob DEFAULT NULL,
+  `ba` blob DEFAULT NULL,
+  `ca` blob DEFAULT NULL,
+  `da` blob DEFAULT NULL,
+  `ea` blob DEFAULT NULL,
+  `fa` blob DEFAULT NULL,
+  `ga` blob DEFAULT NULL,
+  `ha` blob DEFAULT NULL,
+  `ia` blob DEFAULT NULL,
+  `ja` blob DEFAULT NULL,
+  `ka` blob DEFAULT NULL,
+  `la` blob DEFAULT NULL,
+  `ma` blob DEFAULT NULL,
+  `na` blob DEFAULT NULL,
+  `oa` blob DEFAULT NULL,
+  `pa` blob DEFAULT NULL,
+  `qa` blob DEFAULT NULL,
+  `ra` blob DEFAULT NULL,
+  `sa` blob DEFAULT NULL,
+  `ta` blob DEFAULT NULL,
+  `ua` blob DEFAULT NULL,
+  `va` blob DEFAULT NULL,
+  `wa` blob DEFAULT NULL,
+  `xa` blob DEFAULT NULL,
+  `ya` blob DEFAULT NULL,
+  `za` blob DEFAULT NULL,
+  KEY `t1a` (`a`(767)),
+  KEY `t1b` (`b`(767)),
+  KEY `t1c` (`c`(767)),
+  KEY `t1d` (`d`(767)),
+  KEY `t1e` (`e`(767)),
+  KEY `t1f1` (`f`(767)),
+  KEY `t1f2` (`g`(767)),
+  KEY `t1f3` (`h`(767))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+drop table t1,t2;

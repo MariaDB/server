@@ -1,0 +1,54 @@
+#
+# wsrep_sync_wait
+#
+# save the initial values
+SET @wsrep_sync_wait_global_saved = @@global.wsrep_sync_wait;
+SET @wsrep_sync_wait_session_saved = @@session.wsrep_sync_wait;
+# default
+SELECT @@global.wsrep_sync_wait;
+@@global.wsrep_sync_wait
+0
+SELECT @@session.wsrep_sync_wait;
+@@session.wsrep_sync_wait
+0
+
+# scope and valid values
+SET @@global.wsrep_sync_wait=0;
+SELECT @@global.wsrep_sync_wait;
+@@global.wsrep_sync_wait
+0
+SET @@global.wsrep_sync_wait=7;
+SELECT @@global.wsrep_sync_wait;
+@@global.wsrep_sync_wait
+7
+SET @@session.wsrep_sync_wait=0;
+SELECT @@session.wsrep_sync_wait;
+@@session.wsrep_sync_wait
+0
+SET @@session.wsrep_sync_wait=7;
+SELECT @@session.wsrep_sync_wait;
+@@session.wsrep_sync_wait
+7
+SET @@session.wsrep_sync_wait=default;
+SELECT @@session.wsrep_sync_wait;
+@@session.wsrep_sync_wait
+7
+SET @@session.wsrep_sync_wait=8;
+SELECT @@session.wsrep_sync_wait;
+@@session.wsrep_sync_wait
+8
+
+# invalid values
+SET @@global.wsrep_sync_wait=NULL;
+ERROR 42000: Incorrect argument type to variable 'wsrep_sync_wait'
+SET @@global.wsrep_sync_wait='junk';
+ERROR 42000: Incorrect argument type to variable 'wsrep_sync_wait'
+SET @@session.wsrep_sync_wait=NULL;
+ERROR 42000: Incorrect argument type to variable 'wsrep_sync_wait'
+SET @@session.wsrep_sync_wait='junk';
+ERROR 42000: Incorrect argument type to variable 'wsrep_sync_wait'
+
+# restore the initial values
+SET @@global.wsrep_sync_wait = @wsrep_sync_wait_global_saved;
+SET @@session.wsrep_sync_wait = @wsrep_sync_wait_session_saved;
+# End of test

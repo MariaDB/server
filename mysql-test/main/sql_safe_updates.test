@@ -1,0 +1,4 @@
+#
+# MDEV-14429 sql_safe_updates in my.cnf not work
+#
+select @@sql_safe_updates;

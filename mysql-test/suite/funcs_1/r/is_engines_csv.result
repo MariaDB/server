@@ -1,0 +1,8 @@
+SELECT * FROM information_schema.engines
+WHERE ENGINE = 'CSV';
+ENGINE	CSV
+SUPPORT	YES
+COMMENT	Stores tables as CSV files
+TRANSACTIONS	NO
+XA	NO
+SAVEPOINTS	NO

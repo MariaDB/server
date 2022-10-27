@@ -1,0 +1,39 @@
+--source include/have_rocksdb.inc
+--source include/have_debug.inc
+
+--let $_server_id= `SELECT @@server_id`
+
+create table t1 (pk int primary key) engine=rocksdb;
+
+# Create a .frm file without a matching table
+--exec cp $MYSQLTEST_VARDIR/mysqld.$_server_id/data/test/t1.frm $MYSQLTEST_VARDIR/mysqld.$_server_id/data/test/t1#sql-test.frm
+
+--source include/restart_mysqld.inc
+
+show tables;
+
+# MariaDB produces a warning:
+call mtr.add_suppression('Invalid .old.. table or database name .t1#sql-test.');
+
+# This will append '#sql-test' to the end of new name
+set session debug_dbug="+d,gen_sql_table_name";
+rename table t1 to t2;
+set session debug_dbug= "-d,gen_sql_table_name";
+
+show tables;
+
+# Remove the corresponding .frm files
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.$_server_id/data/test *t1*.frm
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.$_server_id/data/test *t2*.frm
+
+# Restart the server with a table registered in RocksDB but does not have a .frm file
+--source include/restart_mysqld.inc
+
+show tables;
+
+# try to recreate a table with the same name
+create table t2 (pk int primary key) engine=rocksdb;
+
+show tables;
+
+drop table t2;

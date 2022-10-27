@@ -1,0 +1,35 @@
+DROP TABLE IF EXISTS diaries, memos;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+body TEXT,
+FULLTEXT INDEX title_index (title),
+FULLTEXT INDEX body_index (body)
+) DEFAULT CHARSET UTF8;
+SELECT table_name, engine
+FROM information_schema.tables
+WHERE table_name = 'diaries';
+table_name	engine
+diaries	Mroonga
+INSERT INTO diaries (title, body) VALUES ("survey", "will start groonga!");
+SELECT * FROM diaries;
+id	title	body
+1	survey	will start groonga!
+SELECT * FROM diaries
+WHERE MATCH(title) AGAINST("groonga") AND
+MATCH(body) AGAINST("starting");
+id	title	body
+ALTER TABLE diaries RENAME memos;
+SELECT * FROM memos;
+id	title	body
+1	survey	will start groonga!
+SELECT * FROM memos
+WHERE MATCH(title) AGAINST("groonga") AND
+MATCH(body) AGAINST("starting");
+id	title	body
+SELECT table_name, engine
+FROM information_schema.tables
+WHERE table_name = 'memos';
+table_name	engine
+memos	Mroonga
+DROP TABLE memos;

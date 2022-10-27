@@ -1,0 +1,53 @@
+#
+# MDEV-15443
+#
+# If transactions are executed into InnoDB without wsrep_on,
+# rseg header trx_id gets incremented and the rseg header
+# corresponding to maximum trx_id may store undefined wsrep XID.
+# When the wsrep XID is read from the storage engine,
+# undefined XID may returned instead the valid one.
+#
+# This test demonstrates the problem by taking a node_2 out
+# of the cluster and writing and deleting a row with
+# wsrep_on=0. When the bug is present, node_2 will fail to
+# rejoin the cluster because an invalid XID is read from the
+# storage engine after startup/recovery.
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+# Initialize table on node_1
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+# Go to node_2, verify that the previous INSERT completed.
+# Take node_2 out of the cluster, insert and delete a record
+# on a table with wsrep_on.
+--connection node_2
+SELECT * FROM t1;
+SET GLOBAL wsrep_cluster_address='';
+SET SESSION wsrep_on=0;
+INSERT INTO t1 VALUES (2);
+DELETE FROM t1 WHERE f1 = 2;
+
+# Shutdown node_2
+--source include/shutdown_mysqld.inc
+
+# On node_1, verify that the node has left the cluster.
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Insert into t1 to enforce IST on node_2 when it is restarted.
+INSERT INTO t1 VALUES (2);
+
+# Restart node_2
+--connection node_2
+--source include/start_mysqld.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_1
+--source include/wait_condition.inc
+DROP TABLE t1;

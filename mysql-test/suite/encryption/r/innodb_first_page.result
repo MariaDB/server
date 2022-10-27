@@ -1,0 +1,4 @@
+# restart
+create table t1 (a int);
+# restart
+drop table t1;

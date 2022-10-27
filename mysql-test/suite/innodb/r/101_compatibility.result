@@ -1,0 +1,50 @@
+#
+# MDEV-11623 MariaDB 10.1 fails to start datadir created with
+# MariaDB 10.0/MySQL 5.6 using innodb-page-size!=16K
+#
+CREATE TABLE tr(a INT)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+CREATE TABLE tc(a INT)ENGINE=InnoDB ROW_FORMAT=COMPACT;
+CREATE TABLE td(a INT)ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SET INNODB_STRICT_MODE=OFF;
+CREATE TABLE tz(a INT)ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+SET INNODB_STRICT_MODE=ON;
+CREATE TABLE tdd(a INT) ENGINE=InnoDB, DATA DIRECTORY='MYSQL_TMP_DIR';
+CREATE TABLE tp(a INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC PAGE_COMPRESSED=1;
+CREATE TABLE ti(a INT) ENGINE=InnoDB;
+FLUSH TABLES ti FOR EXPORT;
+backup: ti
+UNLOCK TABLES;
+ALTER TABLE ti DISCARD TABLESPACE;
+restore: ti .ibd and .cfg files
+ALTER TABLE ti IMPORT TABLESPACE;
+BEGIN;
+INSERT INTO tr VALUES(1);
+INSERT INTO tc VALUES(1);
+INSERT INTO td VALUES(1);
+INSERT INTO tz VALUES(1);
+INSERT INTO tdd VALUES(1);
+INSERT INTO tp VALUES(1);
+INSERT INTO ti VALUES(1);
+# Kill the server
+# restart
+CHECK TABLE tr,tc,td,tz,tdd,tp,ti;
+Table	Op	Msg_type	Msg_text
+test.tr	check	status	OK
+test.tc	check	status	OK
+test.td	check	status	OK
+test.tz	check	status	OK
+test.tdd	check	status	OK
+test.tp	check	status	OK
+test.ti	check	status	OK
+# restart: --innodb-read-only
+CHECK TABLE tr,tc,td,tz,tdd,tp,ti;
+Table	Op	Msg_type	Msg_text
+test.tr	check	status	OK
+test.tc	check	status	OK
+test.td	check	status	OK
+test.tz	check	status	OK
+test.tdd	check	status	OK
+test.tp	check	status	OK
+test.ti	check	status	OK
+# restart
+DROP TABLE tr,tc,td,tz,tdd,tp,ti;

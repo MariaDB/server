@@ -1,0 +1,8 @@
+include/master-slave.inc
+[connection master]
+create table t1 (a int) engine=myisam;
+flush tables t1;
+drop table if exists t1;
+Warnings:
+Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+include/rpl_end.inc

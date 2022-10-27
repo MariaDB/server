@@ -1,0 +1,60 @@
+#
+# MDEV-10744 Roles are not fully case-sensitive
+#
+#
+# Test creating two case-different roles.
+#
+create user test_user@'%';
+create role test_ROLE;
+create role test_role;
+#
+# Test if mysql.user has the roles created.
+#
+select user, host from mysql.user where is_role='y' and user like 'test%';
+User	Host
+test_ROLE	
+test_role	
+create database secret_db;
+create table secret_db.t1 (secret varchar(100));
+insert into secret_db.t1 values ("Some Secret P4ssw0rd");
+grant select on secret_db.* to test_role;
+grant test_role to test_user;
+show grants for test_user;
+Grants for test_user@%
+GRANT `test_role` TO `test_user`@`%`
+GRANT USAGE ON *.* TO `test_user`@`%`
+#
+# Now test the UPPER case role.
+#
+grant test_ROLE to test_user;
+grant insert on secret_db.t1 to test_ROLE;
+show grants for test_user;
+Grants for test_user@%
+GRANT `test_role` TO `test_user`@`%`
+GRANT `test_ROLE` TO `test_user`@`%`
+GRANT USAGE ON *.* TO `test_user`@`%`
+connect  test_user,localhost,test_user;
+#
+# Test users privileges when interacting with those roles;
+#
+show tables from secret_db;
+ERROR 42000: Access denied for user 'test_user'@'%' to database 'secret_db'
+set role test_ROLE;
+show tables from secret_db;
+Tables_in_secret_db
+t1
+select * from secret_db.t1;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 't1'
+insert into secret_db.t1 values ("|-|4><");
+set role test_role;
+select * from secret_db.t1 order by secret;
+secret
+Some Secret P4ssw0rd
+|-|4><
+insert into secret_db.t1 values ("|_33T|-|4><");
+ERROR 42000: INSERT command denied to user 'test_user'@'localhost' for table 't1'
+connection default;
+drop role test_ROLE;
+drop role test_role;
+drop user test_user;
+drop database secret_db;

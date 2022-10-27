@@ -1,0 +1,192 @@
+set @s= '1992-01-01';
+set @e= '1999-12-31';
+create table t (s date, e date);
+# period start/end columns are implicit NOT NULL
+alter table t add period for a(s, e);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `a` (`s`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t (s date, e date);
+alter table t change s s date, add period for a(s, e);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `a` (`s`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t add id int;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  `id` int(11) DEFAULT NULL,
+  PERIOD FOR `a` (`s`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t drop id;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `a` (`s`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t values(@e, @s);
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t`
+alter table t drop constraint a;
+ERROR HY000: Can't DROP CONSTRAINT `a`. Use DROP PERIOD `a` for this
+# no-op
+alter table t drop period if exists for b;
+Warnings:
+Note	1091	Can't DROP PERIOD `b`; check that it exists
+# no-op
+alter table t add period if not exists for a(e, s);
+Warnings:
+Note	1060	Duplicate column name 'a'
+alter table t drop period if exists for a;
+# no-op
+alter table t drop period if exists for a;
+Warnings:
+Note	1091	Can't DROP PERIOD `a`; check that it exists
+alter table t add period for a(s, e), add period if not exists for a(e, s);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `a` (`s`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t drop period for a;
+# Constraint is dropped
+insert t values(@e, @s);
+alter table t drop period for a;
+ERROR 42000: Can't DROP PERIOD `a`; check that it exists
+alter table t add period for a(s, e), drop period for a;
+ERROR 42000: Can't DROP PERIOD `a`; check that it exists
+truncate t;
+alter table t add period for a(s, e);
+insert t values(@e, @s);
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t`
+alter table t add period for a(s, e), drop period for a;
+insert t values(@e, @s);
+ERROR 23000: CONSTRAINT `a` failed for `test`.`t`
+alter table t add s1 date not null, add period for b(s1, e), drop period for a;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  `s1` date NOT NULL,
+  PERIOD FOR `b` (`s1`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t(s, s1, e) values(@e, @s, @e);
+insert t(s, s1, e) values(@e, @e, @s);
+ERROR 23000: CONSTRAINT `b` failed for `test`.`t`
+create table t1 like t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  `s1` date NOT NULL,
+  PERIOD FOR `b` (`s1`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t2 (period for b(s,e)) select * from t;
+ERROR 23000: CONSTRAINT `b` failed for `test`.`t2`
+create table t2 (period for b(s1,e)) select * from t;
+drop table t2;
+# SQL16 11.27 <add table period definition>, Syntax Rules, 5)g)
+# The declared type of BC1 shall be either DATE or a timestamp type
+# and shall be equivalent to the declared type of BC2.
+create or replace table t (s timestamp not null, e timestamp(6) not null);
+alter table t add period for a(s, e);
+ERROR HY000: Fields of PERIOD FOR `a` have different types
+# SQL16 11.27 <add table period definition>, Syntax Rules, 5)c)
+# No column of T shall have a column name that is equivalent to ATPN.
+create or replace table t (a int, s date, e date);
+alter table t add period for a(s, e);
+ERROR 42S21: Duplicate column name 'a'
+# SQL16 11.27 <add table period definition>, Syntax Rules, 5)i)
+# Neither BC1 nor BC2 shall be an identity column, a generated column,
+# a system-time period start column, or a system-time period end column.
+create or replace table t (id int primary key,
+s date,
+e date generated always as (s+1));
+alter table t add period for a(s, e);
+ERROR HY000: Period field `e` cannot be GENERATED ALWAYS AS
+create or replace table t (id int primary key,
+s date,
+e date as (s+1) VIRTUAL);
+alter table t add period for a(s, e);
+ERROR HY000: Period field `e` cannot be GENERATED ALWAYS AS
+create or replace table t (id int primary key, s timestamp(6), e timestamp(6),
+st timestamp(6) as row start,
+en timestamp(6) as row end,
+period for system_time (st, en)) with system versioning;
+alter table t add period for a(s, en);
+ERROR HY000: Period field `en` cannot be GENERATED ALWAYS AS
+# SQL16 11.27 <add table period definition>, Syntax Rules, 5)b)
+# The table descriptor of T shall not include a period descriptor other
+# than a system-time period descriptor.
+alter table t add period for a(s, e);
+alter table t add period for b(s, e);
+ERROR HY000: Cannot specify more than one application-time period
+# SQL16, Part 2, 11.3 <table definition>, Syntax Rules, 2)e)v)2)B)
+# Let S be the schema identified by the explicit or implicit
+# <schema name> of TN. Let IDCN be an implementation-dependent
+# <constraint name> that is not equivalent to the <constraint name> of
+# any table constraint descriptor included in S. The following
+# <table constraint definition> is implicit:
+# CONSTRAINT IDCN CHECK ( CN1 < CN2 )
+#
+# Due to the above standard limitation, the constraint name can't always
+# match the period name. So it matches when possible; and when not, it
+# is unique not taken name prefixed with period name.
+create or replace table t (x int, s date, e date,
+period for mytime(s, e));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `x` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `mytime` (`s`, `e`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t add constraint mytime check (x > 1);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `x` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `mytime` (`s`, `e`),
+  CONSTRAINT `mytime` CHECK (`x` > 1)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert t values (2, @e, @s);
+ERROR 23000: CONSTRAINT `mytime_1` failed for `test`.`t`
+alter table t add constraint mytime_1 check (x > 2);
+insert t values (3, @e, @s);
+ERROR 23000: CONSTRAINT `mytime_2` failed for `test`.`t`
+drop table t;
+#
+# MDEV-20494 ER_NOT_FORM_FILE or assertion upon adding partition to period table
+#
+create table t1 (f date, t date, period for app(f,t)) with system versioning partition by system_time ( partition p1 history, partition pn current );
+lock table t1 write;
+alter table t1 add partition (partition p2 history);
+Warnings:
+Warning	4115	Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
+unlock tables;
+create or replace table t1 (x int, s date, e date, period for app(s,e));
+insert into t1 values(1, '2020-03-01', '2020-03-02');
+insert into t1 values(1, '2020-03-01', '2020-03-02');
+alter table t1 add primary key(x, s, e);
+ERROR 23000: Duplicate entry '1-2020-03-01-2020-03-02' for key 'PRIMARY'
+alter table t1 add system versioning;
+drop table t1;

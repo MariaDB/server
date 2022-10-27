@@ -1,0 +1,55 @@
+MariaDB is brought to you by the MariaDB Foundation, a non profit
+organization registered in the USA.
+
+The current main sponsors of the MariaDB Foundation are:
+
+Alibaba Cloud                   https://www.alibabacloud.com/ (2017)
+MariaDB Corporation		https://www.mariadb.com  (2013)
+Microsoft			https://microsoft.com/ (2017)
+ServiceNow			https://servicenow.com (2019)
+Tencent Cloud			https://cloud.tencent.com (2017)
+Development Bank of Singapore   https://dbs.com (2016)
+IBM				https://www.ibm.com (2017)
+Visma                           https://visma.com (2015)
+Automattic			https://automattic.com (2019)
+Galera Cluster			https://galeracluster.com (2020)
+Percona				https://www.percona.com (2018)
+
+For a full list of sponsors, see
+https://mariadb.org/about/#sponsors
+and for individual contributors, see
+https://mariadb.org/donate/individual-sponsors/
+
+You can also get the list of sponsors by running SHOW CONTRIBUTORS.
+
+For all corporate sponsorships please contact the
+MariaDB Foundation Board via foundation@mariadb.org.
+
+The MariaDB Foundation is responsible for the MariaDB source
+repository, the official MariaDB binaries and http://mariadb.org.
+
+The MariaDB Foundation also provides, among other things, the
+following services to the MariaDB community:
+
+- Code reviews and applying patches for MariaDB
+- QA and testing of the MariaDB server
+- Merging MySQL patches into MariaDB
+- Bug fixing in MariaDB (for bugs that affects a large part of the community)
+- Building the official MariaDB binaries
+- Maintaining http://mariadb.org
+- Documenting MariaDB in the MariaDB Knowledge Base http://mariadb.com/kb
+
+To be able to do the above we need help from corporations and individuals!
+
+You can help support MariaDB by becoming a MariaDB developer or a
+sponsor of the MariaDB Foundation. To donate or sponsor, 
+go to https://mariadb.org/donate/
+
+You can get a list of all the main authors of MariaDB / MySQL by running 
+SHOW AUTHORS;
+
+You can get a list sponsors and contributors by running 
+SHOW CONTRIBUTORS;
+
+You can read more about the MariaDB Foundation at:
+https://mariadb.org/about/

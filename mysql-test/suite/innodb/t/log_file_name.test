@@ -1,0 +1,269 @@
+# WL#7142 InnoDB: Simplify tablespace discovery during crash recovery
+# Test the detection of duplicate tablespaces.
+
+--source include/have_innodb.inc
+
+# Embedded server does not support crashing
+--source include/not_embedded.inc
+
+SET GLOBAL innodb_file_per_table=ON;
+FLUSH TABLES;
+
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--source include/no_checkpoint_start.inc
+CREATE TABLE t3(a INT PRIMARY KEY) ENGINE=InnoDB;
+
+BEGIN;
+INSERT INTO t3 VALUES (33101),(347);
+INSERT INTO t1 VALUES (42),(9),(101);
+RENAME TABLE t1 TO t2;
+UPDATE t2 SET a=347 where a=42;
+COMMIT;
+
+--let CLEANUP_IF_CHECKPOINT=DROP TABLE t2,t3;
+--source include/no_checkpoint_end.inc
+
+--echo # Fault 0 (no real fault): Orphan file with duplicate space_id.
+--copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t0.ibd
+
+--echo # Fault 1: Two dirty files with the same space_id.
+--copy_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t1.ibd
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let $check_no_innodb=SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+
+# This could fail to refuse InnoDB startup, in case there was a log
+# checkpoint after the INSERT. That is what we checked above.
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+let SEARCH_PATTERN= InnoDB: Ignoring data file '.*t2.ibd' with space ID \d+. Another data file called .*t1.ibd exists with the same space ID;
+--source include/search_pattern_in_file.inc
+
+--source include/shutdown_mysqld.inc
+
+--remove_file $MYSQLD_DATADIR/test/t1.ibd
+
+# This could fail to refuse InnoDB startup, in case there was a log
+# checkpoint after the CREATE TABLE t3. That is what we checked above.
+--echo # Fault 2: Wrong space_id in a dirty file, and a missing file.
+--move_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t1.ibd
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+
+let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at.*t3.ibd;
+--source include/search_pattern_in_file.inc
+
+--source include/shutdown_mysqld.inc
+
+--move_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t3.ibd
+
+--echo # Fault 3: Wrong space_id in a dirty file, and no missing file.
+# Swap t2.ibd and t3.ibd.
+--move_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t.ibd
+--move_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t3.ibd
+--move_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t2.ibd
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+
+let SEARCH_PATTERN= InnoDB: Ignoring data file '.*t[23].ibd' with space ID;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at .*t1.ibd;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at .*t3.ibd;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace;
+--source include/search_pattern_in_file.inc
+
+--source include/shutdown_mysqld.inc
+
+# Swap back t3.ibd, but hide t2.ibd (which the redo log also knows as t1.ibd).
+--move_file $MYSQLD_DATADIR/test/t3.ibd $MYSQLD_DATADIR/test/t.ibd
+--move_file $MYSQLD_DATADIR/test/t2.ibd $MYSQLD_DATADIR/test/t3.ibd
+
+--echo # Fault 4: Missing data file
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
+let SEARCH_PATTERN= InnoDB: Tablespace \d+ was not found at .*t[12].ibd.
+.*InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace;
+--source include/search_pattern_in_file.inc
+
+--echo # Fault 5: Wrong type of data file
+
+--mkdir $MYSQLD_DATADIR/test/t2.ibd
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+# On Windows, this error message is not output when t2.ibd is a directory!
+#let SEARCH_PATTERN= \[Note\] InnoDB: Cannot read first page of .*t2.ibd;
+#--source include/search_pattern_in_file.inc
+
+--rmdir $MYSQLD_DATADIR/test/t2.ibd
+
+# Create a short file.
+--write_file $MYSQLD_DATADIR/test/t2.ibd
+EOF
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+--source include/shutdown_mysqld.inc
+
+let SEARCH_PATTERN= \[Note\] InnoDB: Cannot read first page of .*t2.ibd;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= \[ERROR\] InnoDB: Datafile .*t2.*\. Cannot determine the space ID from the first 64 pages;
+--source include/search_pattern_in_file.inc
+
+# Restore t2.ibd
+--remove_file $MYSQLD_DATADIR/test/t2.ibd
+--move_file $MYSQLD_DATADIR/test/t.ibd $MYSQLD_DATADIR/test/t2.ibd
+
+--source include/start_mysqld.inc
+
+SELECT * FROM t2;
+SELECT * FROM t3;
+SHOW TABLES;
+DROP TABLE t2,t3;
+
+--error ER_TABLESPACE_EXISTS
+CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
+
+# Remove the orphan file from fault 0.
+--remove_file $MYSQLD_DATADIR/test/t0.ibd
+
+CREATE TABLE t0(a INT PRIMARY KEY) ENGINE=InnoDB;
+DROP TABLE t0;
+
+--disable_query_log
+# The following are for the orphan file t0.ibd or for the directory t2.ibd:
+call mtr.add_suppression("InnoDB: Operating system error number [0-9]* in a file operation");
+call mtr.add_suppression("InnoDB: Error number [0-9]* means '(File exists|Is a directory)'");
+call mtr.add_suppression("InnoDB: Cannot create file '.*t0.ibd'");
+call mtr.add_suppression("InnoDB: The file '.*t0\.ibd' already exists");
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-write: '.*t2\.ibd'");
+# The following are for aborted startup without --innodb-force-recovery:
+call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*test");
+call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace");
+call mtr.add_suppression("InnoDB: Cannot read first page of '.*test.[tu]2.ibd' I/O error");
+call mtr.add_suppression("InnoDB: Datafile '.*test.*ibd' is corrupted");
+call mtr.add_suppression("InnoDB:  Cannot replay file rename. Remove either file and try again");
+call mtr.add_suppression("InnoDB: Cannot rename.*because the target file exists");
+call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
+# The following are for the --innodb-force-recovery=1 with broken u* tables:
+call mtr.add_suppression("InnoDB: The size of the file .*u1\\.ibd is only 16384 bytes, should be at least 65536");
+call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
+call mtr.add_suppression("InnoDB: .*you must create directories");
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: '.*u[1-5]\.ibd'");
+call mtr.add_suppression("InnoDB: Could not find a valid tablespace file for `test/u[1-5]`");
+call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`.`u[1-3]` because it could not be opened.");
+call mtr.add_suppression("InnoDB: Failed to find tablespace for table .* in the cache. Attempting to load the tablespace with space id");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Plugin 'InnoDB' \(init function returned error\|registration as a STORAGE ENGINE failed\)");
+call mtr.add_suppression("InnoDB: Table test/u[123] in the InnoDB data dictionary has tablespace id [1-9][0-9]*, but tablespace with that id or name does not exist\\. Have you deleted or moved \\.ibd files\\?");
+FLUSH TABLES;
+--enable_query_log
+
+--source include/no_checkpoint_start.inc
+
+CREATE TABLE u1(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE u2(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE u3(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE u4(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO u4 VALUES(1);
+RENAME TABLE u4 TO u5;
+RENAME TABLE u5 TO u6;
+INSERT INTO u6 VALUES(2);
+
+--let CLEANUP_IF_CHECKPOINT=DROP TABLE u1,u2,u3,u6;
+--source include/no_checkpoint_end.inc
+
+--echo # Fault 6: All-zero data file and innodb_force_recovery
+
+--remove_file $MYSQLD_DATADIR/test/u1.ibd
+--remove_file $MYSQLD_DATADIR/test/u2.ibd
+--remove_file $MYSQLD_DATADIR/test/u3.ibd
+
+# InnoDB: Header page consists of zero bytes
+--perl
+die unless open(FILE, ">$ENV{MYSQLD_DATADIR}/test/u1.ibd");
+print FILE "\0" x 16384;
+close(FILE);
+EOF
+
+--exec echo "" > $MYSQLD_DATADIR/test/u2.ibd
+
+# TODO: Test with this, once
+# Bug#18131883 IMPROVE INNODB ERROR MESSAGES REGARDING FILES
+# has been fixed:
+#--mkdir $MYSQLD_DATADIR/test/u3.ibd
+
+--copy_file $MYSQLD_DATADIR/test/u6.ibd $MYSQLD_DATADIR/test/u4.ibd
+
+--let $restart_parameters= --innodb-force-recovery=1
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+
+let SEARCH_PATTERN= \[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN= \[ERROR\] InnoDB: Datafile .*u1.*\. Cannot determine the space ID from the first 64 pages;
+--source include/search_pattern_in_file.inc
+
+# TODO: These errors should state the file name (u2.ibd) and be ignored
+# in innodb-force-recovery mode once
+# Bug#18131883 IMPROVE INNODB ERROR MESSAGES REGARDING FILES
+# has been fixed:
+let SEARCH_PATTERN= \[Note\] InnoDB: Cannot read first page of .*u2.ibd;
+--source include/search_pattern_in_file.inc
+
+--source include/shutdown_mysqld.inc
+
+# Allow --innodb-force-recovery to start despite the broken file.
+# TODO: Remove this workaround, and make --innodb-force-recovery=1
+# ignore the broken file.
+--remove_file $MYSQLD_DATADIR/test/u2.ibd
+
+--echo # Fault 7: Missing or wrong data file and innodb_force_recovery
+
+--source include/start_mysqld.inc
+eval $check_no_innodb;
+
+let SEARCH_PATTERN= \[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN= InnoDB: At LSN: \d+: unable to open file .*u[1-5].ibd for tablespace;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN= \[ERROR\] InnoDB: Cannot rename '.*u5.ibd' to '.*u6.ibd' because the target file exists;
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQLD_DATADIR/test/u6.ibd
+
+--source include/restart_mysqld.inc
+
+let SEARCH_PATTERN= \[Note\] InnoDB: Header page consists of zero bytes in datafile: .*u1.ibd;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN= InnoDB: At LSN: \d+: unable to open file .*u[1-5].ibd for tablespace;
+--source include/search_pattern_in_file.inc
+
+let SEARCH_PATTERN= \[Warning\] InnoDB: Tablespace \d+ was not found at .*u[1-5].ibd, and innodb_force_recovery was set. All redo log for this tablespace will be ignored!;
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+DROP TABLE u1,u2,u3,u6;
+
+--echo # List of files:
+--list_files $MYSQLD_DATADIR/test
+
+SHOW TABLES;

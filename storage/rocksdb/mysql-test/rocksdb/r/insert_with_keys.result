@@ -1,0 +1,262 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, KEY(b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) VALUES (100,'a'), (6,'f');
+INSERT INTO t1 (a,b) VALUES (30,'m'),(29,'n');
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+INSERT INTO t1 (a,b) VALUES (3,'a'),(0,'');
+SELECT a,b FROM t1;
+a	b
+0	
+1	a
+1	a
+100	a
+12345	z
+2	b
+29	n
+3	a
+3	c
+30	m
+4	d
+5	e
+6	f
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, UNIQUE INDEX(a)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) VALUES (100,'a'), (6,'f');
+INSERT INTO t1 (a,b) VALUES (30,'m'),(29,'n');
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+ERROR 23000: Duplicate entry '1' for key 'a'
+INSERT INTO t1 (a,b) VALUES (3,'a'),(0,'');
+ERROR 23000: Duplicate entry '3' for key 'a'
+INSERT INTO t1 (a,b) VALUES (0,'');
+SELECT a,b FROM t1;
+a	b
+0	
+1	a
+100	a
+2	b
+29	n
+3	c
+30	m
+4	d
+5	e
+6	f
+INSERT IGNORE INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'a'
+INSERT INTO t1 (a,b) VALUES (3,'a'),(4,'d') ON DUPLICATE KEY UPDATE a = a+10;
+SELECT a,b FROM t1;
+a	b
+0	
+1	a
+100	a
+12345	z
+13	c
+14	d
+2	b
+29	n
+30	m
+5	e
+6	f
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, UNIQUE INDEX(a,b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) VALUES (100,'a'), (6,'f');
+INSERT INTO t1 (a,b) VALUES (30,'m'),(29,'n');
+INSERT INTO t1 (a,b) VALUES (100,'b'), (2,'c');
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+ERROR 23000: Duplicate entry '1-a' for key 'a'
+SELECT a,b FROM t1;
+a	b
+1	a
+100	a
+100	b
+2	b
+2	c
+29	n
+3	c
+30	m
+4	d
+5	e
+6	f
+INSERT IGNORE INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+Warnings:
+Warning	1062	Duplicate entry '1-a' for key 'a'
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z') ON DUPLICATE KEY UPDATE a = a+VALUES(a);
+SELECT a,b FROM t1;
+a	b
+100	a
+100	b
+2	a
+2	b
+2	c
+24690	z
+29	n
+3	c
+30	m
+4	d
+5	e
+6	f
+INSERT INTO t1 (a,b) VALUES (101,'x'),(101,'x');
+ERROR 23000: Duplicate entry '101-x' for key 'a'
+SELECT a,b FROM t1;
+a	b
+100	a
+100	b
+2	a
+2	b
+2	c
+24690	z
+29	n
+3	c
+30	m
+4	d
+5	e
+6	f
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) VALUES (100,'a'), (6,'f');
+INSERT INTO t1 (a,b) VALUES (30,'m'),(29,'n');
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO t1 (a,b) VALUES (3,'a'),(0,'');
+ERROR 23000: Duplicate entry '3' for key 'PRIMARY'
+INSERT INTO t1 (a,b) VALUES (0,'');
+SELECT a,b FROM t1;
+a	b
+0	
+1	a
+100	a
+2	b
+29	n
+3	c
+30	m
+4	d
+5	e
+6	f
+INSERT IGNORE INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z') ON DUPLICATE KEY UPDATE b = CONCAT(b,b);
+SELECT a,b FROM t1;
+a	b
+0	
+1	aa
+100	a
+12345	zz
+2	b
+29	n
+3	c
+30	m
+4	d
+5	e
+6	f
+DROP TABLE t1;
+
+INSERT on DUPLICATE KEY UPDATE with multiple keys
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(255)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (3,'a'), (4,'a'), (5,'a'), (6,'a'), (7,'a'), (8,'a'), (9,'a'), (10,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (3,'a'), (4,'a'), (5,'a'), (6,'a'), (7,'a'), (8,'a'), (9,'a'), (10,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+SELECT a,b FROM t1;
+a	b
+1	aaaaaaaaaaaaaaaaaa
+10	aa
+2	aaaaaaa
+3	aa
+4	aa
+5	aa
+6	aa
+7	aa
+8	aa
+9	aa
+DROP TABLE t1;
+
+INSERT on DUPLICATE KEY UPDATE with secondary key
+
+CREATE TABLE t1 (a INT, b CHAR(8), c INT DEFAULT 0, pk INT AUTO_INCREMENT PRIMARY KEY, UNIQUE INDEX(a,b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d'), (5,'e'), (6,'f'), (7,'g'), (8,'h'), (9,'i'), (10,'j') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d'), (5,'e'), (6,'f'), (7,'g'), (8,'h'), (9,'i'), (10,'j') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c') ON DUPLICATE KEY UPDATE c = c + 1;
+SELECT a,b,c,pk FROM t1;
+a	b	c	pk
+1	a	22	1
+10	j	1	11
+2	b	6	3
+2	c	4	14
+3	c	1	4
+4	d	1	5
+5	e	1	6
+6	f	1	7
+7	g	1	8
+8	h	1	9
+9	i	1	10
+DROP TABLE t1;
+
+Disable caching and see if it still functions properly
+
+SELECT @@rocksdb_enable_insert_with_update_caching;
+@@rocksdb_enable_insert_with_update_caching
+1
+SET GLOBAL rocksdb_enable_insert_with_update_caching=0;
+SELECT @@rocksdb_enable_insert_with_update_caching;
+@@rocksdb_enable_insert_with_update_caching
+0
+
+INSERT on DUPLICATE KEY UPDATE with multiple keys
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(255)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (3,'a'), (4,'a'), (5,'a'), (6,'a'), (7,'a'), (8,'a'), (9,'a'), (10,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (3,'a'), (4,'a'), (5,'a'), (6,'a'), (7,'a'), (8,'a'), (9,'a'), (10,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+SELECT a,b FROM t1;
+a	b
+1	aaaaaaaaaaaaaaaaaa
+10	aa
+2	aaaaaaa
+3	aa
+4	aa
+5	aa
+6	aa
+7	aa
+8	aa
+9	aa
+DROP TABLE t1;
+
+INSERT on DUPLICATE KEY UPDATE with secondary key
+
+CREATE TABLE t1 (a INT, b CHAR(8), c INT DEFAULT 0, pk INT AUTO_INCREMENT PRIMARY KEY, UNIQUE INDEX(a,b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d'), (5,'e'), (6,'f'), (7,'g'), (8,'h'), (9,'i'), (10,'j') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d'), (5,'e'), (6,'f'), (7,'g'), (8,'h'), (9,'i'), (10,'j') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c') ON DUPLICATE KEY UPDATE c = c + 1;
+SELECT a,b,c,pk FROM t1;
+a	b	c	pk
+1	a	22	1
+10	j	1	11
+2	b	6	3
+2	c	4	14
+3	c	1	4
+4	d	1	5
+5	e	1	6
+6	f	1	7
+7	g	1	8
+8	h	1	9
+9	i	1	10
+DROP TABLE t1;
+
+Cleanup
+
+SET GLOBAL rocksdb_enable_insert_with_update_caching=1;

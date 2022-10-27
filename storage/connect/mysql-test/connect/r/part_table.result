@@ -1,0 +1,222 @@
+set @@global.connect_exact_info=ON;
+CREATE TABLE xt1 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=MyISAM;
+INSERT INTO xt1 VALUES(4, 'four'),(7,'seven'),(1,'one'),(8,'eight');
+SELECT * FROM xt1;
+id	msg
+4	four
+7	seven
+1	one
+8	eight
+CREATE TABLE xt2 (
+id INT KEY NOT NULL,
+msg VARCHAR(32));
+INSERT INTO xt2 VALUES(10,'ten'),(40,'forty'),(11,'eleven'),(35,'thirty five');
+SELECT * FROM xt2;
+id	msg
+10	ten
+40	forty
+11	eleven
+35	thirty five
+CREATE TABLE xt3 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=6;
+Warnings:
+Warning	1105	No file name. Table will use xt3.csv
+INSERT INTO xt3 VALUES(60,'sixty'),(81,'eighty one'),(72,'seventy two');
+SELECT * FROM xt3;
+id	msg
+60	sixty
+81	eighty one
+72	seventy two
+CREATE TABLE t1 (
+id INT NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME='xt%s'
+PARTITION BY RANGE COLUMNS(id) (
+PARTITION `1` VALUES LESS THAN(10),
+PARTITION `2` VALUES LESS THAN(50),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+Warnings:
+Warning	1105	Data repartition in 1 is unchecked
+Warning	1105	Data repartition in 2 is unchecked
+Warning	1105	Data repartition in 3 is unchecked
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+partition_name	table_rows
+1	4
+2	4
+3	3
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+1	one
+8	eight
+10	ten
+40	forty
+11	eleven
+35	thirty five
+60	sixty
+81	eighty one
+72	seventy two
+DELETE FROM t1;
+Warnings:
+Note	1105	xt1: 4 affected rows
+Note	1105	xt2: 4 affected rows
+ALTER TABLE t1 ADD INDEX XID(id);
+ERROR HY000: Table type PROXY is not indexable
+INSERT INTO t1 VALUES(4, 'four');
+INSERT INTO t1 VALUES(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one');
+INSERT INTO t1 VALUES(72,'seventy two'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+partition_name	table_rows
+1	4
+2	4
+3	3
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+1	one
+8	eight
+10	ten
+40	forty
+11	eleven
+35	thirty five
+60	sixty
+81	eighty one
+72	seventy two
+EXPLAIN PARTITIONS
+SELECT * FROM t1 WHERE id = 81;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	3	ALL	NULL	NULL	NULL	NULL	6	Using where
+DELETE FROM t1;
+Warnings:
+Note	1105	xt1: 4 affected rows
+Note	1105	xt2: 4 affected rows
+DROP TABLE t1;
+CREATE TABLE t1 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='xt%s'
+PARTITION BY RANGE COLUMNS(id) (
+PARTITION `1` VALUES LESS THAN(10),
+PARTITION `2` VALUES LESS THAN(50),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+Warnings:
+Warning	1105	Data repartition in 1 is unchecked
+Warning	1105	Data repartition in 2 is unchecked
+Warning	1105	Data repartition in 3 is unchecked
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	id	NULL	NULL	NULL	NULL		REMOTE		
+INSERT INTO t1 VALUES(4, 'four');
+INSERT INTO t1 VALUES(40, 'forty');
+INSERT INTO t1 VALUES(72,'seventy two');
+INSERT INTO t1 VALUES(7,'seven'),(10,'ten'),(60,'sixty'),(81,'eighty one'),(11,'eleven'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+partition_name	table_rows
+1	4
+2	4
+3	3
+SELECT * FROM t1;
+id	msg
+4	four
+7	seven
+1	one
+8	eight
+40	forty
+10	ten
+11	eleven
+35	thirty five
+72	seventy two
+60	sixty
+81	eighty one
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 81;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	3	const	PRIMARY	PRIMARY	4	const	1	
+SELECT * FROM t1 WHERE id = 7;
+id	msg
+7	seven
+SELECT * FROM t1 WHERE id = 35;
+id	msg
+35	thirty five
+UPDATE t1 SET msg = 'number' WHERE id in (60,72);
+Warnings:
+Note	1105	xt3: 2 affected rows
+Note	1105	xt3: 0 affected rows
+UPDATE t1 SET msg = 'soixante' WHERE id = 60;
+Warnings:
+Note	1105	xt3: 1 affected rows
+SELECT * FROM t1 WHERE id > 50;
+id	msg
+60	soixante
+72	number
+81	eighty one
+UPDATE t1 SET msg = 'big' WHERE id > 50;
+Warnings:
+Note	1105	xt3: 3 affected rows
+UPDATE t1 SET msg = 'sept' WHERE id = 7;
+Warnings:
+Note	1105	xt1: 1 affected rows
+SELECT * FROM t1;
+id	msg
+4	four
+7	sept
+1	one
+8	eight
+40	forty
+10	ten
+11	eleven
+35	thirty five
+72	big
+60	big
+81	big
+DELETE FROM t1 WHERE id in (60,72);
+Warnings:
+Note	1105	xt3: 2 affected rows
+Note	1105	xt3: 0 affected rows
+SELECT * FROM t1;
+id	msg
+4	four
+7	sept
+1	one
+8	eight
+40	forty
+10	ten
+11	eleven
+35	thirty five
+81	big
+DROP TABLE t1;
+CREATE TABLE t1 (
+id INT KEY NOT NULL,
+msg VARCHAR(32))
+ENGINE=CONNECT TABLE_TYPE=MYSQL
+OPTION_LIST='connect=mysql://root@localhost/test/xt%s'
+PARTITION BY RANGE COLUMNS(id) (
+PARTITION `1` VALUES LESS THAN(10),
+PARTITION `2` VALUES LESS THAN(50),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+Warnings:
+Warning	1105	Data repartition in 1 is unchecked
+Warning	1105	Data repartition in 2 is unchecked
+Warning	1105	Data repartition in 3 is unchecked
+SELECT * FROM t1;
+id	msg
+4	four
+7	sept
+1	one
+8	eight
+40	forty
+10	ten
+11	eleven
+35	thirty five
+81	big
+DROP TABLE t1;
+DROP TABLE xt1;
+DROP TABLE xt2;
+DROP TABLE xt3;
+set @@global.connect_exact_info=OFF;

@@ -1,0 +1,26 @@
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : BUG#<xxxx> <date disabled> <disabler> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+sizing_off: not updated for 10.0 yet
+sizing_med: not updated for 10.0 yet
+sizing_low: not updated for 10.0 yet
+sizing_high: not updated for 10.0 yet
+sizing_growth: not updated for 10.0 yet
+sizing_default: not updated for 10.0 yet
+
+binlog_edge_mix: needs slave_relay_log_info
+binlog_edge_row: needs slave_relay_log_info
+binlog_edge_stmt: needs slave_relay_log_info
+binlog_ok_mix: needs slave_relay_log_info
+binlog_ok_row: needs slave_relay_log_info
+binlog_ok_stmt: needs slave_relay_log_info
+
+server_init : Nirbhay TODO: Fix the test

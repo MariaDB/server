@@ -1,0 +1,7 @@
+cardinality
+2
+Table	Op	Msg_type	Msg_text
+test.bug57252	analyze	status	Engine-independent statistics collected
+test.bug57252	analyze	status	OK
+cardinality
+10

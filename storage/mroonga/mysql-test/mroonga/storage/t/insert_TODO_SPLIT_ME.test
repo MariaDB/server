@@ -1,0 +1,89 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+# data types
+create table t1 (c1 tinyint);
+insert into t1 values(1);
+select * from t1;
+drop table t1;
+
+create table t1 (c1 smallint);
+insert into t1 values(1);
+select * from t1;
+drop table t1;
+
+create table t1 (c1 mediumint);
+insert into t1 values(1);
+select * from t1;
+drop table t1;
+
+create table t1 (c1 int);
+insert into t1 values(1);
+select * from t1;
+drop table t1;
+
+create table t1 (c1 bigint);
+insert into t1 values(1);
+select * from t1;
+drop table t1;
+
+create table t1 (c1 float);
+insert into t1 values(0.5);
+select * from t1;
+drop table t1;
+
+create table t1 (c1 double);
+insert into t1 values(0.5);
+select * from t1;
+drop table t1;
+
+create table t1 (c1 date);
+insert into t1 values("2010/03/26");
+select * from t1;
+drop table t1;
+
+create table t1 (c1 time);
+insert into t1 values("11:22:33");
+select * from t1;
+drop table t1;
+
+create table t1 (c1 year);
+insert into t1 values("2010");
+select * from t1;
+drop table t1;
+
+create table t1 (c1 datetime);
+insert into t1 values("2010/03/26 11:22:33");
+select * from t1;
+drop table t1;
+
+# duplicated key error
+create table t1 (c1 int primary key, c2 int);
+insert into t1 values(1,100);
+select * from t1;
+--error ER_DUP_ENTRY
+insert into t1 values(1,200);
+select * from t1;
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

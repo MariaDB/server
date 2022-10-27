@@ -1,0 +1,32 @@
+--source include/not_embedded.inc
+select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
+
+--error ER_MALFORMED_DEFINER
+grant select on *.* to current_role;
+--error ER_MALFORMED_DEFINER
+revoke select on *.* from current_role;
+--error ER_MALFORMED_DEFINER
+revoke all, grant option from current_role;
+
+create role r1;
+grant insert on test.* to r1;
+grant r1 to current_user;
+set role r1;
+select current_role();
+
+grant select on *.* to current_role;
+show grants for current_role;
+revoke insert on test.* from current_role;
+show grants for current_role;
+revoke all, grant option from current_role;
+show grants for current_role;
+
+set password=password('foobar');
+show grants;
+grant r1 to current_user() identified by 'barfoo';
+show grants;
+set password='';
+
+#cleanup
+drop role r1;
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

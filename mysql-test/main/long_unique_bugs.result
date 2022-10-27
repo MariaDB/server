@@ -1,0 +1,290 @@
+create table t1 (a int, b int, c int, d int, e int);
+insert into t1 () values
+(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
+(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
+(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
+(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),
+(),(),(),();
+select * into outfile 'load.data' from t1;
+create temporary table tmp (a varchar(1024), b int, c int, d int, e linestring, unique (e));
+load data infile 'load.data' into table tmp;
+delete from tmp;
+drop table t1;
+create table t1 (b blob) engine=innodb;
+alter table t1 add unique (b);
+alter table t1 force;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` blob DEFAULT NULL,
+  UNIQUE KEY `b` (`b`) USING HASH
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (pk int, b blob, primary key(pk), unique(b)) engine=myisam;
+insert into t1 values (1,'foo');
+replace into t1 (pk) values (1);
+alter table t1 force;
+replace into t1 (pk) values (1);
+drop table t1;
+create table t1 (t time, unique(t)) engine=innodb;
+insert into t1 values (null),(null);
+alter ignore table t1 modify t text not null default '';
+Warnings:
+Warning	1265	Data truncated for column 't' at row 1
+Warning	1265	Data truncated for column 't' at row 2
+drop table t1;
+create table t1 ( pk int, f text, primary key (pk), unique(f)) with system versioning;
+insert into t1 values (1,'foo');
+update t1 set f = 'bar';
+select * from t1;
+pk	f
+1	bar
+update t1 set f = 'foo';
+select * from t1;
+pk	f
+1	foo
+select pk, f, row_end > DATE'2030-01-01' from t1 for system_time all;
+pk	f	row_end > DATE'2030-01-01'
+1	foo	1
+1	foo	0
+1	bar	0
+drop table t1;
+create temporary table t1 (f blob, unique(f)) engine=innodb;
+insert into t1 values (1);
+replace into t1 values (1);
+drop table t1;
+create table t (b blob, unique(b)) engine=myisam;
+insert into t values ('foo');
+replace into t values ('foo');
+drop table t;
+CREATE TABLE t1 (f INT, x BLOB, UNIQUE (x));
+INSERT INTO t1 VALUES (1,'foo');
+ALTER TABLE t1 DROP x, ALGORITHM=INPLACE;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+UPDATE t1 SET x = 'bar';
+DROP TABLE t1;
+create table t1(a blob unique , b blob);
+insert into t1 values(1,1),(2,1);
+alter table t1 add unique(b);
+ERROR 23000: Duplicate entry '1' for key 'b'
+show keys from t1;;
+Table	t1
+Non_unique	0
+Key_name	a
+Seq_in_index	1
+Column_name	a
+Collation	A
+Cardinality	NULL
+Sub_part	NULL
+Packed	NULL
+Null	YES
+Index_type	HASH
+Comment	
+Index_comment	
+insert into t1 values(1,1);
+ERROR 23000: Duplicate entry '1' for key 'a'
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, b INT, UNIQUE(a)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP x;
+ERROR 42000: Can't DROP COLUMN `x`; check that it exists
+UPDATE t1 SET b = 0 WHERE a = 'foo';
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, b INT, UNIQUE(a)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP x;
+ERROR 42000: Can't DROP COLUMN `x`; check that it exists
+UPDATE t1 SET b = 0 WHERE a = 'foo';
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1 (f BLOB, UNIQUE(f)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 ADD KEY (f);
+ERROR HY000: Index column size too large. The maximum column size is 767 bytes
+TRUNCATE TABLE t1;
+SELECT * FROM t1 WHERE f LIKE 'foo';
+f
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, UNIQUE ind USING HASH (a)) ENGINE=InnoDB;
+ALTER TABLE t1 CHANGE COLUMN IF EXISTS b a INT;
+Warnings:
+Note	1054	Unknown column 'b' in 't1'
+DROP TABLE t1;
+CREATE TABLE t1 (f VARCHAR(4096), UNIQUE(f)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP x;
+ERROR 42000: Can't DROP COLUMN `x`; check that it exists
+SELECT * FROM t1 WHERE f LIKE 'foo';
+f
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT, PRIMARY KEY USING HASH (pk)) ENGINE=InnoDB;
+show keys from t1;;
+Table	t1
+Non_unique	0
+Key_name	PRIMARY
+Seq_in_index	1
+Column_name	pk
+Collation	A
+Cardinality	0
+Sub_part	NULL
+Packed	NULL
+Null	
+Index_type	BTREE
+Comment	
+Index_comment	
+ALTER TABLE t1 ADD INDEX (pk);
+DROP TABLE t1;
+CREATE TABLE t1 (b int, a  varchar(4000));
+INSERT INTO t1 VALUES (1, 2),(2,3),(3,4);
+ALTER TABLE t1 ADD UNIQUE INDEX (a);
+SELECT * FROM t1;
+b	a
+1	2
+2	3
+3	4
+SELECT a FROM t1;
+a
+2
+3
+4
+drop table t1;
+CREATE TABLE t1 (f VARCHAR(4096), UNIQUE(f)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP KEY f, ADD INDEX idx1(f), ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+ALTER TABLE t1 ADD KEY idx2(f);
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
+DROP TABLE t1;
+CREATE TABLE t1(a blob , b blob , unique(a,b));
+alter table t1 drop column b;
+ERROR 42000: Key column 'b' doesn't exist in table
+insert into t1 values(1,1);
+insert into t1 values(1,1);
+ERROR 23000: Duplicate entry '1-1' for key 'a'
+alter table t1 add column c int;
+drop table t1;
+create table t1(a blob , b blob as (a) unique);
+insert into t1 values(1, default);
+insert into t1 values(1, default);
+ERROR 23000: Duplicate entry '1' for key 'b'
+drop table t1;
+create table t1(a blob, b blob, c blob as (left(a, 5000)) virtual, d blob as (left(b, 5000)) persistent, unique(a,b(4000)));
+insert into t1(a,b) values(10,11);
+insert into t1(a,b) values(10,11);
+ERROR 23000: Duplicate entry '10-11' for key 'a'
+insert into t1(a,b) values(2,2);
+insert into t1(a,b) values(2,3);
+insert into t1(a,b) values(3,2);
+drop table t1;
+CREATE TABLE t1 ( 
+a CHAR(128),
+b CHAR(128) AS (a),
+c DATETIME,
+UNIQUE(c,b(64))
+) ENGINE=InnoDB;
+ALTER TABLE t1 MODIFY COLUMN c VARCHAR(4096);
+drop table t1;
+CREATE TABLE t1 (
+a CHAR(128),
+b CHAR(128) AS (a),
+c varchar(5000),
+UNIQUE(c,b(64))
+) ENGINE=InnoDB;
+drop table t1;
+CREATE TABLE t1 (data VARCHAR(4), unique(data) using hash) with system versioning;
+INSERT INTO t1 VALUES ('A');
+SELECT * INTO OUTFILE 'load.data' from t1;
+LOAD DATA INFILE 'load.data'  INTO TABLE t1;
+ERROR 23000: Duplicate entry 'A' for key 'data'
+select * from t1;
+data
+A
+DROP TABLE t1;
+CREATE TABLE t1 (data VARCHAR(7961)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('f'), ('o'), ('o');
+SELECT * INTO OUTFILE 'load.data' from t1;
+ALTER IGNORE TABLE t1 ADD UNIQUE INDEX (data);
+SELECT * FROM t1;
+data
+f
+o
+ALTER TABLE t1 ADD SYSTEM VERSIONING ;
+SELECT * FROM t1;
+data
+f
+o
+REPLACE INTO t1 VALUES ('f'), ('o'), ('o');
+SELECT * FROM t1;
+data
+f
+o
+LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1;
+SELECT * FROM t1;
+data
+f
+o
+DROP TABLE t1;
+create table t1 (
+c char(10) character set utf8mb4,
+unique key a using hash (c(1))
+) engine=myisam;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(10) CHARACTER SET utf8mb4 DEFAULT NULL,
+  UNIQUE KEY `a` (`c`(1)) USING HASH
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values ('б');
+insert into t1 values ('бб');
+ERROR 23000: Duplicate entry '�' for key 'a'
+insert into t1 values ('ббб');
+ERROR 23000: Duplicate entry '�' for key 'a'
+drop table t1;
+CREATE TABLE t1 (a INT, UNIQUE USING HASH (a)) PARTITION BY HASH (a) PARTITIONS 2;
+INSERT INTO t1 VALUES (2);
+REPLACE INTO t1 VALUES (2);
+DROP TABLE t1;
+set innodb_lock_wait_timeout= 10;
+CREATE TABLE t1 (
+id int primary key,
+f INT unique
+) ENGINE=InnoDB;
+CREATE TABLE t2 (
+id int primary key,
+a blob unique
+) ENGINE=InnoDB;
+START TRANSACTION;
+connect  con1,localhost,root,,test;
+connection con1;
+set innodb_lock_wait_timeout= 10;
+START TRANSACTION;
+INSERT INTO t1  VALUES (1,1)/*1*/;
+connection default;
+INSERT INTO t2 VALUES (2, 1)/*2*/ ;
+connection con1;
+INSERT INTO t2 VALUES (3, 1)/*3*/;
+connection default;
+INSERT IGNORE INTO t1 VALUES (4, 1)/*4*/;
+connection con1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+disconnect con1;
+connection default;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a TEXT, UNIQUE(a)) ENGINE=Aria;
+ERROR 42000: Specified key was too long; max key length is 1000 bytes
+create table t1(a int, unique(a) using hash);
+#BULK insert > 100 rows (MI_MIN_ROWS_TO_DISABLE_INDEXES)
+drop table t1;
+SET binlog_row_image= NOBLOB;
+CREATE TABLE t1 (pk INT PRIMARY KEY, a text ,UNIQUE(a) using hash);
+INSERT INTO t1 VALUES (1,'foo');
+create table t2(id int primary key, a blob, b varchar(20) as (LEFT(a,2)));
+INSERT INTO t2 VALUES (1, 'foo', default);
+DROP TABLE t1, t2;
+SET binlog_row_image= FULL;
+CREATE TABLE t1 (a int, b VARCHAR(1000), UNIQUE (a,b)) ENGINE=MyISAM;
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
+CREATE TABLE t2 (a varchar(900), b VARCHAR(900), UNIQUE (a,b)) ENGINE=MyISAM;
+show index from t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t2	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+t2	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
+DROP TABLE t1,t2;

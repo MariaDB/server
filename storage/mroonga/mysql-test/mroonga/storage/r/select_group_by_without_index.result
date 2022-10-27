@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS users;
+SET NAMES utf8;
+CREATE TABLE users (
+name varchar(40),
+age int
+);
+INSERT INTO users VALUES ("Alice",  20);
+INSERT INTO users VALUES ("Bob",    20);
+INSERT INTO users VALUES ("Charry", 29);
+SELECT age, COUNT(*) FROM users GROUP BY age;
+age	COUNT(*)
+20	2
+29	1
+DROP TABLE users;

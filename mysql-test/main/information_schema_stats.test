@@ -1,0 +1,47 @@
+#
+# MDEV-8633: information_schema.index_statistics doesn't delete item when drop table indexes or drop table;
+#
+set @save_userstat=@@global.userstat;
+set global userstat=1;
+create table just_a_test(id int,first_name varchar(10),last_name varchar(10),address varchar(100),phone bigint,email varchar(30), state varchar(30));
+insert into just_a_test values(1,'fa','la','china_a',11111111,'fa_la@163.com','California'),
+(2,'fb','lb','china_b',22222222,'fb_lb@163.com','Arizona'),
+(3,'fc','lc','china_c',33333333,'fc_lc@163.com','California'),
+(4,'fd','ld','china_d',44444444,'fd_ld@163.com','Utah'),
+(5,'fe','le','china_e',55555555,'fe_le@163.com','Arizona');
+alter table just_a_test add primary key (id);
+alter table just_a_test add key IND_just_a_test_first_name_last_name(first_name,last_name);
+alter table just_a_test add key IND_just_a_test_state(state);
+select count(*) from just_a_test where first_name='fc' and last_name='lc';
+select count(*) from just_a_test where state = 'California';
+--sorted_result
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+alter table just_a_test drop key IND_just_a_test_first_name_last_name;
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+alter table just_a_test drop column state;
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+drop table just_a_test;
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+#
+# Test direct drop table
+#
+create table just_a_test(id int not null primary key,first_name varchar(10),last_name varchar(10),address varchar(100),phone bigint,email varchar(30), state varchar(30),key(first_name,last_name),key(state));
+insert into just_a_test values(1,'fa','la','china_a',11111111,'fa_la@163.com','California'),
+(2,'fb','lb','china_b',22222222,'fb_lb@163.com','Arizona'),
+(3,'fc','lc','china_c',33333333,'fc_lc@163.com','California'),
+(4,'fd','ld','china_d',44444444,'fd_ld@163.com','Utah'),
+(5,'fe','le','china_e',55555555,'fe_le@163.com','Arizona');
+select count(*) from just_a_test where first_name='fc' and last_name='lc';
+select count(*) from just_a_test where state = 'California';
+select count(*) from just_a_test where id between 2 and 4;
+--sorted_result
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+drop table just_a_test;
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+set global userstat=@save_userstat;

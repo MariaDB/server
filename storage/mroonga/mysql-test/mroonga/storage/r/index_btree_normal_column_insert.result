@@ -1,0 +1,25 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key, c2 int, index using btree (c2));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`),
+  KEY `c2` (`c2`) USING BTREE
+) ENGINE=Mroonga DEFAULT CHARSET=latin1
+insert into t1 values (1, 100);
+insert into t1 values (2, 101);
+insert into t1 values (3, 102);
+select * from t1;
+c1	c2
+1	100
+2	101
+3	102
+flush tables;
+select * from t1;
+c1	c2
+1	100
+2	101
+3	102
+drop table t1;

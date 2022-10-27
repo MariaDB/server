@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS ranges;
+CREATE TABLE ranges (
+id int PRIMARY KEY,
+start time,
+end time,
+UNIQUE KEY range_key(start, end)
+);
+INSERT INTO ranges VALUES (1, "00:00:00", "15:11:11");
+INSERT INTO ranges VALUES (2, "00:00:00", "838:59:59");
+INSERT INTO ranges VALUES (3, "15:11:12", "838:59:59");
+INSERT INTO ranges VALUES (4, "838:59:59", "00:00:00");
+INSERT INTO ranges VALUES (5, "-838:59:59", "838:59:59");
+SELECT start, end
+FROM ranges FORCE INDEX(range_key)
+ORDER BY start, end;
+start	end
+-838:59:59	838:59:59
+00:00:00	15:11:11
+00:00:00	838:59:59
+15:11:12	838:59:59
+838:59:59	00:00:00
+DROP TABLE ranges;

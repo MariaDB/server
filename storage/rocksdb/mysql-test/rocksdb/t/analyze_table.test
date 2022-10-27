@@ -1,0 +1,57 @@
+--source include/have_rocksdb.inc
+--source include/have_partition.inc
+
+# 
+# ANALYZE TABLE statements
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2;
+--enable_warnings
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT(11), b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t1 VALUES (1,1,'a'),(2,2,'b');
+CREATE TABLE t2 (pk INT PRIMARY KEY, a INT(11), b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t1 VALUES (3,3,'c');
+ANALYZE TABLE t1;
+INSERT INTO t2 VALUES (1,4,'d');
+ANALYZE NO_WRITE_TO_BINLOG TABLE t2;
+INSERT INTO t1 VALUES (4,5,'e');
+INSERT INTO t2 VALUES (2,6,'f');
+ANALYZE LOCAL TABLE t1, t2;
+
+DROP TABLE t1, t2;
+
+  --let $create_definition = a $int_indexed_col, $default_index(a)
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT(11), KEY(a)) ENGINE=rocksdb;
+INSERT INTO t1 VALUES (1,1),(2,2),(3,4),(4,7);
+ANALYZE TABLE t1;
+INSERT INTO t1 VALUES (5,8),(6,10),(7,11),(8,12);
+ANALYZE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12465: Server crashes in my_scan_weight_utf8_bin upon
+--echo # collecting stats for RocksDB table
+--echo #
+
+CREATE TABLE t1 (
+  pk INT,
+  f1 CHAR(255),
+  f2 TEXT,
+  f3 VARCHAR(255),
+  f4 TEXT,
+  PRIMARY KEY (pk),
+  KEY (f4(255))
+) ENGINE=RocksDB
+  CHARSET utf8
+  COLLATE utf8_bin
+  PARTITION BY KEY (pk) PARTITIONS 2;
+INSERT INTO t1 VALUES
+(1,'foo','bar','foo','bar'), (2,'bar','foo','bar','foo');
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+drop table t1;
+
+--echo # End of 10.2 tests

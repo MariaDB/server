@@ -1,0 +1,167 @@
+DROP TABLE IF EXISTS shops;
+CREATE TABLE shops (
+id INT PRIMARY KEY AUTO_INCREMENT,
+name TEXT,
+location GEOMETRY NOT NULL,
+SPATIAL KEY location_index (location)
+);
+INSERT INTO shops (name, location)
+VALUES ('nezu-no-taiyaki',
+ST_GeomFromText('POINT(139.762573 35.720253)'));
+INSERT INTO shops (name, location)
+VALUES ('taiyaki-kataoka',
+ST_GeomFromText('POINT(139.715591 35.712521)'));
+INSERT INTO shops (name, location)
+VALUES ('soba-taiyaki-ku',
+ST_GeomFromText('POINT(139.659088 35.683712)'));
+INSERT INTO shops (name, location)
+VALUES ('kuruma',
+ST_GeomFromText('POINT(139.706207 35.721516)'));
+INSERT INTO shops (name, location)
+VALUES ('hirose-ya',
+ST_GeomFromText('POINT(139.685608 35.714844)'));
+INSERT INTO shops (name, location)
+VALUES ('sazare',
+ST_GeomFromText('POINT(139.685043 35.714653)'));
+INSERT INTO shops (name, location)
+VALUES ('omede-taiyaki',
+ST_GeomFromText('POINT(139.817154 35.700516)'));
+INSERT INTO shops (name, location)
+VALUES ('onaga-ya',
+ST_GeomFromText('POINT(139.81105 35.698254)'));
+INSERT INTO shops (name, location)
+VALUES ('shiro-ya',
+ST_GeomFromText('POINT(139.638611 35.705517)'));
+INSERT INTO shops (name, location)
+VALUES ('fuji-ya',
+ST_GeomFromText('POINT(139.637115 35.703938)'));
+INSERT INTO shops (name, location)
+VALUES ('miyoshi',
+ST_GeomFromText('POINT(139.537323 35.644539)'));
+INSERT INTO shops (name, location)
+VALUES ('juju-ya',
+ST_GeomFromText('POINT(139.695755 35.628922)'));
+INSERT INTO shops (name, location)
+VALUES ('tatsumi-ya',
+ST_GeomFromText('POINT(139.638657 35.665501)'));
+INSERT INTO shops (name, location)
+VALUES ('tetsuji',
+ST_GeomFromText('POINT(139.76857 35.680912)'));
+INSERT INTO shops (name, location)
+VALUES ('gazuma-ya',
+ST_GeomFromText('POINT(139.647598 35.700817)'));
+INSERT INTO shops (name, location)
+VALUES ('honma-mon',
+ST_GeomFromText('POINT(139.652573 35.722736)'));
+INSERT INTO shops (name, location)
+VALUES ('naniwa-ya',
+ST_GeomFromText('POINT(139.796234 35.730061)'));
+INSERT INTO shops (name, location)
+VALUES ('kuro-dai',
+ST_GeomFromText('POINT(139.704834 35.650345)'));
+INSERT INTO shops (name, location)
+VALUES ('daruma',
+ST_GeomFromText('POINT(139.770599 35.681461)'));
+INSERT INTO shops (name, location)
+VALUES ('yanagi-ya',
+ST_GeomFromText('POINT(139.783981 35.685341)'));
+INSERT INTO shops (name, location)
+VALUES ('sharaku',
+ST_GeomFromText('POINT(139.794846 35.716969)'));
+INSERT INTO shops (name, location)
+VALUES ('takane',
+ST_GeomFromText('POINT(139.560913 35.698601)'));
+INSERT INTO shops (name, location)
+VALUES ('chiyoda',
+ST_GeomFromText('POINT(139.652817 35.642601)'));
+INSERT INTO shops (name, location)
+VALUES ('da-ka-po',
+ST_GeomFromText('POINT(139.727356 35.627346)'));
+INSERT INTO shops (name, location)
+VALUES ('matsushima-ya',
+ST_GeomFromText('POINT(139.737381 35.640556)'));
+INSERT INTO shops (name, location)
+VALUES ('kazuya',
+ST_GeomFromText('POINT(139.760895 35.673508)'));
+INSERT INTO shops (name, location)
+VALUES ('furuya-kogane-an',
+ST_GeomFromText('POINT(139.676071 35.680603)'));
+INSERT INTO shops (name, location)
+VALUES ('hachi-no-ie',
+ST_GeomFromText('POINT(139.668106 35.608021)'));
+INSERT INTO shops (name, location)
+VALUES ('azuki-chan',
+ST_GeomFromText('POINT(139.673203 35.64151)'));
+INSERT INTO shops (name, location)
+VALUES ('kuriko-an',
+ST_GeomFromText('POINT(139.796829 35.712013)'));
+INSERT INTO shops (name, location)
+VALUES ('yume-no-aru-machi-no-taiyaki-ya-san',
+ST_GeomFromText('POINT(139.712524 35.616199)'));
+INSERT INTO shops (name, location)
+VALUES ('naze-ya',
+ST_GeomFromText('POINT(139.665833 35.609039)'));
+INSERT INTO shops (name, location)
+VALUES ('sanoki-ya',
+ST_GeomFromText('POINT(139.770721 35.66592)'));
+INSERT INTO shops (name, location)
+VALUES ('shigeta',
+ST_GeomFromText('POINT(139.780273 35.672626)'));
+INSERT INTO shops (name, location)
+VALUES ('nishimi-ya',
+ST_GeomFromText('POINT(139.774628 35.671825)'));
+INSERT INTO shops (name, location)
+VALUES ('hiiragi',
+ST_GeomFromText('POINT(139.711517 35.647701)'));
+SELECT id, name, ST_AsText(location) AS location_text FROM shops;
+id	name	location_text
+1	nezu-no-taiyaki	POINT(139.76257305555555 35.72025305555556)
+2	taiyaki-kataoka	POINT(139.7155911111111 35.712521111111116)
+3	soba-taiyaki-ku	POINT(139.65908805555557 35.68371194444445)
+4	kuruma	POINT(139.70620694444446 35.72151611111111)
+5	hirose-ya	POINT(139.68560805555555 35.71484388888889)
+6	sazare	POINT(139.68504305555555 35.71465305555556)
+7	omede-taiyaki	POINT(139.8171538888889 35.70051611111111)
+8	onaga-ya	POINT(139.81105 35.69825388888889)
+9	shiro-ya	POINT(139.63861111111112 35.70551694444445)
+10	fuji-ya	POINT(139.637115 35.703938055555554)
+11	miyoshi	POINT(139.53732305555556 35.644538888888896)
+12	juju-ya	POINT(139.69575500000002 35.62892194444445)
+13	tatsumi-ya	POINT(139.63865694444445 35.66550111111111)
+14	tetsuji	POINT(139.76857 35.680911944444446)
+15	gazuma-ya	POINT(139.64759805555553 35.70081694444444)
+16	honma-mon	POINT(139.65257305555556 35.72273611111111)
+17	naniwa-ya	POINT(139.79623388888888 35.73006111111111)
+18	kuro-dai	POINT(139.70483388888888 35.650345)
+19	daruma	POINT(139.7705988888889 35.68146111111111)
+20	yanagi-ya	POINT(139.78398111111113 35.685341111111114)
+21	sharaku	POINT(139.79484611111113 35.71696888888889)
+22	takane	POINT(139.56091305555555 35.69860111111112)
+23	chiyoda	POINT(139.65281694444442 35.64260111111111)
+24	da-ka-po	POINT(139.72735611111113 35.62734611111111)
+25	matsushima-ya	POINT(139.73738111111112 35.64055611111111)
+26	kazuya	POINT(139.760895 35.67350805555556)
+27	furuya-kogane-an	POINT(139.67607111111113 35.68060305555556)
+28	hachi-no-ie	POINT(139.66810611111111 35.608021111111114)
+29	azuki-chan	POINT(139.67320305555555 35.641510000000004)
+30	kuriko-an	POINT(139.79682888888888 35.71201305555556)
+31	yume-no-aru-machi-no-taiyaki-ya-san	POINT(139.71252388888888 35.61619888888889)
+32	naze-ya	POINT(139.66583305555557 35.60903888888889)
+33	sanoki-ya	POINT(139.7707211111111 35.66592)
+34	shigeta	POINT(139.78027305555557 35.67262611111111)
+35	nishimi-ya	POINT(139.77462805555555 35.671825)
+36	hiiragi	POINT(139.71151694444444 35.64770111111111)
+SELECT id, name, ST_AsText(location) AS location_text FROM shops
+WHERE MBRContains(ST_GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location)
+ORDER BY id;
+id	name	location_text
+14	tetsuji	POINT(139.76857 35.680911944444446)
+19	daruma	POINT(139.7705988888889 35.68146111111111)
+26	kazuya	POINT(139.760895 35.67350805555556)
+EXPLAIN
+SELECT id, name, ST_AsText(location) AS location_text FROM shops
+WHERE MBRContains(ST_GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location)
+ORDER BY id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	shops	range	location_index	location_index	34	NULL	36	Using where; Using filesort
+DROP TABLE shops;

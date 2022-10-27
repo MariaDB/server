@@ -1,0 +1,511 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Testing errors
+--echo #
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+SHOW CREATE TABLE t1;
+--replace_regex /on .*test.t1.dbf/on DATADIR\/test\/t1.dbf/
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--replace_regex /Cannot open .*test.t1.dbf/Cannot open DATADIR\/test\/t1.dbf/
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--replace_regex /Cannot open .*test.t1.dbf/Cannot open DATADIR\/test\/t1.dbf/
+SHOW WARNINGS;
+
+
+DELIMITER //;
+CREATE PROCEDURE test.dbf_field(in fieldno INT, in content BLOB) DETERMINISTIC
+BEGIN
+  SELECT '---';
+  SELECT fieldno AS `FieldN`;
+  SELECT TRIM(TRAILING 0x00 FROM LEFT(content, 10)) AS `Name`;
+  SELECT SUBSTRING(content, 12, 1) AS `Type`;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,13,4))),16,10) AS `Offset`;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,17,1))),16,10) AS `Length`;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,18,1))),16,10) AS `Dec`;
+  SELECT HEX(REVERSE(SUBSTRING(content,19,1))) AS `Flags`;
+-- SELECT CONV(HEX(REVERSE(SUBSTRING(content,20,4))),16,10) AS `Next`;
+-- SELECT CONV(HEX(REVERSE(SUBSTRING(content,24,4))),16,10) AS `Step`;
+END//
+
+CREATE PROCEDURE test.dbf_header(in fname VARCHAR(1024)) DETERMINISTIC
+BEGIN
+  DECLARE content BLOB;
+  DECLARE offset INT;
+  DECLARE fieldno INT;
+  SELECT '--------';
+  SELECT LOAD_FILE(fname) INTO content;
+  SELECT LENGTH(content) AS FileSize;
+  SELECT HEX(LEFT(content, 1)) AS DBF_Version;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,5,4))),16,10) AS NRecords;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,9,2))),16,10) AS FirstRecPos;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,11,2))),16,10) AS RecLength;
+  SELECT HEX(REVERSE(SUBSTRING(content,29,2))) AS TableFlags;
+  SELECT HEX(REVERSE(SUBSTRING(content,30,1))) AS CodePageMark;
+  SET offset=33;
+  SET fieldno=0;
+  WHILE SUBSTR(content, offset, 1) <> 0x0D AND offset + 32 < LENGTH(content) DO
+    CALL dbf_field(fieldno, SUBSTRING(content, offset, 32));
+    SET offset=offset + 32;
+    SET fieldno=fieldno + 1;
+  END WHILE;
+  SELECT '--------';
+END//
+DELIMITER ;//
+
+
+--echo #
+--echo # Testing READONLY tables
+--echo #
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10),(20);
+SELECT * FROM t1;
+ALTER TABLE t1 READONLY=Yes;
+SHOW CREATE TABLE t1;
+--error ER_OPEN_AS_READONLY
+INSERT INTO t1 VALUES (30);
+--error ER_GET_ERRMSG
+UPDATE t1 SET a=30 WHERE a=10;
+--error ER_GET_ERRMSG
+DELETE FROM t1 WHERE a=10;
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t1;
+ALTER TABLE t1 READONLY=NO;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (30);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # This SQL script crashed (dbf01.sql)
+--echo #
+CREATE TABLE t1
+(
+  a int(11) NOT NULL,
+  b char(10) NOT NULL,
+  c varchar(10) NOT NULL
+) ENGINE=CONNECT table_type=DBF file_name='t1.dbf';
+INSERT INTO t1 VALUES (1,'1','1');
+INSERT INTO t1 VALUES (2,'2','2');
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing that table options in lower case and mixed case are understood:
+--echo #
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT table_type=dbf file_name='t1.dbf';
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+CREATE TABLE t1 (a CHAR(10) NOT NULL) ENGINE=CONNECT Table_Type=dbf File_Name='t1.dbf';
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('test');
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+#
+# TODO: this creates DBF record with length=32, which looks wrong
+#
+--echo #
+--echo # Testing multiple columns
+--echo #
+CREATE TABLE t1
+(
+  a INT NOT NULL,
+  b CHAR(10) NOT NULL,
+  c VARCHAR(10) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (1,'1','1');
+INSERT INTO t1 VALUES (2,'2','2');
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing long column name
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a012345678901234567890123456789 INT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+
+--echo #
+--echo # Testing 2 columns with long names (12)
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a0123456789a INT NOT NULL,
+  b0123456789b INT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x11.dbf';
+
+--echo #
+--echo # Testing 2 columns with long names (11)
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a012345678a INT NOT NULL,
+  b012345678b INT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x12.dbf';
+
+--echo #
+--echo # Testing 2 columns name length 10 (maximum possible length)
+--echo #
+CREATE TABLE t1
+(
+  a01234567a INT NOT NULL,
+  b01234567b INT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x13.dbf';
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1,2);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t02x13.dbf
+
+
+--echo #
+--echo # Testing BIGINT
+--echo #
+CREATE TABLE t1
+(
+  a bigint NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
+INSERT INTO t1 VALUES (-0x8000000000000000);
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing TINYINT
+--echo #
+CREATE TABLE t1
+(
+  a TINYINT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (123);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing SMALLINT
+--echo #
+CREATE TABLE t1
+(
+  a SMALLINT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (0x7FFF);
+INSERT INTO t1 VALUES (-0x8000);
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing VARCHAR
+--echo #
+CREATE TABLE t1
+(
+  a VARCHAR(255) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (REPEAT('a',255));
+SELECT LENGTH(a) FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing too long CHAR
+--echo # All columns longer than 255 bytes should be rejected
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a CHAR(86) CHARACTER SET utf8 NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_UNKNOWN_ERROR
+
+
+--echo #
+--echo # Testing too long VARCHAR
+--echo # All columns longer than 255 bytes should be rejected
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a VARCHAR(256) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a VARCHAR(86) CHARACTER SET utf8 NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a VARCHAR(64000) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+
+
+--echo #
+--echo # Testing BLOB
+--echo #
+--error ER_TABLE_CANT_HANDLE_BLOB
+CREATE TABLE t1
+(
+  a BLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_TABLE_CANT_HANDLE_BLOB
+CREATE TABLE t1
+(
+  a TINYBLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_TABLE_CANT_HANDLE_BLOB
+CREATE TABLE t1
+(
+  a MEDIUMBLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_TABLE_CANT_HANDLE_BLOB
+CREATE TABLE t1
+(
+  a LONGBLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+
+
+# TODO: utf8 does not work
+#--echo #
+#--echo # Testing varchar with utf8
+#--echo #
+#SET NAMES utf8;
+#CREATE TABLE t1
+#(
+#  a VARCHAR(10) CHARACTER SET utf8
+#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#INSERT INTO t1 VALUES (REPEAT(_ucs2 0x00DF,10));
+#SELECT * FROM t1;
+#DROP TABLE IF EXISTS t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing DATE
+--echo #
+CREATE TABLE t1
+(
+  a DATE NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES ('2001-01-01');
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+
+--echo #
+--echo # Testing FLOAT
+--echo #
+CREATE TABLE t1
+(
+  a FLOAT(12,4) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (123);
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+#
+# TODO: this return error:
+# Got error 122 'Value 123.0000000000 too long for column a of length 12'
+# from CONNECT
+#
+#CREATE TABLE t1
+#(
+#  a FLOAT NOT NULL
+#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#--error ER_GET_ERRMSG  - why this error?
+#INSERT INTO t1 VALUES (123);
+#SELECT * FROM t1;
+#DROP TABLE IF EXISTS t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+#
+# TODO: this creates a column of type 'D' (date), which is wrong
+#
+#--echo #
+#--echo # Testing DATETIME
+#--echo #
+#CREATE TABLE t1
+#(
+#  a DATETIME NOT NULL
+#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#INSERT INTO t1 VALUES ('2013-02-01');
+#SELECT * FROM t1;
+#DROP TABLE t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+#
+# TODO: this creates a column of type 'D' (date), which is wrong
+#
+#--echo #
+#--echo # Testing TIMESTAMP
+#--echo #
+#CREATE TABLE t1
+#(
+#  a TIMESTAMP
+#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#INSERT INTO t1 VALUES ('2013-02-01');
+#SELECT * FROM t1;
+#DROP TABLE t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing double
+--echo #
+CREATE TABLE t1
+(
+  a DOUBLE(20,5) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (123);
+INSERT INTO t1 VALUES (123456789.12345);
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE IF EXISTS t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+# TODO:
+# Testing with no FILE_NAME specified
+# Currently it returns:
+# ERROR 1296 (HY000): Got error 174 'Open(a+) error 21
+# on /opt/mariadb-5.5/data/: Is a directory' from CONNECT
+#CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF;
+
+--echo #
+--echo # Testing ALTER
+--echo #
+# Temporarily change the file name because ALTER that are not executed not in place
+# delete the data file when it has the same path/name than the default file name.
+CREATE TABLE t1
+(
+  a VARCHAR(10) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1c.dbf';
+INSERT INTO t1 VALUES ('10');
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1c.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1c.dbf');
+--horizontal_results
+ALTER TABLE t1 MODIFY a VARCHAR(10) NOT NULL;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1c.dbf');
+--horizontal_results
+ALTER TABLE t1 MODIFY a INT(10) NOT NULL;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1c.dbf');
+--horizontal_results
+
+# TODO: this does not work on Windows
+#ALTER TABLE t1 MODIFY a INT(8) NOT NULL;
+#SHOW CREATE TABLE t1;
+#--error ER_GET_ERRMSG
+#SELECT * FROM t1;
+#--vertical_results
+#--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+#eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+#--horizontal_results
+DROP TABLE IF EXISTS t1;
+--remove_file $MYSQLD_DATADIR/test/t1c.dbf
+
+
+--echo #
+--echo # Testing NULL
+--echo #
+# TODO: NULLs should probably change to DEFAULT and produce a warning
+CREATE TABLE t1
+(
+  c1 VARCHAR(10) NOT NULL,
+  c2 VARCHAR(10) NOT NULL DEFAULT 'def',
+  i1 INT NOT NULL,
+  i2 INT NOT NULL DEFAULT 123
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES ('10','10',10,10);
+#INSERT INTO t1 VALUES (NULL,NULL,NULL,NULL);
+INSERT INTO t1(c1,i1) VALUES ('20',20);
+INSERT INTO t1 VALUES ('30',DEFAULT,30,DEFAULT);
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE IF EXISTS t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+DROP PROCEDURE test.dbf_field;
+DROP PROCEDURE test.dbf_header;

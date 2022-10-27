@@ -1,0 +1,19 @@
+USE test;
+create table p(v varchar(20), i int, primary key(v,i)) engine=innodb character set = utf8;
+create table c(k int primary key, v varchar(20), i int, foreign key(v,i) references p(v,i)) engine=innodb character set = utf8;
+insert into p values (_utf32 0x000004100000041100000412, 1);
+insert into c values (1, _utf32 0x000004100000041100000412, 1);
+SELECT * FROM test.p;
+v	i
+???	1
+SELECT * FROM test.c;
+k	v	i
+1	???	1
+SELECT * FROM test.p;
+v	i
+???	1
+SELECT * FROM test.c;
+k	v	i
+1	???	1
+DROP TABLE c;
+DROP TABLE p;

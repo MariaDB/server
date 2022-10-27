@@ -1,0 +1,25 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+call mtr.add_suppression("Recovery from master pos");
+drop table if exists r1;
+create table r1 (id1 int, id2 int, primary key (id1, id2), index i (id2)) engine=rocksdb;
+insert into r1 values (1, 1000);
+set global rocksdb_force_flush_memtable_now=1;
+include/rpl_start_server.inc [server_number=2]
+include/start_slave.inc
+insert into r1 values (2,2000);
+delete r1 from r1 force index (i) where id2=1000;
+select id1,id2 from r1 force index (primary) where id1=1 and id2=1000;
+id1	id2
+select id2 from r1 force index (i) where id1=1 and id2=1000;
+id2
+set global rocksdb_compact_cf='default';
+select id1,id2 from r1 force index (primary) where id1=1 and id2=1000;
+id1	id2
+select id2 from r1 force index (i) where id1=1 and id2=1000;
+id2
+drop table r1;
+include/rpl_end.inc

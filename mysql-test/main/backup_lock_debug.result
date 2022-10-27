@@ -1,0 +1,53 @@
+#
+# Make sure pending LOCK TABLES doesn't block BACKUP STAGE
+#
+CREATE TABLE t1(a INT);
+LOCK TABLE t1 READ;
+#
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL ready';
+LOCK TABLE t1 WRITE;
+#
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC= 'now WAIT_FOR ready';
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE END;
+disconnect con2;
+#
+connection default;
+UNLOCK TABLES;
+#
+connection con1;
+UNLOCK TABLES;
+disconnect con1;
+#
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+#
+# Demonstrates a deadlock if BACKUP namespace is reorder after SCHEMA.
+# Culprit is ALTER TABLE taking SCHEMA lock on target database after
+# BACKUP lock was acquired.
+#
+CREATE DATABASE test2;
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+SET DEBUG_SYNC='alter_opened_table SIGNAL ready WAIT_FOR go';
+ALTER TABLE t1 RENAME TO test2.t1;
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC='now WAIT_FOR ready';
+BACKUP STAGE START;
+SET DEBUG_SYNC='mdl_acquire_lock_wait SIGNAL ready1';
+BACKUP STAGE BLOCK_DDL;
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC='now WAIT_FOR ready1';
+SET DEBUG_SYNC='mdl_acquire_lock_wait SIGNAL go';
+DROP DATABASE test2;
+connection default;
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
+SET DEBUG_SYNC='reset';

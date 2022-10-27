@@ -1,0 +1,80 @@
+--source include/have_rocksdb.inc
+
+--echo #
+--echo #  Test how MyRocks handles reading corrupted data from disk.
+--echo #  Data corruption is simulated at source-code level.
+--echo #
+
+--source include/have_debug.inc
+
+
+--echo #
+--echo #  A test for case when data in the table *record* is longer
+--echo #  than table DDL expects it to be
+--echo #
+create table t1 (
+  pk int not null primary key,
+  col1 varchar(10)
+) engine=rocksdb;
+
+insert into t1 values (1,1),(2,2),(3,3);
+
+select * from t1;
+
+set @tmp1=@@rocksdb_verify_row_debug_checksums;
+set rocksdb_verify_row_debug_checksums=1;
+set session debug_dbug= "+d,myrocks_simulate_bad_row_read1";
+--error ER_GET_ERRMSG
+select * from t1 where pk=1;
+set session debug_dbug= "-d,myrocks_simulate_bad_row_read1";
+set rocksdb_verify_row_debug_checksums=@tmp1;
+
+select * from t1 where pk=1;
+
+set session debug_dbug= "+d,myrocks_simulate_bad_row_read2";
+--error ER_GET_ERRMSG
+select * from t1 where pk=1;
+set session debug_dbug= "-d,myrocks_simulate_bad_row_read2";
+
+set session debug_dbug= "+d,myrocks_simulate_bad_row_read3";
+--error ER_GET_ERRMSG
+select * from t1 where pk=1;
+set session debug_dbug= "-d,myrocks_simulate_bad_row_read3";
+
+insert into t1 values(4,'0123456789');
+select * from t1;
+drop table t1;
+
+--echo #
+--echo #  A test for case when index data is longer than table DDL
+--echo #  expects it to be
+--echo #
+
+create table t2 (
+  pk varchar(4) not null primary key,
+  col1 int not null
+) engine=rocksdb collate latin1_bin;
+
+insert into t2 values ('ABCD',1);
+select * from t2;
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_read1";
+--error ER_GET_ERRMSG
+select * from t2;
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_read1";
+
+drop table t2;
+
+create table t2 (
+  pk varchar(4) not null primary key,
+  col1 int not null
+) engine=rocksdb;
+
+insert into t2 values ('ABCD',1);
+
+select * from t2;
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_read1";
+--error ER_GET_ERRMSG
+select * from t2;
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_read1";
+
+drop table t2;

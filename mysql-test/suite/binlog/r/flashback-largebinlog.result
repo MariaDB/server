@@ -1,0 +1,70 @@
+#
+# Preparatory cleanup.
+#
+drop database if exists mysqltest;
+create database mysqltest;
+use mysqltest;
+DROP TABLE IF EXISTS t1;
+#
+# We need a fixed timestamp to avoid varying results.
+#
+SET timestamp=1000000000;
+#
+# We need big packets.
+#
+# Capture initial value to reset at the end of the test
+# Now adjust max_allowed_packet
+SET @@global.max_allowed_packet= 10*1024*1024*1024;
+Warnings:
+Warning	1292	Truncated incorrect max_allowed_packet value: '10737418240'
+max_allowed_packet is a global variable.
+In order for the preceding change in max_allowed_packets' value
+to be seen and used, we must start a new connection.
+The change does not take effect with the current one.
+For simplicity, we just disconnect / reconnect connection default here.
+disconnect default;
+connect  default, localhost,root,,;
+#
+# Delete all existing binary logs.
+#
+RESET MASTER;
+#
+# Create a test table.
+#
+use mysqltest;
+CREATE TABLE t1 (
+c1 LONGTEXT
+) DEFAULT CHARSET latin1;
+#
+# Show how many rows are affected by each statement.
+#
+#
+# Insert some big rows.
+#
+insert 1024MB data twice
+INSERT INTO t1 VALUES (REPEAT('ManyMegaByteBlck', 67108864));
+affected rows: 1
+INSERT INTO t1 VALUES (REPEAT('MegaByteBlckMany', 67108864));
+affected rows: 1
+#
+# Flush all log buffers to the log file.
+#
+FLUSH LOGS;
+affected rows: 0
+#
+# Call mysqlbinlog to display the log file contents.
+# NOTE: The output of mysqlbinlog is redirected to
+#       $MYSQLTEST_VARDIR/tmp/mysqlbinlog_big_1.out
+#       If you want to examine it, disable remove_file
+#       at the bottom of the test script.
+#
+#
+# Cleanup.
+#
+# reset variable value to pass testcase checks
+affected rows: 0
+DROP TABLE t1;
+affected rows: 0
+drop database if exists mysqltest;
+affected rows: 0
+remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_big_1.out

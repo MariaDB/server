@@ -1,0 +1,32 @@
+--source include/have_rocksdb.inc
+
+# 
+# DELETE QUICK syntax.
+# For now we only check that the keyword is accepted,
+# without actually checking whether the feature works.
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2;
+--enable_warnings
+
+CREATE TABLE t1 (a INT, b CHAR(8), PRIMARY KEY (a)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+
+DELETE QUICK FROM t1 WHERE a = 1 OR b > 'foo';
+--sorted_result
+SELECT a,b FROM t1;
+
+CREATE TABLE t2 (c CHAR(8), d INT, PRIMARY KEY (c)) ENGINE=rocksdb;
+INSERT INTO t2 (c,d) SELECT b, a FROM t1;
+--sorted_result
+SELECT c,d FROM t2;
+
+DELETE QUICK FROM t2, t1.* USING t2, t1 WHERE c IS NULL OR a = d;
+--sorted_result
+SELECT a,b FROM t1;
+--sorted_result
+SELECT c,d FROM t2;
+
+DROP TABLE t1, t2;
+

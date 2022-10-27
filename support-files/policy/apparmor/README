@@ -1,0 +1,5 @@
+Note: The included AppArmor profiles can be used for MariaDB Galera cluster.
+However, since these profiles had been tested for a limited set of scenarios,
+it is highly recommended to run them in "complain" mode and report any denials
+on mariadb.org/jira.
+

@@ -1,0 +1,114 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(2);
+INSERT INTO valid_values VALUES(3);
+INSERT INTO valid_values VALUES(4);
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+SET @start_global_value = @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+SELECT @start_global_value;
+@start_global_value
+0
+SET @start_session_value = @@session.ROCKSDB_PERF_CONTEXT_LEVEL;
+SELECT @start_session_value;
+@start_session_value
+0
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_PERF_CONTEXT_LEVEL to 1"
+SET @@global.ROCKSDB_PERF_CONTEXT_LEVEL   = 1;
+SELECT @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@global.ROCKSDB_PERF_CONTEXT_LEVEL
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_PERF_CONTEXT_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@global.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+"Trying to set variable @@global.ROCKSDB_PERF_CONTEXT_LEVEL to 2"
+SET @@global.ROCKSDB_PERF_CONTEXT_LEVEL   = 2;
+SELECT @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@global.ROCKSDB_PERF_CONTEXT_LEVEL
+2
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_PERF_CONTEXT_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@global.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+"Trying to set variable @@global.ROCKSDB_PERF_CONTEXT_LEVEL to 3"
+SET @@global.ROCKSDB_PERF_CONTEXT_LEVEL   = 3;
+SELECT @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@global.ROCKSDB_PERF_CONTEXT_LEVEL
+3
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_PERF_CONTEXT_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@global.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+"Trying to set variable @@global.ROCKSDB_PERF_CONTEXT_LEVEL to 4"
+SET @@global.ROCKSDB_PERF_CONTEXT_LEVEL   = 4;
+SELECT @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@global.ROCKSDB_PERF_CONTEXT_LEVEL
+4
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_PERF_CONTEXT_LEVEL = DEFAULT;
+SELECT @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@global.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+'# Setting to valid values in session scope#'
+"Trying to set variable @@session.ROCKSDB_PERF_CONTEXT_LEVEL to 1"
+SET @@session.ROCKSDB_PERF_CONTEXT_LEVEL   = 1;
+SELECT @@session.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@session.ROCKSDB_PERF_CONTEXT_LEVEL
+1
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_PERF_CONTEXT_LEVEL = DEFAULT;
+SELECT @@session.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@session.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+"Trying to set variable @@session.ROCKSDB_PERF_CONTEXT_LEVEL to 2"
+SET @@session.ROCKSDB_PERF_CONTEXT_LEVEL   = 2;
+SELECT @@session.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@session.ROCKSDB_PERF_CONTEXT_LEVEL
+2
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_PERF_CONTEXT_LEVEL = DEFAULT;
+SELECT @@session.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@session.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+"Trying to set variable @@session.ROCKSDB_PERF_CONTEXT_LEVEL to 3"
+SET @@session.ROCKSDB_PERF_CONTEXT_LEVEL   = 3;
+SELECT @@session.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@session.ROCKSDB_PERF_CONTEXT_LEVEL
+3
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_PERF_CONTEXT_LEVEL = DEFAULT;
+SELECT @@session.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@session.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+"Trying to set variable @@session.ROCKSDB_PERF_CONTEXT_LEVEL to 4"
+SET @@session.ROCKSDB_PERF_CONTEXT_LEVEL   = 4;
+SELECT @@session.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@session.ROCKSDB_PERF_CONTEXT_LEVEL
+4
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_PERF_CONTEXT_LEVEL = DEFAULT;
+SELECT @@session.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@session.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_PERF_CONTEXT_LEVEL to 'aaa'"
+SET @@global.ROCKSDB_PERF_CONTEXT_LEVEL   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@global.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+SET @@global.ROCKSDB_PERF_CONTEXT_LEVEL = @start_global_value;
+SELECT @@global.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@global.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+SET @@session.ROCKSDB_PERF_CONTEXT_LEVEL = @start_session_value;
+SELECT @@session.ROCKSDB_PERF_CONTEXT_LEVEL;
+@@session.ROCKSDB_PERF_CONTEXT_LEVEL
+0
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

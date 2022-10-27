@@ -1,0 +1,63 @@
+flush status;
+flush hosts;
+flush user_resources;
+flush privileges;
+select `User`, `Host` from mysql.`user` where `host` like '%\\%%';
+User	Host
+select `User`, `Host` from mysql.`user` where `user` like '192.%';
+User	Host
+select `User`, `Host` from mysql.`user` where `user` like '2001:%';
+User	Host
+select `User`, `Host` from mysql.`user` where `user` like 'santa.claus.%';
+User	Host
+show global status like "connection_errors_%";
+Variable_name	Value
+Connection_errors_accept	0
+Connection_errors_internal	0
+Connection_errors_max_connections	0
+Connection_errors_peer_address	0
+Connection_errors_select	0
+Connection_errors_tcpwrap	0
+connect  con1,"127.0.0.1",root,,test,$MASTER_MYPORT,;
+select "Con1 is alive";
+Con1 is alive
+Con1 is alive
+select current_user();
+current_user()
+root@localhost
+disconnect con1;
+connection default;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+set global debug_dbug= "+d,vio_peer_addr_error";
+ERROR HY000: Can't get hostname for your address
+connection default;
+show global status like "connection_errors_%";
+Variable_name	Value
+Connection_errors_accept	0
+Connection_errors_internal	0
+Connection_errors_max_connections	0
+Connection_errors_peer_address	1
+Connection_errors_select	0
+Connection_errors_tcpwrap	0
+"Dumping performance_schema.host_cache"
+ERROR HY000: Can't get hostname for your address
+connection default;
+show global status like "connection_errors_%";
+Variable_name	Value
+Connection_errors_accept	0
+Connection_errors_internal	0
+Connection_errors_max_connections	0
+Connection_errors_peer_address	2
+Connection_errors_select	0
+Connection_errors_tcpwrap	0
+"Dumping performance_schema.host_cache"
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+flush status;
+show global status like "connection_errors_%";
+Variable_name	Value
+Connection_errors_accept	0
+Connection_errors_internal	0
+Connection_errors_max_connections	0
+Connection_errors_peer_address	0
+Connection_errors_select	0
+Connection_errors_tcpwrap	0

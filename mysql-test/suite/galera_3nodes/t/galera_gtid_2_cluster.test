@@ -1,0 +1,322 @@
+#
+# This test creates 2x 3 nodes galera cluster.
+# The whole test case
+#       A <-> B <-> C     {Galera cluster 1}
+#       |                 {Circular Async replication}
+#       D <-> E <-> F     {Galera cluster 2}
+# We will write on any random node to see if gtid is consitent or not
+# Then we will kill node D and set up the replication between A and E
+# To see whether fail over works or not.
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+--echo cluster 1 node 1
+SHOW STATUS LIKE 'wsrep_cluster_size';
+
+--connection node_2
+--echo cluster 1 node 2
+SHOW STATUS LIKE 'wsrep_cluster_size';
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
+--echo cluster 1 node 3
+SHOW STATUS LIKE 'wsrep_cluster_size';
+
+--connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
+--connection node_4
+--echo cluster 2 node 1
+SHOW STATUS LIKE 'wsrep_cluster_size';
+
+--connect node_5, 127.0.0.1, root, , test, $NODE_MYPORT_5
+--connection node_5
+--echo cluster 2 node 2
+SHOW STATUS LIKE 'wsrep_cluster_size';
+
+--connect node_6, 127.0.0.1, root, , test, $NODE_MYPORT_6
+--connection node_6
+--echo cluster 2 node 3
+SHOW STATUS LIKE 'wsrep_cluster_size';
+#--disable_parsing
+--connection node_1
+--replace_result $NODE_MYPORT_4 NODE_MYPORT_4
+--eval change master to master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_4, master_use_gtid=current_pos, ignore_server_ids=(12,13);
+start slave;
+--source include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+select @@gtid_slave_pos;
+#--query_vertical SHOW SLAVE STATUS;
+
+--connection node_4
+--replace_result $NODE_MYPORT_1 NODE_MYPORT_1
+--eval change master to master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_1, master_use_gtid=current_pos, ignore_server_ids=(22,23);
+start slave;
+--source include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+select @@gtid_slave_pos;
+#--query_vertical SHOW SLAVE STATUS;
+
+--echo cluster 1 node 1
+--connection node_1
+create table t1 (cluster_domain_id int ,node_server_id int, seq_no int);
+insert into t1 values (1, 11, 2);
+select @@gtid_binlog_state;
+
+--echo #wait for sync  cluster 1 and 2
+--connection node_1
+--source include/save_master_gtid.inc
+--connection node_4
+--source include/sync_with_master_gtid.inc
+
+--echo cluster 2 node 1
+--connection node_4
+select @@gtid_binlog_state;
+insert into t1 values (2, 21, 1);
+select @@gtid_binlog_state;
+select * from t1;
+--echo #wait for sync  cluster 1 and 2
+--connection node_1
+--source include/save_master_gtid.inc
+--connection node_4
+--source include/sync_with_master_gtid.inc
+
+
+--echo cluster 1 node 2
+--connection node_2
+select @@gtid_binlog_state;
+insert into t1 values (1, 12, 3);
+select @@gtid_binlog_state;
+
+--echo #wait for sync  cluster 1 and 2
+--connection node_1
+--source include/save_master_gtid.inc
+--connection node_4
+--source include/sync_with_master_gtid.inc
+
+--echo cluster 1 node 3
+--connection node_3
+select @@gtid_binlog_state;
+insert into t1 values (1, 13, 4);
+select @@gtid_binlog_state;
+
+--echo #wait for sync  cluster 1 and 2
+--connection node_1
+--source include/save_master_gtid.inc
+--connection node_4
+--source include/sync_with_master_gtid.inc
+
+--echo cluster 2 node 2
+--connection node_5
+select @@gtid_binlog_state;
+insert into t1 values (2, 22, 2);
+select @@gtid_binlog_state;
+
+--echo #wait for sync  cluster 2 and 1
+--connection node_4
+--source include/save_master_gtid.inc
+--connection node_1
+--source include/sync_with_master_gtid.inc
+
+--echo cluster 2 node 3
+--connection node_6
+select @@gtid_binlog_state;
+insert into t1 values (2, 23, 3);
+select @@gtid_binlog_state;
+
+--echo #wait for sync  cluster 2 and 1
+--connection node_4
+--source include/save_master_gtid.inc
+--connection node_1
+--source include/sync_with_master_gtid.inc
+
+
+--echo cluster 1 node 1
+--connection node_1
+select @@gtid_binlog_state;
+drop table t1;
+stop slave;
+reset slave;
+
+--echo cluster 2 node 1
+--connection node_4
+stop slave;
+reset slave;
+
+--echo cluster 1 node 1
+--connection node_1
+change master to master_use_gtid=no, ignore_server_ids=();
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+set global GTID_SLAVE_POS="";
+--sleep 2
+
+--echo cluster 2 node 1
+--connection node_4
+change master to master_use_gtid=no, ignore_server_ids=();
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+set global GTID_SLAVE_POS="";
+
+--connection node_2
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+--connection node_3
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+--connection node_5
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+--connection node_6
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+#--enable_parsing
+#
+# This test creates 2x 3 nodes galera cluster.
+# The whole test case
+#       A <-> B <-> C     {Galera cluster 1}
+#       \          /
+#          \    /
+#            /             {C->D, F->A , Async normal slave repl}
+#         /     \
+#       |          \
+#       D <-> E <-> F     {Galera cluster 2}
+# We will write on any random node to see if gtid is consitent or not
+# Then we will kill node D and set up the replication between A and E
+# To see whether fail over works or not.
+--connection node_1
+--replace_result $NODE_MYPORT_6 NODE_MYPORT_6
+--eval change master to master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_6, master_use_gtid=current_pos, ignore_server_ids=(12,13);
+start slave;
+--source include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+select @@gtid_slave_pos;
+#--query_vertical SHOW SLAVE STATUS;
+
+--connection node_4
+--replace_result $NODE_MYPORT_3 NODE_MYPORT_3
+--eval change master to master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_3, master_use_gtid=current_pos, ignore_server_ids=(22,23);
+start slave;
+--source include/wait_for_slave_to_start.inc
+select @@gtid_binlog_state;
+select @@gtid_slave_pos;
+#--query_vertical SHOW SLAVE STATUS;
+
+--echo cluster 1 node 1
+--connection node_1
+create table t1 (cluster_domain_id int ,node_server_id int, seq_no int);
+insert into t1 values (1, 11, 2);
+
+select @@gtid_binlog_state;
+
+--echo #wait for sync  cluster 1 and 2
+--connection node_1
+--source include/save_master_gtid.inc
+--connection node_4
+--source include/sync_with_master_gtid.inc
+--sleep 2
+--echo cluster 2 node 1
+--connection node_4
+insert into t1 values (2, 21, 1);
+select @@gtid_binlog_state;
+select * from t1;
+
+--echo #wait for sync  cluster 1 and 2
+--connection node_1
+--source include/save_master_gtid.inc
+--connection node_4
+--source include/sync_with_master_gtid.inc
+
+
+--echo cluster 1 node 2
+--connection node_2
+select @@gtid_binlog_state;
+insert into t1 values (1, 12, 3);
+select @@gtid_binlog_state;
+
+--echo #wait for sync  cluster 1 and 2
+--connection node_1
+--source include/save_master_gtid.inc
+--connection node_4
+--source include/sync_with_master_gtid.inc
+
+--echo cluster 1 node 3
+--connection node_3
+select @@gtid_binlog_state;
+insert into t1 values (1, 13, 4);
+select @@gtid_binlog_state;
+
+--echo #wait for sync  cluster 1 and 2
+--connection node_1
+--source include/save_master_gtid.inc
+--connection node_4
+--source include/sync_with_master_gtid.inc
+
+--echo cluster 2 node 2
+--connection node_5
+select @@gtid_binlog_state;
+insert into t1 values (2, 22, 2);
+select @@gtid_binlog_state;
+
+--echo #wait for sync  cluster 2 and 1
+--connection node_4
+--source include/save_master_gtid.inc
+--connection node_1
+--source include/sync_with_master_gtid.inc
+
+--echo cluster 2 node 3
+--connection node_6
+select @@gtid_binlog_state;
+insert into t1 values (2, 23, 3);
+select @@gtid_binlog_state;
+
+--echo #wait for sync  cluster 2 and 1
+--connection node_4
+--source include/save_master_gtid.inc
+--connection node_1
+--source include/sync_with_master_gtid.inc
+
+
+--echo cluster 1 node 1
+--connection node_1
+select @@gtid_binlog_state;
+drop table t1;
+stop slave;
+change master to master_use_gtid=no, ignore_server_ids=();
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+set global GTID_SLAVE_POS="";
+
+--echo cluster 2 node 1
+--connection node_4
+stop slave;
+change master to master_use_gtid=no, ignore_server_ids=();
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+set global GTID_SLAVE_POS="";
+
+--connection node_2
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+--connection node_3
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+--connection node_5
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;
+--connection node_6
+set global wsrep_on=OFF;
+reset master;
+set global wsrep_on=ON;

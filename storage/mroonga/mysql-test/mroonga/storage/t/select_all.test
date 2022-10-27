@@ -1,0 +1,100 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+drop table if exists t1, t2, t3;
+--enable_warnings
+
+create table t1(c1 int, c2 int, c3 int);
+insert into t1 values (1, 10, 100);
+insert into t1 values (2, 30, 500);
+insert into t1 values (5, 20, 200);
+insert into t1 values (3, 60, 300);
+insert into t1 values (4, 50, 600);
+insert into t1 values (6, 40, 400);
+
+select * from t1;
+select c1 from t1;
+select c2 from t1;
+select c3 from t1;
+
+select * from t1 where c1 <= 3;
+select * from t1 where c2 > 40;
+select * from t1 where c3 = 300;
+
+
+select * from t1 order by c1;
+select * from t1 order by c2 desc;
+select * from t1 order by c3, c1;
+
+drop table t1;
+
+
+create table t1 (c1 int, c2 varchar(100));
+insert into t1 values(1, "hoge");
+insert into t1 values(4, "hogefuga");
+insert into t1 values(2, "fuga");
+insert into t1 values(5, "moge");
+insert into t1 values(3, "mo");
+
+select * from t1;
+select * from t1 order by c1;
+select * from t1 order by c1 desc;
+select * from t1 order by c2;
+
+drop table t1;
+
+create table t1 (c1 int, c2 text);
+insert into t1 values(1, "hoge");
+insert into t1 values(4, "hogefuga");
+insert into t1 values(2, "fuga");
+insert into t1 values(5, "moge");
+insert into t1 values(3, "mo");
+
+select * from t1;
+
+drop table t1;
+
+# ORDER BY with position
+create table t1 (c1 int, c2 int, c3 text);
+insert into t1 values(1, 20, "hoge");
+insert into t1 values(4, 60, "hogefuga");
+insert into t1 values(2, 50, "fuga");
+insert into t1 values(5, 30, "moge");
+insert into t1 values(3, 40, "mo");
+select * from t1 order by c1 asc;
+select * from t1 order by c1 desc;
+select * from t1 order by c2 asc;
+select * from t1 order by c2 desc;
+select * from t1 order by c3 asc;
+select * from t1 order by c3 desc;
+drop table t1;
+
+# _id
+create table t1 (_id int, c1 int);
+insert into t1 values (null,100);
+insert into t1 values (null,100);
+insert into t1 values (null,100);
+insert into t1 values (null,100);
+insert into t1 values (null,100);
+select * from t1;
+select * from t1 where _id < 3;
+select * from t1 where _id >= 3;
+drop table t1;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

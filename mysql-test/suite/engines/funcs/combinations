@@ -1,0 +1,11 @@
+[innodb]
+innodb
+default-storage-engine=innodb
+partition
+
+[myisam]
+skip-innodb
+default-storage-engine=myisam
+partition
+
+

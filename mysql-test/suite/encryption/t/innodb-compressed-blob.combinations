@@ -1,0 +1,4 @@
+[crc32]
+loose-innodb-checksum-algorithm=crc32
+[none]
+loose-innodb-checksum-algorithm=none

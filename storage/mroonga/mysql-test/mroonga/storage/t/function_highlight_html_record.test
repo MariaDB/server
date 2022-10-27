@@ -1,0 +1,55 @@
+# Copyright(C) 2015-2017 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/load_mroonga_functions.inc
+
+--disable_warnings
+--disable_query_log
+DROP TABLE IF EXISTS memos;
+--enable_query_log
+--enable_warnings
+
+CREATE TABLE memos (
+  content text
+);
+
+INSERT INTO memos VALUES ('Mroonga is a MySQL storage engine based on Groonga, the full text search engine.
+
+In MySQL 5.1 or later, Pluggable Storage Engine interface is introduced, and we can use custom storage engines easily. So we implement Mroonga, so that we can use Groonga through MySQL.
+
+By using Mroonga, you can use Groonga with SQL.');
+
+INSERT INTO memos VALUES ('Since Tritonn was the modified version of MySQL, we need to build it by ourselves or use binary files provided by Tritonn project, thus we cannot use the official binary files provided by MySQL.
+
+On the other hand, Mroonga is an independent program (shared library) using Pluggable Storage Engine interface, and we can dynamically load it on MySQL''s official binary. So we can use it more easily than Tritonn.');
+
+INSERT INTO memos VALUES ('Mroonga has two running modes.
+
+One is "storage mode", that is the default mode, and we use Groonga for both storing data and searching. With this mode, you can have full benefits of Groonga described above, like fast data update, lock-free full text search and geolocation search. But it does not support transactions.
+
+Another one is "wrapper mode", that adds full text search function on other storage engines like MyISAM or InnoDB. With this mode, you can use Groonga''s fast full text search with having the benefits of the storage engine, ex. transaction in InnoDB. But you cannot have benefits from Groonga''s read-lock free characteristic. And you might have the performance bottle neck in the storage engine in updating data.');
+
+SELECT mroonga_highlight_html(content, 'Mroonga') AS highlighted
+       FROM memos;
+
+--disable_query_log
+DROP TABLE memos;
+--enable_query_log
+
+--source ../../include/mroonga/unload_mroonga_functions.inc
+--source ../../include/mroonga/have_mroonga_deinit.inc

@@ -1,0 +1,9 @@
+SET GLOBAL gtid_current_pos= '';
+ERROR HY000: Variable 'gtid_current_pos' is a read only variable
+SELECT variable_name FROM information_schema.global_variables
+WHERE variable_name='gtid_current_pos';
+variable_name
+GTID_CURRENT_POS
+SELECT @@gtid_current_pos;
+SELECT @@session.gtid_current_pos;
+ERROR HY000: Variable 'gtid_current_pos' is a GLOBAL variable

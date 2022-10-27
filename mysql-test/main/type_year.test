@@ -1,0 +1,354 @@
+#
+# Test year
+#
+
+create table t1 (y year,y2 year(2));
+insert into t1 values (0,0),(1999,1999),(2000,2000),(2001,2001),(70,70),(69,69);
+select * from t1;
+select * from t1 order by y;
+select * from t1 order by y2;
+drop table t1;
+
+--echo #
+--echo # Bug 2335
+--echo #
+
+create table t1 (y year);
+insert ignore into t1 values (now());
+select if(y = now(), 1, 0) from t1;
+drop table t1;
+
+--echo #
+--echo # Bug #27176: Assigning a string to an year column has unexpected results
+--echo #
+
+create table t1(a year);
+insert into t1 values (2000.5), ('2000.5'), ('2001a'), ('2.001E3');
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # End of 5.0 tests
+--echo #
+
+--echo #
+--echo # Bug #49480: WHERE using YEAR columns returns unexpected results
+--echo #
+
+CREATE TABLE t2(yy YEAR(2), c2 CHAR(4));
+CREATE TABLE t4(yyyy YEAR(4), c4 CHAR(4));
+
+INSERT INTO t2 (c2) VALUES (NULL),(1970),(1999),(2000),(2001),(2069);
+INSERT INTO t4 (c4) SELECT c2 FROM t2;
+UPDATE t2 SET yy = c2;
+UPDATE t4 SET yyyy = c4;
+
+SELECT * FROM t2;
+SELECT * FROM t4;
+
+--echo # Comparison of YEAR(2) with YEAR(4)
+
+SELECT * FROM t2, t4 WHERE yy = yyyy;
+SELECT * FROM t2, t4 WHERE yy <=> yyyy;
+SELECT * FROM t2, t4 WHERE yy < yyyy;
+SELECT * FROM t2, t4 WHERE yy > yyyy;
+
+--echo # Comparison of YEAR(2) with YEAR(2)
+
+SELECT * FROM t2 a, t2 b WHERE a.yy = b.yy;
+SELECT * FROM t2 a, t2 b WHERE a.yy <=> b.yy;
+SELECT * FROM t2 a, t2 b WHERE a.yy < b.yy;
+
+--echo # Comparison of YEAR(4) with YEAR(4)
+
+SELECT * FROM t4 a, t4 b WHERE a.yyyy = b.yyyy;
+SELECT * FROM t4 a, t4 b WHERE a.yyyy <=> b.yyyy;
+SELECT * FROM t4 a, t4 b WHERE a.yyyy < b.yyyy;
+
+--echo # Comparison with constants:
+
+SELECT * FROM t2 WHERE yy = NULL;
+SELECT * FROM t4 WHERE yyyy = NULL;
+SELECT * FROM t2 WHERE yy <=> NULL;
+SELECT * FROM t4 WHERE yyyy <=> NULL;
+SELECT * FROM t2 WHERE yy < NULL;
+SELECT * FROM t2 WHERE yy > NULL;
+
+SELECT * FROM t2 WHERE yy = NOW();
+SELECT * FROM t4 WHERE yyyy = NOW();
+
+SELECT * FROM t2 WHERE yy = 99;
+SELECT * FROM t2 WHERE 99 = yy;
+SELECT * FROM t4 WHERE yyyy = 99;
+
+SELECT * FROM t2 WHERE yy = 'test';
+SELECT * FROM t4 WHERE yyyy = 'test';
+
+SELECT * FROM t2 WHERE yy = '1999';
+SELECT * FROM t4 WHERE yyyy = '1999';
+
+SELECT * FROM t2 WHERE yy = 1999;
+SELECT * FROM t4 WHERE yyyy = 1999;
+
+SELECT * FROM t2 WHERE yy = 1999.1;
+SELECT * FROM t4 WHERE yyyy = 1999.1;
+
+SELECT * FROM t2 WHERE yy = 1998.9;
+SELECT * FROM t4 WHERE yyyy = 1998.9;
+
+--echo # Coverage tests for YEAR with zero/2000 constants:
+
+SELECT * FROM t2 WHERE yy = 0;
+SELECT * FROM t2 WHERE yy = '0';
+SELECT * FROM t2 WHERE yy = '0000';
+SELECT * FROM t2 WHERE yy = '2000';
+SELECT * FROM t2 WHERE yy = 2000;
+
+SELECT * FROM t4 WHERE yyyy = 0;
+SELECT * FROM t4 WHERE yyyy = '0';
+SELECT * FROM t4 WHERE yyyy = '0000';
+SELECT * FROM t4 WHERE yyyy = '2000';
+SELECT * FROM t4 WHERE yyyy = 2000;
+
+--echo # Comparison with constants those are out of YEAR range
+--echo # (coverage test for backward compatibility)
+
+SELECT COUNT(yy) FROM t2;
+SELECT COUNT(yyyy) FROM t4;
+
+SELECT COUNT(*) FROM t2 WHERE yy = -1;
+SELECT COUNT(*) FROM t4 WHERE yyyy > -1;
+SELECT COUNT(*) FROM t2 WHERE yy > -1000000000000000000;
+SELECT COUNT(*) FROM t4 WHERE yyyy > -1000000000000000000;
+
+SELECT COUNT(*) FROM t2 WHERE yy < 2156;
+SELECT COUNT(*) FROM t4 WHERE yyyy < 2156;
+SELECT COUNT(*) FROM t2 WHERE yy < 1000000000000000000;
+SELECT COUNT(*) FROM t4 WHERE yyyy < 1000000000000000000;
+
+SELECT * FROM t2 WHERE yy < 123;
+SELECT * FROM t2 WHERE yy > 123;
+SELECT * FROM t4 WHERE yyyy < 123;
+SELECT * FROM t4 WHERE yyyy > 123;
+
+DROP TABLE t2, t4;
+
+--echo #
+--echo # Bug #49910: Behavioural change in SELECT/WHERE on YEAR(4) data type
+--echo #
+
+CREATE TABLE t1 (y YEAR NOT NULL, s VARCHAR(4));
+INSERT IGNORE INTO t1 (s) VALUES ('bad');
+INSERT INTO t1 (y, s) VALUES (0, 0), (2000, 2000), (2001, 2001);
+
+SELECT * FROM t1 ta, t1 tb WHERE ta.y = tb.y;
+SELECT * FROM t1 WHERE t1.y = 0;
+SELECT * FROM t1 WHERE t1.y = 2000;
+
+SELECT ta.y AS ta_y, ta.s, tb.y AS tb_y, tb.s FROM t1 ta, t1 tb HAVING ta_y = tb_y;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #59211: Select Returns Different Value for min(year) Function
+--echo #
+
+CREATE TABLE t1(c1 YEAR(4));
+INSERT INTO t1 VALUES (1901),(2155),(0000);
+SELECT * FROM t1;
+SELECT COUNT(*) AS total_rows, MIN(c1) AS min_value, MAX(c1) FROM t1;
+SELECT COUNT(*) AS total_rows, MIN(c1+0) AS min_value, MAX(c1+0) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # WL#6219: Deprecate and remove YEAR(2) type
+--echo #
+
+CREATE TABLE t1 (c1 YEAR(2), c2 YEAR(4));
+ALTER TABLE t1 MODIFY COLUMN c2 YEAR(2);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.1 tests
+--echo #
+
+#
+# fun with convert_const_to_int
+# in some cases 00 is equal to 2000, in others it is not.
+#
+create function y2k() returns int deterministic return 2000;
+create table t1 (a year(2), b int);
+insert t1 values (0,2000);
+select a from t1 where a=2000;  # constant.
+select a from t1 where a=1000+1000; # still a constant.
+# select a from t1 where a=(select 2000); # even this is a constant
+select a from t1 where a=(select 2000 from dual where 1); # constant, but "expensive"
+select a from t1 where a=y2k(); # constant, but "expensive"
+select a from t1 where a=b; # not a constant
+drop table t1;
+drop function y2k;
+
+--echo #
+--echo # MDEV-17257 Server crashes in Item::field_type_for_temporal_comparison or in get_datetime_value on SELECT with YEAR field and IN
+--echo #
+
+CREATE TABLE t1 (y YEAR);
+SELECT * FROM t1 WHERE y IN ( CAST( '1993-03-26 10:14:20' AS DATE ), NULL );
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-8741 Equal field propagation leaves some remainders after simplifying WHERE zerofill_column=2010 AND zerofill_column>=2010
+--echo #
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (2010),(2020);
+SELECT * FROM t1 WHERE a=2010 AND a>=2010;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND a>=2010;
+SELECT * FROM t1 WHERE a=2010 AND a>=10;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND a>=10;
+SELECT * FROM t1 WHERE a=10 AND a>=2010;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10 AND a>=2010;
+SELECT * FROM t1 WHERE a=10 AND a>=10;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10 AND a>=10;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-16958 Assertion `field_length < 5' failed in Field_year::val_str or data corruption upon SELECT with UNION and aggregate functions
+--echo #
+
+CREATE TABLE t1 (f YEAR);
+INSERT IGNORE INTO t1 VALUES (1971),(1972);
+SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1 UNION SELECT MAX( NULLIF( f, '1900' ) ) AS f FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-9392 Copying from DECIMAL to YEAR is not consistent about warnings
+--echo #
+CREATE TABLE t1 (a YEAR);
+INSERT IGNORE INTO t1 VALUES (-0.1);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 (a DECIMAL(10,1));
+INSERT INTO t2 VALUES (-0.1);
+INSERT IGNORE INTO t1 SELECT * FROM t2;
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a DECIMAL(10,1));
+INSERT INTO t1 VALUES (-0.1);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+ALTER TABLE t1 MODIFY a YEAR;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a YEAR);
+INSERT IGNORE INTO t1 VALUES (-0.1e0);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a YEAR);
+CREATE TABLE t2 (a DOUBLE);
+INSERT INTO t2 VALUES (-0.1);
+INSERT IGNORE INTO t1 SELECT * FROM t2;
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (-0.1);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+ALTER TABLE t1 MODIFY a YEAR;
+DROP TABLE t1;
+
+--echo #
+--echo # Various widths of the YEAR
+--echo #
+create or replace table t1 (a YEAR(0)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(1)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(2)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(3)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(4)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(5)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(100)); SHOW CREATE TABLE t1;
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16451 Split Item_equal::add_const() into a virtual method in type_handler()
+--echo #
+
+CREATE TABLE t1 (a YEAR(4));
+INSERT INTO t1 VALUES (93),(94);
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE a=1993 and a=93;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1993 and a=93;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a YEAR(2));
+INSERT INTO t1 VALUES (93),(94);
+SELECT * FROM t1;
+SELECT * FROM t1 WHERE a=1993 and a=93;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1993 and a=93;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16926 CAST(COALESCE(year_field)) returns wrong value
+--echo #
+
+CREATE OR REPLACE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (1970),(1978),(2000),(2069);
+SELECT a, CAST(a AS DATE), CAST(COALESCE(a) AS DATE) FROM t1;
+SELECT MIN(a), MAX(a) FROM t1;
+DROP TABLE t1;
+
+CREATE OR REPLACE TABLE t1 (a YEAR(2));
+INSERT INTO t1 VALUES (1970),(1978),(2000),(2069);
+SELECT a, CAST(a AS DATE), CAST(COALESCE(a) AS DATE) FROM t1;
+SELECT MIN(a), MAX(a) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17015 Assertion `m_year <= 9999' failed in Year::Year upon bad argument to MAKEDATE
+--echo #
+SELECT MAKEDATE(18446744073709551615, 1);
+
+--echo #
+--echo # MDEV-17607 DATE(COALESCE(year_column)) returns a wrong result
+--echo #
+
+CREATE TABLE t1 (a YEAR);
+INSERT INTO t1 VALUES (NULL);
+SELECT COALESCE(a), DATE(COALESCE(a)) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23337 Rounding functions create a wrong data type for numeric input
+--echo #
+
+CREATE TABLE t1 (a YEAR(2));
+CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+DESC t2;
+DROP TABLE t2,t1;
+
+CREATE TABLE t1 (a YEAR(4));
+CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
+DESC t2;
+DROP TABLE t2,t1;
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

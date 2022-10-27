@@ -1,0 +1,47 @@
+create table t1 (
+  pk int primary key,
+  a int,
+  b int,
+  c real
+);
+
+
+insert into t1 values
+(101 , 0, 10, 1.1),
+(102 , 0, 10, 2.1),
+(103 , 1, 10, 3.1),
+(104 , 1, 10, 4.1),
+(108 , 2, 10, 5.1),
+(105 , 2, 20, 6.1),
+(106 , 2, 20, 7.1),
+(107 , 2, 20, 8.15),
+(109 , 4, 20, 9.15),
+(110 , 4, 20, 10.15),
+(111 , 5, NULL, 11.15),
+(112 , 5, 1, 12.25),
+(113 , 5, NULL, 13.35),
+(114 , 5, NULL, 14.50),
+(115 , 5, NULL, 15.65),
+(116 , 6, 1, NULL),
+(117 , 6, 1, 10),
+(118 , 6, 1, 1.1),
+(119 , 6, 1, NULL),
+(120 , 6, 1, NULL),
+(121 , 6, 1, NULL),
+(122 , 6, 1, 2.2),
+(123 , 6, 1, 20.1),
+(124 , 6, 1, -10.4),
+(125 , 6, 1, NULL),
+(126 , 6, 1, NULL),
+(127 , 6, 1, NULL);
+
+
+--sorted_result
+select pk, a, b, sum(b) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+from t1;
+
+--sorted_result
+select pk, a, c, sum(c) over (partition by a order by pk ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+from t1;
+
+drop table t1;

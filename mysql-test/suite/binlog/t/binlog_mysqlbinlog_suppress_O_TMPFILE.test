@@ -1,0 +1,51 @@
+# ==== Purpose ====
+#
+# Suppress the following informational note that gets printed to standard
+# error when O_TMPFILE flag is not supported by underlying operating system.
+#
+# Note: ../client/mysqlbinlog: O_TMPFILE is not supported on /tmp (disabling
+# future attempts)
+#
+# Step 1: Generate a binarylog file with a size greater than 1MB.
+# Step 2: Use mysqlbinlog tool to generate sql file and redirect the standard
+#         error to standard output (2>&1)
+# Step 3: Source the generated sql file as inpurt to mysql client, observe no
+#         syntax error is reported.
+#
+# ==== References ====
+#
+# MDEV-23846: O_TMPFILE error in mysqlbinlog stream output breaks restore
+#
+--source include/have_binlog_format_row.inc
+
+RESET MASTER;
+CREATE TABLE t(f text);
+INSERT INTO t VALUES (repeat('x',4096));
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+SELECT COUNT(*) FROM t;
+FLUSH LOGS;
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_base64.sql 2>&1
+#
+#  Clear database and restore from binlog
+#
+DROP TABLE t;
+
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mysqlbinlog_base64.sql
+
+--echo # 512- Rows must be present
+--let $assert_cond= COUNT(*) = 512 FROM t
+--let $assert_text= Table t should have 512 rows.
+--source include/assert.inc
+
+DROP TABLE t;
+RESET MASTER;

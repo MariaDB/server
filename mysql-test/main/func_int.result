@@ -1,0 +1,134 @@
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-13965 Parameter data type control for Item_longlong_func
+#
+SELECT ROW(1,1) | 1;
+ERROR HY000: Illegal parameter data type row for operation '|'
+SELECT 1 | ROW(1,1);
+ERROR HY000: Illegal parameter data type row for operation '|'
+SELECT ROW(1,1) & 1;
+ERROR HY000: Illegal parameter data type row for operation '&'
+SELECT 1 & ROW(1,1);
+ERROR HY000: Illegal parameter data type row for operation '&'
+SELECT ROW(1,1) << 1;
+ERROR HY000: Illegal parameter data type row for operation '<<'
+SELECT 1 << ROW(1,1);
+ERROR HY000: Illegal parameter data type row for operation '<<'
+SELECT ROW(1,1) >> 1;
+ERROR HY000: Illegal parameter data type row for operation '>>'
+SELECT 1 >> ROW(1,1);
+ERROR HY000: Illegal parameter data type row for operation '>>'
+SELECT ~ROW(1,1);
+ERROR HY000: Illegal parameter data type row for operation '~'
+SELECT TO_SECONDS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'to_seconds'
+SELECT TIMESTAMPDIFF(SECOND,ROW(1,1), 1);
+ERROR HY000: Illegal parameter data type row for operation 'timestampdiff'
+SELECT TIMESTAMPDIFF(SECOND,1, ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'timestampdiff'
+SELECT INET_ATON(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'inet_aton'
+SELECT LAST_INSERT_ID(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'last_insert_id'
+#
+# MDEV-13967 Parameter data type control for Item_long_func
+#
+SELECT STRCMP(ROW(1,1),'');
+ERROR HY000: Illegal parameter data type row for operation 'strcmp'
+SELECT STRCMP('',ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'strcmp'
+SELECT CHAR_LENGTH(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'char_length'
+SELECT OCTET_LENGTH(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'octet_length'
+SELECT UNCOMPRESSED_LENGTH(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'uncompressed_length'
+SELECT COERCIBILITY(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'coercibility'
+SELECT ASCII(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'ascii'
+SELECT CRC32(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'crc32'
+SELECT ORD(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'ord'
+SELECT SIGN(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'sign'
+SELECT LOCATE(ROW(1,1),'a',1);
+ERROR HY000: Illegal parameter data type row for operation 'locate'
+SELECT LOCATE('a',ROW(1,1),1);
+ERROR HY000: Illegal parameter data type row for operation 'locate'
+SELECT LOCATE('a','a',ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'locate'
+SELECT BIT_COUNT(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'bit_count'
+SELECT BENCHMARK(1, ROW(1,1));
+ERROR 21000: Operand should contain 1 column(s)
+SELECT BENCHMARK(ROW(1,1),'');
+ERROR HY000: Illegal parameter data type row for operation 'benchmark'
+SELECT SLEEP(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'sleep'
+SELECT GET_LOCK('x', ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'get_lock'
+SELECT GET_LOCK(ROW(1,1),'x');
+ERROR HY000: Illegal parameter data type row for operation 'get_lock'
+SELECT PERIOD_ADD(ROW(1,1),1);
+ERROR HY000: Illegal parameter data type row for operation 'period_add'
+SELECT PERIOD_ADD(1,ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'period_add'
+SELECT PERIOD_DIFF(ROW(1,1),1);
+ERROR HY000: Illegal parameter data type row for operation 'period_diff'
+SELECT PERIOD_DIFF(1,ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'period_diff'
+SELECT TO_DAYS(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'to_days'
+SELECT DAYOFMONTH(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'dayofmonth'
+SELECT DAYOFYEAR(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'dayofyear'
+SELECT QUARTER(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'quarter'
+SELECT YEAR(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'year'
+SELECT YEARWEEK(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'yearweek'
+SELECT WEEK(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'week'
+SELECT WEEK(ROW(1,1),1);
+ERROR HY000: Illegal parameter data type row for operation 'week'
+SELECT WEEK(1,ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'week'
+SELECT HOUR(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'hour'
+SELECT MINUTE(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'minute'
+SELECT SECOND(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'second'
+SELECT MICROSECOND(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'microsecond'
+SELECT JSON_DEPTH(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'json_depth'
+SELECT JSON_LENGTH(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'json_length'
+SELECT JSON_LENGTH('json', ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'json_length'
+SELECT JSON_LENGTH(ROW(1,1), ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'json_length'
+SELECT REGEXP_INSTR(ROW(1,1),'');
+ERROR HY000: Illegal parameter data type row for operation 'regexp_instr'
+SELECT REGEXP_INSTR('',ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'regexp_instr'
+SELECT FIND_IN_SET(ROW(1,1),'');
+ERROR HY000: Illegal parameter data type row for operation 'find_in_set'
+SELECT FIND_IN_SET('',ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'find_in_set'
+SELECT RELEASE_LOCK(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'release_lock'
+SELECT IS_FREE_LOCK(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'is_free_lock'
+SELECT IS_USED_LOCK(ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'is_used_lock'
+#
+# End of 10.3 tests
+#

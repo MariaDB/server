@@ -1,0 +1,1593 @@
+DROP TABLE IF EXISTS graph_base;
+DROP TABLE IF EXISTS graph;
+DROP TABLE IF EXISTS graph2;
+Performing OQGraph General test suite for ENGINE=MyISAM
+CREATE TABLE graph_base (
+from_id INT UNSIGNED NOT NULL,
+to_id INT UNSIGNED NOT NULL,
+PRIMARY KEY (from_id,to_id),
+INDEX (to_id)
+) ENGINE= MyISAM ;
+CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+select * from graph;
+latch	origid	destid	weight	seq	linkid
+INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
+INSERT INTO graph_base(from_id, to_id) VALUES (1,3), (3,1);
+INSERT INTO graph_base(from_id, to_id) VALUES (3,4), (4,3);
+INSERT INTO graph_base(from_id, to_id) VALUES (5,6), (6,5);
+INSERT INTO graph_base(from_id, to_id) VALUES (5,7);
+INSERT INTO graph_base(from_id, to_id) VALUES (9,9);
+INSERT INTO graph_base(from_id, to_id) VALUES (10,11);
+INSERT INTO graph_base(from_id, to_id) VALUES (11,12);
+INSERT INTO graph_base(from_id, to_id) VALUES (12,10);
+# Return all edges
+SELECT * FROM graph;
+latch	origid	destid	weight	seq	linkid
+NULL	1	2	1	NULL	NULL
+NULL	2	1	1	NULL	NULL
+NULL	1	3	1	NULL	NULL
+NULL	3	1	1	NULL	NULL
+NULL	3	4	1	NULL	NULL
+NULL	4	3	1	NULL	NULL
+NULL	5	6	1	NULL	NULL
+NULL	6	5	1	NULL	NULL
+NULL	5	7	1	NULL	NULL
+NULL	9	9	1	NULL	NULL
+NULL	10	11	1	NULL	NULL
+NULL	11	12	1	NULL	NULL
+NULL	12	10	1	NULL	NULL
+# Currently count should be 13
+SELECT count(*) FROM graph;
+count(*)
+13
+# Return all edges when latch is NULL - this is different to latch='' and same as no where clause
+SELECT * FROM graph where latch is NULL;
+latch	origid	destid	weight	seq	linkid
+NULL	1	2	1	NULL	NULL
+NULL	2	1	1	NULL	NULL
+NULL	1	3	1	NULL	NULL
+NULL	3	1	1	NULL	NULL
+NULL	3	4	1	NULL	NULL
+NULL	4	3	1	NULL	NULL
+NULL	5	6	1	NULL	NULL
+NULL	6	5	1	NULL	NULL
+NULL	5	7	1	NULL	NULL
+NULL	9	9	1	NULL	NULL
+NULL	10	11	1	NULL	NULL
+NULL	11	12	1	NULL	NULL
+NULL	12	10	1	NULL	NULL
+# Return all vertices, and subsets of vertices
+SELECT * FROM graph where latch='';
+latch	origid	destid	weight	seq	linkid
+	NULL	NULL	NULL	NULL	1
+	NULL	NULL	NULL	NULL	2
+	NULL	NULL	NULL	NULL	3
+	NULL	NULL	NULL	NULL	4
+	NULL	NULL	NULL	NULL	5
+	NULL	NULL	NULL	NULL	6
+	NULL	NULL	NULL	NULL	7
+	NULL	NULL	NULL	NULL	9
+	NULL	NULL	NULL	NULL	10
+	NULL	NULL	NULL	NULL	11
+	NULL	NULL	NULL	NULL	12
+SELECT * FROM graph where latch='0';
+latch	origid	destid	weight	seq	linkid
+0	NULL	NULL	NULL	NULL	1
+0	NULL	NULL	NULL	NULL	2
+0	NULL	NULL	NULL	NULL	3
+0	NULL	NULL	NULL	NULL	4
+0	NULL	NULL	NULL	NULL	5
+0	NULL	NULL	NULL	NULL	6
+0	NULL	NULL	NULL	NULL	7
+0	NULL	NULL	NULL	NULL	9
+0	NULL	NULL	NULL	NULL	10
+0	NULL	NULL	NULL	NULL	11
+0	NULL	NULL	NULL	NULL	12
+# Currently count should be 11
+SELECT count(*) FROM graph where latch='';
+count(*)
+11
+SELECT * FROM graph where latch='' and linkid = 2;
+latch	origid	destid	weight	seq	linkid
+	NULL	NULL	NULL	NULL	2
+SELECT * FROM graph where latch='' and (linkid > 2 and linkid < 6);
+latch	origid	destid	weight	seq	linkid
+	NULL	NULL	NULL	NULL	3
+	NULL	NULL	NULL	NULL	4
+	NULL	NULL	NULL	NULL	5
+SELECT * FROM graph where latch='' and linkid = NULL;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph where latch='' and linkid = 666;
+latch	origid	destid	weight	seq	linkid
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 1;
+from	to
+1	3
+1	2
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 2;
+from	to
+2	1
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 4;
+from	to
+4	3
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 9;
+from	to
+9	9
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 10;
+from	to
+10	11
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = NULL;
+from	to
+SELECT origid as `from`, linkid as `to` FROM graph where latch='' and origid = 666;
+from	to
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 1;
+from	to
+3	1
+2	1
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 2;
+from	to
+1	2
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 4;
+from	to
+3	4
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 9;
+from	to
+9	9
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 10;
+from	to
+12	10
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = NULL;
+from	to
+SELECT linkid as `from`, destid as `to` FROM graph where latch='' and destid = 666;
+from	to
+SELECT * FROM graph where latch='0';
+latch	origid	destid	weight	seq	linkid
+0	NULL	NULL	NULL	NULL	1
+0	NULL	NULL	NULL	NULL	2
+0	NULL	NULL	NULL	NULL	3
+0	NULL	NULL	NULL	NULL	4
+0	NULL	NULL	NULL	NULL	5
+0	NULL	NULL	NULL	NULL	6
+0	NULL	NULL	NULL	NULL	7
+0	NULL	NULL	NULL	NULL	9
+0	NULL	NULL	NULL	NULL	10
+0	NULL	NULL	NULL	NULL	11
+0	NULL	NULL	NULL	NULL	12
+SELECT count(*) FROM graph where latch='0';
+count(*)
+11
+SELECT * FROM graph where latch='0' and linkid = 2;
+latch	origid	destid	weight	seq	linkid
+0	NULL	NULL	NULL	NULL	2
+SELECT * FROM graph where latch='0' and (linkid > 2 and linkid < 6);
+latch	origid	destid	weight	seq	linkid
+0	NULL	NULL	NULL	NULL	3
+0	NULL	NULL	NULL	NULL	4
+0	NULL	NULL	NULL	NULL	5
+SELECT origid as `from`, linkid as `to` FROM graph where latch='0' and origid = 1;
+from	to
+1	3
+1	2
+SELECT origid as `from`, linkid as `to` FROM graph where latch='0' and origid = 2;
+from	to
+2	1
+SELECT origid as `from`, linkid as `to` FROM graph where latch='0' and origid = 4;
+from	to
+4	3
+SELECT origid as `from`, linkid as `to` FROM graph where latch='0' and origid = 9;
+from	to
+9	9
+SELECT origid as `from`, linkid as `to` FROM graph where latch='0' and origid = 10;
+from	to
+10	11
+SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 1;
+from	to
+3	1
+2	1
+SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 2;
+from	to
+1	2
+SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 4;
+from	to
+3	4
+SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 9;
+from	to
+9	9
+SELECT linkid as `from`, destid as `to` FROM graph where latch='0' and destid = 10;
+from	to
+12	10
+# Leaves search tests
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 4;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 5;
+latch	origid	destid	weight	seq	linkid
+leaves	5	NULL	1	1	7
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 6;
+latch	origid	destid	weight	seq	linkid
+leaves	6	NULL	2	1	7
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 7;
+latch	origid	destid	weight	seq	linkid
+leaves	7	NULL	0	1	7
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 8;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 9;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 10;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 11;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 12;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 4;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 5;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 6;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 7;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 8;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 9;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 10;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 11;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 12;
+latch	origid	destid	weight	seq	linkid
+INSERT INTO graph_base(from_id, to_id) VALUES (10,13);
+INSERT INTO graph_base(from_id, to_id) VALUES (11,14);
+INSERT INTO graph_base(from_id, to_id) VALUES (12,15);
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 10;
+latch	origid	destid	weight	seq	linkid
+leaves	10	NULL	3	3	15
+leaves	10	NULL	2	2	14
+leaves	10	NULL	1	1	13
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 11;
+latch	origid	destid	weight	seq	linkid
+leaves	11	NULL	3	3	13
+leaves	11	NULL	2	2	15
+leaves	11	NULL	1	1	14
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 12;
+latch	origid	destid	weight	seq	linkid
+leaves	12	NULL	3	3	14
+leaves	12	NULL	2	2	13
+leaves	12	NULL	1	1	15
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 13;
+latch	origid	destid	weight	seq	linkid
+leaves	13	NULL	0	1	13
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 14;
+latch	origid	destid	weight	seq	linkid
+leaves	14	NULL	0	1	14
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 15;
+latch	origid	destid	weight	seq	linkid
+leaves	15	NULL	0	1	15
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 10;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 11;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 12;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 13;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 14;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 15;
+latch	origid	destid	weight	seq	linkid
+DELETE FROM graph_base where from_id=10 and to_id=13;
+DELETE FROM graph_base where from_id=11 and to_id=14;
+DELETE FROM graph_base where from_id=12 and to_id=15;
+INSERT INTO graph_base(from_id, to_id) VALUES (13,10);
+INSERT INTO graph_base(from_id, to_id) VALUES (14,11);
+INSERT INTO graph_base(from_id, to_id) VALUES (15,12);
+INSERT INTO graph_base(from_id, to_id) VALUES (16,1);
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 10;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 11;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 12;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 13;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 14;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 15;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND origid = 16;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 10;
+latch	origid	destid	weight	seq	linkid
+leaves	NULL	10	3	3	14
+leaves	NULL	10	2	2	15
+leaves	NULL	10	1	1	13
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 11;
+latch	origid	destid	weight	seq	linkid
+leaves	NULL	11	3	3	15
+leaves	NULL	11	2	2	13
+leaves	NULL	11	1	1	14
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 12;
+latch	origid	destid	weight	seq	linkid
+leaves	NULL	12	3	3	13
+leaves	NULL	12	2	2	14
+leaves	NULL	12	1	1	15
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 13;
+latch	origid	destid	weight	seq	linkid
+leaves	NULL	13	0	1	13
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 14;
+latch	origid	destid	weight	seq	linkid
+leaves	NULL	14	0	1	14
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 15;
+latch	origid	destid	weight	seq	linkid
+leaves	NULL	15	0	1	15
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 1;
+latch	origid	destid	weight	seq	linkid
+leaves	NULL	1	1	1	16
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 2;
+latch	origid	destid	weight	seq	linkid
+leaves	NULL	2	2	1	16
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 3;
+latch	origid	destid	weight	seq	linkid
+leaves	NULL	3	2	1	16
+SELECT * FROM graph WHERE latch = 'leaves' AND destid = 4;
+latch	origid	destid	weight	seq	linkid
+leaves	NULL	4	3	1	16
+DELETE FROM graph_base where from_id=13 and to_id=10;
+DELETE FROM graph_base where from_id=14 and to_id=11;
+DELETE FROM graph_base where from_id=15 and to_id=12;
+DELETE FROM graph_base where from_id=16 and to_id=1;
+SELECT * FROM graph WHERE latch='leaves' AND origid=1 AND destid=2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='leaves' AND origid=1 AND destid=3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='leaves' AND origid=1 AND destid=4;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='leaves' AND origid=6 AND destid=7;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='leaves' AND origid=10 AND destid=11;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='leaves' AND origid=10 AND destid=12;
+latch	origid	destid	weight	seq	linkid
+# Breadth-first search tests
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	1	NULL	2	4	4
+breadth_first	1	NULL	1	3	3
+breadth_first	1	NULL	1	2	2
+breadth_first	1	NULL	0	1	1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	2	NULL	3	4	4
+breadth_first	2	NULL	2	3	3
+breadth_first	2	NULL	1	2	1
+breadth_first	2	NULL	0	1	2
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 3;
+latch	origid	destid	weight	seq	linkid
+breadth_first	3	NULL	2	4	2
+breadth_first	3	NULL	1	3	4
+breadth_first	3	NULL	1	2	1
+breadth_first	3	NULL	0	1	3
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 4;
+latch	origid	destid	weight	seq	linkid
+breadth_first	4	NULL	3	4	2
+breadth_first	4	NULL	2	3	1
+breadth_first	4	NULL	1	2	3
+breadth_first	4	NULL	0	1	4
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5;
+latch	origid	destid	weight	seq	linkid
+breadth_first	5	NULL	1	3	7
+breadth_first	5	NULL	1	2	6
+breadth_first	5	NULL	0	1	5
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6;
+latch	origid	destid	weight	seq	linkid
+breadth_first	6	NULL	2	3	7
+breadth_first	6	NULL	1	2	5
+breadth_first	6	NULL	0	1	6
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7;
+latch	origid	destid	weight	seq	linkid
+breadth_first	7	NULL	0	1	7
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9;
+latch	origid	destid	weight	seq	linkid
+breadth_first	9	NULL	0	1	9
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10;
+latch	origid	destid	weight	seq	linkid
+breadth_first	10	NULL	2	3	12
+breadth_first	10	NULL	1	2	11
+breadth_first	10	NULL	0	1	10
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11;
+latch	origid	destid	weight	seq	linkid
+breadth_first	11	NULL	2	3	10
+breadth_first	11	NULL	1	2	12
+breadth_first	11	NULL	0	1	11
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 12;
+latch	origid	destid	weight	seq	linkid
+breadth_first	12	NULL	2	3	11
+breadth_first	12	NULL	1	2	10
+breadth_first	12	NULL	0	1	12
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 666;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 1 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	1	NULL	1	3	3
+breadth_first	1	NULL	1	2	2
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 2 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	2	NULL	1	2	1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 3 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	3	NULL	1	3	4
+breadth_first	3	NULL	1	2	1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 4 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	4	NULL	1	2	3
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	5	NULL	1	3	7
+breadth_first	5	NULL	1	2	6
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	6	NULL	1	2	5
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	10	NULL	1	2	11
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	11	NULL	1	2	12
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 12 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	12	NULL	1	2	10
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 1 AND weight = 1;
+count(*)
+2
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 2 AND weight = 1;
+count(*)
+1
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 3 AND weight = 1;
+count(*)
+2
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 4 AND weight = 1;
+count(*)
+1
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 5 AND weight = 1;
+count(*)
+2
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 6 AND weight = 1;
+count(*)
+1
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 7 AND weight = 1;
+count(*)
+0
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 1;
+count(*)
+0
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND weight = 1;
+count(*)
+0
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND weight = 1;
+count(*)
+1
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND weight = 1;
+count(*)
+1
+SELECT count(*) FROM graph WHERE latch = 'breadth_first' AND origid = 12 AND weight = 1;
+count(*)
+1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 1 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	1	NULL	2	4	4
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 2 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	2	NULL	2	3	3
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 3 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	3	NULL	2	4	2
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 4 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	4	NULL	2	3	1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	6	NULL	2	3	7
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	10	NULL	2	3	12
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	11	NULL	2	3	10
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 12 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	12	NULL	2	3	11
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 1 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 2 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+breadth_first	2	NULL	3	4	4
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 3 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 4 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+breadth_first	4	NULL	3	4	2
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 12 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 1 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+breadth_first	1	NULL	2	4	4
+breadth_first	1	NULL	1	3	3
+breadth_first	1	NULL	1	2	2
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 2 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+breadth_first	2	NULL	2	3	3
+breadth_first	2	NULL	1	2	1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 3 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+breadth_first	3	NULL	2	4	2
+breadth_first	3	NULL	1	3	4
+breadth_first	3	NULL	1	2	1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 4 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+breadth_first	4	NULL	2	3	1
+breadth_first	4	NULL	1	2	3
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 5 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+breadth_first	5	NULL	1	3	7
+breadth_first	5	NULL	1	2	6
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 6 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+breadth_first	6	NULL	2	3	7
+breadth_first	6	NULL	1	2	5
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 7 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 8 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 9 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 10 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+breadth_first	10	NULL	2	3	12
+breadth_first	10	NULL	1	2	11
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 11 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+breadth_first	11	NULL	2	3	10
+breadth_first	11	NULL	1	2	12
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 12 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+breadth_first	12	NULL	2	3	11
+breadth_first	12	NULL	1	2	10
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	1	2	4	4
+breadth_first	NULL	1	1	3	3
+breadth_first	NULL	1	1	2	2
+breadth_first	NULL	1	0	1	1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	2	3	4	4
+breadth_first	NULL	2	2	3	3
+breadth_first	NULL	2	1	2	1
+breadth_first	NULL	2	0	1	2
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 3;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	3	2	4	2
+breadth_first	NULL	3	1	3	4
+breadth_first	NULL	3	1	2	1
+breadth_first	NULL	3	0	1	3
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	4	3	4	2
+breadth_first	NULL	4	2	3	1
+breadth_first	NULL	4	1	2	3
+breadth_first	NULL	4	0	1	4
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	5	1	2	6
+breadth_first	NULL	5	0	1	5
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	6	1	2	5
+breadth_first	NULL	6	0	1	6
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	7	2	3	6
+breadth_first	NULL	7	1	2	5
+breadth_first	NULL	7	0	1	7
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	9	0	1	9
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	10	2	3	11
+breadth_first	NULL	10	1	2	12
+breadth_first	NULL	10	0	1	10
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	11	2	3	12
+breadth_first	NULL	11	1	2	10
+breadth_first	NULL	11	0	1	11
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 12;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	12	2	3	10
+breadth_first	NULL	12	1	2	11
+breadth_first	NULL	12	0	1	12
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 1 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	1	1	3	3
+breadth_first	NULL	1	1	2	2
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 2 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	2	1	2	1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 3 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	3	1	3	4
+breadth_first	NULL	3	1	2	1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	4	1	2	3
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	5	1	2	6
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	6	1	2	5
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	7	1	2	5
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	10	1	2	12
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	11	1	2	10
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 12 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	12	1	2	11
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 1 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	1	2	4	4
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 2 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	2	2	3	3
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 3 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	3	2	4	2
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	4	2	3	1
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	7	2	3	6
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	10	2	3	11
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	11	2	3	12
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 12 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	12	2	3	10
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 1 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 2 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	2	3	4	4
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 3 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 4 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+breadth_first	NULL	4	3	4	2
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 5 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 6 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 7 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 8 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 9 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 10 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 11 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = 12 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = NULL;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND destid = NULL;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first' AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = 'breadth_first';
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 1;
+latch	origid	destid	weight	seq	linkid
+2	1	NULL	2	4	4
+2	1	NULL	1	3	3
+2	1	NULL	1	2	2
+2	1	NULL	0	1	1
+SELECT * FROM graph WHERE latch = '2' AND origid = 2;
+latch	origid	destid	weight	seq	linkid
+2	2	NULL	3	4	4
+2	2	NULL	2	3	3
+2	2	NULL	1	2	1
+2	2	NULL	0	1	2
+SELECT * FROM graph WHERE latch = '2' AND origid = 3;
+latch	origid	destid	weight	seq	linkid
+2	3	NULL	2	4	2
+2	3	NULL	1	3	4
+2	3	NULL	1	2	1
+2	3	NULL	0	1	3
+SELECT * FROM graph WHERE latch = '2' AND origid = 4;
+latch	origid	destid	weight	seq	linkid
+2	4	NULL	3	4	2
+2	4	NULL	2	3	1
+2	4	NULL	1	2	3
+2	4	NULL	0	1	4
+SELECT * FROM graph WHERE latch = '2' AND origid = 5;
+latch	origid	destid	weight	seq	linkid
+2	5	NULL	1	3	7
+2	5	NULL	1	2	6
+2	5	NULL	0	1	5
+SELECT * FROM graph WHERE latch = '2' AND origid = 6;
+latch	origid	destid	weight	seq	linkid
+2	6	NULL	2	3	7
+2	6	NULL	1	2	5
+2	6	NULL	0	1	6
+SELECT * FROM graph WHERE latch = '2' AND origid = 7;
+latch	origid	destid	weight	seq	linkid
+2	7	NULL	0	1	7
+SELECT * FROM graph WHERE latch = '2' AND origid = 8;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 9;
+latch	origid	destid	weight	seq	linkid
+2	9	NULL	0	1	9
+SELECT * FROM graph WHERE latch = '2' AND origid = 10;
+latch	origid	destid	weight	seq	linkid
+2	10	NULL	2	3	12
+2	10	NULL	1	2	11
+2	10	NULL	0	1	10
+SELECT * FROM graph WHERE latch = '2' AND origid = 11;
+latch	origid	destid	weight	seq	linkid
+2	11	NULL	2	3	10
+2	11	NULL	1	2	12
+2	11	NULL	0	1	11
+SELECT * FROM graph WHERE latch = '2' AND origid = 12;
+latch	origid	destid	weight	seq	linkid
+2	12	NULL	2	3	11
+2	12	NULL	1	2	10
+2	12	NULL	0	1	12
+SELECT * FROM graph WHERE latch = '2' AND origid = 666;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 1 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	1	NULL	1	3	3
+2	1	NULL	1	2	2
+SELECT * FROM graph WHERE latch = '2' AND origid = 2 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	2	NULL	1	2	1
+SELECT * FROM graph WHERE latch = '2' AND origid = 3 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	3	NULL	1	3	4
+2	3	NULL	1	2	1
+SELECT * FROM graph WHERE latch = '2' AND origid = 4 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	4	NULL	1	2	3
+SELECT * FROM graph WHERE latch = '2' AND origid = 5 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	5	NULL	1	3	7
+2	5	NULL	1	2	6
+SELECT * FROM graph WHERE latch = '2' AND origid = 6 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	6	NULL	1	2	5
+SELECT * FROM graph WHERE latch = '2' AND origid = 7 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 9 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 10 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	10	NULL	1	2	11
+SELECT * FROM graph WHERE latch = '2' AND origid = 11 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	11	NULL	1	2	12
+SELECT * FROM graph WHERE latch = '2' AND origid = 12 AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	12	NULL	1	2	10
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 1 AND weight = 1;
+count(*)
+2
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 2 AND weight = 1;
+count(*)
+1
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 3 AND weight = 1;
+count(*)
+2
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 4 AND weight = 1;
+count(*)
+1
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 5 AND weight = 1;
+count(*)
+2
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 6 AND weight = 1;
+count(*)
+1
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 7 AND weight = 1;
+count(*)
+0
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 8 AND weight = 1;
+count(*)
+0
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 9 AND weight = 1;
+count(*)
+0
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 10 AND weight = 1;
+count(*)
+1
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 11 AND weight = 1;
+count(*)
+1
+SELECT count(*) FROM graph WHERE latch = '2' AND origid = 12 AND weight = 1;
+count(*)
+1
+SELECT * FROM graph WHERE latch = '2' AND origid = 1 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	1	NULL	2	4	4
+SELECT * FROM graph WHERE latch = '2' AND origid = 2 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	2	NULL	2	3	3
+SELECT * FROM graph WHERE latch = '2' AND origid = 3 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	3	NULL	2	4	2
+SELECT * FROM graph WHERE latch = '2' AND origid = 4 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	4	NULL	2	3	1
+SELECT * FROM graph WHERE latch = '2' AND origid = 5 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 6 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	6	NULL	2	3	7
+SELECT * FROM graph WHERE latch = '2' AND origid = 7 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 9 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 10 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	10	NULL	2	3	12
+SELECT * FROM graph WHERE latch = '2' AND origid = 11 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	11	NULL	2	3	10
+SELECT * FROM graph WHERE latch = '2' AND origid = 12 AND weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	12	NULL	2	3	11
+SELECT * FROM graph WHERE latch = '2' AND origid = 1 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 2 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+2	2	NULL	3	4	4
+SELECT * FROM graph WHERE latch = '2' AND origid = 3 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 4 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+2	4	NULL	3	4	2
+SELECT * FROM graph WHERE latch = '2' AND origid = 5 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 6 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 7 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 9 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 10 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 11 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 12 AND weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 1 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+2	1	NULL	2	4	4
+2	1	NULL	1	3	3
+2	1	NULL	1	2	2
+SELECT * FROM graph WHERE latch = '2' AND origid = 2 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+2	2	NULL	2	3	3
+2	2	NULL	1	2	1
+SELECT * FROM graph WHERE latch = '2' AND origid = 3 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+2	3	NULL	2	4	2
+2	3	NULL	1	3	4
+2	3	NULL	1	2	1
+SELECT * FROM graph WHERE latch = '2' AND origid = 4 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+2	4	NULL	2	3	1
+2	4	NULL	1	2	3
+SELECT * FROM graph WHERE latch = '2' AND origid = 5 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+2	5	NULL	1	3	7
+2	5	NULL	1	2	6
+SELECT * FROM graph WHERE latch = '2' AND origid = 6 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+2	6	NULL	2	3	7
+2	6	NULL	1	2	5
+SELECT * FROM graph WHERE latch = '2' AND origid = 7 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 8 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 9 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = 10 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+2	10	NULL	2	3	12
+2	10	NULL	1	2	11
+SELECT * FROM graph WHERE latch = '2' AND origid = 11 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+2	11	NULL	2	3	10
+2	11	NULL	1	2	12
+SELECT * FROM graph WHERE latch = '2' AND origid = 12 AND (weight = 1 or weight = 2);
+latch	origid	destid	weight	seq	linkid
+2	12	NULL	2	3	11
+2	12	NULL	1	2	10
+SELECT * FROM graph WHERE latch = '2' AND destid = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	1	2	4	4
+2	NULL	1	1	3	3
+2	NULL	1	1	2	2
+2	NULL	1	0	1	1
+SELECT * FROM graph WHERE latch = '2' AND destid = 2;
+latch	origid	destid	weight	seq	linkid
+2	NULL	2	3	4	4
+2	NULL	2	2	3	3
+2	NULL	2	1	2	1
+2	NULL	2	0	1	2
+SELECT * FROM graph WHERE latch = '2' AND destid = 3;
+latch	origid	destid	weight	seq	linkid
+2	NULL	3	2	4	2
+2	NULL	3	1	3	4
+2	NULL	3	1	2	1
+2	NULL	3	0	1	3
+SELECT * FROM graph WHERE latch = '2' AND destid = 4;
+latch	origid	destid	weight	seq	linkid
+2	NULL	4	3	4	2
+2	NULL	4	2	3	1
+2	NULL	4	1	2	3
+2	NULL	4	0	1	4
+SELECT * FROM graph WHERE latch = '2' AND destid = 5;
+latch	origid	destid	weight	seq	linkid
+2	NULL	5	1	2	6
+2	NULL	5	0	1	5
+SELECT * FROM graph WHERE latch = '2' AND destid = 6;
+latch	origid	destid	weight	seq	linkid
+2	NULL	6	1	2	5
+2	NULL	6	0	1	6
+SELECT * FROM graph WHERE latch = '2' AND destid = 7;
+latch	origid	destid	weight	seq	linkid
+2	NULL	7	2	3	6
+2	NULL	7	1	2	5
+2	NULL	7	0	1	7
+SELECT * FROM graph WHERE latch = '2' AND destid = 8;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 9;
+latch	origid	destid	weight	seq	linkid
+2	NULL	9	0	1	9
+SELECT * FROM graph WHERE latch = '2' AND destid = 10;
+latch	origid	destid	weight	seq	linkid
+2	NULL	10	2	3	11
+2	NULL	10	1	2	12
+2	NULL	10	0	1	10
+SELECT * FROM graph WHERE latch = '2' AND destid = 11;
+latch	origid	destid	weight	seq	linkid
+2	NULL	11	2	3	12
+2	NULL	11	1	2	10
+2	NULL	11	0	1	11
+SELECT * FROM graph WHERE latch = '2' AND destid = 12;
+latch	origid	destid	weight	seq	linkid
+2	NULL	12	2	3	10
+2	NULL	12	1	2	11
+2	NULL	12	0	1	12
+SELECT * FROM graph WHERE latch = '2' AND destid = 1 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	1	1	3	3
+2	NULL	1	1	2	2
+SELECT * FROM graph WHERE latch = '2' AND destid = 2 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	2	1	2	1
+SELECT * FROM graph WHERE latch = '2' AND destid = 3 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	3	1	3	4
+2	NULL	3	1	2	1
+SELECT * FROM graph WHERE latch = '2' AND destid = 4 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	4	1	2	3
+SELECT * FROM graph WHERE latch = '2' AND destid = 5 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	5	1	2	6
+SELECT * FROM graph WHERE latch = '2' AND destid = 6 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	6	1	2	5
+SELECT * FROM graph WHERE latch = '2' AND destid = 7 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	7	1	2	5
+SELECT * FROM graph WHERE latch = '2' AND destid = 8 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 9 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 10 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	10	1	2	12
+SELECT * FROM graph WHERE latch = '2' AND destid = 11 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	11	1	2	10
+SELECT * FROM graph WHERE latch = '2' AND destid = 12 and weight = 1;
+latch	origid	destid	weight	seq	linkid
+2	NULL	12	1	2	11
+SELECT * FROM graph WHERE latch = '2' AND destid = 1 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	NULL	1	2	4	4
+SELECT * FROM graph WHERE latch = '2' AND destid = 2 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	NULL	2	2	3	3
+SELECT * FROM graph WHERE latch = '2' AND destid = 3 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	NULL	3	2	4	2
+SELECT * FROM graph WHERE latch = '2' AND destid = 4 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	NULL	4	2	3	1
+SELECT * FROM graph WHERE latch = '2' AND destid = 5 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 6 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 7 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	NULL	7	2	3	6
+SELECT * FROM graph WHERE latch = '2' AND destid = 8 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 9 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 10 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	NULL	10	2	3	11
+SELECT * FROM graph WHERE latch = '2' AND destid = 11 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	NULL	11	2	3	12
+SELECT * FROM graph WHERE latch = '2' AND destid = 12 and weight = 2;
+latch	origid	destid	weight	seq	linkid
+2	NULL	12	2	3	10
+SELECT * FROM graph WHERE latch = '2' AND destid = 1 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 2 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+2	NULL	2	3	4	4
+SELECT * FROM graph WHERE latch = '2' AND destid = 3 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 4 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+2	NULL	4	3	4	2
+SELECT * FROM graph WHERE latch = '2' AND destid = 5 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 6 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 7 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 8 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 9 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 10 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 11 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = 12 and weight = 3;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND origid = NULL;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND destid = NULL;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2' AND weight = 1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch = '2';
+latch	origid	destid	weight	seq	linkid
+# Dijkstras algorithm tests
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1 AND destid=1;
+latch	origid	destid	weight	seq	linkid
+dijkstras	1	1	NULL	0	1
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1 AND destid=2;
+latch	origid	destid	weight	seq	linkid
+dijkstras	1	2	NULL	0	1
+dijkstras	1	2	1	1	2
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=2 AND destid=1;
+latch	origid	destid	weight	seq	linkid
+dijkstras	2	1	NULL	0	2
+dijkstras	2	1	1	1	1
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1 AND destid=4;
+latch	origid	destid	weight	seq	linkid
+dijkstras	1	4	NULL	0	1
+dijkstras	1	4	1	1	3
+dijkstras	1	4	1	2	4
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=4 AND destid=1;
+latch	origid	destid	weight	seq	linkid
+dijkstras	4	1	NULL	0	4
+dijkstras	4	1	1	1	3
+dijkstras	4	1	1	2	1
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1 AND destid=5;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1 AND destid=666;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=5 AND destid=7;
+latch	origid	destid	weight	seq	linkid
+dijkstras	5	7	NULL	0	5
+dijkstras	5	7	1	1	7
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=7 AND destid=5;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=10 AND destid=11;
+latch	origid	destid	weight	seq	linkid
+dijkstras	10	11	NULL	0	10
+dijkstras	10	11	1	1	11
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=10 AND destid=12;
+latch	origid	destid	weight	seq	linkid
+dijkstras	10	12	NULL	0	10
+dijkstras	10	12	1	1	11
+dijkstras	10	12	1	2	12
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=11 AND destid=10;
+latch	origid	destid	weight	seq	linkid
+dijkstras	11	10	NULL	0	11
+dijkstras	11	10	1	1	12
+dijkstras	11	10	1	2	10
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=11 AND destid=12;
+latch	origid	destid	weight	seq	linkid
+dijkstras	11	12	NULL	0	11
+dijkstras	11	12	1	1	12
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=12 AND destid=10;
+latch	origid	destid	weight	seq	linkid
+dijkstras	12	10	NULL	0	12
+dijkstras	12	10	1	1	10
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=12 AND destid=11;
+latch	origid	destid	weight	seq	linkid
+dijkstras	12	11	NULL	0	12
+dijkstras	12	11	1	1	10
+dijkstras	12	11	1	2	11
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1;
+latch	origid	destid	weight	seq	linkid
+dijkstras	1	NULL	2	4	4
+dijkstras	1	NULL	1	3	3
+dijkstras	1	NULL	1	2	2
+dijkstras	1	NULL	0	1	1
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=2;
+latch	origid	destid	weight	seq	linkid
+dijkstras	2	NULL	3	4	4
+dijkstras	2	NULL	2	3	3
+dijkstras	2	NULL	1	2	1
+dijkstras	2	NULL	0	1	2
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=3;
+latch	origid	destid	weight	seq	linkid
+dijkstras	3	NULL	2	4	2
+dijkstras	3	NULL	1	3	4
+dijkstras	3	NULL	1	2	1
+dijkstras	3	NULL	0	1	3
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=4;
+latch	origid	destid	weight	seq	linkid
+dijkstras	4	NULL	3	4	2
+dijkstras	4	NULL	2	3	1
+dijkstras	4	NULL	1	2	3
+dijkstras	4	NULL	0	1	4
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=5;
+latch	origid	destid	weight	seq	linkid
+dijkstras	5	NULL	1	3	7
+dijkstras	5	NULL	1	2	6
+dijkstras	5	NULL	0	1	5
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=6;
+latch	origid	destid	weight	seq	linkid
+dijkstras	6	NULL	2	3	7
+dijkstras	6	NULL	1	2	5
+dijkstras	6	NULL	0	1	6
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=7;
+latch	origid	destid	weight	seq	linkid
+dijkstras	7	NULL	0	1	7
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=8;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=9;
+latch	origid	destid	weight	seq	linkid
+dijkstras	9	NULL	0	1	9
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=10;
+latch	origid	destid	weight	seq	linkid
+dijkstras	10	NULL	2	3	12
+dijkstras	10	NULL	1	2	11
+dijkstras	10	NULL	0	1	10
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=11;
+latch	origid	destid	weight	seq	linkid
+dijkstras	11	NULL	2	3	10
+dijkstras	11	NULL	1	2	12
+dijkstras	11	NULL	0	1	11
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=12;
+latch	origid	destid	weight	seq	linkid
+dijkstras	12	NULL	2	3	11
+dijkstras	12	NULL	1	2	10
+dijkstras	12	NULL	0	1	12
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=666;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=1;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	1	2	4	4
+dijkstras	NULL	1	1	3	3
+dijkstras	NULL	1	1	2	2
+dijkstras	NULL	1	0	1	1
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=2;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	2	3	4	4
+dijkstras	NULL	2	2	3	3
+dijkstras	NULL	2	1	2	1
+dijkstras	NULL	2	0	1	2
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=3;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	3	2	4	2
+dijkstras	NULL	3	1	3	4
+dijkstras	NULL	3	1	2	1
+dijkstras	NULL	3	0	1	3
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=4;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	4	3	4	2
+dijkstras	NULL	4	2	3	1
+dijkstras	NULL	4	1	2	3
+dijkstras	NULL	4	0	1	4
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=5;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	5	1	2	6
+dijkstras	NULL	5	0	1	5
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=6;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	6	1	2	5
+dijkstras	NULL	6	0	1	6
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=7;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	7	2	3	6
+dijkstras	NULL	7	1	2	5
+dijkstras	NULL	7	0	1	7
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=8;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=9;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	9	0	1	9
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=10;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	10	2	3	11
+dijkstras	NULL	10	1	2	12
+dijkstras	NULL	10	0	1	10
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=11;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	11	2	3	12
+dijkstras	NULL	11	1	2	10
+dijkstras	NULL	11	0	1	11
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=12;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	12	2	3	10
+dijkstras	NULL	12	1	2	11
+dijkstras	NULL	12	0	1	12
+# legacy string number
+SELECT * FROM graph WHERE latch='1' AND origid=1 AND destid=1;
+latch	origid	destid	weight	seq	linkid
+1	1	1	NULL	0	1
+SELECT * FROM graph WHERE latch='1' AND origid=1 AND destid=2;
+latch	origid	destid	weight	seq	linkid
+1	1	2	NULL	0	1
+1	1	2	1	1	2
+SELECT * FROM graph WHERE latch='1' AND origid=2 AND destid=1;
+latch	origid	destid	weight	seq	linkid
+1	2	1	NULL	0	2
+1	2	1	1	1	1
+SELECT * FROM graph WHERE latch='1' AND origid=1 AND destid=4;
+latch	origid	destid	weight	seq	linkid
+1	1	4	NULL	0	1
+1	1	4	1	1	3
+1	1	4	1	2	4
+SELECT * FROM graph WHERE latch='1' AND origid=4 AND destid=1;
+latch	origid	destid	weight	seq	linkid
+1	4	1	NULL	0	4
+1	4	1	1	1	3
+1	4	1	1	2	1
+SELECT * FROM graph WHERE latch='1' AND origid=1 AND destid=5;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='1' AND origid=1 AND destid=666;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='1' AND origid=5 AND destid=7;
+latch	origid	destid	weight	seq	linkid
+1	5	7	NULL	0	5
+1	5	7	1	1	7
+SELECT * FROM graph WHERE latch='1' AND origid=7 AND destid=5;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='1' AND origid=10 AND destid=11;
+latch	origid	destid	weight	seq	linkid
+1	10	11	NULL	0	10
+1	10	11	1	1	11
+SELECT * FROM graph WHERE latch='1' AND origid=10 AND destid=12;
+latch	origid	destid	weight	seq	linkid
+1	10	12	NULL	0	10
+1	10	12	1	1	11
+1	10	12	1	2	12
+SELECT * FROM graph WHERE latch='1' AND origid=11 AND destid=10;
+latch	origid	destid	weight	seq	linkid
+1	11	10	NULL	0	11
+1	11	10	1	1	12
+1	11	10	1	2	10
+SELECT * FROM graph WHERE latch='1' AND origid=11 AND destid=12;
+latch	origid	destid	weight	seq	linkid
+1	11	12	NULL	0	11
+1	11	12	1	1	12
+SELECT * FROM graph WHERE latch='1' AND origid=12 AND destid=10;
+latch	origid	destid	weight	seq	linkid
+1	12	10	NULL	0	12
+1	12	10	1	1	10
+SELECT * FROM graph WHERE latch='1' AND origid=12 AND destid=11;
+latch	origid	destid	weight	seq	linkid
+1	12	11	NULL	0	12
+1	12	11	1	1	10
+1	12	11	1	2	11
+SELECT * FROM graph WHERE latch='1' AND origid=1;
+latch	origid	destid	weight	seq	linkid
+1	1	NULL	2	4	4
+1	1	NULL	1	3	3
+1	1	NULL	1	2	2
+1	1	NULL	0	1	1
+SELECT * FROM graph WHERE latch='1' AND origid=2;
+latch	origid	destid	weight	seq	linkid
+1	2	NULL	3	4	4
+1	2	NULL	2	3	3
+1	2	NULL	1	2	1
+1	2	NULL	0	1	2
+SELECT * FROM graph WHERE latch='1' AND origid=3;
+latch	origid	destid	weight	seq	linkid
+1	3	NULL	2	4	2
+1	3	NULL	1	3	4
+1	3	NULL	1	2	1
+1	3	NULL	0	1	3
+SELECT * FROM graph WHERE latch='1' AND origid=4;
+latch	origid	destid	weight	seq	linkid
+1	4	NULL	3	4	2
+1	4	NULL	2	3	1
+1	4	NULL	1	2	3
+1	4	NULL	0	1	4
+SELECT * FROM graph WHERE latch='1' AND origid=5;
+latch	origid	destid	weight	seq	linkid
+1	5	NULL	1	3	7
+1	5	NULL	1	2	6
+1	5	NULL	0	1	5
+SELECT * FROM graph WHERE latch='1' AND origid=6;
+latch	origid	destid	weight	seq	linkid
+1	6	NULL	2	3	7
+1	6	NULL	1	2	5
+1	6	NULL	0	1	6
+SELECT * FROM graph WHERE latch='1' AND origid=7;
+latch	origid	destid	weight	seq	linkid
+1	7	NULL	0	1	7
+SELECT * FROM graph WHERE latch='1' AND origid=8;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='1' AND origid=9;
+latch	origid	destid	weight	seq	linkid
+1	9	NULL	0	1	9
+SELECT * FROM graph WHERE latch='1' AND origid=10;
+latch	origid	destid	weight	seq	linkid
+1	10	NULL	2	3	12
+1	10	NULL	1	2	11
+1	10	NULL	0	1	10
+SELECT * FROM graph WHERE latch='1' AND origid=11;
+latch	origid	destid	weight	seq	linkid
+1	11	NULL	2	3	10
+1	11	NULL	1	2	12
+1	11	NULL	0	1	11
+SELECT * FROM graph WHERE latch='1' AND origid=12;
+latch	origid	destid	weight	seq	linkid
+1	12	NULL	2	3	11
+1	12	NULL	1	2	10
+1	12	NULL	0	1	12
+SELECT * FROM graph WHERE latch='1' AND origid=666;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='1' AND destid=1;
+latch	origid	destid	weight	seq	linkid
+1	NULL	1	2	4	4
+1	NULL	1	1	3	3
+1	NULL	1	1	2	2
+1	NULL	1	0	1	1
+SELECT * FROM graph WHERE latch='1' AND destid=2;
+latch	origid	destid	weight	seq	linkid
+1	NULL	2	3	4	4
+1	NULL	2	2	3	3
+1	NULL	2	1	2	1
+1	NULL	2	0	1	2
+SELECT * FROM graph WHERE latch='1' AND destid=3;
+latch	origid	destid	weight	seq	linkid
+1	NULL	3	2	4	2
+1	NULL	3	1	3	4
+1	NULL	3	1	2	1
+1	NULL	3	0	1	3
+SELECT * FROM graph WHERE latch='1' AND destid=4;
+latch	origid	destid	weight	seq	linkid
+1	NULL	4	3	4	2
+1	NULL	4	2	3	1
+1	NULL	4	1	2	3
+1	NULL	4	0	1	4
+SELECT * FROM graph WHERE latch='1' AND destid=5;
+latch	origid	destid	weight	seq	linkid
+1	NULL	5	1	2	6
+1	NULL	5	0	1	5
+SELECT * FROM graph WHERE latch='1' AND destid=6;
+latch	origid	destid	weight	seq	linkid
+1	NULL	6	1	2	5
+1	NULL	6	0	1	6
+SELECT * FROM graph WHERE latch='1' AND destid=7;
+latch	origid	destid	weight	seq	linkid
+1	NULL	7	2	3	6
+1	NULL	7	1	2	5
+1	NULL	7	0	1	7
+SELECT * FROM graph WHERE latch='1' AND destid=8;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='1' AND destid=9;
+latch	origid	destid	weight	seq	linkid
+1	NULL	9	0	1	9
+SELECT * FROM graph WHERE latch='1' AND destid=10;
+latch	origid	destid	weight	seq	linkid
+1	NULL	10	2	3	11
+1	NULL	10	1	2	12
+1	NULL	10	0	1	10
+SELECT * FROM graph WHERE latch='1' AND destid=11;
+latch	origid	destid	weight	seq	linkid
+1	NULL	11	2	3	12
+1	NULL	11	1	2	10
+1	NULL	11	0	1	11
+SELECT * FROM graph WHERE latch='1' AND destid=12;
+latch	origid	destid	weight	seq	linkid
+1	NULL	12	2	3	10
+1	NULL	12	1	2	11
+1	NULL	12	0	1	12
+INSERT INTO graph_base(from_id, to_id) VALUES (11,13);
+INSERT INTO graph_base(from_id, to_id) VALUES (10,14);
+INSERT INTO graph_base(from_id, to_id) VALUES (14,13);
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=10 AND destid=13;
+latch	origid	destid	weight	seq	linkid
+dijkstras	10	13	NULL	0	10
+dijkstras	10	13	1	1	11
+dijkstras	10	13	1	2	13
+DELETE FROM graph_base where from_id=10 and to_id=11;
+INSERT INTO graph_base(from_id, to_id) VALUES (10,15);
+INSERT INTO graph_base(from_id, to_id) VALUES (15,13);
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=10 AND destid=13;
+latch	origid	destid	weight	seq	linkid
+dijkstras	10	13	NULL	0	10
+dijkstras	10	13	1	1	14
+dijkstras	10	13	1	2	13
+INSERT INTO graph_base(from_id, to_id) VALUES (10,11);
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=10 AND destid=13;
+latch	origid	destid	weight	seq	linkid
+dijkstras	10	13	NULL	0	10
+dijkstras	10	13	1	1	11
+dijkstras	10	13	1	2	13
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1;
+latch	origid	destid	weight	seq	linkid
+dijkstras	1	NULL	2	4	4
+dijkstras	1	NULL	1	3	3
+dijkstras	1	NULL	1	2	2
+dijkstras	1	NULL	0	1	1
+INSERT INTO graph_base(from_id, to_id) VALUES (21,22);
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=21;
+latch	origid	destid	weight	seq	linkid
+dijkstras	21	NULL	1	2	22
+dijkstras	21	NULL	0	1	21
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=22;
+latch	origid	destid	weight	seq	linkid
+dijkstras	22	NULL	0	1	22
+INSERT INTO graph_base(from_id, to_id) VALUES (4,17);
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1;
+latch	origid	destid	weight	seq	linkid
+dijkstras	1	NULL	3	5	17
+dijkstras	1	NULL	2	4	4
+dijkstras	1	NULL	1	3	3
+dijkstras	1	NULL	1	2	2
+dijkstras	1	NULL	0	1	1
+INSERT INTO graph_base(from_id, to_id) VALUES (4,16);
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1;
+latch	origid	destid	weight	seq	linkid
+dijkstras	1	NULL	3	6	17
+dijkstras	1	NULL	3	5	16
+dijkstras	1	NULL	2	4	4
+dijkstras	1	NULL	1	3	3
+dijkstras	1	NULL	1	2	2
+dijkstras	1	NULL	0	1	1
+INSERT INTO graph_base(from_id, to_id) VALUES (17,18);
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1;
+latch	origid	destid	weight	seq	linkid
+dijkstras	1	NULL	4	7	18
+dijkstras	1	NULL	3	6	17
+dijkstras	1	NULL	3	5	16
+dijkstras	1	NULL	2	4	4
+dijkstras	1	NULL	1	3	3
+dijkstras	1	NULL	1	2	2
+dijkstras	1	NULL	0	1	1
+SELECT * FROM graph WHERE latch='dijkstras' AND destid=1;
+latch	origid	destid	weight	seq	linkid
+dijkstras	NULL	1	2	4	4
+dijkstras	NULL	1	1	3	3
+dijkstras	NULL	1	1	2	2
+dijkstras	NULL	1	0	1	1
+# Now we add a connection from 4->6 
+INSERT INTO graph_base (from_id,to_id) VALUES (4,6);
+# And delete all references to node 5
+DELETE FROM graph_base WHERE from_id=5;
+DELETE FROM graph_base WHERE from_id=3 AND to_id=5;
+# which means there is a path in one direction only 1>3>4>6
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=1 AND destid=6;
+latch	origid	destid	weight	seq	linkid
+dijkstras	1	6	NULL	0	1
+dijkstras	1	6	1	1	3
+dijkstras	1	6	1	2	4
+dijkstras	1	6	1	3	6
+# but not 6>4>3>1 (so no result)
+SELECT * FROM graph WHERE latch='dijkstras' AND origid=6 AND destid=1;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='1' AND origid=1 AND destid=6;
+latch	origid	destid	weight	seq	linkid
+1	1	6	NULL	0	1
+1	1	6	1	1	3
+1	1	6	1	2	4
+1	1	6	1	3	6
+SELECT * FROM graph WHERE latch='1' AND origid=6 AND destid=1;
+latch	origid	destid	weight	seq	linkid
+DELETE FROM graph_base;
+FLUSH TABLES;
+TRUNCATE TABLE graph_base;
+DROP TABLE graph_base;
+DROP TABLE graph;

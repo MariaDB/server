@@ -1,0 +1,16 @@
+#
+# GAL-382 InnoDB: Failing assertion: xid_seqno > trx_sys_cur_xid_seqno in trx0sys.cc line 356
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+
+create table t1 (i int, j int, k int, primary key pk(i)) engine=innodb;
+insert into t1 values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+create table t2 (i int, j int, k int, primary key pk(i, j, k), index idx(i, k, j)) engine=innodb;
+replace into t2 (i, j, k) select /*!99997 */ i, k, j from t1;
+
+DROP TABLE t1;
+DROP TABLE t2;

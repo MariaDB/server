@@ -1,0 +1,52 @@
+#
+# MDEV-13655: SET ROLE does not properly grant privileges.
+#
+# We must test that if aditional db privileges get granted to a role
+# which previously inherited privileges from another granted role
+# keep the internal memory structures intact.
+#
+create role simple;
+#
+# First we create an entry with privileges for databases for the simple role.
+#
+grant select, insert, update, delete, lock tables, execute on t.* to simple;
+create role admin;
+#
+# Now we grant the simple role to admin. This means that db privileges
+# should propagate to admin.
+#
+grant simple to admin;
+show grants for admin;
+Grants for admin
+GRANT `simple` TO `admin`
+GRANT USAGE ON *.* TO `admin`
+GRANT USAGE ON *.* TO `simple`
+GRANT SELECT, INSERT, UPDATE, DELETE, LOCK TABLES, EXECUTE ON `t`.* TO `simple`
+#
+# Finally, we give the admin all the available privileges for the db.
+#
+grant all on t.* to admin;
+#
+# Create a user to test out the new roles;
+#
+create user foo;
+grant admin to foo;
+connect  foo,localhost,foo,,,,,;
+create database t;
+ERROR 42000: Access denied for user 'foo'@'%' to database 't'
+set role admin;
+show grants;
+Grants for foo@%
+GRANT `admin` TO `foo`@`%`
+GRANT USAGE ON *.* TO `foo`@`%`
+GRANT `simple` TO `admin`
+GRANT USAGE ON *.* TO `admin`
+GRANT ALL PRIVILEGES ON `t`.* TO `admin`
+GRANT USAGE ON *.* TO `simple`
+GRANT SELECT, INSERT, UPDATE, DELETE, LOCK TABLES, EXECUTE ON `t`.* TO `simple`
+create database t;
+drop database t;
+connection default;
+drop role simple;
+drop role admin;
+drop user foo;

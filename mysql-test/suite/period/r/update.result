@@ -1,0 +1,309 @@
+create table t (id int, s date, e date, period for apptime(s,e));
+insert into t values(1, '1999-01-01', '2018-12-12');
+insert into t values(1, '1999-01-01', '2017-01-01');
+insert into t values(1, '2017-01-01', '2019-01-01');
+insert into t values(2, '1998-01-01', '2018-12-12');
+insert into t values(3, '1997-01-01', '2015-01-01');
+insert into t values(4, '2016-01-01', '2020-01-01');
+insert into t values(5, '2010-01-01', '2015-01-01');
+create or replace table t1 (id int, s date, e date, period for apptime(s,e));
+insert t1 select * from t;
+create or replace table t2 (id int, s date, e date, period for apptime(s,e));
+insert t2 select * from t;
+update t for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id=id + 6;
+select * from t;
+id	s	e
+1	1999-01-01	2000-01-01
+1	1999-01-01	2000-01-01
+1	2018-01-01	2018-12-12
+1	2018-01-01	2019-01-01
+10	2016-01-01	2018-01-01
+11	2010-01-01	2015-01-01
+2	1998-01-01	2000-01-01
+2	2018-01-01	2018-12-12
+3	1997-01-01	2000-01-01
+4	2018-01-01	2020-01-01
+7	2000-01-01	2017-01-01
+7	2000-01-01	2018-01-01
+7	2017-01-01	2018-01-01
+8	2000-01-01	2018-01-01
+9	2000-01-01	2015-01-01
+# Check triggers
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t1 before update on t1
+for each row call log(CONCAT('>UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2upd_t1 after  update on t1
+for each row call log(CONCAT('<UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr1del_t1 before delete on t1
+for each row call log(CONCAT('>DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr2del_t1 after  delete on t1
+for each row call log(CONCAT('<DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr1ins_t1 before insert on t1
+for each row call log(CONCAT('>INS: ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2ins_t1 after  insert on t1
+for each row call log(CONCAT('<INS: ', new.id, ", ",  new.s, ", ",  new.e));
+update t1 for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id=id + 6;
+select * from t1;
+id	s	e
+1	1999-01-01	2000-01-01
+1	1999-01-01	2000-01-01
+1	2018-01-01	2018-12-12
+1	2018-01-01	2019-01-01
+10	2016-01-01	2018-01-01
+11	2010-01-01	2015-01-01
+2	1998-01-01	2000-01-01
+2	2018-01-01	2018-12-12
+3	1997-01-01	2000-01-01
+4	2018-01-01	2020-01-01
+7	2000-01-01	2017-01-01
+7	2000-01-01	2018-01-01
+7	2017-01-01	2018-01-01
+8	2000-01-01	2018-01-01
+9	2000-01-01	2015-01-01
+select * from log_tbl order by id;
+id	log
+1	>UPD: 1, 1999-01-01, 2018-12-12 -> 7, 2000-01-01, 2018-01-01
+2	>INS: 1, 1999-01-01, 2000-01-01
+3	<INS: 1, 1999-01-01, 2000-01-01
+4	>INS: 1, 2018-01-01, 2018-12-12
+5	<INS: 1, 2018-01-01, 2018-12-12
+6	<UPD: 1, 1999-01-01, 2018-12-12 -> 7, 2000-01-01, 2018-01-01
+7	>UPD: 1, 1999-01-01, 2017-01-01 -> 7, 2000-01-01, 2017-01-01
+8	>INS: 1, 1999-01-01, 2000-01-01
+9	<INS: 1, 1999-01-01, 2000-01-01
+10	<UPD: 1, 1999-01-01, 2017-01-01 -> 7, 2000-01-01, 2017-01-01
+11	>UPD: 1, 2017-01-01, 2019-01-01 -> 7, 2017-01-01, 2018-01-01
+12	>INS: 1, 2018-01-01, 2019-01-01
+13	<INS: 1, 2018-01-01, 2019-01-01
+14	<UPD: 1, 2017-01-01, 2019-01-01 -> 7, 2017-01-01, 2018-01-01
+15	>UPD: 2, 1998-01-01, 2018-12-12 -> 8, 2000-01-01, 2018-01-01
+16	>INS: 2, 1998-01-01, 2000-01-01
+17	<INS: 2, 1998-01-01, 2000-01-01
+18	>INS: 2, 2018-01-01, 2018-12-12
+19	<INS: 2, 2018-01-01, 2018-12-12
+20	<UPD: 2, 1998-01-01, 2018-12-12 -> 8, 2000-01-01, 2018-01-01
+21	>UPD: 3, 1997-01-01, 2015-01-01 -> 9, 2000-01-01, 2015-01-01
+22	>INS: 3, 1997-01-01, 2000-01-01
+23	<INS: 3, 1997-01-01, 2000-01-01
+24	<UPD: 3, 1997-01-01, 2015-01-01 -> 9, 2000-01-01, 2015-01-01
+25	>UPD: 4, 2016-01-01, 2020-01-01 -> 10, 2016-01-01, 2018-01-01
+26	>INS: 4, 2018-01-01, 2020-01-01
+27	<INS: 4, 2018-01-01, 2020-01-01
+28	<UPD: 4, 2016-01-01, 2020-01-01 -> 10, 2016-01-01, 2018-01-01
+29	>UPD: 5, 2010-01-01, 2015-01-01 -> 11, 2010-01-01, 2015-01-01
+30	<UPD: 5, 2010-01-01, 2015-01-01 -> 11, 2010-01-01, 2015-01-01
+# INSERT trigger only also works
+create or replace table log_tbl(id int auto_increment primary key, log text) engine=myisam;
+create or replace procedure log(s text)
+insert into log_tbl(log) values(s);
+create trigger tr1upd_t2 before update on t2
+for each row call log(CONCAT('>UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2upd_t2 after  update on t2
+for each row call log(CONCAT('<UPD: ', old.id, ", ",  old.s, ", ",  old.e, ' -> ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr1del_t2 before delete on t2
+for each row call log(CONCAT('>DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr2del_t2 after  delete on t2
+for each row call log(CONCAT('<DEL: ', old.id, ", ",  old.s, ", ",  old.e));
+create trigger tr1ins_t2 before insert on t2
+for each row call log(CONCAT('>INS: ', new.id, ", ",  new.s, ", ",  new.e));
+create trigger tr2ins_t2 after  insert on t2
+for each row call log(CONCAT('<INS: ', new.id, ", ",  new.s, ", ",  new.e));
+drop trigger tr1upd_t2;
+drop trigger tr2upd_t2;
+update t2 for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id=id + 6;
+select * from t2;
+id	s	e
+1	1999-01-01	2000-01-01
+1	1999-01-01	2000-01-01
+1	2018-01-01	2018-12-12
+1	2018-01-01	2019-01-01
+10	2016-01-01	2018-01-01
+11	2010-01-01	2015-01-01
+2	1998-01-01	2000-01-01
+2	2018-01-01	2018-12-12
+3	1997-01-01	2000-01-01
+4	2018-01-01	2020-01-01
+7	2000-01-01	2017-01-01
+7	2000-01-01	2018-01-01
+7	2017-01-01	2018-01-01
+8	2000-01-01	2018-01-01
+9	2000-01-01	2015-01-01
+select * from log_tbl order by id;
+id	log
+1	>INS: 1, 1999-01-01, 2000-01-01
+2	<INS: 1, 1999-01-01, 2000-01-01
+3	>INS: 1, 2018-01-01, 2018-12-12
+4	<INS: 1, 2018-01-01, 2018-12-12
+5	>INS: 1, 1999-01-01, 2000-01-01
+6	<INS: 1, 1999-01-01, 2000-01-01
+7	>INS: 1, 2018-01-01, 2019-01-01
+8	<INS: 1, 2018-01-01, 2019-01-01
+9	>INS: 2, 1998-01-01, 2000-01-01
+10	<INS: 2, 1998-01-01, 2000-01-01
+11	>INS: 2, 2018-01-01, 2018-12-12
+12	<INS: 2, 2018-01-01, 2018-12-12
+13	>INS: 3, 1997-01-01, 2000-01-01
+14	<INS: 3, 1997-01-01, 2000-01-01
+15	>INS: 4, 2018-01-01, 2020-01-01
+16	<INS: 4, 2018-01-01, 2020-01-01
+select * from t for portion of apptime from 0 to 1 for system_time all;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'portion of apptime from 0 to 1 for system_time all' at line 1
+update t for portion of apptime from 0 to 1 for system_time all set id=1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'system_time all set id=1' at line 1
+# Modifying period start/end fields is forbidden.
+# SQL16: 14.14 <update statement: searched>, Syntax Rules, 7)a)ii)
+# Neither BSTARTCOL nor BENDCOL shall be an explicit <object column>
+# contained in the <set clause list>.
+update t for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id= id + 6, s=subdate(s, 5), e=adddate(e, 5);
+ERROR HY000: Column `s` used in period `apptime` specified in update SET list
+# Precision timestamps
+create or replace table t (id int, s timestamp(5), e timestamp(5),
+period for apptime(s,e));
+insert into t values(1, '1999-01-01', '2018-12-12');
+insert into t values(1, '1999-01-01', '2017-01-01');
+update t for portion of apptime from '2000-01-01 00:00:00.00015'
+                                to '2018-01-01 12:34:56.31415'
+         set id= id + 5;
+select * from t;
+id	s	e
+1	1999-01-01 00:00:00.00000	2000-01-01 00:00:00.00015
+1	1999-01-01 00:00:00.00000	2000-01-01 00:00:00.00015
+1	2018-01-01 12:34:56.31415	2018-12-12 00:00:00.00000
+6	2000-01-01 00:00:00.00015	2017-01-01 00:00:00.00000
+6	2000-01-01 00:00:00.00015	2018-01-01 12:34:56.31415
+# Strings
+create or replace table t (id int, str text, s date, e date,
+period for apptime(s,e));
+insert into t values(1, 'data', '1999-01-01', '2018-12-12');
+insert into t values(1, 'other data', '1999-01-01', '2018-12-12');
+update t for portion of apptime from '2000-01-01' to '2018-01-01'
+       set id= id + 5;
+select * from t;
+id	str	s	e
+1	data	1999-01-01	2000-01-01
+1	data	2018-01-01	2018-12-12
+1	other data	1999-01-01	2000-01-01
+1	other data	2018-01-01	2018-12-12
+6	data	2000-01-01	2018-01-01
+6	other data	2000-01-01	2018-01-01
+# multi-table UPDATE is impossible
+create or replace table t1(x int);
+update t for portion of apptime from '2000-01-01' to '2018-01-01', t1
+set t.id= t.id + 5;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' t1
+set t.id= t.id + 5' at line 1
+update t1 set x= (select id from t for portion of apptime from '2000-01-01' to '2018-01-01');
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'portion of apptime from '2000-01-01' to '2018-01-01')' at line 1
+# single-table views
+create or replace view v1 as select * from t where id<10;
+update v1 for portion of apptime from '2000-01-01' to '2018-01-01' set id= id + 5;
+ERROR 42S02: 'v1' is a view
+# multi-table views
+create or replace view v1 as select * from t, t1 where x=id;
+update v1 for portion of apptime from '2000-01-01' to '2018-01-01' set id= id + 5;
+ERROR 42S02: 'v1' is a view
+# SQL16: 14.14 <update statement: searched>, Syntax Rules, 7)a) iii-iv)
+# Let FROMVAL be <point in time 1>. FROMVAL shall not generally contain a
+# reference to a column of T or a <routine invocation>
+# whose subject routine is an SQL-invoked routine that
+# is possibly non-deterministic or that possibly modifies SQL-data.
+# ...Same for <point in time 2> (TOVAL)
+update t for portion of apptime from 5*(5+s) to 1 set t.id= t.id + 5;
+ERROR HY000: Expression in FOR PORTION OF must be constant
+update t for portion of apptime from 1 to e set t.id= t.id + 5;
+ERROR HY000: Expression in FOR PORTION OF must be constant
+set @s= '2000-01-01';
+set @e= '2018-01-01';
+create or replace function f() returns date return @e;
+create or replace function g() returns date not deterministic return @e;
+create or replace function h() returns date deterministic return @e;
+update t for portion of apptime from @s to f() set t.id= t.id + 5;
+ERROR HY000: Expression in FOR PORTION OF must be constant
+update t for portion of apptime from @s to g() set t.id= t.id + 5;
+ERROR HY000: Expression in FOR PORTION OF must be constant
+# success
+update t for portion of apptime from @s to h() set t.id= t.id + 5;
+# select value is cached
+update t for portion of apptime from (select s from t2 limit 1) to h() set t.id= t.id + 5;
+# auto_inrement field is updated
+create or replace table t (id int primary key auto_increment, x int,
+s date, e date, period for apptime(s, e));
+insert into t values (default, 1, '1999-01-01', '2018-12-12');
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
+select * from t;
+id	x	s	e
+1	6	2000-01-01	2018-01-01
+2	1	1999-01-01	2000-01-01
+3	1	2018-01-01	2018-12-12
+truncate t;
+insert into t values (default, 1, '1999-01-01', '2018-12-12');
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= 1;
+select * from t;
+id	x	s	e
+1	1	2000-01-01	2018-01-01
+2	1	1999-01-01	2000-01-01
+3	1	2018-01-01	2018-12-12
+# generated columns are updated
+create or replace table t (x int, s date, e date,
+xs date as (s) stored, xe date as (e) stored,
+period for apptime(s, e));
+insert into t values(1, '1999-01-01', '2018-12-12', default, default);
+select * from t;
+x	s	e	xs	xe
+1	1999-01-01	2018-12-12	1999-01-01	2018-12-12
+update t for portion of apptime from '2000-01-01' to '2018-01-01' set x= x + 5;
+select *, xs=s and xe=e from t;
+x	s	e	xs	xe	xs=s and xe=e
+1	1999-01-01	2000-01-01	1999-01-01	2000-01-01	1
+1	2018-01-01	2018-12-12	2018-01-01	2018-12-12	1
+6	2000-01-01	2018-01-01	2000-01-01	2018-01-01	1
+# MDEV-18921 Server crashes in bitmap_bits_set or bitmap_is_set upon
+# UPDATE IGNORE .. FOR PORTION with binary logging
+create or replace table t1 (f int, s date, e date, period for app(s,e));
+insert into t1 values (1,'2016-09-21','2019-06-14');
+update ignore t1 for portion of app from '2019-03-13' to '2019-03-14' set f = 1;
+drop table t,t1,t2,log_tbl;
+drop view v1;
+drop function f;
+drop function g;
+drop function h;
+drop procedure log;
+#
+# MDEV-21471 ER_CRASHED_ON_USAGE upon UPDATE FOR PORTION on Aria table
+#
+create table t1 (s date, e date, period for app(s,e), f varchar(8)) engine=aria row_format=fixed;
+insert into t1 values ('2024-05-13','2026-03-25','foo');
+update t1 for portion of app from '2024-04-02' to '2026-03-15' set f = 'bar';
+drop table t1;
+# MDEV-19130 Assertion
+# `next_insert_id >= auto_inc_interval_for_cur_row.minimum()'
+# failed in handler::update_auto_increment after error 167
+create table t1 (id int auto_increment, f int, s datetime, e datetime, period for p(s,e), primary key(id));
+insert into t1 (s,e) values ('1994-01-06','2004-11-30'),('1994-06-21','1997-06-20');
+update ignore t1 set id = 2429681664;
+Warnings:
+Warning	1264	Out of range value for column 'id' at row 1
+Warning	1264	Out of range value for column 'id' at row 2
+update ignore t1 for portion of p from '1995-07-06' to '2009-01-12' set f = 1;
+drop table t1;
+#
+# MDEV-22805 SIGSEGV in check_fields on UPDATE (optimized builds) | Assertion `thd->lex->sql_command == SQLCOM_UPDATE' failed.
+#
+CREATE TABLE t1 (a INT, b DATE, c DATE, PERIOD FOR APPTIME(b, c));
+INSERT INTO t1 VALUES(1, '1999-01-01', '2018-12-12');
+UPDATE t1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100;
+ERROR 42000: This version of MariaDB doesn't yet support 'updating and querying the same temporal periods table'
+set @tmp= "UPDATE t1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100";
+execute immediate @tmp;
+ERROR 42000: This version of MariaDB doesn't yet support 'updating and querying the same temporal periods table'
+CREATE VIEW v1 AS SELECT * FROM t1;
+UPDATE v1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100;
+ERROR 42S02: 'v1' is a view
+DROP VIEW v1;
+DROP TABLE t1;

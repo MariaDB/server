@@ -1,0 +1,35 @@
+#
+# Test that Galera, like the stock MySQL, returns an error on transactions
+# larger than max_binlog_cache_size
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 VARCHAR(767)) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+
+--let $max_binlog_cache_size_orig = `SELECT @@max_binlog_cache_size`
+--let $binlog_cache_size_orig = `SELECT @@binlog_cache_size`
+
+SET GLOBAL binlog_cache_size=4096;
+SET GLOBAL max_binlog_cache_size=4096;
+
+--let $galera_connection_name = node_1a
+--let $galera_server_number = 1
+--source include/galera_connect.inc
+--connection node_1a
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+INSERT INTO t1 SELECT REPEAT('a', 767) FROM ten;
+--error ER_TRANS_CACHE_FULL
+INSERT INTO t1 SELECT REPEAT('a', 767) FROM ten;
+
+--disable_query_log
+--eval SET GLOBAL max_binlog_cache_size = $max_binlog_cache_size_orig
+--eval SET GLOBAL binlog_cache_size = $binlog_cache_size_orig
+--enable_query_log
+
+DROP TABLE t1;
+DROP TABLE ten;

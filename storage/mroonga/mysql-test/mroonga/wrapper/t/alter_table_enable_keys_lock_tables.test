@@ -1,0 +1,45 @@
+# Copyright(C) 2013 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/have_innodb.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS memos;
+--enable_warnings
+
+CREATE TABLE IF NOT EXISTS memos (
+  id VARCHAR(45) NOT NULL PRIMARY KEY,
+  text TEXT NOT NULL,
+  FULLTEXT KEY (text)
+) DEFAULT CHARSET=utf8 COMMENT='engine "InnoDB"';
+
+LOCK TABLES memos WRITE;
+ALTER TABLE memos DISABLE KEYS;
+
+INSERT INTO memos
+       VALUES (00000, 'text0'),
+              (00001, 'text1'),
+              (00002, 'text2');
+
+ALTER TABLE memos ENABLE KEYS;
+UNLOCK TABLES;
+
+SELECT * FROM memos;
+
+DROP TABLE memos;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

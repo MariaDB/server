@@ -1,0 +1,71 @@
+-- source include/have_innodb.inc
+-- source include/have_file_key_management_plugin.inc
+# embedded does not support restart
+-- source include/not_embedded.inc
+
+call mtr.add_suppression("mysqld: File .*");
+call mtr.add_suppression("Plugin 'file_key_management' .*");
+call mtr.add_suppression("InnoDB: cannot enable encryption, encryption plugin is not available");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error\\.");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+call mtr.add_suppression("InnoDB: The page \\[page id: space=[0-9]+, page number=[0-9]+\\] in file '.*test.t[1-4]\\.ibd' cannot be decrypted\\.");
+call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
+
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+-- source include/restart_mysqld.inc
+
+SET GLOBAL innodb_file_per_table = ON;
+
+create table t1(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb row_format=compressed encrypted=yes encryption_key_id=20;
+create table t2(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb row_format=compressed;
+create table t3(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb encrypted=yes encryption_key_id=20;
+create table t4(a int not null primary key auto_increment, c char(200), b blob, index(b(10))) engine=innodb;
+
+begin;
+--disable_query_log
+--let $i = 20
+begin;
+while ($i)
+{
+  insert into t1(c,b) values (repeat('secret1',20), repeat('secret2',6000));
+  dec $i;
+}
+--enable_query_log
+
+insert into t2 select * from t1;
+insert into t3 select * from t1;
+insert into t4 select * from t1;
+commit;
+
+--source ../../suite/innodb/include/no_checkpoint_start.inc
+#
+# We test redo log page read at recv_read_page using
+# keys that are not in std_data/keys.txt. If checkpoint
+# happens we will skip this test. If no checkpoint
+# happens, InnoDB refuses to start as used
+# encryption key is not found.
+#
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+begin;
+update t1 set c = repeat('secret3', 20);
+update t2 set c = repeat('secret4', 20);
+update t3 set c = repeat('secret4', 20);
+update t4 set c = repeat('secret4', 20);
+insert into t1 (c,b) values (repeat('secret5',20), repeat('secret6',6000));
+insert into t2 (c,b) values (repeat('secret7',20), repeat('secret8',6000));
+insert into t3 (c,b) values (repeat('secret9',20), repeat('secre10',6000));
+insert into t4 (c,b) values (repeat('secre11',20), repeat('secre12',6000));
+COMMIT;
+let $cleanup= drop table t1,t2,t3,t4;
+--let CLEANUP_IF_CHECKPOINT= $cleanup;
+--source ../../suite/innodb/include/no_checkpoint_end.inc
+
+-- source include/start_mysqld.inc
+#
+# In above server does start but InnoDB refuses to start
+# thus we need to restart server with correct key file
+#
+-- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
+-- source include/restart_mysqld.inc
+
+drop table t1, t2,t3,t4;

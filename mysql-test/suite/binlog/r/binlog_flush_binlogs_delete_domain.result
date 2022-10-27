@@ -1,0 +1,90 @@
+RESET MASTER;
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = ();
+and the command execution is effective thence rotates binlog as usual
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+Non-existed domain is warned, the command completes without rotation
+but with a warning
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (99);
+Warnings:
+Warning	1076	The gtid domain being deleted ('99') is not in the current binlog state
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+SET @@SESSION.gtid_domain_id=1;
+SET @@SESSION.server_id=1;
+CREATE TABLE t (a int);
+SELECT @@GLOBAL.gtid_binlog_state, @@GLOBAL.gtid_binlog_pos;
+@@GLOBAL.gtid_binlog_state	@@GLOBAL.gtid_binlog_pos
+1-1-1	1-1-1
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Rotate	#	#	master-bin.000002;pos=POS
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
+ERROR HY000: Could not delete gtid domain. Reason: binlog files may contain gtids from the domain ('1') being deleted. Make sure to first purge those files.
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
+ERROR HY000: Could not delete gtid domain. Reason: binlog files may contain gtids from the domain ('1') being deleted. Make sure to first purge those files.
+PURGE BINARY LOGS TO 'master-bin.000003';;
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
+Gtid_list of the current binlog does not contain '1':
+show binlog events in 'master-bin.000004' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Gtid_list	1	#	[]
+But the previous log's Gtid_list may have it which explains a warning from the following command
+show binlog events in 'master-bin.000003' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid_list	1	#	[1-1-1]
+Already deleted domain in Gtid_list of the earliest log is benign
+but may cause a warning
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
+Warnings:
+Warning	1076	The current gtid binlog state is incompatible with a former one missing gtids from the '1-1' domain-server pair which is referred to in the gtid list describing an earlier state. Ignore if the domain ('1') was already explicitly deleted.
+Warning	1076	The gtid domain being deleted ('1') is not in the current binlog state
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 0);
+ERROR HY000: Could not delete gtid domain. Reason: binlog files may contain gtids from the domain ('1') being deleted. Make sure to first purge those files.
+FLUSH BINARY LOGS;
+PURGE BINARY LOGS TO 'master-bin.000005';
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 0);
+Warnings:
+Warning	1076	The gtid domain being deleted ('0') is not in the current binlog state
+Gtid_list of the current binlog does not contain 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 0:
+show binlog events in 'master-bin.000006' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000006	#	Gtid_list	1	#	[]
+SET @@SESSION.gtid_domain_id=1;;
+SET @@SESSION.server_id=1;
+SET @@SESSION.gtid_seq_no=1;
+INSERT INTO t SET a=1;
+SET @@SESSION.server_id=2;
+SET @@SESSION.gtid_seq_no=2;
+INSERT INTO t SET a=2;
+SET @@SESSION.gtid_domain_id=11;
+SET @@SESSION.server_id=11;
+SET @@SESSION.gtid_seq_no=11;
+INSERT INTO t SET a=11;
+SET @gtid_binlog_state_saved=@@GLOBAL.gtid_binlog_state;
+FLUSH BINARY LOGS;
+SET @@SESSION.gtid_domain_id=11;
+SET @@SESSION.server_id=11;
+SET @@SESSION.gtid_seq_no=1;
+INSERT INTO t SET a=1;
+SELECT @gtid_binlog_state_saved "as original state", @@GLOBAL.gtid_binlog_state as "out of order for 11 domain state";
+as original state	out of order for 11 domain state
+1-1-1,1-2-2,11-11-11	1-1-1,1-2-2,11-11-1
+PURGE BINARY LOGS TO 'master-bin.000007';
+the following command succeeds with warnings
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
+Warnings:
+Warning	1076	The current gtid binlog state is incompatible with a former one having a gtid '11-11-1' which is less than the '11-11-11' of the gtid list describing an earlier state. The state may have been affected by manually injecting a lower sequence number gtid or via replication.
+RESET MASTER;
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (4294967296);
+ERROR HY000: The value of gtid domain being deleted ('4294967296') exceeds its maximum size of 32 bit unsigned integer
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (4294967295);
+Warnings:
+Warning	1076	The gtid domain being deleted ('4294967295') is not in the current binlog state
+DROP TABLE t;
+RESET MASTER;

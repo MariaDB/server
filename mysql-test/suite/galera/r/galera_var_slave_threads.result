@@ -1,0 +1,60 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
+CREATE TABLE t2 (f1 INT AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
+connection node_2;
+CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread.");
+SET GLOBAL wsrep_slave_threads = 0;
+Warnings:
+Warning	1292	Truncated incorrect wsrep_slave_threads value: '0'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1292	Truncated incorrect wsrep_slave_threads value: '0'
+SELECT @@wsrep_slave_threads = 1;
+@@wsrep_slave_threads = 1
+1
+SET GLOBAL wsrep_slave_threads = 1;
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+COUNT(*)
+1
+connection node_1;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+SET GLOBAL wsrep_slave_threads = 64;
+SET GLOBAL wsrep_slave_threads = 1;
+connection node_1;
+connection node_2;
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+70
+SET GLOBAL wsrep_slave_threads = 1;
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# lp:1372840 - Changing wsrep_slave_threads causes future connections to hang
+#
+connection node_1;
+CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY) ENGINE=INNODB;
+connection node_2;
+SET GLOBAL wsrep_slave_threads = 4;
+SET GLOBAL wsrep_slave_threads = 1;
+connection node_1;
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+DROP TABLE t1;
+connection node_2;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+NAME
+# End of tests

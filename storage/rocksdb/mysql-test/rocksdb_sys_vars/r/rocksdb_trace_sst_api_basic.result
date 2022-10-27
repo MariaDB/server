@@ -1,0 +1,100 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(0);
+INSERT INTO valid_values VALUES('on');
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+INSERT INTO invalid_values VALUES('\'bbb\'');
+SET @start_global_value = @@global.ROCKSDB_TRACE_SST_API;
+SELECT @start_global_value;
+@start_global_value
+0
+SET @start_session_value = @@session.ROCKSDB_TRACE_SST_API;
+SELECT @start_session_value;
+@start_session_value
+0
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_TRACE_SST_API to 1"
+SET @@global.ROCKSDB_TRACE_SST_API   = 1;
+SELECT @@global.ROCKSDB_TRACE_SST_API;
+@@global.ROCKSDB_TRACE_SST_API
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_TRACE_SST_API = DEFAULT;
+SELECT @@global.ROCKSDB_TRACE_SST_API;
+@@global.ROCKSDB_TRACE_SST_API
+0
+"Trying to set variable @@global.ROCKSDB_TRACE_SST_API to 0"
+SET @@global.ROCKSDB_TRACE_SST_API   = 0;
+SELECT @@global.ROCKSDB_TRACE_SST_API;
+@@global.ROCKSDB_TRACE_SST_API
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_TRACE_SST_API = DEFAULT;
+SELECT @@global.ROCKSDB_TRACE_SST_API;
+@@global.ROCKSDB_TRACE_SST_API
+0
+"Trying to set variable @@global.ROCKSDB_TRACE_SST_API to on"
+SET @@global.ROCKSDB_TRACE_SST_API   = on;
+SELECT @@global.ROCKSDB_TRACE_SST_API;
+@@global.ROCKSDB_TRACE_SST_API
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_TRACE_SST_API = DEFAULT;
+SELECT @@global.ROCKSDB_TRACE_SST_API;
+@@global.ROCKSDB_TRACE_SST_API
+0
+'# Setting to valid values in session scope#'
+"Trying to set variable @@session.ROCKSDB_TRACE_SST_API to 1"
+SET @@session.ROCKSDB_TRACE_SST_API   = 1;
+SELECT @@session.ROCKSDB_TRACE_SST_API;
+@@session.ROCKSDB_TRACE_SST_API
+1
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_TRACE_SST_API = DEFAULT;
+SELECT @@session.ROCKSDB_TRACE_SST_API;
+@@session.ROCKSDB_TRACE_SST_API
+0
+"Trying to set variable @@session.ROCKSDB_TRACE_SST_API to 0"
+SET @@session.ROCKSDB_TRACE_SST_API   = 0;
+SELECT @@session.ROCKSDB_TRACE_SST_API;
+@@session.ROCKSDB_TRACE_SST_API
+0
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_TRACE_SST_API = DEFAULT;
+SELECT @@session.ROCKSDB_TRACE_SST_API;
+@@session.ROCKSDB_TRACE_SST_API
+0
+"Trying to set variable @@session.ROCKSDB_TRACE_SST_API to on"
+SET @@session.ROCKSDB_TRACE_SST_API   = on;
+SELECT @@session.ROCKSDB_TRACE_SST_API;
+@@session.ROCKSDB_TRACE_SST_API
+1
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_TRACE_SST_API = DEFAULT;
+SELECT @@session.ROCKSDB_TRACE_SST_API;
+@@session.ROCKSDB_TRACE_SST_API
+0
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_TRACE_SST_API to 'aaa'"
+SET @@global.ROCKSDB_TRACE_SST_API   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_TRACE_SST_API;
+@@global.ROCKSDB_TRACE_SST_API
+0
+"Trying to set variable @@global.ROCKSDB_TRACE_SST_API to 'bbb'"
+SET @@global.ROCKSDB_TRACE_SST_API   = 'bbb';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_TRACE_SST_API;
+@@global.ROCKSDB_TRACE_SST_API
+0
+SET @@global.ROCKSDB_TRACE_SST_API = @start_global_value;
+SELECT @@global.ROCKSDB_TRACE_SST_API;
+@@global.ROCKSDB_TRACE_SST_API
+0
+SET @@session.ROCKSDB_TRACE_SST_API = @start_session_value;
+SELECT @@session.ROCKSDB_TRACE_SST_API;
+@@session.ROCKSDB_TRACE_SST_API
+0
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

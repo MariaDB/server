@@ -1,0 +1,13 @@
+#
+# CONNECT tables cannot be TEMPORARY
+#
+
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY  TABLE  t1 (a int not null)
+  ENGINE=CONNECT table_type=MYSQL  CONNECTION='mysql://root@127.0.0.1/test/t2';
+
+# also with assisted discovery
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY  TABLE  t1
+  ENGINE=CONNECT table_type=MYSQL  CONNECTION='mysql://root@127.0.0.1/test/t2';
+

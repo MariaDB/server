@@ -1,0 +1,38 @@
+#
+# Test that we can use tables created in MySQL 5.7
+#
+SHOW CREATE TABLE mysql57_virtual;
+Table	Create Table
+mysql57_virtual	CREATE TABLE `mysql57_virtual` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (`a` + 3) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into mysql57_virtual (a) values (1),(2);
+select * from mysql57_virtual;
+a	b	c
+1	2	4
+2	3	5
+alter online table mysql57_virtual comment "I am now a MariaDB table";
+ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+alter table mysql57_virtual comment "I am now a MariaDB table";
+SHOW CREATE TABLE mysql57_virtual;
+Table	Create Table
+mysql57_virtual	CREATE TABLE `mysql57_virtual` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL,
+  `c` int(11) GENERATED ALWAYS AS (`a` + 3) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='I am now a MariaDB table'
+DROP TABLE mysql57_virtual;
+#
+# Check MySQL 5.7 syntax
+#
+create table t1 (a int, b int generated always as (a+1) STORED, c int generated always as (a+2) VIRTUAL);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` + 1) STORED,
+  `c` int(11) GENERATED ALWAYS AS (`a` + 2) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;

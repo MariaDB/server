@@ -1,0 +1,30 @@
+CREATE TABLE terms (
+name VARCHAR(64) PRIMARY KEY
+) DEFAULT CHARSET=utf8
+COMMENT='default_tokenizer "TokenBigram"';
+CREATE TABLE bugs (
+id INT UNSIGNED PRIMARY KEY,
+title TEXT,
+FULLTEXT INDEX (title) COMMENT 'table "terms"'
+) DEFAULT CHARSET=utf8;
+INSERT INTO bugs (id, title) VALUES (1, "Mroonga can't build with MySQL X.Y.Z");
+SELECT * FROM terms ORDER BY name;
+name
+'
+.
+BUILD
+CAN
+MROONGA
+MYSQL
+T
+WITH
+X
+Y
+Z
+SELECT *, MATCH (title) AGAINST ("+MySQL" IN BOOLEAN MODE) AS score
+FROM bugs
+WHERE MATCH (title) AGAINST ("+MySQL" IN BOOLEAN MODE);
+id	title	score
+1	Mroonga can't build with MySQL X.Y.Z	1
+DROP TABLE bugs;
+DROP TABLE terms;

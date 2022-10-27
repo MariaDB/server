@@ -1,0 +1,49 @@
+# Copyright(C) 2010 Tetsuro IKEDA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+# for virtual columns
+CREATE TABLE t1 (c1 int, _id int);
+INSERT INTO t1 VALUES(1,null);
+INSERT INTO t1 VALUES(2,null);
+INSERT INTO t1 VALUES(3,null);
+SELECT * FROM t1;
+--disable_warnings
+SET sql_mode="";
+--enable_warnings
+# warning WARN_DATA_TRUNCATED
+UPDATE t1 SET _id = 10 WHERE c1 = 1;
+SELECT * FROM t1;
+--disable_warnings
+SET sql_mode="STRICT_ALL_TABLES";
+--enable_warnings
+# We can't use WARN_DATA_TRUNCATED here because "WXXX" isn't supported
+# MySQL 5.5, 5.6 and MariaDB 5.6. MariaDB 10.0 only supports it.
+# We share this test with all MySQL servers. So we use number here.
+--error 1265
+UPDATE t1 SET _id = 11 WHERE c1 = 1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET sql_mode=DEFAULT;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

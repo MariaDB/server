@@ -1,0 +1,10 @@
+#--source include/innodb_page_size.inc
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --history=foo --backup --target-dir=$targetdir;
+--enable_result_log
+SELECT COUNT(*) FROM PERCONA_SCHEMA.xtrabackup_history;
+DROP TABLE PERCONA_SCHEMA.xtrabackup_history;
+DROP DATABASE PERCONA_SCHEMA;
+rmdir $targetdir;

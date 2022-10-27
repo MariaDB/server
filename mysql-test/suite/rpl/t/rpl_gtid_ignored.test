@@ -1,0 +1,141 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--connection server_1
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+SET @old_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode= 1;
+
+--connection server_2
+--source include/stop_slave.inc
+SET @old_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
+SET GLOBAL gtid_strict_mode=1;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--echo **** MDEV-4488: GTID position should be updated for events that are ignored due to server id ***
+--source include/stop_slave.inc
+CHANGE MASTER TO ignore_server_ids=(1);
+--source include/start_slave.inc
+
+--connection server_1
+# These inserts should be ignored (not applied) on the slave, but the
+# gtid_slave_pos should still be updated.
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+--save_master_pos
+--let gtid_pos=`SELECT @@GLOBAL.gtid_binlog_pos`
+
+--connection server_2
+--sync_with_master
+--let $wait_condition= SELECT @@GLOBAL.gtid_slave_pos = '$gtid_pos'
+--source include/wait_condition.inc
+--disable_query_log
+eval SELECT IF(@@GLOBAL.gtid_slave_pos = '$gtid_pos', 'OK', CONCAT("ERROR: Expected $gtid_pos got ", @@GLOBAL.gtid_slave_pos)) AS RESULT;
+--enable_query_log
+
+SELECT * FROM t1 ORDER BY a;
+
+--source include/stop_slave.inc
+CHANGE MASTER TO ignore_server_ids=();
+--source include/start_slave.inc
+--sync_with_master
+--disable_query_log
+eval SELECT IF(@@GLOBAL.gtid_slave_pos = '$gtid_pos', 'OK', CONCAT("ERROR: Expected $gtid_pos got ", @@GLOBAL.gtid_slave_pos)) AS RESULT;
+--enable_query_log
+
+SELECT * FROM t1 ORDER BY a;
+
+--connection server_1
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+--let gtid_pos=`SELECT @@GLOBAL.gtid_binlog_pos`
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--disable_query_log
+eval SELECT IF(@@GLOBAL.gtid_slave_pos = '$gtid_pos', 'OK', CONCAT("ERROR: Expected $gtid_pos got ", @@GLOBAL.gtid_slave_pos)) AS RESULT;
+SELECT * FROM t1 ORDER BY a;
+--enable_query_log
+
+
+--echo *** Test the same thing when IO thread exits before SQL thread reaches end of log. ***
+--connection server_2
+--source include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= "+d,inject_slave_sql_before_apply_event";
+CHANGE MASTER TO ignore_server_ids=(1);
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (6);
+INSERT INTO t1 VALUES (7);
+--let $master_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+--let gtid_pos=`SELECT @@GLOBAL.gtid_binlog_pos`
+--save_master_pos
+
+--connection server_2
+# Wait for IO thread to have read all events from master, and for SQL thread to
+# sit in the debug_sync point.
+
+--let $slave_param= Read_Master_Log_Pos
+--let $slave_param_value= $master_pos
+--source include/wait_for_slave_param.inc
+
+# Now stop the IO thread, and let the SQL thread continue. The IO thread
+# should write a Gtid_list event that the SQL thread can use to update the
+# gtid_slave_pos with the GTIDs of the skipped events.
+STOP SLAVE IO_THREAD;
+SET debug_sync = "now SIGNAL continue";
+
+--sync_with_master
+--let $wait_condition= SELECT @@GLOBAL.gtid_slave_pos = '$gtid_pos'
+--source include/wait_condition.inc
+--disable_query_log
+eval SELECT IF(@@GLOBAL.gtid_slave_pos = '$gtid_pos', 'OK', CONCAT("ERROR: Expected $gtid_pos got ", @@GLOBAL.gtid_slave_pos)) AS RESULT;
+--let $slave_pos= query_get_value(SHOW SLAVE STATUS, Exec_Master_Log_Pos, 1)
+eval SELECT IF('$slave_pos' = '$master_pos', 'OK', "ERROR: Expected $master_pos got $slave_pos") AS RESULT;
+--enable_query_log
+
+
+--source include/stop_slave.inc
+CHANGE MASTER TO ignore_server_ids=();
+SET GLOBAL debug_dbug= @old_dbug;
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (8);
+INSERT INTO t1 VALUES (9);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+# Clean up.
+--connection server_1
+DROP TABLE t1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
+SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
+SET debug_sync = "reset";
+
+--connection server_2
+SET GLOBAL gtid_strict_mode= @old_gtid_strict_mode;
+SET debug_sync = "reset";
+
+--source include/rpl_end.inc
+

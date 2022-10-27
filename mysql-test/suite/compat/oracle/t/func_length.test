@@ -1,0 +1,18 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-12783 sql_mode=ORACLE: Functions LENGTH() and LENGTHB()
+--echo #
+#
+# Testing LENGTH / LENGTHB
+#
+# LENGTH : return the length of char
+# LENGTHB : return the length of byte
+
+
+SELECT LENGTH(null), LENGTH('a'), LENGTH(123);
+SELECT LENGTHB(null), LENGTHB('a'), LENGTHB(123);
+
+SELECT LENGTH(_utf8 0xC39F), LENGTH(CHAR(14844588 USING utf8));
+SELECT LENGTHB(_utf8 0xC39F), LENGTHB(CHAR(14844588 USING utf8));
+EXPLAIN EXTENDED SELECT LENGTH('a'), LENGTHB('a');

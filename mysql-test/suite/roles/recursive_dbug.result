@@ -1,0 +1,479 @@
+show status like 'debug%';
+Variable_name	Value
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug="+d,role_merge_stats";
+create user foo@localhost;
+create role role1;
+create role role2;
+create role role3;
+create role role4;
+create role role5;
+create role role6;
+create role role7;
+create role role8;
+create role role9;
+create role role10;
+grant role1 to role2;
+grant role2 to role4;
+grant role2 to role5;
+grant role3 to role5;
+grant role4 to role6;
+grant role5 to role6;
+grant role5 to role7;
+grant role6 to role8;
+grant role6 to role9;
+grant role7 to role9;
+grant role9 to role10;
+grant role10 to foo@localhost;
+grant role10 to role2;
+ERROR HY000: Cannot grant role 'role10' to: 'role2'
+connect  foo, localhost, foo;
+show grants;
+Grants for foo@localhost
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT `role10` TO `foo`@`localhost`
+select * from information_schema.applicable_roles;
+GRANTEE	ROLE_NAME	IS_GRANTABLE	IS_DEFAULT
+foo@localhost	role10	NO	NO
+role10	role9	NO	NULL
+role2	role1	NO	NULL
+role4	role2	NO	NULL
+role5	role2	NO	NULL
+role5	role3	NO	NULL
+role6	role4	NO	NULL
+role6	role5	NO	NULL
+role7	role5	NO	NULL
+role9	role6	NO	NULL
+role9	role7	NO	NULL
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	11
+Debug_role_merges_db	0
+Debug_role_merges_table	0
+Debug_role_merges_column	0
+Debug_role_merges_routine	0
+connection default;
+grant select on *.* to role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	19
+Debug_role_merges_db	0
+Debug_role_merges_table	0
+Debug_role_merges_column	0
+Debug_role_merges_routine	0
+connection foo;
+select count(*) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+set role role10;
+select count(*) from mysql.roles_mapping;
+count(*)
+22
+show grants;
+Grants for foo@localhost
+GRANT SELECT ON *.* TO `role1`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role10`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT USAGE ON *.* TO `role5`
+GRANT USAGE ON *.* TO `role6`
+GRANT USAGE ON *.* TO `role7`
+GRANT USAGE ON *.* TO `role9`
+GRANT `role10` TO `foo`@`localhost`
+GRANT `role1` TO `role2`
+GRANT `role2` TO `role4`
+GRANT `role2` TO `role5`
+GRANT `role3` TO `role5`
+GRANT `role4` TO `role6`
+GRANT `role5` TO `role6`
+GRANT `role5` TO `role7`
+GRANT `role6` TO `role9`
+GRANT `role7` TO `role9`
+GRANT `role9` TO `role10`
+select * from information_schema.enabled_roles;
+ROLE_NAME
+role1
+role10
+role2
+role3
+role4
+role5
+role6
+role7
+role9
+connection default;
+revoke select on *.* from role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	0
+Debug_role_merges_table	0
+Debug_role_merges_column	0
+Debug_role_merges_routine	0
+connection foo;
+select count(*) from mysql.roles_mapping;
+count(*)
+22
+set role none;
+set role role10;
+select count(*) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+set role none;
+connection default;
+grant select on mysql.* to role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	8
+Debug_role_merges_table	0
+Debug_role_merges_column	0
+Debug_role_merges_routine	0
+connection foo;
+select count(*) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+set role role10;
+select count(*) from mysql.roles_mapping;
+count(*)
+22
+show grants;
+Grants for foo@localhost
+GRANT SELECT ON `mysql`.* TO `role1`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role10`
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT USAGE ON *.* TO `role5`
+GRANT USAGE ON *.* TO `role6`
+GRANT USAGE ON *.* TO `role7`
+GRANT USAGE ON *.* TO `role9`
+GRANT `role10` TO `foo`@`localhost`
+GRANT `role1` TO `role2`
+GRANT `role2` TO `role4`
+GRANT `role2` TO `role5`
+GRANT `role3` TO `role5`
+GRANT `role4` TO `role6`
+GRANT `role5` TO `role6`
+GRANT `role5` TO `role7`
+GRANT `role6` TO `role9`
+GRANT `role7` TO `role9`
+GRANT `role9` TO `role10`
+connection default;
+revoke select on mysql.* from role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	0
+Debug_role_merges_column	0
+Debug_role_merges_routine	0
+connection foo;
+select count(*) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+set role none;
+connection default;
+grant select on mysql.roles_mapping to role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	8
+Debug_role_merges_column	0
+Debug_role_merges_routine	0
+connection foo;
+select count(*) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+set role role10;
+select count(*) from mysql.roles_mapping;
+count(*)
+22
+show grants;
+Grants for foo@localhost
+GRANT SELECT ON `mysql`.`roles_mapping` TO `role1`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role10`
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT USAGE ON *.* TO `role5`
+GRANT USAGE ON *.* TO `role6`
+GRANT USAGE ON *.* TO `role7`
+GRANT USAGE ON *.* TO `role9`
+GRANT `role10` TO `foo`@`localhost`
+GRANT `role1` TO `role2`
+GRANT `role2` TO `role4`
+GRANT `role2` TO `role5`
+GRANT `role3` TO `role5`
+GRANT `role4` TO `role6`
+GRANT `role5` TO `role6`
+GRANT `role5` TO `role7`
+GRANT `role6` TO `role9`
+GRANT `role7` TO `role9`
+GRANT `role9` TO `role10`
+connection default;
+revoke select on mysql.roles_mapping from role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	16
+Debug_role_merges_column	0
+Debug_role_merges_routine	0
+connection foo;
+select count(*) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+set role none;
+connection default;
+grant select(User) on mysql.roles_mapping to role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	24
+Debug_role_merges_column	8
+Debug_role_merges_routine	0
+connection foo;
+select count(*) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+set role role10;
+select count(concat(User,Host,Role)) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'Host' in table 'roles_mapping'
+select count(concat(User)) from mysql.roles_mapping;
+count(concat(User))
+22
+show grants;
+Grants for foo@localhost
+GRANT SELECT (User) ON `mysql`.`roles_mapping` TO `role1`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role10`
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT USAGE ON *.* TO `role5`
+GRANT USAGE ON *.* TO `role6`
+GRANT USAGE ON *.* TO `role7`
+GRANT USAGE ON *.* TO `role9`
+GRANT `role10` TO `foo`@`localhost`
+GRANT `role1` TO `role2`
+GRANT `role2` TO `role4`
+GRANT `role2` TO `role5`
+GRANT `role3` TO `role5`
+GRANT `role4` TO `role6`
+GRANT `role5` TO `role6`
+GRANT `role5` TO `role7`
+GRANT `role6` TO `role9`
+GRANT `role7` TO `role9`
+GRANT `role9` TO `role10`
+connection default;
+grant select(Host) on mysql.roles_mapping to role3;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	30
+Debug_role_merges_column	14
+Debug_role_merges_routine	0
+connection foo;
+select count(concat(User,Host,Role)) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'Role' in table 'roles_mapping'
+select count(concat(User,Host)) from mysql.roles_mapping;
+count(concat(User,Host))
+22
+show grants;
+Grants for foo@localhost
+GRANT SELECT (Host) ON `mysql`.`roles_mapping` TO `role3`
+GRANT SELECT (User) ON `mysql`.`roles_mapping` TO `role1`
+GRANT USAGE ON *.* TO `foo`@`localhost`
+GRANT USAGE ON *.* TO `role10`
+GRANT USAGE ON *.* TO `role1`
+GRANT USAGE ON *.* TO `role2`
+GRANT USAGE ON *.* TO `role3`
+GRANT USAGE ON *.* TO `role4`
+GRANT USAGE ON *.* TO `role5`
+GRANT USAGE ON *.* TO `role6`
+GRANT USAGE ON *.* TO `role7`
+GRANT USAGE ON *.* TO `role9`
+GRANT `role10` TO `foo`@`localhost`
+GRANT `role1` TO `role2`
+GRANT `role2` TO `role4`
+GRANT `role2` TO `role5`
+GRANT `role3` TO `role5`
+GRANT `role4` TO `role6`
+GRANT `role5` TO `role6`
+GRANT `role5` TO `role7`
+GRANT `role6` TO `role9`
+GRANT `role7` TO `role9`
+GRANT `role9` TO `role10`
+connection default;
+revoke select(User) on mysql.roles_mapping from role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	38
+Debug_role_merges_column	22
+Debug_role_merges_routine	0
+connection foo;
+select count(concat(User,Host)) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for column 'User' in table 'roles_mapping'
+select count(concat(Host)) from mysql.roles_mapping;
+count(concat(Host))
+22
+connection default;
+revoke select(Host) on mysql.roles_mapping from role3;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	44
+Debug_role_merges_column	28
+Debug_role_merges_routine	0
+connection foo;
+select count(concat(Host)) from mysql.roles_mapping;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'roles_mapping'
+set role none;
+connection default;
+create procedure pr1() select "pr1";
+create function fn1() returns char(10) return "fn1";
+grant execute on procedure test.pr1 to role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	44
+Debug_role_merges_column	28
+Debug_role_merges_routine	8
+connection foo;
+call pr1();
+ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test.pr1'
+set role role10;
+call pr1();
+pr1
+pr1
+select fn1();
+ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test.fn1'
+connection default;
+grant execute on function test.fn1 to role5;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	44
+Debug_role_merges_column	28
+Debug_role_merges_routine	13
+connection foo;
+select fn1();
+fn1()
+fn1
+connection default;
+revoke execute on procedure test.pr1 from role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	44
+Debug_role_merges_column	28
+Debug_role_merges_routine	21
+connection foo;
+call pr1();
+ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test.pr1'
+select fn1();
+fn1()
+fn1
+connection default;
+revoke execute on function test.fn1 from role5;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	44
+Debug_role_merges_column	28
+Debug_role_merges_routine	26
+connection foo;
+select fn1();
+ERROR 42000: execute command denied to user 'foo'@'localhost' for routine 'test.fn1'
+set role none;
+connection default;
+drop procedure pr1;
+drop function fn1;
+grant select on mysql.roles_mapping to role3;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	50
+Debug_role_merges_column	28
+Debug_role_merges_routine	26
+grant select on mysql.roles_mapping to role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	53
+Debug_role_merges_column	28
+Debug_role_merges_routine	26
+revoke select on mysql.roles_mapping from role3;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	54
+Debug_role_merges_column	28
+Debug_role_merges_routine	26
+revoke select on mysql.roles_mapping from role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	16
+Debug_role_merges_table	62
+Debug_role_merges_column	28
+Debug_role_merges_routine	26
+grant select on mysql.* to role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	24
+Debug_role_merges_table	62
+Debug_role_merges_column	28
+Debug_role_merges_routine	26
+grant select on test.* to role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	32
+Debug_role_merges_table	62
+Debug_role_merges_column	28
+Debug_role_merges_routine	26
+revoke select on mysql.* from role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	40
+Debug_role_merges_table	62
+Debug_role_merges_column	28
+Debug_role_merges_routine	26
+revoke select on test.* from role1;
+show status like 'debug%';
+Variable_name	Value
+Debug_role_merges_global	27
+Debug_role_merges_db	48
+Debug_role_merges_table	62
+Debug_role_merges_column	28
+Debug_role_merges_routine	26
+connection default;
+drop user foo@localhost;
+drop role role1;
+drop role role2;
+drop role role3;
+drop role role4;
+drop role role5;
+drop role role6;
+drop role role7;
+drop role role8;
+drop role role9;
+drop role role10;
+set global debug_dbug=@old_dbug;

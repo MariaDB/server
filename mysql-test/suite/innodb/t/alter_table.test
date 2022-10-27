@@ -1,0 +1,115 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+#
+# MDEV-11995 ALTER TABLE proceeds despite reporting ER_TOO_LONG_KEY error
+#
+set @@sql_mode=strict_trans_tables;
+create table t1(a text not null) row_format=dynamic engine=innodb;
+create index idx1 on t1(a(3073));
+show create table t1;
+drop table t1;
+set @@sql_mode=default;
+
+#
+# MDEV-14081 ALTER TABLE CHANGE COLUMN Corrupts Index Leading to Crashes in 10.2
+#
+create table t1 (
+  id1    int(11)      not null auto_increment,
+  id2    varchar(30)  not null,
+  id3    datetime     not null default current_timestamp,
+  primary key (id1),
+  unique key unique_id2 (id2)
+) engine=innodb;
+alter table t1 change column id2 id4 varchar(100) not null;
+select * from t1 where id4 like 'a';
+drop table t1;
+
+--echo #
+--echo # MDEV-17725 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' failed in Diagnostics_area::set_ok_status upon ALTER failing due to error from engine
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 ORDER BY a;
+DROP TABLE t1;
+
+SET sql_mode='';
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t1 ORDER BY a;
+DROP TABLE t1;
+
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-18775 Server crashes in dict_table_t::instant_column
+--echo # upon ADD COLUMN
+--echo #
+
+CREATE TABLE tx (pk INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk), KEY (a), FOREIGN KEY (a) REFERENCES tx (pk)) ENGINE=InnoDB;
+
+SET FOREIGN_KEY_CHECKS=OFF;
+
+--error ER_FK_COLUMN_CANNOT_DROP
+ALTER TABLE t1 DROP a;
+
+SET FOREIGN_KEY_CHECKS=ON;
+
+ALTER TABLE t1 ADD b INT;
+--error ER_DROP_INDEX_FK
+ALTER TABLE t1 DROP a;
+ALTER TABLE t1 ADD c INT;
+DROP TABLE t1, tx;
+
+--echo #
+--echo # MDEV-14119 Assertion cmp_rec_rec() on ALTER TABLE
+--echo #
+CREATE TABLE t1(a INT NOT NULL UNIQUE) ENGINE=InnoDB;
+INSERT INTO t1 SELECT * FROM seq_1_to_128;
+ALTER TABLE t1 ADD b TINYINT AUTO_INCREMENT PRIMARY KEY, DROP KEY a;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22939 Server crashes in row_make_new_pathname()
+--echo #
+CREATE TABLE t (a INT) ENGINE=INNODB;
+ALTER TABLE t DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+ALTER TABLE t ENGINE INNODB;
+--error ER_TABLESPACE_DISCARDED
+ALTER TABLE t FORCE;
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-24763 ALTER TABLE fails to rename a column in SYS_FIELDS
+--echo #
+CREATE TABLE t1 (a INT, b TEXT, c INT, PRIMARY KEY(b(9)), INDEX(c,a))
+ENGINE=InnoDB;
+ALTER TABLE t1 CHANGE COLUMN a u INT;
+--replace_column 1 ID
+SELECT sf.* FROM information_schema.innodb_sys_fields sf
+INNER JOIN information_schema.innodb_sys_indexes si ON sf.index_id=si.index_id
+INNER JOIN information_schema.innodb_sys_tables st ON si.table_id=st.table_id
+WHERE st.name='test/t1' ORDER BY sf.index_id,sf.pos;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # Check that innodb supports transactional=1
+--echo #
+
+create table t1 (a int) transactional=1 engine=aria;
+create table t2 (a int) transactional=1 engine=innodb;
+show create table t1;
+show create table t2;
+alter table t1 engine=innodb;
+alter table t1 add column b int;
+drop table t1,t2;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+

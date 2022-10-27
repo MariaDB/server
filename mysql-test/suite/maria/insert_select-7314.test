@@ -1,0 +1,27 @@
+-- source include/have_maria.inc
+--source include/have_binlog_format_statement.inc
+
+drop table if exists t1;
+
+--echo #
+--echo # MDEV-7314
+--echo # Concurrent "INSERT INTO table SELECT MAX(id)+1 FROM table" are
+--echo # hitting deadlocks on Aria tables using ROW_FORMAT=PAGE
+--echo #
+
+create table t1 (pk int primary key) engine=Aria;
+insert into t1 values (1);
+
+send insert into t1 select sleep(2)+1 from t1;
+
+--connect (con1,localhost,root,,)
+
+--error 0,1062
+insert into t1 select 2 from t1;
+
+--connection default
+--error 0,1062
+--reap
+
+select * from t1;
+drop table t1;

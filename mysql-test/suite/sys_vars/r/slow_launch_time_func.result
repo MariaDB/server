@@ -1,0 +1,19 @@
+SET @global_slow_launch_time = @@GLOBAL.slow_launch_time;
+connection default;
+'#--------------------FN_DYNVARS_124_01-------------------------#'
+SET @@GLOBAL.slow_launch_time=0;
+SELECT @@GLOBAL.slow_launch_time;
+@@GLOBAL.slow_launch_time
+0
+CONNECT  conn1,localhost,root,,;
+connection default;
+disconnect conn1;
+'#--------------------FN_DYNVARS_124_02-------------------------#'
+SET @@GLOBAL.slow_launch_time= 1000;
+SELECT @@GLOBAL.slow_launch_time;
+@@GLOBAL.slow_launch_time
+1000
+CONNECT  conn2,localhost,root,,;
+connection default;
+disconnect conn2;
+SET @@GLOBAL.slow_launch_time = @global_slow_launch_time;

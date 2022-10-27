@@ -1,0 +1,43 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+#
+# Test temporary sequences
+#
+
+--echo #
+--echo # Create
+--echo #
+
+create temporary sequence s1 engine=innodb;
+alter table s1 engine myisam;
+select nextval(s1);
+select * from s1;
+drop temporary sequence s1;
+
+--echo #
+--echo # MDEV-14762 Server crashes in MDL_ticket::has_stronger_or_equal_type
+--echo # upon inserting into temporary sequence
+--echo #
+
+CREATE TEMPORARY SEQUENCE s1 ENGINE=InnoDB;
+INSERT INTO s1 VALUES (1, 1, 1000, 1, 1, 1, 1, 0);
+DROP TEMPORARY SEQUENCE s1;
+
+--echo #
+--echo # MDEV-13007 ALTER .. ENGINE on temporary sequence may go wrong
+--echo #
+
+create temporary sequence s1 engine=aria;
+alter table s1 engine myisam;
+select nextval(s1);
+drop temporary sequence s1;
+create temporary sequence s1 engine=innodb;
+alter table s1 engine myisam;
+select nextval(s1);
+drop temporary sequence s1;
+create temporary sequence s1;
+alter table s1 engine innodb;
+select nextval(s1);
+select nextval(s1);
+drop temporary sequence s1;

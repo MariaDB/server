@@ -1,0 +1,9 @@
+call mtr.add_suppression("\\[ERROR\\] InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=3\\] in file '.*test.t1\\.ibd' cannot be decrypted.");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: Table `test`\\.`t1` has an unreadable root page");
+CREATE TABLE t1(c VARCHAR(128)) ENGINE INNODB, encrypted=yes;
+insert into t1 select repeat('a',100);
+# Corrupt the table
+# restart
+# xtrabackup backup
+FOUND 1 /Database page corruption detected.*/ in backup.log
+drop table t1;

@@ -1,0 +1,42 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+call mtr.add_suppression("Slave IO thread did not receive an expected Rows-log end-of-statement");
+call mtr.add_suppression("Relay log write failure: could not queue event from master");
+SET @save_debug= @@global.debug;
+SET GLOBAL debug_dbug="+d,simulate_stmt_end_rows_event_loss";
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,  MASTER_USE_GTID=SLAVE_POS;
+connection master;
+CREATE TABLE t (a INT, b text(8192));;
+INSERT INTO t values (1, repeat('b', 8192)), (1, repeat('b', 8192));
+connection slave;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_error.inc [errno=1595]
+SET GLOBAL debug_dbug="-d,simulate_stmt_end_rows_event_loss";
+include/start_slave.inc
+connection master;
+connection slave;
+connection slave;
+include/stop_slave.inc
+connection master;
+SET @save_log_bin_compress= @@GLOBAL.log_bin_compress;
+SET @save_log_bin_compress_min_len= @@GLOBAL.log_bin_compress_min_len;
+SET @@GLOBAL.log_bin_compress=ON;
+SET @@GLOBAL.log_bin_compress_min_len=10;
+INSERT INTO t values (2, repeat('b', 8192)), (2, repeat('b', 8192));
+connection slave;
+SET GLOBAL debug_dbug="+d,simulate_stmt_end_rows_event_loss";
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_error.inc [errno=1595]
+SET GLOBAL debug_dbug="-d,simulate_stmt_end_rows_event_loss";
+include/start_slave.inc
+connection master;
+connection slave;
+connection master;
+SET @@GLOBAL.log_bin_compress= @save_log_bin_compress;
+SET @@GLOBAL.log_bin_compress_min_len= @save_log_bin_compress_min_len;
+DROP TABLE t;
+connection slave;
+SET GLOBAL debug_dbug= @save_debug;
+include/rpl_end.inc

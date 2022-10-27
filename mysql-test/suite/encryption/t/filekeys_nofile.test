@@ -1,0 +1,2 @@
+let SEARCH_PATTERN=file-key-management-filename is not set;
+source filekeys_badtest.inc;

@@ -1,0 +1,130 @@
+# Can't test with embedded server
+-- source include/not_embedded.inc
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+connect (root,localhost,root,,test);
+connection root;
+
+--disable_warnings
+create database mysqltest;
+--enable_warnings
+
+create user mysqltest_1@localhost;
+connect (user1,localhost,mysqltest_1,,test);
+connection user1;
+
+connection root;
+
+create table mysqltest.t1 (a int, b int);
+insert into mysqltest.t1 values (2,10), (1,30);
+create table mysqltest.t2 (c int, d char(32));
+insert into mysqltest.t2 values (1,'xxx'), (1,'zzz');
+
+grant select on mysqltest.t1 to mysqltest_1@localhost;
+grant select (c) on mysqltest.t2 to mysqltest_1@localhost;
+
+connection user1;
+with t as (select c from mysqltest.t2 where c < 2)
+select t.c,t1.b from t,mysqltest.t1 where t.c=t1.a; 
+--error ER_COLUMNACCESS_DENIED_ERROR
+select t.c,t.d,t1.b
+from (select c,d from mysqltest.t2 where c < 2) as t, mysqltest.t1
+where t.c=t1.a;
+--error ER_COLUMNACCESS_DENIED_ERROR
+with t as (select c,d from mysqltest.t2 where c < 2)
+select t.c,t.d,t1.b from t,mysqltest.t1 where t.c=t1.a; 
+
+connection root;
+
+create view mysqltest.v1(f1,f2) as
+with t as (select c from mysqltest.t2 where c < 2)
+select t.c,t1.b from t,mysqltest.t1 where t.c=t1.a; 
+create view mysqltest.v2(c,d) as
+with t as (select a from mysqltest.t1 where a>=3)
+select t.a,b from t,mysqltest.t1 where mysqltest.t1.a = t.a;
+
+grant select on mysqltest.v1 to mysqltest_1@localhost;
+grant select (c) on mysqltest.v2 to mysqltest_1@localhost;
+grant create view on mysqltest.* to mysqltest_1@localhost;
+	
+connection user1;
+
+create view mysqltest.v3(c,d) as
+with t as (select c from mysqltest.t2 where c < 2)
+select t.c,t1.b from t,mysqltest.t1 where t.c=t1.a; 
+--error ER_COLUMNACCESS_DENIED_ERROR
+create view mysqltest.v4(f1,f2,f3) as
+with t as (select c,d from mysqltest.t2 where c < 2)
+select t.c,t.d,t1.b from t,mysqltest.t1 where t.c=t1.a; 
+
+select * from mysqltest.v1;
+
+select c from mysqltest.v2;
+# there are no privileges on column 'd'
+--error ER_COLUMNACCESS_DENIED_ERROR
+select d from mysqltest.v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysqltest.v3;
+connection root;
+grant select on mysqltest.v3 to mysqltest_1@localhost;
+connection user1;
+select * from mysqltest.v3;
+	
+connection root;
+revoke all privileges on mysqltest.v1 from mysqltest_1@localhost;
+drop user mysqltest_1@localhost;
+drop database mysqltest;
+
+--echo #
+--echo # MDEV-13453: privileges checking for CTE
+--echo #
+
+create database db;
+use db;
+create table t1 (i int);
+insert into t1
+  values (3), (7), (1), (4), (2), (3), (1);
+
+create table t2 (a int, b int);
+insert into t2
+  values (3,10), (7,11), (1,17), (4,15), (2,11), (3,10), (1,15);
+
+create user foo@localhost;
+grant SELECT on db.t1 to foo@localhost;
+grant SELECT(a) on db.t2 to foo@localhost;
+
+--connect (con1,localhost,foo,,)
+use db;
+with cte as (select * from t1 where i < 4)
+  select * from cte;
+with cte as (select * from t1 where i < 4 group by i)
+  select * from cte;
+with cte as (select * from t1 where i < 4)
+  select * from cte cte1 where i < 2 union select * from cte cte2 where i > 2;
+with cte as (select * from t1 where i < 4 group by i)
+  select * from cte cte1 where i < 2 union select * from cte cte2 where i > 2;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+with cte as (select b from t2 where a < 4)
+  select * from cte cte1 where b < 15 union select * from cte cte2 where b > 15;
+with cte as (select a from t2 where a < 4)
+  select * from cte cte1 where a < 2 union select * from cte cte2 where a > 2;
+
+--connection default
+revoke SELECT on db.t1 from foo@localhost;
+
+--connection con1
+
+--error ER_TABLEACCESS_DENIED_ERROR
+with cte as (select * from t1 where i < 4)
+  select * from cte;
+
+# Cleanup
+--disconnect con1
+
+--connection default
+drop database db;
+drop user foo@localhost;

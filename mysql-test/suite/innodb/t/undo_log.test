@@ -1,0 +1,156 @@
+--source include/have_innodb.inc
+
+SET innodb_strict_mode=OFF;
+CREATE TABLE test_tab (
+a_str_18 mediumtext,
+b_str_3 varchar(32) DEFAULT NULL,
+a_str_13 mediumtext,
+b_str_5 varchar(40) DEFAULT NULL,
+b_str_6 varchar(50) DEFAULT NULL,
+b_str_7 char(32) DEFAULT NULL,
+b_str_8 varchar(32) DEFAULT NULL,
+b_str_9 varchar(255) DEFAULT NULL,
+a_str_28 char(255) DEFAULT NULL,
+a_str_27 varchar(255) DEFAULT NULL,
+b_str_10 varchar(32) DEFAULT NULL,
+a_str_26 varchar(255) DEFAULT NULL,
+a_str_6 varchar(50) DEFAULT NULL,
+b_str_11 varchar(32) DEFAULT NULL,
+b_str_12 varchar(255) DEFAULT NULL,
+b_str_13 char(32) DEFAULT NULL,
+b_str_14 varchar(32) DEFAULT NULL,
+b_str_15 char(32) DEFAULT NULL,
+b_str_16 char(32) DEFAULT NULL,
+b_str_17 varchar(32) DEFAULT NULL,
+b_str_18 varchar(32) DEFAULT NULL,
+a_str_25 varchar(40) DEFAULT NULL,
+b_str_19 varchar(255) DEFAULT NULL,
+a_str_23 varchar(40) DEFAULT NULL,
+b_str_20 varchar(32) DEFAULT NULL,
+a_str_21 varchar(255) DEFAULT NULL,
+a_str_20 varchar(255) DEFAULT NULL,
+a_str_39 varchar(255) DEFAULT NULL,
+a_str_38 varchar(255) DEFAULT NULL,
+a_str_37 varchar(255) DEFAULT NULL,
+b_str_21 char(32) DEFAULT NULL,
+b_str_23 varchar(80) DEFAULT NULL,
+b_str_24 varchar(32) DEFAULT NULL,
+b_str_25 varchar(32) DEFAULT NULL,
+b_str_26 char(32) NOT NULL DEFAULT '',
+b_str_27 varchar(255) DEFAULT NULL,
+a_str_36 varchar(255) DEFAULT NULL,
+a_str_33 varchar(100) DEFAULT NULL,
+a_ref_10 char(32) DEFAULT NULL,
+b_str_28 char(32) DEFAULT NULL,
+b_str_29 char(32) DEFAULT NULL,
+a_ref_6 char(32) DEFAULT NULL,
+a_ref_12 varchar(32) DEFAULT NULL,
+a_ref_11 varchar(32) DEFAULT NULL,
+a_str_49 varchar(40) DEFAULT NULL,
+b_str_30 varchar(32) DEFAULT NULL,
+a_ref_3 varchar(32) DEFAULT NULL,
+a_str_48 varchar(40) DEFAULT NULL,
+a_ref_1 char(32) DEFAULT NULL,
+b_str_31 varchar(32) DEFAULT NULL,
+b_str_32 varchar(255) DEFAULT NULL,
+b_str_33 char(32) DEFAULT NULL,
+b_str_34 varchar(32) DEFAULT NULL,
+a_str_47 varchar(40) DEFAULT NULL,
+b_str_36 varchar(255) DEFAULT NULL,
+a_str_46 varchar(40) DEFAULT NULL,
+a_str_45 varchar(255) DEFAULT NULL,
+b_str_38 varchar(32) DEFAULT NULL,
+b_str_39 char(32) DEFAULT NULL,
+b_str_40 varchar(32) DEFAULT NULL,
+a_str_41 varchar(255) DEFAULT NULL,
+b_str_41 varchar(32) DEFAULT NULL,
+PRIMARY KEY (b_str_26),
+UNIQUE KEY a_str_47 (a_str_47),
+UNIQUE KEY a_str_49 (a_str_49),
+UNIQUE KEY a_str_33 (a_str_33),
+UNIQUE KEY a_str_46 (a_str_46),
+UNIQUE KEY a_str_48 (a_str_48),
+KEY b_str_18 (b_str_18),
+KEY a_str_26 (a_str_26),
+KEY b_str_27 (b_str_27,b_str_19),
+KEY b_str_41 (b_str_41),
+KEY b_str_15 (b_str_15),
+KEY a_str_20 (a_str_20),
+KEY b_str_17 (b_str_17),
+KEY b_str_40 (b_str_40),
+KEY b_str_24 (b_str_24),
+KEY b_str_10 (b_str_10),
+KEY b_str_16 (b_str_16),
+KEY b_str_29 (b_str_29),
+KEY a_str_41 (a_str_41),
+KEY b_str_7 (b_str_7),
+KEY a_str_45 (a_str_45),
+KEY a_str_28 (a_str_28),
+KEY a_str_37 (a_str_37),
+KEY b_str_6 (b_str_6),
+KEY a_ref_6 (a_ref_6),
+KEY b_str_34 (b_str_34),
+KEY b_str_38 (b_str_38),
+KEY a_ref_10 (a_ref_10),
+KEY b_str_21 (b_str_21),
+KEY b_str_23 (b_str_23,b_str_19),
+KEY b_str_33 (b_str_33),
+KEY a_ref_12 (a_ref_12),
+KEY a_str_18 (a_str_18(255)),
+KEY a_str_39 (a_str_39),
+KEY a_str_27 (a_str_27),
+KEY a_str_25 (a_str_25),
+KEY b_str_9 (b_str_9),
+KEY a_str_23 (a_str_23),
+KEY b_str_8 (b_str_8),
+KEY a_str_21 (a_str_21),
+KEY b_str_3 (b_str_3),
+KEY b_str_30 (b_str_30),
+KEY b_str_12 (b_str_12),
+KEY b_str_25 (b_str_25),
+KEY b_str_13 (b_str_13),
+KEY a_str_38 (a_str_38),
+KEY a_str_13 (a_str_13(255)),
+KEY a_str_36 (a_str_36),
+KEY b_str_28 (b_str_28),
+KEY b_str_19 (b_str_19),
+KEY b_str_11 (b_str_11),
+KEY a_ref_1 (a_ref_1),
+KEY b_str_20 (b_str_20),
+KEY b_str_14 (b_str_14),
+KEY a_ref_3 (a_ref_3),
+KEY b_str_39 (b_str_39),
+KEY b_str_32 (b_str_32),
+KEY a_str_6 (a_str_6),
+KEY b_str_5 (b_str_5),
+KEY b_str_31 (b_str_31),
+KEY a_ref_11 (a_ref_11)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 ROW_FORMAT=COMPACT;
+SET innodb_strict_mode=ON;
+
+BEGIN;
+INSERT INTO test_tab (b_str_26, a_str_13, a_str_18) VALUES
+('a', REPEAT('f',4031), REPEAT('g', 4031));
+
+UPDATE test_tab SET a_str_13=REPEAT('h',4032), a_str_18=REPEAT('i',4032);
+SELECT 'Reducing length to 4030';
+UPDATE test_tab SET a_str_13=REPEAT('j',4030), a_str_18=REPEAT('k',4030);
+UPDATE test_tab SET a_str_13=REPEAT('l',4031), a_str_18=REPEAT('m',4031);
+ROLLBACK;
+SELECT COUNT(*) FROM test_tab;
+CHECK TABLE test_tab;
+DROP TABLE test_tab;
+
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+CREATE TEMPORARY TABLE t2(i INT)ENGINE=InnoDB;
+CREATE TABLE t1(i TEXT NOT NULL) ENGINE=INNODB;
+BEGIN;
+INSERT t1 SET i=REPEAT('1234567890',840);
+UPDATE t1 SET i='';
+INSERT INTO t2 VALUES(2);
+ROLLBACK;
+--source include/wait_all_purged.inc
+DROP TABLE t1;
+DROP TABLE t2;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

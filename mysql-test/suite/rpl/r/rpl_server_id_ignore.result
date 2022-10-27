@@ -1,0 +1,54 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+master_id: 1
+stop slave;
+*** --replicate-same-server-id and change master option can clash ***
+change master to IGNORE_SERVER_IDS= (2, 1);
+ERROR HY000: The requested server id 2 clashes with the slave startup option --replicate-same-server-id
+*** must be empty due to the error ***
+ignore server id list: 
+change master to IGNORE_SERVER_IDS= (10, 100);
+*** must be 10, 100 ***
+ignore server id list: 10, 100
+reset slave;
+*** must be empty due to reset slave ***
+ignore server id list: 10, 100
+change master to IGNORE_SERVER_IDS= (10, 100);
+*** CHANGE MASTER with IGNORE_SERVER_IDS option overrides (does not increment) the previous setup ***
+change master to IGNORE_SERVER_IDS= (5, 1, 4, 3, 1);
+*** must be 1, 3, 4, 5 due to overriding policy ***
+ignore server id list: 1, 3, 4, 5
+*** ignore master (server 1) queries for a while ***
+start slave;
+connection master;
+connection slave;
+connection master;
+create table t1 (n int);
+connection slave;
+include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
+*** must be empty as the event is to be filtered out ***
+show tables;
+Tables_in_test
+*** allowing events from master ***
+stop slave;
+include/wait_for_slave_to_stop.inc
+reset slave;
+change master to IGNORE_SERVER_IDS= (10, 100);
+*** the list must remain (10, 100) after reset slave ***
+change master to IGNORE_SERVER_IDS= ();
+*** must be empty due to IGNORE_SERVER_IDS empty list ***
+ignore server id list: 
+change master to master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root';
+start slave;
+connection master;
+connection slave;
+*** must have caught create table ***
+show tables;
+Tables_in_test
+t1
+connection master;
+drop table t1;
+connection slave;
+end of the tests
+include/rpl_end.inc

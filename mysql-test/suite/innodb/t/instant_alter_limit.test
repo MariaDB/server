@@ -1,0 +1,76 @@
+--source include/innodb_page_size.inc
+
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
+
+CREATE TABLE t(a INT PRIMARY KEY, b INT, c INT, d INT, e INT)
+ENGINE=InnoDB;
+INSERT INTO t VALUES(1,2,3,4,5);
+SET innodb_strict_mode = OFF;
+--disable_query_log
+call mtr.add_suppression("\\[Warning\\] InnoDB: Cannot add .* in table `test`\\.`t` because after adding it, the row size");
+let $n=253;
+while ($n) {
+dec $n;
+ALTER TABLE t DROP b, DROP c, DROP d, DROP e,
+ADD COLUMN b INT FIRST, ADD COLUMN c INT, ADD COLUMN d INT AFTER b,
+ADD COLUMN e INT AFTER c, ALGORITHM=INSTANT;
+}
+--enable_query_log
+SELECT * FROM t;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t DROP b, DROP c, DROP d, DROP e,
+ADD COLUMN b INT, ALGORITHM=INSTANT;
+ALTER TABLE t CHANGE COLUMN b beta INT AFTER a, ALGORITHM=INSTANT;
+ALTER TABLE t DROP e, DROP c, DROP d, ALGORITHM=INSTANT;
+SELECT * FROM t;
+ALTER TABLE t DROP COLUMN beta, ALGORITHM=INSTANT;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t ADD COLUMN b INT NOT NULL, ALGORITHM=INSTANT;
+
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+
+ALTER TABLE t ADD COLUMN b INT NOT NULL;
+
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+
+SELECT * FROM t;
+ALTER TABLE t ADD COLUMN (c CHAR(255) NOT NULL, d BIGINT NOT NULL),
+ALGORITHM=INSTANT;
+
+--disable_query_log
+let $n=253;
+while ($n) {
+dec $n;
+ALTER TABLE t DROP b, DROP c, DROP d,
+ADD COLUMN (b INT NOT NULL, c CHAR(255) NOT NULL, d BIGINT NOT NULL);
+}
+--enable_query_log
+
+UPDATE t SET b=b+1,d=d+1,c='foo';
+SELECT * FROM t;
+
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-21787 Alter table failure tries to access uninitialized column
+--echo #
+CREATE TABLE t1(f1 INT PRIMARY KEY, f2 TEXT GENERATED ALWAYS AS (SUBSTR(f4, 1, 400)), f3 VARCHAR(500), f4 TEXT)ENGINE=InnoDB ROW_FORMAT=Compact;
+ALTER TABLE t1 ADD UNIQUE KEY (f2(9));
+let $error_code = 0;
+let $innodb_page_size = `SELECT @@INNODB_PAGE_SIZE`;
+if ($innodb_page_size == 4k) {
+ let $error_code= ER_TOO_BIG_ROWSIZE;
+}
+--error $error_code
+ALTER TABLE t1 ADD COLUMN f5 TEXT, ALGORITHM=INPLACE;
+DROP TABLE t1;

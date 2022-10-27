@@ -1,0 +1,24 @@
+DROP TABLE IF EXISTS tags, bugs;
+CREATE TABLE tags (
+name VARCHAR(64) PRIMARY KEY
+) DEFAULT CHARSET=utf8
+COLLATE=utf8_bin;
+CREATE TABLE bugs (
+id INT UNSIGNED PRIMARY KEY,
+tag TEXT COMMENT 'type "tags"'
+) DEFAULT CHARSET=utf8;
+INSERT INTO bugs (id, tag) VALUES (1, "Linux");
+INSERT INTO bugs (id, tag) VALUES (2, "MySQL");
+INSERT INTO bugs (id, tag) VALUES (3, "groonga");
+SELECT * FROM bugs;
+id	tag
+1	Linux
+2	MySQL
+3	groonga
+SELECT * FROM tags;
+name
+Linux
+MySQL
+groonga
+DROP TABLE bugs;
+DROP TABLE tags;

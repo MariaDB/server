@@ -1,0 +1,15 @@
+###################################
+# Wrapper for rpl_row_log.test    #
+# Added wrapper so that MyISAM &  #
+# Innodb         could all use the#
+# Same test
+###################################
+########################################################
+# By JBM 2005-02-15 Wrapped to allow reuse of test code#
+########################################################
+-- source include/have_binlog_format_row.inc
+-- source include/master-slave.inc
+let $engine_type=MyISAM;
+-- source include/rpl_log.test
+
+--source include/rpl_end.inc

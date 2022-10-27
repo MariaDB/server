@@ -1,0 +1,136 @@
+SET sql_mode=ORACLE;
+create aggregate function f1(x INT) return INT AS
+begin
+insert into t1(sal) values (x);
+return x;
+end|
+ERROR HY000: Aggregate specific instruction(FETCH GROUP NEXT ROW) missing from the aggregate function
+create function f1(x INT) return INT AS
+begin
+set x=5;
+fetch group next row;
+return x+1;
+end |
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE TABLE marks(stud_id INT, grade_count INT);
+INSERT INTO marks VALUES (1,6), (2,4), (3,7), (4,5), (5,8);
+SELECT * FROM marks;
+stud_id	grade_count
+1	6
+2	4
+3	7
+4	5
+5	8
+# Using PL/SQL syntax: EXCEPTION WHEN NO_DATA_FOUND
+CREATE AGGREGATE FUNCTION IF NOT EXISTS aggregate_count(x INT) RETURN INT AS
+count_students INT DEFAULT 0;
+BEGIN  
+LOOP  
+FETCH GROUP NEXT ROW;  
+IF x THEN  
+count_students:= count_students + 1;
+END IF;  
+END LOOP;  
+EXCEPTION
+WHEN NO_DATA_FOUND THEN
+RETURN count_students;
+END aggregate_count //
+SELECT aggregate_count(stud_id) FROM marks;
+aggregate_count(stud_id)
+5
+DROP FUNCTION IF EXISTS aggregate_count;
+# Using SQL/PSM systax: CONTINUE HANDLER
+CREATE AGGREGATE FUNCTION IF NOT EXISTS aggregate_count(x INT) RETURN INT AS
+count_students INT DEFAULT 0;
+CONTINUE HANDLER FOR NOT FOUND RETURN count_students;
+BEGIN  
+LOOP  
+FETCH GROUP NEXT ROW;  
+IF x THEN  
+SET count_students= count_students + 1;
+END IF;  
+END LOOP;  
+END //
+SELECT aggregate_count(stud_id) FROM marks;
+aggregate_count(stud_id)
+5
+DROP FUNCTION IF EXISTS aggregate_count;
+DROP TABLE marks;
+#
+# MDEV-18813 PROCEDURE and anonymous blocks silently ignore FETCH GROUP NEXT ROW
+#
+CREATE PROCEDURE p1 AS
+BEGIN
+FETCH GROUP NEXT ROW;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+BEGIN NOT ATOMIC
+FETCH GROUP NEXT ROW;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE DEFINER=root@localhost  FUNCTION f1 RETURN INT AS
+BEGIN
+FETCH GROUP NEXT ROW;
+RETURN 0;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1
+AFTER INSERT ON t1 FOR EACH ROW 
+FETCH GROUP NEXT ROW;
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+DROP TABLE t1;
+CREATE EVENT ev1
+ON SCHEDULE EVERY 1 HOUR
+STARTS CURRENT_TIMESTAMP + INTERVAL 1 MONTH
+ENDS CURRENT_TIMESTAMP + INTERVAL 1 MONTH + INTERVAL 1 WEEK
+DO FETCH GROUP NEXT ROW;
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS
+BEGIN
+FETCH GROUP NEXT ROW;  -- In a package procedure
+END;
+FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 0;
+END;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+FUNCTION f1 RETURN INT AS
+BEGIN
+FETCH GROUP NEXT ROW;  -- In a package function
+RETURN 0;
+END;
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+FUNCTION f1 RETURN INT AS
+BEGIN  
+RETURN 0;
+END;
+BEGIN
+FETCH GROUP NEXT ROW;  -- In a package executable section
+END;
+$$
+ERROR HY000: Aggregate specific instruction (FETCH GROUP NEXT ROW) used in a wrong context
+DROP PACKAGE pkg1;

@@ -1,0 +1,110 @@
+--source include/have_rocksdb.inc
+
+#
+# index_merge_rocksdb test copied over from index_merge_ror.inc
+#
+# Triggers issue # https://github.com/facebook/mysql-5.6/issues/604
+
+CREATE TABLE t1
+(
+  /* fields/keys for row retrieval tests */
+  key1 INT,
+  key2 INT,
+  key3 INT,
+  key4 INT,
+
+  /* make rows much bigger then keys */
+  filler1 CHAR(200),
+
+  KEY(key1),
+  KEY(key2)
+) ENGINE=ROCKSDB;
+
+# fill table
+CREATE TABLE t0 AS SELECT * FROM t1;
+--disable_query_log
+--echo # Printing of many insert into t0 values (....) disabled.
+let $cnt=100;
+while ($cnt)
+{
+  eval INSERT INTO t0 VALUES (0, 0, 0, 0, 'data1');
+  dec $cnt;
+}
+
+--echo # Printing of many insert into t1 select .... from t0 disabled.
+let $1=4;
+while ($1)
+{
+  let $2=4;
+  while ($2)
+  {
+    let $3=4;
+    while ($3)
+    {
+      eval INSERT INTO t1 SELECT key1, key2, key3, key4, filler1 FROM t0;
+      dec $3;
+    }
+    dec $2;
+  }
+  dec $1;
+}
+
+--echo # Printing of many insert into t1 (...) values (....) disabled.
+# Row retrieval tests
+# -1 is used for values 'out of any range we are using'
+# insert enough rows for index intersection to be used for (key1,key2)
+INSERT INTO t1 (key1, key2, key3, key4, filler1) VALUES (100, 100, 100, 100,'key1-key2-key3-key4');
+let $cnt=400;
+while ($cnt)
+{
+  eval INSERT INTO t1 (key1, key2, key3, key4, filler1) VALUES (100, -1, 100, -1,'key1-key3');
+  dec $cnt;
+}
+let $cnt=400;
+while ($cnt)
+{
+  eval INSERT INTO t1 (key1, key2, key3, key4, filler1) VALUES (-1, 100, -1, 100,'key2-key4');
+  dec $cnt;
+}
+--enable_query_log
+
+SELECT COUNT(*) FROM t1;
+
+# flush the table first as statistics is calculated a bit differently for memtable and SST files
+SET GLOBAL rocksdb_force_flush_memtable_now = 1;
+
+-- disable_query_log
+-- disable_result_log
+ANALYZE TABLE t1;
+-- enable_result_log
+-- enable_query_log
+
+--replace_column 9 #
+EXPLAIN UPDATE t1 SET filler1='to be deleted' WHERE key1=100 AND key2=100;
+UPDATE t1 SET filler1='to be deleted' WHERE key1=100 and key2=100;
+
+DROP TABLE t0, t1;
+
+# Issue624 - MyRocks executes index_merge query plan incorrectly
+create table t1 (key1 int, key2 int, key3 int, key (key1), key (key2), key(key3)) engine=rocksdb;
+insert into t1 values (1, 100, 100), (1, 200, 200), (1, 300, 300);
+--disable_query_log
+let $i = 1;
+while ($i <= 1000) {
+  let $insert = INSERT INTO t1 VALUES(1000,1000,1000);
+  inc $i;
+  eval $insert;
+}
+--enable_query_log
+set global rocksdb_force_flush_memtable_now=1;
+analyze table t1;
+
+--replace_column 9 #
+explain select * from t1 where key1 = 1;
+--replace_column 9 #
+explain select key1,key2 from t1 where key1 = 1 or key2 = 1;
+select * from t1 where key1 = 1;
+select key1,key2 from t1 where key1 = 1 or key2 = 1;
+
+drop table t1;
+

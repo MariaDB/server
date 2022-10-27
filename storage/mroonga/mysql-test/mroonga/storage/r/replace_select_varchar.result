@@ -1,0 +1,40 @@
+DROP TABLE IF EXISTS videos_master, videos_groonga;
+CREATE TABLE `videos_master` (
+`id` bigint(1) unsigned NOT NULL,
+`video_id` varchar(64) NOT NULL,
+`description` text,
+`tags_unpack` text,
+PRIMARY KEY (`video_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE `videos_groonga` (
+`id` bigint(1) unsigned NOT NULL,
+`video_id` varchar(64) NOT NULL,
+`description` text,
+`tags_unpack` text,
+PRIMARY KEY (`video_id`),
+FULLTEXT INDEX (`description`),
+FULLTEXT INDEX (`tags_unpack`)
+) DEFAULT CHARSET=utf8;
+INSERT INTO videos_master VALUES (1, "video-1", "My Familly", "familly human");
+INSERT INTO videos_master VALUES (2, "video-2", "My Cat", "family cat");
+REPLACE INTO videos_groonga
+SELECT v.id, v.video_id, v.description, NULL
+FROM videos_master AS v
+WHERE v.video_id = (video_id);
+SELECT *, MATCH(description) AGAINST("cat") FROM videos_groonga
+WHERE MATCH(description) AGAINST("cat");
+id	video_id	description	tags_unpack	MATCH(description) AGAINST("cat")
+2	video-2	My Cat		1048577
+INSERT INTO videos_master VALUES (3, "video-3", "My Dog", "family dog");
+REPLACE INTO videos_groonga
+SELECT v.id, v.video_id, v.description, NULL
+FROM videos_master AS v
+WHERE v.video_id = (video_id);
+SELECT *, MATCH(description) AGAINST("my") FROM videos_groonga
+WHERE MATCH(description) AGAINST("my")
+ORDER BY id;
+id	video_id	description	tags_unpack	MATCH(description) AGAINST("my")
+1	video-1	My Familly		209716
+2	video-2	My Cat		209716
+3	video-3	My Dog		209716
+DROP TABLE videos_master, videos_groonga;

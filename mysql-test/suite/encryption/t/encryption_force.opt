@@ -1,0 +1,2 @@
+--innodb-encrypt-tables=FORCE
+--innodb-encrypt-log=ON

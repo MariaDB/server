@@ -1,0 +1,78 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 tinyint);
+insert into t1 values(1);
+select * from t1;
+c1
+1
+drop table t1;
+create table t1 (c1 smallint);
+insert into t1 values(1);
+select * from t1;
+c1
+1
+drop table t1;
+create table t1 (c1 mediumint);
+insert into t1 values(1);
+select * from t1;
+c1
+1
+drop table t1;
+create table t1 (c1 int);
+insert into t1 values(1);
+select * from t1;
+c1
+1
+drop table t1;
+create table t1 (c1 bigint);
+insert into t1 values(1);
+select * from t1;
+c1
+1
+drop table t1;
+create table t1 (c1 float);
+insert into t1 values(0.5);
+select * from t1;
+c1
+0.5
+drop table t1;
+create table t1 (c1 double);
+insert into t1 values(0.5);
+select * from t1;
+c1
+0.5
+drop table t1;
+create table t1 (c1 date);
+insert into t1 values("2010/03/26");
+select * from t1;
+c1
+2010-03-26
+drop table t1;
+create table t1 (c1 time);
+insert into t1 values("11:22:33");
+select * from t1;
+c1
+11:22:33
+drop table t1;
+create table t1 (c1 year);
+insert into t1 values("2010");
+select * from t1;
+c1
+2010
+drop table t1;
+create table t1 (c1 datetime);
+insert into t1 values("2010/03/26 11:22:33");
+select * from t1;
+c1
+2010-03-26 11:22:33
+drop table t1;
+create table t1 (c1 int primary key, c2 int);
+insert into t1 values(1,100);
+select * from t1;
+c1	c2
+1	100
+insert into t1 values(1,200);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select * from t1;
+c1	c2
+1	100
+drop table t1;

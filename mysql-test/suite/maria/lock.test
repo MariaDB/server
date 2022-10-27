@@ -1,0 +1,187 @@
+#
+# Testing of potential problems in Aria with locking
+#
+
+-- source include/have_maria.inc
+
+drop table if exists t1,t2;
+
+#
+# Test for Bug#973039
+# Assertion `share->in_trans == 0' failed in maria_close on DROP TABLE
+# under LOCK 
+# 
+
+# Test DROP TABLE
+
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+CREATE TABLE t2 (i INT) ENGINE=Aria;
+LOCK TABLE t1 WRITE, t2 WRITE;
+# Also fails with FLUSH TABLE t1 and with REPAIR TABLE t1 USE_FRM
+DROP TABLE t1;
+UNLOCK TABLES;
+DROP TABLE t2;
+
+#Test FLUSH TABLE
+
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+CREATE TABLE t2 (i INT) ENGINE=Aria;
+LOCK TABLE t1 WRITE, t2 WRITE;
+FLUSH TABLE t1;
+select * from t1;
+unlock tables;
+drop table t1,t2;
+
+# Test REPAIR ... USE_FRM and unlock tables last
+
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+CREATE TABLE t2 (i INT) ENGINE=Aria;
+LOCK TABLE t1 WRITE, t2 WRITE;
+repair table t1 use_frm;
+select * from t1;
+drop table t2;
+unlock tables;
+drop table t1;
+
+#
+# MDEV-366: lock table twice with LOCK TABLES and then drop it
+#
+
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+LOCK TABLES t1 WRITE, t1 AS t1a WRITE;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-8200 aria bug with insert select when select is a aria table
+--echo #  (wrong result or assertion failure:
+--echo # `table->file->stats.records > 0 || error')
+--echo #
+
+CREATE TABLE t1 (f1 INT) ENGINE=Aria;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
+CREATE TABLE tmp (f3 INT) engine=Aria;
+LOCK TABLE t2 WRITE, tmp WRITE, tmp AS tmp_alias WRITE, t1 WRITE;
+INSERT INTO tmp SELECT f1 FROM t1;
+INSERT INTO t2 SELECT f3 FROM tmp AS tmp_alias;
+select * from t2;
+unlock tables;
+DROP TABLE t1,t2,tmp;
+
+--echo #
+--echo # Same without transactional
+--echo #
+
+CREATE TABLE t1 (f1 INT) transactional=0 ENGINE=Aria;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (2);
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
+CREATE TABLE tmp (f3 INT) transactional=0 engine=Aria;
+LOCK TABLE t2 WRITE, tmp WRITE, tmp AS tmp_alias WRITE, t1 WRITE;
+INSERT INTO tmp SELECT f1 FROM t1;
+INSERT INTO t2 SELECT f3 FROM tmp AS tmp_alias;
+select * from t2;
+unlock tables;
+DROP TABLE t1,t2,tmp;
+
+--echo #
+--echo # Using spatical keys (disables versioning)
+--echo #
+
+CREATE TABLE t1 (f1 INT, c1 geometry NOT NULL, SPATIAL KEY i1 (c1)) transactional=1 ENGINE=Aria;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (3,
+PolygonFromText('POLYGON((-18.6086111000 -66.9327777000,
+                          -18.6055555000 -66.8158332999,
+                          -18.7186111000 -66.8102777000,
+                          -18.7211111000 -66.9269443999,
+                          -18.6086111000 -66.9327777000))'));
+CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
+CREATE TABLE tmp (f3 INT, c1 geometry NOT NULL, SPATIAL KEY i1 (c1)) transactional=1 ENGINE=Aria;
+LOCK TABLE t2 WRITE, tmp WRITE, tmp AS tmp_alias WRITE, t1 WRITE;
+INSERT INTO tmp SELECT f1,c1 FROM t1;
+INSERT INTO t2 (f2) SELECT f3 FROM tmp AS tmp_alias;
+select * from t2;
+unlock tables;
+DROP TABLE t1,t2,tmp;
+
+--echo #
+--echo # MDEV-10378 Assertion `trn' failed in virtual int ha_maria::start_stmt
+--echo #
+
+CREATE TABLE t1 (f1 VARCHAR(3), f2 INT, pk INT, PRIMARY KEY (pk)) ENGINE=Aria;
+INSERT INTO t1 VALUES  ('foo',10,1), ('foo',1,2);
+LOCK TABLE t1 WRITE;
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD UNIQUE KEY (f1);
+ALTER TABLE t1 ADD KEY (f2);
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-10748 Server crashes in ha_maria::implicit_commit upon ALTER TABLE
+--echo #
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=Aria;
+SELECT * FROM t1;
+CREATE TABLE t2 (c INT) ENGINE=Aria;
+ 
+LOCK TABLE t2 READ, t1 WRITE;
+--error ER_DUP_FIELDNAME
+ALTER TABLE t1 CHANGE b a INT;
+ 
+# Cleanup
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-10748 Server crashes in ha_maria::implicit_commit upon ALTER TABLE
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=Aria;
+CREATE TABLE t2 (b INT) ENGINE=Aria;
+
+LOCK TABLES t1 WRITE, t2 AS t2a WRITE, t2 WRITE;
+ALTER TABLE t2 CHANGE b c VARBINARY(30000), ALGORITHM=COPY;
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+
+--echo # More complex test, from RQG
+
+CREATE TABLE t1 (a INT) ENGINE=Aria;
+CREATE TABLE t2 (b INT) ENGINE=Aria;
+CREATE OR REPLACE VIEW v2 AS SELECT * FROM t2 ;
+
+LOCK TABLES t1 WRITE, t2 AS t2a WRITE, v2 WRITE CONCURRENT, t2 WRITE;
+
+ALTER TABLE t1 FORCE;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t2 CHANGE b c VARBINARY(30000), ALGORITHM=INPLACE;
+ALTER TABLE t2 CHANGE b c VARBINARY(30000), ALGORITHM=COPY;
+
+UNLOCK TABLES;
+DROP VIEW v2;
+DROP TABLE t1, t2;
+
+--echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-14669 Assertion `file->trn == trn' failed in ha_maria::start_stmt
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (c CHAR(1)) ENGINE=Aria;
+INSERT INTO t2 VALUES ('a'),('b');
+--connect (con1,localhost,root,,test)
+LOCK TABLE t1 WRITE;
+OPTIMIZE TABLE t1;
+--connection default
+DELETE FROM t2 WHERE c < 1;
+--connection con1
+OPTIMIZE TABLE t1;
+# Cleanup
+--disconnect con1
+--connection default
+DROP TABLE t1, t2;

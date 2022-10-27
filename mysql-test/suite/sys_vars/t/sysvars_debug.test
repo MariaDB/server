@@ -1,0 +1,7 @@
+--source include/have_debug.inc
+--source include/word_size.inc
+
+--vertical_results
+select * from information_schema.system_variables
+  where variable_name like 'debug%'
+  order by variable_name;

@@ -1,0 +1,97 @@
+##
+##  See also: storage/rocksdb/mysql-test/rocksdb/suite.pm - tests on
+##  platforms and under valgrind are disabled from there.
+##
+
+##
+##  Tests that are disabled in the upstream
+##
+cons_snapshot_serializable : Consistent read does not work on serializable
+level_read_uncommitted : Not supported
+level_serializable: Not supported
+
+
+##
+##  Tests that require FB/MySQL specific features for which there are
+##  no plans of ever porting them into MariaDB
+##
+optimizer_loose_index_scans: MariaDB doesnt support Skip Scan
+mysqldump : MariaDB's mysqldump doesn't support --print-ordering-key
+mysqldump2 : MariaDB's mysqldump doesn't support --print-ordering-key
+native_procedure : Not supported in MariaDB
+slow_query_log: MDEV-11480
+select_for_update_skip_locked_nowait: MDEV-11481
+create_no_primary_key_table: MariaDB doesn't have --block_create_no_primary_key
+explicit_snapshot: MariaDB doesn't support Shared/Explicit snapshots
+percona_nonflushing_analyze_debug : Requires Percona Server's Non-flushing ANALYZE feature
+com_rpc_tx : Requires connection attributes and detached sessions
+mysqlbinlog_blind_replace: requires @@enable_blind_replace support
+optimize_myrocks_replace_into_base: requires @@enable_blind_replace support
+optimize_myrocks_replace_into_lock:  requires @@enable_blind_replace support
+rocksdb.skip_core_dump_on_error: requires @@binlog_error_action support
+bypass_select_basic_bloom : Query bypass is not supported
+bypass_select_basic : Query bypass is not supported
+
+rocksdb_read_free_rpl : Read-Free replication is not supported
+rocksdb_read_free_rpl_stress :  Read-Free replication is not supported
+
+blind_delete_rr : Read-Free replication is not supported
+blind_delete_rc : Read-Free replication is not supported
+
+force_shutdown: requires support for SHUTDOWN statement which calls exit().
+
+##
+##  Tests that do not fit MariaDB's test environment. Upstream seems to test
+##  on boxes with much more RAM and CPU, some tests are more of a stress tests
+##  than functional tests or bug testcases.
+##
+rqg_examples : Test that use RQG are disabled
+rqg_runtime : Test that use RQG are disabled
+rqg_transactions : Test that use RQG are disabled
+allow_no_pk_concurrent_insert: stress test
+rocksdb_deadlock_stress_rc: stress test
+rocksdb_deadlock_stress_rr: stress test
+use_direct_reads: Direct IO is not supported on all filesystems
+
+##
+##  Tests which hit a problem elsewhere (Upstream, SQL layer, etc)
+##
+persistent_cache: Upstream RocksDB bug https://github.com/facebook/mysql-5.6/issues/579
+collation: Fails on gcc 4.8 and before,  MDEV-12433
+col_opt_zerofill: MDEV-14729 (also MDEV-14165 which was fixed): problem in the client
+
+
+##
+##  Tests that require FB/MySQL specific features which MariaDB
+##  currently doesnt have but eventually might get:
+##
+gap_lock_issue254:    MDEV-11735: MyRocks: Gap Lock detector support
+gap_lock_raise_error: MDEV-11735: MyRocks: Gap Lock detector support
+show_engine : MariaRocks: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION STATUS
+issue243_transactionStatus: MariaDB doesnt support SHOW ENGINE rocksdb TRANSACTION STATUS
+rpl_row_not_found : MariaDB doesnt support slave_exec_mode='SEMI_STRICT'
+rpl_row_not_found_rc : MariaDB doesnt support slave_exec_mode='SEMI_STRICT'
+
+ddl_high_priority: Needs fractional @@lock_wait_timeout
+deadlock_tracking : Needs SHOW ENGINE ROCKSDB TRANSACTION STATUS
+bytes_written: Needs I_S.TABLE_STATISTICS.IO_WRITE_BYTES
+trx_info_rpl : MariaRocks: @@rpl_skip_tx_api doesn't work, yet.
+lock_wait_timeout_stats: MDEV-13404
+rpl_row_triggers : Requires read-free slave.
+
+##
+##  Test failures (in buildbot or else where)
+##
+
+compact_deletes: MDEV-12663 : rocksdb.compact_deletes times out and causes other tests to fail
+blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api test fails
+information_schema: MDEV-14372: unstable testcase
+
+##
+## Tests that fail for some other reason
+##
+
+mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
+drop_table: Hangs on shutdown
+add_index_inplace: not stable result
+rocksdb_range2 : result difference, update after MDEV-16746 is fixed

@@ -1,0 +1,303 @@
+#
+#  Engine-agnostic tests for statistics-based selectivity calculations.
+#   - selectivity tests that depend on the engine should go into
+#     t/selectivity.test. That test is run with myisam/innodb/xtradb.
+#   - this file is for tests that don't depend on the engine. 
+#
+drop table if exists t0,t1,t2,t3;
+select @@global.use_stat_tables;
+@@global.use_stat_tables
+COMPLEMENTARY
+select @@session.use_stat_tables;
+@@session.use_stat_tables
+COMPLEMENTARY
+set @save_use_stat_tables=@@use_stat_tables;
+set use_stat_tables='preferably';
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @save_histogram_size=@@histogram_size;
+set @save_histogram_type=@@histogram_type;
+#
+# MDEV-5917: EITS: different order of predicates in IN (...) causes different estimates
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (col1 int);
+# one value in 1..100 range
+insert into t2 select ta.a + tb.a*10 from t1 ta, t1 tb;
+# ten values in 100...200 range
+insert into t2 select 100 + ta.a + tb.a*10 from t1 ta, t1 tb, t1 tc;
+set histogram_type='SINGLE_PREC_HB';
+set histogram_size=100;
+set optimizer_use_condition_selectivity=4;
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+# The following two must have the same in 'Extra' column:
+explain extended select * from t2 where col1 IN (20, 180);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1100	1.35	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`col1` AS `col1` from `test`.`t2` where `test`.`t2`.`col1` in (20,180)
+explain extended select * from t2 where col1 IN (180, 20);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1100	1.35	Using where
+Warnings:
+Note	1003	select `test`.`t2`.`col1` AS `col1` from `test`.`t2` where `test`.`t2`.`col1` in (180,20)
+drop table t1, t2;
+#
+# MDEV-5926: EITS: Histogram estimates for column=least_possible_value are wrong
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select ta.a from t0 ta, t0 tb, t0 tc;
+set histogram_size=20;
+set histogram_type='single_prec_hb';
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+# Should select about 10%:
+explain extended select * from t1 where a=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	9.52	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2
+# Should select about 10%:
+explain extended select * from t1 where a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	9.52	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1
+# Must not have filtered=100%:
+explain extended select * from t1 where a=0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	9.52	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 0
+# Again, must not have filtered=100%:
+explain extended select * from t1 where a=-1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	9.52	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = -1
+drop table t0, t1;
+#
+# MDEV-4362: Selectivity estimates for IN (...) do not depend on whether the values are in range
+#
+create table t1 (col1 int);
+set @a=-1;
+create table t2 (a int)  select (@a:=@a+1) as a from information_schema.session_variables ta limit 100;
+insert into t1 select ta.a from t2 ta, t2 tb where ta.a < 100 and tb.a < 100;
+select min(col1), max(col1), count(*) from t1;
+min(col1)	max(col1)	count(*)
+0	99	10000
+set histogram_size=100;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+explain extended select * from t1 where col1 in (1,2,3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10000	3.37	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` in (1,2,3)
+# Must not cause fp division by zero, or produce nonsense numbers:
+explain extended select * from t1 where col1 in (-1,-2,-3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10000	5.94	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` in (-1,-2,-3)
+explain extended select * from t1 where col1<=-1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10000	1.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` <= -1
+drop table t1, t2;
+# 
+# MDEV-5984: EITS: Incorrect filtered% value for single-table select with range access
+# 
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (a int, b int, col1 varchar(64), col2 varchar(64), key(a,b));
+insert into t2 select ta.a+10*tb.a, tc.a+10*td.a, 'filler-data1', 'filler-data2' from t1 ta, t1 tb, t1 tc, t1 td;
+set histogram_size=100;
+set optimizer_use_condition_selectivity=4;
+set use_stat_tables='preferably';
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+# This must show filtered=100%:
+explain extended select * from t2 where a in (1,2,3) and b in (1,2,3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	range	a	a	10	NULL	9	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`col1` AS `col1`,`test`.`t2`.`col2` AS `col2` from `test`.`t2` where `test`.`t2`.`a` in (1,2,3) and `test`.`t2`.`b` in (1,2,3)
+drop table t2, t1;
+# 
+# MDEV-5980: EITS: if condition is used for REF access, its selectivity is still in filtered%
+# 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(key1 int, col1 int, key(key1));
+insert into t1 select ta.a, ta.a from t0 ta, t0 tb, t0 tc;
+set histogram_size=100;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+# 10% is ok
+explain extended select * from t1 where col1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	9.90	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`key1` AS `key1`,`test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`col1` = 2
+# Must show 100%, not 10%
+explain extended select * from t1 where key1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	key1	key1	5	const	99	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`key1` AS `key1`,`test`.`t1`.`col1` AS `col1` from `test`.`t1` where `test`.`t1`.`key1` = 2
+drop table t0, t1;
+# MDEV-6003: EITS: ref access, keypart2=const vs keypart2=expr - inconsistent filtered% value
+# 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+kp1 int, kp2 int, 
+filler1 char(100),
+filler2 char(100),
+key(kp1, kp2)
+);
+insert into t1 
+select 
+ta.a,
+tb.a,
+'filler-data-1',
+'filler-data-2'
+from t0 ta, t0 tb, t0 tc;
+set histogram_size=100;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+# NOTE: 10*100%, 10*100% rows is ok
+explain extended select * from t0, t1 where t1.kp1=t0.a and t1.kp2=t0.a+1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t1	ref	kp1	kp1	10	test.t0.a,func	10	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t0`.`a` AS `a`,`test`.`t1`.`kp1` AS `kp1`,`test`.`t1`.`kp2` AS `kp2`,`test`.`t1`.`filler1` AS `filler1`,`test`.`t1`.`filler2` AS `filler2` from `test`.`t0` join `test`.`t1` where `test`.`t1`.`kp1` = `test`.`t0`.`a` and `test`.`t1`.`kp2` = `test`.`t0`.`a` + 1
+# NOTE: t0: 10*100% is ok,  t1: 10*9.90% is bad. t1 should have 10*100%.
+explain extended select * from t0, t1 where t1.kp1=t0.a and t1.kp2=4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t1	ref	kp1	kp1	10	test.t0.a,const	10	100.00	
+Warnings:
+Note	1003	select `test`.`t0`.`a` AS `a`,`test`.`t1`.`kp1` AS `kp1`,`test`.`t1`.`kp2` AS `kp2`,`test`.`t1`.`filler1` AS `filler1`,`test`.`t1`.`filler2` AS `filler2` from `test`.`t0` join `test`.`t1` where `test`.`t1`.`kp1` = `test`.`t0`.`a` and `test`.`t1`.`kp2` = 4
+drop table t0, t1;
+# 
+# MDEV-6209: Assertion `join->best_read < double(1.79769313486231570815e+308L)' 
+#            failed in bool greedy_search with optimizer_use_condition_selectivity>1
+# 
+SET optimizer_use_condition_selectivity = 2;
+CREATE TABLE t1 (a CHAR(6), b INT, PRIMARY KEY (a,b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo',1),('bar',2);
+SELECT * FROM t1 AS t1_1, t1 AS t1_2 WHERE NOT ( t1_1.a <> 'baz');
+a	b	a	b
+DROP TABLE t1;
+# 
+# MDEV-6308: Server crashes in table_multi_eq_cond_selectivity with ...
+#
+CREATE TABLE t1 (
+id varchar(40) COLLATE utf8_bin,
+dt datetime,
+PRIMARY KEY (id)
+);
+INSERT INTO t1 VALUES ('foo','2011-04-12 05:18:08'),
+('bar','2013-09-19 11:37:03');
+CREATE TABLE t2 (
+t1_id varchar(40) COLLATE utf8_bin,
+f1 varchar(64),
+f2 varchar(1024),
+KEY (f1,f2(255))
+);
+INSERT INTO t2 VALUES ('foo','baz','qux'),('bar','baz','qux');
+INSERT INTO t2 VALUES ('foo','bazz','qux'),('bar','bazz','qux');
+set optimizer_use_condition_selectivity=2;
+explain
+select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	f1	f1	325	const,const	2	Using index condition; Using where
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	122	test.t2.t1_id	1	
+select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
+id	dt	t1_id	f1	f2
+foo	2011-04-12 05:18:08	foo	baz	qux
+bar	2013-09-19 11:37:03	bar	baz	qux
+drop table t1,t2;
+# 
+# MDEV-5985: EITS: selectivity estimates look illogical for join and non-key equalities
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select ta.a + tb.a* 10 + tc.a * 100 from t0 ta, t0 tb, t0 tc;
+create table t2 as select * from t1;
+set histogram_size=100;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+# Filtered will be 4.95, 9.90
+explain extended select * from t1 ta, t2 tb where ta.a < 40 and tb.a < 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	ta	ALL	NULL	NULL	NULL	NULL	1000	4.95	Using where
+1	SIMPLE	tb	ALL	NULL	NULL	NULL	NULL	1000	9.90	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`ta`.`a` AS `a`,`test`.`tb`.`a` AS `a` from `test`.`t1` `ta` join `test`.`t2` `tb` where `test`.`ta`.`a` < 40 and `test`.`tb`.`a` < 100
+# Here, tb.filtered should not become 100%:
+explain extended select * from t1 ta, t2 tb where ta.a < 40 and tb.a < 100 and tb.a=ta.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	ta	ALL	NULL	NULL	NULL	NULL	1000	4.95	Using where
+1	SIMPLE	tb	ALL	NULL	NULL	NULL	NULL	1000	4.95	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`ta`.`a` AS `a`,`test`.`tb`.`a` AS `a` from `test`.`t1` `ta` join `test`.`t2` `tb` where `test`.`tb`.`a` = `test`.`ta`.`a` and `test`.`ta`.`a` < 40 and `test`.`ta`.`a` < 100
+drop table t0,t1,t2;
+#
+# MDEV-8779: mysqld got signal 11 in sql/opt_range_mrr.cc:100(step_down_to)
+#
+set @tmp_mdev8779=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=5;
+CREATE TABLE t1 (
+i int(10) unsigned NOT NULL AUTO_INCREMENT,
+n varchar(2048) NOT NULL,
+d tinyint(1) unsigned NOT NULL,
+p int(10) unsigned NOT NULL,
+PRIMARY KEY (i)
+) DEFAULT CHARSET=utf8;
+insert into t1 values (1,'aaa',1,1), (2,'bbb',2,2);
+SELECT * FROM t1 WHERE t1.d = 0 AND t1.p = '1' AND t1.i != '-1' AND t1.n = 'some text';
+i	n	d	p
+set optimizer_use_condition_selectivity= @tmp_mdev8779;
+DROP TABLE t1;
+# 
+# End of the test file
+# 
+set use_stat_tables= @save_use_stat_tables;
+set histogram_type=@save_histogram_type;
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;

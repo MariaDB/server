@@ -1,0 +1,188 @@
+SET @orig_tokudb_dir_per_db=@@global.tokudb_dir_per_db;
+########
+#  tokudb_dir_per_db = 1
+########
+SET GLOBAL tokudb_dir_per_db= 1;
+########
+#  CREATE
+########
+CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, b INT(10) UNSIGNED NOT NULL) ENGINE=tokudb;
+INSERT INTO t1 SET b = 10;
+INSERT INTO t1 SET b = 20;
+SELECT b FROM t1 ORDER BY a;
+b
+10
+20
+CREATE INDEX b ON t1 (b);
+CREATE INDEX ab ON t1 (a,b);
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+t1_key_ab_id.tokudb
+t1_key_b_id.tokudb
+t1_main_id.tokudb
+t1_status_id.tokudb
+########
+#  RENAME
+########
+RENAME TABLE t1 TO t2;
+SELECT b FROM t2 ORDER BY a;
+b
+10
+20
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+t2_key_ab_id.tokudb
+t2_key_b_id.tokudb
+t2_main_id.tokudb
+t2_status_id.tokudb
+########
+#  DROP
+########
+DROP TABLE t2;
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+########
+#  tokudb_dir_per_db = 0
+########
+SET GLOBAL tokudb_dir_per_db= 0;
+########
+#  CREATE
+########
+CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, b INT(10) UNSIGNED NOT NULL) ENGINE=tokudb;
+INSERT INTO t1 SET b = 10;
+INSERT INTO t1 SET b = 20;
+SELECT b FROM t1 ORDER BY a;
+b
+10
+20
+CREATE INDEX b ON t1 (b);
+CREATE INDEX ab ON t1 (a,b);
+## Looking for *.tokudb files in data_dir
+_test_t1_key_ab_id.tokudb
+_test_t1_key_b_id.tokudb
+_test_t1_main_id.tokudb
+_test_t1_status_id.tokudb
+## Looking for *.tokudb files in data_dir/test
+########
+#  RENAME
+########
+RENAME TABLE t1 TO t2;
+SELECT b FROM t2 ORDER BY a;
+b
+10
+20
+## Looking for *.tokudb files in data_dir
+_test_t1_key_ab_id.tokudb
+_test_t1_key_b_id.tokudb
+_test_t1_main_id.tokudb
+_test_t1_status_id.tokudb
+## Looking for *.tokudb files in data_dir/test
+########
+#  DROP
+########
+DROP TABLE t2;
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+########
+#  CREATE on tokudb_dir_per_db = 0 and RENAME on tokudb_dir_per_db = 1 and vice versa
+########
+########
+#  tokudb_dir_per_db = (1 - 1);
+########
+SET GLOBAL tokudb_dir_per_db= (1 - 1);;
+########
+#  CREATE
+########
+CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, b INT(10) UNSIGNED NOT NULL) ENGINE=tokudb;
+INSERT INTO t1 SET b = 10;
+INSERT INTO t1 SET b = 20;
+SELECT b FROM t1 ORDER BY a;
+b
+10
+20
+CREATE INDEX b ON t1 (b);
+CREATE INDEX ab ON t1 (a,b);
+## Looking for *.tokudb files in data_dir
+_test_t1_key_ab_id.tokudb
+_test_t1_key_b_id.tokudb
+_test_t1_main_id.tokudb
+_test_t1_status_id.tokudb
+## Looking for *.tokudb files in data_dir/test
+########
+#  tokudb_dir_per_db = 1
+########
+SET GLOBAL tokudb_dir_per_db= 1;
+########
+#  RENAME
+########
+RENAME TABLE t1 TO t2;
+SELECT b FROM t2 ORDER BY a;
+b
+10
+20
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+t2_key_ab_id.tokudb
+t2_key_b_id.tokudb
+t2_main_id.tokudb
+t2_status_id.tokudb
+########
+#  DROP
+########
+DROP TABLE t2;
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+########
+#  tokudb_dir_per_db = (1 - 0);
+########
+SET GLOBAL tokudb_dir_per_db= (1 - 0);;
+########
+#  CREATE
+########
+CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, b INT(10) UNSIGNED NOT NULL) ENGINE=tokudb;
+INSERT INTO t1 SET b = 10;
+INSERT INTO t1 SET b = 20;
+SELECT b FROM t1 ORDER BY a;
+b
+10
+20
+CREATE INDEX b ON t1 (b);
+CREATE INDEX ab ON t1 (a,b);
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+t1_key_ab_id.tokudb
+t1_key_b_id.tokudb
+t1_main_id.tokudb
+t1_status_id.tokudb
+########
+#  tokudb_dir_per_db = 0
+########
+SET GLOBAL tokudb_dir_per_db= 0;
+########
+#  RENAME
+########
+RENAME TABLE t1 TO t2;
+SELECT b FROM t2 ORDER BY a;
+b
+10
+20
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+t1_key_ab_id.tokudb
+t1_key_b_id.tokudb
+t1_main_id.tokudb
+t1_status_id.tokudb
+########
+#  DROP
+########
+DROP TABLE t2;
+## Looking for *.tokudb files in data_dir
+## Looking for *.tokudb files in data_dir/test
+CREATE DATABASE `a::a@@`;
+CREATE TABLE `a::a@@`.`t1` (a INT) ENGINE=TOKUDB;
+CREATE DATABASE `!@#$%^&*()`;
+ALTER TABLE `a::a@@`.`t1` RENAME `!@#$%^&*()`.`t1`;
+DROP TABLE `!@#$%^&*()`.`t1`;
+DROP DATABASE `!@#$%^&*()`;
+DROP DATABASE `a::a@@`;
+SET GLOBAL tokudb_dir_per_db=@orig_tokudb_dir_per_db;

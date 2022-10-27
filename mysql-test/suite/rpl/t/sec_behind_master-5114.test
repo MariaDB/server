@@ -1,0 +1,63 @@
+source include/have_binlog_format_statement.inc;
+source include/master-slave.inc;
+
+call mtr.add_suppression("Unsafe statement written to the binary log");
+
+
+# Make sure that the start time of the first event is certainly different
+# from the next event
+--let $timestamp= `SELECT @@timestamp`
+--disable_query_log
+eval SET TIMESTAMP= $timestamp-100;
+--enable_query_log
+CREATE TABLE t1 (a int);
+
+# Make sure that the slave is done with the first event, and all checks
+# that we'll perform later will be really against the second event
+sync_slave_with_master;
+
+connection master;
+
+# Restore the timestamp now. It doesn't matter that it's not precise,
+# it just needs to be very different from the earlier event
+--disable_query_log
+eval SET TIMESTAMP= $timestamp;
+--enable_query_log
+
+send INSERT INTO t1 VALUES(SLEEP(2));
+
+connection slave;
+
+# When the slave starts executing the event, Seconds_Behind_Master
+# should start growing steadilly. The bugfix ensures that they are
+# calculated based on the start time of the current event, rather
+# than the start time of the previous event. To check it, we only need
+# the first non-zero value
+
+let $run = 20;
+while ($run)
+{
+  dec $run;
+  let $sbm=query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1);
+  # for debugging uncomment echo and remove the if()
+#  echo Seconds_Behind_Master: $sbm;
+  if ($sbm)
+  {
+    let $run = 0;
+  }
+  sleep 0.5;
+}
+
+# Normally the first non-zero value should be 1. However, due to race
+# conditions on slow servers, sometimes the check might miss the value 1,
+# and only catch a higher one. It does not matter, we just need to make
+# sure it didn't start with 100+, as it would have with bug MDEV-5114
+
+--disable_query_log
+eval SELECT $sbm > 0 and $sbm < 99 AS Seconds_Behind_Master_is_less_than_100;
+--enable_query_log
+
+connection master;
+reap;
+drop table t1;
+source include/rpl_end.inc;

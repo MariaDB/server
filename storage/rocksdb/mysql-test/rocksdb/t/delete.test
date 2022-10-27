@@ -1,0 +1,101 @@
+--source include/have_rocksdb.inc
+
+# 
+# Basic DELETE statements.
+# DELETE LOW_PRIORITY is covered in delete_low_prio test
+# DELETE QUICK is covered in delete_quick test (syntax only)
+# DELETE IGNORE is covered in delete_ignore test
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2;
+--enable_warnings
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (10000,'foobar'),(1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) SELECT a, b FROM t1;
+
+# Single-table DELETE
+
+DELETE FROM t1 WHERE b IN ('c');
+--sorted_result
+SELECT a,b FROM t1;
+
+DELETE FROM t1 WHERE a < 0 OR b = 'a';
+--sorted_result
+SELECT a,b FROM t1;
+
+# ORDER BY and LIMIT
+DELETE FROM t1 WHERE a <= 4 ORDER BY b DESC LIMIT 1;
+--sorted_result
+SELECT a,b FROM t1;
+
+# Multi-table DELETE
+
+CREATE TABLE t2 (c CHAR(8), d INT, pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t2 (c,d) SELECT b, a FROM t1;
+--sorted_result
+SELECT c,d FROM t2;
+
+DELETE t2.* FROM t1, t2 WHERE c < b AND a + d != 1;
+--sorted_result
+SELECT a,b FROM t1;
+--sorted_result
+SELECT c,d FROM t2;
+
+DELETE FROM t2, t1.* USING t2, t1 WHERE c = 'foobar' and b = c;
+--sorted_result
+SELECT a,b FROM t1;
+--sorted_result
+SELECT c,d FROM t2;
+
+DELETE FROM t1;
+--sorted_result
+SELECT a,b FROM t1;
+
+DROP TABLE t1, t2;
+
+
+# 
+# Transactional DELETE
+#
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(6,'f'),(7,'g'),(8,'h'),(10000,'foobar');
+INSERT INTO t1 (a,b) SELECT a, b FROM t1;
+
+BEGIN;
+DELETE FROM t1 WHERE b IN ('c');
+--sorted_result
+SELECT a,b FROM t1;
+DELETE FROM t1 WHERE a < 0 OR b = 'a';
+COMMIT;
+--sorted_result
+SELECT a,b FROM t1;
+
+# Savepoints
+
+BEGIN;
+DELETE FROM t1 WHERE a <= 4 ORDER BY b DESC LIMIT 1;
+SAVEPOINT spt1;
+
+DELETE FROM t1;
+RELEASE SAVEPOINT spt1;
+ROLLBACK;
+--sorted_result
+SELECT a,b FROM t1;
+
+BEGIN;
+DELETE FROM t1 WHERE a <= 4 ORDER BY b DESC LIMIT 1;
+SAVEPOINT spt1;
+DELETE FROM t1;
+INSERT INTO t1 (a,b) VALUES (1,'a');
+--error ER_ROLLBACK_TO_SAVEPOINT
+ROLLBACK TO SAVEPOINT spt1;
+--error ER_ROLLBACK_ONLY
+COMMIT;
+--sorted_result
+SELECT a,b FROM t1;
+
+DROP TABLE t1;
+

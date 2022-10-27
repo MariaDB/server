@@ -1,0 +1,75 @@
+--disable_query_log
+call mtr.add_suppression("Failed to drop column family");
+call mtr.add_suppression("Column family '[a-z_]+' not found");
+--enable_query_log
+
+--source include/have_rocksdb.inc
+
+# should fail for not existing CF
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET @@global.ROCKSDB_DELETE_CF = 'nonexistent_cf'
+
+# should fail for default system cf
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET @@global.ROCKSDB_DELETE_CF = '__system__'
+
+# should fail for default cf
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET @@global.ROCKSDB_DELETE_CF = 'default'
+
+--disable_parsing
+# should succeed for not existing CF
+--eval SET @@global.ROCKSDB_DELETE_CF = 'nonexistent_cf'
+
+# should fail for default system cf
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET @@global.ROCKSDB_DELETE_CF = '__system__'
+
+alter table mysql.slave_worker_info engine = MyISAM;
+alter table mysql.slave_relay_log_info engine = MyISAM;
+alter table mysql.slave_gtid_info engine = MyISAM;
+alter table mysql.slave_master_info engine = MyISAM;
+
+select count(*) from information_schema.rocksdb_ddl where cf = 'default';
+
+# should fail for default cf
+--error ER_GET_ERRMSG
+--eval SET @@global.ROCKSDB_DELETE_CF = 'default'
+
+CREATE TABLE cf_deletion_test_table1 (
+  id1 int(10) unsigned NOT NULL DEFAULT '0',
+  id2 int(10) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (id1) COMMENT 'cf_primary_key',
+  KEY `sec_key` (id2) COMMENT 'cf_secondary_key'
+) ENGINE=ROCKSDB;
+
+# should fail, CFs are still in use
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET @@global.ROCKSDB_DELETE_CF = 'cf_primary_key'
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET @@global.ROCKSDB_DELETE_CF = 'cf_secondary_key'
+
+CREATE TABLE cf_deletion_test_table2 (
+  id1 int(10) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (id1) COMMENT 'cf_primary_key'
+) ENGINE=ROCKSDB;
+
+DROP TABLE cf_deletion_test_table1;
+
+# should fail, still used by second table
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET @@global.ROCKSDB_DELETE_CF = 'cf_primary_key'
+
+# should succeed, no one is using it anymore
+--eval SET @@global.ROCKSDB_DELETE_CF = 'cf_secondary_key'
+
+DROP TABLE cf_deletion_test_table2;
+
+# should succeed now
+--eval SET @@global.ROCKSDB_DELETE_CF = 'cf_primary_key'
+
+alter table mysql.slave_worker_info engine = ROCKSDB;
+alter table mysql.slave_relay_log_info engine = ROCKSDB;
+alter table mysql.slave_gtid_info engine = ROCKSDB;
+alter table mysql.slave_master_info engine = ROCKSDB;
+--enable_parsing

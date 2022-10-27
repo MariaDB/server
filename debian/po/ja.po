@@ -1,0 +1,186 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: mysql-dfsg-5.1 5.1.37-1\n"
+"Report-Msgid-Bugs-To: mariadb-10.4@packages.debian.org\n"
+"POT-Creation-Date: 2016-10-08 01:26+0300\n"
+"PO-Revision-Date: 2009-09-01 08:25+0900\n"
+"Last-Translator: Hideki Yamane (Debian-JP) <henrich@debian.or.jp>\n"
+"Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.4.templates:2001
+msgid "The old data directory will be saved at new location"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.4.templates:2001
+msgid ""
+"A file named /var/lib/mysql/debian-*.flag exists on this system. The number "
+"indicates a database binary format version that cannot automatically be "
+"upgraded (or downgraded)."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.4.templates:2001
+msgid ""
+"Therefore the previous data directory will be renamed to /var/lib/mysql-* "
+"and a new data directory will be initialized at /var/lib/mysql."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.4.templates:2001
+msgid ""
+"Please manually export/import your data (e.g. with mysqldump) if needed."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.4.templates:3001
+msgid "Important note for NIS/YP users"
+msgstr "NIS/YP ユーザへの重要な注意"
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.4.templates:3001
+msgid ""
+"Using MariaDB under NIS/YP requires a mysql user account to be added on the "
+"local system with:"
+msgstr ""
+"NIS/YP 配下で MariaDB を使うにはローカルのシステムに mysql のユーザアカウント"
+"を追加するのが必要です。"
+
+#. Type: note
+#. Description
+#: ../mariadb-server-10.4.templates:3001
+msgid ""
+"You should also check the permissions and ownership of the /var/lib/mysql "
+"directory:"
+msgstr "/var/lib/mysql の所有者権限をチェックする必要もあります。"
+
+#. Type: boolean
+#. Description
+#: ../mariadb-server-10.4.templates:4001
+msgid "Remove all MariaDB databases?"
+msgstr "すべての MariaDB データベースを削除しますか?"
+
+#. Type: boolean
+#. Description
+#: ../mariadb-server-10.4.templates:4001
+msgid ""
+"The /var/lib/mysql directory which contains the MariaDB databases is about "
+"to be removed."
+msgstr ""
+"MariaDB データベースを含んでいるディレクトリ /var/lib/mysql を削除しようとし"
+"ています。"
+
+#. Type: boolean
+#. Description
+#: ../mariadb-server-10.4.templates:4001
+msgid ""
+"If you're removing the MariaDB package in order to later install a more "
+"recent version or if a different mariadb-server package is already using it, "
+"the data should be kept."
+msgstr ""
+"後でより新しいバージョンのものをインストールしようとするために MariaDB パッ"
+"ケージを削除しようとしている、あるいは別の mariadb-server パッケージを既に"
+"使っている場合、データは保持する必要があります。"
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:5001
+msgid "New password for the MariaDB \"root\" user:"
+msgstr "MariaDB の \"root\" ユーザに対する新しいパスワード:"
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:5001
+msgid ""
+"While not mandatory, it is highly recommended that you set a password for "
+"the MariaDB administrative \"root\" user."
+msgstr ""
+"強制ではありませんが、MariaDB を管理する \"root\" ユーザのパスワードを設定す"
+"ることを強くお勧めします。"
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:5001
+msgid "If this field is left blank, the password will not be changed."
+msgstr "この値を空のままにしておいた場合は、パスワードは変更されません。"
+
+#. Type: password
+#. Description
+#: ../mariadb-server-10.4.templates:6001
+msgid "Repeat password for the MariaDB \"root\" user:"
+msgstr "MariaDB の \"root\" ユーザに対する新しいパスワード:"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+msgid "Unable to set password for the MariaDB \"root\" user"
+msgstr "MariaDB の \"root\" ユーザのパスワードを設定できません"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+msgid ""
+"An error occurred while setting the password for the MariaDB administrative "
+"user. This may have happened because the account already has a password, or "
+"because of a communication problem with the MariaDB server."
+msgstr ""
+"MariaDB の管理者ユーザに対してパスワードを設定しようとした際、エラーが発生し"
+"ました。これは既に管理者ユーザにパスワードが設定されていたか、MariaDB サーバ"
+"との接続に問題があったためだと思われます。"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+msgid "You should check the account's password after the package installation."
+msgstr ""
+"パッケージのインストール後、アカウントのパスワードを確認する必要があります。"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:7001
+#, fuzzy
+#| msgid ""
+#| "Please read the /usr/share/doc/mariadb-server-10.4/README.Debian file for "
+#| "more information."
+msgid ""
+"Please read the /usr/share/doc/mariadb-server-10.4/README.Debian file for "
+"more information."
+msgstr ""
+"詳細は /usr/share/doc/mariadb-server-10.4/README.Debian を参照してください。"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:8001
+msgid "Password input error"
+msgstr "パスワード入力エラー"
+
+#. Type: error
+#. Description
+#: ../mariadb-server-10.4.templates:8001
+msgid "The two passwords you entered were not the same. Please try again."
+msgstr "入力された二つのパスワードが一致しません。再入力してください。"

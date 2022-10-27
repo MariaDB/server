@@ -1,0 +1,55 @@
+# Copyright(C) 2013 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS diaries;
+--enable_warnings
+
+FLUSH STATUS;
+
+SET NAMES UTF8;
+CREATE TABLE diaries (
+  id INT UNSIGNED NOT NULL,
+  year INT UNSIGNED,
+  month INT UNSIGNED,
+  day INT UNSIGNED,
+  title VARCHAR(255),
+  content TEXT,
+  FULLTEXT INDEX(content),
+  KEY(month),
+  KEY(day)
+) DEFAULT CHARSET UTF8;
+
+INSERT INTO diaries VALUES(1, 2011, 11, 9, "Hello", "今日からはじめました。");
+INSERT INTO diaries VALUES(2, 2011, 11, 10, "天気", "明日の富士山の天気について");
+INSERT INTO diaries VALUES(3, 2011, 11, 11, "富士山", "今日も天気がよくてきれいに見える。");
+INSERT INTO diaries VALUES(4, 2011, 11, 12, "帰り道", "今日は天気がよくてよかった。");
+INSERT INTO diaries VALUES(5, 2011, 11, 13, "はれ", "天気がよいのは今日までみたい。");
+INSERT INTO diaries VALUES(6, 2011, 12, 1, "久しぶり", "天気が悪いからずっと留守番。");
+INSERT INTO diaries VALUES(7, 2011, 12, 2, "初雪", "今日の天気は雪！");
+
+SELECT * FROM diaries
+         WHERE MATCH(content) AGAINST("今日" IN BOOLEAN MODE) AND
+               day >= 10
+         ORDER BY day LIMIT 1,2;
+
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+
+DROP TABLE diaries;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

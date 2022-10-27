@@ -1,0 +1,38 @@
+--source include/master-slave.inc
+
+create user u1;
+create role r1;
+--echo #
+--echo # On master SHOW GRANTS work both for the user and the role:
+show grants for u1;
+show grants for r1;
+--echo #
+--sync_slave_with_master
+--echo #
+--echo # The role has been replicated,
+--echo # it's visible in mysql.user and I_S:
+--echo #
+--sorted_result
+select user, host, is_role from mysql.user where user in ('u1', 'r1');
+select * from information_schema.applicable_roles;
+--echo #
+--echo # Check show grants for the new user.
+show grants for u1;
+--echo #
+--echo # Check show grants for the new role.
+show grants for r1;
+--echo #
+--echo # Check if flushing privileges preserves the state.
+flush privileges;
+show grants for r1;
+--echo #
+--echo # Check SHOW GRANTS after setting the role.
+set role r1;
+show grants;
+show grants for r1;
+
+connection master;
+drop role r1;
+drop user u1;
+--sync_slave_with_master
+--source include/rpl_end.inc

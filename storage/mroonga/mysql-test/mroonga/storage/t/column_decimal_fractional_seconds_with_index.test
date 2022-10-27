@@ -1,0 +1,40 @@
+# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS diaries;
+--enable_warnings
+
+CREATE TABLE diaries (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title TEXT,
+  temperature DECIMAL(6, 3),
+  KEY (temperature)
+) DEFAULT CHARSET UTF8;
+
+INSERT INTO diaries (title, temperature) VALUES ("clear day", 21.281);
+INSERT INTO diaries (title, temperature) VALUES ("rainy day", 14.213);
+INSERT INTO diaries (title, temperature) VALUES ("cloudy day", 17.821);
+
+SELECT * FROM diaries;
+
+SELECT * FROM diaries WHERE temperature BETWEEN "14.213" AND "17.821";
+
+DROP TABLE diaries;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

@@ -1,0 +1,18 @@
+RESET MASTER;
+call mtr.add_suppression("Error in Log_event::read_log_event*");
+call mtr.add_suppression("Replication event checksum verification failed while reading from a log file*");
+DROP TABLE /*! IF EXISTS*/ t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+CREATE TABLE `t1` (
+`col_int` int,
+pk integer auto_increment,
+`col_char_12_key` char(12),
+`col_int_key` int,
+`col_char_12` char(12),
+primary key (pk),
+key (`col_char_12_key` ),
+key (`col_int_key` )) ENGINE=InnoDB;
+INSERT /*! IGNORE */ INTO t1 VALUES  (183173120, NULL, 'abcd', 1, 'efghijk'),  (1, NULL, 'lmno', 2, 'p');
+ALTER TABLE `t1` ENABLE KEYS;
+DROP TABLE t1;

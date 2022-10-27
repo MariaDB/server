@@ -1,0 +1,221 @@
+SET NAMES utf8;
+#
+# Testing errors
+#
+CREATE TABLE t1
+(
+ID INT NOT NULL
+) Engine=CONNECT TABLE_TYPE=CSV FILE_NAME='nonexistent.txt';
+SELECT * FROM t1;
+ID
+Warnings:
+Warning	1105	Open(rb) error 2 on DATADIR/test/nonexistent.txt: No such file or directory
+DROP TABLE t1;
+#
+# Testing examples from the manual
+#
+CREATE TABLE t1
+(
+name CHAR(12) NOT NULL,
+birth DATE NOT NULL DATE_FORMAT='DD/MM/YY',
+children SMALLINT(2) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='people.csv'
+  HEADER=1 SEP_CHAR=';' QUOTED=1;
+SELECT * FROM t1;
+name	birth	children
+Archibald	2001-05-17	3
+Nabucho	2003-08-12	2
+INSERT INTO t1 VALUES ('RONALD','1980-02-26',4);
+SELECT * FROM t1;
+name	birth	children
+Archibald	2001-05-17	3
+Nabucho	2003-08-12	2
+RONALD	1980-02-26	4
+DROP TABLE t1;
+SELECT REPLACE(LOAD_FILE('DATADIR/test/people.csv'),'\r\n','\n');;
+REPLACE(LOAD_FILE('DATADIR/test/people.csv'),'\r\n','\n')
+Name;birth;children
+"Archibald";17/05/01;3
+"Nabucho";12/08/03;2
+"RONALD";26/02/80;4
+
+#
+# Testing READONLY tables
+#
+CREATE TABLE t1
+(
+name CHAR(12) NOT NULL,
+birth DATE NOT NULL DATE_FORMAT='DD/MM/YY',
+children SMALLINT(2) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='people.csv'
+  HEADER=1 SEP_CHAR=';' QUOTED=1 READONLY=yes;
+INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
+ERROR HY000: Table 't1' is read only
+UPDATE t1 SET children=6 WHERE name='BILL';
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+DELETE FROM t1 WHERE name='BILL';
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+TRUNCATE TABLE t1;
+ERROR HY000: Table 't1' is read only
+SELECT * FROM t1;
+name	birth	children
+Archibald	2001-05-17	3
+Nabucho	2003-08-12	2
+RONALD	1980-02-26	4
+ALTER TABLE t1 READONLY=no;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `name` char(12) NOT NULL,
+  `birth` date NOT NULL `DATE_FORMAT`='DD/MM/YY',
+  `children` smallint(2) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=CSV `FILE_NAME`='people.csv' `HEADER`=1 `SEP_CHAR`=';' `QUOTED`=1 `READONLY`=no
+INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
+SELECT * FROM t1;
+name	birth	children
+Archibald	2001-05-17	3
+Nabucho	2003-08-12	2
+RONALD	1980-02-26	4
+BILL	1973-06-30	5
+ALTER TABLE t1 READONLY=1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `name` char(12) NOT NULL,
+  `birth` date NOT NULL `DATE_FORMAT`='DD/MM/YY',
+  `children` smallint(2) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=CSV `FILE_NAME`='people.csv' `HEADER`=1 `SEP_CHAR`=';' `QUOTED`=1 `READONLY`=1
+INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
+ERROR HY000: Table 't1' is read only
+SELECT * FROM t1;
+name	birth	children
+Archibald	2001-05-17	3
+Nabucho	2003-08-12	2
+RONALD	1980-02-26	4
+BILL	1973-06-30	5
+DROP TABLE t1;
+#
+# Testing that the underlying file is created
+#
+CREATE TABLE t1
+(
+c1 CHAR(12) NOT NULL,
+c2 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='tmp.csv'
+  HEADER=1 SEP_CHAR=',' QUOTED=1;
+INSERT INTO t1 VALUES (10,10),(20,20),(300,300),(4000,4000), ('a b','c d');
+SELECT * FROM t1;
+c1	c2
+10	10
+20	20
+300	300
+4000	4000
+a b	c d
+DROP TABLE t1;
+SELECT REPLACE(LOAD_FILE('DATADIR/test/tmp.csv'),'\r\n','\n');;
+REPLACE(LOAD_FILE('DATADIR/test/tmp.csv'),'\r\n','\n')
+"c1","c2"
+"10","10"
+"20","20"
+"300","300"
+"4000","4000"
+"a b","c d"
+
+#
+# Creating a CSV table from a MyISAM table
+#
+CREATE TABLE t1 (a VARCHAR(10) NOT NULL, b INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('test1',1), ('test2',2);
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t2.csv'
+  AS SELECT * FROM t1;
+SELECT * FROM t2;
+a	b
+test1	1
+test2	2
+DROP TABLE t2;
+DROP TABLE t1;
+SELECT REPLACE(LOAD_FILE('DATADIR/test/t2.csv'),'\r\n','\n');;
+REPLACE(LOAD_FILE('DATADIR/test/t2.csv'),'\r\n','\n')
+test1,1
+test2,2
+
+#
+# Testing international data
+#
+CREATE TABLE t1
+(
+c1 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv'
+  CHARSET=utf8;
+INSERT INTO t1 VALUES ('á');
+SELECT * FROM t1;
+c1
+á
+DROP TABLE t1;
+SELECT HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'));;
+HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'))
+C3A10A
+CREATE TABLE t1
+(
+c1 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv'
+  CHARSET=utf8 DATA_CHARSET=latin1;
+INSERT INTO t1 VALUES ('á');
+SELECT * FROM t1;
+c1
+á
+DROP TABLE t1;
+SELECT HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'));;
+HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'))
+E10A
+CREATE TABLE t1
+(
+c1 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv';
+INSERT INTO t1 VALUES ('á');
+SELECT * FROM t1;
+c1
+á
+DROP TABLE t1;
+SELECT HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'));;
+HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'))
+E10A
+CREATE TABLE t1
+(
+c1 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv'
+  CHARSET=latin1;
+INSERT INTO t1 VALUES ('á');
+SELECT * FROM t1;
+c1
+á
+DROP TABLE t1;
+SELECT HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'));;
+HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'))
+E10A
+CREATE TABLE t1
+(
+c1 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv'
+  CHARSET=latin1 DATA_CHARSET=utf8;
+INSERT INTO t1 VALUES ('á');
+SELECT * FROM t1;
+c1
+á
+DROP TABLE t1;
+SELECT HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'));;
+HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'))
+C3A10A
+CREATE TABLE t1
+(
+c1 CHAR(12) CHARACTER SET latin1 NOT NULL,
+c2 CHAR(12) CHARACTER SET utf8 NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv';
+INSERT INTO t1 VALUES ('á','á');
+SELECT * FROM t1;
+c1	c2
+á	á
+DROP TABLE t1;
+SELECT HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'));;
+HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n'))
+E12CC3A10A

@@ -1,0 +1,44 @@
+--echo #
+--echo # Validate that deadlock errors don't occur with a high level of concurrency
+--echo #
+
+--source include/have_rocksdb.inc
+--source include/big_test.inc
+
+--echo # Disable for valgrind because this takes too long
+--source include/not_valgrind.inc
+
+--disable_warnings
+DROP DATABASE IF EXISTS mysqlslap;
+--enable_warnings
+
+CREATE DATABASE mysqlslap;
+USE mysqlslap;
+CREATE TABLE t1(id1 BIGINT, id2 BIGINT, count INT, PRIMARY KEY(id1, id2), KEY(id2)) ENGINE=rocksdb;
+CREATE TABLE t1rev(id1 BIGINT, id2 BIGINT, count INT, PRIMARY KEY(id1, id2) COMMENT "rev:cf2", KEY(id2) COMMENT "rev:cf2") ENGINE=rocksdb;
+
+SET @save = @@global.rocksdb_lock_wait_timeout;
+SET GLOBAL rocksdb_lock_wait_timeout = 60;
+
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=50000 --query="INSERT INTO t1 VALUES(1, 1, 1) ON DUPLICATE KEY UPDATE count=count+1"
+SELECT count from t1;
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=50000 --query="UPDATE t1 SET count=count+1 WHERE id1=1 AND id2=1"
+SELECT count from t1;
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=50000 --query="UPDATE t1 SET count=count+1 WHERE id2=1"
+SELECT count from t1;
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=50000 --query="UPDATE t1 SET count=count+1"
+SELECT count from t1;
+
+# Same tests on a table with reverse orderings
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=50000 --query="INSERT INTO t1rev VALUES(1, 1, 1) ON DUPLICATE KEY UPDATE count=count+1"
+SELECT count from t1rev;
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=50000 --query="UPDATE t1rev SET count=count+1 WHERE id1=1 AND id2=1"
+SELECT count from t1rev;
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=50000 --query="UPDATE t1rev SET count=count+1 WHERE id2=1"
+SELECT count from t1rev;
+--exec $MYSQL_SLAP --silent --concurrency=50 --number-of-queries=50000 --query="UPDATE t1rev SET count=count+1"
+SELECT count from t1rev;
+
+SET GLOBAL rocksdb_lock_wait_timeout = @save;
+
+DROP DATABASE mysqlslap;

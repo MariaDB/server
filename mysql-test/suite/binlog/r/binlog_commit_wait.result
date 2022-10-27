@@ -1,0 +1,189 @@
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+SET @old_count= @@GLOBAL.binlog_commit_wait_count;
+SET GLOBAL binlog_commit_wait_count= 3;
+SET @old_usec= @@GLOBAL.binlog_commit_wait_usec;
+SET GLOBAL binlog_commit_wait_usec= 20000000;
+connect con1,localhost,root,,test;
+connect con2,localhost,root,,test;
+connect con3,localhost,root,,test;
+connection default;
+SELECT variable_value INTO @group_commits FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commits';
+SELECT variable_value INTO @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value INTO @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value INTO @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+connection default;
+SET @a= current_timestamp();
+connection con1;
+BEGIN;
+INSERT INTO t1 VALUES (1,0);
+COMMIT;
+connection con2;
+INSERT INTO t1 VALUES (1,1);
+connection con1;
+connection default;
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"))
+Ok
+SELECT variable_value - @group_commits FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commits';
+variable_value - @group_commits
+1
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+variable_value - @group_commit_trigger_count
+0
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+variable_value - @group_commit_trigger_timeout
+0
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+variable_value - @group_commit_trigger_lock_wait
+1
+connection con2;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+connection default;
+SET @a= current_timestamp();
+connection con1;
+INSERT INTO t1 VALUES (2,0);
+connection con2;
+INSERT INTO t1 VALUES (3,0);
+connection con3;
+INSERT INTO t1 VALUES (4,0);
+connection con1;
+connection con2;
+connection default;
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"))
+Ok
+SELECT variable_value - @group_commits FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commits';
+variable_value - @group_commits
+2
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+variable_value - @group_commit_trigger_count
+1
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+variable_value - @group_commit_trigger_timeout
+0
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+variable_value - @group_commit_trigger_lock_wait
+1
+connection default;
+SET @a= current_timestamp();
+connection con1;
+INSERT INTO t1 VALUES (6,0);
+connection con2;
+BEGIN;
+UPDATE t1 SET b=b+1 WHERE a=1;
+connection con3;
+UPDATE t1 SET b=b+10 WHERE a=1;
+connection con2;
+SELECT SLEEP(0.25);
+SLEEP(0.25)
+0
+UPDATE t1 SET b=b+1 WHERE a=3;
+COMMIT;
+connection con1;
+connection default;
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"))
+Ok
+SELECT variable_value - @group_commits FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commits';
+variable_value - @group_commits
+3
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+variable_value - @group_commit_trigger_count
+1
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+variable_value - @group_commit_trigger_timeout
+0
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+variable_value - @group_commit_trigger_lock_wait
+2
+connection default;
+SET @a= current_timestamp();
+connection con1;
+INSERT INTO t1 VALUES (7,0);
+connection con2;
+INSERT INTO t1 VALUES (8,0);
+connection con3;
+connection default;
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"))
+Ok
+SELECT variable_value - @group_commits FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commits';
+variable_value - @group_commits
+4
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+variable_value - @group_commit_trigger_count
+2
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+variable_value - @group_commit_trigger_timeout
+0
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+variable_value - @group_commit_trigger_lock_wait
+2
+connection default;
+SET @a= current_timestamp();
+SET GLOBAL binlog_commit_wait_usec= 5*1000*1000;
+connection con1;
+INSERT INTO t1 VALUES (9,0);
+connection default;
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 4, CONCAT("Error: too little time elapsed: ", @b, " seconds < 4"),
+IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20")));
+IF(@b < 4, CONCAT("Error: too little time elapsed: ", @b, " seconds < 4"),
+IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20")))
+Ok
+SELECT variable_value - @group_commits FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commits';
+variable_value - @group_commits
+5
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_count';
+variable_value - @group_commit_trigger_count
+2
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+variable_value - @group_commit_trigger_timeout
+1
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+variable_value - @group_commit_trigger_lock_wait
+2
+connection default;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	11
+2	0
+3	1
+4	0
+6	0
+7	0
+8	0
+9	0
+connection default;
+DROP TABLE t1;
+SET GLOBAL binlog_commit_wait_count= @old_count;
+SET GLOBAL binlog_commit_wait_usec= @old_usec;

@@ -1,0 +1,61 @@
+source include/federated.inc;
+source have_federatedx.inc;
+
+connection slave;
+
+CREATE TABLE t1 (
+    `id` int(20) primary key,
+    `group` int NOT NULL default 1,
+    `a\\b` int NOT NULL default 2,
+    `a\\` int unsigned,
+    `name` varchar(32) default 'name')
+  DEFAULT CHARSET=latin1;
+
+connection master;
+
+evalp CREATE TABLE t1 ENGINE=FEDERATED CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (id, name) VALUES (1, 'foo');
+INSERT INTO t1 (id, name) VALUES (2, 'fee');
+--sorted_result
+SELECT * FROM t1;
+DROP TABLE t1;
+
+connection slave;
+--sorted_result
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11311 Create federated table does not work as expected
+--echo #
+create table t1 (
+  a bigint(20) not null auto_increment,
+  b bigint(20) not null,
+  c tinyint(4) not null,
+  d varchar(4096) not null,
+  primary key (a),
+  key (b,c,d(255))
+);
+show create table t1;
+
+connection master;
+evalp create table t1 engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+show create table t1;
+drop table t1;
+
+connection slave;
+drop table t1;
+
+--echo #
+--echo # MDEV-17227 Server crash in TABLE_SHARE::init_from_sql_statement_string upon table discovery with non-existent database
+--echo #
+connection master;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+evalp create table t1 engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+
+source include/federated_cleanup.inc;
+

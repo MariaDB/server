@@ -1,0 +1,15 @@
+RESET MASTER;
+call mtr.add_suppression("Error in Log_event::read_log_event*");
+call mtr.add_suppression("Replication event checksum verification failed while reading from a log file*");
+DROP TABLE IF EXISTS t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+CREATE TABLE t1 (c1 CHAR(255), c2 CHAR(255), c3 CHAR(255), c4 CHAR(255), c5 CHAR(255));
+INSERT INTO t1 VALUES (repeat('a', 255), repeat('a', 255),repeat('a', 255),repeat('a', 255),repeat('a', 255));
+INSERT INTO t1 VALUES (repeat('a', 255), repeat('a', 255),repeat('a', 255),repeat('a', 255),repeat('a', 255));
+UPDATE t1 SET c1=repeat('b',255);
+INSERT INTO t1 VALUES (repeat('a', 255), repeat('a', 255),repeat('a', 255),repeat('a', 255),repeat('a', 255));
+SHOW BINLOG EVENTS FROM POS;
+ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Invalid pos specified. Requested from pos:POS is greater than actual file size:MAX_POS
+
+DROP TABLE t1;

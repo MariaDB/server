@@ -1,0 +1,63 @@
+SELECT PLUGIN_NAME, PLUGIN_VERSION, PLUGIN_STATUS, PLUGIN_TYPE, PLUGIN_AUTHOR, PLUGIN_DESCRIPTION, PLUGIN_LICENSE, LOAD_OPTION, PLUGIN_MATURITY FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME='user_variables';
+PLUGIN_NAME	user_variables
+PLUGIN_VERSION	1.0
+PLUGIN_STATUS	ACTIVE
+PLUGIN_TYPE	INFORMATION SCHEMA
+PLUGIN_AUTHOR	Sergey Vojtovich
+PLUGIN_DESCRIPTION	User-defined variables
+PLUGIN_LICENSE	GPL
+LOAD_OPTION	ON
+PLUGIN_MATURITY	Stable
+SHOW CREATE TABLE INFORMATION_SCHEMA.USER_VARIABLES;
+Table	Create Table
+user_variables	CREATE TEMPORARY TABLE `user_variables` (
+  `VARIABLE_NAME` varchar(64) NOT NULL DEFAULT '',
+  `VARIABLE_VALUE` varchar(2048) DEFAULT NULL,
+  `VARIABLE_TYPE` varchar(64) NOT NULL DEFAULT '',
+  `CHARACTER_SET_NAME` varchar(32) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8
+FLUSH USER_VARIABLES;
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.USER_VARIABLES;
+COUNT(*)
+0
+SET @int_var=1;
+SET @uint_var=CAST(2 AS UNSIGNED INTEGER);
+SET @str_var='Value of string variable';
+SET @utf8str_var=_utf8 'UTF8 string value';
+SET @double_var=CAST(1 AS DOUBLE);
+SET @dec_var=CAST(1 AS DECIMAL(20, 10));
+SET @time_var=CAST('2016-02-25' AS DATE);
+SET @' @#^%'='Value of variable with odd name';
+SET @''='Value of variable with empty name';
+SET @null_var=NULL;
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.USER_VARIABLES;
+COUNT(*)
+10
+SELECT * FROM INFORMATION_SCHEMA.USER_VARIABLES ORDER BY VARIABLE_NAME;
+VARIABLE_NAME	VARIABLE_VALUE	VARIABLE_TYPE	CHARACTER_SET_NAME
+	Value of variable with empty name	VARCHAR	latin1
+ @#^%	Value of variable with odd name	VARCHAR	latin1
+dec_var	1.0000000000	DECIMAL	latin1
+double_var	1	DOUBLE	latin1
+int_var	1	INT	latin1
+null_var	NULL	VARCHAR	binary
+str_var	Value of string variable	VARCHAR	latin1
+time_var	2016-02-25	VARCHAR	latin1
+uint_var	2	INT UNSIGNED	latin1
+utf8str_var	UTF8 string value	VARCHAR	utf8
+SHOW USER_VARIABLES;
+Variable_name	Value
+	Value of variable with empty name
+ @#^%	Value of variable with odd name
+dec_var	1.0000000000
+double_var	1
+int_var	1
+null_var	NULL
+str_var	Value of string variable
+time_var	2016-02-25
+uint_var	2
+utf8str_var	UTF8 string value
+FLUSH USER_VARIABLES;
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.USER_VARIABLES;
+COUNT(*)
+0

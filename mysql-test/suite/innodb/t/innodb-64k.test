@@ -1,0 +1,649 @@
+--source include/no_valgrind_without_big.inc
+# Tests for setting innodb-page-size=64k;
+--source include/have_innodb.inc
+--source include/have_innodb_64k.inc
+--source include/have_sequence.inc
+
+call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo # Test 1) Show the page size from Information Schema
+SELECT variable_value FROM information_schema.global_status
+       WHERE LOWER(variable_name) = 'innodb_page_size';
+
+--echo # Test 4) The maximum row size is dependent upon the page size.
+
+SET SESSION innodb_strict_mode = ON;
+SELECT @@innodb_strict_mode;
+
+# Redundant table
+--error ER_TOO_BIG_ROWSIZE
+CREATE TABLE tab5(col1 CHAR (255), col2 CHAR (255), col3 CHAR(255),col4 CHAR(255), col5 CHAR(255),
+col6   CHAR(255), col7 CHAR(255),  col8 CHAR(255), col9 CHAR(255),col10 CHAR(255), col11  CHAR(255),
+col12 CHAR(255), col13 CHAR(255),col14 CHAR(255),col15 CHAR(255),col16  CHAR(255), col17 CHAR(255),
+col18 CHAR(255),col19 CHAR(255),col20 CHAR(255),col21 CHAR(255),col22  CHAR(255), col23 CHAR(255),
+col24 CHAR(255),col25 CHAR(255),col26 CHAR(255),col27 CHAR(255),col28  CHAR(255), col29 CHAR(255),
+col30 CHAR(255),col31 CHAR(255),col32 CHAR(255),col33 CHAR(255),col34  CHAR(255), col35 CHAR(255),
+col36 CHAR(255),col37 CHAR(255),col38 CHAR(255),col39 CHAR(255),col40  CHAR(255), col41 CHAR(255),
+col42 CHAR(255),col43 CHAR(255),col44 CHAR(255),col45 CHAR(255),col46  CHAR(255), col47 CHAR(255),
+col48 CHAR(255),col49 CHAR(255),col50 CHAR(255),col51 CHAR(255),col52  CHAR(255), col53 CHAR(255),
+col54 CHAR(255),col55 CHAR(255),col56 CHAR(255),col57 CHAR(255),col58  CHAR(255), col59 CHAR(255),
+col60 CHAR(255),col61 CHAR(255),col62 CHAR(255),col63 CHAR(255),col64  CHAR(255), col65  CHAR(255))
+ENGINE = innodb ROW_FORMAT=REDUNDANT;
+show warnings;
+
+# Compact table, 32701 bytes
+
+CREATE TABLE t1 (
+c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
+c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
+c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
+c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
+c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
+c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
+c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
+c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(200),
+c41 char(200), c42 char(200), c43 char(200), c44 char(200), c45 char(200),
+c46 char(200), c47 char(200), c48 char(200), c49 char(200), c50 char(200),
+c51 char(200), c52 char(200), c53 char(200), c54 char(200), c55 char(200),
+c56 char(200), c57 char(200), c58 char(200), c59 char(200), c60 char(200),
+c61 char(200), c62 char(200), c63 char(200), c64 char(200), c65 char(200),
+c66 char(200), c67 char(200), c68 char(200), c69 char(200), c70 char(200),
+c71 char(200), c72 char(200), c73 char(200), c74 char(200), c75 char(200),
+c76 char(200), c77 char(200), c78 char(200), c79 char(200), c80 char(200),
+c101 char(200), c102 char(200), c103 char(200), c104 char(200), c105 char(200),
+c106 char(200), c107 char(200), c108 char(200), c109 char(200), c110 char(200),
+c111 char(200), c112 char(200), c113 char(200), c114 char(200), c115 char(200),
+c116 char(200), c117 char(200), c118 char(200), c119 char(200), c120 char(200),
+c121 char(200), c122 char(200), c123 char(200), c124 char(200), c125 char(200),
+c126 char(200), c127 char(200), c128 char(200), c129 char(200), c130 char(200),
+c131 char(200), c132 char(200), c133 char(200), c134 char(200), c135 char(200),
+c136 char(200), c137 char(200), c138 char(200), c139 char(200), c140 char(200),
+c141 char(200), c142 char(200), c143 char(200), c144 char(200), c145 char(200),
+c146 char(200), c147 char(200), c148 char(200), c149 char(200), c150 char(200),
+c151 char(200), c152 char(200), c153 char(200), c154 char(200), c155 char(200),
+c156 char(200), c157 char(200), c158 char(200), c159 char(200), c160 char(200),
+c161 char(200), c162 char(200), c163 char(200), c164 char(200), c165 char(200),
+c166 char(200), c167 char(200), c168 char(200), c169 char(200), c170 char(200),
+c171 char(200), c172 char(200), c173 char(200), c174 char(200), c175 char(200),
+c176 char(200), c177 char(200), c178 char(200), c179 char(200), c180 char(200),
+c190 char(200), c191 char(200), c192 char(100),
+c81 char(156)
+) ROW_FORMAT=compact;
+
+DROP TABLE t1;
+
+--replace_regex /> [0-9]*/> max_row_size/
+--error ER_TOO_BIG_ROWSIZE
+CREATE TABLE t1 (
+c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
+c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
+c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
+c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
+c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
+c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
+c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
+c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(200),
+c41 char(200), c42 char(200), c43 char(200), c44 char(200), c45 char(200),
+c46 char(200), c47 char(200), c48 char(200), c49 char(200), c50 char(200),
+c51 char(200), c52 char(200), c53 char(200), c54 char(200), c55 char(200),
+c56 char(200), c57 char(200), c58 char(200), c59 char(200), c60 char(200),
+c61 char(200), c62 char(200), c63 char(200), c64 char(200), c65 char(200),
+c66 char(200), c67 char(200), c68 char(200), c69 char(200), c70 char(200),
+c71 char(200), c72 char(200), c73 char(200), c74 char(200), c75 char(200),
+c76 char(200), c77 char(200), c78 char(200), c79 char(200), c80 char(200),
+c101 char(200), c102 char(200), c103 char(200), c104 char(200), c105 char(200),
+c106 char(200), c107 char(200), c108 char(200), c109 char(200), c110 char(200),
+c111 char(200), c112 char(200), c113 char(200), c114 char(200), c115 char(200),
+c116 char(200), c117 char(200), c118 char(200), c119 char(200), c120 char(200),
+c121 char(200), c122 char(200), c123 char(200), c124 char(200), c125 char(200),
+c126 char(200), c127 char(200), c128 char(200), c129 char(200), c130 char(200),
+c131 char(200), c132 char(200), c133 char(200), c134 char(200), c135 char(200),
+c136 char(200), c137 char(200), c138 char(200), c139 char(200), c140 char(200),
+c141 char(200), c142 char(200), c143 char(200), c144 char(200), c145 char(200),
+c146 char(200), c147 char(200), c148 char(200), c149 char(200), c150 char(200),
+c151 char(200), c152 char(200), c153 char(200), c154 char(200), c155 char(200),
+c156 char(200), c157 char(200), c158 char(200), c159 char(200), c160 char(200),
+c161 char(200), c162 char(200), c163 char(200), c164 char(200), c165 char(200),
+c166 char(200), c167 char(200), c168 char(200), c169 char(200), c170 char(200),
+c171 char(200), c172 char(200), c173 char(200), c174 char(200), c175 char(200),
+c176 char(200), c177 char(200), c178 char(200), c179 char(200), c180 char(200),
+c190 char(200), c191 char(200), c192 char(100),
+c81 char(157)
+) ROW_FORMAT=compact;
+
+# Dynamic table, 32701 bytes
+
+CREATE TABLE t1 (
+c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
+c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
+c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
+c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
+c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
+c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
+c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
+c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(200),
+c41 char(200), c42 char(200), c43 char(200), c44 char(200), c45 char(200),
+c46 char(200), c47 char(200), c48 char(200), c49 char(200), c50 char(200),
+c51 char(200), c52 char(200), c53 char(200), c54 char(200), c55 char(200),
+c56 char(200), c57 char(200), c58 char(200), c59 char(200), c60 char(200),
+c61 char(200), c62 char(200), c63 char(200), c64 char(200), c65 char(200),
+c66 char(200), c67 char(200), c68 char(200), c69 char(200), c70 char(200),
+c71 char(200), c72 char(200), c73 char(200), c74 char(200), c75 char(200),
+c76 char(200), c77 char(200), c78 char(200), c79 char(200), c80 char(200),
+c101 char(200), c102 char(200), c103 char(200), c104 char(200), c105 char(200),
+c106 char(200), c107 char(200), c108 char(200), c109 char(200), c110 char(200),
+c111 char(200), c112 char(200), c113 char(200), c114 char(200), c115 char(200),
+c116 char(200), c117 char(200), c118 char(200), c119 char(200), c120 char(200),
+c121 char(200), c122 char(200), c123 char(200), c124 char(200), c125 char(200),
+c126 char(200), c127 char(200), c128 char(200), c129 char(200), c130 char(200),
+c131 char(200), c132 char(200), c133 char(200), c134 char(200), c135 char(200),
+c136 char(200), c137 char(200), c138 char(200), c139 char(200), c140 char(200),
+c141 char(200), c142 char(200), c143 char(200), c144 char(200), c145 char(200),
+c146 char(200), c147 char(200), c148 char(200), c149 char(200), c150 char(200),
+c151 char(200), c152 char(200), c153 char(200), c154 char(200), c155 char(200),
+c156 char(200), c157 char(200), c158 char(200), c159 char(200), c160 char(200),
+c161 char(200), c162 char(200), c163 char(200), c164 char(200), c165 char(200),
+c166 char(200), c167 char(200), c168 char(200), c169 char(200), c170 char(200),
+c171 char(200), c172 char(200), c173 char(200), c174 char(200), c175 char(200),
+c176 char(200), c177 char(200), c178 char(200), c179 char(200), c180 char(200),
+c190 char(200), c191 char(200), c192 char(100),
+c81 char(156)
+) ROW_FORMAT=dynamic;
+
+DROP TABLE t1;
+
+--replace_regex /> [0-9]*/> max_row_size/
+--error ER_TOO_BIG_ROWSIZE
+CREATE TABLE t1 (
+c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
+c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
+c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
+c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
+c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
+c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
+c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
+c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(200),
+c41 char(200), c42 char(200), c43 char(200), c44 char(200), c45 char(200),
+c46 char(200), c47 char(200), c48 char(200), c49 char(200), c50 char(200),
+c51 char(200), c52 char(200), c53 char(200), c54 char(200), c55 char(200),
+c56 char(200), c57 char(200), c58 char(200), c59 char(200), c60 char(200),
+c61 char(200), c62 char(200), c63 char(200), c64 char(200), c65 char(200),
+c66 char(200), c67 char(200), c68 char(200), c69 char(200), c70 char(200),
+c71 char(200), c72 char(200), c73 char(200), c74 char(200), c75 char(200),
+c76 char(200), c77 char(200), c78 char(200), c79 char(200), c80 char(200),
+c101 char(200), c102 char(200), c103 char(200), c104 char(200), c105 char(200),
+c106 char(200), c107 char(200), c108 char(200), c109 char(200), c110 char(200),
+c111 char(200), c112 char(200), c113 char(200), c114 char(200), c115 char(200),
+c116 char(200), c117 char(200), c118 char(200), c119 char(200), c120 char(200),
+c121 char(200), c122 char(200), c123 char(200), c124 char(200), c125 char(200),
+c126 char(200), c127 char(200), c128 char(200), c129 char(200), c130 char(200),
+c131 char(200), c132 char(200), c133 char(200), c134 char(200), c135 char(200),
+c136 char(200), c137 char(200), c138 char(200), c139 char(200), c140 char(200),
+c141 char(200), c142 char(200), c143 char(200), c144 char(200), c145 char(200),
+c146 char(200), c147 char(200), c148 char(200), c149 char(200), c150 char(200),
+c151 char(200), c152 char(200), c153 char(200), c154 char(200), c155 char(200),
+c156 char(200), c157 char(200), c158 char(200), c159 char(200), c160 char(200),
+c161 char(200), c162 char(200), c163 char(200), c164 char(200), c165 char(200),
+c166 char(200), c167 char(200), c168 char(200), c169 char(200), c170 char(200),
+c171 char(200), c172 char(200), c173 char(200), c174 char(200), c175 char(200),
+c176 char(200), c177 char(200), c178 char(200), c179 char(200), c180 char(200),
+c190 char(200), c191 char(200), c192 char(100),
+c81 char(157)
+) ROW_FORMAT=dynamic;
+
+--echo # Test 8) Test creating a table that could lead to undo log overflow.
+
+CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
+                h blob,i blob,j blob,k blob,l blob,m blob,n blob,
+		o blob,p blob,q blob,r blob,s blob,t blob,u blob,
+		v blob, w blob, x blob, y blob, z blob,
+		aa blob,ba blob,ca blob,da blob,ea blob,fa blob,ga blob,
+                ha blob,ia blob,ja blob,ka blob,la blob,ma blob,na blob,
+		oa blob,pa blob,qa blob,ra blob,sa blob,ta blob,ua blob,
+		va blob, wa blob, xa blob, ya blob, za blob,
+		ab blob,bb blob,cb blob,db blob,eb blob,fb blob,gb blob,
+                hb blob,ib blob,jb blob,kb blob,lb blob,mb blob,nb blob,
+		ob blob,pb blob,qb blob,rb blob,sb blob,tb blob,ub blob,
+		vb blob, wb blob, xb blob, yb blob, zb blob,
+		ac blob, bc blob, cc blob, dc blob, ec blob,fc blob,gc blob,
+                hc blob, ic blob, jc blob, kc blob, lc blob,mc blob,nc blob,
+		oc blob, pc blob, qc blob, rc blob, sc blob,tc blob,uc blob,
+		vc blob, wc blob, xc blob, yc blob, zc blob
+		) ENGINE=InnoDB ROW_FORMAT=dynamic;
+
+SET @a = repeat('a', 767);
+SET @b = repeat('b', 767);
+SET @c = repeat('c', 767);
+SET @d = repeat('d', 767);
+SET @e = repeat('e', 767);
+
+# With no indexes defined, we can update all columns to max key part length.
+
+INSERT INTO t1 VALUES (@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a
+);
+
+UPDATE t1 SET a=@b,b=@b,c=@b,d=@b,e=@b,f=@b,g=@b,h=@b,i=@b,j=@b,
+              k=@b,l=@b,m=@b,n=@b,o=@b,p=@b,q=@b,r=@b,s=@b,t=@b,u=@b,
+	      v=@b,w=@b,x=@b,y=@b,z=@b,
+	      aa=@b,ba=@b,ca=@b,da=@b,ea=@b,fa=@b,ga=@b,ha=@b,ia=@b,ja=@b,
+              ka=@b,la=@b,ma=@b,na=@b,oa=@b,pa=@b,qa=@b,ra=@b,sa=@b,ta=@b,ua=@b,
+	      va=@b,wa=@b,xa=@b,ya=@b,za=@b,
+	      ab=@b,bb=@b,cb=@b,db=@b,eb=@b,fb=@b,gb=@b,hb=@b,ib=@b,jb=@b,
+              kb=@b,lb=@b,mb=@b,nb=@b,ob=@b,pb=@b,qb=@b,rb=@b,sb=@b,tb=@b,ub=@b,
+	      vb=@b,wb=@b,xb=@b,yb=@b,zb=@b,
+	      ab=@b,bb=@b,cb=@b,db=@b,eb=@b,fb=@b,gb=@b,hb=@b,ib=@b,jb=@b,
+              kb=@b,lb=@b,mb=@b,nb=@b,ob=@b,pb=@b,qb=@b,rb=@b,sb=@b,tb=@b,ub=@b,
+	      vb=@b,wb=@b,xb=@b,yb=@b,zb=@b,
+	      ac=@b,bc=@b,cc=@b,dc=@b,ec=@b,fc=@b,gc=@b,hc=@b,ic=@b,jc=@b,
+              kc=@b,lc=@b,mc=@b,nc=@b,oc=@b,pc=@b,qc=@b,rc=@b,sc=@b,tc=@b,uc=@b,
+	      vc=@b,wc=@b,xc=@b,yc=@b,zc=@b;
+
+# With this many indexes defined, we can still update all fields.
+CREATE INDEX t1a ON t1 (a(767),b(767));
+CREATE INDEX t1c ON t1 (c(767),d(767));
+CREATE INDEX t1e ON t1 (e(767),f(767));
+CREATE INDEX t1f2 ON t1 (g(767),h(767));
+CREATE INDEX t1f4 ON t1 (i(767),j(767));
+CREATE INDEX t1k ON t1 (k(767),m(767));
+CREATE INDEX t1f8 ON t1 (n(767),o(767));
+CREATE INDEX t1f11 ON t1 (p(767),q(767));
+CREATE INDEX t1f13 ON t1 (r(767),s(767));
+CREATE INDEX t1f15 ON t1 (t(767),u(767));
+CREATE INDEX t1f18 ON t1 (w(767),x(767));
+CREATE INDEX t1f20 ON t1 (y(767),z(767));
+CREATE INDEX ta1a6 ON t1 (aa(767),ba(767));
+CREATE INDEX tc1c6 ON t1 (ca(767),da(767));
+CREATE INDEX te1e6 ON t1 (ea(767),fa(767));
+
+UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
+              k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c,
+	      v=@c,w=@c,x=@c,y=@c,z=@c,
+	      aa=@c,ba=@c,ca=@c,da=@c,ea=@c,fa=@c,ga=@c,ha=@c,ia=@c,ja=@c,
+              ka=@c,la=@c,ma=@c,na=@c,oa=@c,pa=@c,qa=@c,ra=@c,sa=@c,ta=@c,ua=@c,
+	      va=@c,wa=@c,xa=@c,ya=@c,za=@c,
+	      ab=@c,bb=@c,cb=@c,db=@c,eb=@c,fb=@c,gb=@c,hb=@c,ib=@c,jb=@c,
+              kb=@c,lb=@c,mb=@c,nb=@c,ob=@c,pb=@c,qb=@c,rb=@c,sb=@c,tb=@c,ub=@c,
+	      vb=@c,wb=@c,xb=@c,yb=@c,zb=@c,
+	      ac=@c,bc=@c,cc=@c,dc=@c,ec=@c,fc=@c,gc=@c,hc=@c,ic=@c,jc=@c,
+              kc=@c,lc=@c,mc=@c,nc=@c,oc=@c,pc=@c,qc=@c,rc=@c,sc=@c,tc=@c,uc=@c,
+	      vc=@c,wc=@c,xc=@c,yc=@c,zc=@c;
+
+COMMIT;
+
+# Add one more index and the UNDO record becomes too big to update all columns.
+# But a single transaction can update the columns in separate statements.
+# because the UNDO records will be smaller.
+
+CREATE INDEX tg1f2 ON t1 (ia(767),ja(767));
+
+BEGIN;
+UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d,f=@d,g=@d,h=@d,i=@d,j=@d,
+              k=@d,l=@d,m=@d,n=@d,o=@d,p=@d,q=@d,r=@d,s=@d,t=@d,u=@d,
+	      v=@d,w=@d,x=@d,y=@d,z=@d,
+	      aa=@d,ba=@d,ca=@d,da=@d,ea=@d,fa=@d,ga=@d,ha=@d,ia=@d,ja=@d,
+              ka=@d,la=@d,ma=@d,na=@d,oa=@d,pa=@d,qa=@d,ra=@d,sa=@d,ta=@d,ua=@d,
+	      va=@d,wa=@d,xa=@d,ya=@d,za=@d,
+	      ab=@d,bb=@d,cb=@d,db=@d,eb=@d,fb=@d,gb=@d,hb=@d,ib=@d,jb=@d,
+              kb=@d,lb=@d,mb=@d,nb=@d,ob=@d,pb=@d,qb=@d,rb=@d,sb=@d,tb=@d,ub=@d,
+	      vb=@d,wb=@d,xb=@d,yb=@d,zb=@d,
+	      ac=@d,bc=@d,cc=@d,dc=@d,ec=@d,fc=@d,gc=@d,hc=@d,ic=@d,jc=@d,
+              kc=@d,lc=@d,mc=@d,nc=@d,oc=@d,pc=@d,qc=@d,rc=@d,sc=@d,tc=@d,uc=@d,
+	      vc=@d,wc=@d,xc=@d,yc=@d,zc=@d;
+ROLLBACK;
+
+BEGIN;
+UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d;
+UPDATE t1 SET f=@d,g=@d,h=@d,i=@d,j=@d;
+UPDATE t1 SET k=@d,l=@d,m=@d,n=@d,o=@d;
+UPDATE t1 SET p=@d,q=@d,r=@d,s=@d,t=@d,u=@d;
+UPDATE t1 SET v=@d,w=@d,x=@d,y=@d,z=@d;
+UPDATE t1 SET aa=@d,ba=@d,ca=@d,da=@d;
+UPDATE t1 SET ea=@d,fa=@d,ga=@d,ha=@d,ia=@d,ja=@d;
+UPDATE t1 SET ka=@d,la=@d,ma=@d,na=@d,oa=@d,pa=@d;
+UPDATE t1 SET qa=@d,ra=@d,sa=@d,ta=@d,ua=@d;
+UPDATE t1 SET va=@d,wa=@d,xa=@d,ya=@d,za=@d;
+UPDATE t1 SET ab=@d,bb=@d,cb=@d,db=@d;
+UPDATE t1 SET eb=@d,fb=@d,gb=@d,hb=@d,ib=@d,ja=@d;
+UPDATE t1 SET kb=@d,lb=@d,mb=@d,nb=@d,ob=@d,pa=@d;
+UPDATE t1 SET qb=@d,rb=@d,sb=@d,tb=@d,ub=@d;
+UPDATE t1 SET vb=@d,wb=@d,xb=@d,yb=@d,zb=@d;
+UPDATE t1 SET ac=@d,bc=@d,cc=@d,dc=@d;
+UPDATE t1 SET ec=@d,fc=@d,gc=@d,hc=@d,ic=@d,jc=@d;
+UPDATE t1 SET kc=@d,lc=@d,mc=@d,nc=@d,oc=@d,pc=@d;
+UPDATE t1 SET qc=@d,rc=@d,sc=@d,tc=@d,uc=@d;
+UPDATE t1 SET vc=@d,wc=@d,xc=@d,yc=@d,zc=@d;
+COMMIT;
+
+# More indexes can still be added and a single field can still be updated
+CREATE INDEX ti1f4 ON t1 (ia(767),ka(767));
+CREATE INDEX tk1f6 ON t1 (la(767),ma(767));
+CREATE INDEX tm1f8 ON t1 (na(767),oa(767));
+CREATE INDEX to1f11 ON t1 (pa(767),qa(767));
+CREATE INDEX tq1f13 ON t1 (ra(767),sa(767));
+CREATE INDEX ts1f15 ON t1 (ta(767),ua(767));
+CREATE INDEX tu1f18 ON t1 (wa(767),xa(767));
+CREATE INDEX tx1f20 ON t1 (ya(767),za(767));
+CREATE INDEX ta1a5 ON t1 (ab(767),bb(767));
+CREATE INDEX tc1c5 ON t1 (cb(767),db(767));
+CREATE INDEX te1e5 ON t1 (eb(767),fb(767));
+CREATE INDEX t5g1f2 ON t1 (gb(767),hb(767));
+CREATE INDEX t5i1f4 ON t1 (ib(767),kb(767));
+CREATE INDEX t5k1f6 ON t1 (lb(767),mb(767));
+CREATE INDEX t5m1f8 ON t1 (nb(767),ob(767));
+CREATE INDEX t5o1f11 ON t1 (pb(767),qb(767));
+CREATE INDEX t65q1f13 ON t1 (rb(767),sb(767));
+CREATE INDEX t65s1f15 ON t1 (tb(767),ub(767));
+CREATE INDEX t65u1f18 ON t1 (wb(767),xb(767));
+CREATE INDEX t65x1f20 ON t1 (yb(767),zb(767));
+CREATE INDEX xta1a5 ON t1 (ac(767),bc(767));
+CREATE INDEX xt5g1f2 ON t1 (gc(767),hc(767));
+CREATE INDEX xt5i1f4 ON t1 (ic(767));
+CREATE INDEX xtc1c5 ON t1 (cc(767),dc(767));
+CREATE INDEX xte1e5 ON t1 (ec(767),fc(767));
+UPDATE t1 SET t=@e;
+
+# One more index and row size is too big (not any more!)
+#--replace_regex /> [0-9]*/> max_row_size/
+#--error ER_TOO_BIG_ROWSIZE
+CREATE INDEX xt5k1f6 ON t1 (lc(767),mc(767));
+SHOW CREATE TABLE t1;
+SHOW WARNINGS;
+
+CREATE TABLE t2(COL1 TEXT,
+COL2 TEXT,
+COL3 TEXT,
+COL4 TEXT,
+COL5 TEXT,
+COL6 TEXT,
+COL7 TEXT,
+COL8 TEXT,
+COL9 TEXT,
+COL10 TEXT,
+COL11 TEXT,
+COL12 TEXT,
+COL13 TEXT,
+COL14 TEXT,
+COL15 TEXT,
+COL16 TEXT,
+COL17 TEXT,
+COL18 TEXT,
+COL19 TEXT,
+COL20 TEXT,
+COL21 TEXT,
+COL22 TEXT,
+COL23 TEXT,
+COL24 TEXT,
+COL25 TEXT,
+COL26 TEXT,
+COL27 TEXT,
+COL28 TEXT,
+COL29 TEXT,
+COL30 TEXT,
+COL31 TEXT,
+COL32 TEXT,
+COL33 TEXT,
+COL34 TEXT,
+COL35 TEXT,
+COL36 TEXT,
+COL37 TEXT,
+COL38 TEXT,
+COL39 TEXT,
+COL40 TEXT,
+COL41 TEXT,
+COL42 TEXT,
+COL43 TEXT,
+COL44 TEXT,
+COL45 TEXT,
+COL46 TEXT,
+COL47 TEXT,
+COL48 TEXT,
+COL49 TEXT,
+COL50 TEXT,
+COL51 TEXT,
+COL52 TEXT,
+COL53 TEXT,
+COL54 TEXT,
+COL55 TEXT,
+COL56 TEXT,
+COL57 TEXT,
+COL58 TEXT,
+COL59 TEXT,
+COL60 TEXT,
+COL61 TEXT,
+COL62 TEXT,
+COL63 TEXT,
+COL64 TEXT,
+COL65 TEXT,
+COL66 TEXT,
+COL67 TEXT,
+COL68 TEXT,
+COL69 TEXT,
+COL70 TEXT,
+COL71 TEXT,
+COL72 TEXT,
+COL73 TEXT,
+COL74 TEXT,
+COL75 TEXT,
+COL76 TEXT,
+COL77 TEXT,
+COL78 TEXT,
+COL79 TEXT,
+COL80 TEXT,
+COL81 TEXT,
+COL82 TEXT,
+COL83 TEXT,
+COL84 TEXT,
+COL85 TEXT,
+COL86 TEXT,
+COL87 TEXT,
+COL88 TEXT,
+COL89 TEXT,
+COL90 TEXT,
+COL91 TEXT,
+COL92 TEXT,
+COL93 TEXT,
+COL94 TEXT,
+COL95 TEXT,
+COL96 TEXT,
+COL97 TEXT,
+COL98 TEXT,
+COL99 TEXT,
+COL100 TEXT,
+COL101 TEXT,
+COL102 TEXT,
+COL103 TEXT,
+COL104 TEXT,
+COL105 TEXT,
+COL106 TEXT,
+COL107 TEXT,
+COL108 TEXT,
+COL109 TEXT,
+COL110 TEXT,
+COL111 TEXT,
+COL112 TEXT,
+COL113 TEXT,
+COL114 TEXT,
+COL115 TEXT,
+COL116 TEXT,
+COL117 TEXT,
+COL118 TEXT,
+COL119 TEXT,
+COL120 TEXT,
+COL121 TEXT,
+COL122 TEXT,
+COL123 TEXT,
+COL124 TEXT,
+COL125 TEXT,
+COL126 TEXT,
+COL127 TEXT,
+COL128 TEXT,
+COL129 TEXT,
+COL130 TEXT,
+COL131 TEXT,
+COL132 TEXT,
+COL133 TEXT,
+COL134 TEXT,
+COL135 TEXT,
+COL136 TEXT,
+COL137 TEXT,
+COL138 TEXT,
+COL139 TEXT,
+COL140 TEXT,
+COL141 TEXT,
+COL142 TEXT,
+COL143 TEXT,
+COL144 TEXT,
+COL145 TEXT,
+COL146 TEXT,
+COL147 TEXT,
+COL148 TEXT,
+COL149 TEXT,
+COL150 TEXT,
+COL151 TEXT,
+COL152 TEXT,
+COL153 TEXT,
+COL154 TEXT,
+COL155 TEXT,
+COL156 TEXT,
+COL157 TEXT,
+COL158 TEXT,
+COL159 TEXT,
+COL160 TEXT,
+COL161 TEXT,
+COL162 TEXT,
+COL163 TEXT,
+COL164 TEXT,
+COL165 TEXT,
+COL166 TEXT,
+COL167 TEXT,
+COL168 TEXT,
+COL169 TEXT,
+COL170 TEXT,
+COL171 TEXT,
+COL172 TEXT,
+COL173 TEXT,
+COL174 TEXT,
+COL175 TEXT,
+COL176 TEXT,
+COL177 TEXT,
+COL178 TEXT,
+COL179 TEXT,
+COL180 TEXT,
+COL181 TEXT,
+COL182 TEXT,
+COL183 TEXT,
+COL184 TEXT,
+COL185 TEXT,
+COL186 TEXT,
+COL187 TEXT,
+COL188 TEXT,
+COL189 TEXT,
+COL190 TEXT,
+COL191 TEXT,
+COL192 TEXT,
+COL193 TEXT,
+COL194 TEXT,
+COL195 TEXT,
+COL196 TEXT,
+COL197 TEXT)
+row_format=dynamic,ENGINE=INNODB;
+
+set @a = repeat('0123456789', 800);
+set @b = repeat('9876543210', 800);
+
+insert into t2 values(
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a);
+
+update t2 set col190=@b;
+
+set @a = repeat('0123456789', 1650);
+set @b = repeat('9876543210', 2000);
+
+insert into t2 values(
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a,@a,@a,@a,
+@a,@a,@a,@a,@a,@a,@a);
+
+update t2 set col190=@b;
+
+#
+# Verify persistence and loading of flags in the ibd files.
+#
+
+--source include/restart_mysqld.inc
+
+set @a = repeat('abcdefghijklmnopqrstuvwxyz', 1650);
+set @b = repeat('zyxwvutsrqponmlkjihgfedcba', 2000);
+update t2 set col189 = @b;
+insert into t2 select * from t2;
+show create table t1;
+show create table t2;
+
+BEGIN;
+update t2 set col150=@a;
+update t2 set col145=@b;
+COMMIT;
+
+drop table t2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19526 heap number overflow
+--echo #
+CREATE TABLE t1(a SMALLINT NOT NULL UNIQUE AUTO_INCREMENT, KEY(a))
+ENGINE=InnoDB;
+INSERT INTO t1 (a) SELECT seq FROM seq_1_to_8191;
+DROP TABLE t1;

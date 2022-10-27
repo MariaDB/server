@@ -1,0 +1,18 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
+create table t1 (a int);
+drop table t1;
+create table t1 (a int);
+drop table t1;
+connection slave;
+reset slave;
+start slave io_thread;
+include/wait_for_slave_param.inc [Slave_IO_State]
+include/stop_slave_io.inc
+reset slave;
+include/start_slave.inc
+include/assert.inc [Assert that master_pos_wait does not timeout nor it returns NULL]
+include/rpl_end.inc

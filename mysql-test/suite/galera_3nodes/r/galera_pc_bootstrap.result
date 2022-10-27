@@ -1,0 +1,42 @@
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg\\(\\).*");
+CREATE TABLE t1 (f1 INTEGER);
+connection node_1;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_3;
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+SET SESSION wsrep_sync_wait = 0;
+connection node_2;
+SET GLOBAL wsrep_provider_options = 'pc.bootstrap=1';
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	1
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Primary
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+connection node_1;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+connection node_3;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+connection node_3;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+DROP TABLE t1;

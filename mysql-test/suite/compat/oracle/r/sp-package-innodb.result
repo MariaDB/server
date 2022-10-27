@@ -1,0 +1,77 @@
+SET default_storage_engine=InnoDB;
+SET sql_mode=ORACLE;
+CREATE TABLE t1 (a INT, routine TEXT);
+SELECT ENGINE FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+ENGINE
+InnoDB
+INSERT INTO t1 VALUES (10,'none');
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+a INT;
+PROCEDURE p1 AS
+BEGIN
+a:=a+1;
+INSERT INTO t1 VALUES (a,'p1');
+END;
+BEGIN
+SELECT MAX(t1.a) FROM t1 INTO a;
+a:=a+1;
+INSERT INTO t1 VALUES (a,'pkg1 initialization');
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL pkg1.p1;
+SELECT * FROM t1 ORDER BY a;
+a	routine
+10	none
+11	pkg1 initialization
+12	p1
+DELETE FROM t1;
+# sp-cache-invalidate
+START TRANSACTION;
+CALL pkg1.p1;
+SELECT * FROM t1 ORDER BY a;
+a	routine
+NULL	pkg1 initialization
+NULL	p1
+ROLLBACK;
+SELECT * FROM t1 ORDER BY a;
+a	routine
+DELETE FROM t1;
+# sp-cache-invalidate
+INSERT INTO t1 VALUES (20,'none');
+START TRANSACTION;
+CALL pkg1.p1;
+SELECT * FROM t1 ORDER BY a;
+a	routine
+20	none
+21	pkg1 initialization
+22	p1
+COMMIT;
+SELECT * FROM t1 ORDER BY a;
+a	routine
+20	none
+21	pkg1 initialization
+22	p1
+DELETE FROM t1;
+# sp-cache-invalidate
+INSERT INTO t1 VALUES (20,'none');
+START TRANSACTION;
+CALL pkg1.p1;
+SELECT * FROM t1 ORDER BY a;
+a	routine
+20	none
+21	pkg1 initialization
+22	p1
+ROLLBACK;
+SELECT * FROM t1 ORDER BY a;
+a	routine
+20	none
+DELETE FROM t1;
+DROP PACKAGE pkg1;
+DROP TABLE t1;

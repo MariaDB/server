@@ -1,0 +1,239 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+LOAD DATA INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1 
+FIELDS TERMINATED BY ',' (a,b);
+SELECT a,b FROM t1;
+a	b
+1	foo
+2	bar
+3	
+4	abc
+LOAD DATA LOCAL INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1
+CHARACTER SET utf8 COLUMNS TERMINATED BY ','
+  ESCAPED BY '/' (a,b);
+SELECT a,b FROM t1;
+a	b
+1	foo
+1	foo
+2	bar
+2	bar
+3	
+3	
+4	abc
+4	abc
+LOAD DATA LOCAL INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1
+FIELDS TERMINATED BY ';'
+  (a) SET b='loaded';
+Warnings:
+Warning	1262	Row 1 was truncated; it contained more data than there were input columns
+Warning	1262	Row 2 was truncated; it contained more data than there were input columns
+Warning	1262	Row 3 was truncated; it contained more data than there were input columns
+SELECT a,b FROM t1;
+a	b
+0	loaded
+1	foo
+1	foo
+102	loaded
+2	bar
+2	bar
+3	
+3	
+4	abc
+4	abc
+5	loaded
+LOAD DATA INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1
+FIELDS TERMINATED BY ';'
+  OPTIONALLY ENCLOSED BY ''''
+  LINES STARTING BY 'prefix:' 
+IGNORE 2 LINES (a,b);
+Warnings:
+Warning	1262	Row 2 was truncated; it contained more data than there were input columns
+SELECT a,b FROM t1;
+a	b
+0	
+0	loaded
+1	foo
+1	foo
+100	foo
+102	loaded
+2	bar
+2	bar
+3	
+3	
+4	abc
+4	abc
+5	loaded
+7	test
+LOAD DATA INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1;
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+Warning	1261	Row 2 doesn't contain data for all columns
+Warning	1261	Row 3 doesn't contain data for all columns
+Warning	1261	Row 4 doesn't contain data for all columns
+SELECT a,b FROM t1;
+a	b
+0	
+0	loaded
+1	foo
+1	foo
+1	foo
+100	foo
+102	loaded
+2	bar
+2	bar
+2	bar
+3	
+3	
+3	
+4	abc
+4	abc
+4	abc
+5	loaded
+7	test
+LOAD DATA INFILE '<DATADIR>/se_replacedata.dat' REPLACE INTO TABLE t1;
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+Warning	1261	Row 2 doesn't contain data for all columns
+Warning	1261	Row 3 doesn't contain data for all columns
+Warning	1261	Row 4 doesn't contain data for all columns
+SELECT a,b FROM t1;
+a	b
+0	
+0	loaded
+1	aaa
+1	foo
+1	foo
+1	foo
+100	foo
+102	loaded
+2	bar
+2	bar
+2	bar
+2	bbb
+3	
+3	
+3	
+3	ccc
+4	abc
+4	abc
+4	abc
+4	ddd
+5	loaded
+7	test
+DROP TABLE t1;
+set session unique_checks=0;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=rocksdb;
+LOAD DATA INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1 
+FIELDS TERMINATED BY ',' (a,b);
+SELECT a,b FROM t1;
+a	b
+1	foo
+2	bar
+3	
+4	abc
+LOAD DATA LOCAL INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1
+CHARACTER SET utf8 COLUMNS TERMINATED BY ','
+  ESCAPED BY '/' (a,b);
+SELECT a,b FROM t1;
+a	b
+1	foo
+1	foo
+2	bar
+2	bar
+3	
+3	
+4	abc
+4	abc
+LOAD DATA LOCAL INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1
+FIELDS TERMINATED BY ';'
+  (a) SET b='loaded';
+Warnings:
+Warning	1262	Row 1 was truncated; it contained more data than there were input columns
+Warning	1262	Row 2 was truncated; it contained more data than there were input columns
+Warning	1262	Row 3 was truncated; it contained more data than there were input columns
+SELECT a,b FROM t1;
+a	b
+0	loaded
+1	foo
+1	foo
+102	loaded
+2	bar
+2	bar
+3	
+3	
+4	abc
+4	abc
+5	loaded
+LOAD DATA INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1
+FIELDS TERMINATED BY ';'
+  OPTIONALLY ENCLOSED BY ''''
+  LINES STARTING BY 'prefix:' 
+IGNORE 2 LINES (a,b);
+Warnings:
+Warning	1262	Row 2 was truncated; it contained more data than there were input columns
+SELECT a,b FROM t1;
+a	b
+0	
+0	loaded
+1	foo
+1	foo
+100	foo
+102	loaded
+2	bar
+2	bar
+3	
+3	
+4	abc
+4	abc
+5	loaded
+7	test
+LOAD DATA INFILE '<DATADIR>/se_loaddata.dat' INTO TABLE t1;
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+Warning	1261	Row 2 doesn't contain data for all columns
+Warning	1261	Row 3 doesn't contain data for all columns
+Warning	1261	Row 4 doesn't contain data for all columns
+SELECT a,b FROM t1;
+a	b
+0	
+0	loaded
+1	foo
+1	foo
+1	foo
+100	foo
+102	loaded
+2	bar
+2	bar
+2	bar
+3	
+3	
+3	
+4	abc
+4	abc
+4	abc
+5	loaded
+7	test
+LOAD DATA INFILE '<DATADIR>/se_replacedata.dat' REPLACE INTO TABLE t1;
+ERROR HY000: When unique checking is disabled in MyRocks, INSERT,UPDATE,LOAD statements with clauses that update or replace the key (i.e. INSERT ON DUPLICATE KEY UPDATE, REPLACE) are not allowed. Query: LOAD DATA INFILE '<DATADIR>/se_replacedata.dat' REPLACE INTO TABLE t1
+SELECT a,b FROM t1;
+a	b
+0	
+0	loaded
+1	foo
+1	foo
+1	foo
+100	foo
+102	loaded
+2	bar
+2	bar
+2	bar
+3	
+3	
+3	
+4	abc
+4	abc
+4	abc
+5	loaded
+7	test
+DROP TABLE t1;

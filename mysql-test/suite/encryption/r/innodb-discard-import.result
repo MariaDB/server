@@ -1,0 +1,136 @@
+call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
+call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
+SET GLOBAL innodb_compression_algorithm = 1;
+create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes encryption_key_id=4;
+show warnings;
+Level	Code	Message
+create table t2(c1 bigint not null, b char(200))  engine=innodb page_compressed=1 encrypted=yes encryption_key_id=4;
+show warnings;
+Level	Code	Message
+create table t3(c1 bigint not null, b char(200))  engine=innodb row_format=compressed encrypted=yes encryption_key_id=4;
+show warnings;
+Level	Code	Message
+create table t4(c1 bigint not null, b char(200))  engine=innodb page_compressed=1;
+show warnings;
+Level	Code	Message
+create procedure innodb_insert_proc (repeat_count int)
+begin
+declare current_num int;
+set current_num = 0;
+while current_num < repeat_count do
+insert into t1 values(current_num, repeat('foobar',30));
+insert into t2 values(current_num, repeat('barfoo',30));
+insert into t3 values(current_num, repeat('tmpres',30));
+insert into t4 values(current_num, repeat('mysql',30));
+set current_num = current_num + 1;
+end while;
+end//
+commit;
+set autocommit=0;
+call innodb_insert_proc(2000);
+commit;
+set autocommit=1;
+select count(*) from t1;
+count(*)
+2000
+select count(*) from t2;
+count(*)
+2000
+select count(*) from t3;
+count(*)
+2000
+select count(*) from t4;
+count(*)
+2000
+FLUSH TABLE t1,t2,t3,t4 FOR EXPORT;
+# List before copying files
+db.opt
+t1.cfg
+t1.frm
+t1.ibd
+t2.cfg
+t2.frm
+t2.ibd
+t3.cfg
+t3.frm
+t3.ibd
+t4.cfg
+t4.frm
+t4.ibd
+backup: t1
+backup: t2
+backup: t3
+backup: t4
+db.opt
+t1.cfg
+t1.frm
+t1.ibd
+t2.cfg
+t2.frm
+t2.ibd
+t3.cfg
+t3.frm
+t3.ibd
+t4.cfg
+t4.frm
+t4.ibd
+UNLOCK TABLES;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t2 DISCARD TABLESPACE;
+ALTER TABLE t3 DISCARD TABLESPACE;
+ALTER TABLE t4 DISCARD TABLESPACE;
+restore: t1 .ibd and .cfg files
+restore: t2 .ibd and .cfg files
+restore: t3 .ibd and .cfg files
+restore: t4 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `encrypted`=yes `encryption_key_id`=4
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2000
+ALTER TABLE t2 IMPORT TABLESPACE;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1 `encrypted`=yes `encryption_key_id`=4
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+2000
+ALTER TABLE t3 IMPORT TABLESPACE;
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED `encrypted`=yes `encryption_key_id`=4
+SELECT COUNT(*) FROM t3;
+COUNT(*)
+2000
+ALTER TABLE t4 IMPORT TABLESPACE;
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 `page_compressed`=1
+SELECT COUNT(*) FROM t4;
+COUNT(*)
+2000
+# tables should be still either encrypted and/or compressed
+# t1 yes on expecting NOT FOUND
+NOT FOUND /foobar/ in t1.ibd
+# t2 yes on expecting NOT FOUND
+NOT FOUND /barfoo/ in t2.ibd
+# t3 yes on expecting NOT FOUND
+NOT FOUND /tmpres/ in t3.ibd
+# t4 yes on expecting NOT FOUND
+NOT FOUND /mysql/ in t4.ibd
+DROP PROCEDURE innodb_insert_proc;
+DROP TABLE t1,t2,t3,t4;

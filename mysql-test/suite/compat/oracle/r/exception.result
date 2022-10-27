@@ -1,0 +1,409 @@
+SET sql_mode=ORACLE;
+#
+# sql_mode=ORACLE: Predefined exceptions: TOO_MANY_ROWS, NO_DATA_FOUND, DUP_VAL_ON_INDEX
+#
+#
+# Testing NO_DATA_FOUND and TOO_MANY_ROWS
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1(lim INT, res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+SELECT a INTO a FROM t1 LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN res:='--- too_many_rows cought ---';
+WHEN NO_DATA_FOUND THEN res:='--- no_data_found cought ---';
+END;
+$$
+SET @res='';
+CALL p1(0, @res);
+SELECT @res;
+@res
+--- no_data_found cought ---
+CALL p1(2, @res);
+SELECT @res;
+@res
+--- too_many_rows cought ---
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing DUP_VAL_ON_INDEX
+#
+CREATE TABLE t1 (a INT PRIMARY KEY);
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+BEGIN
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (10);
+EXCEPTION
+WHEN DUP_VAL_ON_INDEX THEN res:='--- dup_val_on_index cought ---';
+END;
+$$
+SET @res='';
+CALL p1(@res);
+SELECT @res;
+@res
+--- dup_val_on_index cought ---
+SELECT * FROM t1;
+a
+10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-10840 sql_mode=ORACLE: RAISE statement for predefined exceptions
+#
+#
+# RAISE outside of an SP context
+#
+RAISE NO_DATA_FOUND;
+ERROR 42000: Undefined CONDITION: NO_DATA_FOUND
+RAISE INVALID_CURSOR;
+ERROR 42000: Undefined CONDITION: INVALID_CURSOR
+RAISE DUP_VAL_ON_INDEX;
+ERROR 42000: Undefined CONDITION: DUP_VAL_ON_INDEX
+RAISE TOO_MANY_ROWS;
+ERROR 42000: Undefined CONDITION: TOO_MANY_ROWS
+RAISE;
+ERROR 0K000: RESIGNAL when handler not active
+#
+# RAISE for an undefinite exception
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+RAISE xxx;
+END;
+$$
+ERROR 42000: Undefined CONDITION: xxx
+#
+# RAISE for predefined exceptions
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+RAISE no_data_found;
+END;
+$$
+CALL p1();
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+BEGIN
+RAISE invalid_cursor;
+END;
+$$
+CALL p1();
+ERROR 24000: Cursor is not open
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+BEGIN
+RAISE dup_val_on_index;
+END;
+$$
+CALL p1();
+ERROR 23000: Duplicate entry '%-.192T' for key %d
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+BEGIN
+raise too_many_rows;
+END;
+$$
+CALL p1();
+ERROR 42000: Result consisted of more than one row
+DROP PROCEDURE p1;
+#
+# RAISE with no exception name (resignal)
+#
+CREATE PROCEDURE p1()
+AS
+BEGIN
+RAISE;
+END;
+$$
+CALL p1();
+ERROR 0K000: RESIGNAL when handler not active
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1(lim INT)
+AS
+a INT;
+BEGIN
+SELECT a INTO a FROM t1 LIMIT lim;
+EXCEPTION
+WHEN TOO_MANY_ROWS THEN RAISE;
+WHEN NO_DATA_FOUND THEN RAISE;
+END;
+$$
+CALL p1(0);
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(2);
+ERROR 42000: Result consisted of more than one row
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1(lim INT)
+AS
+a INT;
+BEGIN
+SELECT a INTO a FROM t1 LIMIT lim;
+EXCEPTION
+WHEN OTHERS THEN RAISE;
+END;
+$$
+CALL p1(0);
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+CALL p1(2);
+ERROR 42000: Result consisted of more than one row
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+AS
+a INT;
+CURSOR c IS SELECT a FROM t1;
+BEGIN
+FETCH c INTO a;
+EXCEPTION
+WHEN INVALID_CURSOR THEN RAISE;
+END;
+$$
+CALL p1();
+ERROR 24000: Cursor is not open
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20);
+CREATE PROCEDURE p1()
+AS
+a INT;
+CURSOR c IS SELECT a FROM t1;
+BEGIN
+FETCH c INTO a;
+EXCEPTION
+WHEN OTHERS THEN RAISE;
+END;
+$$
+CALL p1();
+ERROR 24000: Cursor is not open
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing that warning-alike errors are caught by OTHERS
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+a INT:=10;
+BEGIN
+SELECT a INTO a FROM t1;
+RETURN 'OK';
+EXCEPTION
+WHEN OTHERS THEN RETURN 'Exception';
+END;
+$$
+SELECT f1() FROM DUAL;
+f1()
+Exception
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# End of MDEV-10840 sql_mode=ORACLE: RAISE statement for predefined exceptions
+#
+#
+# MDEV-10587 sql_mode=ORACLE: User defined exceptions
+#
+#
+# Checking that duplicate WHEN clause is not allowed
+#
+CREATE FUNCTION f1() RETURN VARCHAR
+AS
+e EXCEPTION;
+BEGIN
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN e THEN RETURN 'Got exception e';
+WHEN e THEN RETURN 'Got exception e';
+END;
+$$
+ERROR 42000: Duplicate handler declared in the same block
+#
+# Checking that raised user exceptions are further caught by name
+#
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+e EXCEPTION;
+f EXCEPTION;
+BEGIN
+IF c = 'e' THEN RAISE e; END IF;
+IF c = 'f' THEN RAISE f; END IF;
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN e THEN RETURN 'Got exception e';
+END;
+$$
+SELECT f1('');
+f1('')
+Got no exceptions
+SELECT f1('e');
+f1('e')
+Got exception e
+SELECT f1('f');
+ERROR 45000: Unhandled user-defined exception condition
+DROP FUNCTION f1;
+#
+# Checking that raised user exceptions are further caught by OTHERS
+#
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+e EXCEPTION;
+f EXCEPTION;
+BEGIN
+IF c = 'e' THEN RAISE e; END IF;
+IF c = 'f' THEN RAISE f; END IF;
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN OTHERS THEN RETURN 'Got some exception';
+END;
+$$
+SELECT f1('');
+f1('')
+Got no exceptions
+SELECT f1('e');
+f1('e')
+Got some exception
+SELECT f1('f');
+f1('f')
+Got some exception
+DROP FUNCTION f1;
+#
+# Checking that 'WHEN e .. WHEN f' does not produce ER_SP_DUP_HANDLER
+#
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+e EXCEPTION;
+f EXCEPTION;
+a VARCHAR(64):='';
+BEGIN
+BEGIN
+IF c = 'e' THEN RAISE e; END IF;
+IF c = 'f' THEN RAISE f; END IF;
+EXCEPTION
+WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE e; END;
+WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE f; END;
+END;
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN OTHERS THEN RETURN a || 'Got EXCEPTION2/OTHERS;';
+END;
+$$
+SELECT f1('');
+f1('')
+Got no exceptions
+SELECT f1('e');
+f1('e')
+Got EXCEPTION1/e; Got EXCEPTION2/OTHERS;
+SELECT f1('f');
+f1('f')
+Got EXCEPTION1/f; Got EXCEPTION2/OTHERS;
+DROP FUNCTION f1;
+#
+# Checking that resignaled user exceptions are further caught by name
+#
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+e EXCEPTION;
+f EXCEPTION;
+a VARCHAR(64):='';
+BEGIN
+BEGIN
+IF c = 'e' THEN RAISE e; END IF;
+IF c = 'f' THEN RAISE f; END IF;
+EXCEPTION
+WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE; END;
+WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE; END;
+END;
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN e THEN RETURN a || 'Got EXCEPTION2/e;';
+END;
+$$
+SELECT f1('');
+f1('')
+Got no exceptions
+SELECT f1('e');
+f1('e')
+Got EXCEPTION1/e; Got EXCEPTION2/e;
+SELECT f1('f');
+ERROR 45000: Unhandled user-defined exception condition
+DROP FUNCTION f1;
+#
+# Checking that resignaled user exceptions are further caught by OTHERS
+#
+CREATE FUNCTION f1(c VARCHAR) RETURN VARCHAR
+AS
+e EXCEPTION;
+f EXCEPTION;
+a VARCHAR(64):='';
+BEGIN
+BEGIN
+IF c = 'e' THEN RAISE e; END IF;
+IF c = 'f' THEN RAISE f; END IF;
+EXCEPTION
+WHEN e THEN BEGIN a:='Got EXCEPTION1/e; '; RAISE; END;
+WHEN f THEN BEGIN a:='Got EXCEPTION1/f; '; RAISE; END;
+END;
+RETURN 'Got no exceptions';
+EXCEPTION
+WHEN OTHERS THEN RETURN a || 'Got EXCEPTION2/OTHERS;';
+END;
+$$
+SELECT f1('');
+f1('')
+Got no exceptions
+SELECT f1('e');
+f1('e')
+Got EXCEPTION1/e; Got EXCEPTION2/OTHERS;
+SELECT f1('f');
+f1('f')
+Got EXCEPTION1/f; Got EXCEPTION2/OTHERS;
+DROP FUNCTION f1;
+#
+# End of MDEV-10587 sql_mode=ORACLE: User defined exceptions
+#
+#
+# MDEV-12088 sql_mode=ORACLE: Do not require BEGIN..END in multi-statement exception handlers in THEN clause
+#
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (10),(20),(30);
+CREATE PROCEDURE p1(a INT) AS
+BEGIN
+INSERT INTO t1 (a) VALUES (a);
+EXCEPTION
+WHEN DUP_VAL_ON_INDEX THEN
+a:= a+1;
+INSERT INTO t1 VALUES (a);
+WHEN OTHERS THEN
+NULL;
+NULL;
+END;
+$$
+CALL p1(30);
+SELECT * FROM t1;
+a
+10
+20
+30
+31
+DROP PROCEDURE p1;
+DROP TABLE t1;

@@ -1,0 +1,20 @@
+--source include/have_rocksdb.inc
+
+call mtr.add_suppression(".*Invalid pattern in rocksdb_read_free_rpl_tables.*");
+
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES('a');
+INSERT INTO valid_values VALUES('b');
+
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'*\'');
+
+--let $sys_var=ROCKSDB_READ_FREE_RPL_TABLES
+--let $read_only=0
+--source include/rocksdb_sys_var.inc
+
+SET GLOBAL ROCKSDB_READ_FREE_RPL_TABLES=NULL;
+SET GLOBAL ROCKSDB_READ_FREE_RPL_TABLES=DEFAULT;
+
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

@@ -1,0 +1,1094 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create database s_db;
+use s_db;
+grant all on s_db.* to normal_1@'%' identified by 'pass';
+grant all on test.* to normal_2@'%' identified by 'pass';
+grant all on s_db.* to normal_3@'%' identified by 'pass';
+grant all on test.* to normal_4@'%' identified by 'pass';
+connection slave;
+connect m_normal_1, 127.0.0.1, normal_1, pass, s_db, $MASTER_MYPORT;
+connect m_normal_2, 127.0.0.1, normal_2, pass, test, $MASTER_MYPORT;
+connect s_normal_3, 127.0.0.1, normal_3, pass, s_db, $SLAVE_MYPORT;
+connect s_normal_4, 127.0.0.1, normal_4, pass, test, $SLAVE_MYPORT;
+connection slave;
+set global read_only=on;
+use s_db;
+###########################################
+master and slave sync sequence.
+###########################################
+connection master;
+create sequence s1;
+show create table s1;
+Table	Create Table
+s1	CREATE TABLE `s1` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+connection slave;
+show create table s1;
+Table	Create Table
+s1	CREATE TABLE `s1` (
+  `next_not_cached_value` bigint(21) NOT NULL,
+  `minimum_value` bigint(21) NOT NULL,
+  `maximum_value` bigint(21) NOT NULL,
+  `start_value` bigint(21) NOT NULL COMMENT 'start value when sequences is created or value if RESTART is used',
+  `increment` bigint(21) NOT NULL COMMENT 'increment value',
+  `cache_size` bigint(21) unsigned NOT NULL,
+  `cycle_option` tinyint(1) unsigned NOT NULL COMMENT '0 if no cycles are allowed, 1 if the sequence should begin a new cycle when maximum_value is passed',
+  `cycle_count` bigint(21) NOT NULL COMMENT 'How many cycles have been done'
+) ENGINE=MyISAM SEQUENCE=1
+connection master;
+drop sequence s1;
+###########################################
+not support create table engine=sequence.
+###########################################
+connection master;
+create table t(id int)engine=sequence;
+ERROR 42000: Unknown storage engine 'sequence'
+create table t(id int)engine=innodb;
+alter table t engine=sequence;
+ERROR 42000: Unknown storage engine 'sequence'
+drop table t;
+###########################################
+not support alter sequence table.
+###########################################
+connection master;
+create sequence s2;
+alter table s2 add id int;
+ERROR HY000: Sequence 's_db.s2' table structure is invalid (Wrong number of columns)
+alter table s2 add index ind_x(start);
+ERROR HY000: Sequence 's_db.s2' table structure is invalid (Sequence tables cannot have any keys)
+drop sequence s2;
+###########################################
+support create sequence
+###########################################
+connection master;
+create table t_1(id int);
+show create sequence t_1;
+ERROR 42S02: 's_db.t_1' is not a SEQUENCE
+drop table t_1;
+CREATE SEQUENCE `s2` (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) NOT NULL
+) ENGINE=InnoDB sequence=1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT...' at line 1
+CREATE TABLE `s2` (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) NOT NULL
+) ENGINE=InnoDB sequence=1;
+insert into s2 values(1, 1, 10, 1, 2, 1, 1, 0);
+commit;
+select * for s2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 's2' at line 1
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	10	1	2	1	1	0
+select NEXT VALUE for s2;
+NEXT VALUE for s2
+1
+select NEXT VALUE for s2;
+NEXT VALUE for s2
+3
+select NEXT VALUE for s2;
+NEXT VALUE for s2
+5
+select NEXT VALUE for s2;
+NEXT VALUE for s2
+7
+select NEXT VALUE for s2;
+NEXT VALUE for s2
+9
+select NEXT VALUE for s2;
+NEXT VALUE for s2
+1
+select NEXT VALUE for s2;
+NEXT VALUE for s2
+3
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+5	1	10	1	2	1	1	1
+commit;
+connection master;
+connection slave;
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+5	1	10	1	2	1	1	1
+connection master;
+drop sequence s2;
+CREATE TABLE `s2` (
+`next_not_cached_value` bigint(21) NOT NULL,
+`minimum_value` bigint(21) NOT NULL,
+`maximum_value` bigint(21) NOT NULL,
+`start_value` bigint(21) NOT NULL,
+`increment` bigint(21) NOT NULL,
+`cache_size` bigint(21) unsigned NOT NULL,
+`cycle_option` tinyint(1) unsigned NOT NULL,
+`cycle_count` bigint(21) NOT NULL
+) ENGINE=myisam DEFAULT CHARSET=latin1 sequence=1;
+show create sequence s2;
+Table	Create Table
+s2	CREATE SEQUENCE `s2` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+drop sequence s2;
+###########################################
+select sequence syntax test
+###########################################
+connection master;
+create sequence s2;
+create table t2 (id int);
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+select * from t2;
+id
+insert into t2 select next value for s2;
+commit;
+select NEXT VALUE for s2;
+NEXT VALUE for s2
+2
+select NEXT VALUE for t2;
+ERROR 42S02: 's_db.t2' is not a SEQUENCE
+select * from s2, t2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count	id
+1001	1	9223372036854775806	1	1	1000	0	0	1
+select * for s2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 's2' at line 1
+select * for s2, t2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 's2, t2' at line 1
+connection master;
+drop sequence s2;
+drop table t2;
+###########################################
+support rename, not support truncate
+###########################################
+connection master;
+create sequence s2;
+alter table s2 rename to s2_1;
+rename table s2_1 to s2_2;
+show create sequence s2_2;
+Table	Create Table
+s2_2	CREATE SEQUENCE `s2_2` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=MyISAM
+select * from s2_2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+truncate table s2_2;
+ERROR HY000: Storage engine SEQUENCE of the table `s_db`.`s2_2` doesn't have this option
+rename table s2_2 to s2;
+drop sequence s2;
+###########################################
+all invalid sequence value
+###########################################
+connection master;
+create sequence s2 start with 1
+minvalue 1
+maxvalue 100000
+increment by 1
+cache 10000
+cycle;
+drop sequence s2;
+create sequence s2 start with 1
+minvalue 1
+maxvalue 100000
+increment by 1
+cache 10000
+nocycle;
+drop sequence s2;
+create sequence s2 start with 1
+minvalue 1
+maxvalue 100000
+increment by 1
+nocache
+nocycle;
+drop sequence s2;
+create sequence s2 start with 1
+minvalue 5
+maxvalue 100000
+increment by 1
+nocache
+nocycle;
+ERROR HY000: Sequence 's_db.s2' values are conflicting
+create sequence s2 start with 1
+minvalue 5
+maxvalue 5
+increment by 1
+nocache
+nocycle;
+ERROR HY000: Sequence 's_db.s2' values are conflicting
+create sequence s2 start with 1
+minvalue 5
+maxvalue 4
+increment by 1
+nocache
+nocycle;
+ERROR HY000: Sequence 's_db.s2' values are conflicting
+create sequence s2 start with 1
+minvalue 5
+maxvalue 4
+increment by 0
+nocache
+nocycle;
+ERROR HY000: Sequence 's_db.s2' values are conflicting
+###########################################
+global read lock prevent query sequence
+###########################################
+connection master;
+create sequence s_db.s1;
+flush table with read lock;
+select NEXT VALUE for s1;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+unlock tables;
+drop sequence s_db.s1;
+###########################################
+query cache test
+###########################################
+connection master;
+flush status;
+show global variables like 'query_cache_type';
+Variable_name	Value
+query_cache_type	ON
+show status like 'Qcache_hits';
+Variable_name	Value
+Qcache_hits	0
+show status like 'Qcache_inserts';
+Variable_name	Value
+Qcache_inserts	0
+###########################################
+priv test
+###########################################
+connection m_normal_1;
+create sequence s_db.s1;
+select NEXT VALUE for s_db.s1;
+NEXT VALUE for s_db.s1
+1
+create sequence s_db.s2;
+drop sequence s_db.s2;
+connection m_normal_2;
+select NEXT VALUE for s_db.s1;
+ERROR 42000: INSERT command denied to user 'normal_2'@'localhost' for table 's1'
+create sequence s_db.s2;
+ERROR 42000: CREATE command denied to user 'normal_2'@'localhost' for table 's2'
+connection m_normal_1;
+drop sequence s_db.s1;
+###########################################
+run out sequence value
+###########################################
+connection m_normal_1;
+create sequence s_t start with 1 cache 2 maxvalue 5;
+create table t(id int);
+insert into t values(1111);
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+insert into t select next value for s_t;
+ERROR HY000: Sequence 's_db.s_t' has run out
+insert into t select next value for s_t;
+ERROR HY000: Sequence 's_db.s_t' has run out
+commit;
+select * from t;
+id
+1111
+1
+2
+3
+4
+5
+connection master;
+connection slave;
+connection s_normal_3;
+select * from t;
+id
+1111
+1
+2
+3
+4
+5
+connection m_normal_1;
+drop sequence s_t;
+drop table t;
+###########################################
+read_only prevent query sequence
+###########################################
+connection m_normal_1;
+create sequence s_db.s1;
+show global variables like 'read_only';
+Variable_name	Value
+read_only	OFF
+select * from s_db.s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+connection master;
+connection slave;
+connection s_normal_3;
+show global variables like 'read_only';
+Variable_name	Value
+read_only	ON
+select next value for s_db.s1;
+ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+connection m_normal_1;
+drop sequence s_db.s1;
+###########################################
+update based table
+###########################################
+connection m_normal_1;
+create sequence s_t start with 1 minvalue 1 maxvalue 20 increment by 1 cache 5 cycle engine=innodb;
+connection master;
+connection slave;
+connection s_normal_3;
+select * from s_t;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	20	1	1	5	1	0
+connection m_normal_1;
+select next value for s_t;
+next value for s_t
+1
+connection master;
+connection slave;
+connection s_normal_3;
+select next_not_cached_value from s_t;
+next_not_cached_value
+6
+------------------------------------------
+master ALTER SEQUENCE
+------------------------------------------
+connection m_normal_1;
+select next value for s_t;
+next value for s_t
+2
+alter sequence s_t restart= 11;
+select * from s_t;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+11	1	20	1	1	5	1	0
+connection master;
+connection slave;
+------------------------------------------
+show slave nextval;
+------------------------------------------
+connection s_normal_3;
+select * from s_t;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+11	1	20	1	1	5	1	0
+connection m_normal_1;
+select next value for s_t;
+next value for s_t
+11
+connection master;
+connection slave;
+connection s_normal_3;
+select * from s_t;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+16	1	20	1	1	5	1	0
+------------------------------------------
+update into invalid sequence
+------------------------------------------
+connection m_normal_1;
+select next value for s_t;
+next value for s_t
+12
+select * from s_t;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+16	1	20	1	1	5	1	0
+alter sequence s_t minvalue=11 maxvalue=9;
+ERROR HY000: Sequence 's_db.s_t' values are conflicting
+select * from s_t;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+16	1	20	1	1	5	1	0
+alter sequence s_t restart= 12 start=10 minvalue=11 maxvalue=20;
+ERROR HY000: Sequence 's_db.s_t' values are conflicting
+select * from s_t;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+16	1	20	1	1	5	1	0
+------------------------------------------
+delete sequence row
+------------------------------------------
+connection m_normal_1;
+delete from s_t;
+ERROR HY000: Storage engine SEQUENCE of the table `s_db`.`s_t` doesn't have this option
+commit;
+select next value for s_t;
+next value for s_t
+13
+connection m_normal_1;
+drop sequence s_t;
+###########################################
+test transaction context (innodb)
+###########################################
+------------------------------------------
+transaction table and sequence
+normal transaction commit
+------------------------------------------
+connection m_normal_1;
+create sequence s_1 cache 5 engine=innodb;
+create table t_1(id int)engine=innodb;
+begin;
+insert into t_1 values(1111);
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 values(2222);
+commit;
+select * from t_1;
+id
+1111
+1
+2
+2222
+select * from s_1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+6	1	9223372036854775806	1	1	5	0	0
+connection master;
+connection slave;
+connection s_normal_3;
+select * from t_1;
+id
+1111
+1
+2
+2222
+------------------------------------------
+normal transaction rollback
+------------------------------------------
+connection m_normal_1;
+begin;
+insert into t_1 values(3333);
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+select * from t_1;
+id
+1111
+1
+2
+2222
+3333
+3
+4
+5
+6
+7
+8
+9
+10
+rollback;
+select * from t_1;
+id
+1111
+1
+2
+2222
+select * from s_1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+11	1	9223372036854775806	1	1	5	0	0
+select next value for s_1;
+next value for s_1
+11
+connection master;
+connection slave;
+connection s_normal_3;
+select * from t_1;
+id
+1111
+1
+2
+2222
+connection m_normal_1;
+drop sequence s_1;
+drop table t_1;
+###########################################
+test transaction context (myisam)
+###########################################
+------------------------------------------
+transaction table and sequence
+normal transaction commit
+------------------------------------------
+connection m_normal_1;
+create sequence s_1 cache 5;
+create table t_1(id int)engine=myisam;
+begin;
+insert into t_1 values(1111);
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 values(2222);
+commit;
+select * from t_1;
+id
+1111
+1
+2
+2222
+connection master;
+connection slave;
+connection s_normal_3;
+select * from t_1;
+id
+1111
+1
+2
+2222
+------------------------------------------
+normal transaction rollback
+------------------------------------------
+connection m_normal_1;
+begin;
+insert into t_1 values(3333);
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+insert into t_1 select next value for s_1;
+select * from t_1;
+id
+1111
+1
+2
+2222
+3333
+3
+4
+5
+6
+7
+8
+9
+10
+rollback;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+select * from t_1;
+id
+1111
+1
+2
+2222
+3333
+3
+4
+5
+6
+7
+8
+9
+10
+select next value for s_1;
+next value for s_1
+11
+connection master;
+connection slave;
+connection s_normal_3;
+select * from t_1;
+id
+1111
+1
+2
+2222
+3333
+3
+4
+5
+6
+7
+8
+9
+10
+connection m_normal_1;
+drop sequence s_1;
+drop table t_1;
+###########################################
+close binlog
+###########################################
+connection m_normal_1;
+create sequence s1 cache 2;
+select next value for s1;
+next value for s1
+1
+select next value for s1;
+next value for s1
+2
+select next value for s1;
+next value for s1
+3
+select next value for s1;
+next value for s1
+4
+commit;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+5	1	9223372036854775806	1	1	2	0	0
+connection master;
+connection slave;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+5	1	9223372036854775806	1	1	2	0	0
+------------------------------------------
+close session binlog.
+------------------------------------------
+connection master;
+set session sql_log_bin=off;
+select next value for s1;
+next value for s1
+5
+select next value for s1;
+next value for s1
+6
+select next value for s1;
+next value for s1
+7
+select next value for s1;
+next value for s1
+8
+set session sql_log_bin=on;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+9	1	9223372036854775806	1	1	2	0	0
+connection master;
+connection slave;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+5	1	9223372036854775806	1	1	2	0	0
+connection master;
+select next value for s1;
+next value for s1
+9
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+11	1	9223372036854775806	1	1	2	0	0
+connection slave;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+11	1	9223372036854775806	1	1	2	0	0
+connection master;
+drop sequence s1;
+###########################################
+statement binlog
+###########################################
+------------------------------------------
+set binlog_format=statement
+------------------------------------------
+connection master;
+set session binlog_format=statement;
+select @@session.binlog_format;
+@@session.binlog_format
+STATEMENT
+create sequence s1 cache 2;
+select next value for s1;
+ERROR HY000: Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging.
+set session binlog_format=row;
+select next value for s1;
+next value for s1
+1
+connection master;
+connection slave;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+3	1	9223372036854775806	1	1	2	0	0
+connection m_normal_1;
+drop sequence s1;
+------------------------------------------
+set binlog_format=mixed
+------------------------------------------
+connection master;
+set session binlog_format=mixed;
+select @@session.binlog_format;
+@@session.binlog_format
+MIXED
+create sequence s1 cache 2;
+select next value for s1;
+next value for s1
+1
+set session binlog_format=row;
+select next value for s1;
+next value for s1
+2
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+3	1	9223372036854775806	1	1	2	0	0
+connection master;
+connection slave;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+3	1	9223372036854775806	1	1	2	0	0
+connection m_normal_1;
+drop sequence s1;
+connection master;
+connection slave;
+###########################################
+test savepoint
+###########################################
+connection master;
+set session binlog_format=row;
+create sequence s1 cache 2;
+create table t1(id int)engine=innodb;
+begin;
+insert into t1 values(1111);
+savepoint sp1;
+insert into t1 select next value for s1;
+insert into t1 select next value for s1;
+insert into t1 select next value for s1;
+insert into t1 values(2222);
+select * from t1;
+id
+1111
+1
+2
+3
+2222
+rollback to sp1;
+select * from t1;
+id
+1111
+select next value for s1;
+next value for s1
+4
+commit;
+drop sequence s1;
+drop table t1;
+connection master;
+connection slave;
+###########################################
+create as
+###########################################
+connection m_normal_1;
+create sequence s1 cache 2;
+create table t as select * from s1;
+select * from t;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	2	0	0
+drop table t;
+create table t as select next value for s1;
+select * from t;
+next value for s1
+1
+drop table t;
+drop sequence s1;
+connection master;
+connection slave;
+###########################################
+test proc
+###########################################
+connection m_normal_1;
+create table t(id int)engine=innodb;
+create procedure p1()
+begin
+create sequence s1 cache 2;
+end//
+create procedure p2()
+begin
+insert into t select next value for s1;
+commit;
+end//
+call p1();
+call p2();
+call p2();
+call p2();
+call p2();
+select * from t;
+id
+1
+2
+3
+4
+connection master;
+connection slave;
+select * from t;
+id
+1
+2
+3
+4
+connection m_normal_1;
+drop table t;
+drop sequence s1;
+drop procedure p1;
+drop procedure p2;
+###########################################
+test trigger
+###########################################
+connection m_normal_1;
+create sequence s1 cache 2;
+create table t1(id int)engine=innodb;
+create table t2(id int)engine=innodb;
+CREATE TRIGGER tri_1
+before INSERT ON t2 FOR EACH ROW
+BEGIN
+INSERT INTO t1 select next value for s1;
+END//
+begin;
+insert into t2 values(1111);
+insert into t2 values(1111);
+insert into t2 values(1111);
+insert into t2 values(1111);
+select * from t2;
+id
+1111
+1111
+1111
+1111
+select * from t1;
+id
+1
+2
+3
+4
+rollback;
+select * from t2;
+id
+select * from t1;
+id
+select next value for s1;
+next value for s1
+5
+drop trigger tri_1;
+drop table t1;
+drop table t2;
+drop sequence s1;
+###########################################
+test function
+###########################################
+connection m_normal_1;
+create sequence s1 cache 2;
+create table t1(id int)engine=innodb;
+CREATE function f1() returns int
+BEGIN
+INSERT INTO t1 select next value for s1;
+return (1);
+END//
+begin;
+select f1();
+f1()
+1
+select f1();
+f1()
+1
+select f1();
+f1()
+1
+select f1();
+f1()
+1
+select * from t1;
+id
+1
+2
+3
+4
+rollback;
+select * from t1;
+id
+select next value for s1;
+next value for s1
+5
+drop function f1;
+drop table t1;
+drop sequence s1;
+###########################################
+test value boundary
+###########################################
+connection m_normal_1;
+------------------------------------------
+cycle_count increment by cycle_count
+------------------------------------------
+create sequence s1 start with 5 minvalue 2 maxvalue 7 cache 1 cycle;
+select next value for s1;
+next value for s1
+5
+select next value for s1;
+next value for s1
+6
+select next value for s1;
+next value for s1
+7
+select next value for s1;
+next value for s1
+2
+select next value for s1;
+next value for s1
+3
+drop sequence s1;
+create sequence s1 start with 5 minvalue 2 maxvalue 7 cache 10 nocycle;
+select next value for s1;
+next value for s1
+5
+select next value for s1;
+next value for s1
+6
+select next value for s1;
+next value for s1
+7
+select next value for s1;
+ERROR HY000: Sequence 's_db.s1' has run out
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+8	2	7	5	1	10	0	0
+drop sequence s1;
+create sequence s1 start with 2 minvalue 1 maxvalue 3 increment by 3 nocache cycle;
+select next value for s1;
+next value for s1
+2
+select next_not_cached_value,cycle_count from s1;
+next_not_cached_value	cycle_count
+4	0
+select next value for s1;
+next value for s1
+1
+select next_not_cached_value,cycle_count from s1;
+next_not_cached_value	cycle_count
+4	1
+select next value for s1;
+next value for s1
+1
+select next_not_cached_value,cycle_count from s1;
+next_not_cached_value	cycle_count
+4	2
+select next value for s1;
+next value for s1
+1
+select next_not_cached_value,cycle_count from s1;
+next_not_cached_value	cycle_count
+4	3
+select next value for s1;
+next value for s1
+1
+select next_not_cached_value,cycle_count from s1;
+next_not_cached_value	cycle_count
+4	4
+drop sequence s1;
+create sequence s1 start with 2 minvalue 1 maxvalue 3 increment by 3 cache 2 nocycle;
+select next value for s1;
+next value for s1
+2
+select next value for s1;
+ERROR HY000: Sequence 's_db.s1' has run out
+drop sequence s1;
+------------------------------------------
+beyond ulonglong maxvalue
+------------------------------------------
+create sequence s1 start with 9223372036854775805 minvalue 9223372036854775804 maxvalue 9223372036854775806  cache 1 cycle;
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775805	0
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775806	0
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775804	0
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775805	1
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775806	1
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775804	1
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775805	2
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775806	2
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775804	2
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775805	3
+drop sequence s1;
+create sequence s1 start with 9223372036854775805 minvalue 9223372036854775804 maxvalue 9223372036854775806  cache 10 cycle;
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775805	0
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775806	0
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775804	0
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775805	1
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775806	1
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775804	1
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775805	2
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775806	2
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775804	2
+select next value for s1, cycle_count from s1;
+next value for s1	cycle_count
+9223372036854775805	3
+drop sequence s1;
+###########################################
+test default()
+###########################################
+connection master;
+CREATE SEQUENCE s1 nocache engine=myisam;
+CREATE table t1 (a int default next value for s1, b int);
+insert into t1 (b) values (1),(2);
+select default(a) from t1;
+default(a)
+3
+4
+select * from t1;
+a	b
+1	1
+2	2
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+5	1	9223372036854775806	1	1	0	0	0
+connection slave;
+connection s_normal_3;
+select * from t1;
+a	b
+1	1
+2	2
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+5	1	9223372036854775806	1	1	0	0	0
+connection master;
+drop table t1,s1;
+connection master;
+drop database s_db;
+drop user normal_1@'%';
+drop user normal_2@'%';
+drop user normal_3@'%';
+drop user normal_4@'%';
+include/rpl_end.inc

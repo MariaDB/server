@@ -1,0 +1,56 @@
+# ==== Purpose ====
+#
+# Test verifies that failed CREATE OR REPLACE TEMPORARY TABLE statement which
+# dropped the table but failed at a later stage of creation of temporary table
+# is written to binarylog in row based replication.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Have mixed based replication mode.
+#    1 - Create a temporary table. It will be replicated as mixed replication
+#        mode is in use.
+#    2 - Execute an unsafe statement which will switch current statement
+#        binlog format to 'ROW'. i.e If binlog_format=MIXED, there are open
+#        temporary tables, and an unsafe statement is executed, then subsequent
+#        statements are logged in row format.
+#    3 - Execute a CREATE OR REPLACE TEMPORARY TABLE statement which tries to
+#        create partitions on temporary table. Since it is not supported it will
+#        fail.
+#    4 - Check the binary log output to ensure that the failed statement is
+#        written to the binary log.
+#    5 - Slave should be up and running and in sync with master.
+#
+# ==== References ====
+#
+# MDEV-18930: Failed CREATE OR REPLACE TEMPORARY not written into binary log
+# makes data on master and slave diverge
+#
+
+--source include/have_partition.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+CREATE TEMPORARY TABLE t1 (a INT NOT NULL);
+
+# Execute an unsafe statement which switches replication mode internally from
+# "STATEMENT" to "ROW".
+--error ER_NO_SUCH_TABLE
+LOAD DATA INFILE 'x' INTO TABLE x;
+
+--error ER_PARTITION_NO_TEMPORARY
+CREATE OR REPLACE TEMPORARY TABLE t1 (x INT) PARTITION BY HASH(x);
+
+--echo "************** DROP TEMPORARY TABLE Should be present in Binary log **************"
+--source include/show_binlog_events.inc
+
+CREATE TABLE t1 (b INT);
+INSERT INTO t1 VALUES (NULL);
+--sync_slave_with_master
+
+# Cleanup
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc
+

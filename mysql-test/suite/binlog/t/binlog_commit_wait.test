@@ -1,0 +1,229 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+SET @old_count= @@GLOBAL.binlog_commit_wait_count;
+SET GLOBAL binlog_commit_wait_count= 3;
+SET @old_usec= @@GLOBAL.binlog_commit_wait_usec;
+SET GLOBAL binlog_commit_wait_usec= 20000000;
+
+connect(con1,localhost,root,,test);
+connect(con2,localhost,root,,test);
+connect(con3,localhost,root,,test);
+
+# Get Initial status measurements
+--connection default
+SELECT variable_value INTO @group_commits FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commits';
+SELECT variable_value INTO @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value INTO @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value INTO @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+
+# Note: binlog_group_commits is counted at the start of the group and group_commit_trigger_* is
+# counted near when the groups its finalised.
+
+# Check that if T2 goes to wait for a row lock of T1 while T1 is waiting for
+# more transactions to arrive for group commit, the commit of T1 will complete
+# immediately.
+# We test this by setting a very high timeout (20 seconds), and testing that
+# that much time does not elapse.
+
+--connection default
+SET @a= current_timestamp();
+
+--connection con1
+BEGIN;
+INSERT INTO t1 VALUES (1,0);
+send COMMIT;
+
+--connection con2
+send INSERT INTO t1 VALUES (1,1);
+
+--connection con1
+reap;
+
+--connection default
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+
+# All connections are to the same server. One transaction occurs on con1. It is
+# commited before con2 is started. con2 transaction violates the unique key contraint. This
+# type of group commit is binlog_group_commit_trigger_lock_wait so that further con2
+# transactions will occur afterwards as they may be as result of the ER_DUP_ENTRY on the 
+# application side.
+# before: binlog_group_commit=0, binlog_group_commit_trigger_count=0
+# before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=0
+# after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_lock_wait+1
+SELECT variable_value - @group_commits FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commits';
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+
+--connection con2
+--error ER_DUP_ENTRY
+reap;
+
+
+# Test that the commit triggers when sufficient commits have queued up.
+--connection default
+SET @a= current_timestamp();
+
+--connection con1
+send INSERT INTO t1 VALUES (2,0);
+
+--connection con2
+send INSERT INTO t1 VALUES (3,0);
+
+--connection con3
+INSERT INTO t1 VALUES (4,0);
+
+--connection con1
+reap;
+--connection con2
+reap;
+
+--connection default
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+
+# All connections are to the same server. 3 non-conflicting transaction occur
+# on each connection. The binlog_commit_wait_count=3 at the start therefore 1
+# group is committed by virtue of reaching 3 transactions. Hence
+# binlog_group_commit_trigger_count is incremented.
+# before: binlog_group_commit=1, binlog_group_commit_trigger_count=0
+# before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=1
+# after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_count+1
+SELECT variable_value - @group_commits FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commits';
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+
+# Test that commit triggers immediately if there is already a transaction
+# waiting on another transaction that reaches its commit.
+
+--connection default
+SET @a= current_timestamp();
+
+--connection con1
+send INSERT INTO t1 VALUES (6,0);
+
+--connection con2
+BEGIN;
+UPDATE t1 SET b=b+1 WHERE a=1;
+
+--connection con3
+send UPDATE t1 SET b=b+10 WHERE a=1;
+
+--connection con2
+# A small sleep to let con3 have time to wait on con2.
+# The sleep might be too small on loaded host, but that is not a big problem;
+# it only means we will trigger a different code path (con3 waits after con2
+# is ready to commit rather than before); and either path should work the same.
+# So we will not get false positive in case of different timing; at worst false
+# negative.
+SELECT SLEEP(0.25);
+UPDATE t1 SET b=b+1 WHERE a=3;
+COMMIT;
+
+--connection con1
+reap;
+
+--connection default
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+
+# All connections are to the same server. con2 and con3 updates are aquiring
+# the same row lock for a=1. Either con2 or con3 will be in a lock wait
+# thefore the binlog_group_commit_trigger_lock_wait is incremented.
+# before: binlog_group_commit=2, binlog_group_commit_trigger_count=1
+# before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=1
+# after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_lock_wait+1
+SELECT variable_value - @group_commits FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commits';
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+
+--connection default
+SET @a= current_timestamp();
+
+# Now con3 will be waiting for a following group commit to trigger.
+--connection con1
+send INSERT INTO t1 VALUES (7,0);
+--connection con2
+INSERT INTO t1 VALUES (8,0);
+--connection con3
+reap;
+
+--connection default
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20"));
+
+# The con1 and con2 transactions above are combined with the 'send UPDATE t1 SET b=b+10 WHERE a=1;'
+# on con3 from the previous block. So we have 3 so this is a count based group.
+# before: binlog_group_commit=3, binlog_group_commit_trigger_count=1
+# before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=2
+# after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_count+1
+SELECT variable_value - @group_commits FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commits';
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+
+# Test that when the binlog_commit_wait_usec is reached the tranction gets a group commit
+
+--connection default
+SET @a= current_timestamp();
+SET GLOBAL binlog_commit_wait_usec= 5*1000*1000;
+
+--connection con1
+reap;
+INSERT INTO t1 VALUES (9,0);
+
+--connection default
+SET @b= unix_timestamp(current_timestamp()) - unix_timestamp(@a);
+SELECT IF(@b < 4, CONCAT("Error: too little time elapsed: ", @b, " seconds < 4"),
+          IF(@b < 20, "Ok", CONCAT("Error: too much time elapsed: ", @b, " seconds >= 20")));
+
+# con1 pushes 1 transaction. The count was for 3 to occur before a group commit.
+# The timeout is 5 seconds but we allow between 4 and 20 because of the fragile nature
+# of time in test. This is a timeout causing the commit so binlog_group_commit_trigger_timeout
+# is incremented.
+# before: binlog_group_commit=4, binlog_group_commit_trigger_count=2
+# before: binlog_group_commit_trigger_timeout=0, binlog_group_commit_trigger_lock_wait=2
+# after:  binlog_group_commit+1 by reason of binlog_group_commit_trigger_timeout+1
+SELECT variable_value - @group_commits FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commits';
+SELECT variable_value - @group_commit_trigger_count FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_count';
+SELECT variable_value - @group_commit_trigger_timeout FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_timeout';
+SELECT variable_value - @group_commit_trigger_lock_wait FROM information_schema.global_status
+ WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+
+--connection default
+SELECT * FROM t1 ORDER BY a;
+
+--connection default
+DROP TABLE t1;
+SET GLOBAL binlog_commit_wait_count= @old_count;
+SET GLOBAL binlog_commit_wait_usec= @old_usec;

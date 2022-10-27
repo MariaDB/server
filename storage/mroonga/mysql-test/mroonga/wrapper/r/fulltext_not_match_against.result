@@ -1,0 +1,68 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key, c2 int, c3 text, fulltext index ft(c3)) COMMENT = 'engine "innodb"';
+insert into t1 values(1,10,"aa ii uu ee oo");
+insert into t1 values(2,10,"ka ki ku ke ko");
+insert into t1 values(3,10,"aa ii uu ee oo");
+insert into t1 values(4,10,"ka ki ku ke ko");
+insert into t1 values(5,20,"aa ii uu ee oo");
+insert into t1 values(6,20,"ka ki ku ke ko");
+insert into t1 values(7,20,"aa ii uu ee oo");
+insert into t1 values(8,20,"ka ki ku ke ko");
+select * from t1;
+c1	c2	c3
+1	10	aa ii uu ee oo
+2	10	ka ki ku ke ko
+3	10	aa ii uu ee oo
+4	10	ka ki ku ke ko
+5	20	aa ii uu ee oo
+6	20	ka ki ku ke ko
+7	20	aa ii uu ee oo
+8	20	ka ki ku ke ko
+select *,match(c3) against("uu") from t1 where match(c3) against("uu") order by c1;
+c1	c2	c3	match(c3) against("uu")
+1	10	aa ii uu ee oo	131073
+3	10	aa ii uu ee oo	131073
+5	20	aa ii uu ee oo	131073
+7	20	aa ii uu ee oo	131073
+select * from t1 where not match(c3) against("uu") order by c1;
+c1	c2	c3
+2	10	ka ki ku ke ko
+4	10	ka ki ku ke ko
+6	20	ka ki ku ke ko
+8	20	ka ki ku ke ko
+select *,match(c3) against("dummy") from t1 where match(c3) against("dummy") order by c1;
+c1	c2	c3	match(c3) against("dummy")
+select * from t1 where not match(c3) against("dummy") order by c1;
+c1	c2	c3
+1	10	aa ii uu ee oo
+2	10	ka ki ku ke ko
+3	10	aa ii uu ee oo
+4	10	ka ki ku ke ko
+5	20	aa ii uu ee oo
+6	20	ka ki ku ke ko
+7	20	aa ii uu ee oo
+8	20	ka ki ku ke ko
+select * from t1 where c1 = 4 and not match(c3) against("uu") order by c1;
+c1	c2	c3
+4	10	ka ki ku ke ko
+select * from t1 where c1 <= 4 and not match(c3) against("uu") order by c1;
+c1	c2	c3
+2	10	ka ki ku ke ko
+4	10	ka ki ku ke ko
+select * from t1 where c1 > 4 and not match(c3) against("uu") order by c1;
+c1	c2	c3
+6	20	ka ki ku ke ko
+8	20	ka ki ku ke ko
+select * from t1 where c2 = 10 and not match(c3) against("uu") order by c1;
+c1	c2	c3
+2	10	ka ki ku ke ko
+4	10	ka ki ku ke ko
+select * from t1 where c2 >= 15 and not match(c3) against("uu") order by c1;
+c1	c2	c3
+6	20	ka ki ku ke ko
+8	20	ka ki ku ke ko
+select * from t1 where c2 < 15 and not match(c3) against("uu") order by c1;
+c1	c2	c3
+2	10	ka ki ku ke ko
+4	10	ka ki ku ke ko
+drop table t1;

@@ -1,0 +1,29 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+
+# Wait until above DDL's are replicated
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+
+FLUSH TABLES t1 FOR EXPORT;
+
+--connection node_1
+ALTER TABLE t1 ADD COLUMN f2 INTEGER;
+INSERT INTO t1 VALUES (2,3);
+
+--connection node_2
+UNLOCK TABLES;
+
+--echo ### t1 should have column f2
+SHOW CREATE TABLE t1;
+SELECT * from t1;
+
+--connection node_1
+DROP TABLE t1;

@@ -1,0 +1,104 @@
+Warnings:
+Warning	1105	No file name. Table will use t1.xml
+SET NAMES utf8;
+#
+# Testing expanded values
+#
+CREATE TABLE `bookstore` (
+`category` CHAR(16) NOT NULL XPATH='@',
+`title` VARCHAR(50) NOT NULL,
+`lang` char(2) NOT NULL XPATH='title/@',
+`author` VARCHAR(24) NOT NULL,
+`year` INT(4) NOT NULL,
+`price` DOUBLE(8,2) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='bookstore.xml' OPTION_LIST='expand=1,mulnode=author,limit=6,xmlsup=libxml2';
+SELECT * FROM bookstore;
+category	title	lang	author	year	price
+COOKING	Everyday Italian	en	Giada De Laurentiis	2005	30.00
+CHILDREN	Harry Potter	en	J K. Rowling	2005	29.99
+WEB	XQuery Kick Start	en	James McGovern	2003	49.99
+WEB	XQuery Kick Start	en	Per Bothner	2003	49.99
+WEB	XQuery Kick Start	en	Kurt Cagle	2003	49.99
+WEB	XQuery Kick Start	en	James Linn	2003	49.99
+WEB	XQuery Kick Start	en	Vaidyanathan Nagarajan	2003	49.99
+WEB	Learning XML	en	Erik T. Ray	2003	39.95
+SELECT category, title, price FROM bookstore;
+category	title	price
+COOKING	Everyday Italian	30.00
+CHILDREN	Harry Potter	29.99
+WEB	XQuery Kick Start	49.99
+WEB	Learning XML	39.95
+SELECT category, title, author, price FROM bookstore WHERE author LIKE '%K%';
+category	title	author	price
+CHILDREN	Harry Potter	J K. Rowling	29.99
+WEB	XQuery Kick Start	Kurt Cagle	49.99
+WEB	Learning XML	Erik T. Ray	39.95
+SELECT category, title, price FROM bookstore WHERE author LIKE 'J%';
+category	title	price
+CHILDREN	Harry Potter	29.99
+WEB	XQuery Kick Start	49.99
+WEB	XQuery Kick Start	49.99
+#
+# Limiting expanded values
+#
+ALTER TABLE bookstore OPTION_LIST='expand=1,mulnode=author,limit=3,xmlsup=libxml2';
+SELECT * FROM bookstore;
+category	title	lang	author	year	price
+COOKING	Everyday Italian	en	Giada De Laurentiis	2005	30.00
+CHILDREN	Harry Potter	en	J K. Rowling	2005	29.99
+WEB	XQuery Kick Start	en	James McGovern	2003	49.99
+WEB	XQuery Kick Start	en	Per Bothner	2003	49.99
+WEB	XQuery Kick Start	en	Kurt Cagle	2003	49.99
+WEB	Learning XML	en	Erik T. Ray	2003	39.95
+Warnings:
+Warning	1105	Multiple values limited to 3
+# One line lost because the where clause is applied only on the first 3 rows
+SELECT category, title, author, price FROM bookstore WHERE author LIKE 'J%';
+category	title	author	price
+CHILDREN	Harry Potter	J K. Rowling	29.99
+WEB	XQuery Kick Start	James McGovern	49.99
+Warnings:
+Warning	1105	Multiple values limited to 3
+#
+# Testing concatenated values
+#
+ALTER TABLE bookstore OPTION_LIST='mulnode=author,limit=6,xmlsup=libxml2';
+# truncated
+SELECT * FROM bookstore;
+category	title	lang	author	year	price
+COOKING	Everyday Italian	en	Giada De Laurentiis	2005	30.00
+CHILDREN	Harry Potter	en	J K. Rowling	2005	29.99
+WEB	XQuery Kick Start	en	James McGovern, Per Both	2003	49.99
+WEB	Learning XML	en	Erik T. Ray	2003	39.95
+Warnings:
+Warning	1105	Truncated author content
+# increase author size
+ALTER TABLE bookstore MODIFY `author` VARCHAR(128) NOT NULL;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
+SELECT * FROM bookstore;
+category	title	lang	author	year	price
+COOKING	Everyday Italian	en	Giada De Laurentiis	2005	30.00
+CHILDREN	Harry Potter	en	J K. Rowling	2005	29.99
+WEB	XQuery Kick Start	en	James McGovern, Per Bothner, Kurt Cagle, James Linn, Vaidyanathan Nagarajan	2003	49.99
+WEB	Learning XML	en	Erik T. Ray	2003	39.95
+#
+# Limiting concatenated values
+#
+ALTER TABLE bookstore OPTION_LIST='mulnode=author,limit=4,xmlsup=libxml2';
+SELECT * FROM bookstore;
+category	title	lang	author	year	price
+COOKING	Everyday Italian	en	Giada De Laurentiis	2005	30.00
+CHILDREN	Harry Potter	en	J K. Rowling	2005	29.99
+WEB	XQuery Kick Start	en	James McGovern, Per Bothner, Kurt Cagle, James Linn	2003	49.99
+WEB	Learning XML	en	Erik T. Ray	2003	39.95
+Warnings:
+Warning	1105	Multiple values limited to 4
+# The where clause is applied on the concatenated column result
+SELECT category, title, author, price FROM bookstore WHERE author LIKE 'J%';
+category	title	author	price
+CHILDREN	Harry Potter	J K. Rowling	29.99
+WEB	XQuery Kick Start	James McGovern, Per Bothner, Kurt Cagle, James Linn	49.99
+Warnings:
+Warning	1105	Multiple values limited to 4
+DROP TABLE bookstore;

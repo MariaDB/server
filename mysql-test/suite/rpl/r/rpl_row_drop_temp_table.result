@@ -1,0 +1,38 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+SET GLOBAL read_only=1;
+connection master;
+CREATE PROCEDURE testproc()
+BEGIN
+DROP TEMPORARY TABLE IF EXISTS t1_tmp;
+DROP TEMPORARY TABLE IF EXISTS t2_tmp;
+CREATE TEMPORARY TABLE IF NOT EXISTS t1_tmp ( t1 varchar(400) DEFAULT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TEMPORARY TABLE IF NOT EXISTS t2_tmp ( t2 varchar(16) NOT NULL ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+END|
+SET GLOBAL read_only=1;
+CALL testproc();
+******** None of the above DROP TEMPORARY TABLE statement should be found in binary log ********
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `testproc`()
+BEGIN
+DROP TEMPORARY TABLE IF EXISTS t1_tmp;
+DROP TEMPORARY TABLE IF EXISTS t2_tmp;
+CREATE TEMPORARY TABLE IF NOT EXISTS t1_tmp ( t1 varchar(400) DEFAULT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TEMPORARY TABLE IF NOT EXISTS t2_tmp ( t2 varchar(16) NOT NULL ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+END
+connection slave;
+SELECT @@read_only;
+@@read_only
+1
+======== CLEAN UP =========
+connection master;
+DROP TEMPORARY TABLE t1_tmp;
+DROP TEMPORARY TABLE t2_tmp;
+DROP PROCEDURE testproc;
+SET GLOBAL read_only=0;
+connection slave;
+SET GLOBAL read_only=0;
+include/rpl_end.inc

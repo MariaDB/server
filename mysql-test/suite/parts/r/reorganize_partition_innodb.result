@@ -1,0 +1,160 @@
+#
+# MDEV-15953 Alter InnoDB Partitioned Table Moves Files (which were originally not in the datadir) to the datadir
+#
+CREATE TABLE t (
+a INT NOT NULL
+) ENGINE=INNODB
+PARTITION BY HASH (a) (
+PARTITION p1 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here/' ENGINE = INNODB,
+PARTITION p2 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here/' ENGINE = INNODB
+);
+INSERT INTO t VALUES (1);
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+(PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
+ PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
+ALTER TABLE t ADD PRIMARY KEY pk(a), ALGORITHM=INPLACE;
+Warnings:
+Warning	1280	Name 'pk' ignored for PRIMARY key.
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+(PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
+ PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
+ALTER TABLE t DROP PRIMARY KEY, ALGORITHM=COPY;
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+(PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
+ PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
+SET @TMP = @@GLOBAL.INNODB_FILE_PER_TABLE;
+SET GLOBAL INNODB_FILE_PER_TABLE=OFF;
+ALTER TABLE t ADD PRIMARY KEY pk(a), ALGORITHM=INPLACE;
+Warnings:
+Warning	1280	Name 'pk' ignored for PRIMARY key.
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+(PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
+ PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
+SET GLOBAL INNODB_FILE_PER_TABLE=@TMP;
+ALTER TABLE t REORGANIZE PARTITION p1,p2 INTO (
+PARTITION p1 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = INNODB,
+PARTITION p2 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = INNODB
+);
+Warnings:
+Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
+Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+(PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
+ PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
+ALTER TABLE t REORGANIZE PARTITION p1,p2 INTO (
+PARTITION p1 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/',
+PARTITION p2 DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
+);
+Warnings:
+Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
+Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+(PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
+ PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
+ALTER TABLE t REORGANIZE PARTITION p1,p2 INTO (
+PARTITION p1 INDEX DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = INNODB,
+PARTITION p2 INDEX DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = INNODB
+);
+Warnings:
+Warning	1982	<INDEX DIRECTORY> option ignored for InnoDB partition
+Warning	1982	<INDEX DIRECTORY> option ignored for InnoDB partition
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+(PARTITION `p1` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB,
+ PARTITION `p2` DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here' ENGINE = InnoDB)
+DROP TABLE t;
+SET @strict = @@innodb_strict_mode;
+SET innodb_strict_mode=OFF;
+CREATE TABLE t (
+a INT NOT NULL
+) ENGINE=INNODB
+PARTITION BY RANGE (a)
+SUBPARTITION BY HASH (a)
+SUBPARTITIONS 2
+(
+PARTITION p1 VALUES LESS THAN (7)
+DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here/'
+         INDEX DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here/'
+         ENGINE = INNODB,
+PARTITION p2 VALUES LESS THAN MAXVALUE
+DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here/'
+         INDEX DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_here/'
+         ENGINE = INNODB
+);
+Warnings:
+Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	<INDEX DIRECTORY> option ignored
+Warning	1618	<INDEX DIRECTORY> option ignored
+SET innodb_strict_mode=@strict;
+ALTER TABLE t
+REORGANIZE PARTITION p1,p2 INTO
+(
+PARTITION p1 VALUES LESS THAN (7)
+DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
+   INDEX DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
+   ENGINE = INNODB,
+PARTITION p2 VALUES LESS THAN MAXVALUE
+DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
+   INDEX DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/'
+   ENGINE = INNODB
+);
+Warnings:
+Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
+Warning	1982	<INDEX DIRECTORY> option ignored for InnoDB partition
+Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
+Warning	1982	<INDEX DIRECTORY> option ignored for InnoDB partition
+Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
+Warning	1982	<INDEX DIRECTORY> option ignored for InnoDB partition
+Warning	1982	<DATA DIRECTORY> option ignored for InnoDB partition
+Warning	1982	<INDEX DIRECTORY> option ignored for InnoDB partition
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`a`)
+SUBPARTITION BY HASH (`a`)
+SUBPARTITIONS 2
+(PARTITION `p1` VALUES LESS THAN (7) DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' INDEX DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = InnoDB,
+ PARTITION `p2` VALUES LESS THAN MAXVALUE DATA DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' INDEX DIRECTORY = 'MYSQLTEST_VARDIR/tmp/partitions_somewhere_else/' ENGINE = InnoDB)
+DROP TABLE t;

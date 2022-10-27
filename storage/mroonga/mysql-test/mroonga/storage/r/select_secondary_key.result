@@ -1,0 +1,55 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key, c2 int, c3 text, key idx1(c2), fulltext index ft(c3));
+insert into t1 values(1,10,"aa ii uu ee oo");
+insert into t1 values(2,20,"ka ki ku ke ko");
+insert into t1 values(3,30,"sa si su se so");
+insert into t1 values(4,40,"ta ti tu te to");
+insert into t1 values(5,50,"aa ii uu ee oo");
+select * from t1;
+c1	c2	c3
+1	10	aa ii uu ee oo
+2	20	ka ki ku ke ko
+3	30	sa si su se so
+4	40	ta ti tu te to
+5	50	aa ii uu ee oo
+select * from t1 force index(idx1) where c2 = 30;
+c1	c2	c3
+3	30	sa si su se so
+select * from t1 force index(idx1) where c2 = 20;
+c1	c2	c3
+2	20	ka ki ku ke ko
+insert into t1 values(6,30,"aa bb cc dd ee");
+select * from t1;
+c1	c2	c3
+1	10	aa ii uu ee oo
+2	20	ka ki ku ke ko
+3	30	sa si su se so
+4	40	ta ti tu te to
+5	50	aa ii uu ee oo
+6	30	aa bb cc dd ee
+select * from t1 force index(idx1) where c2 = 30;
+c1	c2	c3
+3	30	sa si su se so
+6	30	aa bb cc dd ee
+drop table t1;
+create table t1 (c1 varchar(5) primary key, c2 varchar(5), c3 text, key idx1(c2), fulltext index ft(c3))engine=mroonga;
+insert into t1 values('ab','ijk',"aa ii uu ee oo");
+insert into t1 values('bc','ghi',"ka ki ku ke ko");
+insert into t1 values('cd','efg',"sa si su se so");
+insert into t1 values('de','cde',"ta ti tu te to");
+insert into t1 values('ef','abc',"aa ii uu ee oo");
+select * from t1 force index(idx1) where c2 < 'e' order by c1 asc;
+c1	c2	c3
+de	cde	ta ti tu te to
+ef	abc	aa ii uu ee oo
+select * from t1 force index(idx1) where c2 > 'e' order by c1 asc;
+c1	c2	c3
+ab	ijk	aa ii uu ee oo
+bc	ghi	ka ki ku ke ko
+cd	efg	sa si su se so
+select * from t1 force index(idx1) where c2 between 'c' and 'h' order by c1 asc;
+c1	c2	c3
+bc	ghi	ka ki ku ke ko
+cd	efg	sa si su se so
+de	cde	ta ti tu te to
+drop table t1;

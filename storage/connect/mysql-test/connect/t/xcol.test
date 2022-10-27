@@ -1,0 +1,41 @@
+--echo #
+--echo # Make the children list table
+--echo #
+CREATE TABLE chlist (
+mother char(12) NOT NULL COMMENT 'The mother of the listed children',
+children varchar(30) DEFAULT NULL COMMENT 'The comma separated list of children'
+) ENGINE=CONNECT;
+INSERT INTO chlist VALUES('Sophia','Vivian, Antony');
+INSERT INTO chlist VALUES('Lisbeth','Lucy,Charles,Diana');
+INSERT INTO chlist VALUES('Corinne',NULL);
+INSERT INTO chlist VALUES('Claude','Marc');
+INSERT INTO chlist VALUES('Janet','Arthur,Sandra,Peter,John');
+SELECT * FROM chlist;
+
+--echo #
+--echo # Checking XCOL tables
+--echo #
+CREATE TABLE child ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist OPTION_LIST='colname=children';
+SELECT * FROM child;
+SELECT * FROM child ORDER BY mother;
+SELECT * FROM child ORDER BY children;
+SELECT mother FROM child;
+SELECT mother, COUNT(*) FROM child GROUP BY mother;
+SELECT mother, COUNT(children) FROM child GROUP BY mother;
+
+--echo #
+--echo # Test using special columns
+--echo #
+CREATE TABLE `child2` (
+  `row` int NOT NULL SPECIAL=ROWID,
+  `num` int NOT NULL SPECIAL=ROWNUM,
+  `mother` varchar(12) NOT NULL COMMENT 'The mother of the children',
+  `child` varchar(12) NOT NULL COMMENT 'The child name' FLAG=2
+) ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=chlist `OPTION_LIST`='colname=child';
+SELECT * FROM child2;
+--echo # List only first child
+SELECT mother, child FROM child2 where num = 1;
+
+DROP TABLE child;
+DROP TABLE chlist;
+DROP TABLE child2;

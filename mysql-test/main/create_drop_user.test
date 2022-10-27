@@ -1,0 +1,46 @@
+--source include/not_embedded.inc
+
+CREATE USER IF NOT EXISTS u1@localhost IDENTIFIED BY 'pw1';
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u1';
+
+CREATE USER IF NOT EXISTS u1@localhost IDENTIFIED BY 'pw2';
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u1';
+
+CREATE OR REPLACE USER u1@localhost IDENTIFIED BY 'pw3';
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u1';
+
+--error ER_WRONG_USAGE
+CREATE OR REPLACE USER IF NOT EXISTS u1@localhost IDENTIFIED BY 'pw4';
+SELECT plugin,authentication_string FROM mysql.user WHERE user='u1';
+
+DROP USER IF EXISTS u1@localhost;
+DROP USER IF EXISTS u1@localhost;
+
+--error ER_CANNOT_USER
+DROP USER u1@localhost;
+
+CREATE OR REPLACE USER u1@localhost;
+
+--error ER_CANNOT_USER
+CREATE USER u1@localhost;
+
+DROP USER u1@localhost;
+
+CREATE USER u1;
+
+--error ER_CANNOT_USER
+CREATE USER u1, u2;
+
+--error ER_CANNOT_USER
+CREATE USER u2;
+
+--error ER_PASSWD_LENGTH
+CREATE OR REPLACE USER u1 IDENTIFIED BY PASSWORD 'password', u2;
+
+CREATE OR REPLACE USER u1 IDENTIFIED BY PASSWORD 'abcdefghijklmnop', u2;
+
+DROP USER u1;
+DROP USER IF EXISTS u1, u2;
+
+--error ER_CANNOT_USER
+DROP USER u2;

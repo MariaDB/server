@@ -1,0 +1,162 @@
+#
+# MDEV-5317 Compound statement / anonymous blocks
+#
+source include/have_log_bin.inc;
+delimiter |;
+
+CREATE TABLE t1 (a INT PRIMARY KEY)|
+
+BEGIN NOT ATOMIC
+  INSERT INTO t1 VALUES (1);
+  INSERT INTO t1 VALUES (2);
+  INSERT INTO t1 VALUES (3);
+END|
+
+SELECT * FROM t1|
+PREPARE stmt FROM "BEGIN NOT ATOMIC
+  INSERT INTO t1 VALUES (4);
+  INSERT INTO t1 VALUES (5);
+  INSERT INTO t1 VALUES (?);
+END";
+SET @val = 6|
+reset master|
+EXECUTE stmt USING @val|
+SELECT * FROM t1|
+
+# see how ?-placeholder was replaced with the value
+delimiter ;|
+source include/show_binlog_events.inc;
+delimiter |;
+
+DROP TABLE t1|
+
+#
+# test for default database
+#
+# * SP db is different from the current db
+CREATE DATABASE mysqltest1|
+CREATE PROCEDURE mysqltest1.sp1()
+BEGIN
+  PREPARE stmt FROM "BEGIN NOT ATOMIC CREATE TABLE t1 AS SELECT DATABASE(); END";
+  EXECUTE stmt;
+END|
+
+CALL mysqltest1.sp1()|
+SELECT * FROM mysqltest1.t1|
+
+USE mysqltest1|
+DROP DATABASE mysqltest1|
+
+# * no current db
+--error ER_NO_DB_ERROR
+BEGIN NOT ATOMIC CREATE TABLE t1(a int); END|
+
+BEGIN NOT ATOMIC SET @a=1; CREATE TABLE test.t1(a int); END|
+
+USE test|
+show tables|
+drop table t1|
+
+# IF (without /**/ mysqltest treats if as its own command)
+/**/ if (select count(*) from information_schema.tables
+    where table_schema='test' and table_name='t1') = 0
+  then
+    create table t1 (a int);
+end if|
+show tables|
+/**/ if (select count(*) from information_schema.tables
+    where table_schema='test' and table_name='t1') = 0
+  then
+    create table t1 (a int);
+end if|
+show tables|
+
+# CASE simple
+case (select table_name from information_schema.tables where table_schema='test')
+  when 't1' then create table t2 (b int);
+  when 't2' then create table t3 (b int);
+  else signal sqlstate '42S02';
+end case|
+show tables|
+
+# CASE searched
+case
+  when database() = 'test' then create table t3 (test text);
+  when now() < date'2001-02-03' then create table oops (machine time);
+end case|
+show tables|
+
+# LOOP
+--error ER_TABLE_EXISTS_ERROR
+loop
+  create table t4 (a int);
+end loop|
+show tables|
+
+# REPEAT
+set @a=0;
+repeat
+  set @a = @a + 1;
+until @a > 5
+end repeat|
+select @a|
+
+# WHILE
+--vertical_results
+/**/ while (select count(*) from information_schema.tables where table_schema='test')
+do
+  select concat('drop table ', table_name) into @a
+     from information_schema.tables where table_schema='test'
+     order by table_name limit 1;
+  select @a as 'executing:';
+  prepare dt from @a;
+  execute dt;
+end while|
+--horizontal_results
+
+# see how ?-placeholder and SP variables are replaced with values
+create table t1 (x int)|
+create function fn(a int) returns int
+begin
+  insert t1 values (a+7);
+  return a+8;
+end|
+reset master|
+/**/ if fn(9) > 5 then
+  select 1;
+end if|
+prepare stmt from "if fn(?) > 6 then
+ begin
+  declare a int;
+  set a=?*2;
+  insert t1 values(a+?);
+ end;
+end if"|
+set @a=1, @b=2, @c=3|
+execute stmt using @a, @b, @c|
+delimiter ;|
+source include/show_binlog_events.inc;
+delimiter |;
+
+drop function fn|
+drop table t1|
+
+#
+# MDEV-6606 Server crashes in String::append on selecting sql_mode inside anonymous block
+# MDEV-6609 SQL inside an anonymous block is executed with wrong SQL_MODE
+#
+
+set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION";
+begin not atomic select @@sql_mode; end|
+create table t1 (a int)|
+select a from t1 having a > 1|
+begin not atomic select a from t1 having a > 1; end|
+drop table t1|
+
+--echo #
+--echo # MDEV-8615: Assertion `m_cpp_buf <= begin_ptr &&
+--echo # begin_ptr <= m_cpp_buf + m_buf_length' failed in
+--echo # Lex_input_stream::body_utf8_start
+--echo #
+--error ER_PARSE_ERROR
+--query b'

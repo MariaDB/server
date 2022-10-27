@@ -1,0 +1,2045 @@
+set names utf8;
+create table no_rebuild (
+a char(150) charset utf8mb3 collate utf8mb3_general_ci
+) engine=innodb;
+create table rebuild (
+a varchar(150) charset ascii
+) engine=innodb;
+set @id = (select table_id from information_schema.innodb_sys_tables
+where name = 'test/no_rebuild');
+select name, prtype, len from information_schema.innodb_sys_columns
+where table_id = @id;
+name	prtype	len
+a	2162942	450
+select c.prtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+where t.name = 'test/rebuild' and c.name = 'a';
+prtype	len
+720911	150
+alter table no_rebuild
+change a a char(150) charset utf8mb3 collate utf8mb3_spanish_ci,
+algorithm=inplace;
+alter table rebuild
+change a a varchar(150) charset latin1 not null default 'asdf',
+algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table rebuild
+change a a varchar(150) charset latin1 not null default 'asdf',
+algorithm=copy;
+select name, prtype, len from information_schema.innodb_sys_columns
+where table_id = @id;
+name	prtype	len
+a	13041918	450
+select c.prtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+where t.name = 'test/rebuild' and c.name = 'a';
+prtype	len
+524559	150
+drop table no_rebuild, rebuild;
+create table supported_types (
+id int primary key auto_increment,
+a varchar(150) charset ascii,
+b text(150) charset ascii,
+c text charset ascii,
+d tinytext charset ascii,
+e mediumtext charset ascii,
+f longtext charset ascii
+) engine=innodb;
+alter table supported_types
+convert to charset ascii collate ascii_bin,
+algorithm=instant;
+drop table supported_types;
+create table various_cases (
+a char(150) charset ascii,
+b varchar(150) as (a) virtual,
+c char(150) as (a) persistent
+) engine=innodb;
+alter table various_cases
+change a a char(150) charset ascii collate ascii_bin,
+algorithm=inplace;
+alter table various_cases
+change a a varchar(222),
+algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table various_cases
+change b b varchar(150) as (a) virtual,
+algorithm=inplace;
+alter table various_cases
+change c c char(150) as (a) persistent,
+algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+alter table various_cases
+modify a char(150) charset utf8mb4,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table various_cases;
+create table all_texts (
+a tinytext charset ascii,
+b text charset ascii,
+c mediumtext charset ascii,
+d longtext charset ascii,
+footer int
+) engine=innodb;
+alter table all_texts
+convert to charset ascii collate ascii_bin,
+algorithm=instant;
+drop table all_texts;
+create table all_binaries (
+a tinyblob,
+b blob,
+c mediumblob,
+d longblob,
+e varbinary(150),
+f binary(150)
+) engine=innodb;
+alter table all_binaries modify a tinytext, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_binaries modify b text, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_binaries modify c mediumtext, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_binaries modify d longtext, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_binaries modify e varchar(150), algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_binaries modify f char(150), algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table all_binaries;
+create table all_strings (
+a tinytext,
+b text,
+c mediumtext,
+d longtext,
+e varchar(150),
+f char(150)
+) engine=innodb;
+alter table all_strings modify a tinyblob, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify b blob, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify c mediumblob, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify d longblob, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify e varbinary(150), algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify f binary(150), algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify a tinytext charset binary, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify b text charset binary, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify c mediumtext charset binary, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify d longtext charset binary, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify e varchar(150) charset binary, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table all_strings modify f char(150) charset binary, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table all_strings;
+create table key_part_change (
+a char(150) charset ascii,
+b char(150) charset ascii,
+c char(150) charset ascii,
+unique key ab (a,b)
+) engine=innodb;
+alter table key_part_change
+modify a char(150) charset utf8mb4,
+drop index ab,
+add unique key ab(a,c),
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table key_part_change;
+create table key_part_change_and_rename (
+a char(100) charset ascii,
+b char(100) charset ascii,
+unique key ab (a,b)
+) engine=innodb;
+alter table key_part_change_and_rename
+change a b char(100) charset utf8mb4,
+change b a char(100) charset utf8mb4,
+drop index ab,
+add unique key ab(a,b),
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table key_part_change_and_rename;
+create table enum_and_set (
+a enum('one', 'two') charset utf8mb3,
+b set('three', 'four') charset utf8mb3
+) engine=innodb;
+alter table enum_and_set
+modify a enum('one', 'two') charset utf8mb4,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table enum_and_set
+modify b enum('three', 'four') charset utf8mb4,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table enum_and_set;
+create table compressed (
+a varchar(255) compressed charset utf8mb3
+) engine=innodb;
+insert into compressed values ('AAA'), ('bbb'), ('CCC');
+alter table compressed
+modify a varchar(255) compressed charset utf8mb4,
+algorithm=instant;
+select * from compressed;
+a
+AAA
+bbb
+CCC
+check table compresed;
+Table	Op	Msg_type	Msg_text
+test.compresed	check	Error	Table 'test.compresed' doesn't exist
+test.compresed	check	status	Operation failed
+drop table compressed;
+create table key_part_bug (
+id int primary key auto_increment,
+a varchar(150) charset utf8mb3 unique key
+) engine=innodb;
+alter table key_part_bug
+modify a varchar(150) charset utf8mb4,
+algorithm=instant;
+drop table key_part_bug;
+create table latin1_swedish_special_case (
+copy1 varchar(150) charset ascii collate ascii_general_ci,
+copy2 char(150) charset ascii collate ascii_general_ci,
+instant1 varchar(150) charset ascii collate ascii_general_ci,
+instant2 char(150) charset ascii collate ascii_general_ci
+) engine=innodb;
+select c.name, c.prtype, c.mtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+where t.name = 'test/latin1_swedish_special_case';
+name	prtype	mtype	len
+copy1	720911	12	150
+copy2	721150	13	150
+instant1	720911	12	150
+instant2	721150	13	150
+alter table latin1_swedish_special_case
+modify copy1 varchar(150) charset latin1 collate latin1_swedish_ci,
+modify copy2 char(150) charset latin1 collate latin1_swedish_ci,
+algorithm=copy;
+alter table latin1_swedish_special_case
+modify instant1 varchar(150) charset latin1 collate latin1_swedish_ci,
+modify instant2 char(150) charset latin1 collate latin1_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table latin1_swedish_special_case
+modify instant1 varchar(150) charset latin1 collate latin1_swedish_ci,
+modify instant2 char(150) charset latin1 collate latin1_swedish_ci,
+algorithm=copy;
+select c.name, c.prtype, c.mtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+where t.name = 'test/latin1_swedish_special_case';
+name	prtype	mtype	len
+copy1	524303	1	150
+copy2	524542	2	150
+instant1	524303	1	150
+instant2	524542	2	150
+alter table latin1_swedish_special_case
+modify copy1 varchar(150) charset latin1 collate latin1_general_ci,
+modify copy2 char(150) charset latin1 collate latin1_general_ci,
+algorithm=copy;
+alter table latin1_swedish_special_case
+modify instant1 varchar(150) charset latin1 collate latin1_general_ci,
+modify instant2 char(150) charset latin1 collate latin1_general_ci,
+algorithm=instant;
+select c.name, c.prtype, c.mtype, c.len from information_schema.innodb_sys_columns as c inner join information_schema.innodb_sys_tables t on c.table_id = t.table_id
+where t.name = 'test/latin1_swedish_special_case';
+name	prtype	mtype	len
+copy1	3145743	12	150
+copy2	3145982	13	150
+instant1	3145743	12	150
+instant2	3145982	13	150
+drop table latin1_swedish_special_case;
+create table regression (a varchar(100) charset utf8mb3 primary key, b int) engine=innodb;
+alter table regression convert to character set utf8mb4;
+drop table regression;
+create table boundary_255 (
+a varchar(50) charset ascii,
+b varchar(200) charset ascii,
+c varchar(300) charset ascii
+) engine=innodb;
+alter table boundary_255
+modify a varchar(50) charset utf8mb3,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table boundary_255
+modify a varchar(50) charset utf8mb3,
+algorithm=copy;
+alter table boundary_255
+modify b varchar(200) charset utf8mb3,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table boundary_255
+modify c varchar(300) charset utf8mb3,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table boundary_255;
+create table boundary_255 (
+a varchar(70) charset utf8mb3
+) engine=innodb;
+alter table boundary_255
+modify a varchar(70) charset utf8mb4,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table boundary_255;
+create table t (
+a char(10) collate utf8mb3_general_ci,
+b char(70) collate utf8mb3_general_ci,
+c char(100) collate utf8mb3_general_ci,
+aa char(10) collate utf8mb3_general_ci unique,
+bb char(70) collate utf8mb3_general_ci unique,
+cc char(100) collate utf8mb3_general_ci unique,
+d char(10) collate utf8mb3_general_ci,
+dd char(10) collate utf8mb3_general_ci unique
+) engine=innodb;
+insert into t values
+(repeat('a', 10), repeat('a', 70), repeat('a', 100),
+repeat('a', 10), repeat('a', 70), repeat('a', 100),
+repeat('a', 10), repeat('a', 10)
+);
+alter table t modify a char(10) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify b char(70) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify c char(100) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify aa char(10) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify bb char(70) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify cc char(100) collate utf8mb4_general_ci, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify d char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+alter table t modify dd char(10) collate utf8mb4_spanish_ci, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+select * from t;
+a	b	c	aa	bb	cc	d	dd
+aaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	aaaaaaaaaa	aaaaaaaaaa
+drop table t;
+create table fully_compatible (
+id int auto_increment unique key,
+from_charset char(255),
+from_collate char(255),
+to_charset char(255),
+to_collate char(255)
+);
+insert into fully_compatible (from_charset, from_collate, to_charset, to_collate) values
+('utf8mb3', 'utf8mb3_general_ci',           'utf8mb4', 'utf8mb4_general_ci'),
+('utf8mb3', 'utf8mb3_bin',                  'utf8mb4', 'utf8mb4_bin'),
+('utf8mb3', 'utf8mb3_unicode_ci',           'utf8mb4', 'utf8mb4_unicode_ci'),
+('utf8mb3', 'utf8mb3_icelandic_ci',         'utf8mb4', 'utf8mb4_icelandic_ci'),
+('utf8mb3', 'utf8mb3_latvian_ci',           'utf8mb4', 'utf8mb4_latvian_ci'),
+('utf8mb3', 'utf8mb3_romanian_ci',          'utf8mb4', 'utf8mb4_romanian_ci'),
+('utf8mb3', 'utf8mb3_slovenian_ci',         'utf8mb4', 'utf8mb4_slovenian_ci'),
+('utf8mb3', 'utf8mb3_polish_ci',            'utf8mb4', 'utf8mb4_polish_ci'),
+('utf8mb3', 'utf8mb3_estonian_ci',          'utf8mb4', 'utf8mb4_estonian_ci'),
+('utf8mb3', 'utf8mb3_spanish_ci',           'utf8mb4', 'utf8mb4_spanish_ci'),
+('utf8mb3', 'utf8mb3_swedish_ci',           'utf8mb4', 'utf8mb4_swedish_ci'),
+('utf8mb3', 'utf8mb3_turkish_ci',           'utf8mb4', 'utf8mb4_turkish_ci'),
+('utf8mb3', 'utf8mb3_czech_ci',             'utf8mb4', 'utf8mb4_czech_ci'),
+('utf8mb3', 'utf8mb3_danish_ci',            'utf8mb4', 'utf8mb4_danish_ci'),
+('utf8mb3', 'utf8mb3_lithuanian_ci',        'utf8mb4', 'utf8mb4_lithuanian_ci'),
+('utf8mb3', 'utf8mb3_slovak_ci',            'utf8mb4', 'utf8mb4_slovak_ci'),
+('utf8mb3', 'utf8mb3_spanish2_ci',          'utf8mb4', 'utf8mb4_spanish2_ci'),
+('utf8mb3', 'utf8mb3_roman_ci',             'utf8mb4', 'utf8mb4_roman_ci'),
+('utf8mb3', 'utf8mb3_persian_ci',           'utf8mb4', 'utf8mb4_persian_ci'),
+('utf8mb3', 'utf8mb3_esperanto_ci',         'utf8mb4', 'utf8mb4_esperanto_ci'),
+('utf8mb3', 'utf8mb3_hungarian_ci',         'utf8mb4', 'utf8mb4_hungarian_ci'),
+('utf8mb3', 'utf8mb3_sinhala_ci',           'utf8mb4', 'utf8mb4_sinhala_ci'),
+('utf8mb3', 'utf8mb3_german2_ci',           'utf8mb4', 'utf8mb4_german2_ci'),
+('utf8mb3', 'utf8mb3_croatian_mysql561_ci', 'utf8mb4', 'utf8mb4_croatian_mysql561_ci'),
+('utf8mb3', 'utf8mb3_unicode_520_ci',       'utf8mb4', 'utf8mb4_unicode_520_ci'),
+('utf8mb3', 'utf8mb3_vietnamese_ci',        'utf8mb4', 'utf8mb4_vietnamese_ci'),
+('utf8mb3', 'utf8mb3_croatian_ci',          'utf8mb4', 'utf8mb4_croatian_ci'),
+('utf8mb3', 'utf8mb3_myanmar_ci',           'utf8mb4', 'utf8mb4_myanmar_ci'),
+('utf8mb3', 'utf8mb3_thai_520_w2',          'utf8mb4', 'utf8mb4_thai_520_w2'),
+('utf8mb3', 'utf8mb3_general_nopad_ci',     'utf8mb4', 'utf8mb4_general_nopad_ci'),
+('utf8mb3', 'utf8mb3_nopad_bin',            'utf8mb4', 'utf8mb4_nopad_bin'),
+('utf8mb3', 'utf8mb3_unicode_nopad_ci',     'utf8mb4', 'utf8mb4_unicode_nopad_ci'),
+('utf8mb3', 'utf8mb3_unicode_520_nopad_ci', 'utf8mb4', 'utf8mb4_unicode_520_nopad_ci')
+;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_general_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_general_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_general_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_general_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_bin,
+b varchar(50) charset utf8mb3 collate utf8mb3_bin primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_bin,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_bin,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_unicode_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_icelandic_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_icelandic_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_icelandic_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_icelandic_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_latvian_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_latvian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_latvian_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_latvian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_romanian_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_romanian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_romanian_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_romanian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_slovenian_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_slovenian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_slovenian_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_slovenian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_polish_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_polish_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_polish_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_polish_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_estonian_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_estonian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_estonian_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_estonian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_spanish_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_spanish_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_spanish_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_spanish_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_swedish_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_swedish_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_swedish_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_swedish_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_turkish_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_turkish_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_turkish_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_turkish_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_czech_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_czech_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_czech_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_czech_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_danish_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_danish_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_danish_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_lithuanian_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_lithuanian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_slovak_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_slovak_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_slovak_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_slovak_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_spanish2_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_spanish2_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_spanish2_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_spanish2_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_roman_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_roman_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_roman_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_roman_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_persian_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_persian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_esperanto_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_esperanto_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_esperanto_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_esperanto_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_hungarian_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_hungarian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_hungarian_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_hungarian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_sinhala_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_sinhala_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_sinhala_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_sinhala_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_german2_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_german2_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_croatian_mysql561_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_croatian_mysql561_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_croatian_mysql561_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_croatian_mysql561_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_unicode_520_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_unicode_520_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_520_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_unicode_520_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_vietnamese_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_vietnamese_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_croatian_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_croatian_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_croatian_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_croatian_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_myanmar_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_myanmar_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_myanmar_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_myanmar_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_thai_520_w2,
+b varchar(50) charset utf8mb3 collate utf8mb3_thai_520_w2 primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_thai_520_w2,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_thai_520_w2,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_general_nopad_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_general_nopad_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_general_nopad_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_general_nopad_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_nopad_bin,
+b varchar(50) charset utf8mb3 collate utf8mb3_nopad_bin primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_nopad_bin,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_nopad_bin,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_unicode_nopad_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_unicode_nopad_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_nopad_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_unicode_nopad_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_unicode_520_nopad_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_unicode_520_nopad_ci primary key
+) engine=innodb;
+insert into tmp values ('AAA', 'AAA'), ('bbb', 'bbb');
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_unicode_520_nopad_ci,
+modify b varchar(50) charset utf8mb4 collate utf8mb4_unicode_520_nopad_ci,
+algorithm=instant;
+check table tmp;
+Table	Op	Msg_type	Msg_text
+test.tmp	check	status	OK
+drop table tmp;
+drop table fully_compatible;
+create table compatible_without_index (
+id int auto_increment unique key,
+from_charset char(255),
+from_collate char(255),
+to_charset char(255),
+to_collate char(255)
+);
+insert into compatible_without_index (from_charset, from_collate, to_charset, to_collate) values
+('utf8mb3', 'utf8mb3_general_ci',       'utf8mb4', 'utf8mb4_vietnamese_ci'),
+('utf8mb3', 'utf8mb3_bin',              'utf8mb4', 'utf8mb4_vietnamese_ci'),
+('utf8mb3', 'utf8mb3_general_nopad_ci', 'utf8mb4', 'utf8mb4_vietnamese_ci'),
+('utf8mb3', 'utf8mb3_nopad_bin',        'utf8mb4', 'utf8mb4_vietnamese_ci'),
+('ascii',   'ascii_general_ci',      'ascii',   'ascii_bin'),
+('utf8mb3', 'utf8mb3_roman_ci',      'utf8mb3', 'utf8mb3_lithuanian_ci'),
+('utf8mb4', 'utf8mb4_thai_520_w2',   'utf8mb4', 'utf8mb4_persian_ci'),
+('utf8mb3', 'utf8mb3_myanmar_ci',    'utf8mb4', 'utf8mb4_german2_ci'),
+('utf8mb3', 'utf8mb3_general_ci',    'utf8mb3', 'utf8mb3_unicode_ci'),
+('latin1',  'latin1_general_cs',     'latin1',  'latin1_general_ci'),
+('utf16',   'utf16_general_ci',      'utf16',   'utf16_german2_ci')
+;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_general_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_general_ci unique key,
+c varchar(50) charset utf8mb3 collate utf8mb3_general_ci primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_bin,
+b varchar(50) charset utf8mb3 collate utf8mb3_bin unique key,
+c varchar(50) charset utf8mb3 collate utf8mb3_bin primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_general_nopad_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_general_nopad_ci unique key,
+c varchar(50) charset utf8mb3 collate utf8mb3_general_nopad_ci primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_nopad_bin,
+b varchar(50) charset utf8mb3 collate utf8mb3_nopad_bin unique key,
+c varchar(50) charset utf8mb3 collate utf8mb3_nopad_bin primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset utf8mb4 collate utf8mb4_vietnamese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset ascii collate ascii_general_ci,
+b varchar(50) charset ascii collate ascii_general_ci unique key,
+c varchar(50) charset ascii collate ascii_general_ci primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset ascii collate ascii_bin,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset ascii collate ascii_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset ascii collate ascii_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_roman_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_roman_ci unique key,
+c varchar(50) charset utf8mb3 collate utf8mb3_roman_ci primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset utf8mb3 collate utf8mb3_lithuanian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb4 collate utf8mb4_thai_520_w2,
+b varchar(50) charset utf8mb4 collate utf8mb4_thai_520_w2 unique key,
+c varchar(50) charset utf8mb4 collate utf8mb4_thai_520_w2 primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset utf8mb4 collate utf8mb4_persian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_myanmar_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_myanmar_ci unique key,
+c varchar(50) charset utf8mb3 collate utf8mb3_myanmar_ci primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset utf8mb4 collate utf8mb4_german2_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf8mb3 collate utf8mb3_general_ci,
+b varchar(50) charset utf8mb3 collate utf8mb3_general_ci unique key,
+c varchar(50) charset utf8mb3 collate utf8mb3_general_ci primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset utf8mb3 collate utf8mb3_unicode_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset latin1 collate latin1_general_cs,
+b varchar(50) charset latin1 collate latin1_general_cs unique key,
+c varchar(50) charset latin1 collate latin1_general_cs primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset latin1 collate latin1_general_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset latin1 collate latin1_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset latin1 collate latin1_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(50) charset utf16 collate utf16_general_ci,
+b varchar(50) charset utf16 collate utf16_general_ci unique key,
+c varchar(50) charset utf16 collate utf16_general_ci primary key
+) engine=innodb;
+alter table tmp
+change a a varchar(50) charset utf16 collate utf16_german2_ci,
+algorithm=instant;
+alter table tmp
+modify b varchar(50) charset utf16 collate utf16_german2_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table tmp
+modify c varchar(50) charset utf16 collate utf16_german2_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+drop table compatible_without_index;
+create table fully_incompatible (
+id int auto_increment unique key,
+from_charset char(255),
+from_collate char(255),
+to_charset char(255),
+to_collate char(255)
+);
+insert into fully_incompatible (from_charset, from_collate, to_charset, to_collate) values
+('ascii', 'ascii_general_ci',       'utf8mb3', 'utf8mb3_general_ci'),
+('ascii', 'ascii_general_ci',       'utf8mb4', 'utf8mb4_general_ci'),
+('ascii', 'ascii_general_ci',       'latin1', 'latin1_general_ci'),
+('ascii', 'ascii_bin',              'latin1', 'latin1_bin'),
+('ascii', 'ascii_nopad_bin',        'latin1', 'latin1_nopad_bin'),
+('ascii', 'ascii_general_ci',       'latin2', 'latin2_general_ci'),
+('ascii', 'ascii_general_ci',       'latin7', 'latin7_general_ci'),
+('ascii', 'ascii_bin',              'koi8u',  'koi8u_bin'),
+('ascii', 'ascii_bin',              'ujis',   'ujis_bin'),
+('ascii', 'ascii_bin',              'big5',   'big5_bin'),
+('ascii', 'ascii_bin',              'gbk',    'gbk_bin'),
+('ascii', 'ascii_general_ci',       'utf8mb3', 'utf8mb3_swedish_ci'),
+('ascii', 'ascii_bin',              'latin1', 'latin1_swedish_ci'),
+('ascii', 'ascii_general_nopad_ci', 'latin1', 'latin1_swedish_ci'),
+('ascii', 'ascii_nopad_bin',        'latin1', 'latin1_swedish_ci'),
+('ascii', 'ascii_general_ci',       'koi8u', 'koi8u_bin'),
+('ascii', 'ascii_general_nopad_ci', 'koi8u', 'koi8u_bin'),
+('ascii', 'ascii_nopad_bin',        'koi8u', 'koi8u_bin'),
+('ascii', 'ascii_general_ci',       'latin1', 'latin1_swedish_ci'),
+('ascii', 'ascii_bin',              'utf8mb3', 'utf8mb3_swedish_ci'),
+('ascii', 'ascii_general_nopad_ci', 'utf8mb3', 'utf8mb3_swedish_ci'),
+('ascii', 'ascii_nopad_bin',        'utf8mb3', 'utf8mb3_swedish_ci'),
+('ascii', 'ascii_general_ci',       'utf8mb4', 'utf8mb4_danish_ci'),
+('ascii', 'ascii_bin',              'utf8mb4', 'utf8mb4_danish_ci'),
+('ascii', 'ascii_general_nopad_ci', 'utf8mb4', 'utf8mb4_danish_ci'),
+('ascii', 'ascii_nopad_bin',        'utf8mb4', 'utf8mb4_danish_ci'),
+('ascii', 'ascii_general_ci',     'gbk',  'gbk_chinese_ci'),
+('ascii', 'ascii_general_ci',     'gbk',  'gbk_chinese_nopad_ci'),
+('ascii', 'ascii_general_ci',      'ujis',    'ujis_japanese_ci'),
+('ascii', 'ascii_general_ci',      'big5',    'big5_chinese_ci'),
+('ascii', 'ascii_general_ci',      'latin2',  'latin2_croatian_ci'),
+('ascii', 'ascii_general_ci',      'latin7',  'latin7_estonian_cs'),
+('ucs2',  'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
+('ucs2',  'ucs2_unicode_ci',       'utf16',   'utf16_unicode_ci'),
+('ucs2',  'ucs2_icelandic_ci',     'utf16',   'utf16_icelandic_ci'),
+('ucs2',  'ucs2_latvian_ci',       'utf16',   'utf16_latvian_ci'),
+('ucs2',  'ucs2_romanian_ci',      'utf16',   'utf16_romanian_ci'),
+('ucs2',  'ucs2_slovenian_ci',     'utf16',   'utf16_slovenian_ci'),
+('ucs2',  'ucs2_polish_ci',        'utf16',   'utf16_polish_ci'),
+('ucs2',  'ucs2_estonian_ci',      'utf16',   'utf16_estonian_ci'),
+('ucs2',  'ucs2_spanish_ci',       'utf16',   'utf16_spanish_ci'),
+('ucs2',  'ucs2_general_ci',       'utf16',   'utf16_general_ci'),
+('ucs2',  'ucs2_myanmar_ci',          'utf16', 'utf16_thai_520_w2'),
+('ucs2',  'ucs2_general_ci',          'utf16', 'utf16_unicode_nopad_ci'),
+('ucs2',  'ucs2_general_mysql500_ci', 'utf16', 'utf16_spanish2_ci'),
+('utf8mb4', 'utf8mb4_general_ci', 'utf8mb3', 'utf8mb3_general_ci'),
+('utf8mb4', 'utf8mb4_general_ci', 'ascii', 'ascii_general_ci'),
+('utf8mb3', 'utf8mb3_general_ci', 'ascii', 'ascii_general_ci'),
+('utf8mb3', 'utf8mb3_general_ci', 'latin1', 'latin1_general_ci'),
+('utf16', 'utf16_general_ci', 'utf32', 'utf32_general_ci'),
+('latin1', 'latin1_general_ci',   'ascii', 'ascii_general_ci'),
+('ascii', 'ascii_general_ci',     'swe7', 'swe7_swedish_ci'),
+('eucjpms', 'eucjpms_japanese_nopad_ci', 'geostd8', 'geostd8_general_ci'),
+('latin1', 'latin1_general_ci',   'utf16', 'utf16_general_ci')
+;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb3 collate utf8mb3_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb3 collate utf8mb3_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb4 collate utf8mb4_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb4 collate utf8mb4_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin1 collate latin1_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin1 collate latin1_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_bin,
+b text(150) charset ascii collate ascii_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin1 collate latin1_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin1 collate latin1_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_nopad_bin,
+b text(150) charset ascii collate ascii_nopad_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin1 collate latin1_nopad_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin1 collate latin1_nopad_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin2 collate latin2_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin2 collate latin2_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin7 collate latin7_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin7 collate latin7_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_bin,
+b text(150) charset ascii collate ascii_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset koi8u collate koi8u_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset koi8u collate koi8u_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_bin,
+b text(150) charset ascii collate ascii_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset ujis collate ujis_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset ujis collate ujis_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_bin,
+b text(150) charset ascii collate ascii_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset big5 collate big5_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset big5 collate big5_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_bin,
+b text(150) charset ascii collate ascii_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset gbk collate gbk_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset gbk collate gbk_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb3 collate utf8mb3_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb3 collate utf8mb3_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_bin,
+b text(150) charset ascii collate ascii_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin1 collate latin1_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin1 collate latin1_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_nopad_ci,
+b text(150) charset ascii collate ascii_general_nopad_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin1 collate latin1_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin1 collate latin1_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_nopad_bin,
+b text(150) charset ascii collate ascii_nopad_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin1 collate latin1_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin1 collate latin1_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset koi8u collate koi8u_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset koi8u collate koi8u_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_nopad_ci,
+b text(150) charset ascii collate ascii_general_nopad_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset koi8u collate koi8u_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset koi8u collate koi8u_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_nopad_bin,
+b text(150) charset ascii collate ascii_nopad_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset koi8u collate koi8u_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset koi8u collate koi8u_bin,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin1 collate latin1_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin1 collate latin1_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_bin,
+b text(150) charset ascii collate ascii_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb3 collate utf8mb3_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb3 collate utf8mb3_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_nopad_ci,
+b text(150) charset ascii collate ascii_general_nopad_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb3 collate utf8mb3_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb3 collate utf8mb3_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_nopad_bin,
+b text(150) charset ascii collate ascii_nopad_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb3 collate utf8mb3_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb3 collate utf8mb3_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb4 collate utf8mb4_danish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb4 collate utf8mb4_danish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_bin,
+b text(150) charset ascii collate ascii_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb4 collate utf8mb4_danish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb4 collate utf8mb4_danish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_nopad_ci,
+b text(150) charset ascii collate ascii_general_nopad_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb4 collate utf8mb4_danish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb4 collate utf8mb4_danish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_nopad_bin,
+b text(150) charset ascii collate ascii_nopad_bin,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb4 collate utf8mb4_danish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb4 collate utf8mb4_danish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset gbk collate gbk_chinese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset gbk collate gbk_chinese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset gbk collate gbk_chinese_nopad_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset gbk collate gbk_chinese_nopad_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset ujis collate ujis_japanese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset ujis collate ujis_japanese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset big5 collate big5_chinese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset big5 collate big5_chinese_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin2 collate latin2_croatian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin2 collate latin2_croatian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin7 collate latin7_estonian_cs,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin7 collate latin7_estonian_cs,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_general_ci,
+b text(150) charset ucs2 collate ucs2_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_unicode_ci,
+b text(150) charset ucs2 collate ucs2_unicode_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_unicode_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_unicode_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_icelandic_ci,
+b text(150) charset ucs2 collate ucs2_icelandic_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_icelandic_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_icelandic_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_latvian_ci,
+b text(150) charset ucs2 collate ucs2_latvian_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_latvian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_latvian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_romanian_ci,
+b text(150) charset ucs2 collate ucs2_romanian_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_romanian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_romanian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_slovenian_ci,
+b text(150) charset ucs2 collate ucs2_slovenian_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_slovenian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_slovenian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_polish_ci,
+b text(150) charset ucs2 collate ucs2_polish_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_polish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_polish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_estonian_ci,
+b text(150) charset ucs2 collate ucs2_estonian_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_estonian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_estonian_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_spanish_ci,
+b text(150) charset ucs2 collate ucs2_spanish_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_spanish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_spanish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_general_ci,
+b text(150) charset ucs2 collate ucs2_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_myanmar_ci,
+b text(150) charset ucs2 collate ucs2_myanmar_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_thai_520_w2,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_thai_520_w2,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_general_ci,
+b text(150) charset ucs2 collate ucs2_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_unicode_nopad_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_unicode_nopad_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ucs2 collate ucs2_general_mysql500_ci,
+b text(150) charset ucs2 collate ucs2_general_mysql500_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_spanish2_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_spanish2_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset utf8mb4 collate utf8mb4_general_ci,
+b text(150) charset utf8mb4 collate utf8mb4_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf8mb3 collate utf8mb3_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf8mb3 collate utf8mb3_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset utf8mb4 collate utf8mb4_general_ci,
+b text(150) charset utf8mb4 collate utf8mb4_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset ascii collate ascii_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset ascii collate ascii_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset utf8mb3 collate utf8mb3_general_ci,
+b text(150) charset utf8mb3 collate utf8mb3_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset ascii collate ascii_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset ascii collate ascii_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset utf8mb3 collate utf8mb3_general_ci,
+b text(150) charset utf8mb3 collate utf8mb3_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset latin1 collate latin1_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset latin1 collate latin1_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset utf16 collate utf16_general_ci,
+b text(150) charset utf16 collate utf16_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf32 collate utf32_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf32 collate utf32_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset latin1 collate latin1_general_ci,
+b text(150) charset latin1 collate latin1_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset ascii collate ascii_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset ascii collate ascii_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset ascii collate ascii_general_ci,
+b text(150) charset ascii collate ascii_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset swe7 collate swe7_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset swe7 collate swe7_swedish_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset eucjpms collate eucjpms_japanese_nopad_ci,
+b text(150) charset eucjpms collate eucjpms_japanese_nopad_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset geostd8 collate geostd8_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset geostd8 collate geostd8_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+create table tmp (
+a varchar(150) charset latin1 collate latin1_general_ci,
+b text(150) charset latin1 collate latin1_general_ci,
+unique key b_idx (b(150))
+) engine=innodb;
+alter table tmp
+change a a varchar(150) charset utf16 collate utf16_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table tmp
+modify b text charset utf16 collate utf16_general_ci,
+algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+drop table tmp;
+drop table fully_incompatible;
+#
+# MDEV-19284 INSTANT ALTER with ucs2-to-utf16 conversion produces bad data
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ucs2, PRIMARY KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('a'),(0xD800);
+ALTER TABLE t1 ALGORITHM=COPY, MODIFY a VARCHAR(10) CHARACTER SET utf16;
+ERROR 22007: Incorrect string value: '\xD8\x00' for column `test`.`t1`.`a` at row 2
+ALTER TABLE t1 ALGORITHM=INSTANT, MODIFY a VARCHAR(10) CHARACTER SET utf16;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET utf16;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1366	Incorrect string value: '\xD8\x00' for column `test`.`t1`.`a` at row 2
+SELECT HEX(a) FROM t1;
+HEX(a)
+003F
+0061
+DROP TABLE t1;
+#
+# MDEV-19285 INSTANT ALTER from ascii_general_ci to latin1_general_ci produces currupt data
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ascii COLLATE ascii_general_ci, PRIMARY KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('a'),(0xC0),('b');
+ALTER TABLE t1 ALGORITHM=COPY, MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_general_ci;
+ERROR 22007: Incorrect string value: '\xC0' for column `test`.`t1`.`a` at row 3
+ALTER TABLE t1 ALGORITHM=INSTANT, MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_general_ci;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ALTER IGNORE TABLE t1 MODIFY a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_general_ci;
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1366	Incorrect string value: '\xC0' for column `test`.`t1`.`a` at row 3
+SELECT HEX(a) FROM t1;
+HEX(a)
+3F
+61
+62
+DROP TABLE t1;
+#
+# MDEV-19524 Server crashes in Bitmap<64u>::is_clear_all / Field_longstr::csinfo_change_allows_instant_alter
+#
+CREATE TABLE t1 (a VARCHAR(1), UNIQUE(a)) ENGINE=InnoDB;
+ALTER TABLE t1 MODIFY a INT, ADD b INT, ADD UNIQUE (b), ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+DROP TABLE t1;
+#
+# MDEV-17301 Change of COLLATE unnecessarily requires ALGORITHM=COPY
+#
+create table t (
+a char(10) collate latin1_general_ci primary key,
+b char(10) collate latin1_general_ci,
+c char(10) collate latin1_general_ci,
+unique key b_key(b)
+) engine=innodb;
+insert into t values
+('aaa', 'aaa', 'aaa'), ('ccc', 'ccc', 'ccc'), ('bbb', 'bbb', 'bbb');
+alter table t modify a char(10) collate latin1_general_cs, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table t modify b char(10) collate latin1_general_cs, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table t modify b char(10) collate latin1_general_cs, algorithm=nocopy;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify c char(10) collate latin1_general_cs, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;
+create table t (
+a varchar(10) collate latin1_general_ci primary key,
+b varchar(10) collate latin1_general_ci,
+c varchar(10) collate latin1_general_ci,
+unique key b_key(b)
+) engine=innodb;
+insert into t values
+('aaa', 'aaa', 'aaa'), ('ccc', 'ccc', 'ccc'), ('bbb', 'bbb', 'bbb');
+alter table t modify a varchar(10) collate latin1_general_cs, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+alter table t modify b varchar(10) collate latin1_general_cs, algorithm=instant;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+alter table t modify b varchar(10) collate latin1_general_cs, algorithm=nocopy;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+alter table t modify c varchar(10) collate latin1_general_cs, algorithm=instant;
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+drop table t;
+#
+# MDEV-20726: InnoDB: Assertion failure in file data0type.cc line 67
+#
+CREATE TABLE t (
+id int(10) unsigned NOT NULL PRIMARY KEY,
+a text CHARSET utf8mb3,
+KEY a_idx(a(1))
+) ENGINE=InnoDB;
+INSERT INTO t VALUES (1, 'something in the air');
+ALTER TABLE t MODIFY a text CHARSET utf8mb4;
+DROP TABLE t;
+#
+# MDEV-22899: Assertion `field->col->is_binary() || field->prefix_len % field->col->mbmaxlen == 0' failed in dict_index_add_to_cache
+#
+CREATE TABLE t1 (
+a text CHARACTER SET utf8 DEFAULT NULL,
+KEY a_key (a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a text CHARACTER SET utf8 DEFAULT NULL,
+b int,
+KEY a_key (b, a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a char(200) CHARACTER SET utf8 DEFAULT NULL,
+KEY a_key (a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a char(200) CHARACTER SET utf8 DEFAULT NULL,
+b int,
+KEY a_key (b, a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a varchar(200) CHARACTER SET utf8 DEFAULT NULL,
+KEY a_key (a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a varchar(200) CHARACTER SET utf8 DEFAULT NULL,
+b int,
+KEY a_key (b, a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a varchar(2000) CHARACTER SET utf8 DEFAULT NULL,
+KEY a_key (a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (
+a varchar(2000) CHARACTER SET utf8 DEFAULT NULL,
+b int,
+KEY a_key (b, a(1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ();
+ALTER TABLE t1 MODIFY a text DEFAULT NULL;
+DROP TABLE t1;
+#
+# MDEV-23245 Still getting assertion failure in file data0type.cc line 67
+#
+CREATE TABLE Foo
+(
+Bar char(2) CHARACTER SET utf8,
+KEY Bar (Bar(1))
+) ENGINE = InnoDB;
+ALTER TABLE Foo MODIFY Bar char(2) CHARACTER SET utf8mb4;
+INSERT INTO Foo VALUES ('a');
+DROP TABLE Foo;
+CREATE TABLE Foo
+(
+Bar varchar(2) CHARACTER SET utf8,
+KEY Bar (Bar(1))
+) ENGINE = InnoDB;
+ALTER TABLE Foo MODIFY Bar varchar(2) CHARACTER SET utf8mb4;
+INSERT INTO Foo VALUES ('a');
+DROP TABLE Foo;
+CREATE TABLE Foo
+(
+Bar text CHARACTER SET utf8,
+KEY Bar (Bar(1))
+) ENGINE = InnoDB;
+ALTER TABLE Foo MODIFY Bar text CHARACTER SET utf8mb4;
+INSERT INTO Foo VALUES ('a');
+DROP TABLE Foo;
+CREATE TABLE t1 (a VARCHAR(2) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci,
+PRIMARY KEY (a(1)))
+ENGINE=InnoDB;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(2) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL,
+  PRIMARY KEY (`a`(1))
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t1 MODIFY a VARCHAR(2)
+CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES ('a');
+DROP TABLE t1;
+#
+# MDEV-22775 [HY000][1553] Changing name of primary key column with foreign key constraint fails.
+#
+create table t1 (id int primary key) engine=innodb default charset=utf8;
+create table t2 (input_id int primary key, id int not null,
+key a (id),
+constraint a foreign key (id) references t1  (id)
+)engine=innodb default charset=utf8;
+alter table t1 change id id2 int;
+drop table t2;
+drop table t1;

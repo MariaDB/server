@@ -1,0 +1,223 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+connection master_1;
+set @old_join_cache_level= @@join_cache_level;
+set session join_cache_level= 5;
+set @old_optimizer_switch= @@optimizer_switch;
+set session optimizer_switch= 'mrr=on';
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+DROP DATABASE IF EXISTS auto_test_remote2;
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+connection child2_3;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+DROP DATABASE IF EXISTS auto_test_remote3;
+CREATE DATABASE auto_test_remote3;
+USE auto_test_remote3;
+
+create table and insert
+connection child2_1;
+CHILD2_1_DROP_TABLES
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection child2_2;
+CHILD2_2_DROP_TABLES
+CHILD2_2_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection child2_3;
+CHILD2_3_DROP_TABLES
+CHILD2_3_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+DROP TABLE IF EXISTS tbl_a;
+DROP TABLE IF EXISTS tbl_b;
+CREATE TABLE tbl_a (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+CREATE TABLE tbl_b (
+pkey int NOT NULL,
+PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_2
+INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO tbl_a (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO tbl_a (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
+INSERT INTO tbl_b (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO tbl_b (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO tbl_b (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
+
+select test
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
+pkey
+4
+5
+10
+11
+16
+17
+22
+23
+28
+29
+0
+1
+6
+7
+12
+13
+18
+19
+24
+25
+2
+3
+8
+9
+14
+15
+20
+21
+26
+27
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
+select a.id,b.`pkey` from auto_test_remote.tmp_spider_bka_xxxx a,`auto_test_remote`.`tbl_b` b where a.c0 <=> b.`pkey`
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey FROM tbl_a ORDER BY pkey ;
+SELECT pkey FROM tbl_b ORDER BY pkey;
+pkey
+4
+5
+10
+11
+16
+17
+22
+23
+28
+29
+pkey
+2
+3
+8
+9
+14
+15
+20
+21
+26
+27
+connection child2_2;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select `pkey` from `auto_test_remote2`.`tbl_a` order by `pkey`
+select a.id,b.`pkey` from auto_test_remote2.tmp_spider_bka_xxxx a,`auto_test_remote2`.`tbl_b` b where a.c0 <=> b.`pkey`
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey FROM tbl_a ORDER BY pkey ;
+SELECT pkey FROM tbl_b ORDER BY pkey;
+pkey
+0
+1
+6
+7
+12
+13
+18
+19
+24
+25
+pkey
+4
+5
+10
+11
+16
+17
+22
+23
+28
+29
+connection child2_3;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select `pkey` from `auto_test_remote3`.`tbl_a` order by `pkey`
+select a.id,b.`pkey` from auto_test_remote3.tmp_spider_bka_xxxx a,`auto_test_remote3`.`tbl_b` b where a.c0 <=> b.`pkey`
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT pkey FROM tbl_a ORDER BY pkey ;
+SELECT pkey FROM tbl_b ORDER BY pkey;
+pkey
+2
+3
+8
+9
+14
+15
+20
+21
+26
+27
+pkey
+0
+1
+6
+7
+12
+13
+18
+19
+24
+25
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote2;
+SET GLOBAL log_output = @old_log_output;
+connection child2_3;
+DROP DATABASE IF EXISTS auto_test_remote3;
+SET GLOBAL log_output = @old_log_output;
+connection master_1;
+set session join_cache_level= @old_join_cache_level;
+set session optimizer_switch= @old_optimizer_switch;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

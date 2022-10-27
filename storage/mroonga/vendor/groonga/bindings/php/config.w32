@@ -1,0 +1,6 @@
+ARG_WITH('groonga', 'Groonga', 'no');
+
+if (PHP_GROONGA == "yes") {
+  EXTENSION("groonga", "groonga.c");
+  AC_DEFINE("HAVE_GROONGA", 1, "groonga support");
+}

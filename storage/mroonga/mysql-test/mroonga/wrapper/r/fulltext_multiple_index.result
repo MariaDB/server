@@ -1,0 +1,23 @@
+drop table if exists diaries;
+create table diaries (
+id int primary key auto_increment,
+title text,
+body text,
+fulltext index title_index (title),
+fulltext index body_index (body)
+) comment = 'engine "innodb"' default charset utf8;
+insert into diaries (title, body) values ("survey", "will start groonga!");
+insert into diaries (title, body) values ("groonga (1)", "starting groonga...");
+insert into diaries (title, body) values ("groonga (2)", "started groonga.");
+select * from diaries
+where match(title) against("survey") and
+match(body) against("groonga");
+id	title	body
+1	survey	will start groonga!
+select *, match(title) against("survey"), match(body) against("groonga")
+from diaries
+where match(title) against("survey") and
+match(body) against("groonga");
+id	title	body	match(title) against("survey")	match(body) against("groonga")
+1	survey	will start groonga!	1048577	149797
+drop table diaries;

@@ -1,0 +1,156 @@
+drop table if exists t1, t2;
+create table t1 (a int, b varchar(64));
+-- Load a static XML file
+load xml infile '../../std_data/loadxml.dat' into table t1
+rows identified by '<row>';
+select * from t1 order by a;
+a	b
+1	 b1
+2	  b2
+3	   b3
+11	           b11
+111	b111
+112	b112 & < > " ' &unknown; -- check entities
+212	b212
+213	b213
+214	b214
+215	b215
+216	&bb b;
+delete from t1;
+-- Load a static XML file with 'IGNORE num ROWS'
+load xml infile '../../std_data/loadxml.dat' into table t1
+rows identified by '<row>' ignore 4 rows;
+select * from t1 order by a;
+a	b
+111	b111
+112	b112 & < > " ' &unknown; -- check entities
+212	b212
+213	b213
+214	b214
+215	b215
+216	&bb b;
+-- Check 'mysqldump --xml' + 'LOAD XML' round trip
+delete from t1;
+load xml infile 'MYSQLTEST_VARDIR/tmp/loadxml-dump.xml' into table t1 rows identified by '<row>';;
+select * from t1 order by a;
+a	b
+111	b111
+112	b112 & < > " ' &unknown; -- check entities
+212	b212
+213	b213
+214	b214
+215	b215
+216	&bb b;
+--Check that default row tag is '<row>
+delete from t1;
+load xml infile 'MYSQLTEST_VARDIR/tmp/loadxml-dump.xml' into table t1;;
+select * from t1 order by a;
+a	b
+111	b111
+112	b112 & < > " ' &unknown; -- check entities
+212	b212
+213	b213
+214	b214
+215	b215
+216	&bb b;
+-- Check that 'xml' is not a keyword
+select 1 as xml;
+xml
+1
+connect  addconroot, localhost, root,,;
+connection addconroot;
+create table t2(fl text);
+LOAD XML LOCAL INFILE "MYSQLTEST_VARDIR/tmp/loadxml-dump.xml"  INTO TABLE t2 ROWS IDENTIFIED BY '<person>';;
+connection default;
+drop table t1;
+drop table t2;
+create table t1 (
+id int(11) not null,
+text text,
+primary key (id)
+) engine=MyISAM default charset=latin1;
+load xml infile '../../std_data/loadxml2.dat' into table t1;
+select * from t1;
+id	text
+1	line1
+line2
+line3
+drop table t1;
+#
+# Bug#51571 load xml infile causes server crash
+#
+CREATE TABLE t1 (a text, b text);
+LOAD XML INFILE '../../std_data/loadxml.dat' INTO TABLE t1
+ROWS IDENTIFIED BY '<row>' (a,@b) SET b=concat('!',@b);
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	! b1
+11	!           b11
+111	!b111
+112	!b112 & < > " ' &unknown; -- check entities
+2	!  b2
+212	!b212
+213	!b213
+214	!b214
+215	!b215
+216	!&bb b;
+3	!   b3
+DROP TABLE t1;
+#
+# Bug#16171518 LOAD XML DOES NOT HANDLE EMPTY ELEMENTS
+#
+CREATE TABLE t1 (col1 VARCHAR(3), col2 VARCHAR(3), col3 VARCHAR(3), col4 VARCHAR(4));
+LOAD XML INFILE '../../std_data/bug16171518_1.dat' INTO TABLE t1;
+SELECT * FROM t1 ORDER BY col1, col2, col3, col4;
+col1	col2	col3	col4
+0bc	def	ghi	jkl
+1no	NULL	pqr	stu
+2BC	DEF	GHI	JKL
+3NO	NULL	PQR	STU
+4bc	def	ghi	jkl
+5no	pqr	stu	vwx
+6BC	DEF	NULL	JKL
+7NO	PQR	STU	VWX
+8bc	def	ghi	NULL
+9kl	NULL	mno	pqr
+ABC	DEF	NULL	JKL
+MNO	NULL	STU	VWX
+DROP TABLE t1;
+CREATE TABLE t1 (col1 VARCHAR(3), col2 VARCHAR(3), col3 INTEGER);
+LOAD XML INFILE '../../std_data/bug16171518_2.dat' INTO TABLE t1;
+SELECT * FROM t1 ORDER BY col1, col2, col3;
+col1	col2	col3
+ABC	DEF	NULL
+GHI	NULL	123
+DROP TABLE t1;
+#
+# MDEV-12696 Crash with LOAD XML and non-updatable VIEW column
+#
+CREATE TABLE t1 (c1 TEXT);
+CREATE VIEW v1 AS SELECT CONCAT(c1,'') AS c1, NULL AS c2 FROM t1;
+LOAD XML INFILE '../../std_data/loaddata/mdev12696.xml' INTO TABLE v1 (c1);
+ERROR HY000: Column 'c1' is not updatable
+LOAD XML INFILE '../../std_data/loaddata/mdev12696.xml' INTO TABLE v1 (c2);
+ERROR HY000: Column 'c2' is not updatable
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-14628 Wrong autoinc value assigned by LOAD XML in the NO_AUTO_VALUE_ON_ZERO mode
+#
+SET sql_mode=NO_AUTO_VALUE_ON_ZERO;
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT);
+LOAD XML INFILE '../../std_data/loaddata/mdev14628a.xml' INTO TABLE t1 ROWS IDENTIFIED BY '<row>';
+SELECT * FROM t1 ORDER BY b;
+a	b
+1	bbb1
+2	bbb2
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+SET sql_mode='';
+CREATE  TABLE t1 (id INT, g GEOMETRY NOT NULL);
+LOAD XML INFILE '../../std_data/loaddata/mdev14628b.xml' INTO TABLE t1 ROWS IDENTIFIED BY '<row>';
+ERROR 22004: Column set to default value; NULL supplied to NOT NULL column 'g' at row 1
+SELECT * FROM t1;
+id	g
+DROP TABLE t1;
+SET sql_mode=DEFAULT;

@@ -1,0 +1,34 @@
+fast_update_binlog_mixed: No UPSERT in MariaDB 5.5
+fast_update_binlog_row: No UPSERT in MariaDB 5.5
+fast_update_binlog_statement: No UPSERT in MariaDB 5.5
+fast_update_blobs: No UPSERT in MariaDB 5.5
+fast_update_blobs_fixed_varchar: No UPSERT in MariaDB 5.5
+fast_update_blobs_with_varchar: No UPSERT in MariaDB 5.5
+fast_update_char: No UPSERT in MariaDB 5.5
+fast_update_deadlock: No UPSERT in MariaDB 5.5
+fast_update_decr_floor: No UPSERT in MariaDB 5.5
+fast_update_disable_slow_update: No UPSERT in MariaDB 5.5
+fast_update_error: No UPSERT in MariaDB 5.5
+fast_update_int: No UPSERT in MariaDB 5.5
+fast_update_int_bounds: No UPSERT in MariaDB 5.5
+fast_update_key: No UPSERT in MariaDB 5.5
+fast_update_sqlmode: No UPSERT in MariaDB 5.5
+fast_update_uint_bounds: No UPSERT in MariaDB 5.5
+fast_update_varchar: No UPSERT in MariaDB 5.5
+fast_upsert_bin_pad: No UPSERT in MariaDB 5.5
+fast_upsert_char: No UPSERT in MariaDB 5.5
+fast_upsert_deadlock: No UPSERT in MariaDB 5.5
+fast_upsert_int: No UPSERT in MariaDB 5.5
+fast_upsert_key: No UPSERT in MariaDB 5.5
+fast_upsert_sqlmode: No UPSERT in MariaDB 5.5
+fast_upsert_values: No UPSERT in MariaDB 5.5
+type_temporal_fractional:
+type_temporal_upgrade:
+type_timestamp_explicit:
+cluster_key_part: engine options on partitioned tables
+i_s_tokudb_lock_waits_released: unstable, race conditions
+i_s_tokudb_locks_released: unstable, race conditions
+row_format: n/a
+nonflushing_analyze_debug: Freezes in MariaDB 10.0
+change_column_all_1000_1: We are too lazy to fix this properly
+change_column_all_1000_10: We are too lazy to fix this properly

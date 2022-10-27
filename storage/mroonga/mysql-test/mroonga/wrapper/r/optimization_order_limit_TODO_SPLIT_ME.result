@@ -1,0 +1,53 @@
+drop table if exists t1;
+flush status;
+create table t1 (
+c1 int primary key,
+c2 int,
+c3 text,
+key idx1(c2),
+fulltext index ft(c3)
+) comment = 'engine "innodb"';
+insert into t1 values(1,10,"aa ii uu ee oo");
+insert into t1 values(2,20,"ka ki ku ke ko");
+insert into t1 values(3,30,"ii si ii se ii");
+insert into t1 values(4,40,"ta ti tu te to");
+insert into t1 values(5,50,"aa ii uu ii oo");
+select c3, match(c3) against("ii") from t1
+where match(c3) against("ii") order by match(c3) against("ii") desc;
+c3	match(c3) against("ii")
+ii si ii se ii	524289
+aa ii uu ii oo	349526
+aa ii uu ee oo	174763
+show status like 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	0
+select c3, match(c3) against("ii") from t1
+where match(c3) against("ii") order by match(c3) against("ii") desc limit 1, 1;
+c3	match(c3) against("ii")
+aa ii uu ii oo	349526
+show status like 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	1
+select c3, match(c3) against("ii") from t1
+where match(c3) against("ii") order by match(c3) against("ii");
+c3	match(c3) against("ii")
+aa ii uu ee oo	174763
+aa ii uu ii oo	349526
+ii si ii se ii	524289
+show status like 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	1
+select c3, match(c3) against("ii") from t1
+where match(c3) against("ii") order by match(c3) against("ii") limit 1;
+c3	match(c3) against("ii")
+aa ii uu ee oo	174763
+show status like 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	2
+select count(*) from t1 where match(c3) against("ii") limit 1;
+count(*)
+3
+show status like 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	2
+drop table t1;

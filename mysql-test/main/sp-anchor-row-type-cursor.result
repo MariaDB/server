@@ -1,0 +1,1039 @@
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
+#
+#
+# A complete working example
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (10,'b10');
+INSERT INTO t1 VALUES (20,'b20');
+INSERT INTO t1 VALUES (30,'b30');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c CURSOR FOR SELECT a,b FROM t1;
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE rec ROW TYPE OF c; 
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=1;
+OPEN c;
+read_loop: LOOP
+FETCH c INTO rec;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT rec.a ,rec.b FROM dual;
+INSERT INTO t2 VALUES (rec.a, rec.b);
+END LOOP;
+CLOSE c;
+END;
+END;
+$$
+CALL p1();
+rec.a	rec.b
+10	b10
+rec.a	rec.b
+20	b20
+rec.a	rec.b
+30	b30
+SELECT * FROM t2;
+a	b
+10	b10
+20	b20
+30	b30
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# cursor ROW TYPE referring to a table in a non-existing database
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM tes2.t1;
+BEGIN
+DECLARE rec ROW TYPE OF cur;
+END;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'tes2.t1' doesn't exist
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+ERROR 42S02: Table 'tes2.t1' doesn't exist
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# cursor ROW TYPE referring to a table in the current database
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec ROW TYPE OF cur;
+CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `rec.a` int(11) DEFAULT NULL,
+  `rec.b` varchar(10) DEFAULT NULL,
+  `rec.c` double DEFAULT NULL,
+  `rec.d` decimal(10,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CALL p1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+DROP PROCEDURE p1;
+#
+# cursor ROW TYPE referring to a table in an explicitly specified database
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM test.t1;
+BEGIN
+DECLARE rec ROW TYPE OF cur;
+CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `rec.a` int(11) DEFAULT NULL,
+  `rec.b` varchar(10) DEFAULT NULL,
+  `rec.c` double DEFAULT NULL,
+  `rec.d` decimal(10,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Cursor ROW TYPE referring to a view in the current database
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM v1;
+BEGIN
+DECLARE rec ROW TYPE OF cur;
+CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test.v1' doesn't exist
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CREATE VIEW v1 AS SELECT * FROM t1;
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `rec.a` int(11) DEFAULT NULL,
+  `rec.b` varchar(10) DEFAULT NULL,
+  `rec.c` double DEFAULT NULL,
+  `rec.d` decimal(10,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# cursor ROW TYPE referring to a view in an explicitly specified database
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM test.v1;
+BEGIN
+DECLARE rec ROW TYPE OF cur;
+CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c, rec.d;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+END;
+$$
+CALL p1();
+ERROR 42S02: Table 'test.v1' doesn't exist
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10));
+CREATE VIEW v1 AS SELECT * FROM t1;
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `rec.a` int(11) DEFAULT NULL,
+  `rec.b` varchar(10) DEFAULT NULL,
+  `rec.c` double DEFAULT NULL,
+  `rec.d` decimal(10,0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP VIEW v1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Checking that all cursor ROW TYPE fields are NULL by default
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+SELECT rec1.a, rec1.b, rec1.c, rec1.d;
+END;
+END;
+$$
+CALL p1();
+rec1.a	rec1.b	rec1.c	rec1.d
+NULL	NULL	NULL	NULL
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# A cursor ROW TYPE variable with a ROW expression as a default
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1 DEFAULT ROW(10,'bbb');
+SELECT rec1.a, rec1.b;
+END;
+END;
+$$
+CALL p1();
+rec1.a	rec1.b
+10	bbb
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# A cursor ROW TYPE variable with an incompatible ROW expression as a default
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1  DEFAULT  ROW(10,'bbb','ccc');
+SELECT rec1.a, rec1.b;
+END;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# A cursor ROW TYPE variable with a ROW variable as a default
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW(a INT, b VARCHAR(10)) DEFAULT  ROW(10,'bbb');
+DECLARE rec2 ROW TYPE OF cur  DEFAULT  rec1;
+SELECT rec2.a, rec2.b;
+END;
+END;
+$$
+CALL p1();
+rec2.a	rec2.b
+10	bbb
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# A ROW variable using a cursor ROW TYPE variable as a default
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1  DEFAULT  ROW(10,'bbb');
+DECLARE rec2 ROW(a INT, b VARCHAR(10)) DEFAULT  rec1;
+SELECT rec2.a, rec2.b;
+END;
+END;
+$$
+CALL p1();
+rec2.a	rec2.b
+10	bbb
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Assigning cursor ROW TYPE variables with a different column count
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE);
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+DECLARE cur2 CURSOR FOR SELECT * FROM t2;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+DECLARE rec2 ROW TYPE OF cur2;
+SET rec2=rec1;
+END;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+DECLARE cur2 CURSOR FOR SELECT * FROM t2;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+DECLARE rec2 ROW TYPE OF cur2;
+SET rec1=rec2;
+END;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 3 column(s)
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Assigning compatible cursor ROW TYPE variables (equal number of fields)
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (x INT, y VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+DECLARE cur2 CURSOR FOR SELECT * FROM t2;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+DECLARE rec2 ROW TYPE OF cur2;
+SET rec1.a= 10;
+SET rec1.b= 'bbb';
+SET rec2=rec1;
+SELECT rec2.x, rec2.y;
+END;
+END;
+$$
+CALL p1();
+rec2.x	rec2.y
+10	bbb
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Assigning between incompatible cursor ROW TYPE and explicit ROW variables
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+DECLARE rec2 ROW(x INT,y INT,z INT);
+SET rec2.x= 10;
+SET rec2.y= 20;
+SET rec2.z= 30;
+SET rec1= rec2;
+END;
+END;
+$$
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Assigning between compatible cursor ROW TYPE and explicit ROW variables
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+DECLARE rec2 ROW(x INT,y INT);
+SET rec2.x= 10;
+SET rec2.y= 20;
+SET rec1= rec2;
+SELECT rec1.a, rec1.b;
+SET rec1.a= 11;
+SET rec1.b= 21;
+SET rec2= rec1;
+SELECT rec2.x, rec2.y;
+END;
+END;
+$$
+CALL p1();
+rec1.a	rec1.b
+10	20
+rec2.x	rec2.y
+11	21
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Assigning cursor ROW TYPE from a ROW expression
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+SET rec1= ROW(10,20);
+SELECT rec1.a, rec1.b;
+END;
+END;
+$$
+CALL p1();
+rec1.a	rec1.b
+10	20
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Fetching a cursor into a cursor ROW TYPE variable with a wrong field count
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+DECLARE cur2 CURSOR FOR SELECT * FROM t2;
+BEGIN
+DECLARE rec2 ROW TYPE OF cur2;
+OPEN cur1;
+FETCH cur1 INTO rec2;
+CLOSE cur1;
+END;
+END;
+$$
+CALL p1();
+ERROR HY000: Incorrect number of FETCH variables
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Fetching a cursor into a cursor ROW TYPE variable
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+INSERT INTO t1 VALUES (20,'bb2',222.222e2, 12.32);
+INSERT INTO t1 VALUES (30,'bb3',333.333e2, 12.33);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE rec ROW TYPE OF cur;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN cur;
+read_loop: LOOP
+FETCH cur INTO rec;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT rec.a, rec.b, rec.c, rec.d;
+INSERT INTO t2 VALUES (rec.a, rec.b, rec.c, rec.d);
+END LOOP;
+CLOSE cur;
+END;
+END;
+$$
+CALL p1();
+rec.a	rec.b	rec.c	rec.d
+10	bb1	11111.1	12.31
+rec.a	rec.b	rec.c	rec.d
+20	bb2	22222.2	12.32
+rec.a	rec.b	rec.c	rec.d
+30	bb3	33333.3	12.33
+SELECT * FROM t2;
+a	b	c	d
+10	bb1	11111.1	12.31
+20	bb2	22222.2	12.32
+30	bb3	33333.3	12.33
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Fetching a cursor into a cursor ROW TYPE variable, ROW TYPE OF cur declared inside the LOOP
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10), c DOUBLE, d DECIMAL(10,2));
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (10,'bb1',111.111e2, 12.31);
+INSERT INTO t1 VALUES (20,'bb2',222.222e2, 12.32);
+INSERT INTO t1 VALUES (30,'bb3',333.333e2, 12.33);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN cur;
+read_loop: LOOP
+BEGIN
+DECLARE rec ROW TYPE OF cur;
+FETCH cur INTO rec;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT rec.a, rec.b, rec.c, rec.d;
+INSERT INTO t2 VALUES (rec.a, rec.b, rec.c, rec.d);
+END;
+END LOOP;
+CLOSE cur;
+END;
+$$
+CALL p1();
+rec.a	rec.b	rec.c	rec.d
+10	bb1	11111.1	12.31
+rec.a	rec.b	rec.c	rec.d
+20	bb2	22222.2	12.32
+rec.a	rec.b	rec.c	rec.d
+30	bb3	33333.3	12.33
+SELECT * FROM t2;
+a	b	c	d
+10	bb1	11111.1	12.31
+20	bb2	22222.2	12.32
+30	bb3	33333.3	12.33
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Fetching a cursor into a cursor ROW TYPE variable with different column names
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (x INT, y VARCHAR(10));
+INSERT INTO t1 VALUES (10,'bbb');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+DECLARE cur2 CURSOR FOR SELECT * FROM t2;
+BEGIN
+DECLARE rec2 ROW TYPE OF cur2;
+OPEN cur1;
+FETCH cur1 INTO rec2;
+SELECT rec2.x, rec2.y;
+CLOSE cur1;
+END;
+END;
+$$
+CALL p1();
+rec2.x	rec2.y
+10	bbb
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Fetching a cursor into a cursor ROW TYPE variable, with truncation
+#
+SET sql_mode='';
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t1 VALUES (10,'11x');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+DECLARE cur2 CURSOR FOR SELECT * FROM t2;
+BEGIN
+DECLARE rec2 ROW TYPE OF cur2;
+OPEN cur1;
+FETCH cur1 INTO rec2;
+SELECT rec2.a, rec2.b;
+CLOSE cur1;
+END;
+END;
+$$
+CALL p1();
+rec2.a	rec2.b
+10	11
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+DROP TABLE t2;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+#
+# cursor ROW TYPE variables are not allowed in LIMIT
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1 DEFAULT (1,2);
+SELECT * FROM t1 LIMIT rec1.a;
+END;
+END;
+$$
+ERROR HY000: A variable of a non-integer based type in LIMIT clause
+DROP TABLE t1;
+#
+# cursor ROW TYPE variable fields as OUT parameters
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1(OUT a INT,OUT b VARCHAR(10))
+BEGIN
+SET a=10;
+SET b='bb';
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+CALL p1(rec1.a, rec1.b);
+SELECT rec1.a, rec1.b;
+END;
+END;
+$$
+CALL p2();
+rec1.a	rec1.b
+10	bb
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Passing the entire cursor ROW TYPE variable
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1(a ROW(a INT, b VARCHAR(10)))
+BEGIN
+SELECT a.a, a.b;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur DEFAULT  ROW(10,'bb');
+CALL p1(rec1);
+END;
+END;
+$$
+CALL p2();
+a.a	a.b
+10	bb
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Passing the entire cursor ROW TYPE variable as an OUT parameter
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1(OUT a ROW(a INT, b VARCHAR(10)))
+BEGIN
+SET a= ROW(10,'bb');
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur;
+CALL p1(rec1);
+SELECT rec1.a, rec1.b;
+END;
+END;
+$$
+CALL p2();
+rec1.a	rec1.b
+10	bb
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Assigning a cursor ROW TYPE field to an OUT parameter
+#
+CREATE PROCEDURE p1 (INOUT res INTEGER)
+BEGIN
+DECLARE a INT DEFAULT 10;
+DECLARE cur1 CURSOR FOR SELECT a FROM DUAL;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+OPEN cur1;
+FETCH cur1 INTO rec1;
+CLOSE cur1;
+SET res=rec1.a;
+END;
+END;
+$$
+CALL p1(@res);
+SELECT @res;
+@res
+10
+SET @res=NULL;
+DROP PROCEDURE p1;
+#
+# Testing Item_splocal_row_field_by_name::print
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec ROW TYPE OF cur1 DEFAULT ROW(10,'bb');
+EXPLAIN EXTENDED SELECT rec.a, rec.b;
+END;
+END;
+$$
+CALL p1();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select rec.a@0["a"] AS `rec.a`,rec.b@0["b"] AS `rec.b`
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Run time error in the cursor statement
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT
+10 AS a,
+CONCAT(_latin1'a' COLLATE latin1_bin,
+_latin1'a' COLLATE latin1_swedish_ci) AS b;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+OPEN cur1;
+FETCH cur1 INTO rec1;
+CLOSE cur1;
+SELECT a,b;
+END;
+END;
+$$
+CALL p1();
+ERROR HY000: Illegal mix of collations (latin1_bin,EXPLICIT) and (latin1_swedish_ci,EXPLICIT) for operation 'concat'
+DROP PROCEDURE p1;
+#
+# Non-existing field
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec ROW TYPE OF cur1;
+SELECT rec.c;
+END;
+END;
+$$
+CALL p1();
+ERROR HY000: Row variable 'rec' does not have a field 'c'
+ALTER TABLE t1 ADD c INT;
+ALTER PROCEDURE p1 COMMENT 'test';
+CALL p1();
+rec.c
+NULL
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing that field names are case insensitive
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec ROW TYPE OF cur DEFAULT ROW(10,'bb');
+SELECT rec.A, rec.B;
+END;
+END;
+$$
+CALL p1();
+rec.A	rec.B
+10	bb
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing that cursor ROW TYPE uses temporary tables vs shadowed real tables
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TEMPORARY TABLE t1 (x INT, y VARCHAR(10));
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec ROW TYPE OF cur DEFAULT ROW(10,'bb');
+SELECT rec.A, rec.B;
+END;
+END;
+$$
+CALL p1();
+ERROR HY000: Row variable 'rec' does not have a field 'A'
+DROP TEMPORARY TABLE t1;
+ALTER PROCEDURE p1 COMMENT 'test';
+CALL p1();
+rec.A	rec.B
+10	bb
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing that the structure of cursor ROW TYPE variables is determined at the DECLARE CURSOR instantiation time
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(32), c INT);
+BEGIN
+DECLARE rec ROW TYPE OF cur; -- This has a column "c"
+    SET rec.c=10;
+END;
+END;
+$$
+CALL p1();
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec ROW TYPE OF cur; -- This does not have a column "c"
+    DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(32), c INT);
+SET rec.c=10;
+END;
+END;
+$$
+CALL p1();
+ERROR HY000: Row variable 'rec' does not have a field 'c'
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# Duplicate field nams in a cursor referenced by cursor ROW TYPE
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT * FROM t1, t2;
+BEGIN
+DECLARE rec ROW TYPE OF cur;
+SELECT rec.a;
+SET rec.a=10;
+END;
+END;
+$$
+CALL p1();
+ERROR 42S21: Duplicate column name 'a'
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# Tricky field names a cursor referenced by cursor ROW TYPE
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('a');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur CURSOR FOR SELECT a, CONCAT(a,'a'), CONCAT(a,'ö') FROM t1;
+BEGIN
+DECLARE rec ROW TYPE OF cur;
+OPEN cur;
+FETCH cur INTO rec;
+CLOSE cur;
+SELECT rec.a, rec.`CONCAT(a,'a')`, rec.`CONCAT(a,'ö')`;
+END;
+END;
+$$
+CALL p1();
+rec.a	rec.`CONCAT(a,'a')`	rec.`CONCAT(a,'ö')`
+a	aa	aö
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET NAMES latin1;
+#
+# Using definitions recursively (cursor ROW TYPE variables in another cursor SELECT)
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b1'),(20,'b2'),(30,'b3');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT a,b FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1 DEFAULT ROW(0,'b0');
+DECLARE cur2 CURSOR FOR SELECT rec1.a AS a, rec1.b AS b FROM t1;
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE rec2 ROW TYPE OF cur2;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN cur2;
+read_loop: LOOP
+FETCH cur2 INTO rec2;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT rec2.a, rec2.b;
+END LOOP;
+CLOSE cur2;
+END;
+END;
+END;
+$$
+CALL p1();
+rec2.a	rec2.b
+0	b0
+rec2.a	rec2.b
+0	b0
+rec2.a	rec2.b
+0	b0
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Testing queries with auto-generated Items.
+# An instance of Item_func_conv_charset is created during the below SELECT query.
+# We check here that during an implicit cursor OPEN
+# done in sp_instr_cursor_copy_struct::exec_core()
+# all temporary Items are created on a proper memory root and are safely destroyed.
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES (0xFF, 'a');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT CONCAT(a,b) AS c FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+OPEN cur1;
+FETCH cur1 INTO rec1;
+CLOSE cur1;
+SELECT HEX(rec1.c);
+END;
+END;
+$$
+CALL p1();
+HEX(rec1.c)
+C3BF61
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# SELECT INTO + cursor ROW TYPE variable with a wrong column count
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT 10, 'b0', 'c0';
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+SELECT * FROM t1 INTO rec1;
+SELECT rec1.a, rec1.b;
+END;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+ERROR 21000: The used SELECT statements have a different number of columns
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# SELECT INTO + multiple cursor ROW TYPE variables
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+SELECT * FROM t1 INTO rec1, rec1;
+SELECT rec1.a, rec1.b;
+END;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+ERROR 21000: Operand should contain 2 column(s)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+# SELECT INTO + cursor ROW TYPE working example
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM t1;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+SELECT * FROM t1 INTO rec1;
+SELECT rec1.a, rec1.b;
+END;
+END;
+$$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+CALL p1();
+rec1.a	rec1.b
+10	b10
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+#  End of MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
+#
+#
+# MDEV-12916 Wrong column data type for an INT field of a cursor-anchored ROW variable
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT DEFAULT 10;
+DECLARE cur1 CURSOR FOR SELECT a;
+BEGIN
+DECLARE rec1 ROW TYPE OF cur1;
+CREATE TABLE t1 AS SELECT rec1.a;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+END;
+$$
+CALL p1();
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `rec1.a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP PROCEDURE p1;
+#
+# MDEV-14139 Anchored data types for variables
+#
+BEGIN NOT ATOMIC
+DECLARE c1 CURSOR FOR SELECT 10 AS a, 'bbb' AS b, TIME'10:20:30' AS c;
+BEGIN
+DECLARE row1 ROW TYPE OF c1;
+DECLARE a_row1 TYPE OF row1;
+DECLARE aa_row1 TYPE OF a_row1;
+CREATE TABLE t2 AS SELECT a_row1.a AS a, a_row1.b AS b, a_row1.c AS c;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT aa_row1.a AS a, aa_row1.b AS b, aa_row1.c AS c;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+END;
+$$
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(3) DEFAULT NULL,
+  `c` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(3) DEFAULT NULL,
+  `c` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1

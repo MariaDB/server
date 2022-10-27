@@ -1,0 +1,14 @@
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+# xtrabackup backup
+FOUND 1 /Invalid log block checksum/ in backup.log
+INSERT INTO t VALUES(2);
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t;
+i
+1
+DROP TABLE t;

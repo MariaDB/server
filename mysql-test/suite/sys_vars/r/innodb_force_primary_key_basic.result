@@ -1,0 +1,44 @@
+SELECT COUNT(@@GLOBAL.innodb_force_primary_key);
+COUNT(@@GLOBAL.innodb_force_primary_key)
+1
+1 Expected
+SET @@GLOBAL.innodb_force_primary_key=1;
+Expected ok
+SELECT COUNT(@@GLOBAL.innodb_force_primary_key);
+COUNT(@@GLOBAL.innodb_force_primary_key)
+1
+1 Expected
+SELECT IF(@@GLOBAL.innodb_force_primary_key, 'ON', 'OFF') = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='innodb_force_primary_key';
+IF(@@GLOBAL.innodb_force_primary_key, 'ON', 'OFF') = VARIABLE_VALUE
+1
+1 Expected
+SELECT COUNT(@@GLOBAL.innodb_force_primary_key);
+COUNT(@@GLOBAL.innodb_force_primary_key)
+1
+1 Expected
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='innodb_force_primary_key';
+COUNT(VARIABLE_VALUE)
+1
+1 Expected
+SELECT @@innodb_force_primary_key = @@GLOBAL.innodb_force_primary_key;
+@@innodb_force_primary_key = @@GLOBAL.innodb_force_primary_key
+1
+1 Expected
+SELECT COUNT(@@innodb_force_primary_key);
+COUNT(@@innodb_force_primary_key)
+1
+1 Expected
+SELECT COUNT(@@local.innodb_force_primary_key);
+ERROR HY000: Variable 'innodb_force_primary_key' is a GLOBAL variable
+Expected Variable 'innodb_force_primary_key' is a GLOBAL variable
+SELECT COUNT(@@SESSION.innodb_force_primary_key);
+ERROR HY000: Variable 'innodb_force_primary_key' is a GLOBAL variable
+Expected Variable 'innodb_force_primary_key' is a GLOBAL variable
+SELECT COUNT(@@GLOBAL.innodb_force_primary_key);
+COUNT(@@GLOBAL.innodb_force_primary_key)
+1
+1 Expected

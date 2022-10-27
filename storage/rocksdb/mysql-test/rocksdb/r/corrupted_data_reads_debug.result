@@ -1,0 +1,74 @@
+#
+#  Test how MyRocks handles reading corrupted data from disk.
+#  Data corruption is simulated at source-code level.
+#
+#
+#  A test for case when data in the table *record* is longer
+#  than table DDL expects it to be
+#
+create table t1 (
+pk int not null primary key,
+col1 varchar(10)
+) engine=rocksdb;
+insert into t1 values (1,1),(2,2),(3,3);
+select * from t1;
+pk	col1
+1	1
+2	2
+3	3
+set @tmp1=@@rocksdb_verify_row_debug_checksums;
+set rocksdb_verify_row_debug_checksums=1;
+set session debug_dbug= "+d,myrocks_simulate_bad_row_read1";
+select * from t1 where pk=1;
+ERROR HY000: Got error 202 'Found data corruption.' from ROCKSDB
+set session debug_dbug= "-d,myrocks_simulate_bad_row_read1";
+set rocksdb_verify_row_debug_checksums=@tmp1;
+select * from t1 where pk=1;
+pk	col1
+1	1
+set session debug_dbug= "+d,myrocks_simulate_bad_row_read2";
+select * from t1 where pk=1;
+ERROR HY000: Got error 202 'Found data corruption.' from ROCKSDB
+set session debug_dbug= "-d,myrocks_simulate_bad_row_read2";
+set session debug_dbug= "+d,myrocks_simulate_bad_row_read3";
+select * from t1 where pk=1;
+ERROR HY000: Got error 202 'Found data corruption.' from ROCKSDB
+set session debug_dbug= "-d,myrocks_simulate_bad_row_read3";
+insert into t1 values(4,'0123456789');
+select * from t1;
+pk	col1
+1	1
+2	2
+3	3
+4	0123456789
+drop table t1;
+#
+#  A test for case when index data is longer than table DDL
+#  expects it to be
+#
+create table t2 (
+pk varchar(4) not null primary key,
+col1 int not null
+) engine=rocksdb collate latin1_bin;
+insert into t2 values ('ABCD',1);
+select * from t2;
+pk	col1
+ABCD	1
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_read1";
+select * from t2;
+ERROR HY000: Got error 202 'Found data corruption.' from ROCKSDB
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_read1";
+drop table t2;
+create table t2 (
+pk varchar(4) not null primary key,
+col1 int not null
+) engine=rocksdb;
+insert into t2 values ('ABCD',1);
+select * from t2;
+pk	col1
+ABCD	1
+set session debug_dbug= "+d,myrocks_simulate_bad_pk_read1";
+select * from t2;
+ERROR HY000: Got error 202 'Found data corruption.' from ROCKSDB
+set session debug_dbug= "-d,myrocks_simulate_bad_pk_read1";
+drop table t2;

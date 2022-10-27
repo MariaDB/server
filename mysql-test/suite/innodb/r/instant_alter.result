@@ -1,0 +1,2883 @@
+#
+# MDEV-11369: Instant ADD COLUMN for InnoDB
+#
+SET @saved_allowance = @@GLOBAL.innodb_instant_alter_column_allowed;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
+call mtr.add_suppression("Cannot add field `.*` in table `test`.`.*` because after adding it, the row size is");
+CREATE TABLE t(a INT UNIQUE)ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t ADD e INT, ROW_FORMAT=COMPRESSED;
+INSERT INTO t SET a=1;
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
+ALTER TABLE t ADD b INT NOT NULL, ALGORITHM=COPY;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t ADD c INT NOT NULL, FORCE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+instants
+0
+ALTER TABLE t ADD d INT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT * FROM t;
+a	e	b	c	d
+1	NULL	0	0	0
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `e` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  `c` int(11) NOT NULL,
+  `d` int(11) NOT NULL,
+  UNIQUE KEY `a` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+instants
+0
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+instants
+0
+DROP TABLE t;
+connect analyze, localhost, root;
+connection default;
+SET timestamp = 42;
+SET time_zone='+03:00';
+SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET @old_instant=
+(SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column');
+CREATE TABLE t1
+(id INT PRIMARY KEY, c2 INT UNIQUE,
+c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
+SPATIAL INDEX(c3)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 (id, c2) values(1,1);
+SELECT id,c2,ST_AsText(c3) c3 FROM t1;
+id	c2	c3
+1	1	POINT(3 4)
+ALTER TABLE t1 ADD COLUMN (
+d1 INT, d2 INT UNSIGNED DEFAULT 10, d3 VARCHAR(20) NOT NULL DEFAULT 'abcde',
+d4 TIMESTAMP NOT NULL DEFAULT current_timestamp());
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD INDEX(d3);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+BEGIN;
+UPDATE t1 SET d3='';
+ROLLBACK;
+SELECT id,c2,ST_AsText(c3) c3, d1, d2, d3, d4 FROM t1;
+id	c2	c3	d1	d2	d3	d4
+1	1	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+INSERT INTO t1 (id) VALUES(2),(3),(4),(5),(6);
+ALTER TABLE t1 CHANGE d1 d1 INT DEFAULT 5, CHANGE d2 d2 INT DEFAULT 15,
+CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'fghij',
+CHANGE d4 dfour TIMESTAMP NOT NULL DEFAULT now();
+affected rows: 6
+info: Records: 6  Duplicates: 0  Warnings: 0
+UPDATE t1 SET d3='foo' WHERE id = 2;
+UPDATE t1 SET d3=DEFAULT WHERE id = 4;
+INSERT INTO t1 SET id = 7;
+SELECT id,c2,ST_AsText(c3) c3, d1, d2, d3, dfour FROM t1;
+id	c2	c3	d1	d2	d3	dfour
+1	1	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+2	NULL	POINT(3 4)	NULL	10	foo	1970-01-01 03:00:42
+3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+4	NULL	POINT(3 4)	NULL	10	fghij	1970-01-01 03:00:42
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+6	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+7	NULL	POINT(3 4)	5	15	fghij	1970-01-01 03:00:42
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+ALTER TABLE t1 ADD COLUMN e1 INT AS (id * 3);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD COLUMN e2 VARCHAR(30) AS (d3);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD COLUMN e3 INT AS (id * 2);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'foobar',
+ADD COLUMN (d5 CHAR(20) DEFAULT 'hijkl', d6 INT DEFAULT -12345, d7 INT),
+DROP INDEX d3;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 SET id = 8;
+UPDATE t1 SET d3 = 'yyyyy' WHERE id = 1;
+UPDATE t1 SET d3 = 'xxxxx' WHERE id = 2;
+BEGIN;
+UPDATE t1 SET d3 = 'xxxxx' WHERE id = 3;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 3;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+3	NULL	POINT(3 4)	NULL	10	xxxxx	1970-01-01 03:00:42	9	xxxxx	6	hijkl	-12345	NULL
+ROLLBACK;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 3;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL
+BEGIN;
+UPDATE t1 SET d7 = NULL WHERE ID = 5;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET d7 = NULL, d6 = 10 WHERE id = 5;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 5;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	10	NULL
+ROLLBACK;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 5;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL
+ALTER TABLE t1 ADD COLUMN (f1 VARCHAR(20) AS (concat('x', e2)) STORED);
+affected rows: 8
+info: Records: 8  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD COLUMN (d8 VARCHAR(20) DEFAULT 'omnopq');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7, f1, d8 FROM t1;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
+1	1	POINT(3 4)	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
+2	NULL	POINT(3 4)	NULL	10	xxxxx	1970-01-01 03:00:42	6	xxxxx	4	hijkl	-12345	NULL	xxxxxx	omnopq
+3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL	xabcde	omnopq
+4	NULL	POINT(3 4)	NULL	10	fghij	1970-01-01 03:00:42	12	fghij	8	hijkl	-12345	NULL	xfghij	omnopq
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL	xabcde	omnopq
+6	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	18	abcde	12	hijkl	-12345	NULL	xabcde	omnopq
+7	NULL	POINT(3 4)	5	15	fghij	1970-01-01 03:00:42	21	fghij	14	hijkl	-12345	NULL	xfghij	omnopq
+8	NULL	POINT(3 4)	5	15	foobar	1970-01-01 03:00:42	24	foobar	16	hijkl	-12345	NULL	xfoobar	omnopq
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` point NOT NULL DEFAULT st_geometryfromtext('POINT(3 4)'),
+  `d1` int(11) DEFAULT 5,
+  `d2` int(11) DEFAULT 15,
+  `d3` varchar(20) NOT NULL DEFAULT 'foobar',
+  `dfour` timestamp NOT NULL DEFAULT current_timestamp(),
+  `e1` int(11) GENERATED ALWAYS AS (`id` * 3) VIRTUAL,
+  `e2` varchar(30) GENERATED ALWAYS AS (`d3`) VIRTUAL,
+  `e3` int(11) GENERATED ALWAYS AS (`id` * 2) VIRTUAL,
+  `d5` char(20) DEFAULT 'hijkl',
+  `d6` int(11) DEFAULT -12345,
+  `d7` int(11) DEFAULT NULL,
+  `f1` varchar(20) GENERATED ALWAYS AS (concat('x',`e2`)) STORED,
+  `d8` varchar(20) DEFAULT 'omnopq',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `c2` (`c2`),
+  SPATIAL KEY `c3` (`c3`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+ALTER TABLE t1
+CHANGE c2 c2 INT DEFAULT 42,
+CHANGE d1 d1 INT DEFAULT 1,
+CHANGE d2 d2 INT DEFAULT 20,
+CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'boofar';
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 SET id=9;
+ALTER TABLE t1 DROP c3;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `c2` int(11) DEFAULT 42,
+  `d1` int(11) DEFAULT 1,
+  `d2` int(11) DEFAULT 20,
+  `d3` varchar(20) NOT NULL DEFAULT 'boofar',
+  `dfour` timestamp NOT NULL DEFAULT current_timestamp(),
+  `e1` int(11) GENERATED ALWAYS AS (`id` * 3) VIRTUAL,
+  `e2` varchar(30) GENERATED ALWAYS AS (`d3`) VIRTUAL,
+  `e3` int(11) GENERATED ALWAYS AS (`id` * 2) VIRTUAL,
+  `d5` char(20) DEFAULT 'hijkl',
+  `d6` int(11) DEFAULT -12345,
+  `d7` int(11) DEFAULT NULL,
+  `f1` varchar(20) GENERATED ALWAYS AS (concat('x',`e2`)) STORED,
+  `d8` varchar(20) DEFAULT 'omnopq',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `c2` (`c2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+SELECT * FROM t1;
+id	c2	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
+1	1	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
+2	NULL	NULL	10	xxxxx	1970-01-01 03:00:42	6	xxxxx	4	hijkl	-12345	NULL	xxxxxx	omnopq
+3	NULL	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL	xabcde	omnopq
+4	NULL	NULL	10	fghij	1970-01-01 03:00:42	12	fghij	8	hijkl	-12345	NULL	xfghij	omnopq
+5	NULL	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL	xabcde	omnopq
+6	NULL	NULL	10	abcde	1970-01-01 03:00:42	18	abcde	12	hijkl	-12345	NULL	xabcde	omnopq
+7	NULL	5	15	fghij	1970-01-01 03:00:42	21	fghij	14	hijkl	-12345	NULL	xfghij	omnopq
+8	NULL	5	15	foobar	1970-01-01 03:00:42	24	foobar	16	hijkl	-12345	NULL	xfoobar	omnopq
+9	42	1	20	boofar	1970-01-01 03:00:42	27	boofar	18	hijkl	-12345	NULL	xboofar	omnopq
+CREATE TABLE t2
+(id INT primary key, c1 VARCHAR(4000),
+p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+SPATIAL INDEX(p))
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+BEGIN;
+INSERT INTO t2 SET id=1, c1=REPEAT('a', 4000);
+INSERT INTO t2 SET id=2, c1=REPEAT('a', 4000), p=ST_GeomFromText('POINT(1 1)');
+COMMIT;
+ALTER TABLE t2 ADD COLUMN d1 VARCHAR(2000) DEFAULT REPEAT('asdf',500);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c1, ST_AsText(p) p, d1 FROM t2;
+id	c1	p	d1
+1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	LINESTRING(0 0,0 1,1 1)	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+2	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	POINT(1 1)	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+BEGIN;
+UPDATE t2 SET c1 = repeat(id, 4000);
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+ROLLBACK;
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+BEGIN;
+UPDATE t2 SET d1 = repeat(id, 200);
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+ROLLBACK;
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+ALTER TABLE t2 DROP p;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT * FROM t2;
+id	c1	d1
+1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+2	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+CREATE TABLE t3
+(id INT PRIMARY KEY, c2 INT UNSIGNED NOT NULL UNIQUE,
+c3 POLYGON NOT NULL DEFAULT ST_PolyFromText('POLYGON((1 1,2 2,3 3,1 1))'),
+SPATIAL INDEX(c3))
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t3(id,c2) VALUES(1,1),(2,2),(3,3);
+SELECT id, c2, ST_AsText(c3) c3 FROM t3;
+id	c2	c3
+1	1	POLYGON((1 1,2 2,3 3,1 1))
+2	2	POLYGON((1 1,2 2,3 3,1 1))
+3	3	POLYGON((1 1,2 2,3 3,1 1))
+ALTER TABLE t3 ADD COLUMN
+(c4 DATETIME DEFAULT current_timestamp(),
+c5 TIMESTAMP NOT NULL DEFAULT current_timestamp(),
+c6 POINT);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6 FROM t3;
+id	c2	c3	c4	c5	c6
+1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
+2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
+3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
+affected rows: 3
+ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
+id	c2	c3	c4	c5	c6	c7	c8
+1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
+2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
+3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
+ALTER TABLE t3 ADD COLUMN t TEXT CHARSET utf8
+DEFAULT 'The quick brown fox jumps over the lazy dog';
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t3 SET id=4;
+ERROR HY000: Field 'c2' doesn't have a default value
+INSERT INTO t3 SET id=4, c2=0, b=0xf09f98b1;
+affected rows: 1
+Warnings:
+Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c8' at row 1
+SET innodb_strict_mode = OFF;
+affected rows: 0
+ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
+CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+INSERT INTO t3 SET id=5, c2=9;
+Warnings:
+Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c8' at row 1
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8, phrase, b FROM t3;
+id	c2	c3	c4	c5	c6	c7	c8	phrase	b
+1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
+2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
+3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
+4	0	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	😱
+5	9	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	ääH	binary line of business
+ALTER TABLE t3 DROP c3, DROP c7;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT * FROM t3;
+id	c2	c4	c5	c6	c8	phrase	b
+1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+2	2	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+3	3	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+4	0	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	😱
+5	9	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	ääH	binary line of business
+CREATE TABLE t4
+(id INT, foo INT DEFAULT 0, c1 VARCHAR(4000),
+p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+PRIMARY KEY(id,foo))
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000)), (2, REPEAT('a', 4000));
+ALTER TABLE t4 ADD COLUMN d1 INT;
+BEGIN;
+UPDATE t4 SET c1 = repeat('1', 4000), foo=1 WHERE id=1;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000));
+UPDATE t4 SET c1 = repeat('2', 4000), foo=1 WHERE id=2;
+ROLLBACK;
+BEGIN;
+UPDATE t4 SET d1 = 1,foo=2 WHERE id=1;
+INSERT INTO t4 (id,foo,c1) VALUES (1, 1, REPEAT('1', 4000));
+COMMIT;
+CREATE TABLE big
+(id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
+p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+BEGIN;
+INSERT INTO big
+SET id=1, c1=REPEAT('a', 200), c2=REPEAT('b', 200), c3=REPEAT('c', 159);
+SET @i:=1;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+COMMIT;
+connection analyze;
+ANALYZE TABLE big;
+Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
+test.big	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+clust_index_size
+3
+connection default;
+ALTER TABLE big ADD COLUMN
+(d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+d3 TIMESTAMP NOT NULL DEFAULT current_timestamp ON UPDATE current_timestamp);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+CHECKSUM TABLE big;
+Table	Checksum
+test.big	1705165209
+BEGIN;
+INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
+INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
+CHECKSUM TABLE big;
+Table	Checksum
+test.big	385477733
+connection analyze;
+ANALYZE TABLE big;
+Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
+test.big	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+clust_index_size
+7
+connection default;
+ROLLBACK;
+CHECKSUM TABLE big;
+Table	Checksum
+test.big	1705165209
+connection analyze;
+ANALYZE TABLE big;
+Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
+test.big	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+clust_index_size
+3
+connection default;
+InnoDB		0 transactions not purged
+DROP TABLE t1,t2,t3,t4,big;
+CREATE TABLE t1 (a VARCHAR(1) PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a='a';
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 0;
+UPDATE t1 SET b = 1;
+INSERT INTO t1 SET a='a';
+ERROR 23000: Duplicate entry 'a' for key 'PRIMARY'
+SELECT * FROM t1;
+a	b
+a	1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(8), PRIMARY KEY(b,a)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (1,'foo');
+ALTER TABLE t1 ADD COLUMN c INT;
+UPDATE t1 SET c = 1;
+UPDATE t1 SET c = 2;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY(b) REFERENCES t1(a))
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a=1;
+INSERT INTO t2 SET b=1;
+ALTER TABLE t2 ADD COLUMN a INT, DROP FOREIGN KEY t2_ibfk_1;
+ALTER TABLE t2 ADD INDEX(a);
+ALTER TABLE t1 ADD COLUMN b INT, ADD FOREIGN KEY(a) REFERENCES t2(a),
+ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Adding foreign keys needs foreign_key_checks=OFF. Try ALGORITHM=COPY
+SET foreign_key_checks=0;
+ALTER TABLE t1 ADD COLUMN b INT, ADD FOREIGN KEY(a) REFERENCES t2(a),
+ALGORITHM=INSTANT;
+ALTER TABLE t2 ADD CONSTRAINT fk FOREIGN KEY(b) REFERENCES t1(a),
+ALGORITHM=INSTANT;
+SET foreign_key_checks=1;
+ALTER TABLE t2 COMMENT 'domestic keys only', DROP FOREIGN KEY fk;
+ALTER TABLE t1 DROP FOREIGN KEY t1_ibfk_1;
+ALTER TABLE t1 ADD COLUMN big BLOB NOT NULL
+DEFAULT REPEAT('a', @@GLOBAL.innodb_page_size * .75);
+CHECK TABLE t2, t1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+test.t1	check	status	OK
+DROP TABLE t2, t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a = 1;
+ALTER TABLE t1 ADD COLUMN b TEXT;
+BEGIN;
+UPDATE t1 SET b = REPEAT('1', 32768);
+UPDATE t1 SET a = 2;
+INSERT INTO t1 SET a = 1;
+SELECT a,LENGTH(b) FROM t1;
+a	LENGTH(b)
+1	NULL
+2	32768
+DELETE FROM t1;
+COMMIT;
+InnoDB		0 transactions not purged
+DROP TABLE t1;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (7);
+ALTER TABLE t1 ADD COLUMN c INT NOT NULL DEFAULT 0;
+ALTER TABLE t1 ADD INDEX (c);
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t1 VALUES (4,0),(7,77);
+COMMIT;
+BEGIN;
+DELETE FROM t1 WHERE a=7;
+UPDATE t1 SET a=7;
+COMMIT;
+SELECT * FROM t1 FORCE INDEX(PRIMARY);
+a	c
+7	0
+SELECT * FROM t1 FORCE INDEX(c);
+a	c
+7	0
+DELETE FROM t1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+SET innodb_strict_mode = ON;
+CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 ADD d TEXT;
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
+CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 (a) VALUES (NULL), (NULL);
+ALTER TABLE t1 DROP a, ADD COLUMN a INT;
+DELETE FROM t1;
+BEGIN;
+INSERT INTO t1 SET a=NULL;
+ROLLBACK;
+DELETE FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, t VARCHAR(33101) NOT NULL) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES(347,'');
+ALTER TABLE t1 DROP COLUMN t, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+a
+347
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1() VALUES();
+ALTER TABLE t1 ADD COLUMN b INT FIRST, ADD COLUMN c INT AFTER b;
+SELECT * FROM t1;
+b	c	a
+NULL	NULL	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+SET @t=REPEAT('x',@@innodb_page_size / 2);
+INSERT INTO t1 VALUES (@t),(@t),(@t),(@t),(@t),(@t),(NULL),(@t),(@t),(@t),(@t);
+ALTER TABLE t1 ADD COLUMN a INT FIRST;
+UPDATE t1 SET a = 0;
+DROP TABLE t1;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET t = @x;
+ALTER TABLE t1 DROP COLUMN t, ADD COLUMN i INT NOT NULL DEFAULT 1;
+ALTER TABLE t1 ADD COLUMN t TEXT;
+SELECT * FROM t1;
+i	t
+1	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INT AUTO_INCREMENT, b INT, KEY(a)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a=NULL;
+ALTER TABLE t1 DROP COLUMN b;
+ALTER TABLE t1 ADD COLUMN c INT NOT NULL DEFAULT 42;
+INSERT INTO t1 SET a=NULL;
+UPDATE t1 SET a=a+2;
+SELECT * FROM t1;
+a	c
+3	42
+4	42
+DROP TABLE t1;
+CREATE TABLE t1 (i INT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET i=1;
+ALTER TABLE t1 ADD COLUMN b BIT FIRST;
+ALTER TABLE t1 ADD COLUMN v INT AS (i) VIRTUAL;
+SELECT * FROM t1;
+b	i	v
+NULL	1	1
+DROP TABLE t1;
+CREATE TABLE t1 (ts TIMESTAMP) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 ADD COLUMN f VARCHAR(8), ADD COLUMN dt DATETIME;
+ALTER TABLE t1 ADD COLUMN b BIT, DROP COLUMN f, ADD COLUMN t TIME FIRST;
+ALTER TABLE t1 ADD COLUMN ts2 TIMESTAMP;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (4,4,4);
+ALTER TABLE t1 DROP f1, DROP f2, ADD f4 INT, ADD f5 INT;
+DELETE FROM t1;
+ALTER TABLE t1 DROP COLUMN f4;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 DROP f2, ADD COLUMN f4 INT;
+ALTER TABLE t1 DROP f4;
+ALTER TABLE t1 DROP f1;
+DROP TABLE t1;
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 () VALUES (),();
+SELECT * FROM t1;
+f
+NULL
+NULL
+ALTER TABLE t1 ADD COLUMN id INT NOT NULL AUTO_INCREMENT FIRST, ADD KEY(id);
+SELECT * FROM t1;
+id	f
+1	NULL
+2	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET f=NULL;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 SET f=NULL;
+SELECT * FROM t1;
+f
+NULL
+NULL
+DROP TABLE t1;
+CREATE TABLE t1(f INT, k INT NOT NULL AUTO_INCREMENT, KEY(k)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 DROP COLUMN f;
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+CREATE TABLE t1(pk INT PRIMARY KEY, f INT, k INT AUTO_INCREMENT, KEY(k))
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 DROP COLUMN f;
+INSERT INTO t1 (pk) VALUES (1);
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+f1 INT,
+f2 CHAR(255),
+f3 BIGINT,
+f4 INT,
+f5 CHAR(255),
+f6 CHAR(255),
+f7 CHAR(255) NOT NULL,
+f8 INT,
+f9 CHAR(10)
+) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a'),
+(2, 2, 'b', 2, 2, 'b', 'b', 'b', 2, 'b'),
+(3, 3, 'c', 3, 3, 'c', 'c', 'c', 3, 'c'),
+(4, 4, 'd', 4, 4, 'd', 'd', 'd', 4, 'd'),
+(5, 5, 'e', 5, 5, 'e', 'e', 'e', 5, 'e'),
+(6, 6, 'f', 6, 6, 'f', 'f', 'f', 6, 'f'),
+(7, 7, 'g', 7, 7, 'g', 'g', 'g', 7, 'g'),
+(8, 8, 'h', 8, 8, 'h', 'h', 'h', 8, 'h'),
+(9, 9, 'i', 9, 9, 'i', 'i', 'i', 9, 'i'),
+(10, 0, 'j', 0, 0, 'j', 'j', 'j', 0, 'j'),
+(11, 1, 'k', 1, 1, 'k', 'k', 'k', 1, 'k'),
+(12, 2, 'l', 2, 2, 'l', 'l', 'l', 2, 'l'),
+(13, 3, 'm', 3, 3, 'm', 'm', 'm', 3, 'm'),
+(14, 4, 'n', 4, 4, 'n', 'n', 'n', 4, 'n'),
+(15, 5, 'o', 5, 5, 'o', 'o', 'o', 5, 'o');
+DELETE FROM t1 WHERE pk=1;
+InnoDB		0 transactions not purged
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a');
+ALTER TABLE t1 DROP COLUMN f1;
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+f1 INT, f2 CHAR(32) NOT NULL,
+f3 INT NOT NULL, f4 INT NOT NULL, f5 INT, f6 CHAR(32) NOT NULL,
+f7 CHAR(32), f8 CHAR(32)
+) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES
+(1,9,'',2,88,88,'','',''),(2,48,'',8,68,92,'','',''),
+(3,41,'',56,84,37,'','',''),(4,NULL,'',6,6,NULL,'','',''),
+(5,52,'',37,44,20,'','',''),(6,44,'',53,4,NULL,'','',''),
+(7,24,'',54,8,54,'','',''),(8,80,'',3,52,20,'','',''),
+(9,71,'',34,32,NULL,'','',''),(10,14,'',6,64,88,'','',''),
+(11,48,'',8,25,42,'','',''),(12,16,'',8,7,NULL,'','',''),
+(13,NULL,'',22,0,95,'','',''),(14,4,'',72,48,NULL,'','',''),
+(15,4,'',5,64,2,'','',''),(16,NULL,'',9,40,30,'','',''),
+(17,92,'',48,2,NULL,'','',''),(18,36,'',48,51,7,'','',''),
+(19,NULL,'',80,96,NULL,'','',''),(20,96,'',9,80,NULL,'','',''),
+(21,50,'',16,40,NULL,'','',''),(22,NULL,'',7,84,8,'','',''),
+(23,28,'',93,80,NULL,'','',''),(24,31,'',40,38,NULL,'','',''),
+(25,85,'',8,5,88,'','',''),(26,66,'',8,32,4,'','',''),
+(51,52,'',6,92,15,'','',''),(52,77,'',24,24,28,'','',''),
+(53,8,'',75,31,NULL,'','',''),(54,48,'',5,8,1,'','',''),
+(55,90,'',56,12,5,'','',''),(56,92,'',4,9,88,'','',''),
+(57,83,'',23,40,72,'','',''),(58,7,'',4,40,32,'','',''),
+(59,28,'',2,3,32,'','',''),(60,16,'',80,4,NULL,'','',''),
+(61,44,'',88,24,NULL,'','',''),(62,4,'',5,25,3,'','',''),
+(63,NULL,'',7,24,76,'','',''),(64,0,'',13,40,73,'','',''),
+(101,NULL,'',1,49,75,'','',''),(102,34,'',10,17,20,'','',''),
+(103,8,'',2,2,NULL,'','',''),(104,12,'',44,48,52,'','',''),
+(105,8,'',4,19,38,'','',''),(106,20,'',6,80,9,'','',''),
+(107,72,'',72,16,56,'','',''),(108,76,'',98,24,21,'','',''),
+(109,67,'',16,91,NULL,'','',''),(110,72,'',72,3,48,'','',''),
+(151,8,'',3,86,NULL,'','',''),(152,NULL,'',52,72,0,'','',''),
+(153,NULL,'',46,30,92,'','',''),(154,80,'',1,40,48,'','',''),
+(155,24,'',68,68,8,'','',''),(156,85,'',85,72,60,'','',''),
+(157,7,'',7,12,6,'','',''),(158,NULL,'',48,48,80,'','',''),
+(159,12,'',0,36,0,'','',''),(160,2,'',6,52,NULL,'','',''),
+(201,0,'',1,3,NULL,'','',''),(202,NULL,'',3,53,14,'','',''),
+(203,84,'',6,20,NULL,'','',''),(204,38,'',25,13,88,'','',''),
+(205,1,'',2,69,5,'','',''),(206,7,'',60,22,NULL,'','',''),
+(207,NULL,'',5,4,NULL,'','',''),(251,7,'',0,4,40,'','',''),
+(252,4,'',16,8,NULL,'','',''),(253,14,'',60,12,99,'','',''),
+(254,84,'',68,16,5,'','',''),(255,3,'',70,36,61,'','',''),
+(256,7,'',18,48,NULL,'','',''),(257,NULL,'',68,53,NULL,'','',''),
+(258,29,'',52,16,64,'','',''),(259,NULL,'',80,92,40,'','',''),
+(301,68,'',1,48,48,'','',''),(302,2,'',1,1,32,'','',''),
+(303,44,'',60,96,16,'','',''),(304,32,'',52,64,32,'','',''),
+(305,88,'',37,72,NULL,'','',''),(306,5,'',35,60,20,'','',''),
+(307,35,'',4,48,NULL,'','',''),(308,4,'',92,44,80,'','',''),
+(351,48,'',60,4,40,'','',''),(352,7,'',9,61,13,'','',''),
+(353,0,'',5,93,53,'','',''),(354,7,'',1,20,NULL,'','',''),
+(355,84,'',5,48,96,'','',''),(356,NULL,'',39,92,36,'','',''),
+(357,88,'',9,76,44,'','',''),(358,66,'',34,67,80,'','',''),
+(359,8,'',8,52,NULL,'','',''),(360,3,'',53,83,NULL,'','',''),
+(361,23,'',44,9,48,'','',''),(362,4,'',0,54,48,'','',''),
+(363,75,'',66,76,52,'','','');
+ALTER TABLE t1 ADD COLUMN x VARCHAR(255) DEFAULT ' foobar ';
+UPDATE t1 SET f1 = 0;
+ALTER TABLE t1 DROP COLUMN x;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 VARCHAR(1), f2 VARCHAR(2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 MODIFY f2 VARCHAR (8) FIRST;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT UNIQUE, b INT UNIQUE, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 DROP PRIMARY KEY;
+ALTER TABLE t1 CHANGE COLUMN a a INT;
+DELETE FROM t1 WHERE a = NULL OR a IS NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT NOT NULL, d INT,
+e INT, f INT, g INT, h INT, j INT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 MODIFY COLUMN c INT, MODIFY COLUMN a INT AFTER b;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (0,0);
+ALTER TABLE t1 MODIFY a INT AFTER b;
+ALTER TABLE t1 ADD COLUMN v INT AS (a) VIRTUAL;
+ALTER TABLE t1 MODIFY b INT NOT NULL AFTER a;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 ADD COLUMN b INT;
+ALTER TABLE t1 MODIFY COLUMN a INT NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a=1;
+ALTER TABLE t1 DROP c;
+ALTER TABLE t1 DROP b, ADD v INT AS (a);
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT, d INT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a=1;
+ALTER TABLE t1 DROP c;
+ALTER TABLE t1 DROP b, ADD v INT AS (a);
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, b BLOB NOT NULL) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (1,10,REPEAT('foobar',2000));
+ALTER TABLE t1 DROP COLUMN b;
+INSERT INTO t1 VALUES (2,20);
+ALTER TABLE t1 ADD COLUMN vpk INT AS (pk);
+ALTER TABLE t1 DROP COLUMN i;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (1,1);
+ALTER TABLE t1 ADD f DATE AFTER a;
+ALTER TABLE t1 DROP b, DROP f;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (1,1);
+ALTER TABLE t1 ADD COLUMN f INT AFTER a;
+ALTER TABLE t1 DROP b, DROP f;
+DROP TABLE t1;
+CREATE TABLE t1(t TEXT NOT NULL, FULLTEXT(t)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 MODIFY COLUMN t TEXT;
+DROP TABLE t1;
+CREATE TABLE t1 (f TINYINT, g SMALLINT UNSIGNED) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES(127,6502),(-128,33101);
+ALTER TABLE t1 MODIFY f SMALLINT DEFAULT 12345,
+MODIFY g BIGINT UNSIGNED DEFAULT 1234567;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+SELECT * FROM t1;
+f	g
+127	6502
+-128	33101
+DROP TABLE t1;
+CREATE TABLE t1 (f BIT(8)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (b'10000000'),(b'00000001');
+ALTER TABLE t1 MODIFY f BIT(16);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+INSERT INTO t1 VALUES (b'1000000010101111'),(b'10000000');
+SELECT HEX(f) FROM t1;
+HEX(f)
+80
+1
+80AF
+80
+ALTER TABLE t1 MODIFY f SMALLINT;
+ERROR 22003: Out of range value for column 'f' at row 3
+ALTER TABLE t1 MODIFY f SMALLINT UNSIGNED;
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+SELECT * FROM t1;
+f
+128
+1
+32943
+128
+ALTER TABLE t1 MODIFY f BIT;
+ERROR 22001: Data too long for column 'f' at row 1
+ALTER TABLE t1 MODIFY f BIT(15);
+ERROR 22001: Data too long for column 'f' at row 3
+DELETE FROM t1 LIMIT 3;
+ALTER TABLE t1 MODIFY f BIT(15);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f BIT(8);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT HEX(f) FROM t1;
+HEX(f)
+80
+DROP TABLE t1;
+CREATE TABLE t1 (b BIT NOT NULL) ENGINE=InnoDB ROW_FORMAT=REDUNDANT DEFAULT CHARSET utf16;
+INSERT INTO t1 SET b=b'1';
+ALTER TABLE t1 CHANGE b c BIT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT HEX(c) FROM t1;
+HEX(c)
+1
+DROP TABLE t1;
+CREATE TABLE t1 (c VARCHAR(10) NOT NULL DEFAULT 'scary') ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1() VALUES();
+ALTER TABLE t1 ADD f TINYINT NOT NULL DEFAULT -42;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f MEDIUMINT NOT NULL DEFAULT 64802,
+MODIFY c VARCHAR(20) NOT NULL DEFAULT 'gory',
+ADD d DATETIME;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+INSERT INTO t1() VALUES();
+INSERT INTO t1 (c,f,d) VALUES ('fury', -8388608, now());
+SELECT * FROM t1;
+c	f	d
+scary	-42	NULL
+gory	64802	NULL
+fury	-8388608	1970-01-01 03:00:42
+DROP TABLE t1;
+CREATE TABLE t1 (t TINYINT PRIMARY KEY, m MEDIUMINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+SELECT table_id INTO @table_id1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+INSERT INTO t1 VALUES (-42, -123456);
+ALTER TABLE t1 CHANGE t s SMALLINT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ALTER TABLE t1 CHANGE m i INT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id3 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+SELECT @table_id1 = @table_id2, @table_id2 = @table_id3;
+@table_id1 = @table_id2	@table_id2 = @table_id3
+0	0
+INSERT IGNORE INTO t1 VALUES (0, -123456);
+Warnings:
+Warning	1062	Duplicate entry '-123456' for key 'm'
+REPLACE INTO t1 VALUES(-42, 123456);
+INSERT IGNORE INTO t1 VALUES(32768, 2147483648);
+Warnings:
+Warning	1264	Out of range value for column 's' at row 1
+Warning	1264	Out of range value for column 'i' at row 1
+SELECT * FROM t1;
+s	i
+-42	123456
+32767	2147483647
+DROP TABLE t1;
+CREATE TABLE t1 (a SERIAL, b INT, c TINYINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 (c) VALUES(1),(2),(3);
+ALTER TABLE t1 MODIFY c BIGINT;
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+UPDATE t1 SET b=1 WHERE c=2;
+UPDATE t1 SET c=4 WHERE a=3;
+UPDATE t1 SET b=2 WHERE c>3;
+UPDATE t1 SET c=c+1;
+ERROR 23000: Duplicate entry '2' for key 'c'
+SELECT * FROM t1;
+a	b	c
+1	NULL	1
+2	1	2
+3	2	4
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(1)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES(1,'a');
+ALTER TABLE t1 MODIFY b VARCHAR(256), ADD COLUMN c INT;
+INSERT INTO t1 VALUES(2,'bah',3);
+SELECT * FROM t1;
+a	b	c
+1	a	NULL
+2	bah	3
+DROP TABLE t1;
+CREATE TABLE t1(a CHAR(5) CHARACTER SET utf8 PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES('barf');
+ALTER TABLE t1 ADD b INT FIRST, ALGORITHM=INSTANT;
+ALTER TABLE t1 ADD vb INT AS (b);
+SELECT * FROM t1;
+b	a	vb
+NULL	barf	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b TEXT, PRIMARY KEY(b(9))) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 ADD COLUMN c TEXT FIRST;
+ALTER TABLE t1 ADD COLUMN d TEXT GENERATED ALWAYS AS (SUBSTR(b,1,499)) FIRST;
+DROP TABLE t1;
+CREATE TABLE t1(a CHAR(5), b INT, c CHAR(1), d CHAR(1), PRIMARY KEY(a,b))
+DEFAULT CHARACTER SET utf8 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET a='fubar',b=42;
+ALTER TABLE t1 DROP c, DROP d, ALGORITHM=INSTANT;
+ALTER TABLE t1 ADD vb INT AS (b);
+SELECT * FROM t1;
+a	b	vb
+fubar	42	42
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 MODIFY b INT FIRST;
+DROP TABLE t1;
+CREATE TABLE t1
+(id INT PRIMARY KEY, c2 INT UNIQUE,
+c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
+SPATIAL INDEX(c3)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 (id, c2) values(1,1);
+SELECT id,c2,ST_AsText(c3) c3 FROM t1;
+id	c2	c3
+1	1	POINT(3 4)
+ALTER TABLE t1 ADD COLUMN (
+d1 INT, d2 INT UNSIGNED DEFAULT 10, d3 VARCHAR(20) NOT NULL DEFAULT 'abcde',
+d4 TIMESTAMP NOT NULL DEFAULT current_timestamp());
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD INDEX(d3);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+BEGIN;
+UPDATE t1 SET d3='';
+ROLLBACK;
+SELECT id,c2,ST_AsText(c3) c3, d1, d2, d3, d4 FROM t1;
+id	c2	c3	d1	d2	d3	d4
+1	1	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+INSERT INTO t1 (id) VALUES(2),(3),(4),(5),(6);
+ALTER TABLE t1 CHANGE d1 d1 INT DEFAULT 5, CHANGE d2 d2 INT DEFAULT 15,
+CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'fghij',
+CHANGE d4 dfour TIMESTAMP NOT NULL DEFAULT now();
+affected rows: 6
+info: Records: 6  Duplicates: 0  Warnings: 0
+UPDATE t1 SET d3='foo' WHERE id = 2;
+UPDATE t1 SET d3=DEFAULT WHERE id = 4;
+INSERT INTO t1 SET id = 7;
+SELECT id,c2,ST_AsText(c3) c3, d1, d2, d3, dfour FROM t1;
+id	c2	c3	d1	d2	d3	dfour
+1	1	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+2	NULL	POINT(3 4)	NULL	10	foo	1970-01-01 03:00:42
+3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+4	NULL	POINT(3 4)	NULL	10	fghij	1970-01-01 03:00:42
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+6	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+7	NULL	POINT(3 4)	5	15	fghij	1970-01-01 03:00:42
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+ALTER TABLE t1 ADD COLUMN e1 INT AS (id * 3);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD COLUMN e2 VARCHAR(30) AS (d3);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD COLUMN e3 INT AS (id * 2);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'foobar',
+ADD COLUMN (d5 CHAR(20) DEFAULT 'hijkl', d6 INT DEFAULT -12345, d7 INT),
+DROP INDEX d3;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 SET id = 8;
+UPDATE t1 SET d3 = 'yyyyy' WHERE id = 1;
+UPDATE t1 SET d3 = 'xxxxx' WHERE id = 2;
+BEGIN;
+UPDATE t1 SET d3 = 'xxxxx' WHERE id = 3;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 3;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+3	NULL	POINT(3 4)	NULL	10	xxxxx	1970-01-01 03:00:42	9	xxxxx	6	hijkl	-12345	NULL
+ROLLBACK;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 3;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL
+BEGIN;
+UPDATE t1 SET d7 = NULL WHERE ID = 5;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET d7 = NULL, d6 = 10 WHERE id = 5;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 5;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	10	NULL
+ROLLBACK;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 5;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL
+ALTER TABLE t1 ADD COLUMN (f1 VARCHAR(20) AS (concat('x', e2)) STORED);
+affected rows: 8
+info: Records: 8  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD COLUMN (d8 VARCHAR(20) DEFAULT 'omnopq');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7, f1, d8 FROM t1;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
+1	1	POINT(3 4)	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
+2	NULL	POINT(3 4)	NULL	10	xxxxx	1970-01-01 03:00:42	6	xxxxx	4	hijkl	-12345	NULL	xxxxxx	omnopq
+3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL	xabcde	omnopq
+4	NULL	POINT(3 4)	NULL	10	fghij	1970-01-01 03:00:42	12	fghij	8	hijkl	-12345	NULL	xfghij	omnopq
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL	xabcde	omnopq
+6	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	18	abcde	12	hijkl	-12345	NULL	xabcde	omnopq
+7	NULL	POINT(3 4)	5	15	fghij	1970-01-01 03:00:42	21	fghij	14	hijkl	-12345	NULL	xfghij	omnopq
+8	NULL	POINT(3 4)	5	15	foobar	1970-01-01 03:00:42	24	foobar	16	hijkl	-12345	NULL	xfoobar	omnopq
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` point NOT NULL DEFAULT st_geometryfromtext('POINT(3 4)'),
+  `d1` int(11) DEFAULT 5,
+  `d2` int(11) DEFAULT 15,
+  `d3` varchar(20) NOT NULL DEFAULT 'foobar',
+  `dfour` timestamp NOT NULL DEFAULT current_timestamp(),
+  `e1` int(11) GENERATED ALWAYS AS (`id` * 3) VIRTUAL,
+  `e2` varchar(30) GENERATED ALWAYS AS (`d3`) VIRTUAL,
+  `e3` int(11) GENERATED ALWAYS AS (`id` * 2) VIRTUAL,
+  `d5` char(20) DEFAULT 'hijkl',
+  `d6` int(11) DEFAULT -12345,
+  `d7` int(11) DEFAULT NULL,
+  `f1` varchar(20) GENERATED ALWAYS AS (concat('x',`e2`)) STORED,
+  `d8` varchar(20) DEFAULT 'omnopq',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `c2` (`c2`),
+  SPATIAL KEY `c3` (`c3`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+ALTER TABLE t1
+CHANGE c2 c2 INT DEFAULT 42,
+CHANGE d1 d1 INT DEFAULT 1,
+CHANGE d2 d2 INT DEFAULT 20,
+CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'boofar';
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 SET id=9;
+ALTER TABLE t1 DROP c3;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `c2` int(11) DEFAULT 42,
+  `d1` int(11) DEFAULT 1,
+  `d2` int(11) DEFAULT 20,
+  `d3` varchar(20) NOT NULL DEFAULT 'boofar',
+  `dfour` timestamp NOT NULL DEFAULT current_timestamp(),
+  `e1` int(11) GENERATED ALWAYS AS (`id` * 3) VIRTUAL,
+  `e2` varchar(30) GENERATED ALWAYS AS (`d3`) VIRTUAL,
+  `e3` int(11) GENERATED ALWAYS AS (`id` * 2) VIRTUAL,
+  `d5` char(20) DEFAULT 'hijkl',
+  `d6` int(11) DEFAULT -12345,
+  `d7` int(11) DEFAULT NULL,
+  `f1` varchar(20) GENERATED ALWAYS AS (concat('x',`e2`)) STORED,
+  `d8` varchar(20) DEFAULT 'omnopq',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `c2` (`c2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+SELECT * FROM t1;
+id	c2	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
+1	1	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
+2	NULL	NULL	10	xxxxx	1970-01-01 03:00:42	6	xxxxx	4	hijkl	-12345	NULL	xxxxxx	omnopq
+3	NULL	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL	xabcde	omnopq
+4	NULL	NULL	10	fghij	1970-01-01 03:00:42	12	fghij	8	hijkl	-12345	NULL	xfghij	omnopq
+5	NULL	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL	xabcde	omnopq
+6	NULL	NULL	10	abcde	1970-01-01 03:00:42	18	abcde	12	hijkl	-12345	NULL	xabcde	omnopq
+7	NULL	5	15	fghij	1970-01-01 03:00:42	21	fghij	14	hijkl	-12345	NULL	xfghij	omnopq
+8	NULL	5	15	foobar	1970-01-01 03:00:42	24	foobar	16	hijkl	-12345	NULL	xfoobar	omnopq
+9	42	1	20	boofar	1970-01-01 03:00:42	27	boofar	18	hijkl	-12345	NULL	xboofar	omnopq
+CREATE TABLE t2
+(id INT primary key, c1 VARCHAR(4000),
+p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+SPATIAL INDEX(p))
+ENGINE=InnoDB ROW_FORMAT=COMPACT;
+BEGIN;
+INSERT INTO t2 SET id=1, c1=REPEAT('a', 4000);
+INSERT INTO t2 SET id=2, c1=REPEAT('a', 4000), p=ST_GeomFromText('POINT(1 1)');
+COMMIT;
+ALTER TABLE t2 ADD COLUMN d1 VARCHAR(2000) DEFAULT REPEAT('asdf',500);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c1, ST_AsText(p) p, d1 FROM t2;
+id	c1	p	d1
+1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	LINESTRING(0 0,0 1,1 1)	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+2	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	POINT(1 1)	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+BEGIN;
+UPDATE t2 SET c1 = repeat(id, 4000);
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+ROLLBACK;
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+BEGIN;
+UPDATE t2 SET d1 = repeat(id, 200);
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+ROLLBACK;
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+ALTER TABLE t2 DROP p;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT * FROM t2;
+id	c1	d1
+1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+2	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+CREATE TABLE t3
+(id INT PRIMARY KEY, c2 INT UNSIGNED NOT NULL UNIQUE,
+c3 POLYGON NOT NULL DEFAULT ST_PolyFromText('POLYGON((1 1,2 2,3 3,1 1))'),
+SPATIAL INDEX(c3))
+ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t3(id,c2) VALUES(1,1),(2,2),(3,3);
+SELECT id, c2, ST_AsText(c3) c3 FROM t3;
+id	c2	c3
+1	1	POLYGON((1 1,2 2,3 3,1 1))
+2	2	POLYGON((1 1,2 2,3 3,1 1))
+3	3	POLYGON((1 1,2 2,3 3,1 1))
+ALTER TABLE t3 ADD COLUMN
+(c4 DATETIME DEFAULT current_timestamp(),
+c5 TIMESTAMP NOT NULL DEFAULT current_timestamp(),
+c6 POINT);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6 FROM t3;
+id	c2	c3	c4	c5	c6
+1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
+2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
+3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
+affected rows: 3
+ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
+id	c2	c3	c4	c5	c6	c7	c8
+1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
+2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
+3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
+ALTER TABLE t3 ADD COLUMN t TEXT CHARSET utf8
+DEFAULT 'The quick brown fox jumps over the lazy dog';
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t3 SET id=4;
+ERROR HY000: Field 'c2' doesn't have a default value
+INSERT INTO t3 SET id=4, c2=0, b=0xf09f98b1;
+affected rows: 1
+Warnings:
+Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c8' at row 1
+SET innodb_strict_mode = OFF;
+affected rows: 0
+ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
+CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+INSERT INTO t3 SET id=5, c2=9;
+Warnings:
+Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c8' at row 1
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8, phrase, b FROM t3;
+id	c2	c3	c4	c5	c6	c7	c8	phrase	b
+1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
+2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
+3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
+4	0	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	😱
+5	9	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	ääH	binary line of business
+ALTER TABLE t3 DROP c3, DROP c7;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT * FROM t3;
+id	c2	c4	c5	c6	c8	phrase	b
+1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+2	2	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+3	3	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+4	0	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	😱
+5	9	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	ääH	binary line of business
+CREATE TABLE t4
+(id INT, foo INT DEFAULT 0, c1 VARCHAR(4000),
+p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+PRIMARY KEY(id,foo))
+ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000)), (2, REPEAT('a', 4000));
+ALTER TABLE t4 ADD COLUMN d1 INT;
+BEGIN;
+UPDATE t4 SET c1 = repeat('1', 4000), foo=1 WHERE id=1;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000));
+UPDATE t4 SET c1 = repeat('2', 4000), foo=1 WHERE id=2;
+ROLLBACK;
+BEGIN;
+UPDATE t4 SET d1 = 1,foo=2 WHERE id=1;
+INSERT INTO t4 (id,foo,c1) VALUES (1, 1, REPEAT('1', 4000));
+COMMIT;
+CREATE TABLE big
+(id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
+p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
+ENGINE=InnoDB ROW_FORMAT=COMPACT;
+BEGIN;
+INSERT INTO big
+SET id=1, c1=REPEAT('a', 200), c2=REPEAT('b', 200), c3=REPEAT('c', 159);
+SET @i:=1;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+COMMIT;
+connection analyze;
+ANALYZE TABLE big;
+Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
+test.big	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+clust_index_size
+3
+connection default;
+ALTER TABLE big ADD COLUMN
+(d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+d3 TIMESTAMP NOT NULL DEFAULT current_timestamp ON UPDATE current_timestamp);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+CHECKSUM TABLE big;
+Table	Checksum
+test.big	1705165209
+BEGIN;
+INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
+INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
+CHECKSUM TABLE big;
+Table	Checksum
+test.big	385477733
+connection analyze;
+ANALYZE TABLE big;
+Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
+test.big	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+clust_index_size
+7
+connection default;
+ROLLBACK;
+CHECKSUM TABLE big;
+Table	Checksum
+test.big	1705165209
+connection analyze;
+ANALYZE TABLE big;
+Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
+test.big	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+clust_index_size
+3
+connection default;
+InnoDB		0 transactions not purged
+DROP TABLE t1,t2,t3,t4,big;
+CREATE TABLE t1 (a VARCHAR(1) PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a='a';
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 0;
+UPDATE t1 SET b = 1;
+INSERT INTO t1 SET a='a';
+ERROR 23000: Duplicate entry 'a' for key 'PRIMARY'
+SELECT * FROM t1;
+a	b
+a	1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(8), PRIMARY KEY(b,a)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (1,'foo');
+ALTER TABLE t1 ADD COLUMN c INT;
+UPDATE t1 SET c = 1;
+UPDATE t1 SET c = 2;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY(b) REFERENCES t1(a))
+ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a=1;
+INSERT INTO t2 SET b=1;
+ALTER TABLE t2 ADD COLUMN a INT, DROP FOREIGN KEY t2_ibfk_1;
+ALTER TABLE t2 ADD INDEX(a);
+ALTER TABLE t1 ADD COLUMN b INT, ADD FOREIGN KEY(a) REFERENCES t2(a),
+ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Adding foreign keys needs foreign_key_checks=OFF. Try ALGORITHM=COPY
+SET foreign_key_checks=0;
+ALTER TABLE t1 ADD COLUMN b INT, ADD FOREIGN KEY(a) REFERENCES t2(a),
+ALGORITHM=INSTANT;
+ALTER TABLE t2 ADD CONSTRAINT fk FOREIGN KEY(b) REFERENCES t1(a),
+ALGORITHM=INSTANT;
+SET foreign_key_checks=1;
+ALTER TABLE t2 COMMENT 'domestic keys only', DROP FOREIGN KEY fk;
+ALTER TABLE t1 DROP FOREIGN KEY t1_ibfk_1;
+ALTER TABLE t1 ADD COLUMN big BLOB NOT NULL
+DEFAULT REPEAT('a', @@GLOBAL.innodb_page_size * .75);
+CHECK TABLE t2, t1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+test.t1	check	status	OK
+DROP TABLE t2, t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a = 1;
+ALTER TABLE t1 ADD COLUMN b TEXT;
+BEGIN;
+UPDATE t1 SET b = REPEAT('1', 32768);
+UPDATE t1 SET a = 2;
+INSERT INTO t1 SET a = 1;
+SELECT a,LENGTH(b) FROM t1;
+a	LENGTH(b)
+1	NULL
+2	32768
+DELETE FROM t1;
+COMMIT;
+InnoDB		0 transactions not purged
+DROP TABLE t1;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (7);
+ALTER TABLE t1 ADD COLUMN c INT NOT NULL DEFAULT 0;
+ALTER TABLE t1 ADD INDEX (c);
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t1 VALUES (4,0),(7,77);
+COMMIT;
+BEGIN;
+DELETE FROM t1 WHERE a=7;
+UPDATE t1 SET a=7;
+COMMIT;
+SELECT * FROM t1 FORCE INDEX(PRIMARY);
+a	c
+7	0
+SELECT * FROM t1 FORCE INDEX(c);
+a	c
+7	0
+DELETE FROM t1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+SET innodb_strict_mode = ON;
+CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 ADD d TEXT;
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
+CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 (a) VALUES (NULL), (NULL);
+ALTER TABLE t1 DROP a, ADD COLUMN a INT;
+DELETE FROM t1;
+BEGIN;
+INSERT INTO t1 SET a=NULL;
+ROLLBACK;
+DELETE FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, t VARCHAR(33101) NOT NULL) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES(347,'');
+ALTER TABLE t1 DROP COLUMN t, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+a
+347
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1() VALUES();
+ALTER TABLE t1 ADD COLUMN b INT FIRST, ADD COLUMN c INT AFTER b;
+SELECT * FROM t1;
+b	c	a
+NULL	NULL	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+SET @t=REPEAT('x',@@innodb_page_size / 2);
+INSERT INTO t1 VALUES (@t),(@t),(@t),(@t),(@t),(@t),(NULL),(@t),(@t),(@t),(@t);
+ALTER TABLE t1 ADD COLUMN a INT FIRST;
+UPDATE t1 SET a = 0;
+DROP TABLE t1;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET t = @x;
+ALTER TABLE t1 DROP COLUMN t, ADD COLUMN i INT NOT NULL DEFAULT 1;
+ALTER TABLE t1 ADD COLUMN t TEXT;
+SELECT * FROM t1;
+i	t
+1	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INT AUTO_INCREMENT, b INT, KEY(a)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a=NULL;
+ALTER TABLE t1 DROP COLUMN b;
+ALTER TABLE t1 ADD COLUMN c INT NOT NULL DEFAULT 42;
+INSERT INTO t1 SET a=NULL;
+UPDATE t1 SET a=a+2;
+SELECT * FROM t1;
+a	c
+3	42
+4	42
+DROP TABLE t1;
+CREATE TABLE t1 (i INT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET i=1;
+ALTER TABLE t1 ADD COLUMN b BIT FIRST;
+ALTER TABLE t1 ADD COLUMN v INT AS (i) VIRTUAL;
+SELECT * FROM t1;
+b	i	v
+NULL	1	1
+DROP TABLE t1;
+CREATE TABLE t1 (ts TIMESTAMP) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 ADD COLUMN f VARCHAR(8), ADD COLUMN dt DATETIME;
+ALTER TABLE t1 ADD COLUMN b BIT, DROP COLUMN f, ADD COLUMN t TIME FIRST;
+ALTER TABLE t1 ADD COLUMN ts2 TIMESTAMP;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (4,4,4);
+ALTER TABLE t1 DROP f1, DROP f2, ADD f4 INT, ADD f5 INT;
+DELETE FROM t1;
+ALTER TABLE t1 DROP COLUMN f4;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 DROP f2, ADD COLUMN f4 INT;
+ALTER TABLE t1 DROP f4;
+ALTER TABLE t1 DROP f1;
+DROP TABLE t1;
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 () VALUES (),();
+SELECT * FROM t1;
+f
+NULL
+NULL
+ALTER TABLE t1 ADD COLUMN id INT NOT NULL AUTO_INCREMENT FIRST, ADD KEY(id);
+SELECT * FROM t1;
+id	f
+1	NULL
+2	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET f=NULL;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 SET f=NULL;
+SELECT * FROM t1;
+f
+NULL
+NULL
+DROP TABLE t1;
+CREATE TABLE t1(f INT, k INT NOT NULL AUTO_INCREMENT, KEY(k)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 DROP COLUMN f;
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+CREATE TABLE t1(pk INT PRIMARY KEY, f INT, k INT AUTO_INCREMENT, KEY(k))
+ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 DROP COLUMN f;
+INSERT INTO t1 (pk) VALUES (1);
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+f1 INT,
+f2 CHAR(255),
+f3 BIGINT,
+f4 INT,
+f5 CHAR(255),
+f6 CHAR(255),
+f7 CHAR(255) NOT NULL,
+f8 INT,
+f9 CHAR(10)
+) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a'),
+(2, 2, 'b', 2, 2, 'b', 'b', 'b', 2, 'b'),
+(3, 3, 'c', 3, 3, 'c', 'c', 'c', 3, 'c'),
+(4, 4, 'd', 4, 4, 'd', 'd', 'd', 4, 'd'),
+(5, 5, 'e', 5, 5, 'e', 'e', 'e', 5, 'e'),
+(6, 6, 'f', 6, 6, 'f', 'f', 'f', 6, 'f'),
+(7, 7, 'g', 7, 7, 'g', 'g', 'g', 7, 'g'),
+(8, 8, 'h', 8, 8, 'h', 'h', 'h', 8, 'h'),
+(9, 9, 'i', 9, 9, 'i', 'i', 'i', 9, 'i'),
+(10, 0, 'j', 0, 0, 'j', 'j', 'j', 0, 'j'),
+(11, 1, 'k', 1, 1, 'k', 'k', 'k', 1, 'k'),
+(12, 2, 'l', 2, 2, 'l', 'l', 'l', 2, 'l'),
+(13, 3, 'm', 3, 3, 'm', 'm', 'm', 3, 'm'),
+(14, 4, 'n', 4, 4, 'n', 'n', 'n', 4, 'n'),
+(15, 5, 'o', 5, 5, 'o', 'o', 'o', 5, 'o');
+DELETE FROM t1 WHERE pk=1;
+InnoDB		0 transactions not purged
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a');
+ALTER TABLE t1 DROP COLUMN f1;
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+f1 INT, f2 CHAR(32) NOT NULL,
+f3 INT NOT NULL, f4 INT NOT NULL, f5 INT, f6 CHAR(32) NOT NULL,
+f7 CHAR(32), f8 CHAR(32)
+) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES
+(1,9,'',2,88,88,'','',''),(2,48,'',8,68,92,'','',''),
+(3,41,'',56,84,37,'','',''),(4,NULL,'',6,6,NULL,'','',''),
+(5,52,'',37,44,20,'','',''),(6,44,'',53,4,NULL,'','',''),
+(7,24,'',54,8,54,'','',''),(8,80,'',3,52,20,'','',''),
+(9,71,'',34,32,NULL,'','',''),(10,14,'',6,64,88,'','',''),
+(11,48,'',8,25,42,'','',''),(12,16,'',8,7,NULL,'','',''),
+(13,NULL,'',22,0,95,'','',''),(14,4,'',72,48,NULL,'','',''),
+(15,4,'',5,64,2,'','',''),(16,NULL,'',9,40,30,'','',''),
+(17,92,'',48,2,NULL,'','',''),(18,36,'',48,51,7,'','',''),
+(19,NULL,'',80,96,NULL,'','',''),(20,96,'',9,80,NULL,'','',''),
+(21,50,'',16,40,NULL,'','',''),(22,NULL,'',7,84,8,'','',''),
+(23,28,'',93,80,NULL,'','',''),(24,31,'',40,38,NULL,'','',''),
+(25,85,'',8,5,88,'','',''),(26,66,'',8,32,4,'','',''),
+(51,52,'',6,92,15,'','',''),(52,77,'',24,24,28,'','',''),
+(53,8,'',75,31,NULL,'','',''),(54,48,'',5,8,1,'','',''),
+(55,90,'',56,12,5,'','',''),(56,92,'',4,9,88,'','',''),
+(57,83,'',23,40,72,'','',''),(58,7,'',4,40,32,'','',''),
+(59,28,'',2,3,32,'','',''),(60,16,'',80,4,NULL,'','',''),
+(61,44,'',88,24,NULL,'','',''),(62,4,'',5,25,3,'','',''),
+(63,NULL,'',7,24,76,'','',''),(64,0,'',13,40,73,'','',''),
+(101,NULL,'',1,49,75,'','',''),(102,34,'',10,17,20,'','',''),
+(103,8,'',2,2,NULL,'','',''),(104,12,'',44,48,52,'','',''),
+(105,8,'',4,19,38,'','',''),(106,20,'',6,80,9,'','',''),
+(107,72,'',72,16,56,'','',''),(108,76,'',98,24,21,'','',''),
+(109,67,'',16,91,NULL,'','',''),(110,72,'',72,3,48,'','',''),
+(151,8,'',3,86,NULL,'','',''),(152,NULL,'',52,72,0,'','',''),
+(153,NULL,'',46,30,92,'','',''),(154,80,'',1,40,48,'','',''),
+(155,24,'',68,68,8,'','',''),(156,85,'',85,72,60,'','',''),
+(157,7,'',7,12,6,'','',''),(158,NULL,'',48,48,80,'','',''),
+(159,12,'',0,36,0,'','',''),(160,2,'',6,52,NULL,'','',''),
+(201,0,'',1,3,NULL,'','',''),(202,NULL,'',3,53,14,'','',''),
+(203,84,'',6,20,NULL,'','',''),(204,38,'',25,13,88,'','',''),
+(205,1,'',2,69,5,'','',''),(206,7,'',60,22,NULL,'','',''),
+(207,NULL,'',5,4,NULL,'','',''),(251,7,'',0,4,40,'','',''),
+(252,4,'',16,8,NULL,'','',''),(253,14,'',60,12,99,'','',''),
+(254,84,'',68,16,5,'','',''),(255,3,'',70,36,61,'','',''),
+(256,7,'',18,48,NULL,'','',''),(257,NULL,'',68,53,NULL,'','',''),
+(258,29,'',52,16,64,'','',''),(259,NULL,'',80,92,40,'','',''),
+(301,68,'',1,48,48,'','',''),(302,2,'',1,1,32,'','',''),
+(303,44,'',60,96,16,'','',''),(304,32,'',52,64,32,'','',''),
+(305,88,'',37,72,NULL,'','',''),(306,5,'',35,60,20,'','',''),
+(307,35,'',4,48,NULL,'','',''),(308,4,'',92,44,80,'','',''),
+(351,48,'',60,4,40,'','',''),(352,7,'',9,61,13,'','',''),
+(353,0,'',5,93,53,'','',''),(354,7,'',1,20,NULL,'','',''),
+(355,84,'',5,48,96,'','',''),(356,NULL,'',39,92,36,'','',''),
+(357,88,'',9,76,44,'','',''),(358,66,'',34,67,80,'','',''),
+(359,8,'',8,52,NULL,'','',''),(360,3,'',53,83,NULL,'','',''),
+(361,23,'',44,9,48,'','',''),(362,4,'',0,54,48,'','',''),
+(363,75,'',66,76,52,'','','');
+ALTER TABLE t1 ADD COLUMN x VARCHAR(255) DEFAULT ' foobar ';
+UPDATE t1 SET f1 = 0;
+ALTER TABLE t1 DROP COLUMN x;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 VARCHAR(1), f2 VARCHAR(2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 MODIFY f2 VARCHAR (8) FIRST;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT UNIQUE, b INT UNIQUE, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 DROP PRIMARY KEY;
+ALTER TABLE t1 CHANGE COLUMN a a INT;
+DELETE FROM t1 WHERE a = NULL OR a IS NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT NOT NULL, d INT,
+e INT, f INT, g INT, h INT, j INT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 MODIFY COLUMN c INT, MODIFY COLUMN a INT AFTER b;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (0,0);
+ALTER TABLE t1 MODIFY a INT AFTER b;
+ALTER TABLE t1 ADD COLUMN v INT AS (a) VIRTUAL;
+ALTER TABLE t1 MODIFY b INT NOT NULL AFTER a;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 ADD COLUMN b INT;
+ALTER TABLE t1 MODIFY COLUMN a INT NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a=1;
+ALTER TABLE t1 DROP c;
+ALTER TABLE t1 DROP b, ADD v INT AS (a);
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT, d INT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a=1;
+ALTER TABLE t1 DROP c;
+ALTER TABLE t1 DROP b, ADD v INT AS (a);
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, b BLOB NOT NULL) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (1,10,REPEAT('foobar',2000));
+ALTER TABLE t1 DROP COLUMN b;
+INSERT INTO t1 VALUES (2,20);
+ALTER TABLE t1 ADD COLUMN vpk INT AS (pk);
+ALTER TABLE t1 DROP COLUMN i;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (1,1);
+ALTER TABLE t1 ADD f DATE AFTER a;
+ALTER TABLE t1 DROP b, DROP f;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (1,1);
+ALTER TABLE t1 ADD COLUMN f INT AFTER a;
+ALTER TABLE t1 DROP b, DROP f;
+DROP TABLE t1;
+CREATE TABLE t1(t TEXT NOT NULL, FULLTEXT(t)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 MODIFY COLUMN t TEXT;
+DROP TABLE t1;
+CREATE TABLE t1 (f TINYINT, g SMALLINT UNSIGNED) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES(127,6502),(-128,33101);
+ALTER TABLE t1 MODIFY f SMALLINT DEFAULT 12345,
+MODIFY g BIGINT UNSIGNED DEFAULT 1234567;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+SELECT * FROM t1;
+f	g
+127	6502
+-128	33101
+DROP TABLE t1;
+CREATE TABLE t1 (f BIT(8)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES (b'10000000'),(b'00000001');
+ALTER TABLE t1 MODIFY f BIT(16);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+INSERT INTO t1 VALUES (b'1000000010101111'),(b'10000000');
+SELECT HEX(f) FROM t1;
+HEX(f)
+80
+1
+80AF
+80
+ALTER TABLE t1 MODIFY f SMALLINT;
+ERROR 22003: Out of range value for column 'f' at row 3
+ALTER TABLE t1 MODIFY f SMALLINT UNSIGNED;
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+SELECT * FROM t1;
+f
+128
+1
+32943
+128
+ALTER TABLE t1 MODIFY f BIT;
+ERROR 22001: Data too long for column 'f' at row 1
+ALTER TABLE t1 MODIFY f BIT(15);
+ERROR 22001: Data too long for column 'f' at row 3
+DELETE FROM t1 LIMIT 3;
+ALTER TABLE t1 MODIFY f BIT(15);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f BIT(8);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT HEX(f) FROM t1;
+HEX(f)
+80
+DROP TABLE t1;
+CREATE TABLE t1 (b BIT NOT NULL) ENGINE=InnoDB ROW_FORMAT=COMPACT DEFAULT CHARSET utf16;
+INSERT INTO t1 SET b=b'1';
+ALTER TABLE t1 CHANGE b c BIT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT HEX(c) FROM t1;
+HEX(c)
+1
+DROP TABLE t1;
+CREATE TABLE t1 (c VARCHAR(10) NOT NULL DEFAULT 'scary') ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1() VALUES();
+ALTER TABLE t1 ADD f TINYINT NOT NULL DEFAULT -42;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f MEDIUMINT NOT NULL DEFAULT 64802,
+MODIFY c VARCHAR(20) NOT NULL DEFAULT 'gory',
+ADD d DATETIME;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+INSERT INTO t1() VALUES();
+INSERT INTO t1 (c,f,d) VALUES ('fury', -8388608, now());
+SELECT * FROM t1;
+c	f	d
+scary	-42	NULL
+gory	64802	NULL
+fury	-8388608	1970-01-01 03:00:42
+DROP TABLE t1;
+CREATE TABLE t1 (t TINYINT PRIMARY KEY, m MEDIUMINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+SELECT table_id INTO @table_id1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+INSERT INTO t1 VALUES (-42, -123456);
+ALTER TABLE t1 CHANGE t s SMALLINT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ALTER TABLE t1 CHANGE m i INT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id3 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+SELECT @table_id1 = @table_id2, @table_id2 = @table_id3;
+@table_id1 = @table_id2	@table_id2 = @table_id3
+0	0
+INSERT IGNORE INTO t1 VALUES (0, -123456);
+Warnings:
+Warning	1062	Duplicate entry '-123456' for key 'm'
+REPLACE INTO t1 VALUES(-42, 123456);
+INSERT IGNORE INTO t1 VALUES(32768, 2147483648);
+Warnings:
+Warning	1264	Out of range value for column 's' at row 1
+Warning	1264	Out of range value for column 'i' at row 1
+SELECT * FROM t1;
+s	i
+-42	123456
+32767	2147483647
+DROP TABLE t1;
+CREATE TABLE t1 (a SERIAL, b INT, c TINYINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 (c) VALUES(1),(2),(3);
+ALTER TABLE t1 MODIFY c BIGINT;
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+UPDATE t1 SET b=1 WHERE c=2;
+UPDATE t1 SET c=4 WHERE a=3;
+UPDATE t1 SET b=2 WHERE c>3;
+UPDATE t1 SET c=c+1;
+ERROR 23000: Duplicate entry '2' for key 'c'
+SELECT * FROM t1;
+a	b	c
+1	NULL	1
+2	1	2
+3	2	4
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(1)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES(1,'a');
+ALTER TABLE t1 MODIFY b VARCHAR(256), ADD COLUMN c INT;
+INSERT INTO t1 VALUES(2,'bah',3);
+SELECT * FROM t1;
+a	b	c
+1	a	NULL
+2	bah	3
+DROP TABLE t1;
+CREATE TABLE t1(a CHAR(5) CHARACTER SET utf8 PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 VALUES('barf');
+ALTER TABLE t1 ADD b INT FIRST, ALGORITHM=INSTANT;
+ALTER TABLE t1 ADD vb INT AS (b);
+SELECT * FROM t1;
+b	a	vb
+NULL	barf	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b TEXT, PRIMARY KEY(b(9))) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 ADD COLUMN c TEXT FIRST;
+ALTER TABLE t1 ADD COLUMN d TEXT GENERATED ALWAYS AS (SUBSTR(b,1,499)) FIRST;
+DROP TABLE t1;
+CREATE TABLE t1(a CHAR(5), b INT, c CHAR(1), d CHAR(1), PRIMARY KEY(a,b))
+DEFAULT CHARACTER SET utf8 ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET a='fubar',b=42;
+ALTER TABLE t1 DROP c, DROP d, ALGORITHM=INSTANT;
+ALTER TABLE t1 ADD vb INT AS (b);
+SELECT * FROM t1;
+a	b	vb
+fubar	42	42
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 MODIFY b INT FIRST;
+DROP TABLE t1;
+CREATE TABLE t1
+(id INT PRIMARY KEY, c2 INT UNIQUE,
+c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
+SPATIAL INDEX(c3)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 (id, c2) values(1,1);
+SELECT id,c2,ST_AsText(c3) c3 FROM t1;
+id	c2	c3
+1	1	POINT(3 4)
+ALTER TABLE t1 ADD COLUMN (
+d1 INT, d2 INT UNSIGNED DEFAULT 10, d3 VARCHAR(20) NOT NULL DEFAULT 'abcde',
+d4 TIMESTAMP NOT NULL DEFAULT current_timestamp());
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD INDEX(d3);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+BEGIN;
+UPDATE t1 SET d3='';
+ROLLBACK;
+SELECT id,c2,ST_AsText(c3) c3, d1, d2, d3, d4 FROM t1;
+id	c2	c3	d1	d2	d3	d4
+1	1	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+INSERT INTO t1 (id) VALUES(2),(3),(4),(5),(6);
+ALTER TABLE t1 CHANGE d1 d1 INT DEFAULT 5, CHANGE d2 d2 INT DEFAULT 15,
+CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'fghij',
+CHANGE d4 dfour TIMESTAMP NOT NULL DEFAULT now();
+affected rows: 6
+info: Records: 6  Duplicates: 0  Warnings: 0
+UPDATE t1 SET d3='foo' WHERE id = 2;
+UPDATE t1 SET d3=DEFAULT WHERE id = 4;
+INSERT INTO t1 SET id = 7;
+SELECT id,c2,ST_AsText(c3) c3, d1, d2, d3, dfour FROM t1;
+id	c2	c3	d1	d2	d3	dfour
+1	1	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+2	NULL	POINT(3 4)	NULL	10	foo	1970-01-01 03:00:42
+3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+4	NULL	POINT(3 4)	NULL	10	fghij	1970-01-01 03:00:42
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+6	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42
+7	NULL	POINT(3 4)	5	15	fghij	1970-01-01 03:00:42
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+ALTER TABLE t1 ADD COLUMN e1 INT AS (id * 3);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD COLUMN e2 VARCHAR(30) AS (d3);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD COLUMN e3 INT AS (id * 2);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'foobar',
+ADD COLUMN (d5 CHAR(20) DEFAULT 'hijkl', d6 INT DEFAULT -12345, d7 INT),
+DROP INDEX d3;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 SET id = 8;
+UPDATE t1 SET d3 = 'yyyyy' WHERE id = 1;
+UPDATE t1 SET d3 = 'xxxxx' WHERE id = 2;
+BEGIN;
+UPDATE t1 SET d3 = 'xxxxx' WHERE id = 3;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 3;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+3	NULL	POINT(3 4)	NULL	10	xxxxx	1970-01-01 03:00:42	9	xxxxx	6	hijkl	-12345	NULL
+ROLLBACK;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 3;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL
+BEGIN;
+UPDATE t1 SET d7 = NULL WHERE ID = 5;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET d7 = NULL, d6 = 10 WHERE id = 5;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 5;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	10	NULL
+ROLLBACK;
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7 FROM t1 WHERE id = 5;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL
+ALTER TABLE t1 ADD COLUMN (f1 VARCHAR(20) AS (concat('x', e2)) STORED);
+affected rows: 8
+info: Records: 8  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD COLUMN (d8 VARCHAR(20) DEFAULT 'omnopq');
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c2, ST_AsText(c3) c3, d1, d2, d3, dfour, e1, e2, e3, d5, d6, d7, f1, d8 FROM t1;
+id	c2	c3	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
+1	1	POINT(3 4)	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
+2	NULL	POINT(3 4)	NULL	10	xxxxx	1970-01-01 03:00:42	6	xxxxx	4	hijkl	-12345	NULL	xxxxxx	omnopq
+3	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL	xabcde	omnopq
+4	NULL	POINT(3 4)	NULL	10	fghij	1970-01-01 03:00:42	12	fghij	8	hijkl	-12345	NULL	xfghij	omnopq
+5	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL	xabcde	omnopq
+6	NULL	POINT(3 4)	NULL	10	abcde	1970-01-01 03:00:42	18	abcde	12	hijkl	-12345	NULL	xabcde	omnopq
+7	NULL	POINT(3 4)	5	15	fghij	1970-01-01 03:00:42	21	fghij	14	hijkl	-12345	NULL	xfghij	omnopq
+8	NULL	POINT(3 4)	5	15	foobar	1970-01-01 03:00:42	24	foobar	16	hijkl	-12345	NULL	xfoobar	omnopq
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  `c3` point NOT NULL DEFAULT st_geometryfromtext('POINT(3 4)'),
+  `d1` int(11) DEFAULT 5,
+  `d2` int(11) DEFAULT 15,
+  `d3` varchar(20) NOT NULL DEFAULT 'foobar',
+  `dfour` timestamp NOT NULL DEFAULT current_timestamp(),
+  `e1` int(11) GENERATED ALWAYS AS (`id` * 3) VIRTUAL,
+  `e2` varchar(30) GENERATED ALWAYS AS (`d3`) VIRTUAL,
+  `e3` int(11) GENERATED ALWAYS AS (`id` * 2) VIRTUAL,
+  `d5` char(20) DEFAULT 'hijkl',
+  `d6` int(11) DEFAULT -12345,
+  `d7` int(11) DEFAULT NULL,
+  `f1` varchar(20) GENERATED ALWAYS AS (concat('x',`e2`)) STORED,
+  `d8` varchar(20) DEFAULT 'omnopq',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `c2` (`c2`),
+  SPATIAL KEY `c3` (`c3`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+ALTER TABLE t1
+CHANGE c2 c2 INT DEFAULT 42,
+CHANGE d1 d1 INT DEFAULT 1,
+CHANGE d2 d2 INT DEFAULT 20,
+CHANGE d3 d3 VARCHAR(20) NOT NULL DEFAULT 'boofar';
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 SET id=9;
+ALTER TABLE t1 DROP c3;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `c2` int(11) DEFAULT 42,
+  `d1` int(11) DEFAULT 1,
+  `d2` int(11) DEFAULT 20,
+  `d3` varchar(20) NOT NULL DEFAULT 'boofar',
+  `dfour` timestamp NOT NULL DEFAULT current_timestamp(),
+  `e1` int(11) GENERATED ALWAYS AS (`id` * 3) VIRTUAL,
+  `e2` varchar(30) GENERATED ALWAYS AS (`d3`) VIRTUAL,
+  `e3` int(11) GENERATED ALWAYS AS (`id` * 2) VIRTUAL,
+  `d5` char(20) DEFAULT 'hijkl',
+  `d6` int(11) DEFAULT -12345,
+  `d7` int(11) DEFAULT NULL,
+  `f1` varchar(20) GENERATED ALWAYS AS (concat('x',`e2`)) STORED,
+  `d8` varchar(20) DEFAULT 'omnopq',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `c2` (`c2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+SELECT * FROM t1;
+id	c2	d1	d2	d3	dfour	e1	e2	e3	d5	d6	d7	f1	d8
+1	1	NULL	10	yyyyy	1970-01-01 03:00:42	3	yyyyy	2	hijkl	-12345	NULL	xyyyyy	omnopq
+2	NULL	NULL	10	xxxxx	1970-01-01 03:00:42	6	xxxxx	4	hijkl	-12345	NULL	xxxxxx	omnopq
+3	NULL	NULL	10	abcde	1970-01-01 03:00:42	9	abcde	6	hijkl	-12345	NULL	xabcde	omnopq
+4	NULL	NULL	10	fghij	1970-01-01 03:00:42	12	fghij	8	hijkl	-12345	NULL	xfghij	omnopq
+5	NULL	NULL	10	abcde	1970-01-01 03:00:42	15	abcde	10	hijkl	-12345	NULL	xabcde	omnopq
+6	NULL	NULL	10	abcde	1970-01-01 03:00:42	18	abcde	12	hijkl	-12345	NULL	xabcde	omnopq
+7	NULL	5	15	fghij	1970-01-01 03:00:42	21	fghij	14	hijkl	-12345	NULL	xfghij	omnopq
+8	NULL	5	15	foobar	1970-01-01 03:00:42	24	foobar	16	hijkl	-12345	NULL	xfoobar	omnopq
+9	42	1	20	boofar	1970-01-01 03:00:42	27	boofar	18	hijkl	-12345	NULL	xboofar	omnopq
+CREATE TABLE t2
+(id INT primary key, c1 VARCHAR(4000),
+p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+SPATIAL INDEX(p))
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+BEGIN;
+INSERT INTO t2 SET id=1, c1=REPEAT('a', 4000);
+INSERT INTO t2 SET id=2, c1=REPEAT('a', 4000), p=ST_GeomFromText('POINT(1 1)');
+COMMIT;
+ALTER TABLE t2 ADD COLUMN d1 VARCHAR(2000) DEFAULT REPEAT('asdf',500);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c1, ST_AsText(p) p, d1 FROM t2;
+id	c1	p	d1
+1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	LINESTRING(0 0,0 1,1 1)	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+2	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	POINT(1 1)	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+BEGIN;
+UPDATE t2 SET c1 = repeat(id, 4000);
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+ROLLBACK;
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+BEGIN;
+UPDATE t2 SET d1 = repeat(id, 200);
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+ROLLBACK;
+connection analyze;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t2';
+clust_index_size
+1
+connection default;
+ALTER TABLE t2 DROP p;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT * FROM t2;
+id	c1	d1
+1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+2	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf
+CREATE TABLE t3
+(id INT PRIMARY KEY, c2 INT UNSIGNED NOT NULL UNIQUE,
+c3 POLYGON NOT NULL DEFAULT ST_PolyFromText('POLYGON((1 1,2 2,3 3,1 1))'),
+SPATIAL INDEX(c3))
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t3(id,c2) VALUES(1,1),(2,2),(3,3);
+SELECT id, c2, ST_AsText(c3) c3 FROM t3;
+id	c2	c3
+1	1	POLYGON((1 1,2 2,3 3,1 1))
+2	2	POLYGON((1 1,2 2,3 3,1 1))
+3	3	POLYGON((1 1,2 2,3 3,1 1))
+ALTER TABLE t3 ADD COLUMN
+(c4 DATETIME DEFAULT current_timestamp(),
+c5 TIMESTAMP NOT NULL DEFAULT current_timestamp(),
+c6 POINT);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6 FROM t3;
+id	c2	c3	c4	c5	c6
+1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
+2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
+3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL
+affected rows: 3
+ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
+id	c2	c3	c4	c5	c6	c7	c8
+1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
+2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
+3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
+ALTER TABLE t3 ADD COLUMN t TEXT CHARSET utf8
+DEFAULT 'The quick brown fox jumps over the lazy dog';
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t3 ADD COLUMN b BLOB NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t3 SET id=4;
+ERROR HY000: Field 'c2' doesn't have a default value
+INSERT INTO t3 SET id=4, c2=0, b=0xf09f98b1;
+affected rows: 1
+Warnings:
+Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c8' at row 1
+SET innodb_strict_mode = OFF;
+affected rows: 0
+ALTER TABLE t3 CHANGE t phrase TEXT DEFAULT 0xc3a4c3a448,
+CHANGE b b BLOB NOT NULL DEFAULT 'binary line of business';
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+INSERT INTO t3 SET id=5, c2=9;
+Warnings:
+Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c8' at row 1
+SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8, phrase, b FROM t3;
+id	c2	c3	c4	c5	c6	c7	c8	phrase	b
+1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
+2	2	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
+3	3	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	
+4	0	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	The quick brown fox jumps over the lazy dog	😱
+5	9	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01	ääH	binary line of business
+ALTER TABLE t3 DROP c3, DROP c7;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT * FROM t3;
+id	c2	c4	c5	c6	c8	phrase	b
+1	1	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+2	2	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+3	3	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	
+4	0	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	The quick brown fox jumps over the lazy dog	😱
+5	9	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	1970-01-01	ääH	binary line of business
+CREATE TABLE t4
+(id INT, foo INT DEFAULT 0, c1 VARCHAR(4000),
+p GEOMETRY NOT NULL DEFAULT ST_GeomFromText('LINESTRING(0 0,0 1,1 1)'),
+PRIMARY KEY(id,foo))
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000)), (2, REPEAT('a', 4000));
+ALTER TABLE t4 ADD COLUMN d1 INT;
+BEGIN;
+UPDATE t4 SET c1 = repeat('1', 4000), foo=1 WHERE id=1;
+INSERT INTO t4 (id,c1) VALUES (1, REPEAT('a', 4000));
+UPDATE t4 SET c1 = repeat('2', 4000), foo=1 WHERE id=2;
+ROLLBACK;
+BEGIN;
+UPDATE t4 SET d1 = 1,foo=2 WHERE id=1;
+INSERT INTO t4 (id,foo,c1) VALUES (1, 1, REPEAT('1', 4000));
+COMMIT;
+CREATE TABLE big
+(id INT PRIMARY KEY, c1 VARCHAR(4000), c2 VARCHAR(4000), c3 VARCHAR(1000),
+p POINT NOT NULL DEFAULT ST_GeomFromText('POINT(0 0)'), SPATIAL INDEX(p))
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+BEGIN;
+INSERT INTO big
+SET id=1, c1=REPEAT('a', 200), c2=REPEAT('b', 200), c3=REPEAT('c', 159);
+SET @i:=1;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+INSERT INTO big SELECT @i:=@i+1, c1, c2, c3, p FROM big;
+COMMIT;
+connection analyze;
+ANALYZE TABLE big;
+Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
+test.big	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+clust_index_size
+3
+connection default;
+ALTER TABLE big ADD COLUMN
+(d1 INT DEFAULT 0, d2 VARCHAR(20) DEFAULT 'abcde',
+d3 TIMESTAMP NOT NULL DEFAULT current_timestamp ON UPDATE current_timestamp);
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+CHECKSUM TABLE big;
+Table	Checksum
+test.big	1705165209
+BEGIN;
+INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
+INSERT INTO big(id, c1, c2, c3) SELECT @i:=@i+1, c1, c2, c3 FROM big;
+CHECKSUM TABLE big;
+Table	Checksum
+test.big	385477733
+connection analyze;
+ANALYZE TABLE big;
+Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
+test.big	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+clust_index_size
+7
+connection default;
+ROLLBACK;
+CHECKSUM TABLE big;
+Table	Checksum
+test.big	1705165209
+connection analyze;
+ANALYZE TABLE big;
+Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
+test.big	analyze	status	OK
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/big';
+clust_index_size
+3
+connection default;
+InnoDB		0 transactions not purged
+DROP TABLE t1,t2,t3,t4,big;
+CREATE TABLE t1 (a VARCHAR(1) PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a='a';
+ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 0;
+UPDATE t1 SET b = 1;
+INSERT INTO t1 SET a='a';
+ERROR 23000: Duplicate entry 'a' for key 'PRIMARY'
+SELECT * FROM t1;
+a	b
+a	1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(8), PRIMARY KEY(b,a)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (1,'foo');
+ALTER TABLE t1 ADD COLUMN c INT;
+UPDATE t1 SET c = 1;
+UPDATE t1 SET c = 2;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+CREATE TABLE t2 (b INT PRIMARY KEY, FOREIGN KEY(b) REFERENCES t1(a))
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a=1;
+INSERT INTO t2 SET b=1;
+ALTER TABLE t2 ADD COLUMN a INT, DROP FOREIGN KEY t2_ibfk_1;
+ALTER TABLE t2 ADD INDEX(a);
+ALTER TABLE t1 ADD COLUMN b INT, ADD FOREIGN KEY(a) REFERENCES t2(a),
+ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Adding foreign keys needs foreign_key_checks=OFF. Try ALGORITHM=COPY
+SET foreign_key_checks=0;
+ALTER TABLE t1 ADD COLUMN b INT, ADD FOREIGN KEY(a) REFERENCES t2(a),
+ALGORITHM=INSTANT;
+ALTER TABLE t2 ADD CONSTRAINT fk FOREIGN KEY(b) REFERENCES t1(a),
+ALGORITHM=INSTANT;
+SET foreign_key_checks=1;
+ALTER TABLE t2 COMMENT 'domestic keys only', DROP FOREIGN KEY fk;
+ALTER TABLE t1 DROP FOREIGN KEY t1_ibfk_1;
+ALTER TABLE t1 ADD COLUMN big BLOB NOT NULL
+DEFAULT REPEAT('a', @@GLOBAL.innodb_page_size * .75);
+CHECK TABLE t2, t1;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+test.t1	check	status	OK
+DROP TABLE t2, t1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a = 1;
+ALTER TABLE t1 ADD COLUMN b TEXT;
+BEGIN;
+UPDATE t1 SET b = REPEAT('1', 32768);
+UPDATE t1 SET a = 2;
+INSERT INTO t1 SET a = 1;
+SELECT a,LENGTH(b) FROM t1;
+a	LENGTH(b)
+1	NULL
+2	32768
+DELETE FROM t1;
+COMMIT;
+InnoDB		0 transactions not purged
+DROP TABLE t1;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (7);
+ALTER TABLE t1 ADD COLUMN c INT NOT NULL DEFAULT 0;
+ALTER TABLE t1 ADD INDEX (c);
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t1 VALUES (4,0),(7,77);
+COMMIT;
+BEGIN;
+DELETE FROM t1 WHERE a=7;
+UPDATE t1 SET a=7;
+COMMIT;
+SELECT * FROM t1 FORCE INDEX(PRIMARY);
+a	c
+7	0
+SELECT * FROM t1 FORCE INDEX(c);
+a	c
+7	0
+DELETE FROM t1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+SET innodb_strict_mode = ON;
+CREATE TABLE t1 (a INT, b VARCHAR(500), c TEXT, UNIQUE(a,b)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 ADD d TEXT;
+ALTER TABLE t1 ADD PRIMARY KEY (b,a);
+ALTER TABLE t1 ADD va INT AS (a) VIRTUAL;
+DROP TABLE t1;
+SET innodb_strict_mode = OFF;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a=42;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 ADD b TEXT, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = never;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+SET GLOBAL innodb_instant_alter_column_allowed = add_drop_reorder;
+ALTER TABLE t1 MODIFY b TEXT FIRST, ALGORITHM=INSTANT;
+SET GLOBAL innodb_instant_alter_column_allowed = add_last;
+ALTER TABLE t1 MODIFY a INT DEFAULT 1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 ADD d TEXT AFTER a, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_atler_column_allowed=add_last. Try ALGORITHM=INPLACE
+ALTER TABLE t1 MODIFY a INT DEFAULT 0;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY a INT DEFAULT NULL, ALGORITHM=INSTANT;
+DROP TABLE t1;
+SET GLOBAL innodb_instant_alter_column_allowed = DEFAULT;
+CREATE TABLE t1 (a INT, b INT UNIQUE) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 (a) VALUES (NULL), (NULL);
+ALTER TABLE t1 DROP a, ADD COLUMN a INT;
+DELETE FROM t1;
+BEGIN;
+INSERT INTO t1 SET a=NULL;
+ROLLBACK;
+DELETE FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, t VARCHAR(33101) NOT NULL) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES(347,'');
+ALTER TABLE t1 DROP COLUMN t, ALGORITHM=INSTANT;
+SELECT * FROM t1;
+a
+347
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1() VALUES();
+ALTER TABLE t1 ADD COLUMN b INT FIRST, ADD COLUMN c INT AFTER b;
+SELECT * FROM t1;
+b	c	a
+NULL	NULL	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SET @t=REPEAT('x',@@innodb_page_size / 2);
+INSERT INTO t1 VALUES (@t),(@t),(@t),(@t),(@t),(@t),(NULL),(@t),(@t),(@t),(@t);
+ALTER TABLE t1 ADD COLUMN a INT FIRST;
+UPDATE t1 SET a = 0;
+DROP TABLE t1;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET t = @x;
+ALTER TABLE t1 DROP COLUMN t, ADD COLUMN i INT NOT NULL DEFAULT 1;
+ALTER TABLE t1 ADD COLUMN t TEXT;
+SELECT * FROM t1;
+i	t
+1	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INT AUTO_INCREMENT, b INT, KEY(a)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a=NULL;
+ALTER TABLE t1 DROP COLUMN b;
+ALTER TABLE t1 ADD COLUMN c INT NOT NULL DEFAULT 42;
+INSERT INTO t1 SET a=NULL;
+UPDATE t1 SET a=a+2;
+SELECT * FROM t1;
+a	c
+3	42
+4	42
+DROP TABLE t1;
+CREATE TABLE t1 (i INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET i=1;
+ALTER TABLE t1 ADD COLUMN b BIT FIRST;
+ALTER TABLE t1 ADD COLUMN v INT AS (i) VIRTUAL;
+SELECT * FROM t1;
+b	i	v
+NULL	1	1
+DROP TABLE t1;
+CREATE TABLE t1 (ts TIMESTAMP) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 ADD COLUMN f VARCHAR(8), ADD COLUMN dt DATETIME;
+ALTER TABLE t1 ADD COLUMN b BIT, DROP COLUMN f, ADD COLUMN t TIME FIRST;
+ALTER TABLE t1 ADD COLUMN ts2 TIMESTAMP;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (4,4,4);
+ALTER TABLE t1 DROP f1, DROP f2, ADD f4 INT, ADD f5 INT;
+DELETE FROM t1;
+ALTER TABLE t1 DROP COLUMN f4;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DROP f2, ADD COLUMN f4 INT;
+ALTER TABLE t1 DROP f4;
+ALTER TABLE t1 DROP f1;
+DROP TABLE t1;
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 () VALUES (),();
+SELECT * FROM t1;
+f
+NULL
+NULL
+ALTER TABLE t1 ADD COLUMN id INT NOT NULL AUTO_INCREMENT FIRST, ADD KEY(id);
+SELECT * FROM t1;
+id	f
+1	NULL
+2	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT, f INT, KEY(id)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET f=NULL;
+ALTER TABLE t1 DROP COLUMN id;
+INSERT INTO t1 SET f=NULL;
+SELECT * FROM t1;
+f
+NULL
+NULL
+DROP TABLE t1;
+CREATE TABLE t1(f INT, k INT NOT NULL AUTO_INCREMENT, KEY(k)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DROP COLUMN f;
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+CREATE TABLE t1(pk INT PRIMARY KEY, f INT, k INT AUTO_INCREMENT, KEY(k))
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DROP COLUMN f;
+INSERT INTO t1 (pk) VALUES (1);
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+f1 INT,
+f2 CHAR(255),
+f3 BIGINT,
+f4 INT,
+f5 CHAR(255),
+f6 CHAR(255),
+f7 CHAR(255) NOT NULL,
+f8 INT,
+f9 CHAR(10)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a'),
+(2, 2, 'b', 2, 2, 'b', 'b', 'b', 2, 'b'),
+(3, 3, 'c', 3, 3, 'c', 'c', 'c', 3, 'c'),
+(4, 4, 'd', 4, 4, 'd', 'd', 'd', 4, 'd'),
+(5, 5, 'e', 5, 5, 'e', 'e', 'e', 5, 'e'),
+(6, 6, 'f', 6, 6, 'f', 'f', 'f', 6, 'f'),
+(7, 7, 'g', 7, 7, 'g', 'g', 'g', 7, 'g'),
+(8, 8, 'h', 8, 8, 'h', 'h', 'h', 8, 'h'),
+(9, 9, 'i', 9, 9, 'i', 'i', 'i', 9, 'i'),
+(10, 0, 'j', 0, 0, 'j', 'j', 'j', 0, 'j'),
+(11, 1, 'k', 1, 1, 'k', 'k', 'k', 1, 'k'),
+(12, 2, 'l', 2, 2, 'l', 'l', 'l', 2, 'l'),
+(13, 3, 'm', 3, 3, 'm', 'm', 'm', 3, 'm'),
+(14, 4, 'n', 4, 4, 'n', 'n', 'n', 4, 'n'),
+(15, 5, 'o', 5, 5, 'o', 'o', 'o', 5, 'o');
+DELETE FROM t1 WHERE pk=1;
+InnoDB		0 transactions not purged
+INSERT INTO t1 VALUES
+(1, 1, 'a', 1, 1, 'a', 'a', 'a', 1, 'a');
+ALTER TABLE t1 DROP COLUMN f1;
+DROP TABLE t1;
+CREATE TABLE t1 (
+pk INT PRIMARY KEY,
+f1 INT, f2 CHAR(32) NOT NULL,
+f3 INT NOT NULL, f4 INT NOT NULL, f5 INT, f6 CHAR(32) NOT NULL,
+f7 CHAR(32), f8 CHAR(32)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES
+(1,9,'',2,88,88,'','',''),(2,48,'',8,68,92,'','',''),
+(3,41,'',56,84,37,'','',''),(4,NULL,'',6,6,NULL,'','',''),
+(5,52,'',37,44,20,'','',''),(6,44,'',53,4,NULL,'','',''),
+(7,24,'',54,8,54,'','',''),(8,80,'',3,52,20,'','',''),
+(9,71,'',34,32,NULL,'','',''),(10,14,'',6,64,88,'','',''),
+(11,48,'',8,25,42,'','',''),(12,16,'',8,7,NULL,'','',''),
+(13,NULL,'',22,0,95,'','',''),(14,4,'',72,48,NULL,'','',''),
+(15,4,'',5,64,2,'','',''),(16,NULL,'',9,40,30,'','',''),
+(17,92,'',48,2,NULL,'','',''),(18,36,'',48,51,7,'','',''),
+(19,NULL,'',80,96,NULL,'','',''),(20,96,'',9,80,NULL,'','',''),
+(21,50,'',16,40,NULL,'','',''),(22,NULL,'',7,84,8,'','',''),
+(23,28,'',93,80,NULL,'','',''),(24,31,'',40,38,NULL,'','',''),
+(25,85,'',8,5,88,'','',''),(26,66,'',8,32,4,'','',''),
+(51,52,'',6,92,15,'','',''),(52,77,'',24,24,28,'','',''),
+(53,8,'',75,31,NULL,'','',''),(54,48,'',5,8,1,'','',''),
+(55,90,'',56,12,5,'','',''),(56,92,'',4,9,88,'','',''),
+(57,83,'',23,40,72,'','',''),(58,7,'',4,40,32,'','',''),
+(59,28,'',2,3,32,'','',''),(60,16,'',80,4,NULL,'','',''),
+(61,44,'',88,24,NULL,'','',''),(62,4,'',5,25,3,'','',''),
+(63,NULL,'',7,24,76,'','',''),(64,0,'',13,40,73,'','',''),
+(101,NULL,'',1,49,75,'','',''),(102,34,'',10,17,20,'','',''),
+(103,8,'',2,2,NULL,'','',''),(104,12,'',44,48,52,'','',''),
+(105,8,'',4,19,38,'','',''),(106,20,'',6,80,9,'','',''),
+(107,72,'',72,16,56,'','',''),(108,76,'',98,24,21,'','',''),
+(109,67,'',16,91,NULL,'','',''),(110,72,'',72,3,48,'','',''),
+(151,8,'',3,86,NULL,'','',''),(152,NULL,'',52,72,0,'','',''),
+(153,NULL,'',46,30,92,'','',''),(154,80,'',1,40,48,'','',''),
+(155,24,'',68,68,8,'','',''),(156,85,'',85,72,60,'','',''),
+(157,7,'',7,12,6,'','',''),(158,NULL,'',48,48,80,'','',''),
+(159,12,'',0,36,0,'','',''),(160,2,'',6,52,NULL,'','',''),
+(201,0,'',1,3,NULL,'','',''),(202,NULL,'',3,53,14,'','',''),
+(203,84,'',6,20,NULL,'','',''),(204,38,'',25,13,88,'','',''),
+(205,1,'',2,69,5,'','',''),(206,7,'',60,22,NULL,'','',''),
+(207,NULL,'',5,4,NULL,'','',''),(251,7,'',0,4,40,'','',''),
+(252,4,'',16,8,NULL,'','',''),(253,14,'',60,12,99,'','',''),
+(254,84,'',68,16,5,'','',''),(255,3,'',70,36,61,'','',''),
+(256,7,'',18,48,NULL,'','',''),(257,NULL,'',68,53,NULL,'','',''),
+(258,29,'',52,16,64,'','',''),(259,NULL,'',80,92,40,'','',''),
+(301,68,'',1,48,48,'','',''),(302,2,'',1,1,32,'','',''),
+(303,44,'',60,96,16,'','',''),(304,32,'',52,64,32,'','',''),
+(305,88,'',37,72,NULL,'','',''),(306,5,'',35,60,20,'','',''),
+(307,35,'',4,48,NULL,'','',''),(308,4,'',92,44,80,'','',''),
+(351,48,'',60,4,40,'','',''),(352,7,'',9,61,13,'','',''),
+(353,0,'',5,93,53,'','',''),(354,7,'',1,20,NULL,'','',''),
+(355,84,'',5,48,96,'','',''),(356,NULL,'',39,92,36,'','',''),
+(357,88,'',9,76,44,'','',''),(358,66,'',34,67,80,'','',''),
+(359,8,'',8,52,NULL,'','',''),(360,3,'',53,83,NULL,'','',''),
+(361,23,'',44,9,48,'','',''),(362,4,'',0,54,48,'','',''),
+(363,75,'',66,76,52,'','','');
+ALTER TABLE t1 ADD COLUMN x VARCHAR(255) DEFAULT ' foobar ';
+UPDATE t1 SET f1 = 0;
+ALTER TABLE t1 DROP COLUMN x;
+DROP TABLE t1;
+CREATE TABLE t1 (f1 VARCHAR(1), f2 VARCHAR(2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 MODIFY f2 VARCHAR (8) FIRST;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT UNIQUE, b INT UNIQUE, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DROP PRIMARY KEY;
+ALTER TABLE t1 CHANGE COLUMN a a INT;
+DELETE FROM t1 WHERE a = NULL OR a IS NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT NOT NULL, d INT,
+e INT, f INT, g INT, h INT, j INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 MODIFY COLUMN c INT, MODIFY COLUMN a INT AFTER b;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (0,0);
+ALTER TABLE t1 MODIFY a INT AFTER b;
+ALTER TABLE t1 ADD COLUMN v INT AS (a) VIRTUAL;
+ALTER TABLE t1 MODIFY b INT NOT NULL AFTER a;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 ADD COLUMN b INT;
+ALTER TABLE t1 MODIFY COLUMN a INT NULL;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a=1;
+ALTER TABLE t1 DROP c;
+ALTER TABLE t1 DROP b, ADD v INT AS (a);
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c INT, d INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a=1;
+ALTER TABLE t1 DROP c;
+ALTER TABLE t1 DROP b, ADD v INT AS (a);
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT, b BLOB NOT NULL) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (1,10,REPEAT('foobar',2000));
+ALTER TABLE t1 DROP COLUMN b;
+INSERT INTO t1 VALUES (2,20);
+ALTER TABLE t1 ADD COLUMN vpk INT AS (pk);
+ALTER TABLE t1 DROP COLUMN i;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (1,1);
+ALTER TABLE t1 ADD f DATE AFTER a;
+ALTER TABLE t1 DROP b, DROP f;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (1,1);
+ALTER TABLE t1 ADD COLUMN f INT AFTER a;
+ALTER TABLE t1 DROP b, DROP f;
+DROP TABLE t1;
+CREATE TABLE t1(t TEXT NOT NULL, FULLTEXT(t)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 MODIFY COLUMN t TEXT;
+DROP TABLE t1;
+CREATE TABLE t1 (f TINYINT, g SMALLINT UNSIGNED) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES(127,6502),(-128,33101);
+ALTER TABLE t1 MODIFY f SMALLINT DEFAULT 12345,
+MODIFY g BIGINT UNSIGNED DEFAULT 1234567;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+SELECT * FROM t1;
+f	g
+127	6502
+-128	33101
+DROP TABLE t1;
+CREATE TABLE t1 (f BIT(8)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (b'10000000'),(b'00000001');
+ALTER TABLE t1 MODIFY f BIT(16);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+INSERT INTO t1 VALUES (b'1000000010101111'),(b'10000000');
+SELECT HEX(f) FROM t1;
+HEX(f)
+80
+1
+80AF
+80
+ALTER TABLE t1 MODIFY f SMALLINT;
+ERROR 22003: Out of range value for column 'f' at row 3
+ALTER TABLE t1 MODIFY f SMALLINT UNSIGNED;
+affected rows: 4
+info: Records: 4  Duplicates: 0  Warnings: 0
+SELECT * FROM t1;
+f
+128
+1
+32943
+128
+ALTER TABLE t1 MODIFY f BIT;
+ERROR 22001: Data too long for column 'f' at row 1
+ALTER TABLE t1 MODIFY f BIT(15);
+ERROR 22001: Data too long for column 'f' at row 3
+DELETE FROM t1 LIMIT 3;
+ALTER TABLE t1 MODIFY f BIT(15);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f BIT(8);
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT HEX(f) FROM t1;
+HEX(f)
+80
+DROP TABLE t1;
+CREATE TABLE t1 (b BIT NOT NULL) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET utf16;
+INSERT INTO t1 SET b=b'1';
+ALTER TABLE t1 CHANGE b c BIT NOT NULL;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SELECT HEX(c) FROM t1;
+HEX(c)
+1
+DROP TABLE t1;
+CREATE TABLE t1 (c VARCHAR(10) NOT NULL DEFAULT 'scary') ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1() VALUES();
+ALTER TABLE t1 ADD f TINYINT NOT NULL DEFAULT -42;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 MODIFY f MEDIUMINT NOT NULL DEFAULT 64802,
+MODIFY c VARCHAR(20) NOT NULL DEFAULT 'gory',
+ADD d DATETIME;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+INSERT INTO t1() VALUES();
+INSERT INTO t1 (c,f,d) VALUES ('fury', -8388608, now());
+SELECT * FROM t1;
+c	f	d
+scary	-42	NULL
+gory	64802	NULL
+fury	-8388608	1970-01-01 03:00:42
+DROP TABLE t1;
+CREATE TABLE t1 (t TINYINT PRIMARY KEY, m MEDIUMINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SELECT table_id INTO @table_id1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+INSERT INTO t1 VALUES (-42, -123456);
+ALTER TABLE t1 CHANGE t s SMALLINT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Cannot change column type. Try ALGORITHM=COPY
+ALTER TABLE t1 CHANGE m i INT;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SELECT table_id INTO @table_id3 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t1';
+affected rows: 1
+SELECT @table_id1 = @table_id2, @table_id2 = @table_id3;
+@table_id1 = @table_id2	@table_id2 = @table_id3
+0	0
+INSERT IGNORE INTO t1 VALUES (0, -123456);
+Warnings:
+Warning	1062	Duplicate entry '-123456' for key 'm'
+REPLACE INTO t1 VALUES(-42, 123456);
+INSERT IGNORE INTO t1 VALUES(32768, 2147483648);
+Warnings:
+Warning	1264	Out of range value for column 's' at row 1
+Warning	1264	Out of range value for column 'i' at row 1
+SELECT * FROM t1;
+s	i
+-42	123456
+32767	2147483647
+DROP TABLE t1;
+CREATE TABLE t1 (a SERIAL, b INT, c TINYINT UNIQUE) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 (c) VALUES(1),(2),(3);
+ALTER TABLE t1 MODIFY c BIGINT;
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
+UPDATE t1 SET b=1 WHERE c=2;
+UPDATE t1 SET c=4 WHERE a=3;
+UPDATE t1 SET b=2 WHERE c>3;
+UPDATE t1 SET c=c+1;
+ERROR 23000: Duplicate entry '2' for key 'c'
+SELECT * FROM t1;
+a	b	c
+1	NULL	1
+2	1	2
+3	2	4
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(1)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES(1,'a');
+ALTER TABLE t1 MODIFY b VARCHAR(256), ADD COLUMN c INT;
+INSERT INTO t1 VALUES(2,'bah',3);
+SELECT * FROM t1;
+a	b	c
+1	a	NULL
+2	bah	3
+DROP TABLE t1;
+CREATE TABLE t1(a CHAR(5) CHARACTER SET utf8 PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES('barf');
+ALTER TABLE t1 ADD b INT FIRST, ALGORITHM=INSTANT;
+ALTER TABLE t1 ADD vb INT AS (b);
+SELECT * FROM t1;
+b	a	vb
+NULL	barf	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b TEXT, PRIMARY KEY(b(9))) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 ADD COLUMN c TEXT FIRST;
+ALTER TABLE t1 ADD COLUMN d TEXT GENERATED ALWAYS AS (SUBSTR(b,1,499)) FIRST;
+DROP TABLE t1;
+CREATE TABLE t1(a CHAR(5), b INT, c CHAR(1), d CHAR(1), PRIMARY KEY(a,b))
+DEFAULT CHARACTER SET utf8 ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET a='fubar',b=42;
+ALTER TABLE t1 DROP c, DROP d, ALGORITHM=INSTANT;
+ALTER TABLE t1 ADD vb INT AS (b);
+SELECT * FROM t1;
+a	b	vb
+fubar	42	42
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 MODIFY b INT FIRST;
+DROP TABLE t1;
+disconnect analyze;
+#
+# MDEV-22465: DROP COLUMN is wrongly claimed to be ALGORITHM=INSTANT
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
+ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: DROP INDEX. Try ALGORITHM=NOCOPY
+ALTER TABLE t1 DROP b, ALGORITHM=NOCOPY;
+DROP TABLE t1;
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+instants
+206
+SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
+SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
+#
+# MDEV-18266: Changing an index comment unnecessarily rebuilds index
+#
+CREATE TABLE t1(a INT, b INT) ENGINE=INNODB;
+CREATE INDEX i1 ON t1(a) COMMENT 'comment1';
+ALTER TABLE t1 DROP INDEX i1, ADD INDEX i1(a) COMMENT 'comment2', ALGORITHM=INSTANT;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `i1` (`a`) COMMENT 'comment2'
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# MDEV-25057 Assertion `n_fields < dtuple_get_n_fields(entry)'
+#		failed in dtuple_convert_big_rec
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+a CHAR(255) NOT NULL,
+b CHAR(255) NOT NULL, c INT) ENGINE=InnoDB CHARSET utf32;
+ALTER TABLE t1 DROP c;
+INSERT INTO t1(a, b) SELECT '', '' FROM seq_1_to_16;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+16
+DROP TABLE t1;
+#
+# MDEV-25630 Rollback of instant operation adds wrong
+# 	column to secondary index
+#
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT, f4 INT,
+PRIMARY KEY(f1, f4),
+KEY(f2))ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INT, f2 INT, PRIMARY KEY(f1),
+FOREIGN KEY fk (f2) REFERENCES t2(f1)
+)ENGINE=InnoDB;
+ALTER TABLE t1 ADD f5 INT;
+SET FOREIGN_KEY_CHECKS=0;
+ALTER TABLE t1 DROP COLUMN f3, ADD FOREIGN KEY fk (f1)
+REFERENCES x(x);
+ERROR HY000: Failed to add the foreign key constraint 'test/fk' to system tables
+ALTER TABLE t1 DROP COLUMN f5;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) DEFAULT NULL,
+  `f3` int(11) DEFAULT NULL,
+  `f4` int(11) NOT NULL,
+  PRIMARY KEY (`f1`,`f4`),
+  KEY `f2` (`f2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1, t2;

@@ -1,0 +1,979 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10582 sql_mode=ORACLE: explicit cursor attributes %ISOPEN, %ROWCOUNT, %FOUND, %NOTFOUND
+#
+#
+# Cursor attributes outside of an SP context
+#
+SELECT c%ISOPEN;
+ERROR 42000: Undefined CURSOR: c
+SELECT c%FOUND;
+ERROR 42000: Undefined CURSOR: c
+SELECT c%NOTFOUND;
+ERROR 42000: Undefined CURSOR: c
+SELECT c%ROWCOUNT;
+ERROR 42000: Undefined CURSOR: c
+#
+# Undefinite cursor attributes
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+SELECT c%ISOPEN;
+END;
+$$
+ERROR 42000: Undefined CURSOR: c
+CREATE PROCEDURE p1
+AS
+BEGIN
+SELECT c%ROWCOUNT;
+END;
+$$
+ERROR 42000: Undefined CURSOR: c
+CREATE PROCEDURE p1
+AS
+BEGIN
+SELECT c%FOUND;
+END;
+$$
+ERROR 42000: Undefined CURSOR: c
+CREATE PROCEDURE p1
+AS
+BEGIN
+SELECT c%NOTFOUND;
+END;
+$$
+ERROR 42000: Undefined CURSOR: c
+#
+# Not opened cursor attributes %FOUND, %NOTFOUND, %ROWCOUNT
+#
+CREATE PROCEDURE p1
+AS
+CURSOR c IS SELECT 1 AS c FROM DUAL;
+BEGIN
+SELECT c%ROWCOUNT;
+END;
+$$
+CALL p1;
+ERROR 24000: Cursor is not open
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+CURSOR c IS SELECT 1 AS c FROM DUAL;
+BEGIN
+SELECT c%FOUND;
+END;
+$$
+CALL p1;
+ERROR 24000: Cursor is not open
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+CURSOR c IS SELECT 1 AS c FROM DUAL;
+BEGIN
+SELECT c%NOTFOUND;
+END;
+$$
+CALL p1;
+ERROR 24000: Cursor is not open
+DROP PROCEDURE p1;
+#
+# Not opened cursor attributes %FOUND, %NOTFOUND, %ROWCOUNT with INVALID_CURSOR exception
+#
+CREATE PROCEDURE p1
+AS
+CURSOR c IS SELECT 1 AS c FROM DUAL;
+BEGIN
+SELECT c%ROWCOUNT;
+EXCEPTION
+WHEN INVALID_CURSOR THEN SELECT 'INVALID_CURSOR caught' AS msg;
+END;
+$$
+CALL p1;
+c%ROWCOUNT
+msg
+INVALID_CURSOR caught
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+CURSOR c IS SELECT 1 AS c FROM DUAL;
+BEGIN
+SELECT c%FOUND;
+EXCEPTION
+WHEN INVALID_CURSOR THEN SELECT 'INVALID_CURSOR caught' AS msg;
+END;
+$$
+CALL p1;
+c%FOUND
+msg
+INVALID_CURSOR caught
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1
+AS
+CURSOR c IS SELECT 1 AS c FROM DUAL;
+BEGIN
+SELECT c%NOTFOUND;
+EXCEPTION
+WHEN INVALID_CURSOR THEN SELECT 'INVALID_CURSOR caught' AS msg;
+END;
+$$
+CALL p1;
+c%NOTFOUND
+msg
+INVALID_CURSOR caught
+DROP PROCEDURE p1;
+#
+# print()
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1
+AS
+CURSOR c IS SELECT * FROM t1 ORDER BY a;
+BEGIN
+EXPLAIN EXTENDED SELECT c%ISOPEN, c%ROWCOUNT, c%FOUND, c%NOTFOUND;
+END;
+$$
+CALL p1();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select "c"%ISOPEN AS "c%ISOPEN","c"%ROWCOUNT AS "c%ROWCOUNT","c"%FOUND AS "c%FOUND","c"%NOTFOUND AS "c%NOTFOUND"
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Declared data type of the attributes
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+CREATE PROCEDURE p1
+AS
+CURSOR c IS SELECT * FROM t1 ORDER BY a;
+BEGIN
+OPEN c;
+CREATE TABLE t2 AS SELECT c%ISOPEN, c%ROWCOUNT, c%FOUND, c%NOTFOUND;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+CLOSE c;
+END;
+$$
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "c%ISOPEN" int(1) NOT NULL,
+  "c%ROWCOUNT" bigint(21) DEFAULT NULL,
+  "c%FOUND" int(1) DEFAULT NULL,
+  "c%NOTFOUND" int(1) DEFAULT NULL
+)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Core functionality
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (30);
+CREATE PROCEDURE p1
+AS
+a INT:=0;
+CURSOR c IS SELECT * FROM t1 ORDER BY a;
+BEGIN
+SELECT a, c%ISOPEN;
+OPEN c;
+/*
+After OPEN and before FETCH:
+- %ROWCOUNT returns 0
+- %FOUND and %NOTFOUND return NULL
+*/
+SELECT a, c%ISOPEN, c%ROWCOUNT, c%FOUND, c%NOTFOUND;
+FETCH c INTO a;
+SELECT a, c%ISOPEN, c%ROWCOUNT, c%FOUND, c%NOTFOUND;
+FETCH c INTO a;
+SELECT a, c%ISOPEN, c%ROWCOUNT, c%FOUND, c%NOTFOUND;
+FETCH c INTO a;
+SELECT a, c%ISOPEN, c%ROWCOUNT, c%FOUND, c%NOTFOUND;
+FETCH c INTO a;
+SELECT a, c%ISOPEN, c%ROWCOUNT, c%FOUND, c%NOTFOUND;
+CLOSE c;
+SELECT a, c%ISOPEN;
+/*
+After reopen and before FETCH:
+- %ROWCOUNT returns 0
+- %FOUND and %NOTFOUND return NULL
+*/
+OPEN c;
+SELECT a, c%ISOPEN, c%ROWCOUNT, c%FOUND, c%NOTFOUND;
+FETCH c INTO a;
+SELECT a, c%ISOPEN, c%ROWCOUNT, c%FOUND, c%NOTFOUND;
+CLOSE c;
+END;
+$$
+CALL p1();
+a	c%ISOPEN
+0	0
+a	c%ISOPEN	c%ROWCOUNT	c%FOUND	c%NOTFOUND
+0	1	0	NULL	NULL
+a	c%ISOPEN	c%ROWCOUNT	c%FOUND	c%NOTFOUND
+10	1	1	1	0
+a	c%ISOPEN	c%ROWCOUNT	c%FOUND	c%NOTFOUND
+20	1	2	1	0
+a	c%ISOPEN	c%ROWCOUNT	c%FOUND	c%NOTFOUND
+30	1	3	1	0
+a	c%ISOPEN	c%ROWCOUNT	c%FOUND	c%NOTFOUND
+30	1	3	0	1
+a	c%ISOPEN
+30	0
+a	c%ISOPEN	c%ROWCOUNT	c%FOUND	c%NOTFOUND
+30	1	0	NULL	NULL
+a	c%ISOPEN	c%ROWCOUNT	c%FOUND	c%NOTFOUND
+10	1	1	1	0
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# %NOTFOUND as a loop exit condition
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (30);
+CREATE PROCEDURE p1
+AS
+a INT:=0;
+CURSOR c IS SELECT * FROM t1 ORDER BY a;
+BEGIN
+OPEN c;
+LOOP
+FETCH c INTO a;
+EXIT WHEN c%NOTFOUND;
+SELECT a;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1();
+a
+10
+a
+20
+a
+30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# %FOUND as a loop exit condition
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (30);
+CREATE PROCEDURE p1
+AS
+a INT:=0;
+CURSOR c IS SELECT * FROM t1 ORDER BY a;
+BEGIN
+OPEN c;
+LOOP
+FETCH c INTO a;
+EXIT WHEN NOT c%FOUND;
+SELECT a;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1();
+a
+10
+a
+20
+a
+30
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# End of MDEV-10582 sql_mode=ORACLE: explicit cursor attributes %ISOPEN, %ROWCOUNT, %FOUND, %NOTFOUND
+#
+#
+# MDEV-10597 Cursors with parameters
+#
+#
+# OPEN with a wrong number of parameters
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1(a_a INT,a_b VARCHAR)
+AS
+v_a INT;
+v_b VARCHAR(10);
+CURSOR c (p_a INT, p_b VARCHAR) IS SELECT * FROM t1 WHERE a=p_a;
+BEGIN
+OPEN c(a_a);
+LOOP
+FETCH c INTO v_a, v_b;
+EXIT WHEN c%NOTFOUND;
+DBMS_OUTPUT.PUT_LINE('Fetched a record a='||TO_CHAR(v_a)||' b='||v_b);
+END LOOP;
+CLOSE c;
+END;
+$$
+ERROR 42000: Incorrect parameter count to cursor 'c'
+DROP TABLE t1;
+#
+# Cursor parameters are not visible outside of the cursor
+#
+CREATE PROCEDURE p1(a_a INT)
+AS
+v_a INT;
+CURSOR c (p_a INT) IS SELECT a FROM t1 WHERE a=p_a;
+BEGIN
+OPEN c(a_a);
+p_a:=10;
+END;
+$$
+ERROR HY000: Unknown system variable 'p_a'
+CREATE PROCEDURE p1(a_a INT)
+AS
+v_a INT;
+CURSOR c (p_a INT) IS SELECT a FROM t1 WHERE a=p_a;
+BEGIN
+p_a:=10;
+OPEN c(a_a);
+END;
+$$
+ERROR HY000: Unknown system variable 'p_a'
+#
+# Cursor parameter shadowing a local variable
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1(a INT)
+AS
+v_a INT:=NULL;
+p_a INT:=NULL;
+CURSOR c (p_a VARCHAR2) IS SELECT a FROM t1 WHERE p_a IS NOT NULL;
+BEGIN
+OPEN c(a);
+FETCH c INTO v_a;
+IF c%NOTFOUND THEN
+BEGIN
+SELECT 'No records found' AS msg;
+RETURN;
+END;
+END IF;
+CLOSE c;
+SELECT 'Fetched a record a='||v_a AS msg;
+INSERT INTO t1 VALUES (v_a);
+END;
+$$
+CALL p1(1);
+msg
+Fetched a record a=1
+SELECT * FROM t1;
+a
+1
+1
+CALL p1(NULL);
+msg
+No records found
+SELECT * FROM t1;
+a
+1
+1
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Parameters in SELECT list
+#
+CREATE PROCEDURE p1(a_a INT, a_b VARCHAR)
+AS
+v_a INT;
+v_b VARCHAR(10);
+CURSOR c (p_a INT, p_b VARCHAR) IS SELECT p_a,p_b FROM DUAL;
+BEGIN
+FOR i IN 0..1
+LOOP
+OPEN c(a_a + i,a_b);
+LOOP
+FETCH c INTO v_a, v_b;
+EXIT WHEN c%NOTFOUND;
+SELECT 'Fetched a record a=' || v_a || ' b=' || v_b AS msg;
+END LOOP;
+CLOSE c;
+END LOOP;
+END;
+$$
+CALL p1(1,'b1');
+msg
+Fetched a record a=1 b=b1
+msg
+Fetched a record a=2 b=b1
+DROP PROCEDURE p1;
+#
+# Parameters in SELECT list + UNION
+#
+CREATE PROCEDURE p1(a_a INT, a_b VARCHAR)
+AS
+v_a INT;
+v_b VARCHAR(10);
+CURSOR c (p_a INT, p_b VARCHAR) IS
+SELECT p_a,p_b FROM DUAL
+UNION ALL
+SELECT p_a+1,p_b||'b' FROM DUAL;
+BEGIN
+OPEN c(a_a,a_b);
+LOOP
+FETCH c INTO v_a, v_b;
+EXIT WHEN c%NOTFOUND;
+SELECT 'Fetched a record a=' || v_a || ' b=' || v_b AS msg;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1(1,'b1');
+msg
+Fetched a record a=1 b=b1
+msg
+Fetched a record a=2 b=b1b
+DROP PROCEDURE p1;
+#
+# Parameters in SELECT list + type conversion + warnings
+#
+CREATE PROCEDURE p1(a_a VARCHAR)
+AS
+v_a INT;
+CURSOR c (p_a INT) IS SELECT p_a FROM DUAL;
+BEGIN
+OPEN c(a_a);
+LOOP
+FETCH c INTO v_a;
+EXIT WHEN c%NOTFOUND;
+SELECT 'Fetched a record a=' || v_a AS msg;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1('1b');
+msg
+Fetched a record a=1
+Warnings:
+Warning	1265	Data truncated for column 'p_a' at row 1
+CALL p1('b1');
+msg
+Fetched a record a=0
+Warnings:
+Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 1
+DROP PROCEDURE p1;
+#
+# One parameter in SELECT list + subselect
+#
+CREATE PROCEDURE p1(a_a VARCHAR)
+AS
+v_a VARCHAR(10);
+CURSOR c (p_a VARCHAR) IS
+SELECT p_a FROM DUAL UNION SELECT REVERSE(p_a) FROM DUAL;
+BEGIN
+OPEN c((SELECT a_a));
+LOOP
+FETCH c INTO v_a;
+EXIT WHEN c%NOTFOUND;
+SELECT v_a;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1('ab');
+v_a
+ab
+v_a
+ba
+DROP PROCEDURE p1;
+#
+# Two parameters in SELECT list + subselect
+#
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1()
+AS
+v_a VARCHAR(10);
+v_b VARCHAR(20);
+CURSOR c (p_a VARCHAR, p_b VARCHAR) IS
+SELECT p_a, p_b FROM DUAL
+UNION
+SELECT p_b, p_a FROM DUAL;
+BEGIN
+OPEN c((SELECT 'aaa'),(SELECT 'bbb'));
+LOOP
+FETCH c INTO v_a, v_b;
+EXIT WHEN c%NOTFOUND;
+SELECT v_a, v_b;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1();
+v_a	v_b
+aaa	bbb
+v_a	v_b
+bbb	aaa
+DROP PROCEDURE p1;
+#
+# Two parameters in SELECT list + two parameters in WHERE + subselects
+#
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1(a_a VARCHAR, a_b VARCHAR)
+AS
+v_a VARCHAR(10);
+v_b VARCHAR(20);
+CURSOR c (value_a VARCHAR, value_b VARCHAR,
+pattern_a VARCHAR, pattern_b VARCHAR) IS
+SELECT value_a, value_b FROM DUAL WHERE value_a LIKE pattern_a
+UNION
+SELECT value_b, value_a FROM DUAL WHERE value_b LIKE pattern_b;
+BEGIN
+OPEN c((SELECT 'aaa'),(SELECT 'bbb'),(SELECT a_a),(SELECT a_b));
+LOOP
+FETCH c INTO v_a, v_b;
+EXIT WHEN c%NOTFOUND;
+SELECT v_a, v_b;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1('%','%');
+v_a	v_b
+aaa	bbb
+v_a	v_b
+bbb	aaa
+CALL p1('aaa','xxx');
+v_a	v_b
+aaa	bbb
+CALL p1('xxx','bbb');
+v_a	v_b
+bbb	aaa
+CALL p1('xxx','xxx');
+DROP PROCEDURE p1;
+#
+# Parameters in SELECT list + stored function
+#
+CREATE FUNCTION f1 (a VARCHAR) RETURN VARCHAR
+AS
+BEGIN
+RETURN a || 'y';
+END;
+$$
+CREATE PROCEDURE p1(a_a VARCHAR)
+AS
+v_a VARCHAR(10);
+v_b VARCHAR(10);
+CURSOR c (p_sel_a VARCHAR, p_cmp_a VARCHAR) IS
+SELECT p_sel_a, p_cmp_a FROM DUAL;
+BEGIN
+OPEN c(f1(a_a), f1(a_a));
+LOOP
+FETCH c INTO v_a, v_b;
+EXIT WHEN c%NOTFOUND;
+SELECT v_a;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1('x');
+v_a
+xy
+CALL p1(f1(COALESCE(NULL, f1('x'))));
+v_a
+xyyy
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+#
+# One parameter in WHERE clause
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'11');
+INSERT INTO t1 VALUES (1,'12');
+INSERT INTO t1 VALUES (2,'21');
+INSERT INTO t1 VALUES (2,'22');
+INSERT INTO t1 VALUES (3,'31');
+INSERT INTO t1 VALUES (3,'32');
+CREATE PROCEDURE p1(a_a INT)
+AS
+v_a INT;
+v_b VARCHAR(10);
+CURSOR c (p_a INT) IS SELECT a,b FROM t1 WHERE a=p_a;
+BEGIN
+OPEN c(a_a);
+LOOP
+FETCH c INTO v_a, v_b;
+EXIT WHEN c%NOTFOUND;
+INSERT INTO t2 VALUES (v_a,v_b);
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1(1);
+SELECT * FROM t2;
+a	b
+1	11
+1	12
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+#
+# Two parameters in WHERE clause
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'11');
+INSERT INTO t1 VALUES (1,'12');
+INSERT INTO t1 VALUES (2,'21');
+INSERT INTO t1 VALUES (2,'22');
+INSERT INTO t1 VALUES (3,'31');
+INSERT INTO t1 VALUES (3,'32');
+CREATE PROCEDURE p1(a_a INT, a_b VARCHAR)
+AS
+v_a INT;
+v_b VARCHAR(10);
+CURSOR c (p_a INT, p_b VARCHAR) IS SELECT a,b FROM t1 WHERE a=p_a AND b=p_b;
+BEGIN
+OPEN c(a_a, a_b);
+LOOP
+FETCH c INTO v_a, v_b;
+EXIT WHEN c%NOTFOUND;
+INSERT INTO t2 VALUES (v_a,v_b);
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1(1,'11');
+SELECT * FROM t2;
+a	b
+1	11
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+#
+# Parameters in WHERE and HAVING clauses
+#
+CREATE TABLE t1 (name VARCHAR(10), value INT);
+INSERT INTO t1 VALUES ('but',1);
+INSERT INTO t1 VALUES ('but',1);
+INSERT INTO t1 VALUES ('but',1);
+INSERT INTO t1 VALUES ('bin',1);
+INSERT INTO t1 VALUES ('bin',1);
+INSERT INTO t1 VALUES ('bot',1);
+CREATE PROCEDURE p1 (arg_name_limit VARCHAR, arg_total_limit INT)
+AS
+v_name VARCHAR(10);
+v_total INT;
+-- +0 is needed to work around the bug MDEV-11081
+CURSOR c(p_v INT) IS
+SELECT name, SUM(value + p_v) + 0 AS total FROM t1
+WHERE name LIKE arg_name_limit
+GROUP BY name HAVING total>=arg_total_limit;
+BEGIN
+FOR i IN 0..1
+LOOP
+OPEN c(i);
+LOOP
+FETCH c INTO v_name, v_total;
+EXIT WHEN c%NOTFOUND;
+SELECT v_name, v_total;
+END LOOP;
+CLOSE c;
+END LOOP;
+END;
+$$
+CALL p1('%', 2);
+v_name	v_total
+bin	2
+v_name	v_total
+but	3
+v_name	v_total
+bin	4
+v_name	v_total
+bot	2
+v_name	v_total
+but	6
+CALL p1('b_t', 0);
+v_name	v_total
+bot	1
+v_name	v_total
+but	3
+v_name	v_total
+bot	2
+v_name	v_total
+but	6
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# One parameter in LIMIT clause
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+INSERT INTO t1 VALUES (2,'b2');
+INSERT INTO t1 VALUES (3,'b3');
+INSERT INTO t1 VALUES (4,'b4');
+INSERT INTO t1 VALUES (5,'b5');
+INSERT INTO t1 VALUES (6,'b6');
+CREATE PROCEDURE p1(a_a INT)
+AS
+v_a INT;
+v_b VARCHAR(10);
+CURSOR c (p_a INT) IS SELECT a,b FROM t1 ORDER BY a LIMIT p_a;
+BEGIN
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+OPEN c(a_a);
+LOOP
+FETCH c INTO v_a, v_b;
+EXIT WHEN c%NOTFOUND;
+INSERT INTO t2 VALUES (v_a,v_b);
+END LOOP;
+CLOSE c;
+SELECT * FROM t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1(1);
+a	b
+1	b1
+CALL p1(3);
+a	b
+1	b1
+2	b2
+3	b3
+CALL p1(6);
+a	b
+1	b1
+2	b2
+3	b3
+4	b4
+5	b5
+6	b6
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# End of MDEV-10597 Cursors with parameters
+#
+#
+# MDEV-12209 sql_mode=ORACLE: Syntax error in a OPEN cursor with parameters makes the server crash
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'A');
+CREATE PROCEDURE p1(a INT,b VARCHAR)
+AS
+CURSOR c (p_a INT, p_b VARCHAR) IS SELECT * FROM t1 WHERE a=p_a;
+BEGIN
+OPEN c(a+, b);
+LOOP
+FETCH c INTO a, b;
+EXIT WHEN c%NOTFOUND;
+SELECT a, b;
+END LOOP;
+CLOSE c;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' b);
+LOOP
+FETCH c INTO a, b;
+EXIT WHEN c%NOTFOUND;
+SELECT a, b;
+END LOOP;
+CLO...' at line 5
+DROP TABLE t1;
+#
+# MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10),c DATETIME(3));
+INSERT INTO t1 VALUES (1,'b1','2001-01-01 10:20:30.123');
+INSERT INTO t1 VALUES (2,'b2','2001-01-02 10:20:30.123');
+CREATE TABLE t2 LIKE t1;
+CREATE PROCEDURE p1()
+AS
+v_a t1.a%TYPE;
+v_b t1.b%TYPE;
+v_c t1.c%TYPE;
+CURSOR c IS SELECT a,b,c FROM t1;
+BEGIN
+OPEN c;
+LOOP
+FETCH c INTO v_a, v_b, v_c;
+EXIT WHEN c%NOTFOUND;
+INSERT INTO t2 (a,b,c) VALUES (v_a, v_b, v_c);
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1();
+SELECT * FROM t2;
+a	b	c
+1	b1	2001-01-01 10:20:30.123
+2	b2	2001-01-02 10:20:30.123
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-12007 Allow ROW variables as a cursor FETCH target
+#
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (10,'b10');
+INSERT INTO t1 VALUES (20,'b20');
+INSERT INTO t1 VALUES (30,'b30');
+CREATE PROCEDURE p1 AS
+rec ROW(a INT, b VARCHAR(32));
+CURSOR c IS SELECT a,b FROM t1;
+BEGIN
+OPEN c;
+LOOP
+FETCH c INTO rec;
+EXIT WHEN c%NOTFOUND;
+SELECT ('rec=(' || rec.a ||','|| rec.b||')') AS c;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1();
+c
+rec=(10,b10)
+c
+rec=(20,b20)
+c
+rec=(30,b30)
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-12441 Variables declared after cursors with parameters lose values
+#
+CREATE PROCEDURE p1() AS
+x0 INT:=100;
+CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+x1 INT:=101;
+BEGIN
+OPEN cur(10,11);
+CLOSE cur;
+SELECT x0, x1;
+END;
+$$
+CALL p1();
+x0	x1
+100	101
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1() AS
+x0 INT:=100;
+CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+x1 t1.a%TYPE:=101;
+BEGIN
+OPEN cur(10,11);
+CLOSE cur;
+SELECT x0, x1;
+END;
+$$
+CALL p1();
+x0	x1
+100	101
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE PROCEDURE p1() AS
+x0 INT:=100;
+CURSOR cur(cp1 INT, cp2 INT) IS SELECT cp1+cp2;
+x1 ROW(a INT,b INT):=ROW(101,102);
+BEGIN
+OPEN cur(10,11);
+CLOSE cur;
+SELECT x0, x1.a, x1.b;
+END;
+$$
+CALL p1();
+x0	x1.a	x1.b
+100	101	102
+DROP PROCEDURE p1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'Tbl-t1.b0');
+CREATE PROCEDURE p1() AS
+x0 INT:=100;
+CURSOR cur(cp1 INT, cp2 INT) IS SELECT a,b FROM t1;
+x1 t1%ROWTYPE:=ROW(101,'Var-x1.b0');
+BEGIN
+SELECT x0, x1.a, x1.b;
+OPEN cur(10,11);
+FETCH cur INTO x1;
+CLOSE cur;
+SELECT x0, x1.a, x1.b;
+END;
+$$
+CALL p1();
+x0	x1.a	x1.b
+100	101	Var-x1.b0
+x0	x1.a	x1.b
+100	10	Tbl-t1.b0
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'Tbl-t1.b0');
+CREATE PROCEDURE p1() AS
+x0 INT:=100;
+CURSOR cur(cp1 INT, cp2 INT) IS SELECT a,b FROM t1;
+x1 cur%ROWTYPE:=ROW(101,'Var-x1.b0');
+BEGIN
+SELECT x0, x1.a, x1.b;
+OPEN cur(10,11);
+FETCH cur INTO x1;
+CLOSE cur;
+SELECT x0, x1.a, x1.b;
+END;
+$$
+CALL p1();
+x0	x1.a	x1.b
+100	101	Var-x1.b0
+x0	x1.a	x1.b
+100	10	Tbl-t1.b0
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+DECLARE
+CURSOR c IS SELECT 1 AS c FROM DUAL;
+BEGIN
+OPEN c;
+SELECT
+c%ISOPEN,
+c%NOTFOUND,
+c%FOUND,
+c%ROWCOUNT;
+CLOSE c;
+END;
+$$
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					c%ISOPEN	3	1	1	N	32897	0	63
+def					c%NOTFOUND	3	1	0	Y	32896	0	63
+def					c%FOUND	3	1	0	Y	32896	0	63
+def					c%ROWCOUNT	8	21	1	Y	32896	0	63
+c%ISOPEN	c%NOTFOUND	c%FOUND	c%ROWCOUNT
+1	NULL	NULL	0
+#
+# MDEV-17387 MariaDB Server giving wrong error while executing select query from procedure
+#
+CREATE TABLE t1
+(
+JOBN varchar(18) NOT NULL,
+pk int(11) NOT NULL,
+PRIMARY KEY (pk),
+KEY (JOBN)
+);
+CREATE PROCEDURE p1
+AS
+lS NUMBER(10) :=0;
+CURSOR cBPD IS SELECT * FROM t1 WHERE JOBN='x';
+BEGIN
+FOR lbpd IN cBPD LOOP
+lS:=lS+1;
+END LOOP;
+EXCEPTION
+WHEN OTHERS THEN
+BEGIN
+SELECT SQLERRM;
+END;
+END;
+$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;

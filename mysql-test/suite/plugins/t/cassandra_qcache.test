@@ -1,0 +1,59 @@
+#
+# Tests for cassandra storage engine
+#
+-- source include/have_query_cache.inc
+
+if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'cassandra' AND support IN ('YES', 'DEFAULT', 'ENABLED')`)
+{
+  --skip Test requires Cassandra.
+}
+
+--disable_warnings
+drop table if exists t1, t2;
+--enable_warnings
+
+############################################################################
+## Cassandra initialization
+############################################################################
+
+# Step 1: remove the keyspace that could be left over from the previous test
+--remove_files_wildcard $MYSQLTEST_VARDIR cassandra_test_cleanup.cql
+--write_file $MYSQLTEST_VARDIR/cassandra_test_cleanup.cql
+drop keyspace mariadbtest2;
+EOF
+--error 0,1,2
+--system cqlsh -3 -f $MYSQLTEST_VARDIR/cassandra_test_cleanup.cql
+
+# Step 2: create new keyspace and test column families
+--remove_files_wildcard $MYSQLTEST_VARDIR cassandra_test_init.cql
+--write_file $MYSQLTEST_VARDIR/cassandra_test_init.cql
+
+CREATE KEYSPACE mariadbtest2
+  WITH strategy_class = 'org.apache.cassandra.locator.SimpleStrategy'
+  AND strategy_options:replication_factor='1';
+
+USE mariadbtest2;
+create columnfamily cf1 ( rowkey int primary key, a int );
+EOF
+
+--error 0,1,2
+--system cqlsh -3 -f $MYSQLTEST_VARDIR/cassandra_test_init.cql
+
+############################################################################
+## The test itsef:
+############################################################################
+
+create table t1 (rowkey int primary key, a int) engine=cassandra
+  thrift_host='localhost' keyspace='mariadbtest2' column_family='cf1';
+create table t2 like t1;
+
+set global query_cache_size=1024*1024;
+
+select * from t1;
+insert into t2 values (1,1);
+
+select * from t1;
+select sql_no_cache * from t1;
+
+drop table t1,t2;
+set global QUERY_CACHE_SIZE=0;

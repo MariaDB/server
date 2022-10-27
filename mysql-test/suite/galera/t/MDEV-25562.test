@@ -1,0 +1,11 @@
+#
+# MDEV-25562 Assertion `pause_seqno_.is_undefined() == false' failed in void wsrep::server_state::resume()
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SET SESSION WSREP_ON=0;
+FLUSH TABLES WITH READ LOCK AND DISABLE CHECKPOINT;
+SET SESSION WSREP_ON=1;
+UNLOCK TABLES;

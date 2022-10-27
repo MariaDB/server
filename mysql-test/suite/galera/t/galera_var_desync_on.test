@@ -1,0 +1,61 @@
+#
+# Desync will be done once the global read lock is acquired and resync will be done when 
+# it is released.
+# Node should temporarily not participate in flow control
+# so even if fc_limit has been reached, the master should be able to continue to
+# commit transactions.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
+SET GLOBAL wsrep_provider_options = 'gcs.fc_limit=1';
+
+# Block the slave applier thread 
+FLUSH TABLES WITH READ LOCK;
+
+--connection node_1
+
+# Without wsrep_desync = TRUE it would not be possible to perform 10 inserts on the master with gcs.fc_limit=1
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+INSERT INTO t1 VALUES (6);
+INSERT INTO t1 VALUES (7);
+INSERT INTO t1 VALUES (8);
+INSERT INTO t1 VALUES (9);
+INSERT INTO t1 VALUES (10);
+--sleep 1
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+# No updates have arrived after the FLUSH TABLES
+SELECT COUNT(*) = 1 FROM t1;
+
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_orig';
+--enable_query_log
+UNLOCK TABLES;
+
+SET SESSION wsrep_sync_wait = 1;
+# The slave is now fully caught up
+SELECT COUNT(*) = 10 FROM t1;
+
+--connection node_1
+INSERT INTO t1 VALUES (11);
+
+--connection node_2
+# Replication continues normally
+SELECT COUNT(*) = 11 FROM t1;
+
+CALL mtr.add_suppression("Protocol violation");
+DROP TABLE t1;
+
+--connection node_1
+CALL mtr.add_suppression("Protocol violation");

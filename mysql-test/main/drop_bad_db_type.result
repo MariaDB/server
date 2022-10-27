@@ -1,0 +1,36 @@
+SET @saved_dbug = @@debug_dbug;
+SET debug_dbug='+d,unstable_db_type';
+install soname 'ha_archive';
+create table t1 (a int) engine=archive;
+insert t1 values (1),(2),(3);
+flush tables;
+uninstall soname 'ha_archive';
+select table_schema, table_name from information_schema.tables where table_name like 't1';
+table_schema	test
+table_name	t1
+select table_schema, table_name, engine, version from information_schema.tables where table_name like 't1';
+table_schema	test
+table_name	t1
+engine	ARCHIVE
+version	NULL
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'ARCHIVE'
+select table_schema, table_name, engine, row_format from information_schema.tables where table_name like 't1';
+table_schema	test
+table_name	t1
+engine	ARCHIVE
+row_format	NULL
+Warnings:
+Level	Warning
+Code	1286
+Message	Unknown storage engine 'ARCHIVE'
+install soname 'ha_archive';
+db.opt
+t1.ARZ
+t1.frm
+drop table t1;
+db.opt
+uninstall soname 'ha_archive';
+SET debug_dbug=@saved_dbug;

@@ -1,0 +1,4 @@
+-- source include/have_tokudb.inc
+
+let $engine_type=TokuDB;
+-- source suite/rpl/include/rpl_deadlock.test

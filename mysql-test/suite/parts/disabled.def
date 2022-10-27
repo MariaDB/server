@@ -1,0 +1,17 @@
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : BUG#<xxxx> <date disabled> <disabler> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+partition_value_myisam : CAST() in partitioning function is currently not supported
+partition_value_innodb : CAST() in partitioning function is currently not supported
+parts.partition_mgm_lc1_archive : MDEV-5077 2013-09-27 svoj Cannot exchange partition with archive table
+parts.partition_exchange_archive: MDEV-5077 2013-09-27 svoj Cannot exchange partition with archive table
+parts.partition_mgm_lc0_archive : MDEV-5077 2013-09-27 svoj Cannot exchange partition with archive table
+parts.partition_mgm_lc2_archive : MDEV-5077 2013-09-27 svoj Cannot exchange partition with archive table

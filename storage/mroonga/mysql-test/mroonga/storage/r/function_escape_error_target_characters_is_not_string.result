@@ -1,0 +1,3 @@
+SET NAMES UTF8;
+SELECT mroonga_escape('+-><~*()\"\\:', 29) AS escaped_query;
+ERROR HY000: Can't initialize function 'mroonga_escape'; mroonga_escape(): The 2st argument must be escape target characters as string

@@ -1,0 +1,38 @@
+source include/not_embedded.inc;
+
+#create a user with no privileges
+create user test_user@localhost;
+create role test_role1;
+grant test_role1 to test_user@localhost;
+create role test_role2;
+grant test_role2 to test_role1;
+
+use mysql;
+--sorted_result
+select * from roles_mapping;
+
+#regular user rename
+rename user 'test_user'@'localhost' to 'test_user_rm'@'newhost';
+--sorted_result
+select user, host from user where user like 'test%';
+--sorted_result
+select * from roles_mapping;
+
+######### role rename does not work yet
+#rename user 'test_role2'@'' to 'test_role2_rm'@'';
+#--sorted_result
+#select user, host from user where user like 'test%';
+#--sorted_result
+#select * from roles_mapping;
+#
+##role rename
+#rename user 'test_role1'@'' to 'test_role1_rm'@'';
+#--sorted_result
+#select user, host from user where user like 'test%';
+#--sorted_result
+#select * from roles_mapping;
+
+delete from mysql.roles_mapping;
+delete from mysql.user where user like 'test%';
+flush privileges;
+

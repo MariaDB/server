@@ -1,0 +1,5386 @@
+drop table if exists t1;
+SET @test_character_set= 'big5';
+SET @test_collation= 'big5_chinese_ci';
+SET @safe_character_set_server= @@character_set_server;
+SET @safe_collation_server= @@collation_server;
+SET @safe_character_set_client= @@character_set_client;
+SET @safe_character_set_results= @@character_set_results;
+SET character_set_server= @test_character_set;
+SET collation_server= @test_collation;
+CREATE DATABASE d1;
+USE d1;
+CREATE TABLE t1 (c CHAR(10), KEY(c));
+SHOW FULL COLUMNS FROM t1;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+c	char(10)	big5_chinese_ci	YES	MUL	NULL			
+INSERT INTO t1 VALUES ('aaa'),('aaaa'),('aaaaa');
+SELECT c as want3results FROM t1 WHERE c LIKE 'aaa%';
+want3results
+aaa
+aaaa
+aaaaa
+DROP TABLE t1;
+CREATE TABLE t1 (c1 varchar(15), KEY c1 (c1(2)));
+SHOW FULL COLUMNS FROM t1;
+Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
+c1	varchar(15)	big5_chinese_ci	YES	MUL	NULL			
+INSERT INTO t1 VALUES ('location'),('loberge'),('lotre'),('boabab');
+SELECT c1 as want3results from t1 where c1 like 'l%';
+want3results
+location
+loberge
+lotre
+SELECT c1 as want3results from t1 where c1 like 'lo%';
+want3results
+location
+loberge
+lotre
+SELECT c1 as want1result  from t1 where c1 like 'loc%';
+want1result
+location
+SELECT c1 as want1result  from t1 where c1 like 'loca%';
+want1result
+location
+SELECT c1 as want1result  from t1 where c1 like 'locat%';
+want1result
+location
+SELECT c1 as want1result  from t1 where c1 like 'locati%';
+want1result
+location
+SELECT c1 as want1result  from t1 where c1 like 'locatio%';
+want1result
+location
+SELECT c1 as want1result  from t1 where c1 like 'location%';
+want1result
+location
+DROP TABLE t1;
+create table t1 (a set('a') not null);
+insert ignore into t1 values (),();
+Warnings:
+Warning	1364	Field 'a' doesn't have a default value
+select cast(a as char(1)) from t1;
+cast(a as char(1))
+
+
+select a sounds like a from t1;
+a sounds like a
+1
+1
+select 1 from t1 order by cast(a as char(1));
+1
+1
+1
+drop table t1;
+#
+# MDEV-6134 SUBSTRING_INDEX returns wrong result for 8bit character sets when delimiter is not found
+#
+SET character_set_client=latin1;
+SET character_set_connection= @test_character_set;
+SET collation_connection= @test_collation;
+SELECT COLLATION('.'), SUBSTRING_INDEX('.wwwmysqlcom', '.', -2) AS c1;
+COLLATION('.')	c1
+big5_chinese_ci	.wwwmysqlcom
+set names utf8;
+create table t1 (
+name varchar(10),
+level smallint unsigned);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `name` varchar(10) DEFAULT NULL,
+  `level` smallint(5) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=big5
+insert into t1 values ('string',1);
+select concat(name,space(level)), concat(name, repeat(' ',level)) from t1;
+concat(name,space(level))	concat(name, repeat(' ',level))
+string 	string 
+drop table t1;
+DROP DATABASE d1;
+USE test;
+SET character_set_server= @safe_character_set_server;
+SET collation_server= @safe_collation_server;
+SET character_set_client= @safe_character_set_client;
+SET character_set_results= @safe_character_set_results;
+SET NAMES big5;
+SET collation_connection='big5_chinese_ci';
+create table t1 select repeat('a',4000) a;
+delete from t1;
+insert into t1 values ('a'), ('a '), ('a\t');
+select collation(a),hex(a) from t1 order by a;
+collation(a)	hex(a)
+big5_chinese_ci	6109
+big5_chinese_ci	61
+big5_chinese_ci	6120
+drop table t1;
+#
+# MDEV-5453 Assertion `src' fails in my_strnxfrm_unicode on GROUP BY MID(..) WITH ROLLUP
+#
+SELECT @@collation_connection;
+@@collation_connection
+big5_chinese_ci
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 GROUP BY MID(CURRENT_USER,0) WITH ROLLUP;
+i
+1
+1
+SELECT * FROM t1 GROUP BY MID('test',0) WITH ROLLUP;
+i
+1
+1
+DROP TABLE t1;
+#
+# MDEV-6170 Incorrect ordering with utf8_bin and utf8mb4_bin collations
+#
+SELECT @@collation_connection;
+@@collation_connection
+big5_chinese_ci
+CREATE TABLE t1 ENGINE=MEMORY AS SELECT REPEAT('a',5) AS a LIMIT 0;
+INSERT INTO t1 (a) VALUES ("a");
+INSERT INTO t1 (a) VALUES ("b");
+INSERT INTO t1 (a) VALUES ("c");
+INSERT INTO t1 (a) VALUES ("d");
+INSERT INTO t1 (a) VALUES ("e");
+INSERT INTO t1 (a) VALUES ("f");
+INSERT INTO t1 (a) VALUES ("g");
+INSERT INTO t1 (a) VALUES ("h");
+INSERT INTO t1 (a) VALUES ("i");
+INSERT INTO t1 (a) VALUES ("j");
+INSERT INTO t1 (a) VALUES ("k");
+INSERT INTO t1 (a) VALUES ("l");
+INSERT INTO t1 (a) VALUES ("m");
+SELECT * FROM t1 ORDER BY LOWER(a);
+a
+a
+b
+c
+d
+e
+f
+g
+h
+i
+j
+k
+l
+m
+SELECT * FROM t1 ORDER BY LOWER(a) DESC;
+a
+m
+l
+k
+j
+i
+h
+g
+f
+e
+d
+c
+b
+a
+DROP TABLE t1;
+create table t1 engine=innodb select repeat('a',50) as c1;
+alter table t1 add index(c1(5));
+insert into t1 values ('abcdefg'),('abcde100'),('abcde110'),('abcde111');
+select collation(c1) from t1 limit 1;
+collation(c1)
+big5_chinese_ci
+select c1 from t1 where c1 like 'abcdef%' order by c1;
+c1
+abcdefg
+select c1 from t1 where c1 like 'abcde1%' order by c1;
+c1
+abcde100
+abcde110
+abcde111
+select c1 from t1 where c1 like 'abcde11%' order by c1;
+c1
+abcde110
+abcde111
+select c1 from t1 where c1 like 'abcde111%' order by c1;
+c1
+abcde111
+drop table t1;
+select @@collation_connection;
+@@collation_connection
+big5_chinese_ci
+create table t1 ROW_FORMAT=DYNAMIC select repeat('a',50) as c1 ;
+insert into t1 values('abcdef');
+insert into t1 values('_bcdef');
+insert into t1 values('a_cdef');
+insert into t1 values('ab_def');
+insert into t1 values('abc_ef');
+insert into t1 values('abcd_f');
+insert into t1 values('abcde_');
+select c1 as c1u from t1 where c1 like 'ab\_def';
+c1u
+ab_def
+select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
+c2h
+ab_def
+drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+big5_chinese_ci
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
+CREATE TABLE t1 AS
+SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
+ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
+INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+SELECT hex(concat(repeat(0xF1F2, 10), '%'));
+hex(concat(repeat(0xF1F2, 10), '%'))
+F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
+3 rows expected
+SELECT a, hex(b), c FROM t1 WHERE b LIKE concat(repeat(0xF1F2,10), '%');
+a	hex(b)	c
+2	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+DROP TABLE t1;
+drop table if exists t1;
+create table t1 select repeat('a',10) as c1;
+delete from t1;
+insert into t1 values (0x20),(0x21),(0x22),(0x23),(0x24),(0x25),(0x26),(0x27),(0x28),(0x29),(0x2A),(0x2B),(0x2C),(0x2D),(0x2E),(0x2F);
+insert into t1 values (0x30),(0x31),(0x32),(0x33),(0x34),(0x35),(0x36),(0x37),(0x38),(0x39),(0x3A),(0x3B),(0x3C),(0x3D),(0x3E),(0x3F);
+insert into t1 values (0x40),(0x41),(0x42),(0x43),(0x44),(0x45),(0x46),(0x47),(0x48),(0x49),(0x4A),(0x4B),(0x4C),(0x4D),(0x4E),(0x4F);
+insert into t1 values (0x50),(0x51),(0x52),(0x53),(0x54),(0x55),(0x56),(0x57),(0x58),(0x59),(0x5A),(0x5B),(0x5C),(0x5D),(0x5E),(0x5F);
+insert into t1 values (0x60),(0x61),(0x62),(0x63),(0x64),(0x65),(0x66),(0x67),(0x68),(0x69),(0x6A),(0x6B),(0x6C),(0x6D),(0x6E),(0x6F);
+insert into t1 values (0x70),(0x71),(0x72),(0x73),(0x74),(0x75),(0x76),(0x77),(0x78),(0x79),(0x7A),(0x7B),(0x7C),(0x7D),(0x7E),(0x7F);
+SELECT GROUP_CONCAT(c1 ORDER BY binary c1 SEPARATOR ''), GROUP_CONCAT(hex(c1) ORDER BY BINARY c1) FROM t1 GROUP BY c1;
+GROUP_CONCAT(c1 ORDER BY binary c1 SEPARATOR '')	GROUP_CONCAT(hex(c1) ORDER BY BINARY c1)
+ 	20
+!	21
+"	22
+#	23
+$	24
+%	25
+&	26
+'	27
+(	28
+)	29
+*	2A
++	2B
+,	2C
+-	2D
+.	2E
+/	2F
+0	30
+1	31
+2	32
+3	33
+4	34
+5	35
+6	36
+7	37
+8	38
+9	39
+:	3A
+;	3B
+<	3C
+=	3D
+>	3E
+?	3F
+@	40
+Aa	41,61
+Bb	42,62
+Cc	43,63
+Dd	44,64
+E`e	45,60,65
+Ff	46,66
+Gg	47,67
+Hh	48,68
+Ii	49,69
+Jj	4A,6A
+Kk	4B,6B
+Ll	4C,6C
+Mm	4D,6D
+Nn	4E,6E
+Oo	4F,6F
+Pp	50,70
+Qq	51,71
+Rr	52,72
+Ss	53,73
+Tt	54,74
+Uu	55,75
+Vv	56,76
+Ww	57,77
+Xx	58,78
+Yy~	59,79,7E
+Zz	5A,7A
+]	5D
+[	5B
+\	5C
+^	5E
+_	5F
+{	7B
+|	7C
+}	7D
+	7F
+drop table t1;
+SELECT strcmp('a','a '),   strcmp('a ','a');
+strcmp('a','a ')	strcmp('a ','a')
+0	0
+SELECT strcmp('a\0','a' ), strcmp('a','a\0');
+strcmp('a\0','a' )	strcmp('a','a\0')
+-1	1
+SELECT strcmp('a\0','a '), strcmp('a ','a\0');
+strcmp('a\0','a ')	strcmp('a ','a\0')
+-1	1
+SELECT strcmp('a\t','a' ), strcmp('a', 'a\t');
+strcmp('a\t','a' )	strcmp('a', 'a\t')
+-1	1
+SELECT strcmp('a\t','a '), strcmp('a ', 'a\t');
+strcmp('a\t','a ')	strcmp('a ', 'a\t')
+-1	1
+SET collation_connection='big5_bin';
+create table t1 select repeat('a',4000) a;
+delete from t1;
+insert into t1 values ('a'), ('a '), ('a\t');
+select collation(a),hex(a) from t1 order by a;
+collation(a)	hex(a)
+big5_bin	6109
+big5_bin	61
+big5_bin	6120
+drop table t1;
+#
+# MDEV-5453 Assertion `src' fails in my_strnxfrm_unicode on GROUP BY MID(..) WITH ROLLUP
+#
+SELECT @@collation_connection;
+@@collation_connection
+big5_bin
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 GROUP BY MID(CURRENT_USER,0) WITH ROLLUP;
+i
+1
+1
+SELECT * FROM t1 GROUP BY MID('test',0) WITH ROLLUP;
+i
+1
+1
+DROP TABLE t1;
+#
+# MDEV-6170 Incorrect ordering with utf8_bin and utf8mb4_bin collations
+#
+SELECT @@collation_connection;
+@@collation_connection
+big5_bin
+CREATE TABLE t1 ENGINE=MEMORY AS SELECT REPEAT('a',5) AS a LIMIT 0;
+INSERT INTO t1 (a) VALUES ("a");
+INSERT INTO t1 (a) VALUES ("b");
+INSERT INTO t1 (a) VALUES ("c");
+INSERT INTO t1 (a) VALUES ("d");
+INSERT INTO t1 (a) VALUES ("e");
+INSERT INTO t1 (a) VALUES ("f");
+INSERT INTO t1 (a) VALUES ("g");
+INSERT INTO t1 (a) VALUES ("h");
+INSERT INTO t1 (a) VALUES ("i");
+INSERT INTO t1 (a) VALUES ("j");
+INSERT INTO t1 (a) VALUES ("k");
+INSERT INTO t1 (a) VALUES ("l");
+INSERT INTO t1 (a) VALUES ("m");
+SELECT * FROM t1 ORDER BY LOWER(a);
+a
+a
+b
+c
+d
+e
+f
+g
+h
+i
+j
+k
+l
+m
+SELECT * FROM t1 ORDER BY LOWER(a) DESC;
+a
+m
+l
+k
+j
+i
+h
+g
+f
+e
+d
+c
+b
+a
+DROP TABLE t1;
+create table t1 engine=innodb select repeat('a',50) as c1;
+alter table t1 add index(c1(5));
+insert into t1 values ('abcdefg'),('abcde100'),('abcde110'),('abcde111');
+select collation(c1) from t1 limit 1;
+collation(c1)
+big5_bin
+select c1 from t1 where c1 like 'abcdef%' order by c1;
+c1
+abcdefg
+select c1 from t1 where c1 like 'abcde1%' order by c1;
+c1
+abcde100
+abcde110
+abcde111
+select c1 from t1 where c1 like 'abcde11%' order by c1;
+c1
+abcde110
+abcde111
+select c1 from t1 where c1 like 'abcde111%' order by c1;
+c1
+abcde111
+drop table t1;
+select @@collation_connection;
+@@collation_connection
+big5_bin
+create table t1 ROW_FORMAT=DYNAMIC select repeat('a',50) as c1 ;
+insert into t1 values('abcdef');
+insert into t1 values('_bcdef');
+insert into t1 values('a_cdef');
+insert into t1 values('ab_def');
+insert into t1 values('abc_ef');
+insert into t1 values('abcd_f');
+insert into t1 values('abcde_');
+select c1 as c1u from t1 where c1 like 'ab\_def';
+c1u
+ab_def
+select c1 as c2h from t1 where c1 like 'ab#_def' escape '#';
+c2h
+ab_def
+drop table t1;
+SELECT @@collation_connection;
+@@collation_connection
+big5_bin
+SELECT '\%b' LIKE '%\%';
+'\%b' LIKE '%\%'
+0
+CREATE TABLE t1 AS
+SELECT 10 AS a, REPEAT('a',20) AS b, REPEAT('a',8) AS c, REPEAT('a',8) AS d;
+ALTER TABLE t1 ADD PRIMARY KEY(a), ADD KEY(b);
+INSERT INTO t1 (a, b) VALUES (1, repeat(0xF1F2,5));
+INSERT INTO t1 (a, b) VALUES (2, repeat(0xF1F2,10));
+INSERT INTO t1 (a, b) VALUES (3, repeat(0xF1F2,11));
+INSERT INTO t1 (a, b) VALUES (4, repeat(0xF1F2,12));
+SELECT hex(concat(repeat(0xF1F2, 10), '%'));
+hex(concat(repeat(0xF1F2, 10), '%'))
+F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F225
+3 rows expected
+SELECT a, hex(b), c FROM t1 WHERE b LIKE concat(repeat(0xF1F2,10), '%');
+a	hex(b)	c
+2	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
+DROP TABLE t1;
+SELECT strcmp('a','a '),   strcmp('a ','a');
+strcmp('a','a ')	strcmp('a ','a')
+0	0
+SELECT strcmp('a\0','a' ), strcmp('a','a\0');
+strcmp('a\0','a' )	strcmp('a','a\0')
+-1	1
+SELECT strcmp('a\0','a '), strcmp('a ','a\0');
+strcmp('a\0','a ')	strcmp('a ','a\0')
+-1	1
+SELECT strcmp('a\t','a' ), strcmp('a', 'a\t');
+strcmp('a\t','a' )	strcmp('a', 'a\t')
+-1	1
+SELECT strcmp('a\t','a '), strcmp('a ', 'a\t');
+strcmp('a\t','a ')	strcmp('a ', 'a\t')
+-1	1
+SET NAMES big5;
+CREATE TABLE t1 (a text) character set big5;
+INSERT INTO t1 VALUES ('��');
+SELECT * FROM t1;
+a
+��
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(50) CHARACTER SET big5 NOT NULL, FULLTEXT(a));
+INSERT INTO t1 VALUES(0xA741ADCCA66EB6DC20A7DAADCCABDCA66E);
+SELECT HEX(a) FROM t1 WHERE MATCH(a) AGAINST (0xA741ADCCA66EB6DC IN BOOLEAN MODE);
+HEX(a)
+A741ADCCA66EB6DC20A7DAADCCABDCA66E
+DROP TABLE t1;
+set names big5;
+create table t1 (a char character set big5);
+insert into t1 values (0xF9D6),(0xF9D7),(0xF9D8),(0xF9D9);
+insert into t1 values (0xF9DA),(0xF9DB),(0xF9DC);
+select hex(a) a, hex(@u:=convert(a using utf8)) b,
+hex(convert(@u using big5)) c from t1 order by a;
+a	b	c
+F9D6	E7A281	F9D6
+F9D7	E98AB9	F9D7
+F9D8	E8A38F	F9D8
+F9D9	E5A2BB	F9D9
+F9DA	E68192	F9DA
+F9DB	E7B2A7	F9DB
+F9DC	E5ABBA	F9DC
+alter table t1 convert to character set utf8;
+select hex(a) from t1 where a = _big5 0xF9DC;
+hex(a)
+E5ABBA
+drop table t1;
+select hex(convert(_big5 0xC84041 using ucs2));
+hex(convert(_big5 0xC84041 using ucs2))
+003F0041
+Warnings:
+Warning	1977	Cannot convert 'big5' character 0xC840 to 'ucs2'
+End of 4.1 tests
+set names big5;
+create table t1 (a blob);
+insert into t1 values (0xEE00);
+select * into outfile 'test/t1.txt' from t1;
+delete from t1;
+select hex(load_file('MYSQLD_DATADIR/test/t1.txt'));;
+hex(load_file('MYSQLD_DATADIR/test/t1.txt'))
+5CEE5C300A
+load data infile 't1.txt' into table t1;
+select hex(a) from t1;
+hex(a)
+EE00
+drop table t1;
+End of 5.0 tests
+#
+# Start of 5.5 tests
+#
+#
+# Testing WL#4583 Case conversion in Asian character sets 
+#
+SET NAMES utf8;
+SET collation_connection=big5_chinese_ci;
+CREATE TABLE t1 (b VARCHAR(2));
+INSERT INTO t1 VALUES ('0'),('1'),('2'),('3'),('4'),('5'),('6'),('7');
+INSERT INTO t1 VALUES ('8'),('9'),('A'),('B'),('C'),('D'),('E'),('F');
+CREATE TEMPORARY TABLE head AS SELECT concat(b1.b, b2.b) AS head FROM t1 b1, t1 b2;
+CREATE TEMPORARY TABLE tail AS SELECT concat(b1.b, b2.b) AS tail FROM t1 b1, t1 b2;
+DROP TABLE t1;
+CREATE TABLE t1 AS
+SELECT concat(head, tail) AS code, ' ' AS a
+FROM head, tail
+WHERE (head BETWEEN '80' AND 'FF') AND (tail BETWEEN '20' AND 'FF')
+ORDER BY head, tail;
+DROP TEMPORARY TABLE head, tail;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `code` varchar(8) DEFAULT NULL,
+  `a` varchar(1) CHARACTER SET big5 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+28672
+UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
+Warnings:
+Warning	1366	Incorrect string value: '\x80 ' for column `test`.`t1`.`a` at row 1
+Warning	1366	Incorrect string value: '\x80!' for column `test`.`t1`.`a` at row 2
+Warning	1366	Incorrect string value: '\x80"' for column `test`.`t1`.`a` at row 3
+Warning	1366	Incorrect string value: '\x80#' for column `test`.`t1`.`a` at row 4
+Warning	1366	Incorrect string value: '\x80$' for column `test`.`t1`.`a` at row 5
+Warning	1366	Incorrect string value: '\x80%' for column `test`.`t1`.`a` at row 6
+Warning	1366	Incorrect string value: '\x80&' for column `test`.`t1`.`a` at row 7
+Warning	1366	Incorrect string value: '\x80'' for column `test`.`t1`.`a` at row 8
+Warning	1366	Incorrect string value: '\x80(' for column `test`.`t1`.`a` at row 9
+Warning	1366	Incorrect string value: '\x80)' for column `test`.`t1`.`a` at row 10
+Warning	1366	Incorrect string value: '\x80*' for column `test`.`t1`.`a` at row 11
+Warning	1366	Incorrect string value: '\x80+' for column `test`.`t1`.`a` at row 12
+Warning	1366	Incorrect string value: '\x80,' for column `test`.`t1`.`a` at row 13
+Warning	1366	Incorrect string value: '\x80-' for column `test`.`t1`.`a` at row 14
+Warning	1366	Incorrect string value: '\x80.' for column `test`.`t1`.`a` at row 15
+Warning	1366	Incorrect string value: '\x80/' for column `test`.`t1`.`a` at row 16
+Warning	1366	Incorrect string value: '\x800' for column `test`.`t1`.`a` at row 17
+Warning	1366	Incorrect string value: '\x801' for column `test`.`t1`.`a` at row 18
+Warning	1366	Incorrect string value: '\x802' for column `test`.`t1`.`a` at row 19
+Warning	1366	Incorrect string value: '\x803' for column `test`.`t1`.`a` at row 20
+Warning	1366	Incorrect string value: '\x804' for column `test`.`t1`.`a` at row 21
+Warning	1366	Incorrect string value: '\x805' for column `test`.`t1`.`a` at row 22
+Warning	1366	Incorrect string value: '\x806' for column `test`.`t1`.`a` at row 23
+Warning	1366	Incorrect string value: '\x807' for column `test`.`t1`.`a` at row 24
+Warning	1366	Incorrect string value: '\x808' for column `test`.`t1`.`a` at row 25
+Warning	1366	Incorrect string value: '\x809' for column `test`.`t1`.`a` at row 26
+Warning	1366	Incorrect string value: '\x80:' for column `test`.`t1`.`a` at row 27
+Warning	1366	Incorrect string value: '\x80;' for column `test`.`t1`.`a` at row 28
+Warning	1366	Incorrect string value: '\x80<' for column `test`.`t1`.`a` at row 29
+Warning	1366	Incorrect string value: '\x80=' for column `test`.`t1`.`a` at row 30
+Warning	1366	Incorrect string value: '\x80>' for column `test`.`t1`.`a` at row 31
+Warning	1366	Incorrect string value: '\x80?' for column `test`.`t1`.`a` at row 32
+Warning	1366	Incorrect string value: '\x80@' for column `test`.`t1`.`a` at row 33
+Warning	1366	Incorrect string value: '\x80A' for column `test`.`t1`.`a` at row 34
+Warning	1366	Incorrect string value: '\x80B' for column `test`.`t1`.`a` at row 35
+Warning	1366	Incorrect string value: '\x80C' for column `test`.`t1`.`a` at row 36
+Warning	1366	Incorrect string value: '\x80D' for column `test`.`t1`.`a` at row 37
+Warning	1366	Incorrect string value: '\x80E' for column `test`.`t1`.`a` at row 38
+Warning	1366	Incorrect string value: '\x80F' for column `test`.`t1`.`a` at row 39
+Warning	1366	Incorrect string value: '\x80G' for column `test`.`t1`.`a` at row 40
+Warning	1366	Incorrect string value: '\x80H' for column `test`.`t1`.`a` at row 41
+Warning	1366	Incorrect string value: '\x80I' for column `test`.`t1`.`a` at row 42
+Warning	1366	Incorrect string value: '\x80J' for column `test`.`t1`.`a` at row 43
+Warning	1366	Incorrect string value: '\x80K' for column `test`.`t1`.`a` at row 44
+Warning	1366	Incorrect string value: '\x80L' for column `test`.`t1`.`a` at row 45
+Warning	1366	Incorrect string value: '\x80M' for column `test`.`t1`.`a` at row 46
+Warning	1366	Incorrect string value: '\x80N' for column `test`.`t1`.`a` at row 47
+Warning	1366	Incorrect string value: '\x80O' for column `test`.`t1`.`a` at row 48
+Warning	1366	Incorrect string value: '\x80P' for column `test`.`t1`.`a` at row 49
+Warning	1366	Incorrect string value: '\x80Q' for column `test`.`t1`.`a` at row 50
+Warning	1366	Incorrect string value: '\x80R' for column `test`.`t1`.`a` at row 51
+Warning	1366	Incorrect string value: '\x80S' for column `test`.`t1`.`a` at row 52
+Warning	1366	Incorrect string value: '\x80T' for column `test`.`t1`.`a` at row 53
+Warning	1366	Incorrect string value: '\x80U' for column `test`.`t1`.`a` at row 54
+Warning	1366	Incorrect string value: '\x80V' for column `test`.`t1`.`a` at row 55
+Warning	1366	Incorrect string value: '\x80W' for column `test`.`t1`.`a` at row 56
+Warning	1366	Incorrect string value: '\x80X' for column `test`.`t1`.`a` at row 57
+Warning	1366	Incorrect string value: '\x80Y' for column `test`.`t1`.`a` at row 58
+Warning	1366	Incorrect string value: '\x80Z' for column `test`.`t1`.`a` at row 59
+Warning	1366	Incorrect string value: '\x80[' for column `test`.`t1`.`a` at row 60
+Warning	1366	Incorrect string value: '\x80\' for column `test`.`t1`.`a` at row 61
+Warning	1366	Incorrect string value: '\x80]' for column `test`.`t1`.`a` at row 62
+Warning	1366	Incorrect string value: '\x80^' for column `test`.`t1`.`a` at row 63
+Warning	1366	Incorrect string value: '\x80_' for column `test`.`t1`.`a` at row 64
+SELECT COUNT(*) FROM t1 WHERE a<>'?';
+COUNT(*)
+13973
+SELECT code, hex(upper(a)), hex(lower(a)),a, upper(a), lower(a) FROM t1 WHERE hex(a)<>hex(upper(a)) OR hex(a)<>hex(lower(a));
+code	hex(upper(a))	hex(lower(a))	a	upper(a)	lower(a)
+A2CF	A2CF	A2E9	Ａ	Ａ	ａ
+A2D0	A2D0	A2EA	Ｂ	Ｂ	ｂ
+A2D1	A2D1	A2EB	Ｃ	Ｃ	ｃ
+A2D2	A2D2	A2EC	Ｄ	Ｄ	ｄ
+A2D3	A2D3	A2ED	Ｅ	Ｅ	ｅ
+A2D4	A2D4	A2EE	Ｆ	Ｆ	ｆ
+A2D5	A2D5	A2EF	Ｇ	Ｇ	ｇ
+A2D6	A2D6	A2F0	Ｈ	Ｈ	ｈ
+A2D7	A2D7	A2F1	Ｉ	Ｉ	ｉ
+A2D8	A2D8	A2F2	Ｊ	Ｊ	ｊ
+A2D9	A2D9	A2F3	Ｋ	Ｋ	ｋ
+A2DA	A2DA	A2F4	Ｌ	Ｌ	ｌ
+A2DB	A2DB	A2F5	Ｍ	Ｍ	ｍ
+A2DC	A2DC	A2F6	Ｎ	Ｎ	ｎ
+A2DD	A2DD	A2F7	Ｏ	Ｏ	ｏ
+A2DE	A2DE	A2F8	Ｐ	Ｐ	ｐ
+A2DF	A2DF	A2F9	Ｑ	Ｑ	ｑ
+A2E0	A2E0	A2FA	Ｒ	Ｒ	ｒ
+A2E1	A2E1	A2FB	Ｓ	Ｓ	ｓ
+A2E2	A2E2	A2FC	Ｔ	Ｔ	ｔ
+A2E3	A2E3	A2FD	Ｕ	Ｕ	ｕ
+A2E4	A2E4	A2FE	Ｖ	Ｖ	ｖ
+A2E5	A2E5	A340	Ｗ	Ｗ	ｗ
+A2E6	A2E6	A341	Ｘ	Ｘ	ｘ
+A2E7	A2E7	A342	Ｙ	Ｙ	ｙ
+A2E8	A2E8	A343	Ｚ	Ｚ	ｚ
+A2E9	A2CF	A2E9	ａ	Ａ	ａ
+A2EA	A2D0	A2EA	ｂ	Ｂ	ｂ
+A2EB	A2D1	A2EB	ｃ	Ｃ	ｃ
+A2EC	A2D2	A2EC	ｄ	Ｄ	ｄ
+A2ED	A2D3	A2ED	ｅ	Ｅ	ｅ
+A2EE	A2D4	A2EE	ｆ	Ｆ	ｆ
+A2EF	A2D5	A2EF	ｇ	Ｇ	ｇ
+A2F0	A2D6	A2F0	ｈ	Ｈ	ｈ
+A2F1	A2D7	A2F1	ｉ	Ｉ	ｉ
+A2F2	A2D8	A2F2	ｊ	Ｊ	ｊ
+A2F3	A2D9	A2F3	ｋ	Ｋ	ｋ
+A2F4	A2DA	A2F4	ｌ	Ｌ	ｌ
+A2F5	A2DB	A2F5	ｍ	Ｍ	ｍ
+A2F6	A2DC	A2F6	ｎ	Ｎ	ｎ
+A2F7	A2DD	A2F7	ｏ	Ｏ	ｏ
+A2F8	A2DE	A2F8	ｐ	Ｐ	ｐ
+A2F9	A2DF	A2F9	ｑ	Ｑ	ｑ
+A2FA	A2E0	A2FA	ｒ	Ｒ	ｒ
+A2FB	A2E1	A2FB	ｓ	Ｓ	ｓ
+A2FC	A2E2	A2FC	ｔ	Ｔ	ｔ
+A2FD	A2E3	A2FD	ｕ	Ｕ	ｕ
+A2FE	A2E4	A2FE	ｖ	Ｖ	ｖ
+A340	A2E5	A340	ｗ	Ｗ	ｗ
+A341	A2E6	A341	ｘ	Ｘ	ｘ
+A342	A2E7	A342	ｙ	Ｙ	ｙ
+A343	A2E8	A343	ｚ	Ｚ	ｚ
+A344	A344	A35C	Α	Α	α
+A345	A345	A35D	Β	Β	β
+A346	A346	A35E	Γ	Γ	γ
+A347	A347	A35F	Δ	Δ	δ
+A348	A348	A360	Ε	Ε	ε
+A349	A349	A361	Ζ	Ζ	ζ
+A34A	A34A	A362	Η	Η	η
+A34B	A34B	A363	Θ	Θ	θ
+A34C	A34C	A364	Ι	Ι	ι
+A34D	A34D	A365	Κ	Κ	κ
+A34E	A34E	A366	Λ	Λ	λ
+A34F	A34F	A367	Μ	Μ	μ
+A350	A350	A368	Ν	Ν	ν
+A351	A351	A369	Ξ	Ξ	ξ
+A352	A352	A36A	Ο	Ο	ο
+A353	A353	A36B	Π	Π	π
+A354	A354	A36C	Ρ	Ρ	ρ
+A355	A355	A36D	Σ	Σ	σ
+A356	A356	A36E	Τ	Τ	τ
+A357	A357	A36F	Υ	Υ	υ
+A358	A358	A370	Φ	Φ	φ
+A359	A359	A371	Χ	Χ	χ
+A35A	A35A	A372	Ψ	Ψ	ψ
+A35B	A35B	A373	Ω	Ω	ω
+A35C	A344	A35C	α	Α	α
+A35D	A345	A35D	β	Β	β
+A35E	A346	A35E	γ	Γ	γ
+A35F	A347	A35F	δ	Δ	δ
+A360	A348	A360	ε	Ε	ε
+A361	A349	A361	ζ	Ζ	ζ
+A362	A34A	A362	η	Η	η
+A363	A34B	A363	θ	Θ	θ
+A364	A34C	A364	ι	Ι	ι
+A365	A34D	A365	κ	Κ	κ
+A366	A34E	A366	λ	Λ	λ
+A367	A34F	A367	μ	Μ	μ
+A368	A350	A368	ν	Ν	ν
+A369	A351	A369	ξ	Ξ	ξ
+A36A	A352	A36A	ο	Ο	ο
+A36B	A353	A36B	π	Π	π
+A36C	A354	A36C	ρ	Ρ	ρ
+A36D	A355	A36D	σ	Σ	σ
+A36E	A356	A36E	τ	Τ	τ
+A36F	A357	A36F	υ	Υ	υ
+A370	A358	A370	φ	Φ	φ
+A371	A359	A371	χ	Χ	χ
+A372	A35A	A372	ψ	Ψ	ψ
+A373	A35B	A373	ω	Ω	ω
+C7B1	C7B1	C7CC	Д	Д	д
+C7B2	C7B2	C7CD	Е	Е	е
+C7B3	C7B3	C7CE	Ё	Ё	ё
+C7B4	C7B4	C7CF	Ж	Ж	ж
+C7B5	C7B5	C7D0	З	З	з
+C7B6	C7B6	C7D1	И	И	и
+C7B7	C7B7	C7D2	Й	Й	й
+C7B8	C7B8	C7D3	К	К	к
+C7B9	C7B9	C7D4	Л	Л	л
+C7BA	C7BA	C7D5	М	М	м
+C7BB	C7BB	C7DC	У	У	у
+C7BC	C7BC	C7DD	Ф	Ф	ф
+C7BD	C7BD	C7DE	Х	Х	х
+C7BE	C7BE	C7DF	Ц	Ц	ц
+C7BF	C7BF	C7E0	Ч	Ч	ч
+C7C0	C7C0	C7E1	Ш	Ш	ш
+C7C1	C7C1	C7E2	Щ	Щ	щ
+C7C2	C7C2	C7E3	Ъ	Ъ	ъ
+C7C3	C7C3	C7E4	Ы	Ы	ы
+C7C4	C7C4	C7E5	Ь	Ь	ь
+C7C5	C7C5	C7E6	Э	Э	э
+C7C6	C7C6	C7E7	Ю	Ю	ю
+C7C7	C7C7	C7E8	Я	Я	я
+C7CC	C7B1	C7CC	д	Д	д
+C7CD	C7B2	C7CD	е	Е	е
+C7CE	C7B3	C7CE	ё	Ё	ё
+C7CF	C7B4	C7CF	ж	Ж	ж
+C7D0	C7B5	C7D0	з	З	з
+C7D1	C7B6	C7D1	и	И	и
+C7D2	C7B7	C7D2	й	Й	й
+C7D3	C7B8	C7D3	к	К	к
+C7D4	C7B9	C7D4	л	Л	л
+C7D5	C7BA	C7D5	м	М	м
+C7DC	C7BB	C7DC	у	У	у
+C7DD	C7BC	C7DD	ф	Ф	ф
+C7DE	C7BD	C7DE	х	Х	х
+C7DF	C7BE	C7DF	ц	Ц	ц
+C7E0	C7BF	C7E0	ч	Ч	ч
+C7E1	C7C0	C7E1	ш	Ш	ш
+C7E2	C7C1	C7E2	щ	Щ	щ
+C7E3	C7C2	C7E3	ъ	Ъ	ъ
+C7E4	C7C3	C7E4	ы	Ы	ы
+C7E5	C7C4	C7E5	ь	Ь	ь
+C7E6	C7C5	C7E6	э	Э	э
+C7E7	C7C6	C7E7	ю	Ю	ю
+C7E8	C7C7	C7E8	я	Я	я
+SELECT * FROM t1
+WHERE HEX(CAST(LOWER(a) AS CHAR CHARACTER SET utf8)) <>
+HEX(LOWER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
+code	a
+A2B9	Ⅰ
+A2BA	Ⅱ
+A2BB	Ⅲ
+A2BC	Ⅳ
+A2BD	Ⅴ
+A2BE	Ⅵ
+A2BF	Ⅶ
+A2C0	Ⅷ
+A2C1	Ⅸ
+A2C2	Ⅹ
+Warnings:
+Warning	1977	Cannot convert 'big5' character 0xA3C0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DF to 'utf8'
+SELECT * FROM t1
+WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
+HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
+code	a
+C7C8	а
+C7C9	б
+C7CA	в
+C7CB	г
+C7D6	н
+C7D7	о
+C7D8	п
+C7D9	р
+C7DA	с
+C7DB	т
+Warnings:
+Warning	1977	Cannot convert 'big5' character 0xA3C0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3C9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3CF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D0 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D1 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D2 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D3 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D4 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D5 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D6 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D7 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D8 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3D9 to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DA to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DB to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DC to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DD to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DE to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DF to 'utf8'
+Warning	1977	Cannot convert 'big5' character 0xA3DF to 'utf8'
+DROP TABLE t1;
+#
+# End of 5.5 tests
+#
+#
+# Start of 5.6 tests
+#
+#
+# WL#3664 WEIGHT_STRING
+#
+set names big5;
+select @@collation_connection;
+@@collation_connection
+big5_chinese_ci
+CREATE TABLE t1 AS SELECT 'a' AS a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(1) CHARACTER SET big5 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ws` varbinary(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT HEX(WEIGHT_STRING(a)) FROM t1;
+HEX(WEIGHT_STRING(a))
+41
+SELECT HEX(ws) FROM t2;
+HEX(ws)
+41
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(5) CHARACTER SET big5 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ws` varbinary(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT HEX(WEIGHT_STRING(a)) FROM t1;
+HEX(WEIGHT_STRING(a))
+4141414141
+SELECT HEX(ws) FROM t2;
+HEX(ws)
+4141414141
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT WEIGHT_STRING(a AS CHAR(3)) AS ws FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ws` varbinary(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
+HEX(WEIGHT_STRING(a AS CHAR(3)))
+414141
+SELECT HEX(ws) FROM t2;
+HEX(ws)
+414141
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT WEIGHT_STRING(a AS CHAR(10)) AS ws FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ws` varbinary(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
+HEX(WEIGHT_STRING(a AS CHAR(10)))
+41414141412020202020
+SELECT HEX(ws) FROM t2;
+HEX(ws)
+41414141412020202020
+DROP TABLE t2;
+DROP TABLE t1;
+select hex(weight_string('a'));
+hex(weight_string('a'))
+41
+select hex(weight_string('A'));
+hex(weight_string('A'))
+41
+select hex(weight_string('abc'));
+hex(weight_string('abc'))
+414243
+select hex(weight_string('abc' as char(2)));
+hex(weight_string('abc' as char(2)))
+4142
+select hex(weight_string('abc' as char(3)));
+hex(weight_string('abc' as char(3)))
+414243
+select hex(weight_string('abc' as char(5)));
+hex(weight_string('abc' as char(5)))
+4142432020
+select hex(weight_string('abc', 1, 2, 0xC0));
+hex(weight_string('abc', 1, 2, 0xC0))
+41
+select hex(weight_string('abc', 2, 2, 0xC0));
+hex(weight_string('abc', 2, 2, 0xC0))
+4142
+select hex(weight_string('abc', 3, 2, 0xC0));
+hex(weight_string('abc', 3, 2, 0xC0))
+414220
+select hex(weight_string('abc', 4, 2, 0xC0));
+hex(weight_string('abc', 4, 2, 0xC0))
+41422020
+select hex(weight_string('abc', 5, 2, 0xC0));
+hex(weight_string('abc', 5, 2, 0xC0))
+4142202020
+select hex(weight_string('abc',25, 2, 0xC0));
+hex(weight_string('abc',25, 2, 0xC0))
+41422020202020202020202020202020202020202020202020
+select hex(weight_string('abc', 1, 3, 0xC0));
+hex(weight_string('abc', 1, 3, 0xC0))
+41
+select hex(weight_string('abc', 2, 3, 0xC0));
+hex(weight_string('abc', 2, 3, 0xC0))
+4142
+select hex(weight_string('abc', 3, 3, 0xC0));
+hex(weight_string('abc', 3, 3, 0xC0))
+414243
+select hex(weight_string('abc', 4, 3, 0xC0));
+hex(weight_string('abc', 4, 3, 0xC0))
+41424320
+select hex(weight_string('abc', 5, 3, 0xC0));
+hex(weight_string('abc', 5, 3, 0xC0))
+4142432020
+select hex(weight_string('abc',25, 3, 0xC0));
+hex(weight_string('abc',25, 3, 0xC0))
+41424320202020202020202020202020202020202020202020
+select hex(weight_string('abc', 1, 4, 0xC0));
+hex(weight_string('abc', 1, 4, 0xC0))
+41
+select hex(weight_string('abc', 2, 4, 0xC0));
+hex(weight_string('abc', 2, 4, 0xC0))
+4142
+select hex(weight_string('abc', 3, 4, 0xC0));
+hex(weight_string('abc', 3, 4, 0xC0))
+414243
+select hex(weight_string('abc', 4, 4, 0xC0));
+hex(weight_string('abc', 4, 4, 0xC0))
+41424320
+select hex(weight_string('abc', 5, 4, 0xC0));
+hex(weight_string('abc', 5, 4, 0xC0))
+4142432020
+select hex(weight_string('abc',25, 4, 0xC0));
+hex(weight_string('abc',25, 4, 0xC0))
+41424320202020202020202020202020202020202020202020
+select @@collation_connection;
+@@collation_connection
+big5_chinese_ci
+select hex(weight_string('a' LEVEL 1));
+hex(weight_string('a' LEVEL 1))
+41
+select hex(weight_string('A' LEVEL 1));
+hex(weight_string('A' LEVEL 1))
+41
+select hex(weight_string('abc' LEVEL 1));
+hex(weight_string('abc' LEVEL 1))
+414243
+select hex(weight_string('abc' as char(2) LEVEL 1));
+hex(weight_string('abc' as char(2) LEVEL 1))
+4142
+select hex(weight_string('abc' as char(3) LEVEL 1));
+hex(weight_string('abc' as char(3) LEVEL 1))
+414243
+select hex(weight_string('abc' as char(5) LEVEL 1));
+hex(weight_string('abc' as char(5) LEVEL 1))
+4142432020
+select hex(weight_string('abc' as char(5) LEVEL 1 REVERSE));
+hex(weight_string('abc' as char(5) LEVEL 1 REVERSE))
+2020434241
+select hex(weight_string('abc' as char(5) LEVEL 1 DESC));
+hex(weight_string('abc' as char(5) LEVEL 1 DESC))
+BEBDBCDFDF
+select hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE));
+hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE))
+DFDFBCBDBE
+select collation(cast(0xA1A1 as char));
+collation(cast(0xA1A1 as char))
+big5_chinese_ci
+select hex(weight_string(cast(0x6141 as char)));
+hex(weight_string(cast(0x6141 as char)))
+4141
+select hex(weight_string(cast(0xA1A1 as char)));
+hex(weight_string(cast(0xA1A1 as char)))
+A140
+select hex(weight_string(cast(0xA1A1 as char) as char(1)));
+hex(weight_string(cast(0xA1A1 as char) as char(1)))
+A140
+select hex(weight_string(cast(0xA1A1A1A1 as char) as char(1)));
+hex(weight_string(cast(0xA1A1A1A1 as char) as char(1)))
+A140
+select hex(weight_string(cast(0xA1A1 as char) as char(3)));
+hex(weight_string(cast(0xA1A1 as char) as char(3)))
+A1402020
+select hex(weight_string(cast(0xA1A1A1A1 as char) as char(3)));
+hex(weight_string(cast(0xA1A1A1A1 as char) as char(3)))
+A140A14020
+select hex(weight_string(cast(0x40A1A1 as char) as char(3)));
+hex(weight_string(cast(0x40A1A1 as char) as char(3)))
+40A14020
+select hex(weight_string(cast(0x40A1A1A1A1 as char) as char(3)));
+hex(weight_string(cast(0x40A1A1A1A1 as char) as char(3)))
+40A140A140
+select hex(weight_string(cast(0x40A1A1A1A1A1A1 as char) as char(3)));
+hex(weight_string(cast(0x40A1A1A1A1A1A1 as char) as char(3)))
+40A140A140
+select hex(weight_string(cast(0x4040A1A1A1A1A1A1 as char) as char(3)));
+hex(weight_string(cast(0x4040A1A1A1A1A1A1 as char) as char(3)))
+4040A140
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 2, 0xC0))
+A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 2, 0xC0))
+A140
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 2, 0xC0))
+A140A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 2, 0xC0))
+A140A140
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 2, 0xC0))
+A140A14020
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 2, 0xC0))
+A140A140202020202020202020202020202020202020202020
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 3, 0xC0))
+A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 3, 0xC0))
+A140
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 3, 0xC0))
+A140A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 3, 0xC0))
+A140A140
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 3, 0xC0))
+A140A140A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 3, 0xC0))
+A140A140A14020202020202020202020202020202020202020
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 4, 0xC0))
+A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 4, 0xC0))
+A140
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 4, 0xC0))
+A140A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 4, 0xC0))
+A140A140
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 4, 0xC0))
+A140A140A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 4, 0xC0))
+A140A140A14020202020202020202020202020202020202020
+set collation_connection=big5_bin;
+select @@collation_connection;
+@@collation_connection
+big5_bin
+CREATE TABLE t1 AS SELECT 'a' AS a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(1) CHARACTER SET big5 COLLATE big5_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ws` varbinary(2) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT HEX(WEIGHT_STRING(a)) FROM t1;
+HEX(WEIGHT_STRING(a))
+61
+SELECT HEX(ws) FROM t2;
+HEX(ws)
+61
+DROP TABLE t2;
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(5) CHARACTER SET big5 COLLATE big5_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ws` varbinary(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT HEX(WEIGHT_STRING(a)) FROM t1;
+HEX(WEIGHT_STRING(a))
+6161616161
+SELECT HEX(ws) FROM t2;
+HEX(ws)
+6161616161
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT WEIGHT_STRING(a AS CHAR(3)) AS ws FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ws` varbinary(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
+HEX(WEIGHT_STRING(a AS CHAR(3)))
+616161
+SELECT HEX(ws) FROM t2;
+HEX(ws)
+616161
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT WEIGHT_STRING(a AS CHAR(10)) AS ws FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `ws` varbinary(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
+HEX(WEIGHT_STRING(a AS CHAR(10)))
+61616161612020202020
+SELECT HEX(ws) FROM t2;
+HEX(ws)
+61616161612020202020
+DROP TABLE t2;
+DROP TABLE t1;
+select hex(weight_string('a'));
+hex(weight_string('a'))
+61
+select hex(weight_string('A'));
+hex(weight_string('A'))
+41
+select hex(weight_string('abc'));
+hex(weight_string('abc'))
+616263
+select hex(weight_string('abc' as char(2)));
+hex(weight_string('abc' as char(2)))
+6162
+select hex(weight_string('abc' as char(3)));
+hex(weight_string('abc' as char(3)))
+616263
+select hex(weight_string('abc' as char(5)));
+hex(weight_string('abc' as char(5)))
+6162632020
+select hex(weight_string('abc', 1, 2, 0xC0));
+hex(weight_string('abc', 1, 2, 0xC0))
+61
+select hex(weight_string('abc', 2, 2, 0xC0));
+hex(weight_string('abc', 2, 2, 0xC0))
+6162
+select hex(weight_string('abc', 3, 2, 0xC0));
+hex(weight_string('abc', 3, 2, 0xC0))
+616220
+select hex(weight_string('abc', 4, 2, 0xC0));
+hex(weight_string('abc', 4, 2, 0xC0))
+61622020
+select hex(weight_string('abc', 5, 2, 0xC0));
+hex(weight_string('abc', 5, 2, 0xC0))
+6162202020
+select hex(weight_string('abc',25, 2, 0xC0));
+hex(weight_string('abc',25, 2, 0xC0))
+61622020202020202020202020202020202020202020202020
+select hex(weight_string('abc', 1, 3, 0xC0));
+hex(weight_string('abc', 1, 3, 0xC0))
+61
+select hex(weight_string('abc', 2, 3, 0xC0));
+hex(weight_string('abc', 2, 3, 0xC0))
+6162
+select hex(weight_string('abc', 3, 3, 0xC0));
+hex(weight_string('abc', 3, 3, 0xC0))
+616263
+select hex(weight_string('abc', 4, 3, 0xC0));
+hex(weight_string('abc', 4, 3, 0xC0))
+61626320
+select hex(weight_string('abc', 5, 3, 0xC0));
+hex(weight_string('abc', 5, 3, 0xC0))
+6162632020
+select hex(weight_string('abc',25, 3, 0xC0));
+hex(weight_string('abc',25, 3, 0xC0))
+61626320202020202020202020202020202020202020202020
+select hex(weight_string('abc', 1, 4, 0xC0));
+hex(weight_string('abc', 1, 4, 0xC0))
+61
+select hex(weight_string('abc', 2, 4, 0xC0));
+hex(weight_string('abc', 2, 4, 0xC0))
+6162
+select hex(weight_string('abc', 3, 4, 0xC0));
+hex(weight_string('abc', 3, 4, 0xC0))
+616263
+select hex(weight_string('abc', 4, 4, 0xC0));
+hex(weight_string('abc', 4, 4, 0xC0))
+61626320
+select hex(weight_string('abc', 5, 4, 0xC0));
+hex(weight_string('abc', 5, 4, 0xC0))
+6162632020
+select hex(weight_string('abc',25, 4, 0xC0));
+hex(weight_string('abc',25, 4, 0xC0))
+61626320202020202020202020202020202020202020202020
+select @@collation_connection;
+@@collation_connection
+big5_bin
+select hex(weight_string('a' LEVEL 1));
+hex(weight_string('a' LEVEL 1))
+61
+select hex(weight_string('A' LEVEL 1));
+hex(weight_string('A' LEVEL 1))
+41
+select hex(weight_string('abc' LEVEL 1));
+hex(weight_string('abc' LEVEL 1))
+616263
+select hex(weight_string('abc' as char(2) LEVEL 1));
+hex(weight_string('abc' as char(2) LEVEL 1))
+6162
+select hex(weight_string('abc' as char(3) LEVEL 1));
+hex(weight_string('abc' as char(3) LEVEL 1))
+616263
+select hex(weight_string('abc' as char(5) LEVEL 1));
+hex(weight_string('abc' as char(5) LEVEL 1))
+6162632020
+select hex(weight_string('abc' as char(5) LEVEL 1 REVERSE));
+hex(weight_string('abc' as char(5) LEVEL 1 REVERSE))
+2020636261
+select hex(weight_string('abc' as char(5) LEVEL 1 DESC));
+hex(weight_string('abc' as char(5) LEVEL 1 DESC))
+9E9D9CDFDF
+select hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE));
+hex(weight_string('abc' as char(5) LEVEL 1 DESC REVERSE))
+DFDF9C9D9E
+select collation(cast(0xA1A1 as char));
+collation(cast(0xA1A1 as char))
+big5_bin
+select hex(weight_string(cast(0x6141 as char)));
+hex(weight_string(cast(0x6141 as char)))
+6141
+select hex(weight_string(cast(0xA1A1 as char)));
+hex(weight_string(cast(0xA1A1 as char)))
+A1A1
+select hex(weight_string(cast(0xA1A1 as char) as char(1)));
+hex(weight_string(cast(0xA1A1 as char) as char(1)))
+A1A1
+select hex(weight_string(cast(0xA1A1A1A1 as char) as char(1)));
+hex(weight_string(cast(0xA1A1A1A1 as char) as char(1)))
+A1A1
+select hex(weight_string(cast(0xA1A1 as char) as char(3)));
+hex(weight_string(cast(0xA1A1 as char) as char(3)))
+A1A12020
+select hex(weight_string(cast(0xA1A1A1A1 as char) as char(3)));
+hex(weight_string(cast(0xA1A1A1A1 as char) as char(3)))
+A1A1A1A120
+select hex(weight_string(cast(0x40A1A1 as char) as char(3)));
+hex(weight_string(cast(0x40A1A1 as char) as char(3)))
+40A1A120
+select hex(weight_string(cast(0x40A1A1A1A1 as char) as char(3)));
+hex(weight_string(cast(0x40A1A1A1A1 as char) as char(3)))
+40A1A1A1A1
+select hex(weight_string(cast(0x40A1A1A1A1A1A1 as char) as char(3)));
+hex(weight_string(cast(0x40A1A1A1A1A1A1 as char) as char(3)))
+40A1A1A1A1
+select hex(weight_string(cast(0x4040A1A1A1A1A1A1 as char) as char(3)));
+hex(weight_string(cast(0x4040A1A1A1A1A1A1 as char) as char(3)))
+4040A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 2, 0xC0))
+A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 2, 0xC0))
+A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 2, 0xC0))
+A1A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 2, 0xC0))
+A1A1A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 2, 0xC0))
+A1A1A1A120
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 2, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 2, 0xC0))
+A1A1A1A1202020202020202020202020202020202020202020
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 3, 0xC0))
+A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 3, 0xC0))
+A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 3, 0xC0))
+A1A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 3, 0xC0))
+A1A1A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 3, 0xC0))
+A1A1A1A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 3, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 3, 0xC0))
+A1A1A1A1A1A120202020202020202020202020202020202020
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 1, 4, 0xC0))
+A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 2, 4, 0xC0))
+A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 3, 4, 0xC0))
+A1A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 4, 4, 0xC0))
+A1A1A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char), 5, 4, 0xC0))
+A1A1A1A1A1
+select hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 4, 0xC0));
+hex(weight_string(cast(0xA1A1A1A1A1A1 as char),25, 4, 0xC0))
+A1A1A1A1A1A120202020202020202020202020202020202020
+#
+# End of 5.6 tests
+#
+#
+# Start of 10.0 tests
+#
+# Start of ctype_unescape.inc
+SET sql_mode = '';
+SET @query=_binary'SELECT CHARSET(\'test\'),@@character_set_client,@@character_set_connection';
+PREPARE stmt FROM @query;
+EXECUTE stmt;
+CHARSET('test')	@@character_set_client	@@character_set_connection
+big5	big5	big5
+DEALLOCATE PREPARE stmt;
+CREATE TABLE allbytes (a VARBINARY(10));
+# Using selected bytes combinations
+CREATE TABLE halfs (a INT);
+INSERT INTO halfs VALUES (0x00),(0x01),(0x02),(0x03),(0x04),(0x05),(0x06),(0x07);
+INSERT INTO halfs VALUES (0x08),(0x09),(0x0A),(0x0B),(0x0C),(0x0D),(0x0E),(0x0F);
+CREATE TEMPORARY TABLE bytes (a BINARY(1), KEY(a)) ENGINE=MyISAM;
+INSERT INTO bytes SELECT CHAR((t1.a << 4) | t2.a USING BINARY) FROM halfs t1, halfs t2;
+DROP TABLE halfs;
+CREATE TABLE selected_bytes (a VARBINARY(10));
+INSERT INTO selected_bytes (a) VALUES ('\0'),('\b'),('\t'),('\r'),('\n'),('\Z');
+INSERT INTO selected_bytes (a) VALUES ('0'),('b'),('t'),('r'),('n'),('Z');
+INSERT INTO selected_bytes (a) VALUES ('\\'),('_'),('%'),(0x22),(0x27);
+INSERT INTO selected_bytes (a) VALUES ('a');
+INSERT INTO selected_bytes (a) VALUES
+(0x3F), # 7bit
+(0x40), # 7bit          mbtail
+(0x7E), # 7bit          mbtail  nonascii-8bit
+(0x7F), # 7bit                  nonascii-8bit
+(0x80), #               mbtail                 bad-mb
+(0x81), #       mbhead  mbtail
+(0x9F), #       mbhead  mbtail                 bad-mb
+(0xA0), #       mbhead  mbtail                 bad-mb
+(0xA1), #       mbhead  mbtail  nonascii-8bit
+(0xE0), #       mbhead  mbtai
+(0xEF), #       mbhead  mbtail
+(0xF9), #       mbhead  mbtail
+(0xFA), #       mbhead  mbtail                 bad-mb
+(0xFC), #       mbhead  mbtail                 bad-mb
+(0xFD), #       mbhead  mbtail                 bad-mb
+(0xFE), #       mbhead  mbtial                 bad-mb
+(0xFF);
+INSERT INTO allbytes (a) SELECT a FROM bytes;
+INSERT INTO allbytes (a) SELECT CONCAT(t1.a,t2.a) FROM selected_bytes t1,selected_bytes t2;
+INSERT INTO allbytes (a) SELECT CONCAT(0x5C,t1.a,t2.a) FROM selected_bytes t1,selected_bytes t2;
+INSERT INTO allbytes (a) SELECT CONCAT(0x5C,t1.a,0x5C,t2.a) FROM selected_bytes t1,selected_bytes t2;
+DROP TABLE selected_bytes;
+DELETE FROM allbytes WHERE
+OCTET_LENGTH(a)>1 AND
+LOCATE(0x5C,a)=0 AND
+a NOT LIKE '%\'%' AND
+  a NOT LIKE '%"%';
+CREATE PROCEDURE p1(val VARBINARY(10))
+BEGIN
+DECLARE EXIT HANDLER FOR SQLSTATE '42000' INSERT INTO t1 (a,b) VALUES(val,NULL);
+SET @query=CONCAT(_binary"INSERT INTO t1 (a,b) VALUES (0x",HEX(val),",'",val,"')");
+PREPARE stmt FROM @query;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+END//
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE val VARBINARY(10);
+DECLARE done INT DEFAULT FALSE;
+DECLARE stmt CURSOR FOR SELECT a FROM allbytes;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN stmt;
+read_loop1: LOOP
+FETCH stmt INTO val;
+IF done THEN
+LEAVE read_loop1;
+END IF;
+CALL p1(val);
+END LOOP;  
+CLOSE stmt;
+END//
+CREATE FUNCTION iswellformed(a VARBINARY(256)) RETURNS INT RETURN a=BINARY CONVERT(a USING big5);//
+CREATE FUNCTION unescape(a VARBINARY(256)) RETURNS VARBINARY(256)
+BEGIN
+# We need to do it in a way to avoid producing new escape sequences
+# First, enclose all known escsape sequences to '{{xx}}'
+  # - Backslash not followed by a LIKE pattern characters _ and %
+# - Double escapes
+# This uses PCRE Branch Reset Groups: (?|(alt1)|(alt2)|(alt3)).
+# So '\\1' in the last argument always means the match, no matter
+# which alternative it came from.
+SET a=REGEXP_REPLACE(a,'(?|(\\\\[^_%])|(\\x{27}\\x{27}))','{{\\1}}');
+# Now unescape all enclosed standard escape sequences
+SET a=REPLACE(a,'{{\\0}}', '\0');
+SET a=REPLACE(a,'{{\\b}}', '\b');
+SET a=REPLACE(a,'{{\\t}}', '\t');
+SET a=REPLACE(a,'{{\\r}}', '\r');
+SET a=REPLACE(a,'{{\\n}}', '\n');
+SET a=REPLACE(a,'{{\\Z}}', '\Z');
+SET a=REPLACE(a,'{{\\\'}}', '\'');
+# Unescape double quotes
+SET a=REPLACE(a,'{{\'\'}}', '\'');
+  # Unescape the rest: all other \x sequences mean just 'x'
+  SET a=REGEXP_REPLACE(a, '{{\\\\(.|\\R)}}', '\\1');
+  RETURN a;
+END//
+CREATE FUNCTION unescape_type(a VARBINARY(256),b VARBINARY(256)) RETURNS VARBINARY(256)
+BEGIN
+RETURN CASE
+WHEN b IS NULL THEN '[SyntErr]'
+  WHEN a=b THEN CASE
+WHEN OCTET_LENGTH(a)=1 THEN '[Preserve]'
+    WHEN a RLIKE '\\\\[_%]' THEN '[Preserve][LIKE]'
+    WHEN a RLIKE '^[[:ascii:]]+$' THEN '[Preserve][ASCII]'
+    ELSE '[Preserv][MB]' END
+WHEN REPLACE(a,0x5C,'')=b THEN '[Trivial]'
+  WHEN UNESCAPE(a)=b THEN '[Regular]'
+  ELSE '[Special]' END;
+END//
+CREATE FUNCTION wellformedness(a VARBINARY(256), b VARBINARY(256))
+RETURNS VARBINARY(256)
+BEGIN
+RETURN CASE
+WHEN b IS NULL THEN ''
+  WHEN NOT iswellformed(a) AND iswellformed(b) THEN '[FIXED]'
+  WHEN iswellformed(a) AND NOT iswellformed(b) THEN '[BROKE]'
+  WHEN NOT iswellformed(a) AND NOT iswellformed(b) THEN '[ILSEQ]'
+  ELSE ''
+  END;
+END//
+CREATE FUNCTION mysql_real_escape_string_generated(a VARBINARY(256))
+RETURNS VARBINARY(256)
+BEGIN
+DECLARE a1 BINARY(1) DEFAULT SUBSTR(a,1,1);
+DECLARE a2 BINARY(1) DEFAULT SUBSTR(a,2,1);
+DECLARE a3 BINARY(1) DEFAULT SUBSTR(a,3,1);
+DECLARE a4 BINARY(1) DEFAULT SUBSTR(a,4,1);
+DECLARE a2a4 BINARY(2) DEFAULT CONCAT(a2,a4);
+RETURN CASE
+WHEN (a1=0x5C) AND 
+(a3=0x5C) AND
+(a2>0x7F) AND
+(a4 NOT IN ('_','%','0','t','r','n','Z')) AND
+iswellformed(a2a4) THEN '[USER]'
+  ELSE ''
+  END;
+END//
+CREATE TABLE t1 (a VARBINARY(10),b VARBINARY(10));
+CALL p2();
+SELECT HEX(a),HEX(b),
+CONCAT(unescape_type(a,b),
+wellformedness(a,b),
+mysql_real_escape_string_generated(a),
+IF(UNESCAPE(a)<>b,CONCAT('[BAD',HEX(UNESCAPE(a)),']'),'')) AS comment
+FROM t1 ORDER BY LENGTH(a),a;
+HEX(a)	HEX(b)	comment
+00	00	[Preserve]
+01	01	[Preserve]
+02	02	[Preserve]
+03	03	[Preserve]
+04	04	[Preserve]
+05	05	[Preserve]
+06	06	[Preserve]
+07	07	[Preserve]
+08	08	[Preserve]
+09	09	[Preserve]
+0A	0A	[Preserve]
+0B	0B	[Preserve]
+0C	0C	[Preserve]
+0D	0D	[Preserve]
+0E	0E	[Preserve]
+0F	0F	[Preserve]
+10	10	[Preserve]
+11	11	[Preserve]
+12	12	[Preserve]
+13	13	[Preserve]
+14	14	[Preserve]
+15	15	[Preserve]
+16	16	[Preserve]
+17	17	[Preserve]
+18	18	[Preserve]
+19	19	[Preserve]
+1A	1A	[Preserve]
+1B	1B	[Preserve]
+1C	1C	[Preserve]
+1D	1D	[Preserve]
+1E	1E	[Preserve]
+1F	1F	[Preserve]
+20	20	[Preserve]
+21	21	[Preserve]
+22	22	[Preserve]
+23	23	[Preserve]
+24	24	[Preserve]
+25	25	[Preserve]
+26	26	[Preserve]
+27	NULL	[SyntErr]
+28	28	[Preserve]
+29	29	[Preserve]
+2A	2A	[Preserve]
+2B	2B	[Preserve]
+2C	2C	[Preserve]
+2D	2D	[Preserve]
+2E	2E	[Preserve]
+2F	2F	[Preserve]
+30	30	[Preserve]
+31	31	[Preserve]
+32	32	[Preserve]
+33	33	[Preserve]
+34	34	[Preserve]
+35	35	[Preserve]
+36	36	[Preserve]
+37	37	[Preserve]
+38	38	[Preserve]
+39	39	[Preserve]
+3A	3A	[Preserve]
+3B	3B	[Preserve]
+3C	3C	[Preserve]
+3D	3D	[Preserve]
+3E	3E	[Preserve]
+3F	3F	[Preserve]
+40	40	[Preserve]
+41	41	[Preserve]
+42	42	[Preserve]
+43	43	[Preserve]
+44	44	[Preserve]
+45	45	[Preserve]
+46	46	[Preserve]
+47	47	[Preserve]
+48	48	[Preserve]
+49	49	[Preserve]
+4A	4A	[Preserve]
+4B	4B	[Preserve]
+4C	4C	[Preserve]
+4D	4D	[Preserve]
+4E	4E	[Preserve]
+4F	4F	[Preserve]
+50	50	[Preserve]
+51	51	[Preserve]
+52	52	[Preserve]
+53	53	[Preserve]
+54	54	[Preserve]
+55	55	[Preserve]
+56	56	[Preserve]
+57	57	[Preserve]
+58	58	[Preserve]
+59	59	[Preserve]
+5A	5A	[Preserve]
+5B	5B	[Preserve]
+5C	NULL	[SyntErr]
+5D	5D	[Preserve]
+5E	5E	[Preserve]
+5F	5F	[Preserve]
+60	60	[Preserve]
+61	61	[Preserve]
+62	62	[Preserve]
+63	63	[Preserve]
+64	64	[Preserve]
+65	65	[Preserve]
+66	66	[Preserve]
+67	67	[Preserve]
+68	68	[Preserve]
+69	69	[Preserve]
+6A	6A	[Preserve]
+6B	6B	[Preserve]
+6C	6C	[Preserve]
+6D	6D	[Preserve]
+6E	6E	[Preserve]
+6F	6F	[Preserve]
+70	70	[Preserve]
+71	71	[Preserve]
+72	72	[Preserve]
+73	73	[Preserve]
+74	74	[Preserve]
+75	75	[Preserve]
+76	76	[Preserve]
+77	77	[Preserve]
+78	78	[Preserve]
+79	79	[Preserve]
+7A	7A	[Preserve]
+7B	7B	[Preserve]
+7C	7C	[Preserve]
+7D	7D	[Preserve]
+7E	7E	[Preserve]
+7F	7F	[Preserve]
+80	80	[Preserve][ILSEQ]
+81	81	[Preserve][ILSEQ]
+82	82	[Preserve][ILSEQ]
+83	83	[Preserve][ILSEQ]
+84	84	[Preserve][ILSEQ]
+85	85	[Preserve][ILSEQ]
+86	86	[Preserve][ILSEQ]
+87	87	[Preserve][ILSEQ]
+88	88	[Preserve][ILSEQ]
+89	89	[Preserve][ILSEQ]
+8A	8A	[Preserve][ILSEQ]
+8B	8B	[Preserve][ILSEQ]
+8C	8C	[Preserve][ILSEQ]
+8D	8D	[Preserve][ILSEQ]
+8E	8E	[Preserve][ILSEQ]
+8F	8F	[Preserve][ILSEQ]
+90	90	[Preserve][ILSEQ]
+91	91	[Preserve][ILSEQ]
+92	92	[Preserve][ILSEQ]
+93	93	[Preserve][ILSEQ]
+94	94	[Preserve][ILSEQ]
+95	95	[Preserve][ILSEQ]
+96	96	[Preserve][ILSEQ]
+97	97	[Preserve][ILSEQ]
+98	98	[Preserve][ILSEQ]
+99	99	[Preserve][ILSEQ]
+9A	9A	[Preserve][ILSEQ]
+9B	9B	[Preserve][ILSEQ]
+9C	9C	[Preserve][ILSEQ]
+9D	9D	[Preserve][ILSEQ]
+9E	9E	[Preserve][ILSEQ]
+9F	9F	[Preserve][ILSEQ]
+A0	A0	[Preserve][ILSEQ]
+A1	A1	[Preserve][ILSEQ]
+A2	A2	[Preserve][ILSEQ]
+A3	A3	[Preserve][ILSEQ]
+A4	A4	[Preserve][ILSEQ]
+A5	A5	[Preserve][ILSEQ]
+A6	A6	[Preserve][ILSEQ]
+A7	A7	[Preserve][ILSEQ]
+A8	A8	[Preserve][ILSEQ]
+A9	A9	[Preserve][ILSEQ]
+AA	AA	[Preserve][ILSEQ]
+AB	AB	[Preserve][ILSEQ]
+AC	AC	[Preserve][ILSEQ]
+AD	AD	[Preserve][ILSEQ]
+AE	AE	[Preserve][ILSEQ]
+AF	AF	[Preserve][ILSEQ]
+B0	B0	[Preserve][ILSEQ]
+B1	B1	[Preserve][ILSEQ]
+B2	B2	[Preserve][ILSEQ]
+B3	B3	[Preserve][ILSEQ]
+B4	B4	[Preserve][ILSEQ]
+B5	B5	[Preserve][ILSEQ]
+B6	B6	[Preserve][ILSEQ]
+B7	B7	[Preserve][ILSEQ]
+B8	B8	[Preserve][ILSEQ]
+B9	B9	[Preserve][ILSEQ]
+BA	BA	[Preserve][ILSEQ]
+BB	BB	[Preserve][ILSEQ]
+BC	BC	[Preserve][ILSEQ]
+BD	BD	[Preserve][ILSEQ]
+BE	BE	[Preserve][ILSEQ]
+BF	BF	[Preserve][ILSEQ]
+C0	C0	[Preserve][ILSEQ]
+C1	C1	[Preserve][ILSEQ]
+C2	C2	[Preserve][ILSEQ]
+C3	C3	[Preserve][ILSEQ]
+C4	C4	[Preserve][ILSEQ]
+C5	C5	[Preserve][ILSEQ]
+C6	C6	[Preserve][ILSEQ]
+C7	C7	[Preserve][ILSEQ]
+C8	C8	[Preserve][ILSEQ]
+C9	C9	[Preserve][ILSEQ]
+CA	CA	[Preserve][ILSEQ]
+CB	CB	[Preserve][ILSEQ]
+CC	CC	[Preserve][ILSEQ]
+CD	CD	[Preserve][ILSEQ]
+CE	CE	[Preserve][ILSEQ]
+CF	CF	[Preserve][ILSEQ]
+D0	D0	[Preserve][ILSEQ]
+D1	D1	[Preserve][ILSEQ]
+D2	D2	[Preserve][ILSEQ]
+D3	D3	[Preserve][ILSEQ]
+D4	D4	[Preserve][ILSEQ]
+D5	D5	[Preserve][ILSEQ]
+D6	D6	[Preserve][ILSEQ]
+D7	D7	[Preserve][ILSEQ]
+D8	D8	[Preserve][ILSEQ]
+D9	D9	[Preserve][ILSEQ]
+DA	DA	[Preserve][ILSEQ]
+DB	DB	[Preserve][ILSEQ]
+DC	DC	[Preserve][ILSEQ]
+DD	DD	[Preserve][ILSEQ]
+DE	DE	[Preserve][ILSEQ]
+DF	DF	[Preserve][ILSEQ]
+E0	E0	[Preserve][ILSEQ]
+E1	E1	[Preserve][ILSEQ]
+E2	E2	[Preserve][ILSEQ]
+E3	E3	[Preserve][ILSEQ]
+E4	E4	[Preserve][ILSEQ]
+E5	E5	[Preserve][ILSEQ]
+E6	E6	[Preserve][ILSEQ]
+E7	E7	[Preserve][ILSEQ]
+E8	E8	[Preserve][ILSEQ]
+E9	E9	[Preserve][ILSEQ]
+EA	EA	[Preserve][ILSEQ]
+EB	EB	[Preserve][ILSEQ]
+EC	EC	[Preserve][ILSEQ]
+ED	ED	[Preserve][ILSEQ]
+EE	EE	[Preserve][ILSEQ]
+EF	EF	[Preserve][ILSEQ]
+F0	F0	[Preserve][ILSEQ]
+F1	F1	[Preserve][ILSEQ]
+F2	F2	[Preserve][ILSEQ]
+F3	F3	[Preserve][ILSEQ]
+F4	F4	[Preserve][ILSEQ]
+F5	F5	[Preserve][ILSEQ]
+F6	F6	[Preserve][ILSEQ]
+F7	F7	[Preserve][ILSEQ]
+F8	F8	[Preserve][ILSEQ]
+F9	F9	[Preserve][ILSEQ]
+FA	FA	[Preserve][ILSEQ]
+FB	FB	[Preserve][ILSEQ]
+FC	FC	[Preserve][ILSEQ]
+FD	FD	[Preserve][ILSEQ]
+FE	FE	[Preserve][ILSEQ]
+FF	FF	[Preserve][ILSEQ]
+0022	0022	[Preserve][ASCII]
+0027	NULL	[SyntErr]
+005C	NULL	[SyntErr]
+0822	0822	[Preserve][ASCII]
+0827	NULL	[SyntErr]
+085C	NULL	[SyntErr]
+0922	0922	[Preserve][ASCII]
+0927	NULL	[SyntErr]
+095C	NULL	[SyntErr]
+0A22	0A22	[Preserve][ASCII]
+0A27	NULL	[SyntErr]
+0A5C	NULL	[SyntErr]
+0D22	0D22	[Preserve][ASCII]
+0D27	NULL	[SyntErr]
+0D5C	NULL	[SyntErr]
+1A22	1A22	[Preserve][ASCII]
+1A27	NULL	[SyntErr]
+1A5C	NULL	[SyntErr]
+2200	2200	[Preserve][ASCII]
+2208	2208	[Preserve][ASCII]
+2209	2209	[Preserve][ASCII]
+220A	220A	[Preserve][ASCII]
+220D	220D	[Preserve][ASCII]
+221A	221A	[Preserve][ASCII]
+2222	2222	[Preserve][ASCII]
+2225	2225	[Preserve][ASCII]
+2227	NULL	[SyntErr]
+2230	2230	[Preserve][ASCII]
+223F	223F	[Preserve][ASCII]
+2240	2240	[Preserve][ASCII]
+225A	225A	[Preserve][ASCII]
+225C	NULL	[SyntErr]
+225F	225F	[Preserve][ASCII]
+2261	2261	[Preserve][ASCII]
+2262	2262	[Preserve][ASCII]
+226E	226E	[Preserve][ASCII]
+2272	2272	[Preserve][ASCII]
+2274	2274	[Preserve][ASCII]
+227E	227E	[Preserve][ASCII]
+227F	227F	[Preserve][ASCII]
+2280	2280	[Preserv][MB][ILSEQ]
+2281	2281	[Preserv][MB][ILSEQ]
+229F	229F	[Preserv][MB][ILSEQ]
+22A0	22A0	[Preserv][MB][ILSEQ]
+22A1	22A1	[Preserv][MB][ILSEQ]
+22E0	22E0	[Preserv][MB][ILSEQ]
+22EF	22EF	[Preserv][MB][ILSEQ]
+22F9	22F9	[Preserv][MB][ILSEQ]
+22FA	22FA	[Preserv][MB][ILSEQ]
+22FC	22FC	[Preserv][MB][ILSEQ]
+22FD	22FD	[Preserv][MB][ILSEQ]
+22FE	22FE	[Preserv][MB][ILSEQ]
+22FF	22FF	[Preserv][MB][ILSEQ]
+2522	2522	[Preserve][ASCII]
+2527	NULL	[SyntErr]
+255C	NULL	[SyntErr]
+2700	NULL	[SyntErr]
+2708	NULL	[SyntErr]
+2709	NULL	[SyntErr]
+270A	NULL	[SyntErr]
+270D	NULL	[SyntErr]
+271A	NULL	[SyntErr]
+2722	NULL	[SyntErr]
+2725	NULL	[SyntErr]
+2727	27	[Regular]
+2730	NULL	[SyntErr]
+273F	NULL	[SyntErr]
+2740	NULL	[SyntErr]
+275A	NULL	[SyntErr]
+275C	NULL	[SyntErr]
+275F	NULL	[SyntErr]
+2761	NULL	[SyntErr]
+2762	NULL	[SyntErr]
+276E	NULL	[SyntErr]
+2772	NULL	[SyntErr]
+2774	NULL	[SyntErr]
+277E	NULL	[SyntErr]
+277F	NULL	[SyntErr]
+2780	NULL	[SyntErr]
+2781	NULL	[SyntErr]
+279F	NULL	[SyntErr]
+27A0	NULL	[SyntErr]
+27A1	NULL	[SyntErr]
+27E0	NULL	[SyntErr]
+27EF	NULL	[SyntErr]
+27F9	NULL	[SyntErr]
+27FA	NULL	[SyntErr]
+27FC	NULL	[SyntErr]
+27FD	NULL	[SyntErr]
+27FE	NULL	[SyntErr]
+27FF	NULL	[SyntErr]
+3022	3022	[Preserve][ASCII]
+3027	NULL	[SyntErr]
+305C	NULL	[SyntErr]
+3F22	3F22	[Preserve][ASCII]
+3F27	NULL	[SyntErr]
+3F5C	NULL	[SyntErr]
+4022	4022	[Preserve][ASCII]
+4027	NULL	[SyntErr]
+405C	NULL	[SyntErr]
+5A22	5A22	[Preserve][ASCII]
+5A27	NULL	[SyntErr]
+5A5C	NULL	[SyntErr]
+5C00	00	[Trivial]
+5C08	08	[Trivial]
+5C09	09	[Trivial]
+5C0A	0A	[Trivial]
+5C0D	0D	[Trivial]
+5C1A	1A	[Trivial]
+5C22	22	[Trivial]
+5C25	5C25	[Preserve][LIKE]
+5C27	27	[Trivial]
+5C30	00	[Regular]
+5C3F	3F	[Trivial]
+5C40	40	[Trivial]
+5C5A	1A	[Regular]
+5C5C	5C	[Regular]
+5C5F	5C5F	[Preserve][LIKE]
+5C61	61	[Trivial]
+5C62	08	[Regular]
+5C6E	0A	[Regular]
+5C72	0D	[Regular]
+5C74	09	[Regular]
+5C7E	7E	[Trivial]
+5C7F	7F	[Trivial]
+5C80	80	[Trivial][ILSEQ]
+5C81	81	[Trivial][ILSEQ]
+5C9F	9F	[Trivial][ILSEQ]
+5CA0	A0	[Trivial][ILSEQ]
+5CA1	A1	[Trivial][ILSEQ]
+5CE0	E0	[Trivial][ILSEQ]
+5CEF	EF	[Trivial][ILSEQ]
+5CF9	F9	[Trivial][ILSEQ]
+5CFA	FA	[Trivial][ILSEQ]
+5CFC	FC	[Trivial][ILSEQ]
+5CFD	FD	[Trivial][ILSEQ]
+5CFE	FE	[Trivial][ILSEQ]
+5CFF	FF	[Trivial][ILSEQ]
+5F22	5F22	[Preserve][ASCII]
+5F27	NULL	[SyntErr]
+5F5C	NULL	[SyntErr]
+6122	6122	[Preserve][ASCII]
+6127	NULL	[SyntErr]
+615C	NULL	[SyntErr]
+6222	6222	[Preserve][ASCII]
+6227	NULL	[SyntErr]
+625C	NULL	[SyntErr]
+6E22	6E22	[Preserve][ASCII]
+6E27	NULL	[SyntErr]
+6E5C	NULL	[SyntErr]
+7222	7222	[Preserve][ASCII]
+7227	NULL	[SyntErr]
+725C	NULL	[SyntErr]
+7422	7422	[Preserve][ASCII]
+7427	NULL	[SyntErr]
+745C	NULL	[SyntErr]
+7E22	7E22	[Preserve][ASCII]
+7E27	NULL	[SyntErr]
+7E5C	NULL	[SyntErr]
+7F22	7F22	[Preserve][ASCII]
+7F27	NULL	[SyntErr]
+7F5C	NULL	[SyntErr]
+8022	8022	[Preserv][MB][ILSEQ]
+8027	NULL	[SyntErr]
+805C	NULL	[SyntErr]
+8122	8122	[Preserv][MB][ILSEQ]
+8127	NULL	[SyntErr]
+815C	NULL	[SyntErr]
+9F22	9F22	[Preserv][MB][ILSEQ]
+9F27	NULL	[SyntErr]
+9F5C	NULL	[SyntErr]
+A022	A022	[Preserv][MB][ILSEQ]
+A027	NULL	[SyntErr]
+A05C	NULL	[SyntErr]
+A122	A122	[Preserv][MB][ILSEQ]
+A127	NULL	[SyntErr]
+A15C	A15C	[Preserv][MB]
+E022	E022	[Preserv][MB][ILSEQ]
+E027	NULL	[SyntErr]
+E05C	E05C	[Preserv][MB]
+EF22	EF22	[Preserv][MB][ILSEQ]
+EF27	NULL	[SyntErr]
+EF5C	EF5C	[Preserv][MB]
+F922	F922	[Preserv][MB][ILSEQ]
+F927	NULL	[SyntErr]
+F95C	F95C	[Preserv][MB]
+FA22	FA22	[Preserv][MB][ILSEQ]
+FA27	NULL	[SyntErr]
+FA5C	NULL	[SyntErr]
+FC22	FC22	[Preserv][MB][ILSEQ]
+FC27	NULL	[SyntErr]
+FC5C	NULL	[SyntErr]
+FD22	FD22	[Preserv][MB][ILSEQ]
+FD27	NULL	[SyntErr]
+FD5C	NULL	[SyntErr]
+FE22	FE22	[Preserv][MB][ILSEQ]
+FE27	NULL	[SyntErr]
+FE5C	NULL	[SyntErr]
+FF22	FF22	[Preserv][MB][ILSEQ]
+FF27	NULL	[SyntErr]
+FF5C	NULL	[SyntErr]
+5C0000	0000	[Trivial]
+5C0008	0008	[Trivial]
+5C0009	0009	[Trivial]
+5C000A	000A	[Trivial]
+5C000D	000D	[Trivial]
+5C001A	001A	[Trivial]
+5C0022	0022	[Trivial]
+5C0025	0025	[Trivial]
+5C0027	NULL	[SyntErr]
+5C0030	0030	[Trivial]
+5C003F	003F	[Trivial]
+5C0040	0040	[Trivial]
+5C005A	005A	[Trivial]
+5C005C	NULL	[SyntErr]
+5C005F	005F	[Trivial]
+5C0061	0061	[Trivial]
+5C0062	0062	[Trivial]
+5C006E	006E	[Trivial]
+5C0072	0072	[Trivial]
+5C0074	0074	[Trivial]
+5C007E	007E	[Trivial]
+5C007F	007F	[Trivial]
+5C0080	0080	[Trivial][ILSEQ]
+5C0081	0081	[Trivial][ILSEQ]
+5C009F	009F	[Trivial][ILSEQ]
+5C00A0	00A0	[Trivial][ILSEQ]
+5C00A1	00A1	[Trivial][ILSEQ]
+5C00E0	00E0	[Trivial][ILSEQ]
+5C00EF	00EF	[Trivial][ILSEQ]
+5C00F9	00F9	[Trivial][ILSEQ]
+5C00FA	00FA	[Trivial][ILSEQ]
+5C00FC	00FC	[Trivial][ILSEQ]
+5C00FD	00FD	[Trivial][ILSEQ]
+5C00FE	00FE	[Trivial][ILSEQ]
+5C00FF	00FF	[Trivial][ILSEQ]
+5C0800	0800	[Trivial]
+5C0808	0808	[Trivial]
+5C0809	0809	[Trivial]
+5C080A	080A	[Trivial]
+5C080D	080D	[Trivial]
+5C081A	081A	[Trivial]
+5C0822	0822	[Trivial]
+5C0825	0825	[Trivial]
+5C0827	NULL	[SyntErr]
+5C0830	0830	[Trivial]
+5C083F	083F	[Trivial]
+5C0840	0840	[Trivial]
+5C085A	085A	[Trivial]
+5C085C	NULL	[SyntErr]
+5C085F	085F	[Trivial]
+5C0861	0861	[Trivial]
+5C0862	0862	[Trivial]
+5C086E	086E	[Trivial]
+5C0872	0872	[Trivial]
+5C0874	0874	[Trivial]
+5C087E	087E	[Trivial]
+5C087F	087F	[Trivial]
+5C0880	0880	[Trivial][ILSEQ]
+5C0881	0881	[Trivial][ILSEQ]
+5C089F	089F	[Trivial][ILSEQ]
+5C08A0	08A0	[Trivial][ILSEQ]
+5C08A1	08A1	[Trivial][ILSEQ]
+5C08E0	08E0	[Trivial][ILSEQ]
+5C08EF	08EF	[Trivial][ILSEQ]
+5C08F9	08F9	[Trivial][ILSEQ]
+5C08FA	08FA	[Trivial][ILSEQ]
+5C08FC	08FC	[Trivial][ILSEQ]
+5C08FD	08FD	[Trivial][ILSEQ]
+5C08FE	08FE	[Trivial][ILSEQ]
+5C08FF	08FF	[Trivial][ILSEQ]
+5C0900	0900	[Trivial]
+5C0908	0908	[Trivial]
+5C0909	0909	[Trivial]
+5C090A	090A	[Trivial]
+5C090D	090D	[Trivial]
+5C091A	091A	[Trivial]
+5C0922	0922	[Trivial]
+5C0925	0925	[Trivial]
+5C0927	NULL	[SyntErr]
+5C0930	0930	[Trivial]
+5C093F	093F	[Trivial]
+5C0940	0940	[Trivial]
+5C095A	095A	[Trivial]
+5C095C	NULL	[SyntErr]
+5C095F	095F	[Trivial]
+5C0961	0961	[Trivial]
+5C0962	0962	[Trivial]
+5C096E	096E	[Trivial]
+5C0972	0972	[Trivial]
+5C0974	0974	[Trivial]
+5C097E	097E	[Trivial]
+5C097F	097F	[Trivial]
+5C0980	0980	[Trivial][ILSEQ]
+5C0981	0981	[Trivial][ILSEQ]
+5C099F	099F	[Trivial][ILSEQ]
+5C09A0	09A0	[Trivial][ILSEQ]
+5C09A1	09A1	[Trivial][ILSEQ]
+5C09E0	09E0	[Trivial][ILSEQ]
+5C09EF	09EF	[Trivial][ILSEQ]
+5C09F9	09F9	[Trivial][ILSEQ]
+5C09FA	09FA	[Trivial][ILSEQ]
+5C09FC	09FC	[Trivial][ILSEQ]
+5C09FD	09FD	[Trivial][ILSEQ]
+5C09FE	09FE	[Trivial][ILSEQ]
+5C09FF	09FF	[Trivial][ILSEQ]
+5C0A00	0A00	[Trivial]
+5C0A08	0A08	[Trivial]
+5C0A09	0A09	[Trivial]
+5C0A0A	0A0A	[Trivial]
+5C0A0D	0A0D	[Trivial]
+5C0A1A	0A1A	[Trivial]
+5C0A22	0A22	[Trivial]
+5C0A25	0A25	[Trivial]
+5C0A27	NULL	[SyntErr]
+5C0A30	0A30	[Trivial]
+5C0A3F	0A3F	[Trivial]
+5C0A40	0A40	[Trivial]
+5C0A5A	0A5A	[Trivial]
+5C0A5C	NULL	[SyntErr]
+5C0A5F	0A5F	[Trivial]
+5C0A61	0A61	[Trivial]
+5C0A62	0A62	[Trivial]
+5C0A6E	0A6E	[Trivial]
+5C0A72	0A72	[Trivial]
+5C0A74	0A74	[Trivial]
+5C0A7E	0A7E	[Trivial]
+5C0A7F	0A7F	[Trivial]
+5C0A80	0A80	[Trivial][ILSEQ]
+5C0A81	0A81	[Trivial][ILSEQ]
+5C0A9F	0A9F	[Trivial][ILSEQ]
+5C0AA0	0AA0	[Trivial][ILSEQ]
+5C0AA1	0AA1	[Trivial][ILSEQ]
+5C0AE0	0AE0	[Trivial][ILSEQ]
+5C0AEF	0AEF	[Trivial][ILSEQ]
+5C0AF9	0AF9	[Trivial][ILSEQ]
+5C0AFA	0AFA	[Trivial][ILSEQ]
+5C0AFC	0AFC	[Trivial][ILSEQ]
+5C0AFD	0AFD	[Trivial][ILSEQ]
+5C0AFE	0AFE	[Trivial][ILSEQ]
+5C0AFF	0AFF	[Trivial][ILSEQ]
+5C0D00	0D00	[Trivial]
+5C0D08	0D08	[Trivial]
+5C0D09	0D09	[Trivial]
+5C0D0A	0D0A	[Trivial]
+5C0D0D	0D0D	[Trivial]
+5C0D1A	0D1A	[Trivial]
+5C0D22	0D22	[Trivial]
+5C0D25	0D25	[Trivial]
+5C0D27	NULL	[SyntErr]
+5C0D30	0D30	[Trivial]
+5C0D3F	0D3F	[Trivial]
+5C0D40	0D40	[Trivial]
+5C0D5A	0D5A	[Trivial]
+5C0D5C	NULL	[SyntErr]
+5C0D5F	0D5F	[Trivial]
+5C0D61	0D61	[Trivial]
+5C0D62	0D62	[Trivial]
+5C0D6E	0D6E	[Trivial]
+5C0D72	0D72	[Trivial]
+5C0D74	0D74	[Trivial]
+5C0D7E	0D7E	[Trivial]
+5C0D7F	0D7F	[Trivial]
+5C0D80	0D80	[Trivial][ILSEQ]
+5C0D81	0D81	[Trivial][ILSEQ]
+5C0D9F	0D9F	[Trivial][ILSEQ]
+5C0DA0	0DA0	[Trivial][ILSEQ]
+5C0DA1	0DA1	[Trivial][ILSEQ]
+5C0DE0	0DE0	[Trivial][ILSEQ]
+5C0DEF	0DEF	[Trivial][ILSEQ]
+5C0DF9	0DF9	[Trivial][ILSEQ]
+5C0DFA	0DFA	[Trivial][ILSEQ]
+5C0DFC	0DFC	[Trivial][ILSEQ]
+5C0DFD	0DFD	[Trivial][ILSEQ]
+5C0DFE	0DFE	[Trivial][ILSEQ]
+5C0DFF	0DFF	[Trivial][ILSEQ]
+5C1A00	1A00	[Trivial]
+5C1A08	1A08	[Trivial]
+5C1A09	1A09	[Trivial]
+5C1A0A	1A0A	[Trivial]
+5C1A0D	1A0D	[Trivial]
+5C1A1A	1A1A	[Trivial]
+5C1A22	1A22	[Trivial]
+5C1A25	1A25	[Trivial]
+5C1A27	NULL	[SyntErr]
+5C1A30	1A30	[Trivial]
+5C1A3F	1A3F	[Trivial]
+5C1A40	1A40	[Trivial]
+5C1A5A	1A5A	[Trivial]
+5C1A5C	NULL	[SyntErr]
+5C1A5F	1A5F	[Trivial]
+5C1A61	1A61	[Trivial]
+5C1A62	1A62	[Trivial]
+5C1A6E	1A6E	[Trivial]
+5C1A72	1A72	[Trivial]
+5C1A74	1A74	[Trivial]
+5C1A7E	1A7E	[Trivial]
+5C1A7F	1A7F	[Trivial]
+5C1A80	1A80	[Trivial][ILSEQ]
+5C1A81	1A81	[Trivial][ILSEQ]
+5C1A9F	1A9F	[Trivial][ILSEQ]
+5C1AA0	1AA0	[Trivial][ILSEQ]
+5C1AA1	1AA1	[Trivial][ILSEQ]
+5C1AE0	1AE0	[Trivial][ILSEQ]
+5C1AEF	1AEF	[Trivial][ILSEQ]
+5C1AF9	1AF9	[Trivial][ILSEQ]
+5C1AFA	1AFA	[Trivial][ILSEQ]
+5C1AFC	1AFC	[Trivial][ILSEQ]
+5C1AFD	1AFD	[Trivial][ILSEQ]
+5C1AFE	1AFE	[Trivial][ILSEQ]
+5C1AFF	1AFF	[Trivial][ILSEQ]
+5C2200	2200	[Trivial]
+5C2208	2208	[Trivial]
+5C2209	2209	[Trivial]
+5C220A	220A	[Trivial]
+5C220D	220D	[Trivial]
+5C221A	221A	[Trivial]
+5C2222	2222	[Trivial]
+5C2225	2225	[Trivial]
+5C2227	NULL	[SyntErr]
+5C2230	2230	[Trivial]
+5C223F	223F	[Trivial]
+5C2240	2240	[Trivial]
+5C225A	225A	[Trivial]
+5C225C	NULL	[SyntErr]
+5C225F	225F	[Trivial]
+5C2261	2261	[Trivial]
+5C2262	2262	[Trivial]
+5C226E	226E	[Trivial]
+5C2272	2272	[Trivial]
+5C2274	2274	[Trivial]
+5C227E	227E	[Trivial]
+5C227F	227F	[Trivial]
+5C2280	2280	[Trivial][ILSEQ]
+5C2281	2281	[Trivial][ILSEQ]
+5C229F	229F	[Trivial][ILSEQ]
+5C22A0	22A0	[Trivial][ILSEQ]
+5C22A1	22A1	[Trivial][ILSEQ]
+5C22E0	22E0	[Trivial][ILSEQ]
+5C22EF	22EF	[Trivial][ILSEQ]
+5C22F9	22F9	[Trivial][ILSEQ]
+5C22FA	22FA	[Trivial][ILSEQ]
+5C22FC	22FC	[Trivial][ILSEQ]
+5C22FD	22FD	[Trivial][ILSEQ]
+5C22FE	22FE	[Trivial][ILSEQ]
+5C22FF	22FF	[Trivial][ILSEQ]
+5C2500	5C2500	[Preserve][LIKE]
+5C2508	5C2508	[Preserve][LIKE]
+5C2509	5C2509	[Preserve][LIKE]
+5C250A	5C250A	[Preserve][LIKE]
+5C250D	5C250D	[Preserve][LIKE]
+5C251A	5C251A	[Preserve][LIKE]
+5C2522	5C2522	[Preserve][LIKE]
+5C2525	5C2525	[Preserve][LIKE]
+5C2527	NULL	[SyntErr]
+5C2530	5C2530	[Preserve][LIKE]
+5C253F	5C253F	[Preserve][LIKE]
+5C2540	5C2540	[Preserve][LIKE]
+5C255A	5C255A	[Preserve][LIKE]
+5C255C	NULL	[SyntErr]
+5C255F	5C255F	[Preserve][LIKE]
+5C2561	5C2561	[Preserve][LIKE]
+5C2562	5C2562	[Preserve][LIKE]
+5C256E	5C256E	[Preserve][LIKE]
+5C2572	5C2572	[Preserve][LIKE]
+5C2574	5C2574	[Preserve][LIKE]
+5C257E	5C257E	[Preserve][LIKE]
+5C257F	5C257F	[Preserve][LIKE]
+5C2580	5C2580	[Preserve][LIKE][ILSEQ]
+5C2581	5C2581	[Preserve][LIKE][ILSEQ]
+5C259F	5C259F	[Preserve][LIKE][ILSEQ]
+5C25A0	5C25A0	[Preserve][LIKE][ILSEQ]
+5C25A1	5C25A1	[Preserve][LIKE][ILSEQ]
+5C25E0	5C25E0	[Preserve][LIKE][ILSEQ]
+5C25EF	5C25EF	[Preserve][LIKE][ILSEQ]
+5C25F9	5C25F9	[Preserve][LIKE][ILSEQ]
+5C25FA	5C25FA	[Preserve][LIKE][ILSEQ]
+5C25FC	5C25FC	[Preserve][LIKE][ILSEQ]
+5C25FD	5C25FD	[Preserve][LIKE][ILSEQ]
+5C25FE	5C25FE	[Preserve][LIKE][ILSEQ]
+5C25FF	5C25FF	[Preserve][LIKE][ILSEQ]
+5C2700	2700	[Trivial]
+5C2708	2708	[Trivial]
+5C2709	2709	[Trivial]
+5C270A	270A	[Trivial]
+5C270D	270D	[Trivial]
+5C271A	271A	[Trivial]
+5C2722	2722	[Trivial]
+5C2725	2725	[Trivial]
+5C2727	NULL	[SyntErr]
+5C2730	2730	[Trivial]
+5C273F	273F	[Trivial]
+5C2740	2740	[Trivial]
+5C275A	275A	[Trivial]
+5C275C	NULL	[SyntErr]
+5C275F	275F	[Trivial]
+5C2761	2761	[Trivial]
+5C2762	2762	[Trivial]
+5C276E	276E	[Trivial]
+5C2772	2772	[Trivial]
+5C2774	2774	[Trivial]
+5C277E	277E	[Trivial]
+5C277F	277F	[Trivial]
+5C2780	2780	[Trivial][ILSEQ]
+5C2781	2781	[Trivial][ILSEQ]
+5C279F	279F	[Trivial][ILSEQ]
+5C27A0	27A0	[Trivial][ILSEQ]
+5C27A1	27A1	[Trivial][ILSEQ]
+5C27E0	27E0	[Trivial][ILSEQ]
+5C27EF	27EF	[Trivial][ILSEQ]
+5C27F9	27F9	[Trivial][ILSEQ]
+5C27FA	27FA	[Trivial][ILSEQ]
+5C27FC	27FC	[Trivial][ILSEQ]
+5C27FD	27FD	[Trivial][ILSEQ]
+5C27FE	27FE	[Trivial][ILSEQ]
+5C27FF	27FF	[Trivial][ILSEQ]
+5C3000	0000	[Regular]
+5C3008	0008	[Regular]
+5C3009	0009	[Regular]
+5C300A	000A	[Regular]
+5C300D	000D	[Regular]
+5C301A	001A	[Regular]
+5C3022	0022	[Regular]
+5C3025	0025	[Regular]
+5C3027	NULL	[SyntErr]
+5C3030	0030	[Regular]
+5C303F	003F	[Regular]
+5C3040	0040	[Regular]
+5C305A	005A	[Regular]
+5C305C	NULL	[SyntErr]
+5C305F	005F	[Regular]
+5C3061	0061	[Regular]
+5C3062	0062	[Regular]
+5C306E	006E	[Regular]
+5C3072	0072	[Regular]
+5C3074	0074	[Regular]
+5C307E	007E	[Regular]
+5C307F	007F	[Regular]
+5C3080	0080	[Regular][ILSEQ]
+5C3081	0081	[Regular][ILSEQ]
+5C309F	009F	[Regular][ILSEQ]
+5C30A0	00A0	[Regular][ILSEQ]
+5C30A1	00A1	[Regular][ILSEQ]
+5C30E0	00E0	[Regular][ILSEQ]
+5C30EF	00EF	[Regular][ILSEQ]
+5C30F9	00F9	[Regular][ILSEQ]
+5C30FA	00FA	[Regular][ILSEQ]
+5C30FC	00FC	[Regular][ILSEQ]
+5C30FD	00FD	[Regular][ILSEQ]
+5C30FE	00FE	[Regular][ILSEQ]
+5C30FF	00FF	[Regular][ILSEQ]
+5C3F00	3F00	[Trivial]
+5C3F08	3F08	[Trivial]
+5C3F09	3F09	[Trivial]
+5C3F0A	3F0A	[Trivial]
+5C3F0D	3F0D	[Trivial]
+5C3F1A	3F1A	[Trivial]
+5C3F22	3F22	[Trivial]
+5C3F25	3F25	[Trivial]
+5C3F27	NULL	[SyntErr]
+5C3F30	3F30	[Trivial]
+5C3F3F	3F3F	[Trivial]
+5C3F40	3F40	[Trivial]
+5C3F5A	3F5A	[Trivial]
+5C3F5C	NULL	[SyntErr]
+5C3F5F	3F5F	[Trivial]
+5C3F61	3F61	[Trivial]
+5C3F62	3F62	[Trivial]
+5C3F6E	3F6E	[Trivial]
+5C3F72	3F72	[Trivial]
+5C3F74	3F74	[Trivial]
+5C3F7E	3F7E	[Trivial]
+5C3F7F	3F7F	[Trivial]
+5C3F80	3F80	[Trivial][ILSEQ]
+5C3F81	3F81	[Trivial][ILSEQ]
+5C3F9F	3F9F	[Trivial][ILSEQ]
+5C3FA0	3FA0	[Trivial][ILSEQ]
+5C3FA1	3FA1	[Trivial][ILSEQ]
+5C3FE0	3FE0	[Trivial][ILSEQ]
+5C3FEF	3FEF	[Trivial][ILSEQ]
+5C3FF9	3FF9	[Trivial][ILSEQ]
+5C3FFA	3FFA	[Trivial][ILSEQ]
+5C3FFC	3FFC	[Trivial][ILSEQ]
+5C3FFD	3FFD	[Trivial][ILSEQ]
+5C3FFE	3FFE	[Trivial][ILSEQ]
+5C3FFF	3FFF	[Trivial][ILSEQ]
+5C4000	4000	[Trivial]
+5C4008	4008	[Trivial]
+5C4009	4009	[Trivial]
+5C400A	400A	[Trivial]
+5C400D	400D	[Trivial]
+5C401A	401A	[Trivial]
+5C4022	4022	[Trivial]
+5C4025	4025	[Trivial]
+5C4027	NULL	[SyntErr]
+5C4030	4030	[Trivial]
+5C403F	403F	[Trivial]
+5C4040	4040	[Trivial]
+5C405A	405A	[Trivial]
+5C405C	NULL	[SyntErr]
+5C405F	405F	[Trivial]
+5C4061	4061	[Trivial]
+5C4062	4062	[Trivial]
+5C406E	406E	[Trivial]
+5C4072	4072	[Trivial]
+5C4074	4074	[Trivial]
+5C407E	407E	[Trivial]
+5C407F	407F	[Trivial]
+5C4080	4080	[Trivial][ILSEQ]
+5C4081	4081	[Trivial][ILSEQ]
+5C409F	409F	[Trivial][ILSEQ]
+5C40A0	40A0	[Trivial][ILSEQ]
+5C40A1	40A1	[Trivial][ILSEQ]
+5C40E0	40E0	[Trivial][ILSEQ]
+5C40EF	40EF	[Trivial][ILSEQ]
+5C40F9	40F9	[Trivial][ILSEQ]
+5C40FA	40FA	[Trivial][ILSEQ]
+5C40FC	40FC	[Trivial][ILSEQ]
+5C40FD	40FD	[Trivial][ILSEQ]
+5C40FE	40FE	[Trivial][ILSEQ]
+5C40FF	40FF	[Trivial][ILSEQ]
+5C5A00	1A00	[Regular]
+5C5A08	1A08	[Regular]
+5C5A09	1A09	[Regular]
+5C5A0A	1A0A	[Regular]
+5C5A0D	1A0D	[Regular]
+5C5A1A	1A1A	[Regular]
+5C5A22	1A22	[Regular]
+5C5A25	1A25	[Regular]
+5C5A27	NULL	[SyntErr]
+5C5A30	1A30	[Regular]
+5C5A3F	1A3F	[Regular]
+5C5A40	1A40	[Regular]
+5C5A5A	1A5A	[Regular]
+5C5A5C	NULL	[SyntErr]
+5C5A5F	1A5F	[Regular]
+5C5A61	1A61	[Regular]
+5C5A62	1A62	[Regular]
+5C5A6E	1A6E	[Regular]
+5C5A72	1A72	[Regular]
+5C5A74	1A74	[Regular]
+5C5A7E	1A7E	[Regular]
+5C5A7F	1A7F	[Regular]
+5C5A80	1A80	[Regular][ILSEQ]
+5C5A81	1A81	[Regular][ILSEQ]
+5C5A9F	1A9F	[Regular][ILSEQ]
+5C5AA0	1AA0	[Regular][ILSEQ]
+5C5AA1	1AA1	[Regular][ILSEQ]
+5C5AE0	1AE0	[Regular][ILSEQ]
+5C5AEF	1AEF	[Regular][ILSEQ]
+5C5AF9	1AF9	[Regular][ILSEQ]
+5C5AFA	1AFA	[Regular][ILSEQ]
+5C5AFC	1AFC	[Regular][ILSEQ]
+5C5AFD	1AFD	[Regular][ILSEQ]
+5C5AFE	1AFE	[Regular][ILSEQ]
+5C5AFF	1AFF	[Regular][ILSEQ]
+5C5C00	5C00	[Regular]
+5C5C08	5C08	[Regular]
+5C5C09	5C09	[Regular]
+5C5C0A	5C0A	[Regular]
+5C5C0D	5C0D	[Regular]
+5C5C1A	5C1A	[Regular]
+5C5C22	5C22	[Regular]
+5C5C25	5C25	[Regular]
+5C5C27	NULL	[SyntErr]
+5C5C30	5C30	[Regular]
+5C5C3F	5C3F	[Regular]
+5C5C40	5C40	[Regular]
+5C5C5A	5C5A	[Regular]
+5C5C5C	NULL	[SyntErr]
+5C5C5F	5C5F	[Regular]
+5C5C61	5C61	[Regular]
+5C5C62	5C62	[Regular]
+5C5C6E	5C6E	[Regular]
+5C5C72	5C72	[Regular]
+5C5C74	5C74	[Regular]
+5C5C7E	5C7E	[Regular]
+5C5C7F	5C7F	[Regular]
+5C5C80	5C80	[Regular][ILSEQ]
+5C5C81	5C81	[Regular][ILSEQ]
+5C5C9F	5C9F	[Regular][ILSEQ]
+5C5CA0	5CA0	[Regular][ILSEQ]
+5C5CA1	5CA1	[Regular][ILSEQ]
+5C5CE0	5CE0	[Regular][ILSEQ]
+5C5CEF	5CEF	[Regular][ILSEQ]
+5C5CF9	5CF9	[Regular][ILSEQ]
+5C5CFA	5CFA	[Regular][ILSEQ]
+5C5CFC	5CFC	[Regular][ILSEQ]
+5C5CFD	5CFD	[Regular][ILSEQ]
+5C5CFE	5CFE	[Regular][ILSEQ]
+5C5CFF	5CFF	[Regular][ILSEQ]
+5C5F00	5C5F00	[Preserve][LIKE]
+5C5F08	5C5F08	[Preserve][LIKE]
+5C5F09	5C5F09	[Preserve][LIKE]
+5C5F0A	5C5F0A	[Preserve][LIKE]
+5C5F0D	5C5F0D	[Preserve][LIKE]
+5C5F1A	5C5F1A	[Preserve][LIKE]
+5C5F22	5C5F22	[Preserve][LIKE]
+5C5F25	5C5F25	[Preserve][LIKE]
+5C5F27	NULL	[SyntErr]
+5C5F30	5C5F30	[Preserve][LIKE]
+5C5F3F	5C5F3F	[Preserve][LIKE]
+5C5F40	5C5F40	[Preserve][LIKE]
+5C5F5A	5C5F5A	[Preserve][LIKE]
+5C5F5C	NULL	[SyntErr]
+5C5F5F	5C5F5F	[Preserve][LIKE]
+5C5F61	5C5F61	[Preserve][LIKE]
+5C5F62	5C5F62	[Preserve][LIKE]
+5C5F6E	5C5F6E	[Preserve][LIKE]
+5C5F72	5C5F72	[Preserve][LIKE]
+5C5F74	5C5F74	[Preserve][LIKE]
+5C5F7E	5C5F7E	[Preserve][LIKE]
+5C5F7F	5C5F7F	[Preserve][LIKE]
+5C5F80	5C5F80	[Preserve][LIKE][ILSEQ]
+5C5F81	5C5F81	[Preserve][LIKE][ILSEQ]
+5C5F9F	5C5F9F	[Preserve][LIKE][ILSEQ]
+5C5FA0	5C5FA0	[Preserve][LIKE][ILSEQ]
+5C5FA1	5C5FA1	[Preserve][LIKE][ILSEQ]
+5C5FE0	5C5FE0	[Preserve][LIKE][ILSEQ]
+5C5FEF	5C5FEF	[Preserve][LIKE][ILSEQ]
+5C5FF9	5C5FF9	[Preserve][LIKE][ILSEQ]
+5C5FFA	5C5FFA	[Preserve][LIKE][ILSEQ]
+5C5FFC	5C5FFC	[Preserve][LIKE][ILSEQ]
+5C5FFD	5C5FFD	[Preserve][LIKE][ILSEQ]
+5C5FFE	5C5FFE	[Preserve][LIKE][ILSEQ]
+5C5FFF	5C5FFF	[Preserve][LIKE][ILSEQ]
+5C6100	6100	[Trivial]
+5C6108	6108	[Trivial]
+5C6109	6109	[Trivial]
+5C610A	610A	[Trivial]
+5C610D	610D	[Trivial]
+5C611A	611A	[Trivial]
+5C6122	6122	[Trivial]
+5C6125	6125	[Trivial]
+5C6127	NULL	[SyntErr]
+5C6130	6130	[Trivial]
+5C613F	613F	[Trivial]
+5C6140	6140	[Trivial]
+5C615A	615A	[Trivial]
+5C615C	NULL	[SyntErr]
+5C615F	615F	[Trivial]
+5C6161	6161	[Trivial]
+5C6162	6162	[Trivial]
+5C616E	616E	[Trivial]
+5C6172	6172	[Trivial]
+5C6174	6174	[Trivial]
+5C617E	617E	[Trivial]
+5C617F	617F	[Trivial]
+5C6180	6180	[Trivial][ILSEQ]
+5C6181	6181	[Trivial][ILSEQ]
+5C619F	619F	[Trivial][ILSEQ]
+5C61A0	61A0	[Trivial][ILSEQ]
+5C61A1	61A1	[Trivial][ILSEQ]
+5C61E0	61E0	[Trivial][ILSEQ]
+5C61EF	61EF	[Trivial][ILSEQ]
+5C61F9	61F9	[Trivial][ILSEQ]
+5C61FA	61FA	[Trivial][ILSEQ]
+5C61FC	61FC	[Trivial][ILSEQ]
+5C61FD	61FD	[Trivial][ILSEQ]
+5C61FE	61FE	[Trivial][ILSEQ]
+5C61FF	61FF	[Trivial][ILSEQ]
+5C6200	0800	[Regular]
+5C6208	0808	[Regular]
+5C6209	0809	[Regular]
+5C620A	080A	[Regular]
+5C620D	080D	[Regular]
+5C621A	081A	[Regular]
+5C6222	0822	[Regular]
+5C6225	0825	[Regular]
+5C6227	NULL	[SyntErr]
+5C6230	0830	[Regular]
+5C623F	083F	[Regular]
+5C6240	0840	[Regular]
+5C625A	085A	[Regular]
+5C625C	NULL	[SyntErr]
+5C625F	085F	[Regular]
+5C6261	0861	[Regular]
+5C6262	0862	[Regular]
+5C626E	086E	[Regular]
+5C6272	0872	[Regular]
+5C6274	0874	[Regular]
+5C627E	087E	[Regular]
+5C627F	087F	[Regular]
+5C6280	0880	[Regular][ILSEQ]
+5C6281	0881	[Regular][ILSEQ]
+5C629F	089F	[Regular][ILSEQ]
+5C62A0	08A0	[Regular][ILSEQ]
+5C62A1	08A1	[Regular][ILSEQ]
+5C62E0	08E0	[Regular][ILSEQ]
+5C62EF	08EF	[Regular][ILSEQ]
+5C62F9	08F9	[Regular][ILSEQ]
+5C62FA	08FA	[Regular][ILSEQ]
+5C62FC	08FC	[Regular][ILSEQ]
+5C62FD	08FD	[Regular][ILSEQ]
+5C62FE	08FE	[Regular][ILSEQ]
+5C62FF	08FF	[Regular][ILSEQ]
+5C6E00	0A00	[Regular]
+5C6E08	0A08	[Regular]
+5C6E09	0A09	[Regular]
+5C6E0A	0A0A	[Regular]
+5C6E0D	0A0D	[Regular]
+5C6E1A	0A1A	[Regular]
+5C6E22	0A22	[Regular]
+5C6E25	0A25	[Regular]
+5C6E27	NULL	[SyntErr]
+5C6E30	0A30	[Regular]
+5C6E3F	0A3F	[Regular]
+5C6E40	0A40	[Regular]
+5C6E5A	0A5A	[Regular]
+5C6E5C	NULL	[SyntErr]
+5C6E5F	0A5F	[Regular]
+5C6E61	0A61	[Regular]
+5C6E62	0A62	[Regular]
+5C6E6E	0A6E	[Regular]
+5C6E72	0A72	[Regular]
+5C6E74	0A74	[Regular]
+5C6E7E	0A7E	[Regular]
+5C6E7F	0A7F	[Regular]
+5C6E80	0A80	[Regular][ILSEQ]
+5C6E81	0A81	[Regular][ILSEQ]
+5C6E9F	0A9F	[Regular][ILSEQ]
+5C6EA0	0AA0	[Regular][ILSEQ]
+5C6EA1	0AA1	[Regular][ILSEQ]
+5C6EE0	0AE0	[Regular][ILSEQ]
+5C6EEF	0AEF	[Regular][ILSEQ]
+5C6EF9	0AF9	[Regular][ILSEQ]
+5C6EFA	0AFA	[Regular][ILSEQ]
+5C6EFC	0AFC	[Regular][ILSEQ]
+5C6EFD	0AFD	[Regular][ILSEQ]
+5C6EFE	0AFE	[Regular][ILSEQ]
+5C6EFF	0AFF	[Regular][ILSEQ]
+5C7200	0D00	[Regular]
+5C7208	0D08	[Regular]
+5C7209	0D09	[Regular]
+5C720A	0D0A	[Regular]
+5C720D	0D0D	[Regular]
+5C721A	0D1A	[Regular]
+5C7222	0D22	[Regular]
+5C7225	0D25	[Regular]
+5C7227	NULL	[SyntErr]
+5C7230	0D30	[Regular]
+5C723F	0D3F	[Regular]
+5C7240	0D40	[Regular]
+5C725A	0D5A	[Regular]
+5C725C	NULL	[SyntErr]
+5C725F	0D5F	[Regular]
+5C7261	0D61	[Regular]
+5C7262	0D62	[Regular]
+5C726E	0D6E	[Regular]
+5C7272	0D72	[Regular]
+5C7274	0D74	[Regular]
+5C727E	0D7E	[Regular]
+5C727F	0D7F	[Regular]
+5C7280	0D80	[Regular][ILSEQ]
+5C7281	0D81	[Regular][ILSEQ]
+5C729F	0D9F	[Regular][ILSEQ]
+5C72A0	0DA0	[Regular][ILSEQ]
+5C72A1	0DA1	[Regular][ILSEQ]
+5C72E0	0DE0	[Regular][ILSEQ]
+5C72EF	0DEF	[Regular][ILSEQ]
+5C72F9	0DF9	[Regular][ILSEQ]
+5C72FA	0DFA	[Regular][ILSEQ]
+5C72FC	0DFC	[Regular][ILSEQ]
+5C72FD	0DFD	[Regular][ILSEQ]
+5C72FE	0DFE	[Regular][ILSEQ]
+5C72FF	0DFF	[Regular][ILSEQ]
+5C7400	0900	[Regular]
+5C7408	0908	[Regular]
+5C7409	0909	[Regular]
+5C740A	090A	[Regular]
+5C740D	090D	[Regular]
+5C741A	091A	[Regular]
+5C7422	0922	[Regular]
+5C7425	0925	[Regular]
+5C7427	NULL	[SyntErr]
+5C7430	0930	[Regular]
+5C743F	093F	[Regular]
+5C7440	0940	[Regular]
+5C745A	095A	[Regular]
+5C745C	NULL	[SyntErr]
+5C745F	095F	[Regular]
+5C7461	0961	[Regular]
+5C7462	0962	[Regular]
+5C746E	096E	[Regular]
+5C7472	0972	[Regular]
+5C7474	0974	[Regular]
+5C747E	097E	[Regular]
+5C747F	097F	[Regular]
+5C7480	0980	[Regular][ILSEQ]
+5C7481	0981	[Regular][ILSEQ]
+5C749F	099F	[Regular][ILSEQ]
+5C74A0	09A0	[Regular][ILSEQ]
+5C74A1	09A1	[Regular][ILSEQ]
+5C74E0	09E0	[Regular][ILSEQ]
+5C74EF	09EF	[Regular][ILSEQ]
+5C74F9	09F9	[Regular][ILSEQ]
+5C74FA	09FA	[Regular][ILSEQ]
+5C74FC	09FC	[Regular][ILSEQ]
+5C74FD	09FD	[Regular][ILSEQ]
+5C74FE	09FE	[Regular][ILSEQ]
+5C74FF	09FF	[Regular][ILSEQ]
+5C7E00	7E00	[Trivial]
+5C7E08	7E08	[Trivial]
+5C7E09	7E09	[Trivial]
+5C7E0A	7E0A	[Trivial]
+5C7E0D	7E0D	[Trivial]
+5C7E1A	7E1A	[Trivial]
+5C7E22	7E22	[Trivial]
+5C7E25	7E25	[Trivial]
+5C7E27	NULL	[SyntErr]
+5C7E30	7E30	[Trivial]
+5C7E3F	7E3F	[Trivial]
+5C7E40	7E40	[Trivial]
+5C7E5A	7E5A	[Trivial]
+5C7E5C	NULL	[SyntErr]
+5C7E5F	7E5F	[Trivial]
+5C7E61	7E61	[Trivial]
+5C7E62	7E62	[Trivial]
+5C7E6E	7E6E	[Trivial]
+5C7E72	7E72	[Trivial]
+5C7E74	7E74	[Trivial]
+5C7E7E	7E7E	[Trivial]
+5C7E7F	7E7F	[Trivial]
+5C7E80	7E80	[Trivial][ILSEQ]
+5C7E81	7E81	[Trivial][ILSEQ]
+5C7E9F	7E9F	[Trivial][ILSEQ]
+5C7EA0	7EA0	[Trivial][ILSEQ]
+5C7EA1	7EA1	[Trivial][ILSEQ]
+5C7EE0	7EE0	[Trivial][ILSEQ]
+5C7EEF	7EEF	[Trivial][ILSEQ]
+5C7EF9	7EF9	[Trivial][ILSEQ]
+5C7EFA	7EFA	[Trivial][ILSEQ]
+5C7EFC	7EFC	[Trivial][ILSEQ]
+5C7EFD	7EFD	[Trivial][ILSEQ]
+5C7EFE	7EFE	[Trivial][ILSEQ]
+5C7EFF	7EFF	[Trivial][ILSEQ]
+5C7F00	7F00	[Trivial]
+5C7F08	7F08	[Trivial]
+5C7F09	7F09	[Trivial]
+5C7F0A	7F0A	[Trivial]
+5C7F0D	7F0D	[Trivial]
+5C7F1A	7F1A	[Trivial]
+5C7F22	7F22	[Trivial]
+5C7F25	7F25	[Trivial]
+5C7F27	NULL	[SyntErr]
+5C7F30	7F30	[Trivial]
+5C7F3F	7F3F	[Trivial]
+5C7F40	7F40	[Trivial]
+5C7F5A	7F5A	[Trivial]
+5C7F5C	NULL	[SyntErr]
+5C7F5F	7F5F	[Trivial]
+5C7F61	7F61	[Trivial]
+5C7F62	7F62	[Trivial]
+5C7F6E	7F6E	[Trivial]
+5C7F72	7F72	[Trivial]
+5C7F74	7F74	[Trivial]
+5C7F7E	7F7E	[Trivial]
+5C7F7F	7F7F	[Trivial]
+5C7F80	7F80	[Trivial][ILSEQ]
+5C7F81	7F81	[Trivial][ILSEQ]
+5C7F9F	7F9F	[Trivial][ILSEQ]
+5C7FA0	7FA0	[Trivial][ILSEQ]
+5C7FA1	7FA1	[Trivial][ILSEQ]
+5C7FE0	7FE0	[Trivial][ILSEQ]
+5C7FEF	7FEF	[Trivial][ILSEQ]
+5C7FF9	7FF9	[Trivial][ILSEQ]
+5C7FFA	7FFA	[Trivial][ILSEQ]
+5C7FFC	7FFC	[Trivial][ILSEQ]
+5C7FFD	7FFD	[Trivial][ILSEQ]
+5C7FFE	7FFE	[Trivial][ILSEQ]
+5C7FFF	7FFF	[Trivial][ILSEQ]
+5C8000	8000	[Trivial][ILSEQ]
+5C8008	8008	[Trivial][ILSEQ]
+5C8009	8009	[Trivial][ILSEQ]
+5C800A	800A	[Trivial][ILSEQ]
+5C800D	800D	[Trivial][ILSEQ]
+5C801A	801A	[Trivial][ILSEQ]
+5C8022	8022	[Trivial][ILSEQ]
+5C8025	8025	[Trivial][ILSEQ]
+5C8027	NULL	[SyntErr]
+5C8030	8030	[Trivial][ILSEQ]
+5C803F	803F	[Trivial][ILSEQ]
+5C8040	8040	[Trivial][ILSEQ]
+5C805A	805A	[Trivial][ILSEQ]
+5C805C	NULL	[SyntErr]
+5C805F	805F	[Trivial][ILSEQ]
+5C8061	8061	[Trivial][ILSEQ]
+5C8062	8062	[Trivial][ILSEQ]
+5C806E	806E	[Trivial][ILSEQ]
+5C8072	8072	[Trivial][ILSEQ]
+5C8074	8074	[Trivial][ILSEQ]
+5C807E	807E	[Trivial][ILSEQ]
+5C807F	807F	[Trivial][ILSEQ]
+5C8080	8080	[Trivial][ILSEQ]
+5C8081	8081	[Trivial][ILSEQ]
+5C809F	809F	[Trivial][ILSEQ]
+5C80A0	80A0	[Trivial][ILSEQ]
+5C80A1	80A1	[Trivial][ILSEQ]
+5C80E0	80E0	[Trivial][ILSEQ]
+5C80EF	80EF	[Trivial][ILSEQ]
+5C80F9	80F9	[Trivial][ILSEQ]
+5C80FA	80FA	[Trivial][ILSEQ]
+5C80FC	80FC	[Trivial][ILSEQ]
+5C80FD	80FD	[Trivial][ILSEQ]
+5C80FE	80FE	[Trivial][ILSEQ]
+5C80FF	80FF	[Trivial][ILSEQ]
+5C8100	8100	[Trivial][ILSEQ]
+5C8108	8108	[Trivial][ILSEQ]
+5C8109	8109	[Trivial][ILSEQ]
+5C810A	810A	[Trivial][ILSEQ]
+5C810D	810D	[Trivial][ILSEQ]
+5C811A	811A	[Trivial][ILSEQ]
+5C8122	8122	[Trivial][ILSEQ]
+5C8125	8125	[Trivial][ILSEQ]
+5C8127	NULL	[SyntErr]
+5C8130	8130	[Trivial][ILSEQ]
+5C813F	813F	[Trivial][ILSEQ]
+5C8140	8140	[Trivial][ILSEQ]
+5C815A	815A	[Trivial][ILSEQ]
+5C815C	NULL	[SyntErr]
+5C815F	815F	[Trivial][ILSEQ]
+5C8161	8161	[Trivial][ILSEQ]
+5C8162	8162	[Trivial][ILSEQ]
+5C816E	816E	[Trivial][ILSEQ]
+5C8172	8172	[Trivial][ILSEQ]
+5C8174	8174	[Trivial][ILSEQ]
+5C817E	817E	[Trivial][ILSEQ]
+5C817F	817F	[Trivial][ILSEQ]
+5C8180	8180	[Trivial][ILSEQ]
+5C8181	8181	[Trivial][ILSEQ]
+5C819F	819F	[Trivial][ILSEQ]
+5C81A0	81A0	[Trivial][ILSEQ]
+5C81A1	81A1	[Trivial][ILSEQ]
+5C81E0	81E0	[Trivial][ILSEQ]
+5C81EF	81EF	[Trivial][ILSEQ]
+5C81F9	81F9	[Trivial][ILSEQ]
+5C81FA	81FA	[Trivial][ILSEQ]
+5C81FC	81FC	[Trivial][ILSEQ]
+5C81FD	81FD	[Trivial][ILSEQ]
+5C81FE	81FE	[Trivial][ILSEQ]
+5C81FF	81FF	[Trivial][ILSEQ]
+5C9F00	9F00	[Trivial][ILSEQ]
+5C9F08	9F08	[Trivial][ILSEQ]
+5C9F09	9F09	[Trivial][ILSEQ]
+5C9F0A	9F0A	[Trivial][ILSEQ]
+5C9F0D	9F0D	[Trivial][ILSEQ]
+5C9F1A	9F1A	[Trivial][ILSEQ]
+5C9F22	9F22	[Trivial][ILSEQ]
+5C9F25	9F25	[Trivial][ILSEQ]
+5C9F27	NULL	[SyntErr]
+5C9F30	9F30	[Trivial][ILSEQ]
+5C9F3F	9F3F	[Trivial][ILSEQ]
+5C9F40	9F40	[Trivial][ILSEQ]
+5C9F5A	9F5A	[Trivial][ILSEQ]
+5C9F5C	NULL	[SyntErr]
+5C9F5F	9F5F	[Trivial][ILSEQ]
+5C9F61	9F61	[Trivial][ILSEQ]
+5C9F62	9F62	[Trivial][ILSEQ]
+5C9F6E	9F6E	[Trivial][ILSEQ]
+5C9F72	9F72	[Trivial][ILSEQ]
+5C9F74	9F74	[Trivial][ILSEQ]
+5C9F7E	9F7E	[Trivial][ILSEQ]
+5C9F7F	9F7F	[Trivial][ILSEQ]
+5C9F80	9F80	[Trivial][ILSEQ]
+5C9F81	9F81	[Trivial][ILSEQ]
+5C9F9F	9F9F	[Trivial][ILSEQ]
+5C9FA0	9FA0	[Trivial][ILSEQ]
+5C9FA1	9FA1	[Trivial][ILSEQ]
+5C9FE0	9FE0	[Trivial][ILSEQ]
+5C9FEF	9FEF	[Trivial][ILSEQ]
+5C9FF9	9FF9	[Trivial][ILSEQ]
+5C9FFA	9FFA	[Trivial][ILSEQ]
+5C9FFC	9FFC	[Trivial][ILSEQ]
+5C9FFD	9FFD	[Trivial][ILSEQ]
+5C9FFE	9FFE	[Trivial][ILSEQ]
+5C9FFF	9FFF	[Trivial][ILSEQ]
+5CA000	A000	[Trivial][ILSEQ]
+5CA008	A008	[Trivial][ILSEQ]
+5CA009	A009	[Trivial][ILSEQ]
+5CA00A	A00A	[Trivial][ILSEQ]
+5CA00D	A00D	[Trivial][ILSEQ]
+5CA01A	A01A	[Trivial][ILSEQ]
+5CA022	A022	[Trivial][ILSEQ]
+5CA025	A025	[Trivial][ILSEQ]
+5CA027	NULL	[SyntErr]
+5CA030	A030	[Trivial][ILSEQ]
+5CA03F	A03F	[Trivial][ILSEQ]
+5CA040	A040	[Trivial][ILSEQ]
+5CA05A	A05A	[Trivial][ILSEQ]
+5CA05C	NULL	[SyntErr]
+5CA05F	A05F	[Trivial][ILSEQ]
+5CA061	A061	[Trivial][ILSEQ]
+5CA062	A062	[Trivial][ILSEQ]
+5CA06E	A06E	[Trivial][ILSEQ]
+5CA072	A072	[Trivial][ILSEQ]
+5CA074	A074	[Trivial][ILSEQ]
+5CA07E	A07E	[Trivial][ILSEQ]
+5CA07F	A07F	[Trivial][ILSEQ]
+5CA080	A080	[Trivial][ILSEQ]
+5CA081	A081	[Trivial][ILSEQ]
+5CA09F	A09F	[Trivial][ILSEQ]
+5CA0A0	A0A0	[Trivial][ILSEQ]
+5CA0A1	A0A1	[Trivial][ILSEQ]
+5CA0E0	A0E0	[Trivial][ILSEQ]
+5CA0EF	A0EF	[Trivial][ILSEQ]
+5CA0F9	A0F9	[Trivial][ILSEQ]
+5CA0FA	A0FA	[Trivial][ILSEQ]
+5CA0FC	A0FC	[Trivial][ILSEQ]
+5CA0FD	A0FD	[Trivial][ILSEQ]
+5CA0FE	A0FE	[Trivial][ILSEQ]
+5CA0FF	A0FF	[Trivial][ILSEQ]
+5CA100	A100	[Trivial][ILSEQ]
+5CA108	A108	[Trivial][ILSEQ]
+5CA109	A109	[Trivial][ILSEQ]
+5CA10A	A10A	[Trivial][ILSEQ]
+5CA10D	A10D	[Trivial][ILSEQ]
+5CA11A	A11A	[Trivial][ILSEQ]
+5CA122	A122	[Trivial][ILSEQ]
+5CA125	A125	[Trivial][ILSEQ]
+5CA127	NULL	[SyntErr]
+5CA130	A130	[Trivial][ILSEQ]
+5CA13F	A13F	[Trivial][ILSEQ]
+5CA140	A140	[Trivial]
+5CA15A	A15A	[Trivial]
+5CA15C	NULL	[SyntErr]
+5CA15F	A15F	[Trivial]
+5CA161	A161	[Trivial]
+5CA162	A162	[Trivial]
+5CA16E	A16E	[Trivial]
+5CA172	A172	[Trivial]
+5CA174	A174	[Trivial]
+5CA17E	A17E	[Trivial]
+5CA17F	A17F	[Trivial][ILSEQ]
+5CA180	A180	[Trivial][ILSEQ]
+5CA181	A181	[Trivial][ILSEQ]
+5CA19F	A19F	[Trivial][ILSEQ]
+5CA1A0	A1A0	[Trivial][ILSEQ]
+5CA1A1	A1A1	[Trivial]
+5CA1E0	A1E0	[Trivial]
+5CA1EF	A1EF	[Trivial]
+5CA1F9	A1F9	[Trivial]
+5CA1FA	A1FA	[Trivial]
+5CA1FC	A1FC	[Trivial]
+5CA1FD	A1FD	[Trivial]
+5CA1FE	A1FE	[Trivial]
+5CA1FF	A1FF	[Trivial][ILSEQ]
+5CE000	E000	[Trivial][ILSEQ]
+5CE008	E008	[Trivial][ILSEQ]
+5CE009	E009	[Trivial][ILSEQ]
+5CE00A	E00A	[Trivial][ILSEQ]
+5CE00D	E00D	[Trivial][ILSEQ]
+5CE01A	E01A	[Trivial][ILSEQ]
+5CE022	E022	[Trivial][ILSEQ]
+5CE025	E025	[Trivial][ILSEQ]
+5CE027	NULL	[SyntErr]
+5CE030	E030	[Trivial][ILSEQ]
+5CE03F	E03F	[Trivial][ILSEQ]
+5CE040	E040	[Trivial]
+5CE05A	E05A	[Trivial]
+5CE05C	NULL	[SyntErr]
+5CE05F	E05F	[Trivial]
+5CE061	E061	[Trivial]
+5CE062	E062	[Trivial]
+5CE06E	E06E	[Trivial]
+5CE072	E072	[Trivial]
+5CE074	E074	[Trivial]
+5CE07E	E07E	[Trivial]
+5CE07F	E07F	[Trivial][ILSEQ]
+5CE080	E080	[Trivial][ILSEQ]
+5CE081	E081	[Trivial][ILSEQ]
+5CE09F	E09F	[Trivial][ILSEQ]
+5CE0A0	E0A0	[Trivial][ILSEQ]
+5CE0A1	E0A1	[Trivial]
+5CE0E0	E0E0	[Trivial]
+5CE0EF	E0EF	[Trivial]
+5CE0F9	E0F9	[Trivial]
+5CE0FA	E0FA	[Trivial]
+5CE0FC	E0FC	[Trivial]
+5CE0FD	E0FD	[Trivial]
+5CE0FE	E0FE	[Trivial]
+5CE0FF	E0FF	[Trivial][ILSEQ]
+5CEF00	EF00	[Trivial][ILSEQ]
+5CEF08	EF08	[Trivial][ILSEQ]
+5CEF09	EF09	[Trivial][ILSEQ]
+5CEF0A	EF0A	[Trivial][ILSEQ]
+5CEF0D	EF0D	[Trivial][ILSEQ]
+5CEF1A	EF1A	[Trivial][ILSEQ]
+5CEF22	EF22	[Trivial][ILSEQ]
+5CEF25	EF25	[Trivial][ILSEQ]
+5CEF27	NULL	[SyntErr]
+5CEF30	EF30	[Trivial][ILSEQ]
+5CEF3F	EF3F	[Trivial][ILSEQ]
+5CEF40	EF40	[Trivial]
+5CEF5A	EF5A	[Trivial]
+5CEF5C	NULL	[SyntErr]
+5CEF5F	EF5F	[Trivial]
+5CEF61	EF61	[Trivial]
+5CEF62	EF62	[Trivial]
+5CEF6E	EF6E	[Trivial]
+5CEF72	EF72	[Trivial]
+5CEF74	EF74	[Trivial]
+5CEF7E	EF7E	[Trivial]
+5CEF7F	EF7F	[Trivial][ILSEQ]
+5CEF80	EF80	[Trivial][ILSEQ]
+5CEF81	EF81	[Trivial][ILSEQ]
+5CEF9F	EF9F	[Trivial][ILSEQ]
+5CEFA0	EFA0	[Trivial][ILSEQ]
+5CEFA1	EFA1	[Trivial]
+5CEFE0	EFE0	[Trivial]
+5CEFEF	EFEF	[Trivial]
+5CEFF9	EFF9	[Trivial]
+5CEFFA	EFFA	[Trivial]
+5CEFFC	EFFC	[Trivial]
+5CEFFD	EFFD	[Trivial]
+5CEFFE	EFFE	[Trivial]
+5CEFFF	EFFF	[Trivial][ILSEQ]
+5CF900	F900	[Trivial][ILSEQ]
+5CF908	F908	[Trivial][ILSEQ]
+5CF909	F909	[Trivial][ILSEQ]
+5CF90A	F90A	[Trivial][ILSEQ]
+5CF90D	F90D	[Trivial][ILSEQ]
+5CF91A	F91A	[Trivial][ILSEQ]
+5CF922	F922	[Trivial][ILSEQ]
+5CF925	F925	[Trivial][ILSEQ]
+5CF927	NULL	[SyntErr]
+5CF930	F930	[Trivial][ILSEQ]
+5CF93F	F93F	[Trivial][ILSEQ]
+5CF940	F940	[Trivial]
+5CF95A	F95A	[Trivial]
+5CF95C	NULL	[SyntErr]
+5CF95F	F95F	[Trivial]
+5CF961	F961	[Trivial]
+5CF962	F962	[Trivial]
+5CF96E	F96E	[Trivial]
+5CF972	F972	[Trivial]
+5CF974	F974	[Trivial]
+5CF97E	F97E	[Trivial]
+5CF97F	F97F	[Trivial][ILSEQ]
+5CF980	F980	[Trivial][ILSEQ]
+5CF981	F981	[Trivial][ILSEQ]
+5CF99F	F99F	[Trivial][ILSEQ]
+5CF9A0	F9A0	[Trivial][ILSEQ]
+5CF9A1	F9A1	[Trivial]
+5CF9E0	F9E0	[Trivial]
+5CF9EF	F9EF	[Trivial]
+5CF9F9	F9F9	[Trivial]
+5CF9FA	F9FA	[Trivial]
+5CF9FC	F9FC	[Trivial]
+5CF9FD	F9FD	[Trivial]
+5CF9FE	F9FE	[Trivial]
+5CF9FF	F9FF	[Trivial][ILSEQ]
+5CFA00	FA00	[Trivial][ILSEQ]
+5CFA08	FA08	[Trivial][ILSEQ]
+5CFA09	FA09	[Trivial][ILSEQ]
+5CFA0A	FA0A	[Trivial][ILSEQ]
+5CFA0D	FA0D	[Trivial][ILSEQ]
+5CFA1A	FA1A	[Trivial][ILSEQ]
+5CFA22	FA22	[Trivial][ILSEQ]
+5CFA25	FA25	[Trivial][ILSEQ]
+5CFA27	NULL	[SyntErr]
+5CFA30	FA30	[Trivial][ILSEQ]
+5CFA3F	FA3F	[Trivial][ILSEQ]
+5CFA40	FA40	[Trivial][ILSEQ]
+5CFA5A	FA5A	[Trivial][ILSEQ]
+5CFA5C	NULL	[SyntErr]
+5CFA5F	FA5F	[Trivial][ILSEQ]
+5CFA61	FA61	[Trivial][ILSEQ]
+5CFA62	FA62	[Trivial][ILSEQ]
+5CFA6E	FA6E	[Trivial][ILSEQ]
+5CFA72	FA72	[Trivial][ILSEQ]
+5CFA74	FA74	[Trivial][ILSEQ]
+5CFA7E	FA7E	[Trivial][ILSEQ]
+5CFA7F	FA7F	[Trivial][ILSEQ]
+5CFA80	FA80	[Trivial][ILSEQ]
+5CFA81	FA81	[Trivial][ILSEQ]
+5CFA9F	FA9F	[Trivial][ILSEQ]
+5CFAA0	FAA0	[Trivial][ILSEQ]
+5CFAA1	FAA1	[Trivial][ILSEQ]
+5CFAE0	FAE0	[Trivial][ILSEQ]
+5CFAEF	FAEF	[Trivial][ILSEQ]
+5CFAF9	FAF9	[Trivial][ILSEQ]
+5CFAFA	FAFA	[Trivial][ILSEQ]
+5CFAFC	FAFC	[Trivial][ILSEQ]
+5CFAFD	FAFD	[Trivial][ILSEQ]
+5CFAFE	FAFE	[Trivial][ILSEQ]
+5CFAFF	FAFF	[Trivial][ILSEQ]
+5CFC00	FC00	[Trivial][ILSEQ]
+5CFC08	FC08	[Trivial][ILSEQ]
+5CFC09	FC09	[Trivial][ILSEQ]
+5CFC0A	FC0A	[Trivial][ILSEQ]
+5CFC0D	FC0D	[Trivial][ILSEQ]
+5CFC1A	FC1A	[Trivial][ILSEQ]
+5CFC22	FC22	[Trivial][ILSEQ]
+5CFC25	FC25	[Trivial][ILSEQ]
+5CFC27	NULL	[SyntErr]
+5CFC30	FC30	[Trivial][ILSEQ]
+5CFC3F	FC3F	[Trivial][ILSEQ]
+5CFC40	FC40	[Trivial][ILSEQ]
+5CFC5A	FC5A	[Trivial][ILSEQ]
+5CFC5C	NULL	[SyntErr]
+5CFC5F	FC5F	[Trivial][ILSEQ]
+5CFC61	FC61	[Trivial][ILSEQ]
+5CFC62	FC62	[Trivial][ILSEQ]
+5CFC6E	FC6E	[Trivial][ILSEQ]
+5CFC72	FC72	[Trivial][ILSEQ]
+5CFC74	FC74	[Trivial][ILSEQ]
+5CFC7E	FC7E	[Trivial][ILSEQ]
+5CFC7F	FC7F	[Trivial][ILSEQ]
+5CFC80	FC80	[Trivial][ILSEQ]
+5CFC81	FC81	[Trivial][ILSEQ]
+5CFC9F	FC9F	[Trivial][ILSEQ]
+5CFCA0	FCA0	[Trivial][ILSEQ]
+5CFCA1	FCA1	[Trivial][ILSEQ]
+5CFCE0	FCE0	[Trivial][ILSEQ]
+5CFCEF	FCEF	[Trivial][ILSEQ]
+5CFCF9	FCF9	[Trivial][ILSEQ]
+5CFCFA	FCFA	[Trivial][ILSEQ]
+5CFCFC	FCFC	[Trivial][ILSEQ]
+5CFCFD	FCFD	[Trivial][ILSEQ]
+5CFCFE	FCFE	[Trivial][ILSEQ]
+5CFCFF	FCFF	[Trivial][ILSEQ]
+5CFD00	FD00	[Trivial][ILSEQ]
+5CFD08	FD08	[Trivial][ILSEQ]
+5CFD09	FD09	[Trivial][ILSEQ]
+5CFD0A	FD0A	[Trivial][ILSEQ]
+5CFD0D	FD0D	[Trivial][ILSEQ]
+5CFD1A	FD1A	[Trivial][ILSEQ]
+5CFD22	FD22	[Trivial][ILSEQ]
+5CFD25	FD25	[Trivial][ILSEQ]
+5CFD27	NULL	[SyntErr]
+5CFD30	FD30	[Trivial][ILSEQ]
+5CFD3F	FD3F	[Trivial][ILSEQ]
+5CFD40	FD40	[Trivial][ILSEQ]
+5CFD5A	FD5A	[Trivial][ILSEQ]
+5CFD5C	NULL	[SyntErr]
+5CFD5F	FD5F	[Trivial][ILSEQ]
+5CFD61	FD61	[Trivial][ILSEQ]
+5CFD62	FD62	[Trivial][ILSEQ]
+5CFD6E	FD6E	[Trivial][ILSEQ]
+5CFD72	FD72	[Trivial][ILSEQ]
+5CFD74	FD74	[Trivial][ILSEQ]
+5CFD7E	FD7E	[Trivial][ILSEQ]
+5CFD7F	FD7F	[Trivial][ILSEQ]
+5CFD80	FD80	[Trivial][ILSEQ]
+5CFD81	FD81	[Trivial][ILSEQ]
+5CFD9F	FD9F	[Trivial][ILSEQ]
+5CFDA0	FDA0	[Trivial][ILSEQ]
+5CFDA1	FDA1	[Trivial][ILSEQ]
+5CFDE0	FDE0	[Trivial][ILSEQ]
+5CFDEF	FDEF	[Trivial][ILSEQ]
+5CFDF9	FDF9	[Trivial][ILSEQ]
+5CFDFA	FDFA	[Trivial][ILSEQ]
+5CFDFC	FDFC	[Trivial][ILSEQ]
+5CFDFD	FDFD	[Trivial][ILSEQ]
+5CFDFE	FDFE	[Trivial][ILSEQ]
+5CFDFF	FDFF	[Trivial][ILSEQ]
+5CFE00	FE00	[Trivial][ILSEQ]
+5CFE08	FE08	[Trivial][ILSEQ]
+5CFE09	FE09	[Trivial][ILSEQ]
+5CFE0A	FE0A	[Trivial][ILSEQ]
+5CFE0D	FE0D	[Trivial][ILSEQ]
+5CFE1A	FE1A	[Trivial][ILSEQ]
+5CFE22	FE22	[Trivial][ILSEQ]
+5CFE25	FE25	[Trivial][ILSEQ]
+5CFE27	NULL	[SyntErr]
+5CFE30	FE30	[Trivial][ILSEQ]
+5CFE3F	FE3F	[Trivial][ILSEQ]
+5CFE40	FE40	[Trivial][ILSEQ]
+5CFE5A	FE5A	[Trivial][ILSEQ]
+5CFE5C	NULL	[SyntErr]
+5CFE5F	FE5F	[Trivial][ILSEQ]
+5CFE61	FE61	[Trivial][ILSEQ]
+5CFE62	FE62	[Trivial][ILSEQ]
+5CFE6E	FE6E	[Trivial][ILSEQ]
+5CFE72	FE72	[Trivial][ILSEQ]
+5CFE74	FE74	[Trivial][ILSEQ]
+5CFE7E	FE7E	[Trivial][ILSEQ]
+5CFE7F	FE7F	[Trivial][ILSEQ]
+5CFE80	FE80	[Trivial][ILSEQ]
+5CFE81	FE81	[Trivial][ILSEQ]
+5CFE9F	FE9F	[Trivial][ILSEQ]
+5CFEA0	FEA0	[Trivial][ILSEQ]
+5CFEA1	FEA1	[Trivial][ILSEQ]
+5CFEE0	FEE0	[Trivial][ILSEQ]
+5CFEEF	FEEF	[Trivial][ILSEQ]
+5CFEF9	FEF9	[Trivial][ILSEQ]
+5CFEFA	FEFA	[Trivial][ILSEQ]
+5CFEFC	FEFC	[Trivial][ILSEQ]
+5CFEFD	FEFD	[Trivial][ILSEQ]
+5CFEFE	FEFE	[Trivial][ILSEQ]
+5CFEFF	FEFF	[Trivial][ILSEQ]
+5CFF00	FF00	[Trivial][ILSEQ]
+5CFF08	FF08	[Trivial][ILSEQ]
+5CFF09	FF09	[Trivial][ILSEQ]
+5CFF0A	FF0A	[Trivial][ILSEQ]
+5CFF0D	FF0D	[Trivial][ILSEQ]
+5CFF1A	FF1A	[Trivial][ILSEQ]
+5CFF22	FF22	[Trivial][ILSEQ]
+5CFF25	FF25	[Trivial][ILSEQ]
+5CFF27	NULL	[SyntErr]
+5CFF30	FF30	[Trivial][ILSEQ]
+5CFF3F	FF3F	[Trivial][ILSEQ]
+5CFF40	FF40	[Trivial][ILSEQ]
+5CFF5A	FF5A	[Trivial][ILSEQ]
+5CFF5C	NULL	[SyntErr]
+5CFF5F	FF5F	[Trivial][ILSEQ]
+5CFF61	FF61	[Trivial][ILSEQ]
+5CFF62	FF62	[Trivial][ILSEQ]
+5CFF6E	FF6E	[Trivial][ILSEQ]
+5CFF72	FF72	[Trivial][ILSEQ]
+5CFF74	FF74	[Trivial][ILSEQ]
+5CFF7E	FF7E	[Trivial][ILSEQ]
+5CFF7F	FF7F	[Trivial][ILSEQ]
+5CFF80	FF80	[Trivial][ILSEQ]
+5CFF81	FF81	[Trivial][ILSEQ]
+5CFF9F	FF9F	[Trivial][ILSEQ]
+5CFFA0	FFA0	[Trivial][ILSEQ]
+5CFFA1	FFA1	[Trivial][ILSEQ]
+5CFFE0	FFE0	[Trivial][ILSEQ]
+5CFFEF	FFEF	[Trivial][ILSEQ]
+5CFFF9	FFF9	[Trivial][ILSEQ]
+5CFFFA	FFFA	[Trivial][ILSEQ]
+5CFFFC	FFFC	[Trivial][ILSEQ]
+5CFFFD	FFFD	[Trivial][ILSEQ]
+5CFFFE	FFFE	[Trivial][ILSEQ]
+5CFFFF	FFFF	[Trivial][ILSEQ]
+5C005C00	0000	[Trivial]
+5C005C08	0008	[Trivial]
+5C005C09	0009	[Trivial]
+5C005C0A	000A	[Trivial]
+5C005C0D	000D	[Trivial]
+5C005C1A	001A	[Trivial]
+5C005C22	0022	[Trivial]
+5C005C25	005C25	[Regular]
+5C005C27	0027	[Trivial]
+5C005C30	0000	[Regular]
+5C005C3F	003F	[Trivial]
+5C005C40	0040	[Trivial]
+5C005C5A	001A	[Regular]
+5C005C5C	005C	[Regular]
+5C005C5F	005C5F	[Regular]
+5C005C61	0061	[Trivial]
+5C005C62	0008	[Regular]
+5C005C6E	000A	[Regular]
+5C005C72	000D	[Regular]
+5C005C74	0009	[Regular]
+5C005C7E	007E	[Trivial]
+5C005C7F	007F	[Trivial]
+5C005C80	0080	[Trivial][ILSEQ]
+5C005C81	0081	[Trivial][ILSEQ]
+5C005C9F	009F	[Trivial][ILSEQ]
+5C005CA0	00A0	[Trivial][ILSEQ]
+5C005CA1	00A1	[Trivial][ILSEQ]
+5C005CE0	00E0	[Trivial][ILSEQ]
+5C005CEF	00EF	[Trivial][ILSEQ]
+5C005CF9	00F9	[Trivial][ILSEQ]
+5C005CFA	00FA	[Trivial][ILSEQ]
+5C005CFC	00FC	[Trivial][ILSEQ]
+5C005CFD	00FD	[Trivial][ILSEQ]
+5C005CFE	00FE	[Trivial][ILSEQ]
+5C005CFF	00FF	[Trivial][ILSEQ]
+5C085C00	0800	[Trivial]
+5C085C08	0808	[Trivial]
+5C085C09	0809	[Trivial]
+5C085C0A	080A	[Trivial]
+5C085C0D	080D	[Trivial]
+5C085C1A	081A	[Trivial]
+5C085C22	0822	[Trivial]
+5C085C25	085C25	[Regular]
+5C085C27	0827	[Trivial]
+5C085C30	0800	[Regular]
+5C085C3F	083F	[Trivial]
+5C085C40	0840	[Trivial]
+5C085C5A	081A	[Regular]
+5C085C5C	085C	[Regular]
+5C085C5F	085C5F	[Regular]
+5C085C61	0861	[Trivial]
+5C085C62	0808	[Regular]
+5C085C6E	080A	[Regular]
+5C085C72	080D	[Regular]
+5C085C74	0809	[Regular]
+5C085C7E	087E	[Trivial]
+5C085C7F	087F	[Trivial]
+5C085C80	0880	[Trivial][ILSEQ]
+5C085C81	0881	[Trivial][ILSEQ]
+5C085C9F	089F	[Trivial][ILSEQ]
+5C085CA0	08A0	[Trivial][ILSEQ]
+5C085CA1	08A1	[Trivial][ILSEQ]
+5C085CE0	08E0	[Trivial][ILSEQ]
+5C085CEF	08EF	[Trivial][ILSEQ]
+5C085CF9	08F9	[Trivial][ILSEQ]
+5C085CFA	08FA	[Trivial][ILSEQ]
+5C085CFC	08FC	[Trivial][ILSEQ]
+5C085CFD	08FD	[Trivial][ILSEQ]
+5C085CFE	08FE	[Trivial][ILSEQ]
+5C085CFF	08FF	[Trivial][ILSEQ]
+5C095C00	0900	[Trivial]
+5C095C08	0908	[Trivial]
+5C095C09	0909	[Trivial]
+5C095C0A	090A	[Trivial]
+5C095C0D	090D	[Trivial]
+5C095C1A	091A	[Trivial]
+5C095C22	0922	[Trivial]
+5C095C25	095C25	[Regular]
+5C095C27	0927	[Trivial]
+5C095C30	0900	[Regular]
+5C095C3F	093F	[Trivial]
+5C095C40	0940	[Trivial]
+5C095C5A	091A	[Regular]
+5C095C5C	095C	[Regular]
+5C095C5F	095C5F	[Regular]
+5C095C61	0961	[Trivial]
+5C095C62	0908	[Regular]
+5C095C6E	090A	[Regular]
+5C095C72	090D	[Regular]
+5C095C74	0909	[Regular]
+5C095C7E	097E	[Trivial]
+5C095C7F	097F	[Trivial]
+5C095C80	0980	[Trivial][ILSEQ]
+5C095C81	0981	[Trivial][ILSEQ]
+5C095C9F	099F	[Trivial][ILSEQ]
+5C095CA0	09A0	[Trivial][ILSEQ]
+5C095CA1	09A1	[Trivial][ILSEQ]
+5C095CE0	09E0	[Trivial][ILSEQ]
+5C095CEF	09EF	[Trivial][ILSEQ]
+5C095CF9	09F9	[Trivial][ILSEQ]
+5C095CFA	09FA	[Trivial][ILSEQ]
+5C095CFC	09FC	[Trivial][ILSEQ]
+5C095CFD	09FD	[Trivial][ILSEQ]
+5C095CFE	09FE	[Trivial][ILSEQ]
+5C095CFF	09FF	[Trivial][ILSEQ]
+5C0A5C00	0A00	[Trivial]
+5C0A5C08	0A08	[Trivial]
+5C0A5C09	0A09	[Trivial]
+5C0A5C0A	0A0A	[Trivial]
+5C0A5C0D	0A0D	[Trivial]
+5C0A5C1A	0A1A	[Trivial]
+5C0A5C22	0A22	[Trivial]
+5C0A5C25	0A5C25	[Regular]
+5C0A5C27	0A27	[Trivial]
+5C0A5C30	0A00	[Regular]
+5C0A5C3F	0A3F	[Trivial]
+5C0A5C40	0A40	[Trivial]
+5C0A5C5A	0A1A	[Regular]
+5C0A5C5C	0A5C	[Regular]
+5C0A5C5F	0A5C5F	[Regular]
+5C0A5C61	0A61	[Trivial]
+5C0A5C62	0A08	[Regular]
+5C0A5C6E	0A0A	[Regular]
+5C0A5C72	0A0D	[Regular]
+5C0A5C74	0A09	[Regular]
+5C0A5C7E	0A7E	[Trivial]
+5C0A5C7F	0A7F	[Trivial]
+5C0A5C80	0A80	[Trivial][ILSEQ]
+5C0A5C81	0A81	[Trivial][ILSEQ]
+5C0A5C9F	0A9F	[Trivial][ILSEQ]
+5C0A5CA0	0AA0	[Trivial][ILSEQ]
+5C0A5CA1	0AA1	[Trivial][ILSEQ]
+5C0A5CE0	0AE0	[Trivial][ILSEQ]
+5C0A5CEF	0AEF	[Trivial][ILSEQ]
+5C0A5CF9	0AF9	[Trivial][ILSEQ]
+5C0A5CFA	0AFA	[Trivial][ILSEQ]
+5C0A5CFC	0AFC	[Trivial][ILSEQ]
+5C0A5CFD	0AFD	[Trivial][ILSEQ]
+5C0A5CFE	0AFE	[Trivial][ILSEQ]
+5C0A5CFF	0AFF	[Trivial][ILSEQ]
+5C0D5C00	0D00	[Trivial]
+5C0D5C08	0D08	[Trivial]
+5C0D5C09	0D09	[Trivial]
+5C0D5C0A	0D0A	[Trivial]
+5C0D5C0D	0D0D	[Trivial]
+5C0D5C1A	0D1A	[Trivial]
+5C0D5C22	0D22	[Trivial]
+5C0D5C25	0D5C25	[Regular]
+5C0D5C27	0D27	[Trivial]
+5C0D5C30	0D00	[Regular]
+5C0D5C3F	0D3F	[Trivial]
+5C0D5C40	0D40	[Trivial]
+5C0D5C5A	0D1A	[Regular]
+5C0D5C5C	0D5C	[Regular]
+5C0D5C5F	0D5C5F	[Regular]
+5C0D5C61	0D61	[Trivial]
+5C0D5C62	0D08	[Regular]
+5C0D5C6E	0D0A	[Regular]
+5C0D5C72	0D0D	[Regular]
+5C0D5C74	0D09	[Regular]
+5C0D5C7E	0D7E	[Trivial]
+5C0D5C7F	0D7F	[Trivial]
+5C0D5C80	0D80	[Trivial][ILSEQ]
+5C0D5C81	0D81	[Trivial][ILSEQ]
+5C0D5C9F	0D9F	[Trivial][ILSEQ]
+5C0D5CA0	0DA0	[Trivial][ILSEQ]
+5C0D5CA1	0DA1	[Trivial][ILSEQ]
+5C0D5CE0	0DE0	[Trivial][ILSEQ]
+5C0D5CEF	0DEF	[Trivial][ILSEQ]
+5C0D5CF9	0DF9	[Trivial][ILSEQ]
+5C0D5CFA	0DFA	[Trivial][ILSEQ]
+5C0D5CFC	0DFC	[Trivial][ILSEQ]
+5C0D5CFD	0DFD	[Trivial][ILSEQ]
+5C0D5CFE	0DFE	[Trivial][ILSEQ]
+5C0D5CFF	0DFF	[Trivial][ILSEQ]
+5C1A5C00	1A00	[Trivial]
+5C1A5C08	1A08	[Trivial]
+5C1A5C09	1A09	[Trivial]
+5C1A5C0A	1A0A	[Trivial]
+5C1A5C0D	1A0D	[Trivial]
+5C1A5C1A	1A1A	[Trivial]
+5C1A5C22	1A22	[Trivial]
+5C1A5C25	1A5C25	[Regular]
+5C1A5C27	1A27	[Trivial]
+5C1A5C30	1A00	[Regular]
+5C1A5C3F	1A3F	[Trivial]
+5C1A5C40	1A40	[Trivial]
+5C1A5C5A	1A1A	[Regular]
+5C1A5C5C	1A5C	[Regular]
+5C1A5C5F	1A5C5F	[Regular]
+5C1A5C61	1A61	[Trivial]
+5C1A5C62	1A08	[Regular]
+5C1A5C6E	1A0A	[Regular]
+5C1A5C72	1A0D	[Regular]
+5C1A5C74	1A09	[Regular]
+5C1A5C7E	1A7E	[Trivial]
+5C1A5C7F	1A7F	[Trivial]
+5C1A5C80	1A80	[Trivial][ILSEQ]
+5C1A5C81	1A81	[Trivial][ILSEQ]
+5C1A5C9F	1A9F	[Trivial][ILSEQ]
+5C1A5CA0	1AA0	[Trivial][ILSEQ]
+5C1A5CA1	1AA1	[Trivial][ILSEQ]
+5C1A5CE0	1AE0	[Trivial][ILSEQ]
+5C1A5CEF	1AEF	[Trivial][ILSEQ]
+5C1A5CF9	1AF9	[Trivial][ILSEQ]
+5C1A5CFA	1AFA	[Trivial][ILSEQ]
+5C1A5CFC	1AFC	[Trivial][ILSEQ]
+5C1A5CFD	1AFD	[Trivial][ILSEQ]
+5C1A5CFE	1AFE	[Trivial][ILSEQ]
+5C1A5CFF	1AFF	[Trivial][ILSEQ]
+5C225C00	2200	[Trivial]
+5C225C08	2208	[Trivial]
+5C225C09	2209	[Trivial]
+5C225C0A	220A	[Trivial]
+5C225C0D	220D	[Trivial]
+5C225C1A	221A	[Trivial]
+5C225C22	2222	[Trivial]
+5C225C25	225C25	[Regular]
+5C225C27	2227	[Trivial]
+5C225C30	2200	[Regular]
+5C225C3F	223F	[Trivial]
+5C225C40	2240	[Trivial]
+5C225C5A	221A	[Regular]
+5C225C5C	225C	[Regular]
+5C225C5F	225C5F	[Regular]
+5C225C61	2261	[Trivial]
+5C225C62	2208	[Regular]
+5C225C6E	220A	[Regular]
+5C225C72	220D	[Regular]
+5C225C74	2209	[Regular]
+5C225C7E	227E	[Trivial]
+5C225C7F	227F	[Trivial]
+5C225C80	2280	[Trivial][ILSEQ]
+5C225C81	2281	[Trivial][ILSEQ]
+5C225C9F	229F	[Trivial][ILSEQ]
+5C225CA0	22A0	[Trivial][ILSEQ]
+5C225CA1	22A1	[Trivial][ILSEQ]
+5C225CE0	22E0	[Trivial][ILSEQ]
+5C225CEF	22EF	[Trivial][ILSEQ]
+5C225CF9	22F9	[Trivial][ILSEQ]
+5C225CFA	22FA	[Trivial][ILSEQ]
+5C225CFC	22FC	[Trivial][ILSEQ]
+5C225CFD	22FD	[Trivial][ILSEQ]
+5C225CFE	22FE	[Trivial][ILSEQ]
+5C225CFF	22FF	[Trivial][ILSEQ]
+5C255C00	5C2500	[Regular]
+5C255C08	5C2508	[Regular]
+5C255C09	5C2509	[Regular]
+5C255C0A	5C250A	[Regular]
+5C255C0D	5C250D	[Regular]
+5C255C1A	5C251A	[Regular]
+5C255C22	5C2522	[Regular]
+5C255C25	5C255C25	[Preserve][LIKE]
+5C255C27	5C2527	[Regular]
+5C255C30	5C2500	[Regular]
+5C255C3F	5C253F	[Regular]
+5C255C40	5C2540	[Regular]
+5C255C5A	5C251A	[Regular]
+5C255C5C	5C255C	[Regular]
+5C255C5F	5C255C5F	[Preserve][LIKE]
+5C255C61	5C2561	[Regular]
+5C255C62	5C2508	[Regular]
+5C255C6E	5C250A	[Regular]
+5C255C72	5C250D	[Regular]
+5C255C74	5C2509	[Regular]
+5C255C7E	5C257E	[Regular]
+5C255C7F	5C257F	[Regular]
+5C255C80	5C2580	[Regular][ILSEQ]
+5C255C81	5C2581	[Regular][ILSEQ]
+5C255C9F	5C259F	[Regular][ILSEQ]
+5C255CA0	5C25A0	[Regular][ILSEQ]
+5C255CA1	5C25A1	[Regular][ILSEQ]
+5C255CE0	5C25E0	[Regular][ILSEQ]
+5C255CEF	5C25EF	[Regular][ILSEQ]
+5C255CF9	5C25F9	[Regular][ILSEQ]
+5C255CFA	5C25FA	[Regular][ILSEQ]
+5C255CFC	5C25FC	[Regular][ILSEQ]
+5C255CFD	5C25FD	[Regular][ILSEQ]
+5C255CFE	5C25FE	[Regular][ILSEQ]
+5C255CFF	5C25FF	[Regular][ILSEQ]
+5C275C00	2700	[Trivial]
+5C275C08	2708	[Trivial]
+5C275C09	2709	[Trivial]
+5C275C0A	270A	[Trivial]
+5C275C0D	270D	[Trivial]
+5C275C1A	271A	[Trivial]
+5C275C22	2722	[Trivial]
+5C275C25	275C25	[Regular]
+5C275C27	2727	[Trivial]
+5C275C30	2700	[Regular]
+5C275C3F	273F	[Trivial]
+5C275C40	2740	[Trivial]
+5C275C5A	271A	[Regular]
+5C275C5C	275C	[Regular]
+5C275C5F	275C5F	[Regular]
+5C275C61	2761	[Trivial]
+5C275C62	2708	[Regular]
+5C275C6E	270A	[Regular]
+5C275C72	270D	[Regular]
+5C275C74	2709	[Regular]
+5C275C7E	277E	[Trivial]
+5C275C7F	277F	[Trivial]
+5C275C80	2780	[Trivial][ILSEQ]
+5C275C81	2781	[Trivial][ILSEQ]
+5C275C9F	279F	[Trivial][ILSEQ]
+5C275CA0	27A0	[Trivial][ILSEQ]
+5C275CA1	27A1	[Trivial][ILSEQ]
+5C275CE0	27E0	[Trivial][ILSEQ]
+5C275CEF	27EF	[Trivial][ILSEQ]
+5C275CF9	27F9	[Trivial][ILSEQ]
+5C275CFA	27FA	[Trivial][ILSEQ]
+5C275CFC	27FC	[Trivial][ILSEQ]
+5C275CFD	27FD	[Trivial][ILSEQ]
+5C275CFE	27FE	[Trivial][ILSEQ]
+5C275CFF	27FF	[Trivial][ILSEQ]
+5C305C00	0000	[Regular]
+5C305C08	0008	[Regular]
+5C305C09	0009	[Regular]
+5C305C0A	000A	[Regular]
+5C305C0D	000D	[Regular]
+5C305C1A	001A	[Regular]
+5C305C22	0022	[Regular]
+5C305C25	005C25	[Regular]
+5C305C27	0027	[Regular]
+5C305C30	0000	[Regular]
+5C305C3F	003F	[Regular]
+5C305C40	0040	[Regular]
+5C305C5A	001A	[Regular]
+5C305C5C	005C	[Regular]
+5C305C5F	005C5F	[Regular]
+5C305C61	0061	[Regular]
+5C305C62	0008	[Regular]
+5C305C6E	000A	[Regular]
+5C305C72	000D	[Regular]
+5C305C74	0009	[Regular]
+5C305C7E	007E	[Regular]
+5C305C7F	007F	[Regular]
+5C305C80	0080	[Regular][ILSEQ]
+5C305C81	0081	[Regular][ILSEQ]
+5C305C9F	009F	[Regular][ILSEQ]
+5C305CA0	00A0	[Regular][ILSEQ]
+5C305CA1	00A1	[Regular][ILSEQ]
+5C305CE0	00E0	[Regular][ILSEQ]
+5C305CEF	00EF	[Regular][ILSEQ]
+5C305CF9	00F9	[Regular][ILSEQ]
+5C305CFA	00FA	[Regular][ILSEQ]
+5C305CFC	00FC	[Regular][ILSEQ]
+5C305CFD	00FD	[Regular][ILSEQ]
+5C305CFE	00FE	[Regular][ILSEQ]
+5C305CFF	00FF	[Regular][ILSEQ]
+5C3F5C00	3F00	[Trivial]
+5C3F5C08	3F08	[Trivial]
+5C3F5C09	3F09	[Trivial]
+5C3F5C0A	3F0A	[Trivial]
+5C3F5C0D	3F0D	[Trivial]
+5C3F5C1A	3F1A	[Trivial]
+5C3F5C22	3F22	[Trivial]
+5C3F5C25	3F5C25	[Regular]
+5C3F5C27	3F27	[Trivial]
+5C3F5C30	3F00	[Regular]
+5C3F5C3F	3F3F	[Trivial]
+5C3F5C40	3F40	[Trivial]
+5C3F5C5A	3F1A	[Regular]
+5C3F5C5C	3F5C	[Regular]
+5C3F5C5F	3F5C5F	[Regular]
+5C3F5C61	3F61	[Trivial]
+5C3F5C62	3F08	[Regular]
+5C3F5C6E	3F0A	[Regular]
+5C3F5C72	3F0D	[Regular]
+5C3F5C74	3F09	[Regular]
+5C3F5C7E	3F7E	[Trivial]
+5C3F5C7F	3F7F	[Trivial]
+5C3F5C80	3F80	[Trivial][ILSEQ]
+5C3F5C81	3F81	[Trivial][ILSEQ]
+5C3F5C9F	3F9F	[Trivial][ILSEQ]
+5C3F5CA0	3FA0	[Trivial][ILSEQ]
+5C3F5CA1	3FA1	[Trivial][ILSEQ]
+5C3F5CE0	3FE0	[Trivial][ILSEQ]
+5C3F5CEF	3FEF	[Trivial][ILSEQ]
+5C3F5CF9	3FF9	[Trivial][ILSEQ]
+5C3F5CFA	3FFA	[Trivial][ILSEQ]
+5C3F5CFC	3FFC	[Trivial][ILSEQ]
+5C3F5CFD	3FFD	[Trivial][ILSEQ]
+5C3F5CFE	3FFE	[Trivial][ILSEQ]
+5C3F5CFF	3FFF	[Trivial][ILSEQ]
+5C405C00	4000	[Trivial]
+5C405C08	4008	[Trivial]
+5C405C09	4009	[Trivial]
+5C405C0A	400A	[Trivial]
+5C405C0D	400D	[Trivial]
+5C405C1A	401A	[Trivial]
+5C405C22	4022	[Trivial]
+5C405C25	405C25	[Regular]
+5C405C27	4027	[Trivial]
+5C405C30	4000	[Regular]
+5C405C3F	403F	[Trivial]
+5C405C40	4040	[Trivial]
+5C405C5A	401A	[Regular]
+5C405C5C	405C	[Regular]
+5C405C5F	405C5F	[Regular]
+5C405C61	4061	[Trivial]
+5C405C62	4008	[Regular]
+5C405C6E	400A	[Regular]
+5C405C72	400D	[Regular]
+5C405C74	4009	[Regular]
+5C405C7E	407E	[Trivial]
+5C405C7F	407F	[Trivial]
+5C405C80	4080	[Trivial][ILSEQ]
+5C405C81	4081	[Trivial][ILSEQ]
+5C405C9F	409F	[Trivial][ILSEQ]
+5C405CA0	40A0	[Trivial][ILSEQ]
+5C405CA1	40A1	[Trivial][ILSEQ]
+5C405CE0	40E0	[Trivial][ILSEQ]
+5C405CEF	40EF	[Trivial][ILSEQ]
+5C405CF9	40F9	[Trivial][ILSEQ]
+5C405CFA	40FA	[Trivial][ILSEQ]
+5C405CFC	40FC	[Trivial][ILSEQ]
+5C405CFD	40FD	[Trivial][ILSEQ]
+5C405CFE	40FE	[Trivial][ILSEQ]
+5C405CFF	40FF	[Trivial][ILSEQ]
+5C5A5C00	1A00	[Regular]
+5C5A5C08	1A08	[Regular]
+5C5A5C09	1A09	[Regular]
+5C5A5C0A	1A0A	[Regular]
+5C5A5C0D	1A0D	[Regular]
+5C5A5C1A	1A1A	[Regular]
+5C5A5C22	1A22	[Regular]
+5C5A5C25	1A5C25	[Regular]
+5C5A5C27	1A27	[Regular]
+5C5A5C30	1A00	[Regular]
+5C5A5C3F	1A3F	[Regular]
+5C5A5C40	1A40	[Regular]
+5C5A5C5A	1A1A	[Regular]
+5C5A5C5C	1A5C	[Regular]
+5C5A5C5F	1A5C5F	[Regular]
+5C5A5C61	1A61	[Regular]
+5C5A5C62	1A08	[Regular]
+5C5A5C6E	1A0A	[Regular]
+5C5A5C72	1A0D	[Regular]
+5C5A5C74	1A09	[Regular]
+5C5A5C7E	1A7E	[Regular]
+5C5A5C7F	1A7F	[Regular]
+5C5A5C80	1A80	[Regular][ILSEQ]
+5C5A5C81	1A81	[Regular][ILSEQ]
+5C5A5C9F	1A9F	[Regular][ILSEQ]
+5C5A5CA0	1AA0	[Regular][ILSEQ]
+5C5A5CA1	1AA1	[Regular][ILSEQ]
+5C5A5CE0	1AE0	[Regular][ILSEQ]
+5C5A5CEF	1AEF	[Regular][ILSEQ]
+5C5A5CF9	1AF9	[Regular][ILSEQ]
+5C5A5CFA	1AFA	[Regular][ILSEQ]
+5C5A5CFC	1AFC	[Regular][ILSEQ]
+5C5A5CFD	1AFD	[Regular][ILSEQ]
+5C5A5CFE	1AFE	[Regular][ILSEQ]
+5C5A5CFF	1AFF	[Regular][ILSEQ]
+5C5C5C00	5C00	[Regular]
+5C5C5C08	5C08	[Regular]
+5C5C5C09	5C09	[Regular]
+5C5C5C0A	5C0A	[Regular]
+5C5C5C0D	5C0D	[Regular]
+5C5C5C1A	5C1A	[Regular]
+5C5C5C22	5C22	[Regular]
+5C5C5C25	5C5C25	[Regular]
+5C5C5C27	5C27	[Regular]
+5C5C5C30	5C00	[Regular]
+5C5C5C3F	5C3F	[Regular]
+5C5C5C40	5C40	[Regular]
+5C5C5C5A	5C1A	[Regular]
+5C5C5C5C	5C5C	[Regular]
+5C5C5C5F	5C5C5F	[Regular]
+5C5C5C61	5C61	[Regular]
+5C5C5C62	5C08	[Regular]
+5C5C5C6E	5C0A	[Regular]
+5C5C5C72	5C0D	[Regular]
+5C5C5C74	5C09	[Regular]
+5C5C5C7E	5C7E	[Regular]
+5C5C5C7F	5C7F	[Regular]
+5C5C5C80	5C80	[Regular][ILSEQ]
+5C5C5C81	5C81	[Regular][ILSEQ]
+5C5C5C9F	5C9F	[Regular][ILSEQ]
+5C5C5CA0	5CA0	[Regular][ILSEQ]
+5C5C5CA1	5CA1	[Regular][ILSEQ]
+5C5C5CE0	5CE0	[Regular][ILSEQ]
+5C5C5CEF	5CEF	[Regular][ILSEQ]
+5C5C5CF9	5CF9	[Regular][ILSEQ]
+5C5C5CFA	5CFA	[Regular][ILSEQ]
+5C5C5CFC	5CFC	[Regular][ILSEQ]
+5C5C5CFD	5CFD	[Regular][ILSEQ]
+5C5C5CFE	5CFE	[Regular][ILSEQ]
+5C5C5CFF	5CFF	[Regular][ILSEQ]
+5C5F5C00	5C5F00	[Regular]
+5C5F5C08	5C5F08	[Regular]
+5C5F5C09	5C5F09	[Regular]
+5C5F5C0A	5C5F0A	[Regular]
+5C5F5C0D	5C5F0D	[Regular]
+5C5F5C1A	5C5F1A	[Regular]
+5C5F5C22	5C5F22	[Regular]
+5C5F5C25	5C5F5C25	[Preserve][LIKE]
+5C5F5C27	5C5F27	[Regular]
+5C5F5C30	5C5F00	[Regular]
+5C5F5C3F	5C5F3F	[Regular]
+5C5F5C40	5C5F40	[Regular]
+5C5F5C5A	5C5F1A	[Regular]
+5C5F5C5C	5C5F5C	[Regular]
+5C5F5C5F	5C5F5C5F	[Preserve][LIKE]
+5C5F5C61	5C5F61	[Regular]
+5C5F5C62	5C5F08	[Regular]
+5C5F5C6E	5C5F0A	[Regular]
+5C5F5C72	5C5F0D	[Regular]
+5C5F5C74	5C5F09	[Regular]
+5C5F5C7E	5C5F7E	[Regular]
+5C5F5C7F	5C5F7F	[Regular]
+5C5F5C80	5C5F80	[Regular][ILSEQ]
+5C5F5C81	5C5F81	[Regular][ILSEQ]
+5C5F5C9F	5C5F9F	[Regular][ILSEQ]
+5C5F5CA0	5C5FA0	[Regular][ILSEQ]
+5C5F5CA1	5C5FA1	[Regular][ILSEQ]
+5C5F5CE0	5C5FE0	[Regular][ILSEQ]
+5C5F5CEF	5C5FEF	[Regular][ILSEQ]
+5C5F5CF9	5C5FF9	[Regular][ILSEQ]
+5C5F5CFA	5C5FFA	[Regular][ILSEQ]
+5C5F5CFC	5C5FFC	[Regular][ILSEQ]
+5C5F5CFD	5C5FFD	[Regular][ILSEQ]
+5C5F5CFE	5C5FFE	[Regular][ILSEQ]
+5C5F5CFF	5C5FFF	[Regular][ILSEQ]
+5C615C00	6100	[Trivial]
+5C615C08	6108	[Trivial]
+5C615C09	6109	[Trivial]
+5C615C0A	610A	[Trivial]
+5C615C0D	610D	[Trivial]
+5C615C1A	611A	[Trivial]
+5C615C22	6122	[Trivial]
+5C615C25	615C25	[Regular]
+5C615C27	6127	[Trivial]
+5C615C30	6100	[Regular]
+5C615C3F	613F	[Trivial]
+5C615C40	6140	[Trivial]
+5C615C5A	611A	[Regular]
+5C615C5C	615C	[Regular]
+5C615C5F	615C5F	[Regular]
+5C615C61	6161	[Trivial]
+5C615C62	6108	[Regular]
+5C615C6E	610A	[Regular]
+5C615C72	610D	[Regular]
+5C615C74	6109	[Regular]
+5C615C7E	617E	[Trivial]
+5C615C7F	617F	[Trivial]
+5C615C80	6180	[Trivial][ILSEQ]
+5C615C81	6181	[Trivial][ILSEQ]
+5C615C9F	619F	[Trivial][ILSEQ]
+5C615CA0	61A0	[Trivial][ILSEQ]
+5C615CA1	61A1	[Trivial][ILSEQ]
+5C615CE0	61E0	[Trivial][ILSEQ]
+5C615CEF	61EF	[Trivial][ILSEQ]
+5C615CF9	61F9	[Trivial][ILSEQ]
+5C615CFA	61FA	[Trivial][ILSEQ]
+5C615CFC	61FC	[Trivial][ILSEQ]
+5C615CFD	61FD	[Trivial][ILSEQ]
+5C615CFE	61FE	[Trivial][ILSEQ]
+5C615CFF	61FF	[Trivial][ILSEQ]
+5C625C00	0800	[Regular]
+5C625C08	0808	[Regular]
+5C625C09	0809	[Regular]
+5C625C0A	080A	[Regular]
+5C625C0D	080D	[Regular]
+5C625C1A	081A	[Regular]
+5C625C22	0822	[Regular]
+5C625C25	085C25	[Regular]
+5C625C27	0827	[Regular]
+5C625C30	0800	[Regular]
+5C625C3F	083F	[Regular]
+5C625C40	0840	[Regular]
+5C625C5A	081A	[Regular]
+5C625C5C	085C	[Regular]
+5C625C5F	085C5F	[Regular]
+5C625C61	0861	[Regular]
+5C625C62	0808	[Regular]
+5C625C6E	080A	[Regular]
+5C625C72	080D	[Regular]
+5C625C74	0809	[Regular]
+5C625C7E	087E	[Regular]
+5C625C7F	087F	[Regular]
+5C625C80	0880	[Regular][ILSEQ]
+5C625C81	0881	[Regular][ILSEQ]
+5C625C9F	089F	[Regular][ILSEQ]
+5C625CA0	08A0	[Regular][ILSEQ]
+5C625CA1	08A1	[Regular][ILSEQ]
+5C625CE0	08E0	[Regular][ILSEQ]
+5C625CEF	08EF	[Regular][ILSEQ]
+5C625CF9	08F9	[Regular][ILSEQ]
+5C625CFA	08FA	[Regular][ILSEQ]
+5C625CFC	08FC	[Regular][ILSEQ]
+5C625CFD	08FD	[Regular][ILSEQ]
+5C625CFE	08FE	[Regular][ILSEQ]
+5C625CFF	08FF	[Regular][ILSEQ]
+5C6E5C00	0A00	[Regular]
+5C6E5C08	0A08	[Regular]
+5C6E5C09	0A09	[Regular]
+5C6E5C0A	0A0A	[Regular]
+5C6E5C0D	0A0D	[Regular]
+5C6E5C1A	0A1A	[Regular]
+5C6E5C22	0A22	[Regular]
+5C6E5C25	0A5C25	[Regular]
+5C6E5C27	0A27	[Regular]
+5C6E5C30	0A00	[Regular]
+5C6E5C3F	0A3F	[Regular]
+5C6E5C40	0A40	[Regular]
+5C6E5C5A	0A1A	[Regular]
+5C6E5C5C	0A5C	[Regular]
+5C6E5C5F	0A5C5F	[Regular]
+5C6E5C61	0A61	[Regular]
+5C6E5C62	0A08	[Regular]
+5C6E5C6E	0A0A	[Regular]
+5C6E5C72	0A0D	[Regular]
+5C6E5C74	0A09	[Regular]
+5C6E5C7E	0A7E	[Regular]
+5C6E5C7F	0A7F	[Regular]
+5C6E5C80	0A80	[Regular][ILSEQ]
+5C6E5C81	0A81	[Regular][ILSEQ]
+5C6E5C9F	0A9F	[Regular][ILSEQ]
+5C6E5CA0	0AA0	[Regular][ILSEQ]
+5C6E5CA1	0AA1	[Regular][ILSEQ]
+5C6E5CE0	0AE0	[Regular][ILSEQ]
+5C6E5CEF	0AEF	[Regular][ILSEQ]
+5C6E5CF9	0AF9	[Regular][ILSEQ]
+5C6E5CFA	0AFA	[Regular][ILSEQ]
+5C6E5CFC	0AFC	[Regular][ILSEQ]
+5C6E5CFD	0AFD	[Regular][ILSEQ]
+5C6E5CFE	0AFE	[Regular][ILSEQ]
+5C6E5CFF	0AFF	[Regular][ILSEQ]
+5C725C00	0D00	[Regular]
+5C725C08	0D08	[Regular]
+5C725C09	0D09	[Regular]
+5C725C0A	0D0A	[Regular]
+5C725C0D	0D0D	[Regular]
+5C725C1A	0D1A	[Regular]
+5C725C22	0D22	[Regular]
+5C725C25	0D5C25	[Regular]
+5C725C27	0D27	[Regular]
+5C725C30	0D00	[Regular]
+5C725C3F	0D3F	[Regular]
+5C725C40	0D40	[Regular]
+5C725C5A	0D1A	[Regular]
+5C725C5C	0D5C	[Regular]
+5C725C5F	0D5C5F	[Regular]
+5C725C61	0D61	[Regular]
+5C725C62	0D08	[Regular]
+5C725C6E	0D0A	[Regular]
+5C725C72	0D0D	[Regular]
+5C725C74	0D09	[Regular]
+5C725C7E	0D7E	[Regular]
+5C725C7F	0D7F	[Regular]
+5C725C80	0D80	[Regular][ILSEQ]
+5C725C81	0D81	[Regular][ILSEQ]
+5C725C9F	0D9F	[Regular][ILSEQ]
+5C725CA0	0DA0	[Regular][ILSEQ]
+5C725CA1	0DA1	[Regular][ILSEQ]
+5C725CE0	0DE0	[Regular][ILSEQ]
+5C725CEF	0DEF	[Regular][ILSEQ]
+5C725CF9	0DF9	[Regular][ILSEQ]
+5C725CFA	0DFA	[Regular][ILSEQ]
+5C725CFC	0DFC	[Regular][ILSEQ]
+5C725CFD	0DFD	[Regular][ILSEQ]
+5C725CFE	0DFE	[Regular][ILSEQ]
+5C725CFF	0DFF	[Regular][ILSEQ]
+5C745C00	0900	[Regular]
+5C745C08	0908	[Regular]
+5C745C09	0909	[Regular]
+5C745C0A	090A	[Regular]
+5C745C0D	090D	[Regular]
+5C745C1A	091A	[Regular]
+5C745C22	0922	[Regular]
+5C745C25	095C25	[Regular]
+5C745C27	0927	[Regular]
+5C745C30	0900	[Regular]
+5C745C3F	093F	[Regular]
+5C745C40	0940	[Regular]
+5C745C5A	091A	[Regular]
+5C745C5C	095C	[Regular]
+5C745C5F	095C5F	[Regular]
+5C745C61	0961	[Regular]
+5C745C62	0908	[Regular]
+5C745C6E	090A	[Regular]
+5C745C72	090D	[Regular]
+5C745C74	0909	[Regular]
+5C745C7E	097E	[Regular]
+5C745C7F	097F	[Regular]
+5C745C80	0980	[Regular][ILSEQ]
+5C745C81	0981	[Regular][ILSEQ]
+5C745C9F	099F	[Regular][ILSEQ]
+5C745CA0	09A0	[Regular][ILSEQ]
+5C745CA1	09A1	[Regular][ILSEQ]
+5C745CE0	09E0	[Regular][ILSEQ]
+5C745CEF	09EF	[Regular][ILSEQ]
+5C745CF9	09F9	[Regular][ILSEQ]
+5C745CFA	09FA	[Regular][ILSEQ]
+5C745CFC	09FC	[Regular][ILSEQ]
+5C745CFD	09FD	[Regular][ILSEQ]
+5C745CFE	09FE	[Regular][ILSEQ]
+5C745CFF	09FF	[Regular][ILSEQ]
+5C7E5C00	7E00	[Trivial]
+5C7E5C08	7E08	[Trivial]
+5C7E5C09	7E09	[Trivial]
+5C7E5C0A	7E0A	[Trivial]
+5C7E5C0D	7E0D	[Trivial]
+5C7E5C1A	7E1A	[Trivial]
+5C7E5C22	7E22	[Trivial]
+5C7E5C25	7E5C25	[Regular]
+5C7E5C27	7E27	[Trivial]
+5C7E5C30	7E00	[Regular]
+5C7E5C3F	7E3F	[Trivial]
+5C7E5C40	7E40	[Trivial]
+5C7E5C5A	7E1A	[Regular]
+5C7E5C5C	7E5C	[Regular]
+5C7E5C5F	7E5C5F	[Regular]
+5C7E5C61	7E61	[Trivial]
+5C7E5C62	7E08	[Regular]
+5C7E5C6E	7E0A	[Regular]
+5C7E5C72	7E0D	[Regular]
+5C7E5C74	7E09	[Regular]
+5C7E5C7E	7E7E	[Trivial]
+5C7E5C7F	7E7F	[Trivial]
+5C7E5C80	7E80	[Trivial][ILSEQ]
+5C7E5C81	7E81	[Trivial][ILSEQ]
+5C7E5C9F	7E9F	[Trivial][ILSEQ]
+5C7E5CA0	7EA0	[Trivial][ILSEQ]
+5C7E5CA1	7EA1	[Trivial][ILSEQ]
+5C7E5CE0	7EE0	[Trivial][ILSEQ]
+5C7E5CEF	7EEF	[Trivial][ILSEQ]
+5C7E5CF9	7EF9	[Trivial][ILSEQ]
+5C7E5CFA	7EFA	[Trivial][ILSEQ]
+5C7E5CFC	7EFC	[Trivial][ILSEQ]
+5C7E5CFD	7EFD	[Trivial][ILSEQ]
+5C7E5CFE	7EFE	[Trivial][ILSEQ]
+5C7E5CFF	7EFF	[Trivial][ILSEQ]
+5C7F5C00	7F00	[Trivial]
+5C7F5C08	7F08	[Trivial]
+5C7F5C09	7F09	[Trivial]
+5C7F5C0A	7F0A	[Trivial]
+5C7F5C0D	7F0D	[Trivial]
+5C7F5C1A	7F1A	[Trivial]
+5C7F5C22	7F22	[Trivial]
+5C7F5C25	7F5C25	[Regular]
+5C7F5C27	7F27	[Trivial]
+5C7F5C30	7F00	[Regular]
+5C7F5C3F	7F3F	[Trivial]
+5C7F5C40	7F40	[Trivial]
+5C7F5C5A	7F1A	[Regular]
+5C7F5C5C	7F5C	[Regular]
+5C7F5C5F	7F5C5F	[Regular]
+5C7F5C61	7F61	[Trivial]
+5C7F5C62	7F08	[Regular]
+5C7F5C6E	7F0A	[Regular]
+5C7F5C72	7F0D	[Regular]
+5C7F5C74	7F09	[Regular]
+5C7F5C7E	7F7E	[Trivial]
+5C7F5C7F	7F7F	[Trivial]
+5C7F5C80	7F80	[Trivial][ILSEQ]
+5C7F5C81	7F81	[Trivial][ILSEQ]
+5C7F5C9F	7F9F	[Trivial][ILSEQ]
+5C7F5CA0	7FA0	[Trivial][ILSEQ]
+5C7F5CA1	7FA1	[Trivial][ILSEQ]
+5C7F5CE0	7FE0	[Trivial][ILSEQ]
+5C7F5CEF	7FEF	[Trivial][ILSEQ]
+5C7F5CF9	7FF9	[Trivial][ILSEQ]
+5C7F5CFA	7FFA	[Trivial][ILSEQ]
+5C7F5CFC	7FFC	[Trivial][ILSEQ]
+5C7F5CFD	7FFD	[Trivial][ILSEQ]
+5C7F5CFE	7FFE	[Trivial][ILSEQ]
+5C7F5CFF	7FFF	[Trivial][ILSEQ]
+5C805C00	8000	[Trivial][ILSEQ]
+5C805C08	8008	[Trivial][ILSEQ]
+5C805C09	8009	[Trivial][ILSEQ]
+5C805C0A	800A	[Trivial][ILSEQ]
+5C805C0D	800D	[Trivial][ILSEQ]
+5C805C1A	801A	[Trivial][ILSEQ]
+5C805C22	8022	[Trivial][ILSEQ]
+5C805C25	805C25	[Regular][ILSEQ]
+5C805C27	8027	[Trivial][ILSEQ]
+5C805C30	8000	[Regular][ILSEQ]
+5C805C3F	803F	[Trivial][ILSEQ]
+5C805C40	8040	[Trivial][ILSEQ]
+5C805C5A	801A	[Regular][ILSEQ]
+5C805C5C	805C	[Regular][ILSEQ]
+5C805C5F	805C5F	[Regular][ILSEQ]
+5C805C61	8061	[Trivial][ILSEQ]
+5C805C62	8008	[Regular][ILSEQ]
+5C805C6E	800A	[Regular][ILSEQ]
+5C805C72	800D	[Regular][ILSEQ]
+5C805C74	8009	[Regular][ILSEQ]
+5C805C7E	807E	[Trivial][ILSEQ]
+5C805C7F	807F	[Trivial][ILSEQ]
+5C805C80	8080	[Trivial][ILSEQ]
+5C805C81	8081	[Trivial][ILSEQ]
+5C805C9F	809F	[Trivial][ILSEQ]
+5C805CA0	80A0	[Trivial][ILSEQ]
+5C805CA1	80A1	[Trivial][ILSEQ]
+5C805CE0	80E0	[Trivial][ILSEQ]
+5C805CEF	80EF	[Trivial][ILSEQ]
+5C805CF9	80F9	[Trivial][ILSEQ]
+5C805CFA	80FA	[Trivial][ILSEQ]
+5C805CFC	80FC	[Trivial][ILSEQ]
+5C805CFD	80FD	[Trivial][ILSEQ]
+5C805CFE	80FE	[Trivial][ILSEQ]
+5C805CFF	80FF	[Trivial][ILSEQ]
+5C815C00	8100	[Trivial][ILSEQ]
+5C815C08	8108	[Trivial][ILSEQ]
+5C815C09	8109	[Trivial][ILSEQ]
+5C815C0A	810A	[Trivial][ILSEQ]
+5C815C0D	810D	[Trivial][ILSEQ]
+5C815C1A	811A	[Trivial][ILSEQ]
+5C815C22	8122	[Trivial][ILSEQ]
+5C815C25	815C25	[Regular][ILSEQ]
+5C815C27	8127	[Trivial][ILSEQ]
+5C815C30	8100	[Regular][ILSEQ]
+5C815C3F	813F	[Trivial][ILSEQ]
+5C815C40	8140	[Trivial][ILSEQ]
+5C815C5A	811A	[Regular][ILSEQ]
+5C815C5C	815C	[Regular][ILSEQ]
+5C815C5F	815C5F	[Regular][ILSEQ]
+5C815C61	8161	[Trivial][ILSEQ]
+5C815C62	8108	[Regular][ILSEQ]
+5C815C6E	810A	[Regular][ILSEQ]
+5C815C72	810D	[Regular][ILSEQ]
+5C815C74	8109	[Regular][ILSEQ]
+5C815C7E	817E	[Trivial][ILSEQ]
+5C815C7F	817F	[Trivial][ILSEQ]
+5C815C80	8180	[Trivial][ILSEQ]
+5C815C81	8181	[Trivial][ILSEQ]
+5C815C9F	819F	[Trivial][ILSEQ]
+5C815CA0	81A0	[Trivial][ILSEQ]
+5C815CA1	81A1	[Trivial][ILSEQ]
+5C815CE0	81E0	[Trivial][ILSEQ]
+5C815CEF	81EF	[Trivial][ILSEQ]
+5C815CF9	81F9	[Trivial][ILSEQ]
+5C815CFA	81FA	[Trivial][ILSEQ]
+5C815CFC	81FC	[Trivial][ILSEQ]
+5C815CFD	81FD	[Trivial][ILSEQ]
+5C815CFE	81FE	[Trivial][ILSEQ]
+5C815CFF	81FF	[Trivial][ILSEQ]
+5C9F5C00	9F00	[Trivial][ILSEQ]
+5C9F5C08	9F08	[Trivial][ILSEQ]
+5C9F5C09	9F09	[Trivial][ILSEQ]
+5C9F5C0A	9F0A	[Trivial][ILSEQ]
+5C9F5C0D	9F0D	[Trivial][ILSEQ]
+5C9F5C1A	9F1A	[Trivial][ILSEQ]
+5C9F5C22	9F22	[Trivial][ILSEQ]
+5C9F5C25	9F5C25	[Regular][ILSEQ]
+5C9F5C27	9F27	[Trivial][ILSEQ]
+5C9F5C30	9F00	[Regular][ILSEQ]
+5C9F5C3F	9F3F	[Trivial][ILSEQ]
+5C9F5C40	9F40	[Trivial][ILSEQ]
+5C9F5C5A	9F1A	[Regular][ILSEQ]
+5C9F5C5C	9F5C	[Regular][ILSEQ]
+5C9F5C5F	9F5C5F	[Regular][ILSEQ]
+5C9F5C61	9F61	[Trivial][ILSEQ]
+5C9F5C62	9F08	[Regular][ILSEQ]
+5C9F5C6E	9F0A	[Regular][ILSEQ]
+5C9F5C72	9F0D	[Regular][ILSEQ]
+5C9F5C74	9F09	[Regular][ILSEQ]
+5C9F5C7E	9F7E	[Trivial][ILSEQ]
+5C9F5C7F	9F7F	[Trivial][ILSEQ]
+5C9F5C80	9F80	[Trivial][ILSEQ]
+5C9F5C81	9F81	[Trivial][ILSEQ]
+5C9F5C9F	9F9F	[Trivial][ILSEQ]
+5C9F5CA0	9FA0	[Trivial][ILSEQ]
+5C9F5CA1	9FA1	[Trivial][ILSEQ]
+5C9F5CE0	9FE0	[Trivial][ILSEQ]
+5C9F5CEF	9FEF	[Trivial][ILSEQ]
+5C9F5CF9	9FF9	[Trivial][ILSEQ]
+5C9F5CFA	9FFA	[Trivial][ILSEQ]
+5C9F5CFC	9FFC	[Trivial][ILSEQ]
+5C9F5CFD	9FFD	[Trivial][ILSEQ]
+5C9F5CFE	9FFE	[Trivial][ILSEQ]
+5C9F5CFF	9FFF	[Trivial][ILSEQ]
+5CA05C00	A000	[Trivial][ILSEQ]
+5CA05C08	A008	[Trivial][ILSEQ]
+5CA05C09	A009	[Trivial][ILSEQ]
+5CA05C0A	A00A	[Trivial][ILSEQ]
+5CA05C0D	A00D	[Trivial][ILSEQ]
+5CA05C1A	A01A	[Trivial][ILSEQ]
+5CA05C22	A022	[Trivial][ILSEQ]
+5CA05C25	A05C25	[Regular][ILSEQ]
+5CA05C27	A027	[Trivial][ILSEQ]
+5CA05C30	A000	[Regular][ILSEQ]
+5CA05C3F	A03F	[Trivial][ILSEQ]
+5CA05C40	A040	[Trivial][ILSEQ]
+5CA05C5A	A01A	[Regular][ILSEQ]
+5CA05C5C	A05C	[Regular][ILSEQ]
+5CA05C5F	A05C5F	[Regular][ILSEQ]
+5CA05C61	A061	[Trivial][ILSEQ]
+5CA05C62	A008	[Regular][ILSEQ]
+5CA05C6E	A00A	[Regular][ILSEQ]
+5CA05C72	A00D	[Regular][ILSEQ]
+5CA05C74	A009	[Regular][ILSEQ]
+5CA05C7E	A07E	[Trivial][ILSEQ]
+5CA05C7F	A07F	[Trivial][ILSEQ]
+5CA05C80	A080	[Trivial][ILSEQ]
+5CA05C81	A081	[Trivial][ILSEQ]
+5CA05C9F	A09F	[Trivial][ILSEQ]
+5CA05CA0	A0A0	[Trivial][ILSEQ]
+5CA05CA1	A0A1	[Trivial][ILSEQ]
+5CA05CE0	A0E0	[Trivial][ILSEQ]
+5CA05CEF	A0EF	[Trivial][ILSEQ]
+5CA05CF9	A0F9	[Trivial][ILSEQ]
+5CA05CFA	A0FA	[Trivial][ILSEQ]
+5CA05CFC	A0FC	[Trivial][ILSEQ]
+5CA05CFD	A0FD	[Trivial][ILSEQ]
+5CA05CFE	A0FE	[Trivial][ILSEQ]
+5CA05CFF	A0FF	[Trivial][ILSEQ]
+5CA15C00	A100	[Trivial][BROKE]
+5CA15C08	A108	[Trivial][BROKE]
+5CA15C09	A109	[Trivial][BROKE]
+5CA15C0A	A10A	[Trivial][BROKE]
+5CA15C0D	A10D	[Trivial][BROKE]
+5CA15C1A	A11A	[Trivial][BROKE]
+5CA15C22	A122	[Trivial][BROKE]
+5CA15C25	A15C25	[Regular]
+5CA15C27	A127	[Trivial][BROKE]
+5CA15C30	A100	[Regular][BROKE]
+5CA15C3F	A13F	[Trivial][BROKE]
+5CA15C40	A140	[Trivial][USER]
+5CA15C5A	A11A	[Regular][BROKE]
+5CA15C5C	A15C	[Regular][USER]
+5CA15C5F	A15C5F	[Regular]
+5CA15C61	A161	[Trivial][USER]
+5CA15C62	A108	[Regular][BROKE][USER]
+5CA15C6E	A10A	[Regular][BROKE]
+5CA15C72	A10D	[Regular][BROKE]
+5CA15C74	A109	[Regular][BROKE]
+5CA15C7E	A17E	[Trivial][USER]
+5CA15C7F	A17F	[Trivial][BROKE]
+5CA15C80	A180	[Trivial][ILSEQ]
+5CA15C81	A181	[Trivial][ILSEQ]
+5CA15C9F	A19F	[Trivial][ILSEQ]
+5CA15CA0	A1A0	[Trivial][ILSEQ]
+5CA15CA1	A1A1	[Trivial][FIXED][USER]
+5CA15CE0	A1E0	[Trivial][FIXED][USER]
+5CA15CEF	A1EF	[Trivial][FIXED][USER]
+5CA15CF9	A1F9	[Trivial][FIXED][USER]
+5CA15CFA	A1FA	[Trivial][FIXED][USER]
+5CA15CFC	A1FC	[Trivial][FIXED][USER]
+5CA15CFD	A1FD	[Trivial][FIXED][USER]
+5CA15CFE	A1FE	[Trivial][FIXED][USER]
+5CA15CFF	A1FF	[Trivial][ILSEQ]
+5CE05C00	E000	[Trivial][BROKE]
+5CE05C08	E008	[Trivial][BROKE]
+5CE05C09	E009	[Trivial][BROKE]
+5CE05C0A	E00A	[Trivial][BROKE]
+5CE05C0D	E00D	[Trivial][BROKE]
+5CE05C1A	E01A	[Trivial][BROKE]
+5CE05C22	E022	[Trivial][BROKE]
+5CE05C25	E05C25	[Regular]
+5CE05C27	E027	[Trivial][BROKE]
+5CE05C30	E000	[Regular][BROKE]
+5CE05C3F	E03F	[Trivial][BROKE]
+5CE05C40	E040	[Trivial][USER]
+5CE05C5A	E01A	[Regular][BROKE]
+5CE05C5C	E05C	[Regular][USER]
+5CE05C5F	E05C5F	[Regular]
+5CE05C61	E061	[Trivial][USER]
+5CE05C62	E008	[Regular][BROKE][USER]
+5CE05C6E	E00A	[Regular][BROKE]
+5CE05C72	E00D	[Regular][BROKE]
+5CE05C74	E009	[Regular][BROKE]
+5CE05C7E	E07E	[Trivial][USER]
+5CE05C7F	E07F	[Trivial][BROKE]
+5CE05C80	E080	[Trivial][ILSEQ]
+5CE05C81	E081	[Trivial][ILSEQ]
+5CE05C9F	E09F	[Trivial][ILSEQ]
+5CE05CA0	E0A0	[Trivial][ILSEQ]
+5CE05CA1	E0A1	[Trivial][FIXED][USER]
+5CE05CE0	E0E0	[Trivial][FIXED][USER]
+5CE05CEF	E0EF	[Trivial][FIXED][USER]
+5CE05CF9	E0F9	[Trivial][FIXED][USER]
+5CE05CFA	E0FA	[Trivial][FIXED][USER]
+5CE05CFC	E0FC	[Trivial][FIXED][USER]
+5CE05CFD	E0FD	[Trivial][FIXED][USER]
+5CE05CFE	E0FE	[Trivial][FIXED][USER]
+5CE05CFF	E0FF	[Trivial][ILSEQ]
+5CEF5C00	EF00	[Trivial][BROKE]
+5CEF5C08	EF08	[Trivial][BROKE]
+5CEF5C09	EF09	[Trivial][BROKE]
+5CEF5C0A	EF0A	[Trivial][BROKE]
+5CEF5C0D	EF0D	[Trivial][BROKE]
+5CEF5C1A	EF1A	[Trivial][BROKE]
+5CEF5C22	EF22	[Trivial][BROKE]
+5CEF5C25	EF5C25	[Regular]
+5CEF5C27	EF27	[Trivial][BROKE]
+5CEF5C30	EF00	[Regular][BROKE]
+5CEF5C3F	EF3F	[Trivial][BROKE]
+5CEF5C40	EF40	[Trivial][USER]
+5CEF5C5A	EF1A	[Regular][BROKE]
+5CEF5C5C	EF5C	[Regular][USER]
+5CEF5C5F	EF5C5F	[Regular]
+5CEF5C61	EF61	[Trivial][USER]
+5CEF5C62	EF08	[Regular][BROKE][USER]
+5CEF5C6E	EF0A	[Regular][BROKE]
+5CEF5C72	EF0D	[Regular][BROKE]
+5CEF5C74	EF09	[Regular][BROKE]
+5CEF5C7E	EF7E	[Trivial][USER]
+5CEF5C7F	EF7F	[Trivial][BROKE]
+5CEF5C80	EF80	[Trivial][ILSEQ]
+5CEF5C81	EF81	[Trivial][ILSEQ]
+5CEF5C9F	EF9F	[Trivial][ILSEQ]
+5CEF5CA0	EFA0	[Trivial][ILSEQ]
+5CEF5CA1	EFA1	[Trivial][FIXED][USER]
+5CEF5CE0	EFE0	[Trivial][FIXED][USER]
+5CEF5CEF	EFEF	[Trivial][FIXED][USER]
+5CEF5CF9	EFF9	[Trivial][FIXED][USER]
+5CEF5CFA	EFFA	[Trivial][FIXED][USER]
+5CEF5CFC	EFFC	[Trivial][FIXED][USER]
+5CEF5CFD	EFFD	[Trivial][FIXED][USER]
+5CEF5CFE	EFFE	[Trivial][FIXED][USER]
+5CEF5CFF	EFFF	[Trivial][ILSEQ]
+5CF95C00	F900	[Trivial][BROKE]
+5CF95C08	F908	[Trivial][BROKE]
+5CF95C09	F909	[Trivial][BROKE]
+5CF95C0A	F90A	[Trivial][BROKE]
+5CF95C0D	F90D	[Trivial][BROKE]
+5CF95C1A	F91A	[Trivial][BROKE]
+5CF95C22	F922	[Trivial][BROKE]
+5CF95C25	F95C25	[Regular]
+5CF95C27	F927	[Trivial][BROKE]
+5CF95C30	F900	[Regular][BROKE]
+5CF95C3F	F93F	[Trivial][BROKE]
+5CF95C40	F940	[Trivial][USER]
+5CF95C5A	F91A	[Regular][BROKE]
+5CF95C5C	F95C	[Regular][USER]
+5CF95C5F	F95C5F	[Regular]
+5CF95C61	F961	[Trivial][USER]
+5CF95C62	F908	[Regular][BROKE][USER]
+5CF95C6E	F90A	[Regular][BROKE]
+5CF95C72	F90D	[Regular][BROKE]
+5CF95C74	F909	[Regular][BROKE]
+5CF95C7E	F97E	[Trivial][USER]
+5CF95C7F	F97F	[Trivial][BROKE]
+5CF95C80	F980	[Trivial][ILSEQ]
+5CF95C81	F981	[Trivial][ILSEQ]
+5CF95C9F	F99F	[Trivial][ILSEQ]
+5CF95CA0	F9A0	[Trivial][ILSEQ]
+5CF95CA1	F9A1	[Trivial][FIXED][USER]
+5CF95CE0	F9E0	[Trivial][FIXED][USER]
+5CF95CEF	F9EF	[Trivial][FIXED][USER]
+5CF95CF9	F9F9	[Trivial][FIXED][USER]
+5CF95CFA	F9FA	[Trivial][FIXED][USER]
+5CF95CFC	F9FC	[Trivial][FIXED][USER]
+5CF95CFD	F9FD	[Trivial][FIXED][USER]
+5CF95CFE	F9FE	[Trivial][FIXED][USER]
+5CF95CFF	F9FF	[Trivial][ILSEQ]
+5CFA5C00	FA00	[Trivial][ILSEQ]
+5CFA5C08	FA08	[Trivial][ILSEQ]
+5CFA5C09	FA09	[Trivial][ILSEQ]
+5CFA5C0A	FA0A	[Trivial][ILSEQ]
+5CFA5C0D	FA0D	[Trivial][ILSEQ]
+5CFA5C1A	FA1A	[Trivial][ILSEQ]
+5CFA5C22	FA22	[Trivial][ILSEQ]
+5CFA5C25	FA5C25	[Regular][ILSEQ]
+5CFA5C27	FA27	[Trivial][ILSEQ]
+5CFA5C30	FA00	[Regular][ILSEQ]
+5CFA5C3F	FA3F	[Trivial][ILSEQ]
+5CFA5C40	FA40	[Trivial][ILSEQ]
+5CFA5C5A	FA1A	[Regular][ILSEQ]
+5CFA5C5C	FA5C	[Regular][ILSEQ]
+5CFA5C5F	FA5C5F	[Regular][ILSEQ]
+5CFA5C61	FA61	[Trivial][ILSEQ]
+5CFA5C62	FA08	[Regular][ILSEQ]
+5CFA5C6E	FA0A	[Regular][ILSEQ]
+5CFA5C72	FA0D	[Regular][ILSEQ]
+5CFA5C74	FA09	[Regular][ILSEQ]
+5CFA5C7E	FA7E	[Trivial][ILSEQ]
+5CFA5C7F	FA7F	[Trivial][ILSEQ]
+5CFA5C80	FA80	[Trivial][ILSEQ]
+5CFA5C81	FA81	[Trivial][ILSEQ]
+5CFA5C9F	FA9F	[Trivial][ILSEQ]
+5CFA5CA0	FAA0	[Trivial][ILSEQ]
+5CFA5CA1	FAA1	[Trivial][ILSEQ]
+5CFA5CE0	FAE0	[Trivial][ILSEQ]
+5CFA5CEF	FAEF	[Trivial][ILSEQ]
+5CFA5CF9	FAF9	[Trivial][ILSEQ]
+5CFA5CFA	FAFA	[Trivial][ILSEQ]
+5CFA5CFC	FAFC	[Trivial][ILSEQ]
+5CFA5CFD	FAFD	[Trivial][ILSEQ]
+5CFA5CFE	FAFE	[Trivial][ILSEQ]
+5CFA5CFF	FAFF	[Trivial][ILSEQ]
+5CFC5C00	FC00	[Trivial][ILSEQ]
+5CFC5C08	FC08	[Trivial][ILSEQ]
+5CFC5C09	FC09	[Trivial][ILSEQ]
+5CFC5C0A	FC0A	[Trivial][ILSEQ]
+5CFC5C0D	FC0D	[Trivial][ILSEQ]
+5CFC5C1A	FC1A	[Trivial][ILSEQ]
+5CFC5C22	FC22	[Trivial][ILSEQ]
+5CFC5C25	FC5C25	[Regular][ILSEQ]
+5CFC5C27	FC27	[Trivial][ILSEQ]
+5CFC5C30	FC00	[Regular][ILSEQ]
+5CFC5C3F	FC3F	[Trivial][ILSEQ]
+5CFC5C40	FC40	[Trivial][ILSEQ]
+5CFC5C5A	FC1A	[Regular][ILSEQ]
+5CFC5C5C	FC5C	[Regular][ILSEQ]
+5CFC5C5F	FC5C5F	[Regular][ILSEQ]
+5CFC5C61	FC61	[Trivial][ILSEQ]
+5CFC5C62	FC08	[Regular][ILSEQ]
+5CFC5C6E	FC0A	[Regular][ILSEQ]
+5CFC5C72	FC0D	[Regular][ILSEQ]
+5CFC5C74	FC09	[Regular][ILSEQ]
+5CFC5C7E	FC7E	[Trivial][ILSEQ]
+5CFC5C7F	FC7F	[Trivial][ILSEQ]
+5CFC5C80	FC80	[Trivial][ILSEQ]
+5CFC5C81	FC81	[Trivial][ILSEQ]
+5CFC5C9F	FC9F	[Trivial][ILSEQ]
+5CFC5CA0	FCA0	[Trivial][ILSEQ]
+5CFC5CA1	FCA1	[Trivial][ILSEQ]
+5CFC5CE0	FCE0	[Trivial][ILSEQ]
+5CFC5CEF	FCEF	[Trivial][ILSEQ]
+5CFC5CF9	FCF9	[Trivial][ILSEQ]
+5CFC5CFA	FCFA	[Trivial][ILSEQ]
+5CFC5CFC	FCFC	[Trivial][ILSEQ]
+5CFC5CFD	FCFD	[Trivial][ILSEQ]
+5CFC5CFE	FCFE	[Trivial][ILSEQ]
+5CFC5CFF	FCFF	[Trivial][ILSEQ]
+5CFD5C00	FD00	[Trivial][ILSEQ]
+5CFD5C08	FD08	[Trivial][ILSEQ]
+5CFD5C09	FD09	[Trivial][ILSEQ]
+5CFD5C0A	FD0A	[Trivial][ILSEQ]
+5CFD5C0D	FD0D	[Trivial][ILSEQ]
+5CFD5C1A	FD1A	[Trivial][ILSEQ]
+5CFD5C22	FD22	[Trivial][ILSEQ]
+5CFD5C25	FD5C25	[Regular][ILSEQ]
+5CFD5C27	FD27	[Trivial][ILSEQ]
+5CFD5C30	FD00	[Regular][ILSEQ]
+5CFD5C3F	FD3F	[Trivial][ILSEQ]
+5CFD5C40	FD40	[Trivial][ILSEQ]
+5CFD5C5A	FD1A	[Regular][ILSEQ]
+5CFD5C5C	FD5C	[Regular][ILSEQ]
+5CFD5C5F	FD5C5F	[Regular][ILSEQ]
+5CFD5C61	FD61	[Trivial][ILSEQ]
+5CFD5C62	FD08	[Regular][ILSEQ]
+5CFD5C6E	FD0A	[Regular][ILSEQ]
+5CFD5C72	FD0D	[Regular][ILSEQ]
+5CFD5C74	FD09	[Regular][ILSEQ]
+5CFD5C7E	FD7E	[Trivial][ILSEQ]
+5CFD5C7F	FD7F	[Trivial][ILSEQ]
+5CFD5C80	FD80	[Trivial][ILSEQ]
+5CFD5C81	FD81	[Trivial][ILSEQ]
+5CFD5C9F	FD9F	[Trivial][ILSEQ]
+5CFD5CA0	FDA0	[Trivial][ILSEQ]
+5CFD5CA1	FDA1	[Trivial][ILSEQ]
+5CFD5CE0	FDE0	[Trivial][ILSEQ]
+5CFD5CEF	FDEF	[Trivial][ILSEQ]
+5CFD5CF9	FDF9	[Trivial][ILSEQ]
+5CFD5CFA	FDFA	[Trivial][ILSEQ]
+5CFD5CFC	FDFC	[Trivial][ILSEQ]
+5CFD5CFD	FDFD	[Trivial][ILSEQ]
+5CFD5CFE	FDFE	[Trivial][ILSEQ]
+5CFD5CFF	FDFF	[Trivial][ILSEQ]
+5CFE5C00	FE00	[Trivial][ILSEQ]
+5CFE5C08	FE08	[Trivial][ILSEQ]
+5CFE5C09	FE09	[Trivial][ILSEQ]
+5CFE5C0A	FE0A	[Trivial][ILSEQ]
+5CFE5C0D	FE0D	[Trivial][ILSEQ]
+5CFE5C1A	FE1A	[Trivial][ILSEQ]
+5CFE5C22	FE22	[Trivial][ILSEQ]
+5CFE5C25	FE5C25	[Regular][ILSEQ]
+5CFE5C27	FE27	[Trivial][ILSEQ]
+5CFE5C30	FE00	[Regular][ILSEQ]
+5CFE5C3F	FE3F	[Trivial][ILSEQ]
+5CFE5C40	FE40	[Trivial][ILSEQ]
+5CFE5C5A	FE1A	[Regular][ILSEQ]
+5CFE5C5C	FE5C	[Regular][ILSEQ]
+5CFE5C5F	FE5C5F	[Regular][ILSEQ]
+5CFE5C61	FE61	[Trivial][ILSEQ]
+5CFE5C62	FE08	[Regular][ILSEQ]
+5CFE5C6E	FE0A	[Regular][ILSEQ]
+5CFE5C72	FE0D	[Regular][ILSEQ]
+5CFE5C74	FE09	[Regular][ILSEQ]
+5CFE5C7E	FE7E	[Trivial][ILSEQ]
+5CFE5C7F	FE7F	[Trivial][ILSEQ]
+5CFE5C80	FE80	[Trivial][ILSEQ]
+5CFE5C81	FE81	[Trivial][ILSEQ]
+5CFE5C9F	FE9F	[Trivial][ILSEQ]
+5CFE5CA0	FEA0	[Trivial][ILSEQ]
+5CFE5CA1	FEA1	[Trivial][ILSEQ]
+5CFE5CE0	FEE0	[Trivial][ILSEQ]
+5CFE5CEF	FEEF	[Trivial][ILSEQ]
+5CFE5CF9	FEF9	[Trivial][ILSEQ]
+5CFE5CFA	FEFA	[Trivial][ILSEQ]
+5CFE5CFC	FEFC	[Trivial][ILSEQ]
+5CFE5CFD	FEFD	[Trivial][ILSEQ]
+5CFE5CFE	FEFE	[Trivial][ILSEQ]
+5CFE5CFF	FEFF	[Trivial][ILSEQ]
+5CFF5C00	FF00	[Trivial][ILSEQ]
+5CFF5C08	FF08	[Trivial][ILSEQ]
+5CFF5C09	FF09	[Trivial][ILSEQ]
+5CFF5C0A	FF0A	[Trivial][ILSEQ]
+5CFF5C0D	FF0D	[Trivial][ILSEQ]
+5CFF5C1A	FF1A	[Trivial][ILSEQ]
+5CFF5C22	FF22	[Trivial][ILSEQ]
+5CFF5C25	FF5C25	[Regular][ILSEQ]
+5CFF5C27	FF27	[Trivial][ILSEQ]
+5CFF5C30	FF00	[Regular][ILSEQ]
+5CFF5C3F	FF3F	[Trivial][ILSEQ]
+5CFF5C40	FF40	[Trivial][ILSEQ]
+5CFF5C5A	FF1A	[Regular][ILSEQ]
+5CFF5C5C	FF5C	[Regular][ILSEQ]
+5CFF5C5F	FF5C5F	[Regular][ILSEQ]
+5CFF5C61	FF61	[Trivial][ILSEQ]
+5CFF5C62	FF08	[Regular][ILSEQ]
+5CFF5C6E	FF0A	[Regular][ILSEQ]
+5CFF5C72	FF0D	[Regular][ILSEQ]
+5CFF5C74	FF09	[Regular][ILSEQ]
+5CFF5C7E	FF7E	[Trivial][ILSEQ]
+5CFF5C7F	FF7F	[Trivial][ILSEQ]
+5CFF5C80	FF80	[Trivial][ILSEQ]
+5CFF5C81	FF81	[Trivial][ILSEQ]
+5CFF5C9F	FF9F	[Trivial][ILSEQ]
+5CFF5CA0	FFA0	[Trivial][ILSEQ]
+5CFF5CA1	FFA1	[Trivial][ILSEQ]
+5CFF5CE0	FFE0	[Trivial][ILSEQ]
+5CFF5CEF	FFEF	[Trivial][ILSEQ]
+5CFF5CF9	FFF9	[Trivial][ILSEQ]
+5CFF5CFA	FFFA	[Trivial][ILSEQ]
+5CFF5CFC	FFFC	[Trivial][ILSEQ]
+5CFF5CFD	FFFD	[Trivial][ILSEQ]
+5CFF5CFE	FFFE	[Trivial][ILSEQ]
+5CFF5CFF	FFFF	[Trivial][ILSEQ]
+DROP TABLE t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP FUNCTION unescape;
+DROP FUNCTION unescape_type;
+DROP FUNCTION wellformedness;
+DROP FUNCTION mysql_real_escape_string_generated;
+DROP FUNCTION iswellformed;
+DROP TABLE allbytes;
+SET sql_mode = DEFAULT;
+# End of ctype_backslash.inc
+SET NAMES big5;
+# Start of ctype_E05C.inc
+SELECT HEX('�\'),HEX('�\t');
+HEX('�\')	HEX('�\t')
+E05C	E05C74
+SELECT HEX('\\�\'),HEX('\\�\t'),HEX('\\�\t\t');
+HEX('\\�\')	HEX('\\�\t')	HEX('\\�\t\t')
+5CE05C	5CE05C74	5CE05C7409
+SELECT HEX('''�\'),HEX('�\''');
+HEX('''�\')	HEX('�\''')
+27E05C	E05C27
+SELECT HEX('\\''�\'),HEX('�\''\\');
+HEX('\\''�\')	HEX('�\''\\')
+5C27E05C	E05C275C
+SELECT HEX(BINARY('�\')),HEX(BINARY('�\t'));
+HEX(BINARY('�\'))	HEX(BINARY('�\t'))
+E05C	E05C74
+SELECT HEX(BINARY('\\�\')),HEX(BINARY('\\�\t')),HEX(BINARY('\\�\t\t'));
+HEX(BINARY('\\�\'))	HEX(BINARY('\\�\t'))	HEX(BINARY('\\�\t\t'))
+5CE05C	5CE05C74	5CE05C7409
+SELECT HEX(BINARY('''�\')),HEX(BINARY('�\'''));
+HEX(BINARY('''�\'))	HEX(BINARY('�\'''))
+27E05C	E05C27
+SELECT HEX(BINARY('\\''�\')),HEX(BINARY('�\''\\'));
+HEX(BINARY('\\''�\'))	HEX(BINARY('�\''\\'))
+5C27E05C	E05C275C
+SELECT HEX(_BINARY'�\'),HEX(_BINARY'�\t');
+HEX(_BINARY'�\')	HEX(_BINARY'�\t')
+E05C	E05C74
+SELECT HEX(_BINARY'\\�\'),HEX(_BINARY'\\�\t'),HEX(_BINARY'\\�\t\t');
+HEX(_BINARY'\\�\')	HEX(_BINARY'\\�\t')	HEX(_BINARY'\\�\t\t')
+5CE05C	5CE05C74	5CE05C7409
+SELECT HEX(_BINARY'''�\'),HEX(_BINARY'�\''');
+HEX(_BINARY'''�\')	HEX(_BINARY'�\''')
+27E05C	E05C27
+SELECT HEX(_BINARY'\\''�\'),HEX(_BINARY'�\''\\');
+HEX(_BINARY'\\''�\')	HEX(_BINARY'�\''\\')
+5C27E05C	E05C275C
+CREATE TABLE t1 AS SELECT REPEAT(' ',10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET big5 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('�\'),('�\t');
+INSERT INTO t1 VALUES ('\\�\'),('\\�\t'),('\\�\t\t');
+INSERT INTO t1 VALUES ('''�\'),('�\''');
+INSERT INTO t1 VALUES ('\\''�\'),('�\''\\');
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+�\	E05C
+�\t	E05C74
+\�\	5CE05C
+\�\t	5CE05C74
+\�\t		5CE05C7409
+'�\	27E05C
+�\'	E05C27
+\'�\	5C27E05C
+�\'\	E05C275C
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES ('�\'),('�\t');
+INSERT INTO t1 VALUES ('\\�\'),('\\�\t'),('\\�\t\t');
+INSERT INTO t1 VALUES ('''�\'),('�\''');
+INSERT INTO t1 VALUES ('\\''�\'),('�\''\\');
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+�\	E05C
+�\t	E05C74
+\�\	5CE05C
+\�\t	5CE05C74
+\�\t		5CE05C7409
+'�\	27E05C
+�\'	E05C27
+\'�\	5C27E05C
+�\'\	E05C275C
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET big5 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (BINARY('�\')),(BINARY('�\t'));
+INSERT INTO t1 VALUES (BINARY('\\�\')),(BINARY('\\�\t')),(BINARY('\\�\t\t'));
+INSERT INTO t1 VALUES (BINARY('''�\')),(BINARY('�\'''));
+INSERT INTO t1 VALUES (BINARY('\\''�\')),(BINARY('�\''\\'));
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+�\	E05C
+�\t	E05C74
+\�\	5CE05C
+\�\t	5CE05C74
+\�\t		5CE05C7409
+'�\	27E05C
+�\'	E05C27
+\'�\	5C27E05C
+�\'\	E05C275C
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES (BINARY('�\')),(BINARY('�\t'));
+INSERT INTO t1 VALUES (BINARY('\\�\')),(BINARY('\\�\t')),(BINARY('\\�\t\t'));
+INSERT INTO t1 VALUES (BINARY('''�\')),(BINARY('�\'''));
+INSERT INTO t1 VALUES (BINARY('\\''�\')),(BINARY('�\''\\'));
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+�\	E05C
+�\t	E05C74
+\�\	5CE05C
+\�\t	5CE05C74
+\�\t		5CE05C7409
+'�\	27E05C
+�\'	E05C27
+\'�\	5C27E05C
+�\'\	E05C275C
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET big5 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (_BINARY'�\'),(_BINARY'�\t');
+INSERT INTO t1 VALUES (_BINARY'\\�\'),(_BINARY'\\�\t'),(_BINARY'\\�\t\t');
+INSERT INTO t1 VALUES (_BINARY'''�\'),(_BINARY'�\''');
+INSERT INTO t1 VALUES (_BINARY'\\''�\'),(_BINARY'�\''\\');
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+�\	E05C
+�\t	E05C74
+\�\	5CE05C
+\�\t	5CE05C74
+\�\t		5CE05C7409
+'�\	27E05C
+�\'	E05C27
+\'�\	5C27E05C
+�\'\	E05C275C
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES (_BINARY'�\'),(_BINARY'�\t');
+INSERT INTO t1 VALUES (_BINARY'\\�\'),(_BINARY'\\�\t'),(_BINARY'\\�\t\t');
+INSERT INTO t1 VALUES (_BINARY'''�\'),(_BINARY'�\''');
+INSERT INTO t1 VALUES (_BINARY'\\''�\'),(_BINARY'�\''\\');
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+�\	E05C
+�\t	E05C74
+\�\	5CE05C
+\�\t	5CE05C74
+\�\t		5CE05C7409
+'�\	27E05C
+�\'	E05C27
+\'�\	5C27E05C
+�\'\	E05C275C
+DROP TABLE t1;
+SET character_set_client=binary, character_set_results=binary;
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+@@character_set_client	@@character_set_connection	@@character_set_results
+binary	big5	binary
+SELECT HEX('�\['), HEX('\�\[');
+HEX('�\[')	HEX('\�\[')
+E05B	E05B
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET big5 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('�\['),('\�\[');
+SELECT HEX(a) FROM t1;
+HEX(a)
+E05B
+E05B
+DROP TABLE t1;
+SET character_set_client=@@character_set_connection, character_set_results=@@character_set_connection;
+SET character_set_connection=binary;
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+@@character_set_client	@@character_set_connection	@@character_set_results
+big5	binary	big5
+SELECT HEX('�\['), HEX('\�\[');
+HEX('�\[')	HEX('\�\[')
+E05C5B	E05B
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('�\['),('\�\[');
+SELECT HEX(a) FROM t1;
+HEX(a)
+E05C5B
+E05B
+DROP TABLE t1;
+# Start of ctype_E05C.inc
+SET NAMES big5;
+CREATE TABLE t1 (a ENUM('�@') CHARACTER SET big5);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('?') CHARACTER SET big5 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('�@');
+INSERT INTO t1 VALUES (_big5 0xC840);
+INSERT INTO t1 VALUES (0xC840);
+SELECT HEX(a),a FROM t1;
+HEX(a)	a
+C840	�@
+C840	�@
+C840	�@
+DROP TABLE t1;
+SET NAMES binary;
+CREATE TABLE t1 (a ENUM('�@') CHARACTER SET big5);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('?') CHARACTER SET big5 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('�@');
+INSERT INTO t1 VALUES (_big5 0xC840);
+INSERT INTO t1 VALUES (0xC840);
+SELECT HEX(a),a FROM t1;
+HEX(a)	a
+C840	�@
+C840	�@
+C840	�@
+DROP TABLE t1;
+SET NAMES big5;
+CREATE TABLE t1 (
+c1 CHAR(10)    CHARACTER SET big5,
+c2 VARCHAR(10) CHARACTER SET big5,
+c3 TEXT        CHARACTER SET big5
+);
+INSERT INTO t1 VALUES ('�@','�@','�@');
+INSERT INTO t1 VALUES (_big5 0xC840,_big5 0xC840,_big5 0xC840);
+INSERT INTO t1 VALUES (0xC840,0xC840,0xC840);
+SELECT HEX(c1),HEX(c2),HEX(c3) FROM t1;
+HEX(c1)	HEX(c2)	HEX(c3)
+C840	C840	C840
+C840	C840	C840
+C840	C840	C840
+DROP TABLE t1;
+SET NAMES binary;
+CREATE TABLE t1 (
+c1 CHAR(10)    CHARACTER SET big5,
+c2 VARCHAR(10) CHARACTER SET big5,
+c3 TEXT        CHARACTER SET big5
+);
+INSERT INTO t1 VALUES ('�@','�@','�@');
+INSERT INTO t1 VALUES (_big5 0xC840,_big5 0xC840,_big5 0xC840);
+INSERT INTO t1 VALUES (0xC840,0xC840,0xC840);
+SELECT HEX(c1),HEX(c2),HEX(c3) FROM t1;
+HEX(c1)	HEX(c2)	HEX(c3)
+C840	C840	C840
+C840	C840	C840
+C840	C840	C840
+DROP TABLE t1;
+SET NAMES binary;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET big5, KEY(a));
+INSERT INTO t1 VALUES (0xC840),(0xC841),(0xC842);
+SELECT HEX(a) FROM t1 WHERE a='�@';
+HEX(a)
+C840
+SELECT HEX(a) FROM t1 IGNORE KEY(a) WHERE a='�@';
+HEX(a)
+C840
+DROP TABLE t1;
+#
+# End of 10.0 tests
+#
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-9711 NO PAD Collatons
+#
+SET character_set_connection=big5;
+SET STORAGE_ENGINE=MyISAM;
+#
+# Start of ctype_pad.inc
+#
+#
+# Unique indexes
+#
+CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'big5_chinese_nopad_ci';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) COLLATE big5_chinese_nopad_ci NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=big5 COLLATE=big5_chinese_nopad_ci
+INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
+SELECT HEX(a), a FROM t1 ORDER BY a;
+HEX(a)	a
+2061	 a
+206120	 a 
+61202020	a   
+616263	abc
+6162632020	abc  
+SELECT HEX(a), a FROM t1 IGNORE INDEX(PRIMARY) ORDER BY a;
+HEX(a)	a
+2061	 a
+206120	 a 
+61202020	a   
+616263	abc
+6162632020	abc  
+SELECT HEX(a), a FROM t1 IGNORE INDEX(PRIMARY) ORDER BY a DESC;
+HEX(a)	a
+6162632020	abc  
+616263	abc
+61202020	a   
+206120	 a 
+2061	 a
+#
+# UNION
+#
+CREATE TABLE t2 (a VARCHAR(10)) COLLATE 'big5_chinese_nopad_ci';
+INSERT INTO t2 VALUES ('abc '),('abc  '),(' a'),('a ');
+SELECT HEX(a),a FROM (SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a) td;
+HEX(a)	a
+2061	 a
+206120	 a 
+6120	a 
+61202020	a   
+616263	abc
+61626320	abc 
+6162632020	abc  
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# DISTINCT, COUNT, MAX
+#
+CREATE TABLE t1 (a VARCHAR(10)) COLLATE 'big5_chinese_nopad_ci';
+INSERT INTO t1 VALUES ('a'),('a  '),(' a'),(' a '),('a   ');
+SELECT HEX(a), a FROM (SELECT DISTINCT a FROM t1 ORDER BY a) td;
+HEX(a)	a
+2061	 a
+206120	 a 
+61	a
+612020	a  
+61202020	a   
+SELECT COUNT(DISTINCT a) FROM t1 ORDER BY a;
+COUNT(DISTINCT a)
+5
+SELECT HEX(MAX(a)), MAX(a) FROM t1;
+HEX(MAX(a))	MAX(a)
+61202020	a   
+#
+# GROUP BY
+#
+CREATE TABLE t2 (a VARCHAR(10), b int, c varchar(10)) COLLATE 'big5_chinese_nopad_ci';
+INSERT t2 values('ab', 12, 'cd'), ('ab', 2, 'ed'), ('aa', 20, 'er'), ('aa  ', 0, 'er ');
+SELECT HEX(a), cnt FROM (SELECT a, COUNT(a) AS cnt FROM t2 GROUP BY a ORDER BY a) AS td;
+HEX(a)	cnt
+6161	1
+61612020	1
+6162	2
+DROP TABLE t2;
+#
+# Weights
+#
+SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
+HEX(WEIGHT_STRING(a AS CHAR(10)))
+41000000000000000000
+41202000000000000000
+20410000000000000000
+20412000000000000000
+41202020000000000000
+DROP TABLE t1;
+#
+# IF, CASE, LEAST
+#
+SELECT IF('abc' COLLATE 'big5_chinese_nopad_ci' = 'abc ', 'pad', 'nopad');
+IF('abc' COLLATE 'big5_chinese_nopad_ci' = 'abc ', 'pad', 'nopad')
+nopad
+SELECT CASE 'abc' COLLATE 'big5_chinese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
+CASE 'abc' COLLATE 'big5_chinese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+nopad
+SELECT CASE WHEN 'abc' COLLATE 'big5_chinese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
+CASE WHEN 'abc' COLLATE 'big5_chinese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+nopad
+SELECT HEX(LEAST('abc ' COLLATE 'big5_chinese_nopad_ci', 'abc  '));
+HEX(LEAST('abc ' COLLATE 'big5_chinese_nopad_ci', 'abc  '))
+61626320
+SELECT HEX(GREATEST('abc ' COLLATE 'big5_chinese_nopad_ci', 'abc  '));
+HEX(GREATEST('abc ' COLLATE 'big5_chinese_nopad_ci', 'abc  '))
+6162632020
+#
+# Collation mix
+#
+CREATE TABLE t1 (a VARCHAR(10)) COLLATE 'big5_chinese_ci';
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT COUNT(*) FROM t1 WHERE a='a';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_chinese_ci';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_chinese_nopad_ci';
+COUNT(*)
+1
+ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE 'big5_chinese_nopad_ci';
+SELECT COUNT(*) FROM t1 WHERE a='a';
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_chinese_ci';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_chinese_nopad_ci';
+COUNT(*)
+1
+DROP TABLE t1;
+#
+# End of ctype_pad.inc
+#
+SET STORAGE_ENGINE=HEAP;
+#
+# Start of ctype_pad.inc
+#
+#
+# Unique indexes
+#
+CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'big5_chinese_nopad_ci';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) COLLATE big5_chinese_nopad_ci NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MEMORY DEFAULT CHARSET=big5 COLLATE=big5_chinese_nopad_ci
+INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
+SELECT HEX(a), a FROM t1 ORDER BY a;
+HEX(a)	a
+2061	 a
+206120	 a 
+61202020	a   
+616263	abc
+6162632020	abc  
+SELECT HEX(a), a FROM t1 IGNORE INDEX(PRIMARY) ORDER BY a;
+HEX(a)	a
+2061	 a
+206120	 a 
+61202020	a   
+616263	abc
+6162632020	abc  
+SELECT HEX(a), a FROM t1 IGNORE INDEX(PRIMARY) ORDER BY a DESC;
+HEX(a)	a
+6162632020	abc  
+616263	abc
+61202020	a   
+206120	 a 
+2061	 a
+#
+# UNION
+#
+CREATE TABLE t2 (a VARCHAR(10)) COLLATE 'big5_chinese_nopad_ci';
+INSERT INTO t2 VALUES ('abc '),('abc  '),(' a'),('a ');
+SELECT HEX(a),a FROM (SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a) td;
+HEX(a)	a
+2061	 a
+206120	 a 
+6120	a 
+61202020	a   
+616263	abc
+61626320	abc 
+6162632020	abc  
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# DISTINCT, COUNT, MAX
+#
+CREATE TABLE t1 (a VARCHAR(10)) COLLATE 'big5_chinese_nopad_ci';
+INSERT INTO t1 VALUES ('a'),('a  '),(' a'),(' a '),('a   ');
+SELECT HEX(a), a FROM (SELECT DISTINCT a FROM t1 ORDER BY a) td;
+HEX(a)	a
+2061	 a
+206120	 a 
+61	a
+612020	a  
+61202020	a   
+SELECT COUNT(DISTINCT a) FROM t1 ORDER BY a;
+COUNT(DISTINCT a)
+5
+SELECT HEX(MAX(a)), MAX(a) FROM t1;
+HEX(MAX(a))	MAX(a)
+61202020	a   
+#
+# GROUP BY
+#
+CREATE TABLE t2 (a VARCHAR(10), b int, c varchar(10)) COLLATE 'big5_chinese_nopad_ci';
+INSERT t2 values('ab', 12, 'cd'), ('ab', 2, 'ed'), ('aa', 20, 'er'), ('aa  ', 0, 'er ');
+SELECT HEX(a), cnt FROM (SELECT a, COUNT(a) AS cnt FROM t2 GROUP BY a ORDER BY a) AS td;
+HEX(a)	cnt
+6161	1
+61612020	1
+6162	2
+DROP TABLE t2;
+#
+# Weights
+#
+SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
+HEX(WEIGHT_STRING(a AS CHAR(10)))
+41000000000000000000
+41202000000000000000
+20410000000000000000
+20412000000000000000
+41202020000000000000
+DROP TABLE t1;
+#
+# IF, CASE, LEAST
+#
+SELECT IF('abc' COLLATE 'big5_chinese_nopad_ci' = 'abc ', 'pad', 'nopad');
+IF('abc' COLLATE 'big5_chinese_nopad_ci' = 'abc ', 'pad', 'nopad')
+nopad
+SELECT CASE 'abc' COLLATE 'big5_chinese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
+CASE 'abc' COLLATE 'big5_chinese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+nopad
+SELECT CASE WHEN 'abc' COLLATE 'big5_chinese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
+CASE WHEN 'abc' COLLATE 'big5_chinese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+nopad
+SELECT HEX(LEAST('abc ' COLLATE 'big5_chinese_nopad_ci', 'abc  '));
+HEX(LEAST('abc ' COLLATE 'big5_chinese_nopad_ci', 'abc  '))
+61626320
+SELECT HEX(GREATEST('abc ' COLLATE 'big5_chinese_nopad_ci', 'abc  '));
+HEX(GREATEST('abc ' COLLATE 'big5_chinese_nopad_ci', 'abc  '))
+6162632020
+#
+# Collation mix
+#
+CREATE TABLE t1 (a VARCHAR(10)) COLLATE 'big5_chinese_ci';
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT COUNT(*) FROM t1 WHERE a='a';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_chinese_ci';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_chinese_nopad_ci';
+COUNT(*)
+1
+ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE 'big5_chinese_nopad_ci';
+SELECT COUNT(*) FROM t1 WHERE a='a';
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_chinese_ci';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_chinese_nopad_ci';
+COUNT(*)
+1
+DROP TABLE t1;
+#
+# End of ctype_pad.inc
+#
+SET STORAGE_ENGINE=Default;
+SET STORAGE_ENGINE=MyISAM;
+#
+# Start of ctype_pad.inc
+#
+#
+# Unique indexes
+#
+CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'big5_nopad_bin';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) COLLATE big5_nopad_bin NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=big5 COLLATE=big5_nopad_bin
+INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
+SELECT HEX(a), a FROM t1 ORDER BY a;
+HEX(a)	a
+2061	 a
+206120	 a 
+61202020	a   
+616263	abc
+6162632020	abc  
+SELECT HEX(a), a FROM t1 IGNORE INDEX(PRIMARY) ORDER BY a;
+HEX(a)	a
+2061	 a
+206120	 a 
+61202020	a   
+616263	abc
+6162632020	abc  
+SELECT HEX(a), a FROM t1 IGNORE INDEX(PRIMARY) ORDER BY a DESC;
+HEX(a)	a
+6162632020	abc  
+616263	abc
+61202020	a   
+206120	 a 
+2061	 a
+#
+# UNION
+#
+CREATE TABLE t2 (a VARCHAR(10)) COLLATE 'big5_nopad_bin';
+INSERT INTO t2 VALUES ('abc '),('abc  '),(' a'),('a ');
+SELECT HEX(a),a FROM (SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a) td;
+HEX(a)	a
+2061	 a
+206120	 a 
+6120	a 
+61202020	a   
+616263	abc
+61626320	abc 
+6162632020	abc  
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# DISTINCT, COUNT, MAX
+#
+CREATE TABLE t1 (a VARCHAR(10)) COLLATE 'big5_nopad_bin';
+INSERT INTO t1 VALUES ('a'),('a  '),(' a'),(' a '),('a   ');
+SELECT HEX(a), a FROM (SELECT DISTINCT a FROM t1 ORDER BY a) td;
+HEX(a)	a
+2061	 a
+206120	 a 
+61	a
+612020	a  
+61202020	a   
+SELECT COUNT(DISTINCT a) FROM t1 ORDER BY a;
+COUNT(DISTINCT a)
+5
+SELECT HEX(MAX(a)), MAX(a) FROM t1;
+HEX(MAX(a))	MAX(a)
+61202020	a   
+#
+# GROUP BY
+#
+CREATE TABLE t2 (a VARCHAR(10), b int, c varchar(10)) COLLATE 'big5_nopad_bin';
+INSERT t2 values('ab', 12, 'cd'), ('ab', 2, 'ed'), ('aa', 20, 'er'), ('aa  ', 0, 'er ');
+SELECT HEX(a), cnt FROM (SELECT a, COUNT(a) AS cnt FROM t2 GROUP BY a ORDER BY a) AS td;
+HEX(a)	cnt
+6161	1
+61612020	1
+6162	2
+DROP TABLE t2;
+#
+# Weights
+#
+SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
+HEX(WEIGHT_STRING(a AS CHAR(10)))
+61000000000000000000
+61202000000000000000
+20610000000000000000
+20612000000000000000
+61202020000000000000
+DROP TABLE t1;
+#
+# IF, CASE, LEAST
+#
+SELECT IF('abc' COLLATE 'big5_nopad_bin' = 'abc ', 'pad', 'nopad');
+IF('abc' COLLATE 'big5_nopad_bin' = 'abc ', 'pad', 'nopad')
+nopad
+SELECT CASE 'abc' COLLATE 'big5_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
+CASE 'abc' COLLATE 'big5_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+nopad
+SELECT CASE WHEN 'abc' COLLATE 'big5_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
+CASE WHEN 'abc' COLLATE 'big5_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+nopad
+SELECT HEX(LEAST('abc ' COLLATE 'big5_nopad_bin', 'abc  '));
+HEX(LEAST('abc ' COLLATE 'big5_nopad_bin', 'abc  '))
+61626320
+SELECT HEX(GREATEST('abc ' COLLATE 'big5_nopad_bin', 'abc  '));
+HEX(GREATEST('abc ' COLLATE 'big5_nopad_bin', 'abc  '))
+6162632020
+#
+# Collation mix
+#
+CREATE TABLE t1 (a VARCHAR(10)) COLLATE 'big5_bin';
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT COUNT(*) FROM t1 WHERE a='a';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_bin';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_nopad_bin';
+COUNT(*)
+1
+ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE 'big5_nopad_bin';
+SELECT COUNT(*) FROM t1 WHERE a='a';
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_bin';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_nopad_bin';
+COUNT(*)
+1
+DROP TABLE t1;
+#
+# End of ctype_pad.inc
+#
+SET STORAGE_ENGINE=HEAP;
+#
+# Start of ctype_pad.inc
+#
+#
+# Unique indexes
+#
+CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'big5_nopad_bin';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) COLLATE big5_nopad_bin NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=MEMORY DEFAULT CHARSET=big5 COLLATE=big5_nopad_bin
+INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
+SELECT HEX(a), a FROM t1 ORDER BY a;
+HEX(a)	a
+2061	 a
+206120	 a 
+61202020	a   
+616263	abc
+6162632020	abc  
+SELECT HEX(a), a FROM t1 IGNORE INDEX(PRIMARY) ORDER BY a;
+HEX(a)	a
+2061	 a
+206120	 a 
+61202020	a   
+616263	abc
+6162632020	abc  
+SELECT HEX(a), a FROM t1 IGNORE INDEX(PRIMARY) ORDER BY a DESC;
+HEX(a)	a
+6162632020	abc  
+616263	abc
+61202020	a   
+206120	 a 
+2061	 a
+#
+# UNION
+#
+CREATE TABLE t2 (a VARCHAR(10)) COLLATE 'big5_nopad_bin';
+INSERT INTO t2 VALUES ('abc '),('abc  '),(' a'),('a ');
+SELECT HEX(a),a FROM (SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a) td;
+HEX(a)	a
+2061	 a
+206120	 a 
+6120	a 
+61202020	a   
+616263	abc
+61626320	abc 
+6162632020	abc  
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# DISTINCT, COUNT, MAX
+#
+CREATE TABLE t1 (a VARCHAR(10)) COLLATE 'big5_nopad_bin';
+INSERT INTO t1 VALUES ('a'),('a  '),(' a'),(' a '),('a   ');
+SELECT HEX(a), a FROM (SELECT DISTINCT a FROM t1 ORDER BY a) td;
+HEX(a)	a
+2061	 a
+206120	 a 
+61	a
+612020	a  
+61202020	a   
+SELECT COUNT(DISTINCT a) FROM t1 ORDER BY a;
+COUNT(DISTINCT a)
+5
+SELECT HEX(MAX(a)), MAX(a) FROM t1;
+HEX(MAX(a))	MAX(a)
+61202020	a   
+#
+# GROUP BY
+#
+CREATE TABLE t2 (a VARCHAR(10), b int, c varchar(10)) COLLATE 'big5_nopad_bin';
+INSERT t2 values('ab', 12, 'cd'), ('ab', 2, 'ed'), ('aa', 20, 'er'), ('aa  ', 0, 'er ');
+SELECT HEX(a), cnt FROM (SELECT a, COUNT(a) AS cnt FROM t2 GROUP BY a ORDER BY a) AS td;
+HEX(a)	cnt
+6161	1
+61612020	1
+6162	2
+DROP TABLE t2;
+#
+# Weights
+#
+SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
+HEX(WEIGHT_STRING(a AS CHAR(10)))
+61000000000000000000
+61202000000000000000
+20610000000000000000
+20612000000000000000
+61202020000000000000
+DROP TABLE t1;
+#
+# IF, CASE, LEAST
+#
+SELECT IF('abc' COLLATE 'big5_nopad_bin' = 'abc ', 'pad', 'nopad');
+IF('abc' COLLATE 'big5_nopad_bin' = 'abc ', 'pad', 'nopad')
+nopad
+SELECT CASE 'abc' COLLATE 'big5_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
+CASE 'abc' COLLATE 'big5_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+nopad
+SELECT CASE WHEN 'abc' COLLATE 'big5_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
+CASE WHEN 'abc' COLLATE 'big5_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+nopad
+SELECT HEX(LEAST('abc ' COLLATE 'big5_nopad_bin', 'abc  '));
+HEX(LEAST('abc ' COLLATE 'big5_nopad_bin', 'abc  '))
+61626320
+SELECT HEX(GREATEST('abc ' COLLATE 'big5_nopad_bin', 'abc  '));
+HEX(GREATEST('abc ' COLLATE 'big5_nopad_bin', 'abc  '))
+6162632020
+#
+# Collation mix
+#
+CREATE TABLE t1 (a VARCHAR(10)) COLLATE 'big5_bin';
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT COUNT(*) FROM t1 WHERE a='a';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_bin';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_nopad_bin';
+COUNT(*)
+1
+ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE 'big5_nopad_bin';
+SELECT COUNT(*) FROM t1 WHERE a='a';
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_bin';
+COUNT(*)
+2
+SELECT COUNT(*) FROM t1 WHERE a='a' COLLATE 'big5_nopad_bin';
+COUNT(*)
+1
+DROP TABLE t1;
+#
+# End of ctype_pad.inc
+#
+SET STORAGE_ENGINE=Default;
+#
+# End of 10.2 tests
+#

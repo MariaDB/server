@@ -1,0 +1,2026 @@
+SET @save_sql_mode=@@sql_mode;
+set SQL_MODE='';
+create table ADDDATE(a int);
+drop table ADDDATE;
+create table ADDDATE (a int);
+drop table ADDDATE;
+create table BIT_AND(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'BIT_AND(a int)' at line 1
+create table BIT_AND (a int);
+drop table BIT_AND;
+create table BIT_OR(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'BIT_OR(a int)' at line 1
+create table BIT_OR (a int);
+drop table BIT_OR;
+create table BIT_XOR(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'BIT_XOR(a int)' at line 1
+create table BIT_XOR (a int);
+drop table BIT_XOR;
+create table CAST(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CAST(a int)' at line 1
+create table CAST (a int);
+drop table CAST;
+create table COUNT(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COUNT(a int)' at line 1
+create table COUNT (a int);
+drop table COUNT;
+create table CURDATE(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CURDATE(a int)' at line 1
+create table CURDATE (a int);
+drop table CURDATE;
+create table CURTIME(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CURTIME(a int)' at line 1
+create table CURTIME (a int);
+drop table CURTIME;
+create table DATE_ADD(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DATE_ADD(a int)' at line 1
+create table DATE_ADD (a int);
+drop table DATE_ADD;
+create table DATE_SUB(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DATE_SUB(a int)' at line 1
+create table DATE_SUB (a int);
+drop table DATE_SUB;
+create table EXTRACT(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'EXTRACT(a int)' at line 1
+create table EXTRACT (a int);
+drop table EXTRACT;
+create table GROUP_CONCAT(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GROUP_CONCAT(a int)' at line 1
+create table GROUP_CONCAT (a int);
+drop table GROUP_CONCAT;
+create table GROUP_UNIQUE_USERS(a int);
+drop table GROUP_UNIQUE_USERS;
+create table GROUP_UNIQUE_USERS (a int);
+drop table GROUP_UNIQUE_USERS;
+create table MAX(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MAX(a int)' at line 1
+create table MAX (a int);
+drop table MAX;
+create table MID(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MID(a int)' at line 1
+create table MID (a int);
+drop table MID;
+create table MIN(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MIN(a int)' at line 1
+create table MIN (a int);
+drop table MIN;
+create table NOW(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOW(a int)' at line 1
+create table NOW (a int);
+drop table NOW;
+create table POSITION(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'POSITION(a int)' at line 1
+create table POSITION (a int);
+drop table POSITION;
+create table SESSION_USER(a int);
+drop table SESSION_USER;
+create table SESSION_USER (a int);
+drop table SESSION_USER;
+create table STD(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STD(a int)' at line 1
+create table STD (a int);
+drop table STD;
+create table STDDEV(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STDDEV(a int)' at line 1
+create table STDDEV (a int);
+drop table STDDEV;
+create table STDDEV_POP(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STDDEV_POP(a int)' at line 1
+create table STDDEV_POP (a int);
+drop table STDDEV_POP;
+create table STDDEV_SAMP(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STDDEV_SAMP(a int)' at line 1
+create table STDDEV_SAMP (a int);
+drop table STDDEV_SAMP;
+create table SUBDATE(a int);
+drop table SUBDATE;
+create table SUBDATE (a int);
+drop table SUBDATE;
+create table SUBSTR(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SUBSTR(a int)' at line 1
+create table SUBSTR (a int);
+drop table SUBSTR;
+create table SUBSTRING(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SUBSTRING(a int)' at line 1
+create table SUBSTRING (a int);
+drop table SUBSTRING;
+create table SUM(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SUM(a int)' at line 1
+create table SUM (a int);
+drop table SUM;
+create table SYSDATE(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SYSDATE(a int)' at line 1
+create table SYSDATE (a int);
+drop table SYSDATE;
+create table SYSTEM_USER(a int);
+drop table SYSTEM_USER;
+create table SYSTEM_USER (a int);
+drop table SYSTEM_USER;
+create table TRIM(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TRIM(a int)' at line 1
+create table TRIM (a int);
+drop table TRIM;
+create table UNIQUE_USERS(a int);
+drop table UNIQUE_USERS;
+create table UNIQUE_USERS (a int);
+drop table UNIQUE_USERS;
+create table VARIANCE(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VARIANCE(a int)' at line 1
+create table VARIANCE (a int);
+drop table VARIANCE;
+create table VAR_POP(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VAR_POP(a int)' at line 1
+create table VAR_POP (a int);
+drop table VAR_POP;
+create table VAR_SAMP(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VAR_SAMP(a int)' at line 1
+create table VAR_SAMP (a int);
+drop table VAR_SAMP;
+set SQL_MODE='IGNORE_SPACE';
+create table ADDDATE(a int);
+drop table ADDDATE;
+create table ADDDATE (a int);
+drop table ADDDATE;
+create table BIT_AND(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'BIT_AND(a int)' at line 1
+create table BIT_AND (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'BIT_AND (a int)' at line 1
+create table BIT_OR(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'BIT_OR(a int)' at line 1
+create table BIT_OR (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'BIT_OR (a int)' at line 1
+create table BIT_XOR(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'BIT_XOR(a int)' at line 1
+create table BIT_XOR (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'BIT_XOR (a int)' at line 1
+create table CAST(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CAST(a int)' at line 1
+create table CAST (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CAST (a int)' at line 1
+create table COUNT(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COUNT(a int)' at line 1
+create table COUNT (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COUNT (a int)' at line 1
+create table CURDATE(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CURDATE(a int)' at line 1
+create table CURDATE (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CURDATE (a int)' at line 1
+create table CURTIME(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CURTIME(a int)' at line 1
+create table CURTIME (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CURTIME (a int)' at line 1
+create table DATE_ADD(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DATE_ADD(a int)' at line 1
+create table DATE_ADD (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DATE_ADD (a int)' at line 1
+create table DATE_SUB(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DATE_SUB(a int)' at line 1
+create table DATE_SUB (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DATE_SUB (a int)' at line 1
+create table EXTRACT(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'EXTRACT(a int)' at line 1
+create table EXTRACT (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'EXTRACT (a int)' at line 1
+create table GROUP_CONCAT(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GROUP_CONCAT(a int)' at line 1
+create table GROUP_CONCAT (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GROUP_CONCAT (a int)' at line 1
+create table GROUP_UNIQUE_USERS(a int);
+drop table GROUP_UNIQUE_USERS;
+create table GROUP_UNIQUE_USERS (a int);
+drop table GROUP_UNIQUE_USERS;
+create table MAX(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MAX(a int)' at line 1
+create table MAX (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MAX (a int)' at line 1
+create table MID(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MID(a int)' at line 1
+create table MID (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MID (a int)' at line 1
+create table MIN(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MIN(a int)' at line 1
+create table MIN (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MIN (a int)' at line 1
+create table NOW(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOW(a int)' at line 1
+create table NOW (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOW (a int)' at line 1
+create table POSITION(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'POSITION(a int)' at line 1
+create table POSITION (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'POSITION (a int)' at line 1
+create table SESSION_USER(a int);
+drop table SESSION_USER;
+create table SESSION_USER (a int);
+drop table SESSION_USER;
+create table STD(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STD(a int)' at line 1
+create table STD (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STD (a int)' at line 1
+create table STDDEV(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STDDEV(a int)' at line 1
+create table STDDEV (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STDDEV (a int)' at line 1
+create table STDDEV_POP(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STDDEV_POP(a int)' at line 1
+create table STDDEV_POP (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STDDEV_POP (a int)' at line 1
+create table STDDEV_SAMP(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STDDEV_SAMP(a int)' at line 1
+create table STDDEV_SAMP (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STDDEV_SAMP (a int)' at line 1
+create table SUBDATE(a int);
+drop table SUBDATE;
+create table SUBDATE (a int);
+drop table SUBDATE;
+create table SUBSTR(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SUBSTR(a int)' at line 1
+create table SUBSTR (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SUBSTR (a int)' at line 1
+create table SUBSTRING(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SUBSTRING(a int)' at line 1
+create table SUBSTRING (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SUBSTRING (a int)' at line 1
+create table SUM(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SUM(a int)' at line 1
+create table SUM (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SUM (a int)' at line 1
+create table SYSDATE(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SYSDATE(a int)' at line 1
+create table SYSDATE (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SYSDATE (a int)' at line 1
+create table SYSTEM_USER(a int);
+drop table SYSTEM_USER;
+create table SYSTEM_USER (a int);
+drop table SYSTEM_USER;
+create table TRIM(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TRIM(a int)' at line 1
+create table TRIM (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TRIM (a int)' at line 1
+create table UNIQUE_USERS(a int);
+drop table UNIQUE_USERS;
+create table UNIQUE_USERS (a int);
+drop table UNIQUE_USERS;
+create table VARIANCE(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VARIANCE(a int)' at line 1
+create table VARIANCE (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VARIANCE (a int)' at line 1
+create table VAR_POP(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VAR_POP(a int)' at line 1
+create table VAR_POP (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VAR_POP (a int)' at line 1
+create table VAR_SAMP(a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VAR_SAMP(a int)' at line 1
+create table VAR_SAMP (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VAR_SAMP (a int)' at line 1
+DROP TABLE IF EXISTS table_25930_a;
+DROP TABLE IF EXISTS table_25930_b;
+SET SQL_MODE = 'ANSI_QUOTES';
+CREATE TABLE table_25930_a ( "blah" INT );
+CREATE TABLE table_25930_b SELECT "blah" - 1 FROM table_25930_a;
+desc table_25930_b;
+Field	Type	Null	Key	Default	Extra
+"blah" - 1	bigint(12)	YES		NULL	
+DROP TABLE table_25930_a;
+DROP TABLE table_25930_b;
+SET @@sql_mode=@save_sql_mode;
+DROP PROCEDURE IF EXISTS p26030;
+select "non terminated"$$
+non terminated
+non terminated
+select "terminated";$$
+terminated
+terminated
+select "non terminated, space"      $$
+non terminated, space
+non terminated, space
+select "terminated, space";      $$
+terminated, space
+terminated, space
+select "non terminated, comment" /* comment */$$
+non terminated, comment
+non terminated, comment
+select "terminated, comment"; /* comment */$$
+terminated, comment
+terminated, comment
+select "stmt 1";select "stmt 2 non terminated"$$
+stmt 1
+stmt 1
+stmt 2 non terminated
+stmt 2 non terminated
+select "stmt 1";select "stmt 2 terminated";$$
+stmt 1
+stmt 1
+stmt 2 terminated
+stmt 2 terminated
+select "stmt 1";select "stmt 2 non terminated, space"      $$
+stmt 1
+stmt 1
+stmt 2 non terminated, space
+stmt 2 non terminated, space
+select "stmt 1";select "stmt 2 terminated, space";      $$
+stmt 1
+stmt 1
+stmt 2 terminated, space
+stmt 2 terminated, space
+select "stmt 1";select "stmt 2 non terminated, comment" /* comment */$$
+stmt 1
+stmt 1
+stmt 2 non terminated, comment
+stmt 2 non terminated, comment
+select "stmt 1";select "stmt 2 terminated, comment"; /* comment */$$
+stmt 1
+stmt 1
+stmt 2 terminated, comment
+stmt 2 terminated, comment
+select "stmt 1";             select "space, stmt 2"$$
+stmt 1
+stmt 1
+space, stmt 2
+space, stmt 2
+select "stmt 1";/* comment */select "comment, stmt 2"$$
+stmt 1
+stmt 1
+comment, stmt 2
+comment, stmt 2
+DROP PROCEDURE IF EXISTS p26030; CREATE PROCEDURE p26030() BEGIN SELECT 1; END; CALL p26030()
+$$
+1
+1
+DROP PROCEDURE IF EXISTS p26030; CREATE PROCEDURE p26030() SELECT 1; CALL p26030()
+$$
+1
+1
+DROP PROCEDURE p26030;
+select pi(3.14);
+ERROR 42000: Incorrect parameter count in the call to native function 'pi'
+select tan();
+ERROR 42000: Incorrect parameter count in the call to native function 'tan'
+select tan(1, 2);
+ERROR 42000: Incorrect parameter count in the call to native function 'tan'
+select makedate(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'makedate'
+select makedate(1, 2, 3);
+ERROR 42000: Incorrect parameter count in the call to native function 'makedate'
+select maketime();
+ERROR 42000: Incorrect parameter count in the call to native function 'maketime'
+select maketime(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'maketime'
+select maketime(1, 2);
+ERROR 42000: Incorrect parameter count in the call to native function 'maketime'
+select maketime(1, 2, 3, 4);
+ERROR 42000: Incorrect parameter count in the call to native function 'maketime'
+select atan();
+ERROR 42000: Incorrect parameter count in the call to native function 'atan'
+select atan2(1, 2, 3);
+ERROR 42000: Incorrect parameter count in the call to native function 'atan2'
+select concat();
+ERROR 42000: Incorrect parameter count in the call to native function 'concat'
+select concat("foo");
+concat("foo")
+foo
+select concat_ws();
+ERROR 42000: Incorrect parameter count in the call to native function 'concat_ws'
+select concat_ws("foo");
+ERROR 42000: Incorrect parameter count in the call to native function 'concat_ws'
+select encrypt();
+ERROR 42000: Incorrect parameter count in the call to native function 'encrypt'
+select encrypt(1, 2, 3);
+ERROR 42000: Incorrect parameter count in the call to native function 'encrypt'
+select des_encrypt("p1", "p2", "not expected");
+ERROR 42000: Incorrect parameter count in the call to native function 'des_encrypt'
+select des_decrypt("p1", "p2", "not expected");
+ERROR 42000: Incorrect parameter count in the call to native function 'des_decrypt'
+select elt();
+ERROR 42000: Incorrect parameter count in the call to native function 'elt'
+select elt(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'elt'
+select export_set();
+ERROR 42000: Incorrect parameter count in the call to native function 'export_set'
+select export_set("p1");
+ERROR 42000: Incorrect parameter count in the call to native function 'export_set'
+select export_set("p1", "p2");
+ERROR 42000: Incorrect parameter count in the call to native function 'export_set'
+select export_set("p1", "p2", "p3", "p4", "p5", "p6");
+ERROR 42000: Incorrect parameter count in the call to native function 'export_set'
+select field();
+ERROR 42000: Incorrect parameter count in the call to native function 'field'
+select field("p1");
+ERROR 42000: Incorrect parameter count in the call to native function 'field'
+select from_unixtime();
+ERROR 42000: Incorrect parameter count in the call to native function 'from_unixtime'
+select from_unixtime(1, 2, 3);
+ERROR 42000: Incorrect parameter count in the call to native function 'from_unixtime'
+select unix_timestamp(1, 2);
+ERROR 42000: Incorrect parameter count in the call to native function 'unix_timestamp'
+select greatest();
+ERROR 42000: Incorrect parameter count in the call to native function 'greatest'
+select greatest(12);
+ERROR 42000: Incorrect parameter count in the call to native function 'greatest'
+select last_insert_id(1, 2);
+ERROR 42000: Incorrect parameter count in the call to native function 'last_insert_id'
+select least();
+ERROR 42000: Incorrect parameter count in the call to native function 'least'
+select least(12);
+ERROR 42000: Incorrect parameter count in the call to native function 'least'
+select locate();
+ERROR 42000: Incorrect parameter count in the call to native function 'locate'
+select locate(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'locate'
+select locate(1, 2, 3, 4);
+ERROR 42000: Incorrect parameter count in the call to native function 'locate'
+select log();
+ERROR 42000: Incorrect parameter count in the call to native function 'log'
+select log(1, 2, 3);
+ERROR 42000: Incorrect parameter count in the call to native function 'log'
+select make_set();
+ERROR 42000: Incorrect parameter count in the call to native function 'make_set'
+select make_set(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'make_set'
+select master_pos_wait();
+ERROR 42000: Incorrect parameter count in the call to native function 'master_pos_wait'
+select master_pos_wait(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'master_pos_wait'
+select master_pos_wait(1, 2, 3, 4, 5);
+ERROR 42000: Incorrect parameter count in the call to native function 'master_pos_wait'
+select rand(1, 2, 3);
+ERROR 42000: Incorrect parameter count in the call to native function 'rand'
+select round(1, 2, 3);
+ERROR 42000: Incorrect parameter count in the call to native function 'round'
+select yearweek();
+ERROR 42000: Incorrect parameter count in the call to native function 'yearweek'
+select yearweek(1, 2, 3);
+ERROR 42000: Incorrect parameter count in the call to native function 'yearweek'
+select abs(3);
+abs(3)
+3
+select abs(3 AS three);
+ERROR 42000: Incorrect parameters in the call to native function 'abs'
+select abs(3 three);
+ERROR 42000: Incorrect parameters in the call to native function 'abs'
+select abs(3 AS "three");
+ERROR 42000: Incorrect parameters in the call to native function 'abs'
+select abs(3 "three");
+ERROR 42000: Incorrect parameters in the call to native function 'abs'
+set @bar="bar";
+set @foobar="foobar";
+select instr("foobar", "bar");
+instr("foobar", "bar")
+4
+select instr("foobar" AS p1, "bar");
+ERROR 42000: Incorrect parameters in the call to native function 'instr'
+select instr("foobar" p1, "bar");
+ERROR 42000: Incorrect parameters in the call to native function 'instr'
+select instr("foobar" AS "p1", "bar");
+ERROR 42000: Incorrect parameters in the call to native function 'instr'
+select instr("foobar" "p1", "bar");
+instr("foobar" "p1", "bar")
+4
+select instr(@foobar "p1", "bar");
+ERROR 42000: Incorrect parameters in the call to native function 'instr'
+select instr("foobar", "bar" AS p2);
+ERROR 42000: Incorrect parameters in the call to native function 'instr'
+select instr("foobar", "bar" p2);
+ERROR 42000: Incorrect parameters in the call to native function 'instr'
+select instr("foobar", "bar" AS "p2");
+ERROR 42000: Incorrect parameters in the call to native function 'instr'
+select instr("foobar", "bar" "p2");
+instr("foobar", "bar" "p2")
+0
+select instr("foobar", @bar "p2");
+ERROR 42000: Incorrect parameters in the call to native function 'instr'
+select instr("foobar" AS p1, "bar" AS p2);
+ERROR 42000: Incorrect parameters in the call to native function 'instr'
+select conv(255, 10, 16);
+conv(255, 10, 16)
+FF
+select conv(255 AS p1, 10, 16);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255 p1, 10, 16);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255 AS "p1", 10, 16);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255 "p1", 10, 16);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255, 10 AS p2, 16);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255, 10 p2, 16);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255, 10 AS "p2", 16);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255, 10 "p2", 16);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255, 10, 16 AS p3);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255, 10, 16 p3);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255, 10, 16 AS "p3");
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255, 10, 16 "p3");
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select conv(255 AS p1, 10 AS p2, 16 AS p3);
+ERROR 42000: Incorrect parameters in the call to native function 'conv'
+select atan(10);
+atan(10)
+1.4711276743037347
+select atan(10 AS p1);
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10 p1);
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10 AS "p1");
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10 "p1");
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10, 20);
+atan(10, 20)
+0.4636476090008061
+select atan(10 AS p1, 20);
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10 p1, 20);
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10 AS "p1", 20);
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10 "p1", 20);
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10, 20 AS p2);
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10, 20 p2);
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10, 20 AS "p2");
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10, 20 "p2");
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+select atan(10 AS p1, 20 AS p2);
+ERROR 42000: Incorrect parameters in the call to native function 'atan'
+DROP TABLE IF EXISTS t1;
+SELECT STR_TO_DATE('10:00 PM', '%h:%i %p') + INTERVAL 10 MINUTE;
+STR_TO_DATE('10:00 PM', '%h:%i %p') + INTERVAL 10 MINUTE
+22:10:00
+SELECT STR_TO_DATE('10:00 PM', '%h:%i %p') + INTERVAL (INTERVAL(1,2,3) + 1) MINUTE;
+STR_TO_DATE('10:00 PM', '%h:%i %p') + INTERVAL (INTERVAL(1,2,3) + 1) MINUTE
+22:01:00
+SELECT "1997-12-31 23:59:59" + INTERVAL 1 SECOND;
+"1997-12-31 23:59:59" + INTERVAL 1 SECOND
+1998-01-01 00:00:00
+SELECT 1 + INTERVAL(1,0,1,2) + 1;
+1 + INTERVAL(1,0,1,2) + 1
+4
+SELECT INTERVAL(1^1,0,1,2) + 1;
+INTERVAL(1^1,0,1,2) + 1
+2
+SELECT INTERVAL(1,0+1,2,3) * 5.5;
+INTERVAL(1,0+1,2,3) * 5.5
+5.5
+SELECT INTERVAL(3,3,1+3,4+4) / 0.5;
+INTERVAL(3,3,1+3,4+4) / 0.5
+2.0000
+SELECT (INTERVAL(1,0,1,2) + 5) * 7 + INTERVAL(1,0,1,2) / 2;
+(INTERVAL(1,0,1,2) + 5) * 7 + INTERVAL(1,0,1,2) / 2
+50.0000
+SELECT INTERVAL(1,0,1,2) + 1, 5 * INTERVAL(1,0,1,2);
+INTERVAL(1,0,1,2) + 1	5 * INTERVAL(1,0,1,2)
+3	10
+SELECT INTERVAL(0,(1*5)/2) + INTERVAL(5,4,3);
+INTERVAL(0,(1*5)/2) + INTERVAL(5,4,3)
+2
+SELECT 1^1 + INTERVAL 1+1 SECOND & 1 + INTERVAL 1+1 SECOND;
+1^1 + INTERVAL 1+1 SECOND & 1 + INTERVAL 1+1 SECOND
+NULL
+SELECT 1%2 - INTERVAL 1^1 SECOND | 1%2 - INTERVAL 1^1 SECOND;
+1%2 - INTERVAL 1^1 SECOND | 1%2 - INTERVAL 1^1 SECOND
+NULL
+CREATE TABLE t1 (a INT, b DATETIME);
+INSERT INTO t1 VALUES (INTERVAL(3,2,1) + 1, "1997-12-31 23:59:59" + INTERVAL 1 SECOND);
+SELECT * FROM t1 WHERE a = INTERVAL(3,2,1) + 1;
+a	b
+3	1998-01-01 00:00:00
+DROP TABLE t1;
+DROP TABLE IF EXISTS t1,t2,t3;
+CREATE TABLE t1 (a1 INT, a2 INT, a3 INT, a4 DATETIME);
+CREATE TABLE t2 LIKE t1;
+CREATE TABLE t3 LIKE t1;
+SELECT t1.* FROM t1 AS t0, { OJ t2 INNER JOIN t1 ON (t1.a1=t2.a1) } WHERE t0.a3=2;
+a1	a2	a3	a4
+SELECT t1.*,t2.* FROM { OJ ((t1 INNER JOIN t2 ON (t1.a1=t2.a2)) LEFT OUTER JOIN t3 ON t3.a3=t2.a1)};
+a1	a2	a3	a4	a1	a2	a3	a4
+SELECT t1.*,t2.* FROM { OJ ((t1 LEFT OUTER JOIN t2 ON t1.a3=t2.a2) INNER JOIN t3 ON (t3.a1=t2.a2))};
+a1	a2	a3	a4	a1	a2	a3	a4
+SELECT t1.*,t2.* FROM { OJ (t1 LEFT OUTER JOIN t2 ON t1.a1=t2.a2) CROSS JOIN t3 ON (t3.a2=t2.a3)};
+a1	a2	a3	a4	a1	a2	a3	a4
+SELECT * FROM {oj t1 LEFT OUTER JOIN t2 ON t1.a1=t2.a3} WHERE t1.a2 > 10;
+a1	a2	a3	a4	a1	a2	a3	a4
+SELECT {fn CONCAT(a1,a2)} FROM t1;
+{fn CONCAT(a1,a2)}
+UPDATE t3 SET a4={d '1789-07-14'} WHERE a1=0;
+SELECT a1, a4 FROM t2 WHERE a4 LIKE {fn UCASE('1789-07-14')};
+a1	a4
+DROP TABLE t1, t2, t3;
+#
+# End of 5.1 tests
+#
+#
+# Bug#17075846 : unquoted file names for variable values are
+#                accepted but parsed incorrectly
+#
+SET default_storage_engine=a.myisam;
+ERROR 42000: Incorrect argument type to variable 'default_storage_engine'
+SET default_storage_engine = .a.MyISAM;
+ERROR 42000: Incorrect argument type to variable 'default_storage_engine'
+SET default_storage_engine = a.b.MyISAM;
+ERROR 42000: Incorrect argument type to variable 'default_storage_engine'
+SET default_storage_engine = `a`.MyISAM;
+ERROR 42000: Incorrect argument type to variable 'default_storage_engine'
+SET default_storage_engine = `a`.`MyISAM`;
+ERROR 42000: Incorrect argument type to variable 'default_storage_engine'
+set default_storage_engine = "a.MYISAM";
+ERROR 42000: Unknown storage engine 'a.MYISAM'
+set default_storage_engine = 'a.MYISAM';
+ERROR 42000: Unknown storage engine 'a.MYISAM'
+set default_storage_engine = `a.MYISAM`;
+ERROR 42000: Unknown storage engine 'a.MYISAM'
+CREATE TABLE t1 (s VARCHAR(100));
+CREATE TRIGGER trigger1 BEFORE INSERT ON t1 FOR EACH ROW
+SET default_storage_engine = NEW.INNODB;
+ERROR 42S22: Unknown column 'INNODB' in 'NEW'
+DROP TABLE t1;
+select 0==0;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '=0' at line 1
+select 1=!0,  1 = ! 0;
+1=!0	1 = ! 0
+1	1
+select !!0,     ! ! 0;
+!!0	! ! 0
+0	0
+select 2>!0,  2 > ! 0;
+2>!0	2 > ! 0
+1	1
+select 0<=!0, 0 <= !0;
+0<=!0	0 <= !0
+1	1
+select 1<<!0, 1 << !0;
+1<<!0	1 << !0
+2	2
+select 0<!0,  0 < ! 0;
+0<!0	0 < ! 0
+1	1
+#
+# MDEV-11171 Assertion `m_cpp_buf <= ptr && ptr <= m_cpp_buf + m_buf_length' failed in Lex_input_stream::body_utf8_append(const char*, const char*)
+#
+CREATE TABLE t1 (id INT);
+CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW SET @a = 1\;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '\' at line 1
+PREPARE stmt FROM 'CREATE TRIGGER tr AFTER DELETE ON t1 FOR EACH ROW SET @a = 1\\';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '\' at line 1
+DROP TABLE t1;
+#
+# MDEV-7792 - SQL Parsing Error - UNION AND ORDER BY WITH JOIN
+#
+CREATE TABLE t1(a INT);
+SELECT * FROM t1 JOIN ((SELECT 1 AS b) UNION ALL (SELECT 2 AS b) ORDER BY b DESC) s1 WHERE a=1;
+a	b
+DROP TABLE t1;
+#
+# Test of collective fix for three parser bugs:
+#
+# Bug #17727401, Bug #17426017, Bug #17473479:
+#   The server accepts wrong syntax and then fails in different ways
+#
+CREATE TABLE t1 (i INT);
+# bug #17426017
+SELECT (SELECT EXISTS(SELECT * LIMIT 1 ORDER BY VALUES (c00)));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ORDER BY VALUES (c00)))' at line 1
+# bug#17473479
+CREATE TABLE a(a int);
+CREATE TABLE b(a int);
+DELETE FROM b ORDER BY(SELECT 1 FROM a ORDER BY a ORDER BY a);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ORDER BY a)' at line 1
+DROP TABLE a, b;
+# bug #17727401
+SELECT '' IN (SELECT '1' c FROM t1 ORDER BY '' ORDER BY '') FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ORDER BY '') FROM t1' at line 1
+# regression & coverage tests
+# uniform syntax for FROM DUAL clause:
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+FOR UPDATE;
+1
+1
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+PROCEDURE ANALYSE();
+ERROR HY000: Can't use ORDER clause with this procedure
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+PROCEDURE ANALYSE() FOR UPDATE;
+ERROR HY000: Can't use ORDER clause with this procedure
+SELECT 1 FROM
+(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+FOR UPDATE) a;
+1
+1
+SELECT 1 FROM
+(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+PROCEDURE ANALYSE() FOR UPDATE) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE() FOR UPDATE) a' at line 3
+SELECT 1 FROM t1
+WHERE EXISTS(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+FOR UPDATE);
+1
+SELECT 1 FROM t1
+WHERE EXISTS(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+PROCEDURE ANALYSE() FOR UPDATE);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE() FOR UPDATE)' at line 3
+SELECT 1 FROM t1
+UNION
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+FOR UPDATE;
+1
+1
+SELECT 1 FROM t1
+UNION
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+PROCEDURE ANALYSE() FOR UPDATE;
+ERROR 42000: Incorrect usage/placement of 'PROCEDURE'
+SELECT 1 FROM DUAL PROCEDURE ANALYSE() 
+UNION
+SELECT 1 FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+SELECT 1 FROM t1' at line 2
+(SELECT 1 FROM t1)
+UNION 
+(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+FOR UPDATE);
+1
+1
+(SELECT 1 FROM t1)
+UNION 
+(SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+PROCEDURE ANALYSE() FOR UPDATE);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE() FOR UPDATE)' at line 4
+# "FOR UPDATE" tests
+SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
+1
+(SELECT 1 FROM t1 FOR UPDATE) UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
+1
+SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 FOR UPDATE;
+1
+# "INTO" clause tests
+SELECT 1 FROM t1 INTO @var17727401;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT 1 FROM DUAL INTO @var17727401;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+SELECT 1 INTO @var17727401;
+SELECT 1 INTO @var17727401 FROM t1;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT 1 INTO @var17727401 FROM DUAL;
+SELECT 1 INTO @var17727401_1 FROM t1 INTO @var17727401_2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401_2' at line 1
+SELECT 1 INTO @var17727401_1 FROM DUAL
+INTO @var17727401_2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401_2' at line 2
+SELECT 1 INTO @var17727401 FROM t1 WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1;
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT 1 FROM t1 WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1 INTO @var17727401;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT 1 FROM t1 WHERE 1 INTO @var17727401 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1' at line 1
+SELECT 1 INTO @var17727401_1
+FROM t1 WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1 LIMIT 1
+INTO @var17727401_2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401_2' at line 3
+SELECT (SELECT 1 FROM t1 INTO @var17727401);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401)' at line 1
+SELECT 1 FROM (SELECT 1 FROM t1 INTO @var17727401) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401) a' at line 1
+SELECT EXISTS(SELECT 1 FROM t1 INTO @var17727401);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401)' at line 1
+SELECT 1 FROM t1 INTO @var17727401 UNION SELECT 1 FROM t1 INTO t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 INTO t1' at line 1
+(SELECT 1 FROM t1 INTO @var17727401) UNION (SELECT 1 FROM t1 INTO t1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401) UNION (SELECT 1 FROM t1 INTO t1)' at line 1
+SELECT 1 FROM t1 UNION SELECT 1 FROM t1 INTO @var17727401;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warning	1329	No data - zero rows fetched, selected, or processed
+SELECT 1 INTO @var17727401 FROM t1 PROCEDURE ANALYSE();
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE()' at line 1
+SELECT 1 FROM t1 PROCEDURE ANALYSE() INTO @var17727401;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var17727401' at line 1
+# ORDER and LIMIT clause combinations
+((SELECT 1 FROM t1 ORDER BY 1) LIMIT 1) ORDER BY 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+((SELECT 1 FROM t1 LIMIT 1) ORDER BY 1) LIMIT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1;
+1
+SELECT (SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1);
+(SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1)
+NULL
+SELECT 1 FROM (SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1) a;
+1
+SELECT 1 FROM t1 UNION SELECT 1 FROM t1 LIMIT 1;
+1
+SELECT (SELECT 1 FROM t1 UNION SELECT 1 FROM t1 LIMIT 1);
+(SELECT 1 FROM t1 UNION SELECT 1 FROM t1 LIMIT 1)
+NULL
+SELECT 1 FROM (SELECT 1 FROM t1 UNION SELECT 1 FROM t1 LIMIT 1) a;
+1
+SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1;
+1
+SELECT (SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1);
+(SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1)
+NULL
+SELECT 1 FROM (SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1) a;
+1
+SELECT 1 FROM t1 UNION SELECT 1 FROM t1 LIMIT 1 ORDER BY 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ORDER BY 1' at line 1
+SELECT (SELECT 1 FROM t1 UNION SELECT 1 FROM t1 LIMIT 1 ORDER BY 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ORDER BY 1)' at line 1
+SELECT 1 FROM (SELECT 1 FROM t1 UNION SELECT 1 FROM t1 LIMIT 1 ORDER BY 1) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ORDER BY 1) a' at line 1
+SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1' at line 1
+SELECT (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1)' at line 1
+SELECT 1 FROM (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1) a' at line 1
+SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1' at line 1
+SELECT (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1)' at line 1
+SELECT 1 FROM (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1) a' at line 1
+SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 UNION SELECT 1 FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1' at line 1
+SELECT (SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 UNION SELECT 1 FROM t1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1)' at line 1
+SELECT 1 FROM (SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 UNION SELECT 1 FROM t1) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1) a' at line 1
+SELECT 1 FROM t1 LIMIT 1 ORDER BY 1 UNION SELECT 1 FROM t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ORDER BY 1 UNION SELECT 1 FROM t1' at line 1
+SELECT (SELECT 1 FROM t1 LIMIT 1 ORDER BY 1 UNION SELECT 1 FROM t1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ORDER BY 1 UNION SELECT 1 FROM t1)' at line 1
+SELECT 1 FROM (SELECT 1 FROM t1 LIMIT 1 ORDER BY 1 UNION SELECT 1 FROM t1) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ORDER BY 1 UNION SELECT 1 FROM t1) a' at line 1
+SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 ORDER BY 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 ORDER BY 1' at line 1
+SELECT (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 ORDER BY 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 ORDER BY 1)' at line 1
+SELECT 1 FROM (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 ORDER BY 1) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 ORDER BY 1) a' at line 1
+SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 LIMIT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 LIMIT 1' at line 1
+SELECT (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 LIMIT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 LIMIT 1)' at line 1
+SELECT 1 FROM (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 LIMIT 1) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 LIMIT 1) a' at line 1
+SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 ORDER BY 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 ORDER BY 1' at line 1
+SELECT (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 ORDER BY 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 ORDER BY 1)' at line 1
+SELECT 1 FROM (SELECT 1 FROM t1 LIMIT 1 UNION SELECT 1 FROM t1 ORDER BY 1) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 ORDER BY 1) a' at line 1
+SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 LIMIT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 LIMIT 1' at line 1
+SELECT (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 LIMIT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 LIMIT 1)' at line 1
+SELECT 1 FROM (SELECT 1 FROM t1 ORDER BY 1 UNION SELECT 1 FROM t1 LIMIT 1) a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 1 FROM t1 LIMIT 1) a' at line 1
+DROP TABLE t1;
+#
+# MDEV-8380: Subquery parse error
+#
+CREATE TABLE t1 ( a INT);
+INSERT INTO t1 VALUES ( 2 );
+SELECT *
+FROM ( (SELECT a FROM t1 ORDER BY a) UNION (SELECT 1 as b ORDER BY b ) ) AS a1
+WHERE a1.a = 1 OR a1.a = 2;
+a
+2
+1
+DROP TABLE t1;
+#
+# MDEV-10080 Derived tables allow double LIMIT clause
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM  (SELECT * FROM t1 LIMIT 1 LIMIT 2) t1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'LIMIT 2) t1' at line 1
+DROP TABLE t1;
+#
+# MDEV-10109 Disallow syntactically INSERT .. SELECT .. {ORDER BY ..| LIMIT ..} .. UNION ..
+#
+INSERT INTO t1 SELECT 1 ORDER BY 1 UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1
+INSERT INTO t1 SELECT 1 LIMIT 1 UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1
+CREATE TABLE t1 AS SELECT 1 ORDER BY 1 UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1
+CREATE TABLE t1 AS SELECT 1 LIMIT 1 UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1
+#
+# MDEV-8909 union parser cleanup
+#
+# UNION with a non-parenthesized term
+# The following two queries return a wrong result
+# This will change when MDEV-10120 is fixed
+# For now, we're testing the parser.
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
+SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
+DROP TABLE t1;
+# UNION with a parenthesed term
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 2);
+a
+1
+10
+20
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a));
+a
+1
+10
+20
+30
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) LIMIT 1;
+a
+1
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) ORDER BY a;
+a
+1
+10
+20
+30
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a)) ORDER BY a LIMIT 1;
+a
+1
+DROP TABLE t1;
+# UNION with a parenthesized term with ROLLUP
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP);
+a
+1
+10
+20
+30
+NULL
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP) LIMIT 1;
+a
+1
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP) ORDER BY a LIMIT 1;
+a
+NULL
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP LIMIT 2);
+a
+1
+10
+20
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY a);
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a));
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a));
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+DROP TABLE t1;
+# UNION with a non-parethesized term with ROLLUP
+# This will change after: MDEV-10120 Wrong result of UNION .. ORDER BY GROUP_CONCAT()
+# Currently we're testing the parser only
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a);
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
+SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a);
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
+SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
+DROP TABLE t1;
+# Derived table with ROLLUP
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1;
+a
+10
+20
+30
+NULL
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 LIMIT 1;
+a
+10
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY a;
+a
+NULL
+10
+20
+30
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY a LIMIT 1;
+a
+NULL
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY a DESC LIMIT 1;
+a
+30
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY GROUP_CONCAT(a);
+a	GROUP_CONCAT(a)
+10	10,20,30
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY GROUP_CONCAT(a ORDER BY a);
+a	GROUP_CONCAT(a)
+10	10,20,30
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY GROUP_CONCAT(a) LIMIT 1;
+a	GROUP_CONCAT(a)
+10	10,20,30
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
+a	GROUP_CONCAT(a)
+10	10,20,30
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
+a	GROUP_CONCAT(a)
+NULL	NULL
+10	10
+20	20
+30	30
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
+a	GROUP_CONCAT(a)
+NULL	NULL
+10	10
+20	20
+30	30
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a) DESC;
+a	GROUP_CONCAT(a)
+30	30
+20	20
+10	10
+NULL	NULL
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) DESC;
+a	GROUP_CONCAT(a)
+30	30
+20	20
+10	10
+NULL	NULL
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a) LIMIT 1;
+a	GROUP_CONCAT(a)
+NULL	NULL
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
+a	GROUP_CONCAT(a)
+NULL	NULL
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a) DESC LIMIT 1;
+a	GROUP_CONCAT(a)
+30	30
+SELECT a, GROUP_CONCAT(a) FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP) t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a) DESC LIMIT 1;
+a	GROUP_CONCAT(a)
+30	30
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a) t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a)) t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT * FROM (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a)) t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+DROP TABLE t1;
+# Subquery, one row, ROLLUP
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NULL);
+(SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NULL)
+NULL
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NOT NULL);
+(SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NOT NULL)
+10
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+(SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+(SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+(SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NULL) FROM t1;
+(SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NULL)
+NULL
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NOT NULL) FROM t1;
+(SELECT * FROM t1 GROUP BY a WITH ROLLUP HAVING a IS NOT NULL)
+10
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+(SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+(SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+(SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP);
+ERROR 21000: Subquery returns more than 1 row
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP);
+ERROR 21000: Subquery returns more than 1 row
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP) FROM t1;
+ERROR 21000: Subquery returns more than 1 row
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP) FROM t1;
+ERROR 21000: Subquery returns more than 1 row
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a);
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1);
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a));
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) AS a;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a) FROM t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) FROM t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a)) FROM t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) AS a FROM t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+DROP TABLE t1;
+# Subquery, multiple rows, ROLLUP
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+(SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+(SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1);
+(SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+(SELECT * FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+10
+10
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+(SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+10
+10
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1) FROM t1;
+(SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP LIMIT 1)
+10
+10
+10
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP);
+ERROR 21000: Subquery returns more than 1 row
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP);
+ERROR 21000: Subquery returns more than 1 row
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP) FROM t1;
+ERROR 21000: Subquery returns more than 1 row
+SELECT (SELECT GROUP_CONCAT(a) FROM t1 GROUP BY a WITH ROLLUP) FROM t1;
+ERROR 21000: Subquery returns more than 1 row
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a);
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1);
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a));
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) AS a;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a) FROM t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) FROM t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT * FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a)) FROM t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+SELECT (SELECT GROUP_CONCAT(a ORDER BY a) FROM t1 GROUP BY a WITH ROLLUP ORDER BY a LIMIT 1) AS a FROM t1;
+ERROR HY000: Incorrect usage of CUBE/ROLLUP and ORDER BY
+DROP TABLE t1;
+
+MDEV-10101 Wrong error message of SELECT 1 UNION (SELECT 1 FROM t1 GROUP BY 1 WITH ROLLUP)
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP);
+a
+1
+10
+20
+30
+NULL
+(SELECT a FROM t1 GROUP BY a WITH ROLLUP) UNION SELECT 1;
+a
+10
+20
+30
+NULL
+1
+SELECT a FROM t1 GROUP BY a WITH ROLLUP UNION SELECT 1;
+a
+10
+20
+30
+NULL
+1
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP) LIMIT 1;
+a
+1
+(SELECT a FROM t1 GROUP BY a WITH ROLLUP) UNION SELECT 1 LIMIT 1;
+a
+10
+SELECT a FROM t1 GROUP BY a WITH ROLLUP UNION SELECT 1 LIMIT 1;
+a
+10
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP) ORDER BY a LIMIT 1;
+a
+NULL
+(SELECT a FROM t1 GROUP BY a WITH ROLLUP) UNION SELECT 1 ORDER BY a LIMIT 1;
+a
+NULL
+SELECT a FROM t1 GROUP BY a WITH ROLLUP UNION SELECT 1 ORDER BY a LIMIT 1;
+a
+NULL
+SELECT 1 AS a UNION (SELECT a FROM t1 GROUP BY a WITH ROLLUP LIMIT 2);
+a
+1
+10
+20
+(SELECT a FROM t1 GROUP BY a WITH ROLLUP LIMIT 2) UNION SELECT 1;
+a
+10
+20
+1
+DROP TABLE t1;
+#
+# MDEV-10779 Failing assertion lex->proc_list.elements == 0 or syntax error on PROCEDURE ANALYSE in UNION
+#
+CREATE TABLE t1 (i INT);
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE(10, 10))
+UNION
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))' at line 1
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE(10, 10))
+UNION
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)' at line 1
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+(SELECT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE(10, 10))
+UNION
+(SELECT 1)' at line 1
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))
+UNION
+SELECT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE(10, 10))
+UNION
+SELECT 1' at line 1
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+(SELECT * FROM t1 PROCEDURE ANALYSE(10, 10))' at line 2
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)' at line 2
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+(SELECT 1);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+(SELECT 1)' at line 2
+SELECT * FROM t1 PROCEDURE ANALYSE(10, 10)
+UNION
+SELECT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION
+SELECT 1' at line 2
+DROP TABLE t1;
+create table t1 (a serial null);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'null)' at line 1
+create table t1 (a serial auto_increment);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'auto_increment)' at line 1
+create table t1 (a serial serial default value);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'serial default value)' at line 1
+create table t1 (a serial collate binary);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'collate binary)' at line 1
+create table t1 (i int, vc serial as (i));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'as (i))' at line 1
+create function fs() returns serial return 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'serial return 1' at line 1
+create table t1 ( id serial );
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  UNIQUE KEY `id` (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create or replace view v1 as select 1 between (2 between 3 and 4) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+view_definition
+select 1 between 2 between 3 and 4 and 5 AS `1 between (2 between 3 and 4) and 5`
+create or replace view v1 as select 1 between (2 in (3,4)) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+view_definition
+select 1 between 2 in (3,4) and 5 AS `1 between (2 in (3,4)) and 5`
+create or replace view v1 as select 1 between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+view_definition
+select 1 between 2 like 3 and 4 AS `1 between (2 like 3) and 4`
+create or replace view v1 as select 1 not between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+view_definition
+select 1 not between 2 like 3 and 4 AS `1 not between (2 like 3) and 4`
+drop view v1;
+#
+# MDEV-10343 Providing compatibility for basic SQL data types
+#
+CREATE TABLE clob (clob int);
+DROP TABLE clob;
+CREATE TABLE raw (raw int);
+DROP TABLE raw;
+CREATE TABLE varchar2 (varchar2 int);
+DROP TABLE varchar2;
+#
+# MDEV-15620 Crash when using "SET @@NEW.a=expr" inside a trigger
+#
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @@NEW.a=0;
+ERROR HY000: Unknown structured system variable or ROW routine variable 'NEW'
+DROP TABLE t1;
+#
+# MDEV-15664 sql_mode=ORACLE: Make TRIM return NULL instead of empty string
+#
+CREATE TABLE trim_oracle (trim_oracle int);
+DROP TABLE trim_oracle;
+#
+# MDEV-15615 Unexpected syntax error instead of "Unknown system variable" inside an SP
+#
+BEGIN NOT ATOMIC
+DECLARE a INT;
+SET GLOBAL a=10;
+END;
+$$
+ERROR HY000: Unknown system variable 'a'
+#
+# MDEV-16202 Latest changes made erroneously some keywords reserved in sql_mode=ORACLE
+#
+CREATE PROCEDURE p1(name VARCHAR(64), pattern TEXT)
+BEGIN
+DECLARE query TEXT DEFAULT REPLACE(pattern, 'name', name);
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+BEGIN
+SHOW ERRORS;
+END;
+SELECT query AS '';
+EXECUTE IMMEDIATE query;
+END;
+$$
+CREATE PROCEDURE p2(name VARCHAR(64))
+BEGIN
+CALL p1(name, 'BEGIN NOT ATOMIC DECLARE name INT; SET name=10; SELECT name; END');
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (name INT)', 'name', name);
+CALL p1(name, 'SELECT name FROM t1');
+CALL p1(name, 'SELECT name ''alias'' FROM t1');
+CALL p1(name, 'SELECT name()');
+CALL p1(name, 'SELECT name.name()');
+CALL p1(name, 'SELECT name DATE FROM t1');
+CALL p1(name, 'SELECT name HISTORY FROM t1');
+CALL p1(name, 'SELECT name NEXT FROM t1');
+CALL p1(name, 'SELECT name PERIOD FROM t1');
+CALL p1(name, 'SELECT name PREVIOUS FROM t1');
+CALL p1(name, 'SELECT name SYSTEM FROM t1');
+CALL p1(name, 'SELECT name SYSTEM_TIME FROM t1');
+CALL p1(name, 'SELECT name TIME FROM t1');
+CALL p1(name, 'SELECT name TIMESTAMP FROM t1');
+CALL p1(name, 'SELECT name TRANSACTION FROM t1');
+CALL p1(name, 'SELECT name VALUE FROM t1');
+CALL p1(name, 'SELECT name VERSIONING FROM t1');
+CALL p1(name, 'SELECT name WITHOUT FROM t1');
+DROP TABLE t1;
+END;
+$$
+CALL p2('date');
+BEGIN NOT ATOMIC DECLARE date INT; SET date=10; SELECT date; END
+10
+SELECT date FROM t1
+SELECT date 'alias' FROM t1
+Error	1525	Incorrect DATE value: 'alias'
+SELECT date()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT date.date()
+Error	1630	FUNCTION date.date does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT date DATE FROM t1
+SELECT date HISTORY FROM t1
+SELECT date NEXT FROM t1
+SELECT date PERIOD FROM t1
+SELECT date PREVIOUS FROM t1
+SELECT date SYSTEM FROM t1
+SELECT date SYSTEM_TIME FROM t1
+SELECT date TIME FROM t1
+SELECT date TIMESTAMP FROM t1
+SELECT date TRANSACTION FROM t1
+SELECT date VALUE FROM t1
+SELECT date VERSIONING FROM t1
+SELECT date WITHOUT FROM t1
+CALL p2('history');
+BEGIN NOT ATOMIC DECLARE history INT; SET history=10; SELECT history; END
+10
+SELECT history FROM t1
+SELECT history 'alias' FROM t1
+SELECT history()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT history.history()
+Error	1630	FUNCTION history.history does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT history DATE FROM t1
+SELECT history HISTORY FROM t1
+SELECT history NEXT FROM t1
+SELECT history PERIOD FROM t1
+SELECT history PREVIOUS FROM t1
+SELECT history SYSTEM FROM t1
+SELECT history SYSTEM_TIME FROM t1
+SELECT history TIME FROM t1
+SELECT history TIMESTAMP FROM t1
+SELECT history TRANSACTION FROM t1
+SELECT history VALUE FROM t1
+SELECT history VERSIONING FROM t1
+SELECT history WITHOUT FROM t1
+CALL p2('next');
+BEGIN NOT ATOMIC DECLARE next INT; SET next=10; SELECT next; END
+10
+SELECT next FROM t1
+SELECT next 'alias' FROM t1
+SELECT next()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT next.next()
+Error	1630	FUNCTION next.next does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT next DATE FROM t1
+SELECT next HISTORY FROM t1
+SELECT next NEXT FROM t1
+SELECT next PERIOD FROM t1
+SELECT next PREVIOUS FROM t1
+SELECT next SYSTEM FROM t1
+SELECT next SYSTEM_TIME FROM t1
+SELECT next TIME FROM t1
+SELECT next TIMESTAMP FROM t1
+SELECT next TRANSACTION FROM t1
+SELECT next VALUE FROM t1
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM t1' at line 1
+SELECT next VERSIONING FROM t1
+SELECT next WITHOUT FROM t1
+CALL p2('period');
+BEGIN NOT ATOMIC DECLARE period INT; SET period=10; SELECT period; END
+10
+SELECT period FROM t1
+SELECT period 'alias' FROM t1
+SELECT period()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT period.period()
+Error	1630	FUNCTION period.period does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT period DATE FROM t1
+SELECT period HISTORY FROM t1
+SELECT period NEXT FROM t1
+SELECT period PERIOD FROM t1
+SELECT period PREVIOUS FROM t1
+SELECT period SYSTEM FROM t1
+SELECT period SYSTEM_TIME FROM t1
+SELECT period TIME FROM t1
+SELECT period TIMESTAMP FROM t1
+SELECT period TRANSACTION FROM t1
+SELECT period VALUE FROM t1
+SELECT period VERSIONING FROM t1
+SELECT period WITHOUT FROM t1
+CALL p2('previous');
+BEGIN NOT ATOMIC DECLARE previous INT; SET previous=10; SELECT previous; END
+10
+SELECT previous FROM t1
+SELECT previous 'alias' FROM t1
+SELECT previous()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT previous.previous()
+Error	1630	FUNCTION previous.previous does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT previous DATE FROM t1
+SELECT previous HISTORY FROM t1
+SELECT previous NEXT FROM t1
+SELECT previous PERIOD FROM t1
+SELECT previous PREVIOUS FROM t1
+SELECT previous SYSTEM FROM t1
+SELECT previous SYSTEM_TIME FROM t1
+SELECT previous TIME FROM t1
+SELECT previous TIMESTAMP FROM t1
+SELECT previous TRANSACTION FROM t1
+SELECT previous VALUE FROM t1
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM t1' at line 1
+SELECT previous VERSIONING FROM t1
+SELECT previous WITHOUT FROM t1
+CALL p2('system');
+BEGIN NOT ATOMIC DECLARE system INT; SET system=10; SELECT system; END
+10
+SELECT system FROM t1
+SELECT system 'alias' FROM t1
+SELECT system()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT system.system()
+Error	1630	FUNCTION system.system does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT system DATE FROM t1
+SELECT system HISTORY FROM t1
+SELECT system NEXT FROM t1
+SELECT system PERIOD FROM t1
+SELECT system PREVIOUS FROM t1
+SELECT system SYSTEM FROM t1
+SELECT system SYSTEM_TIME FROM t1
+SELECT system TIME FROM t1
+SELECT system TIMESTAMP FROM t1
+SELECT system TRANSACTION FROM t1
+SELECT system VALUE FROM t1
+SELECT system VERSIONING FROM t1
+SELECT system WITHOUT FROM t1
+CALL p2('system_time');
+BEGIN NOT ATOMIC DECLARE system_time INT; SET system_time=10; SELECT system_time; END
+10
+SELECT system_time FROM t1
+SELECT system_time 'alias' FROM t1
+SELECT system_time()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT system_time.system_time()
+Error	1630	FUNCTION system_time.system_time does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT system_time DATE FROM t1
+SELECT system_time HISTORY FROM t1
+SELECT system_time NEXT FROM t1
+SELECT system_time PERIOD FROM t1
+SELECT system_time PREVIOUS FROM t1
+SELECT system_time SYSTEM FROM t1
+SELECT system_time SYSTEM_TIME FROM t1
+SELECT system_time TIME FROM t1
+SELECT system_time TIMESTAMP FROM t1
+SELECT system_time TRANSACTION FROM t1
+SELECT system_time VALUE FROM t1
+SELECT system_time VERSIONING FROM t1
+SELECT system_time WITHOUT FROM t1
+CALL p2('time');
+BEGIN NOT ATOMIC DECLARE time INT; SET time=10; SELECT time; END
+10
+SELECT time FROM t1
+SELECT time 'alias' FROM t1
+Error	1525	Incorrect TIME value: 'alias'
+SELECT time()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT time.time()
+Error	1630	FUNCTION time.time does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT time DATE FROM t1
+SELECT time HISTORY FROM t1
+SELECT time NEXT FROM t1
+SELECT time PERIOD FROM t1
+SELECT time PREVIOUS FROM t1
+SELECT time SYSTEM FROM t1
+SELECT time SYSTEM_TIME FROM t1
+SELECT time TIME FROM t1
+SELECT time TIMESTAMP FROM t1
+SELECT time TRANSACTION FROM t1
+SELECT time VALUE FROM t1
+SELECT time VERSIONING FROM t1
+SELECT time WITHOUT FROM t1
+CALL p2('timestamp');
+BEGIN NOT ATOMIC DECLARE timestamp INT; SET timestamp=10; SELECT timestamp; END
+10
+SELECT timestamp FROM t1
+SELECT timestamp 'alias' FROM t1
+Error	1525	Incorrect DATETIME value: 'alias'
+SELECT timestamp()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT timestamp.timestamp()
+Error	1630	FUNCTION timestamp.timestamp does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT timestamp DATE FROM t1
+SELECT timestamp HISTORY FROM t1
+SELECT timestamp NEXT FROM t1
+SELECT timestamp PERIOD FROM t1
+SELECT timestamp PREVIOUS FROM t1
+SELECT timestamp SYSTEM FROM t1
+SELECT timestamp SYSTEM_TIME FROM t1
+SELECT timestamp TIME FROM t1
+SELECT timestamp TIMESTAMP FROM t1
+SELECT timestamp TRANSACTION FROM t1
+SELECT timestamp VALUE FROM t1
+SELECT timestamp VERSIONING FROM t1
+SELECT timestamp WITHOUT FROM t1
+CALL p2('transaction');
+BEGIN NOT ATOMIC DECLARE transaction INT; SET transaction=10; SELECT transaction; END
+10
+SELECT transaction FROM t1
+SELECT transaction 'alias' FROM t1
+SELECT transaction()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT transaction.transaction()
+Error	1630	FUNCTION transaction.transaction does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT transaction DATE FROM t1
+SELECT transaction HISTORY FROM t1
+SELECT transaction NEXT FROM t1
+SELECT transaction PERIOD FROM t1
+SELECT transaction PREVIOUS FROM t1
+SELECT transaction SYSTEM FROM t1
+SELECT transaction SYSTEM_TIME FROM t1
+SELECT transaction TIME FROM t1
+SELECT transaction TIMESTAMP FROM t1
+SELECT transaction TRANSACTION FROM t1
+SELECT transaction VALUE FROM t1
+SELECT transaction VERSIONING FROM t1
+SELECT transaction WITHOUT FROM t1
+CALL p2('value');
+BEGIN NOT ATOMIC DECLARE value INT; SET value=10; SELECT value; END
+10
+SELECT value FROM t1
+SELECT value 'alias' FROM t1
+SELECT value()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+SELECT value.value()
+Error	1630	FUNCTION value.value does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT value DATE FROM t1
+SELECT value HISTORY FROM t1
+SELECT value NEXT FROM t1
+SELECT value PERIOD FROM t1
+SELECT value PREVIOUS FROM t1
+SELECT value SYSTEM FROM t1
+SELECT value SYSTEM_TIME FROM t1
+SELECT value TIME FROM t1
+SELECT value TIMESTAMP FROM t1
+SELECT value TRANSACTION FROM t1
+SELECT value VALUE FROM t1
+SELECT value VERSIONING FROM t1
+SELECT value WITHOUT FROM t1
+CALL p2('versioning');
+BEGIN NOT ATOMIC DECLARE versioning INT; SET versioning=10; SELECT versioning; END
+10
+SELECT versioning FROM t1
+SELECT versioning 'alias' FROM t1
+SELECT versioning()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT versioning.versioning()
+Error	1630	FUNCTION versioning.versioning does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT versioning DATE FROM t1
+SELECT versioning HISTORY FROM t1
+SELECT versioning NEXT FROM t1
+SELECT versioning PERIOD FROM t1
+SELECT versioning PREVIOUS FROM t1
+SELECT versioning SYSTEM FROM t1
+SELECT versioning SYSTEM_TIME FROM t1
+SELECT versioning TIME FROM t1
+SELECT versioning TIMESTAMP FROM t1
+SELECT versioning TRANSACTION FROM t1
+SELECT versioning VALUE FROM t1
+SELECT versioning VERSIONING FROM t1
+SELECT versioning WITHOUT FROM t1
+CALL p2('without');
+BEGIN NOT ATOMIC DECLARE without INT; SET without=10; SELECT without; END
+10
+SELECT without FROM t1
+SELECT without 'alias' FROM t1
+SELECT without()
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '()' at line 1
+SELECT without.without()
+Error	1630	FUNCTION without.without does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual
+SELECT without DATE FROM t1
+SELECT without HISTORY FROM t1
+SELECT without NEXT FROM t1
+SELECT without PERIOD FROM t1
+SELECT without PREVIOUS FROM t1
+SELECT without SYSTEM FROM t1
+SELECT without SYSTEM_TIME FROM t1
+SELECT without TIME FROM t1
+SELECT without TIMESTAMP FROM t1
+SELECT without TRANSACTION FROM t1
+SELECT without VALUE FROM t1
+SELECT without VERSIONING FROM t1
+SELECT without WITHOUT FROM t1
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+#
+# MDEV-16697: Fix difference between 32bit/windows and 64bit
+# systems in allowed select nest level
+#
+SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+1
+)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))));
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT (SELECT
+(SELECT
+1
+#
+# MDEV-17693 Shift/reduce conflicts for NAMES,ROLE,PASSWORD in the option_value_no_option_type grammar
+#
+CREATE TABLE names (names INT);
+SELECT names FROM names AS names;
+names
+DROP TABLE names;
+CREATE TABLE password (password INT);
+SELECT password FROM password AS password;
+password
+DROP TABLE password;
+CREATE TABLE role (role INT);
+SELECT role FROM role AS role;
+role
+DROP TABLE role;
+BEGIN NOT ATOMIC
+DECLARE names    VARCHAR(32) DEFAULT '[names]';
+DECLARE password VARCHAR(32) DEFAULT '[password]';
+DECLARE role     VARCHAR(32) DEFAULT '[role]';
+names:
+LOOP
+SELECT names;
+LEAVE names;
+END LOOP;
+password:
+LOOP
+SELECT password;
+LEAVE password;
+END LOOP;
+role:
+LOOP
+SELECT role;
+LEAVE role;
+END LOOP;
+END;
+$$
+names
+[names]
+password
+[password]
+role
+[role]
+BEGIN NOT ATOMIC
+DECLARE names VARCHAR(32);
+SET names='[names]';
+END;
+$$
+ERROR 42000: Variable 'names' must be quoted with `...`, or renamed
+BEGIN NOT ATOMIC
+DECLARE password VARCHAR(32);
+SET password='[password]';
+END;
+$$
+ERROR 42000: Variable 'password' must be quoted with `...`, or renamed
+BEGIN NOT ATOMIC
+DECLARE role VARCHAR(32);
+SET role='[role]';
+END;
+$$
+SELECT @@GLOBAL.names;
+ERROR HY000: Unknown system variable 'names'
+SELECT @@GLOBAL.password;
+ERROR HY000: Unknown system variable 'password'
+SELECT @@GLOBAL.role;
+ERROR HY000: Unknown system variable 'role'
+#
+# MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
+#
+EXECUTE IMMEDIATE 'if(`systeminfo /FO LIST';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`systeminfo /FO LIST' at line 1
+EXECUTE IMMEDIATE 'if(`systeminfo';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`systeminfo' at line 1
+#
+# MDEV-23666 Assertion failed in Lex_input_stream::body_utf8_append
+#
+SET @@sql_mode='ANSI_QUOTES';
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"' at line 1
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"abc';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"abc' at line 1
+SET @@sql_mode=@save_sql_mode;
+# End of 10.3 tests
+#
+# MDEV-19540: 10.4 allow lock options with SELECT in brackets
+# which previous version do not
+#
+create table t1 (a int);
+(select * from t1) for update;
+a
+(select * from t1) union (select * from t1) for update;
+ERROR HY000: Incorrect usage of lock options and SELECT in brackets
+(select * from t1 for update);
+a
+select * from t1 for update;
+a
+drop table t1;
+#
+# MDEV-20108: [ERROR] mysqld got signal 11 in
+# st_select_lex::add_table_to_list
+#
+CREATE TABLE t1 (c1 INT NULL);
+CREATE TABLE t2 (c1 INT NULL);
+SET STATEMENT max_statement_time=900 FOR LOCK TABLES `t1` WRITE;
+select * from t1;
+c1
+select * from t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+SET STATEMENT max_statement_time=900 FOR unlock tables;
+drop table t1, t2;
+#
+# MDEV-21616: Server crash when using
+# "SET STATEMENT max_statement_time=0 FOR desc xxx" lead to collapse
+#
+create table t1 (a int);
+SET STATEMENT max_statement_time=0 FOR desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+drop table t1;
+SET STATEMENT max_statement_time=0 FOR do 1;
+set @save_sql_mode=@@SQL_MODE;
+set SQL_MODE=ORACLE;
+create table t1 (a int);
+SET STATEMENT max_statement_time=0 FOR desc t1;
+Field	Type	Null	Key	Default	Extra
+a	int(11)	YES		NULL	
+drop table t1;
+SET STATEMENT max_statement_time=0 FOR do 1;
+set SQL_MODE=@save_sql_mode;
+#
+# MDEV-21684: mysqld crash with signal 11 when renaming
+# table+max_statement_time
+#
+SET STATEMENT max_statement_time=180 FOR RENAME TABLE bleh TO blah;
+ERROR 42S02: Table 'test.bleh' doesn't exist
+SET STATEMENT max_statement_time=180 FOR load index into cache t1_base;
+Table	Op	Msg_type	Msg_text
+test.t1_base	preload_keys	Error	Table 'test.t1_base' doesn't exist
+test.t1_base	preload_keys	status	Operation failed
+SET STATEMENT max_statement_time=180 FOR DROP INDEX i1 ON t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
+set @save_sql_mode=@@SQL_MODE;
+set SQL_MODE=ORACLE;
+SET STATEMENT max_statement_time=180 FOR RENAME TABLE bleh TO blah;
+ERROR 42S02: Table 'test.bleh' doesn't exist
+SET STATEMENT max_statement_time=180 FOR load index into cache t1_base;
+Table	Op	Msg_type	Msg_text
+test.t1_base	preload_keys	Error	Table 'test.t1_base' doesn't exist
+test.t1_base	preload_keys	status	Operation failed
+SET STATEMENT max_statement_time=180 FOR DROP INDEX i1 ON t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+SET STATEMENT max_statement_time=180 FOR BACKUP LOCK test.t1;
+SET STATEMENT max_statement_time=180 FOR BACKUP UNLOCK;
+set SQL_MODE=@save_sql_mode;
+#
+# MDEV-21997: Server crashes in LEX::create_item_ident_sp
+# upon use of unknown identifier
+#
+/*! IF 1 IN ( SELECT 2 ) OR foo = 3 THEN */ SELECT 4;
+ERROR 42000: Undeclared variable: foo
+BEGIN NOT ATOMIC
+IF (SELECT 2) OR foo = 3 THEN
+SELECT 4;
+END IF ;
+END;
+$$
+ERROR 42000: Undeclared variable: foo
+# ... but if declare it then it still work
+BEGIN NOT ATOMIC
+DECLARE foo int;
+IF (SELECT 2) OR foo = 3 THEN
+SELECT 4;
+END IF ;
+END;
+$$
+4
+4
+CASE (SELECT 2) OR foo
+WHEN 1 THEN
+SET @x=10;
+$$
+ERROR 42000: Undeclared variable: foo
+/*! WHILE (SELECT 2) OR foo */
+SET @x=10;
+END WHILE;
+$$
+ERROR 42000: Undeclared variable: foo
+REPEAT
+SET @x=10;
+UNTIL (SELECT 2) OR foo
+END REPEAT;
+$$
+ERROR 42000: Undeclared variable: foo
+FOR i IN 1..(SELECT 2) OR foo
+DO
+SET @x=10;
+END FOR;
+$$
+ERROR 42000: Undeclared variable: foo
+# ... but automatic FOR variable still work
+FOR i IN 1..2
+DO
+SELECT i;
+END FOR;
+$$
+i
+1
+i
+2
+#
+# MDEV-21998: Server crashes in st_select_lex::add_table_to_list
+# upon mix of KILL and sequences
+#
+KILL ( SELECT 1 ) + LASTVAL(s);
+ERROR 42000: KILL does not support subqueries or stored functions
+KILL LASTVAL(s);
+ERROR 42000: KILL does not support subqueries or stored functions
+#
+# MDEV-23094: Multiple calls to a Stored Procedure from another
+# Stored Procedure crashes server
+#
+create table t1 (id1 int primary key, data1 int);
+create table t2 (id2 int primary key, data2 int);
+create procedure p1(IN id int, IN dt int)
+begin
+if (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt))
+then
+select 1;
+end if;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(IN id int, IN dt int)
+begin
+case (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt))
+when 1 then
+select 1;
+else
+select 0;
+end case;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(IN id int, IN dt int)
+begin
+declare wcont int default 1;
+while (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt)) and wcont
+do
+select 1;
+set wcont=0;
+end while;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(IN id int, IN dt int)
+begin
+declare count int default 1;
+repeat
+select 1;
+set count=count+1;
+until (exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt)) and
+count < 3
+end repeat;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+create procedure p1(IN id int, IN dt int)
+begin
+for i in 1..(exists(select * from t1 where id1 = id and data1 = dt) or
+not exists (select * from t2 where id2 = id and data2 = dt))
+do
+select 1;
+end for;
+end //
+call p1(1,2);
+1
+1
+call p1(1,2);
+1
+1
+drop procedure p1;
+drop table t1,t2;
+# End of 10.4 tests

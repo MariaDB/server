@@ -1,0 +1,2 @@
+grndb_SOURCES =					\
+	grndb.c

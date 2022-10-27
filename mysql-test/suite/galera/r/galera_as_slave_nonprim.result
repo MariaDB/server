@@ -1,0 +1,34 @@
+connection node_2;
+connection node_1;
+connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+connection node_2;
+START SLAVE;
+SET SESSION wsrep_sync_wait = 0;
+connection node_4;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_2;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+connection node_1;
+connection node_4;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+connection node_2;
+connection node_1;
+expected_error
+1
+connection node_2;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+connection node_1;
+connection node_2;
+START SLAVE;
+connection node_4;
+DROP TABLE t1;
+connection node_2;
+STOP SLAVE;
+RESET SLAVE ALL;
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown command' on query");
+CALL mtr.add_suppression("Slave: Unknown command Error_code: 1047");
+CALL mtr.add_suppression("Transport endpoint is not connected");
+CALL mtr.add_suppression("Slave SQL: Error in Xid_log_event: Commit could not be completed, 'Deadlock found when trying to get lock; try restarting transaction', Error_code: 1213");
+CALL mtr.add_suppression("Slave SQL: Node has dropped from cluster, Error_code: 1047");
+connection node_4;
+RESET MASTER;

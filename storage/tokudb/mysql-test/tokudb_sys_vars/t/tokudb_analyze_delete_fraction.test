@@ -1,0 +1,56 @@
+--source include/have_tokudb.inc
+
+# Check the default value
+SET @orig_global = @@global.tokudb_analyze_delete_fraction;
+SELECT @orig_global;
+
+SET @orig_session = @@session.tokudb_analyze_delete_fraction;
+SELECT @orig_session;
+
+# Test global
+SET GLOBAL tokudb_analyze_delete_fraction = .5;
+SELECT @@global.tokudb_analyze_delete_fraction;
+
+SET GLOBAL tokudb_analyze_delete_fraction = 0;
+SELECT @@global.tokudb_analyze_delete_fraction;
+
+SET GLOBAL tokudb_analyze_delete_fraction = DEFAULT;
+SELECT @@global.tokudb_analyze_delete_fraction;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL tokudb_analyze_delete_fraction = 'foobar';
+SELECT @@global.tokudb_analyze_delete_fraction;
+
+SET GLOBAL tokudb_analyze_delete_fraction = 3.75;
+SELECT @@global.tokudb_analyze_delete_fraction;
+
+# Test session
+SET SESSION tokudb_analyze_delete_fraction = .5;
+SELECT @@session.tokudb_analyze_delete_fraction;
+
+SET SESSION tokudb_analyze_delete_fraction = 0;
+SELECT @@session.tokudb_analyze_delete_fraction;
+
+SET SESSION tokudb_analyze_delete_fraction = DEFAULT;
+SELECT @@session.tokudb_analyze_delete_fraction;
+
+-- error ER_WRONG_TYPE_FOR_VAR
+SET SESSION tokudb_analyze_delete_fraction = 'foobar';
+SELECT @@session.tokudb_analyze_delete_fraction;
+
+SET SESSION tokudb_analyze_delete_fraction = 3.75;
+SELECT @@session.tokudb_analyze_delete_fraction;
+
+# both
+SET GLOBAL tokudb_analyze_delete_fraction = .2;
+SET SESSION tokudb_analyze_delete_fraction = .3;
+SELECT @@global.tokudb_analyze_delete_fraction;
+SELECT @@session.tokudb_analyze_delete_fraction;
+SHOW VARIABLES LIKE 'tokudb_analyze_delete_fraction';
+
+# Clean up
+SET SESSION tokudb_analyze_delete_fraction = @orig_session;
+SELECT @@session.tokudb_analyze_delete_fraction;
+
+SET GLOBAL tokudb_analyze_delete_fraction = @orig_global;
+SELECT @@global.tokudb_analyze_delete_fraction;

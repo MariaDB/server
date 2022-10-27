@@ -1,0 +1,10 @@
+call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
+SET @saved_debug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,ib_lru_force_no_free_page";
+CREATE TABLE t1 (j LONGBLOB) ENGINE = InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES (repeat('abcdefghijklmnopqrstuvwxyz',200));
+COMMIT;
+SET debug_dbug = @saved_debug;
+DROP TABLE t1;
+FOUND 1 /InnoDB: Difficult to find free blocks / in mysqld.1.err

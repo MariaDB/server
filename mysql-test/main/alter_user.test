@@ -1,0 +1,90 @@
+--source include/not_embedded.inc
+
+select priv into @root_priv from mysql.global_priv where user='root' and host='localhost';
+
+select * from mysql.user where user = 'root' and host = 'localhost';
+--echo # Test syntax
+--echo #
+--echo # These 2 selects should have no changes from the first one.
+alter user CURRENT_USER;
+select * from mysql.user where user = 'root' and host = 'localhost';
+alter user CURRENT_USER();
+select * from mysql.user where user = 'root' and host = 'localhost';
+
+create user foo;
+select * from mysql.user where user = 'foo';
+alter user foo;
+select * from mysql.user where user = 'foo';
+
+--echo # Test super privilege works correctly with a read only database.
+SET @start_read_only = @@global.read_only;
+SET GLOBAL read_only=1;
+grant create user on *.* to foo;
+
+--echo # Currently no super privileges.
+connect (a, localhost, foo);
+select @@global.read_only;
+
+--error ER_OPTION_PREVENTS_STATEMENT
+alter user foo;
+
+--echo # Grant super privilege to the user.
+connection default;
+grant super on *.* to foo;
+
+--echo # We now have super privilege. We should be able to run alter user.
+connect (b, localhost, foo);
+alter user foo;
+
+connection default;
+SET GLOBAL read_only = @start_read_only;
+
+--echo # Test inexistant user.
+--error ER_CANNOT_USER
+alter user boo;
+--echo #--warning ER_CANNOT_USER
+alter user if exists boo;
+
+--echo # Test password related altering.
+alter user foo identified by 'something';
+select * from mysql.user where user = 'foo';
+
+alter user foo identified by 'something2';
+select * from mysql.user where user = 'foo';
+
+alter user foo identified by password '*88C89BE093D4ECF72D039F62EBB7477EA1FD4D63';
+select * from mysql.user where user = 'foo';
+
+alter user foo identified by password 'invalid';
+select * from mysql.user where user = 'foo';
+
+--error ER_CANNOT_USER
+alter user foo identified with 'somecoolplugin';
+show warnings;
+
+alter user foo identified with 'mysql_old_password';
+select * from mysql.user where user = 'foo';
+
+alter user foo identified with 'mysql_old_password' using '0123456789ABCDEF';
+select * from mysql.user where user = 'foo';
+
+--echo # Test ssl related altering.
+alter user foo identified by 'something' require SSL;
+select * from mysql.user where user = 'foo';
+
+alter user foo identified by 'something' require X509;
+select * from mysql.user where user = 'foo';
+
+alter user foo identified by 'something'
+require cipher 'text' issuer 'foo_issuer' subject 'foo_subject';
+select * from mysql.user where user = 'foo';
+
+--echo # Test resource limits altering.
+alter user foo with MAX_QUERIES_PER_HOUR 10
+                    MAX_UPDATES_PER_HOUR 20
+                    MAX_CONNECTIONS_PER_HOUR 30
+                    MAX_USER_CONNECTIONS 40;
+select * from mysql.user where user = 'foo';
+drop user foo;
+
+update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

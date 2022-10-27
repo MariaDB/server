@@ -1,0 +1,160 @@
+drop table if exists shops;
+create table shops (
+id int primary key auto_increment,
+name text,
+location geometry NOT NULL,
+spatial key location_index (location)
+) comment = 'engine "innodb"';
+insert into shops (name, location)
+values ('nezu-no-taiyaki',
+ST_GeomFromText('POINT(139.762573 35.720253)'));
+insert into shops (name, location)
+values ('taiyaki-kataoka',
+ST_GeomFromText('POINT(139.715591 35.712521)'));
+insert into shops (name, location)
+values ('soba-taiyaki-ku',
+ST_GeomFromText('POINT(139.659088 35.683712)'));
+insert into shops (name, location)
+values ('kuruma',
+ST_GeomFromText('POINT(139.706207 35.721516)'));
+insert into shops (name, location)
+values ('hirose-ya',
+ST_GeomFromText('POINT(139.685608 35.714844)'));
+insert into shops (name, location)
+values ('sazare',
+ST_GeomFromText('POINT(139.685043 35.714653)'));
+insert into shops (name, location)
+values ('omede-taiyaki',
+ST_GeomFromText('POINT(139.817154 35.700516)'));
+insert into shops (name, location)
+values ('onaga-ya',
+ST_GeomFromText('POINT(139.81105 35.698254)'));
+insert into shops (name, location)
+values ('shiro-ya',
+ST_GeomFromText('POINT(139.638611 35.705517)'));
+insert into shops (name, location)
+values ('fuji-ya',
+ST_GeomFromText('POINT(139.637115 35.703938)'));
+insert into shops (name, location)
+values ('miyoshi',
+ST_GeomFromText('POINT(139.537323 35.644539)'));
+insert into shops (name, location)
+values ('juju-ya',
+ST_GeomFromText('POINT(139.695755 35.628922)'));
+insert into shops (name, location)
+values ('tatsumi-ya',
+ST_GeomFromText('POINT(139.638657 35.665501)'));
+insert into shops (name, location)
+values ('tetsuji',
+ST_GeomFromText('POINT(139.76857 35.680912)'));
+insert into shops (name, location)
+values ('gazuma-ya',
+ST_GeomFromText('POINT(139.647598 35.700817)'));
+insert into shops (name, location)
+values ('honma-mon',
+ST_GeomFromText('POINT(139.652573 35.722736)'));
+insert into shops (name, location)
+values ('naniwa-ya',
+ST_GeomFromText('POINT(139.796234 35.730061)'));
+insert into shops (name, location)
+values ('kuro-dai',
+ST_GeomFromText('POINT(139.704834 35.650345)'));
+insert into shops (name, location)
+values ('daruma',
+ST_GeomFromText('POINT(139.770599 35.681461)'));
+insert into shops (name, location)
+values ('yanagi-ya',
+ST_GeomFromText('POINT(139.783981 35.685341)'));
+insert into shops (name, location)
+values ('sharaku',
+ST_GeomFromText('POINT(139.794846 35.716969)'));
+insert into shops (name, location)
+values ('takane',
+ST_GeomFromText('POINT(139.560913 35.698601)'));
+insert into shops (name, location)
+values ('chiyoda',
+ST_GeomFromText('POINT(139.652817 35.642601)'));
+insert into shops (name, location)
+values ('da-ka-po',
+ST_GeomFromText('POINT(139.727356 35.627346)'));
+insert into shops (name, location)
+values ('matsushima-ya',
+ST_GeomFromText('POINT(139.737381 35.640556)'));
+insert into shops (name, location)
+values ('kazuya',
+ST_GeomFromText('POINT(139.760895 35.673508)'));
+insert into shops (name, location)
+values ('furuya-kogane-an',
+ST_GeomFromText('POINT(139.676071 35.680603)'));
+insert into shops (name, location)
+values ('hachi-no-ie',
+ST_GeomFromText('POINT(139.668106 35.608021)'));
+insert into shops (name, location)
+values ('azuki-chan',
+ST_GeomFromText('POINT(139.673203 35.64151)'));
+insert into shops (name, location)
+values ('kuriko-an',
+ST_GeomFromText('POINT(139.796829 35.712013)'));
+insert into shops (name, location)
+values ('yume-no-aru-machi-no-taiyaki-ya-san',
+ST_GeomFromText('POINT(139.712524 35.616199)'));
+insert into shops (name, location)
+values ('naze-ya',
+ST_GeomFromText('POINT(139.665833 35.609039)'));
+insert into shops (name, location)
+values ('sanoki-ya',
+ST_GeomFromText('POINT(139.770721 35.66592)'));
+insert into shops (name, location)
+values ('shigeta',
+ST_GeomFromText('POINT(139.780273 35.672626)'));
+insert into shops (name, location)
+values ('nishimi-ya',
+ST_GeomFromText('POINT(139.774628 35.671825)'));
+insert into shops (name, location)
+values ('hiiragi',
+ST_GeomFromText('POINT(139.711517 35.647701)'));
+select id, name, ST_AsText(location) as location_text from shops;
+id	name	location_text
+1	nezu-no-taiyaki	POINT(139.762573 35.720253)
+2	taiyaki-kataoka	POINT(139.715591 35.712521)
+3	soba-taiyaki-ku	POINT(139.659088 35.683712)
+4	kuruma	POINT(139.706207 35.721516)
+5	hirose-ya	POINT(139.685608 35.714844)
+6	sazare	POINT(139.685043 35.714653)
+7	omede-taiyaki	POINT(139.817154 35.700516)
+8	onaga-ya	POINT(139.81105 35.698254)
+9	shiro-ya	POINT(139.638611 35.705517)
+10	fuji-ya	POINT(139.637115 35.703938)
+11	miyoshi	POINT(139.537323 35.644539)
+12	juju-ya	POINT(139.695755 35.628922)
+13	tatsumi-ya	POINT(139.638657 35.665501)
+14	tetsuji	POINT(139.76857 35.680912)
+15	gazuma-ya	POINT(139.647598 35.700817)
+16	honma-mon	POINT(139.652573 35.722736)
+17	naniwa-ya	POINT(139.796234 35.730061)
+18	kuro-dai	POINT(139.704834 35.650345)
+19	daruma	POINT(139.770599 35.681461)
+20	yanagi-ya	POINT(139.783981 35.685341)
+21	sharaku	POINT(139.794846 35.716969)
+22	takane	POINT(139.560913 35.698601)
+23	chiyoda	POINT(139.652817 35.642601)
+24	da-ka-po	POINT(139.727356 35.627346)
+25	matsushima-ya	POINT(139.737381 35.640556)
+26	kazuya	POINT(139.760895 35.673508)
+27	furuya-kogane-an	POINT(139.676071 35.680603)
+28	hachi-no-ie	POINT(139.668106 35.608021)
+29	azuki-chan	POINT(139.673203 35.64151)
+30	kuriko-an	POINT(139.796829 35.712013)
+31	yume-no-aru-machi-no-taiyaki-ya-san	POINT(139.712524 35.616199)
+32	naze-ya	POINT(139.665833 35.609039)
+33	sanoki-ya	POINT(139.770721 35.66592)
+34	shigeta	POINT(139.780273 35.672626)
+35	nishimi-ya	POINT(139.774628 35.671825)
+36	hiiragi	POINT(139.711517 35.647701)
+select id, name, ST_AsText(location) as location_text from shops
+where MBRContains(ST_GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location);
+id	name	location_text
+14	tetsuji	POINT(139.76857 35.680912)
+19	daruma	POINT(139.770599 35.681461)
+26	kazuya	POINT(139.760895 35.673508)
+drop table shops;

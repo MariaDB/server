@@ -1,0 +1,64 @@
+source include/not_embedded.inc;
+
+#create a user with no privileges
+create user test_user@localhost;
+create role test_role1;
+create role test_role2;
+
+grant test_role1 to test_user@localhost;
+grant test_role2 to test_user@localhost;
+grant test_role2 to test_role1;
+--sorted_result
+select user, host from mysql.user where user not like 'root';
+--sorted_result
+select * from mysql.roles_mapping;
+
+--sorted_result
+select user, host from mysql.db;
+
+grant select on mysql.* to test_role2;
+flush privileges;
+
+change_user 'test_user';
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+
+select current_user(), current_role();
+set role test_role1;
+select current_user(), current_role();
+--sorted_result
+select * from mysql.roles_mapping;
+set role none;
+select current_user(), current_role();
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from mysql.roles_mapping;
+set role test_role2;
+select current_user(), current_role();
+--sorted_result
+select * from mysql.roles_mapping;
+
+change_user 'root';
+
+create role test_role3;
+grant test_role3 to test_role2;
+create role test_role4;
+grant test_role4 to test_role3;
+
+change_user 'test_user';
+set role test_role1;
+--error ER_TABLEACCESS_DENIED_ERROR
+delete from mysql.user where user='no such user';
+
+change_user 'root';
+grant delete on mysql.* to test_role4;
+
+change_user 'test_user';
+set role test_role1;
+delete from mysql.user where user='no such user';
+--sorted_result
+show grants;
+
+change_user 'root';
+drop user test_user@localhost;
+drop role test_role1, test_role2, test_role3, test_role4;

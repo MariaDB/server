@@ -1,0 +1,44 @@
+# Copyright(C) 2012-2015 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/not_embedded.inc
+--source ../../include/mroonga/have_mroonga.inc
+--source ../../include/mroonga/have_mroonga_helper.inc
+
+SET GLOBAL mroonga_database_path_prefix = "test/mroonga.data/";
+SHOW GLOBAL VARIABLES LIKE 'mroonga_database_path_prefix';
+CREATE DATABASE clean_test;
+USE clean_test;
+
+CREATE TABLE counts (
+  id INT PRIMARY KEY AUTO_INCREMENT
+);
+
+--file_exists $MYSQLD_DATADIR/test/mroonga.data/clean_test.mrn
+
+INSERT INTO counts VALUES (NULL);
+
+SELECT * FROM counts;
+
+DROP TABLE counts;
+DROP DATABASE clean_test;
+SET GLOBAL mroonga_database_path_prefix = NULL;
+
+USE test;
+
+--rmdir $MYSQLD_DATADIR/test/mroonga.data
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

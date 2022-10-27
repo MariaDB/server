@@ -1,0 +1,13 @@
+SET COLLATION_CONNECTION='utf16le_bin';
+SET GLOBAL wsrep_provider='/invalid/path/libgalera_smm.so';
+ERROR 42000: Variable 'wsrep_provider' can't be set to the value of '/'
+SET GLOBAL wsrep_cluster_address='OFF';
+SET GLOBAL wsrep_slave_threads=10;
+SELECT 1;
+1
+1
+SET GLOBAL wsrep_cluster_address='gcomm://';
+SET GLOBAL wsrep_slave_threads=DEFAULT;
+CALL mtr.add_suppression("wsrep_load()");
+CALL mtr.add_suppression("Failed to create a new provider");
+CALL mtr.add_suppression("Failed to load provider");

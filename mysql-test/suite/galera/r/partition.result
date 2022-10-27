@@ -1,0 +1,167 @@
+connection node_2;
+connection node_1;
+#
+# MDEV#4953 Galera: DELETE from a partitioned table is not replicated
+#
+USE test;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT) ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+INSERT INTO t1 VALUES (1,100), (2,200);
+SELECT * FROM t1;
+pk	i
+2	200
+1	100
+DELETE FROM t1;
+SELECT * FROM t1;
+pk	i
+
+# On node_1
+connection node_1;
+SELECT * FROM t1;
+pk	i
+
+# On node_2
+connection node_2;
+SELECT * FROM t1;
+pk	i
+DROP TABLE t1;
+#
+# MDEV#7501 : alter table exchange partition is not replicated in
+#             galera cluster
+#
+
+# On node_1
+connection node_1;
+CREATE TABLE test.t1 (
+i INT UNSIGNED NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (i)
+) ENGINE=INNODB
+PARTITION BY RANGE (i)
+(PARTITION p1 VALUES LESS THAN (10) ENGINE = INNODB,
+PARTITION p2 VALUES LESS THAN (20) ENGINE = INNODB,
+PARTITION pMax VALUES LESS THAN MAXVALUE ENGINE = INNODB);
+INSERT INTO test.t1 (i) VALUE (9),(19);
+CREATE TABLE test.p1 LIKE test.t1;
+ALTER TABLE test.p1 REMOVE PARTITIONING;
+ALTER TABLE test.t1 EXCHANGE PARTITION p1 WITH TABLE test.p1;
+SELECT * FROM test.t1;
+i
+19
+SELECT * FROM test.p1;
+i
+9
+
+# On node_2
+connection node_2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`i`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = InnoDB,
+ PARTITION `p2` VALUES LESS THAN (20) ENGINE = InnoDB,
+ PARTITION `pMax` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
+SHOW CREATE TABLE p1;
+Table	Create Table
+p1	CREATE TABLE `p1` (
+  `i` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=latin1
+SELECT * FROM test.t1;
+i
+19
+SELECT * FROM test.p1;
+i
+9
+
+# On node_1
+connection node_1;
+ALTER TABLE t1 TRUNCATE PARTITION p2;
+SELECT * FROM test.t1;
+i
+
+# On node_2
+connection node_2;
+SELECT * FROM test.t1;
+i
+
+# On node_1
+connection node_1;
+ALTER TABLE t1 DROP PARTITION p2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`i`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = InnoDB,
+ PARTITION `pMax` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
+
+# On node_2
+connection node_2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`i`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`i`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = InnoDB,
+ PARTITION `pMax` VALUES LESS THAN MAXVALUE ENGINE = InnoDB)
+DROP TABLE t1, p1;
+#
+# MDEV-5146: Bulk loads into partitioned table not working
+#
+connection node_1;
+# Case 1: wsrep_load_data_splitting = ON & LOAD DATA with 20002
+# entries.
+SET GLOBAL wsrep_load_data_splitting = ON;
+Warnings:
+Warning	1287	'@@wsrep_load_data_splitting' is deprecated and will be removed in a future release
+CREATE TABLE t1 (pk INT PRIMARY KEY)
+ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+20002
+wsrep_last_committed_diff
+AS_EXPECTED_3_or_5
+DROP TABLE t1;
+# Case 2: wsrep_load_data_splitting = ON & LOAD DATA with 101 entries.
+connection node_1;
+SET GLOBAL wsrep_load_data_splitting = ON;
+Warnings:
+Warning	1287	'@@wsrep_load_data_splitting' is deprecated and will be removed in a future release
+CREATE TABLE t1 (pk INT PRIMARY KEY)
+ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+101
+wsrep_last_committed_diff
+1
+DROP TABLE t1;
+# Case 3: wsrep_load_data_splitting = OFF & LOAD DATA with 20002
+# entries.
+connection node_1;
+SET GLOBAL wsrep_load_data_splitting = OFF;
+Warnings:
+Warning	1287	'@@wsrep_load_data_splitting' is deprecated and will be removed in a future release
+CREATE TABLE t1 (pk INT PRIMARY KEY)
+ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+20002
+wsrep_last_committed_diff
+AS_EXPECTED_1_or_2
+DROP TABLE t1;
+connection node_1;
+SET GLOBAL wsrep_load_data_splitting = 0;;
+Warnings:
+Warning	1287	'@@wsrep_load_data_splitting' is deprecated and will be removed in a future release
+disconnect node_2;
+disconnect node_1;
+# End of test

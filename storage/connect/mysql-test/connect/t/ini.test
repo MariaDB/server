@@ -1,0 +1,156 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file $MTR_SUITE_DIR/std_data/contact.ini $MYSQLD_DATADIR/test/contact.ini
+
+--echo #
+--echo # Testing errors
+--echo #
+CREATE TABLE t1
+(
+  ID INT
+) Engine=CONNECT TABLE_TYPE=INI FILE_NAME='nonexistent.txt';
+--replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
+# TODO: check why this is needed for Windows
+--replace_result Open(rt) Open(rb)
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing examples from the manual
+--echo #
+
+CREATE TABLE t1
+(
+  contact CHAR(16) flag=1,
+  name CHAR(20),
+  forename CHAR(32),
+  hired date date_format='DD/MM/YYYY',
+  address CHAR(64),
+  city CHAR(20),
+  zipcode CHAR(8),
+  tel CHAR(16)
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='contact.ini';
+SELECT contact, name, hired, city, tel FROM t1;
+
+UPDATE t1 SET forename= 'Harry' where contact='UK1';
+SELECT * FROM t1 WHERE contact='UK1';
+INSERT INTO t1 (contact,forename) VALUES ('UK1','Harrison');
+SELECT * FROM t1 WHERE contact='UK1';
+INSERT INTO t1 (contact,forename) VALUES ('UK2','John');
+SELECT * FROM t1 WHERE contact='UK2';
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/contact.ini
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');
+
+CREATE TABLE t1
+(
+  section CHAR(16) flag=1,
+  keyname CHAR(16) flag=2,
+  value CHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='contact.ini'
+  OPTION_LIST='Layout=Row';
+UPDATE t1 SET value='Paul' WHERE section='UK2' AND keyname='forename';
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/contact.ini
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');
+
+
+--echo #
+--echo # Testing that the underlying file is created
+--echo #
+CREATE TABLE t1
+(
+  contact CHAR(12) NOT NULL flag=1,
+  c2 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='tmp.ini';
+INSERT INTO t1 VALUES (10,10),(20,20),(300,300),(4000,4000), ('a b','c d');
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/tmp.ini
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n');
+
+
+--echo #
+--echo # Testing bad table
+--echo #
+CREATE TABLE t1
+(
+  id INT
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='t1.ini';
+--error ER_GET_ERRMSG
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing READONLY tables
+--echo #
+CREATE TABLE t1
+(
+  contact CHAR(10) flag=1,
+  c2 CHAR(60)
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='t1.ini';
+INSERT INTO t1 VALUES ('UK',10),('FR',20),('RU',30);
+SELECT * FROM t1;
+ALTER TABLE t1 READONLY=1;
+SHOW CREATE TABLE t1;
+--error ER_OPEN_AS_READONLY
+INSERT INTO t1 VALUES ('US',40);
+--error ER_GET_ERRMSG
+UPDATE t1 SET c2=20 WHERE c2=10;
+--error ER_GET_ERRMSG
+DELETE FROM t1 WHERE c2=10;
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t1;
+ALTER TABLE t1 READONLY=0;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('US',40);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.ini
+
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/contact.ini
+--remove_file $MYSQLD_DATADIR/test/tmp.ini
+
+
+--echo #
+--echo # Bug: TABLE_TYPE=ini does not clear memory between CREATE TABLEs
+--echo #
+CREATE TABLE t1 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=INI;
+INSERT INTO t1 VALUES ('sec1','val1'),('sec2','val2');
+SELECT sec AS s, val AS v FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (sec2 CHAR(10) NOT NULL FLAG=1, val2 CHAR(10) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=INI;
+INSERT INTO t1 VALUES ('sec1','val11'),('sec2','val22');
+SELECT sec2 AS s, val2 AS v FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.ini
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');
+DROP TABLE t1;
+
+CREATE TABLE t1 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=INI;
+CREATE TABLE t2 (sec CHAR(10) NOT NULL FLAG=1, val CHAR(10) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=INI;
+INSERT INTO t1 VALUES('1sec1','1val1'),('1sec2','1val2');
+INSERT INTO t2 VALUES('2sec1','2val1'),('2sec2','2val2');
+SELECT sec AS s, val AS v FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.ini
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');
+SELECT sec AS s, val AS v FROM t2;
+--chmod 0777 $MYSQLD_DATADIR/test/t2.ini
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t2.ini'),'\r\n','\n'),'\n\n','\n');
+DROP TABLE t1, t2;

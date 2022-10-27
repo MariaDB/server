@@ -1,0 +1,77 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+#
+# MDEV-15149 Assorted assertion failures upon concurrent creating / querying
+# sequences (same test case)
+#
+
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+CREATE SEQUENCE s2 ENGINE=InnoDB;
+
+--connect (con1,localhost,root,,test)
+--send CREATE TABLE s3 LIKE s2;
+
+--connection default
+CREATE SEQUENCE s4 ENGINE=InnoDB;
+SELECT * from s1 WHERE start_value IN (SELECT start_value FROM s2);
+
+--connection con1
+--reap
+
+# Cleanup
+--disconnect con1
+--connection default
+DROP SEQUENCE s1, s2, s3, s4;
+
+#
+# Check prepared statements
+#
+
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+PREPARE stmt FROM "CREATE TABLE s2 LIKE s1";
+execute stmt;
+drop table s2;
+execute stmt;
+drop table s2;
+execute stmt;
+select * from s2;
+DROP SEQUENCE s1, s2;
+
+#
+# MDEV-15117 Server crashes in in open_and_process_table or ASAN
+# heap-use-after-free in is_temporary_table upon creating/flushing sequences
+#
+
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+--connect (con1,localhost,root,,test)
+--send CREATE TABLE s2 LIKE s1;
+--connection default
+FLUSH TABLES;
+
+# Cleanup
+--connection con1
+--reap
+--disconnect con1
+--connection default
+
+DROP TABLE s1,s2;
+
+#
+# MDEV-24545 Sequence created by one connection remains invisible to another
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connect (con1,localhost,root,,test)
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+FLUSH TABLES;
+--disconnect con1
+
+--connection default
+SELECT NEXTVAL(s1);
+COMMIT;
+
+# Cleanup
+DROP TABLE t1;
+DROP SEQUENCE s1;

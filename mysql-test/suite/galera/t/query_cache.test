@@ -1,0 +1,1112 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_query_cache.inc
+
+--echo
+--echo # Execute FLUSH/RESET commands.
+--echo # On node-1
+--connection node_1
+SET @query_cache_size_saved=@@GLOBAL.query_cache_size;
+SET @query_cache_type_saved=@@GLOBAL.query_cache_type;
+set GLOBAL query_cache_size=1355776;
+flush query cache; # This crashed in some versions
+reset query cache;
+flush status;
+
+--echo # On node-2
+--connection node_2
+SET @query_cache_size_saved=@@GLOBAL.query_cache_size;
+SET @query_cache_type_saved=@@GLOBAL.query_cache_type;
+set GLOBAL query_cache_size=1355776;
+flush query cache; # This crashed in some versions
+reset query cache;
+flush status;
+
+#
+# INSERT/UPDATE/DELETE/DROP/SELECT
+#
+
+--echo # On node-1
+--connection node_1
+create table t1 (a int not null) engine=innodb;
+insert into t1 values (1),(2),(3);
+select * from t1;
+select * from t1;
+select sql_no_cache * from t1;
+select length(now()) from t1;
+
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_inserts";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+
+select * from t1;
+select * from t1;
+select sql_no_cache * from t1;
+select length(now()) from t1;
+
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_inserts";
+show status like "Qcache_hits";
+
+# DELETE should invalidate cache on both the nodes.
+--echo # On node-1
+--connection node_1
+delete from t1 where a=1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+# Add a SELECT to the cache.
+--echo # On node-1
+--connection node_1
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+# UPDATE should invalidate cache on both the nodes.
+--echo # On node-1
+--connection node_1
+update t1 set a=1 where a=3;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+# Add a SELECT to the cache.
+--echo # On node-1
+--connection node_1
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+# DROP should invalidate cache on both the nodes.
+--echo # On node-1
+--connection node_1
+drop table t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# MERGE TABLES with INSERT/UPDATE and DELETE
+#
+--echo
+--echo # On node-1
+--connection node_1
+create table t1 (a int not null) ENGINE=MyISAM;
+insert into t1 values (1),(2),(3);
+create table t2 (a int not null) ENGINE=MyISAM;
+insert into t2 values (4),(5),(6);
+create table t3 (a int not null) engine=MERGE UNION=(t1,t2) INSERT_METHOD=FIRST;
+# insert
+select * from t3;
+select * from t3;
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+insert into t2  values (7);
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select * from t1;
+select * from t1;
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+insert into t3 values (8);
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+# update
+select * from t3;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+update t2 set a=9 where a=7;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+update t3 set a=10 where a=1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+#delete
+select * from t3;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+delete from t2 where a=9;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+delete from t3 where a=10;
+select * from t3;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+# MERGE table, expect no records.
+select * from t3;
+select * from t3;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_inserts";
+show status like "Qcache_hits";
+
+drop table t1, t2, t3;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# SELECT SQL_CACHE ...
+#
+--echo # On node-1
+--connection node_1
+set query_cache_type=demand;
+create table t1 (a int not null) engine=innodb;
+insert into t1 values (1),(2),(3);
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select sql_cache * from t1 union select * from t1;
+set query_cache_type=2;
+select sql_cache * from t1 union select * from t1;
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+set query_cache_type=on;
+
+--echo # On node-2
+--connection node_2
+set query_cache_type=demand;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select sql_cache * from t1 union select * from t1;
+set query_cache_type=2;
+select sql_cache * from t1 union select * from t1;
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+set query_cache_type=on;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# SELECT SQL_NO_CACHE
+#
+--echo # On node-1
+--connection node_1
+select sql_no_cache * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+--echo # On node-2
+--connection node_2
+select sql_no_cache * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# Check that queries that uses NOW(), LAST_INSERT_ID()... are not cached.
+#
+--echo # On node-1
+--connection node_1
+create table t1 (a text not null) engine=innodb;
+select CONNECTION_ID() from t1;
+select FOUND_ROWS();
+select NOW() from t1;
+select CURDATE() from t1;
+select CURTIME() from t1;
+select DATABASE() from t1;
+select ENCRYPT("test") from t1;
+select LAST_INSERT_ID() from t1;
+select RAND() from t1;
+select UNIX_TIMESTAMP() from t1;
+select USER() from t1;
+select CURRENT_USER() from t1;
+select benchmark(1,1) from t1;
+explain extended select benchmark(1,1) from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+--echo # On node-2
+--connection node_2
+select CONNECTION_ID() from t1;
+select FOUND_ROWS();
+select NOW() from t1;
+select CURDATE() from t1;
+select CURTIME() from t1;
+select DATABASE() from t1;
+select ENCRYPT("test") from t1;
+select LAST_INSERT_ID() from t1;
+select RAND() from t1;
+select UNIX_TIMESTAMP() from t1;
+select USER() from t1;
+select CURRENT_USER() from t1;
+select benchmark(1,1) from t1;
+explain extended select benchmark(1,1) from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# Non-cachable ODBC work around (and prepare cache for drop database)
+#
+--echo # On node-1
+--connection node_1
+create database mysqltest;
+create table mysqltest.t1 (i int not null auto_increment, a int, primary key
+                           (i)) engine=innodb;
+insert into mysqltest.t1 values (1, 1);
+select * from mysqltest.t1 where i is null;
+create table t1(a int) engine=innodb;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select * from mysqltest.t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select * from mysqltest.t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+#
+# drop db
+#
+drop database mysqltest;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# Charset conversion (cp1251_koi8 always present)
+# Note: Queries using different default character sets are cached separately.
+#
+--echo # On node-1
+--connection node_1
+create table t1 (a char(1) not null collate koi8r_general_ci) engine=innodb;
+insert into t1 values(_koi8r 0xc3);
+set CHARACTER SET koi8r;
+select * from t1;
+set CHARACTER SET cp1251_koi8;
+select * from t1;
+set CHARACTER SET DEFAULT;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+set CHARACTER SET koi8r;
+select * from t1;
+set CHARACTER SET cp1251_koi8;
+select * from t1;
+set CHARACTER SET DEFAULT;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# Same tables in different dbs
+#
+--echo # On node-1
+--connection node_1
+create database if not exists mysqltest;
+create table mysqltest.t1 (i int not null) engine=innodb;
+create table t1 (i int not null) engine=innodb;
+insert into mysqltest.t1 (i) values (1);
+insert into t1 (i) values (2);
+
+select * from t1;
+use mysqltest;
+select * from t1;
+select * from t1;
+use test;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+select * from t1;
+use mysqltest;
+select * from t1;
+select * from t1;
+use test;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+drop database mysqltest;
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# FOUND_ROWS()
+#
+--echo # On node-1
+--connection node_1
+create table t1 (i int not null) engine=innodb;
+insert into t1 (i) values (1),(2),(3),(4);
+
+select SQL_CALC_FOUND_ROWS * from t1 limit 2;
+select FOUND_ROWS();
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+
+select * from t1 where i=1;
+select FOUND_ROWS();
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+
+select SQL_CALC_FOUND_ROWS * from t1 limit 2;
+select FOUND_ROWS();
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+
+select * from t1 where i=1;
+select FOUND_ROWS();
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+
+--echo # On node-2
+--connection node_2
+select SQL_CALC_FOUND_ROWS * from t1 limit 2;
+select FOUND_ROWS();
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+
+select * from t1 where i=1;
+select FOUND_ROWS();
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+
+select SQL_CALC_FOUND_ROWS * from t1 limit 2;
+select FOUND_ROWS();
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+
+select * from t1 where i=1;
+select FOUND_ROWS();
+show status like "Qcache_hits";
+show status like "Qcache_queries_in_cache";
+
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# Test insert delayed (MYISAM)
+#
+
+--echo # On node-2
+--connection node_2
+flush query cache;
+reset query cache;
+
+--echo # On node-1
+--connection node_1
+flush query cache;
+reset query cache;
+
+create table t1 (a int not null) ENGINE=MYISAM;
+insert into t1 values (1),(2),(3);
+select * from t1;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+insert delayed into t1 values (4);
+--sleep 5     # Wait for insert delayed to be executed.
+select a from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+select * from t1;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+insert delayed into t1 values (4);
+--sleep 5     # Wait for insert delayed to be executed.
+select a from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+drop table t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-1
+--connection node_1
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+
+#
+# Test of min result data unit size changing
+#
+--echo # On node-2
+--connection node_2
+show global variables like "query_cache_min_res_unit";
+set GLOBAL query_cache_min_res_unit=1001;
+show global variables like "query_cache_min_res_unit";
+
+--echo # On node-1
+--connection node_1
+show global variables like "query_cache_min_res_unit";
+set GLOBAL query_cache_min_res_unit=1001;
+show global variables like "query_cache_min_res_unit";
+create table t1 (a int not null) engine=innodb;
+insert into t1 values (1),(2),(3);
+create table t2 (a int not null) engine=innodb;
+insert into t2 values (1),(2),(3);
+select * from t1;
+select * from t1;
+select * from t2;
+select * from t2;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+
+--echo # On node-2
+--connection node_2
+select * from t1;
+select * from t1;
+select * from t2;
+select * from t2;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+drop table t1;
+select a from t2;
+select a from t2;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+set GLOBAL query_cache_min_res_unit=default;
+show global variables like "query_cache_min_res_unit";
+
+--echo # On node-1
+--connection node_1
+select a from t2;
+select a from t2;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+drop table t2;
+set GLOBAL query_cache_min_res_unit=default;
+show global variables like "query_cache_min_res_unit";
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# Case sensitive test
+#
+--echo # On node-1
+--connection node_1
+create table t1 (a int not null) engine=innodb;
+insert into t1 values (1);
+select "aaa" from t1;
+select "AAA" from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+
+--echo # On node-2
+--connection node_2
+select "aaa" from t1;
+select "AAA" from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# Test of query cache resizing
+#
+--echo # On node-1
+--connection node_1
+create table t1 (a int) engine=innodb;
+set GLOBAL query_cache_size=1000;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=1024;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=10240;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=20480;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=40960;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=51200;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=61440;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=81920;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=102400;
+show global variables like "query_cache_size";
+select * from t1;
+
+--echo # On node-2
+--connection node_2
+set GLOBAL query_cache_size=1000;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=1024;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=10240;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=20480;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=40960;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=51200;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=61440;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=81920;
+show global variables like "query_cache_size";
+select * from t1;
+set GLOBAL query_cache_size=102400;
+show global variables like "query_cache_size";
+select * from t1;
+
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# Temporary tables (ignored by Galera)
+#
+--echo # On node-1
+--connection node_1
+set GLOBAL query_cache_size=1048576;
+create table t1 (i int not null) engine=innodb;
+create table t2 (i int not null) engine=innodb;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+create temporary table t3 (i int not null);
+select * from t2;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select * from t3;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+update t1 set i=(select distinct 1 from (select * from t2) a);
+drop table t3;
+
+--echo # On node-2
+--connection node_2
+set GLOBAL query_cache_size=1048576;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select * from t2;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+drop table t1, t2;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# System databse test (no need to perform it on node_2)
+# Note: Queries on system tables are not cached.
+#
+--echo # On node-1
+--connection node_1
+use mysql;
+disable_result_log;
+select * from db;
+enable_result_log;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+use test;
+disable_result_log;
+select * from mysql.db;
+enable_result_log;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+#
+# Simple rename test
+#
+--echo # On node-1
+--connection node_1
+create table t1(id int auto_increment primary key) engine=innodb;
+insert into t1 values (1), (2), (3);
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-1
+--connection node_1
+alter table t1 rename to t2;
+--error ER_NO_SUCH_TABLE
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+--error ER_NO_SUCH_TABLE
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+drop table t2;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# Load data invalidation test
+#
+--echo # On node-1
+--connection node_1
+create table t1 (word char(20) not null) engine=innodb;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval load data infile '$MYSQLTEST_VARDIR/std_data/words.dat' into table t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+--let $wait_condition = SELECT COUNT(*) = 70 FROM t1;
+--source include/wait_condition.inc
+
+--echo # On node-2
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 70 FROM t1;
+--source include/wait_condition.inc
+select count(*) from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval load data infile '$MYSQLTEST_VARDIR/std_data/words.dat' into table t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select count(*) from t1;
+
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+--echo #
+--echo # INTO OUTFILE/DUMPFILE test
+--echo #
+--echo # On node-1
+--connection node_1
+create table t1 (a int) engine=innodb;
+insert into t1 values (1),(2),(3);
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select * from t1 into outfile "query_cache.out.file";
+--error ER_FILE_EXISTS_ERROR
+select * from t1 into outfile "query_cache.out.file";
+select * from t1 limit 1 into dumpfile "query_cache.dump.file";
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+drop table t1;
+let $datadir=`select @@datadir`;
+--remove_file $datadir/test/query_cache.dump.file
+--remove_file $datadir/test/query_cache.out.file
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+--echo #
+--echo # Test of SQL_SELECT_LIMIT
+--echo #
+--echo # On node-1
+--connection node_1
+create table t1 (a int) engine=innodb;
+insert into t1 values (1),(2);
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select * from t1;
+SET SQL_SELECT_LIMIT=1;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+SET SQL_SELECT_LIMIT=DEFAULT;
+
+--echo # On node-2
+--connection node_2
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+select * from t1;
+SET SQL_SELECT_LIMIT=1;
+select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+SET SQL_SELECT_LIMIT=DEFAULT;
+
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+--echo #
+--echo # WRITE LOCK & QC
+--echo #
+--echo # On node-1
+--connection node_1
+create table t1 (a int not null) engine=innodb;
+create table t2 (a int not null) engine=innodb;
+
+set query_cache_wlock_invalidate=1;
+create view v1 as select * from t1;
+select * from t1;
+select * from t2;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+lock table t1 write, t2 read;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+unlock table;
+select * from t1;
+# Implicit locking of t1 does not invalidate QC
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+lock table v1 write;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+unlock table;
+drop view v1;
+set query_cache_wlock_invalidate=default;
+
+--echo # On node-2
+--connection node_2
+set query_cache_wlock_invalidate=1;
+create view v1 as select * from t1;
+select * from t1;
+select * from t2;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+lock table t1 write, t2 read;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+unlock table;
+select * from t1;
+# Implicit locking of t1 does not invalidate QC
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+lock table v1 write;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+unlock table;
+drop view v1;
+set query_cache_wlock_invalidate=default;
+
+drop table t1,t2;
+
+--echo #
+--echo # Hiding real table stored in query cache by temporary table
+--echo #
+--echo # On node-1
+--connection node_1
+create table t1 (id int primary key) engine=innodb;
+insert into t1 values (1),(2),(3);
+select * from t1;
+create temporary table t1 (a int not null auto_increment primary key);
+select * from t1;
+drop table t1;
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+#
+# Test character set related variables:
+#   character_set_result
+#   character_set_client
+#   charactet_set_connection/collation_connection
+# If at least one of the above variables has changed,
+# the cached query can't be reused. In the below test
+# absolutely the same query is used several times,
+# SELECT should fetch different results for every instance.
+# No hits should be produced.
+# New cache entry should appear for every SELECT.
+#
+
+--echo # On node-1
+--connection node_1
+SET NAMES koi8r;
+CREATE TABLE t1 (a char(1) character set koi8r) engine=innodb;
+INSERT INTO t1 VALUES (_koi8r 0xc3),(_koi8r 0xc3);
+#
+# Run select
+#
+SELECT a,'Â','â'='Â' FROM t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+#
+# Change collation_connection and run the same query again
+#
+set collation_connection=koi8r_bin;
+SELECT a,'Â','â'='Â' FROM t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+#
+# Now change character_set_client and run the same query again
+#
+set character_set_client=cp1251;
+SELECT a,'Â','â'='Â' FROM t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+#
+# And finally change character_set_results and run the same query again
+#
+set character_set_results=cp1251;
+SELECT a,'Â','â'='Â' FROM t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+SET NAMES default;
+
+--echo # On node-2
+--connection node_2
+
+--echo #
+--echo # Run select
+--echo #
+
+SELECT a,'Â','â'='Â' FROM t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+#
+# Change collation_connection and run the same query again
+#
+set collation_connection=koi8r_bin;
+SELECT a,'Â','â'='Â' FROM t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+#
+# Now change character_set_client and run the same query again
+#
+set character_set_client=cp1251;
+SELECT a,'Â','â'='Â' FROM t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+#
+# And finally change character_set_results and run the same query again
+#
+set character_set_results=cp1251;
+SELECT a,'Â','â'='Â' FROM t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+show status like "Qcache_inserts";
+
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+--echo #
+--echo # Comments before command
+--echo #
+
+--echo # On node-1
+--connection node_1
+create table t1 (a int) engine=innodb;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+/**/ select * from t1;
+/**/ select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+/**/ select * from t1;
+/**/ select * from t1;
+show status like "Qcache_queries_in_cache";
+show status like "Qcache_hits";
+
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+--echo #
+--echo # Information schema & query cache test
+--echo #
+
+--echo # On node-1
+--connection node_1
+set session query_cache_type = 2;
+create table t1(a int) engine=innodb;
+select table_name from information_schema.tables
+where table_schema="test";
+drop table t1;
+select table_name from information_schema.tables
+where table_schema="test";
+# Bug #8480: REPAIR TABLE needs to flush the table from the query cache
+set session query_cache_type = 1;
+set global query_cache_size=1024*1024;
+flush query cache;
+create table t1 ( a int ) engine=myisam; # myisam for repair tables
+insert into t1 values (1);
+select a from t1;
+select a from t1;
+show status like 'qcache_queries_in_cache';
+show status like "Qcache_hits";
+repair table t1;
+show status like 'qcache_queries_in_cache';
+show status like "Qcache_hits";
+
+--echo # On node-2
+--connection node_2
+select a from t1;
+select a from t1;
+show status like 'qcache_queries_in_cache';
+show status like "Qcache_hits";
+repair table t1;
+show status like 'qcache_queries_in_cache';
+show status like "Qcache_hits";
+drop table t1;
+
+#
+# RESET QUERY CACHE
+#
+--source include/reset_query_cache.inc
+
+--echo # Restore original settings.
+--echo # On node-1
+--connection node_1
+SET GLOBAL query_cache_size=@query_cache_size_saved;
+SET GLOBAL query_cache_type=@query_cache_type_saved;
+--echo
+--echo # On node-2
+--connection node_2
+SET GLOBAL query_cache_size=@query_cache_size_saved;
+SET GLOBAL query_cache_type=@query_cache_type_saved;
+
+--echo # End of test

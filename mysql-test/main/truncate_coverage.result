@@ -1,0 +1,56 @@
+SET DEBUG_SYNC='RESET';
+DROP TABLE IF EXISTS t1;
+#
+# Bug#20667 - Truncate table fails for a write locked table
+#
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 VALUES (1);
+connect  con1, localhost, root,,;
+START TRANSACTION;
+INSERT INTO t1 VALUES (2);
+connection default;
+SET DEBUG_SYNC='mdl_acquire_lock_wait SIGNAL waiting';
+TRUNCATE TABLE t1;
+connection con1;
+SET DEBUG_SYNC='now WAIT_FOR waiting';
+KILL QUERY @id;
+connection default;
+ERROR 70100: Query execution was interrupted
+connection con1;
+# Release SW lock by committing transaction.
+COMMIT;
+disconnect con1;
+connection default;
+UNLOCK TABLES;
+DROP TABLE t1;
+SET DEBUG_SYNC='RESET';
+#
+# Bug#57659 Segfault in Query_cache::invalidate_data for TRUNCATE TABLE
+#
+# Note that this test case only reproduces the problem
+# when it is run with valgrind.
+DROP TABLE IF EXISTS t1, m1;
+CREATE TABLE t1(a INT) engine=memory;
+CREATE TABLE m1(a INT) engine=merge UNION(t1);
+connect con2, localhost, root;
+connect con1, localhost, root;
+SET DEBUG_SYNC= 'open_tables_after_open_and_process_table SIGNAL opened WAIT_FOR dropped';
+# Sending:
+TRUNCATE TABLE m1;
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+# Sending:
+FLUSH TABLES m1;
+connection default;
+# Waiting for FLUSH TABLES to be blocked.
+SET DEBUG_SYNC= 'now SIGNAL dropped';
+connection con1;
+# Reaping: TRUNCATE TABLE m1
+ERROR HY000: Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
+disconnect con1;
+connection con2;
+# Reaping: FLUSH TABLES
+disconnect con2;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE m1, t1;

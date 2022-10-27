@@ -1,0 +1,319 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-7367: Updating a virtual column corrupts table which crashes server
+#   MySQL table columns contains virtual columns but InnoDB table 
+#   definition does not.
+#
+CREATE TABLE IF NOT EXISTS gso_grad_supr (
+  term char(4) NOT NULL DEFAULT '',
+  uw_id int(8) UNSIGNED NOT NULL DEFAULT 0,
+  plan varchar(10) NOT NULL DEFAULT '',
+  wdraw_rsn varchar(4) NOT NULL DEFAULT '',
+  admit_term char(4) NOT NULL DEFAULT '',
+  CONSTRAINT gso_grad_supr_pky PRIMARY KEY (uw_id, term) 
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `gso_grad_supr` VALUES ('1031',2,'CSM','','1009');
+INSERT INTO `gso_grad_supr` VALUES ('1035',2,'CSM','ACAD','1009');
+
+CREATE TABLE IF NOT EXISTS grad_degree (
+  student_id int(8) UNSIGNED NOT NULL,
+  plan varchar(10) NOT NULL,
+  admit_term char(4) NOT NULL,
+  wdraw_rsn varchar(4) NOT NULL DEFAULT '',
+  ofis_deg_status varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed'
+      ELSE 'Not Completed'
+    END) VIRTUAL,
+  deg_start_term char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginning of the data', 
+  deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
+  CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+SHOW CREATE TABLE grad_degree;
+
+CREATE INDEX grad_degree_wdraw_rsn_ndx ON grad_degree (wdraw_rsn);
+CREATE INDEX grad_degree_as_of_term_ndx ON grad_degree (deg_as_of_term);
+
+INSERT IGNORE grad_degree (
+  student_id,
+  plan,
+  admit_term, 
+  wdraw_rsn,
+  deg_start_term, 
+  deg_as_of_term
+)
+SELECT 
+  ggs.uw_id AS c_student_id,
+  ggs.plan,
+  ggs.admit_term,
+  ggs.wdraw_rsn,
+  IF( (SELECT COUNT(*) FROM grad_degree AS gd WHERE gd.student_id = ggs.uw_id AND gd.admit_term = ggs.admit_term) > 0, ggs.term, ggs.admit_term ) AS c_deg_start_term, 
+  ggs.term AS c_as_of_term 
+FROM gso_grad_supr AS ggs
+LEFT OUTER JOIN
+  grad_degree AS gd
+    ON ( gd.student_id = ggs.uw_id AND gd.plan = ggs.plan AND gd.admit_term = ggs.admit_term )
+WHERE
+  ggs.term = 1031 AND 
+  gd.student_id IS NULL
+;
+
+UPDATE grad_degree AS gd 
+INNER JOIN
+  gso_grad_supr AS ggs 
+    ON ( gd.student_id = ggs.uw_id AND gd.plan = ggs.plan AND gd.admit_term = ggs.admit_term )
+SET 
+  gd.wdraw_rsn = ggs.wdraw_rsn,
+  gd.deg_as_of_term = 1035 
+WHERE
+  gd.wdraw_rsn NOT IN ('DCMP', 'TRDC') AND 
+    ggs.term = 1035 
+;
+
+drop table grad_degree;
+
+#
+# Test with more virtual columns so that MySQL table has
+# more columns than InnoDB and index definition is out
+# of number of actual InnoDB columns.
+#
+CREATE TABLE IF NOT EXISTS grad_degree (
+  student_id int(8) UNSIGNED NOT NULL,
+  plan varchar(10) NOT NULL,
+  admit_term char(4) NOT NULL,
+  wdraw_rsn varchar(4) NOT NULL DEFAULT '',
+  ofis_deg_status varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed'
+      ELSE 'Not Completed'
+    END) VIRTUAL,
+  ofis_deg_status2 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress2'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed2'
+      ELSE 'Not Completed2'
+    END) VIRTUAL,
+  ofis_deg_status3 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress3'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed3'
+      ELSE 'Not Completed3'
+    END) VIRTUAL,
+  ofis_deg_status4 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress4'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed4'
+      ELSE 'Not Completed4'
+    END) VIRTUAL,
+  ofis_deg_status5 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress5'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed5'
+      ELSE 'Not Completed5'
+    END) VIRTUAL,
+  ofis_deg_status6 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress6'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed6'
+      ELSE 'Not Completed6'
+    END) VIRTUAL,
+  ofis_deg_status7 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress7'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed7'
+      ELSE 'Not Completed7'
+    END) VIRTUAL,
+  ofis_deg_status8 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress8'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed8'
+      ELSE 'Not Completed8'
+    END) VIRTUAL,
+  deg_start_term char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginning of the data', 
+  deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
+  CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+SHOW CREATE TABLE grad_degree;
+
+CREATE INDEX grad_degree_wdraw_rsn_ndx ON grad_degree (wdraw_rsn);
+CREATE INDEX grad_degree_as_of_term_ndx ON grad_degree (deg_as_of_term);
+
+INSERT IGNORE grad_degree (
+  student_id,
+  plan,
+  admit_term, 
+  wdraw_rsn,
+  deg_start_term, 
+  deg_as_of_term
+)
+SELECT 
+  ggs.uw_id AS c_student_id,
+  ggs.plan,
+  ggs.admit_term,
+  ggs.wdraw_rsn,
+  IF( (SELECT COUNT(*) FROM grad_degree AS gd WHERE gd.student_id = ggs.uw_id AND gd.admit_term = ggs.admit_term) > 0, ggs.term, ggs.admit_term ) AS c_deg_start_term, 
+  ggs.term AS c_as_of_term 
+FROM gso_grad_supr AS ggs
+LEFT OUTER JOIN
+  grad_degree AS gd
+    ON ( gd.student_id = ggs.uw_id AND gd.plan = ggs.plan AND gd.admit_term = ggs.admit_term )
+WHERE
+  ggs.term = 1031 AND 
+  gd.student_id IS NULL
+;
+
+UPDATE grad_degree AS gd 
+INNER JOIN
+  gso_grad_supr AS ggs 
+    ON ( gd.student_id = ggs.uw_id AND gd.plan = ggs.plan AND gd.admit_term = ggs.admit_term )
+SET 
+  gd.wdraw_rsn = ggs.wdraw_rsn,
+  gd.deg_as_of_term = 1035 
+WHERE
+  gd.wdraw_rsn NOT IN ('DCMP', 'TRDC') AND 
+    ggs.term = 1035 
+;
+
+#
+# Verify that indexes can be dropped
+#
+ALTER TABLE grad_degree DROP INDEX grad_degree_wdraw_rsn_ndx;
+
+#
+# Verify that we can drop columns
+#
+ALTER TABLE grad_degree DROP COLUMN deg_start_term;
+
+SHOW CREATE TABLE grad_degree;
+
+DROP TABLE grad_degree;
+
+#
+# Verify after dropping virtual columns
+#
+CREATE TABLE IF NOT EXISTS grad_degree (
+  student_id int(8) UNSIGNED NOT NULL,
+  plan varchar(10) NOT NULL,
+  admit_term char(4) NOT NULL,
+  wdraw_rsn varchar(4) NOT NULL DEFAULT '',
+  ofis_deg_status varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed'
+      ELSE 'Not Completed'
+    END) VIRTUAL,
+  ofis_deg_status2 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress2'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed2'
+      ELSE 'Not Completed2'
+    END) VIRTUAL,
+  ofis_deg_status3 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress3'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed3'
+      ELSE 'Not Completed3'
+    END) VIRTUAL,
+  ofis_deg_status4 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress4'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed4'
+      ELSE 'Not Completed4'
+    END) VIRTUAL,
+  ofis_deg_status5 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress5'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed5'
+      ELSE 'Not Completed5'
+    END) VIRTUAL,
+  ofis_deg_status6 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress6'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed6'
+      ELSE 'Not Completed6'
+    END) VIRTUAL,
+  ofis_deg_status7 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress7'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed7'
+      ELSE 'Not Completed7'
+    END) VIRTUAL,
+  ofis_deg_status8 varchar(15) AS (
+    CASE
+      WHEN wdraw_rsn = '' THEN 'In progress8'
+      WHEN wdraw_rsn = 'DCMP' OR wdraw_rsn = 'TRDC' THEN 'Completed8'
+      ELSE 'Not Completed8'
+    END) VIRTUAL,
+  deg_start_term char(4) NOT NULL DEFAULT '' COMMENT 'Educated guess at the beginning of the data', 
+  deg_as_of_term char(4) NOT NULL COMMENT 'In most cases also end term', 
+  CONSTRAINT grad_degree_stu_plan_admit_pky PRIMARY KEY (student_id, plan, admit_term)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+SHOW CREATE TABLE grad_degree;
+
+CREATE INDEX grad_degree_wdraw_rsn_ndx ON grad_degree (wdraw_rsn);
+
+ALTER TABLE grad_degree DROP COLUMN ofis_deg_status2, DROP COLUMN ofis_deg_status3,
+DROP COLUMN ofis_deg_status4, DROP COLUMN ofis_deg_status5, DROP COLUMN ofis_deg_status6,
+DROP COLUMN ofis_deg_status7, DROP COLUMN ofis_deg_status8;
+
+CREATE INDEX grad_degree_as_of_term_ndx ON grad_degree (deg_as_of_term);
+
+INSERT IGNORE grad_degree (
+  student_id,
+  plan,
+  admit_term, 
+  wdraw_rsn,
+  deg_start_term, 
+  deg_as_of_term
+)
+SELECT 
+  ggs.uw_id AS c_student_id,
+  ggs.plan,
+  ggs.admit_term,
+  ggs.wdraw_rsn,
+  IF( (SELECT COUNT(*) FROM grad_degree AS gd WHERE gd.student_id = ggs.uw_id AND gd.admit_term = ggs.admit_term) > 0, ggs.term, ggs.admit_term ) AS c_deg_start_term, 
+  ggs.term AS c_as_of_term 
+FROM gso_grad_supr AS ggs
+LEFT OUTER JOIN
+  grad_degree AS gd
+    ON ( gd.student_id = ggs.uw_id AND gd.plan = ggs.plan AND gd.admit_term = ggs.admit_term )
+WHERE
+  ggs.term = 1031 AND 
+  gd.student_id IS NULL
+;
+
+UPDATE grad_degree AS gd 
+INNER JOIN
+  gso_grad_supr AS ggs 
+    ON ( gd.student_id = ggs.uw_id AND gd.plan = ggs.plan AND gd.admit_term = ggs.admit_term )
+SET 
+  gd.wdraw_rsn = ggs.wdraw_rsn,
+  gd.deg_as_of_term = 1035 
+WHERE
+  gd.wdraw_rsn NOT IN ('DCMP', 'TRDC') AND 
+    ggs.term = 1035 
+;
+
+select * from grad_degree;
+select * from gso_grad_supr;
+
+drop table grad_degree;
+drop table gso_grad_supr;
+
+CREATE TABLE t1 (a INT, b CHAR(12), c INT AS (a) VIRTUAL, FULLTEXT KEY(b)) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b CHAR(12), c INT AS (a) VIRTUAL) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo');
+ALTER TABLE t1 ADD FULLTEXT KEY(b);
+SELECT * FROM t1;
+DROP TABLE t1;

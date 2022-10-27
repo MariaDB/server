@@ -1,0 +1,1691 @@
+include/master-slave.inc
+[connection master]
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=10;
+ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+SELECT IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*)))
+OK
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+SELECT IF(COUNT(*) >= 10, "OK", CONCAT("Found too few system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+IF(COUNT(*) >= 10, "OK", CONCAT("Found too few system user processes: ", COUNT(*)))
+OK
+include/stop_slave.inc
+SELECT IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*)))
+OK
+include/start_slave.inc
+SELECT IF(COUNT(*) >= 10, "OK", CONCAT("Found too few system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+IF(COUNT(*) >= 10, "OK", CONCAT("Found too few system user processes: ", COUNT(*)))
+OK
+*** Test long-running query in domain 1 can run in parallel with short queries in domain 0 ***
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+connection server_2;
+connect  con_temp1,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+LOCK TABLE t1 WRITE;
+connection server_1;
+SET gtid_domain_id=1;
+INSERT INTO t1 VALUES (2);
+SET gtid_domain_id=0;
+INSERT INTO t2 VALUES (2);
+INSERT INTO t2 VALUES (3);
+BEGIN;
+INSERT INTO t2 VALUES (4);
+INSERT INTO t2 VALUES (5);
+COMMIT;
+INSERT INTO t2 VALUES (6);
+connection server_2;
+SELECT * FROM t2 ORDER by a;
+a
+1
+2
+3
+4
+5
+6
+connection con_temp1;
+SELECT * FROM t1;
+a
+1
+UNLOCK TABLES;
+connection server_2;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+*** Test two transactions in different domains committed in opposite order on slave but in a single group commit. ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+SET sql_log_bin=0;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+SET gtid_domain_id=1;
+INSERT INTO t2 VALUES (foo(10,
+'commit_before_enqueue SIGNAL ready1 WAIT_FOR cont1',
+'commit_after_release_LOCK_prepare_ordered SIGNAL ready2'));
+connection server_2;
+FLUSH LOGS;
+SET sql_log_bin=0;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+SET @old_format=@@GLOBAL.binlog_format;
+SET GLOBAL binlog_format=statement;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+SET debug_sync='now WAIT_FOR ready1';
+connection server_1;
+SET gtid_domain_id=2;
+INSERT INTO t2 VALUES (foo(11,
+'commit_before_enqueue SIGNAL ready3 WAIT_FOR cont3',
+'commit_after_release_LOCK_prepare_ordered SIGNAL ready4 WAIT_FOR cont4'));
+SET gtid_domain_id=0;
+SELECT * FROM t2 WHERE a >= 10 ORDER BY a;
+a
+10
+11
+connection server_2;
+SET debug_sync='now WAIT_FOR ready3';
+SET debug_sync='now SIGNAL cont3';
+SET debug_sync='now WAIT_FOR ready4';
+SET debug_sync='now SIGNAL cont1';
+SET debug_sync='now WAIT_FOR ready2';
+SET debug_sync='now SIGNAL cont4';
+SELECT * FROM t2 WHERE a >= 10 ORDER BY a;
+a
+10
+11
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000002	#	Binlog_checkpoint	#	#	slave-bin.000002
+slave-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+slave-bin.000002	#	Query	#	#	use `test`; INSERT INTO t2 VALUES (foo(11,
+'commit_before_enqueue SIGNAL ready3 WAIT_FOR cont3',
+'commit_after_release_LOCK_prepare_ordered SIGNAL ready4 WAIT_FOR cont4'))
+slave-bin.000002	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+slave-bin.000002	#	Query	#	#	use `test`; INSERT INTO t2 VALUES (foo(10,
+'commit_before_enqueue SIGNAL ready1 WAIT_FOR cont1',
+'commit_after_release_LOCK_prepare_ordered SIGNAL ready2'))
+slave-bin.000002	#	Xid	#	#	COMMIT /* XID */
+FLUSH LOGS;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+SET debug_sync='RESET';
+include/start_slave.inc
+*** Test that group-committed transactions on the master can replicate in parallel on the slave. ***
+connection server_1;
+SET debug_sync='RESET';
+FLUSH LOGS;
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1,1), (3,3), (5,5), (7,7);
+connection server_2;
+connection con_temp1;
+BEGIN;
+INSERT INTO t3 VALUES (2,102);
+connect  con_temp2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+BEGIN;
+INSERT INTO t3 VALUES (4,104);
+connect  con_temp3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (2, foo(12,
+'commit_after_release_LOCK_prepare_ordered SIGNAL slave_queued1 WAIT_FOR slave_cont1',
+''));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connect  con_temp4,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (4, foo(14,
+'commit_after_release_LOCK_prepare_ordered SIGNAL slave_queued2',
+''));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+connect  con_temp5,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (6, foo(16,
+'group_commit_waiting_for_prior SIGNAL slave_queued3',
+''));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued3';
+SET debug_sync='now SIGNAL master_cont1';
+connection con_temp3;
+connection con_temp4;
+connection con_temp5;
+SET debug_sync='RESET';
+connection server_1;
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	1
+2	12
+3	3
+4	14
+5	5
+6	16
+7	7
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000001
+master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000002
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Query	#	#	use `test`; INSERT INTO t3 VALUES (1,1), (3,3), (5,5), (7,7)
+master-bin.000002	#	Xid	#	#	COMMIT /* XID */
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+master-bin.000002	#	Query	#	#	use `test`; INSERT INTO t3 VALUES (2, foo(12,
+'commit_after_release_LOCK_prepare_ordered SIGNAL slave_queued1 WAIT_FOR slave_cont1',
+''))
+master-bin.000002	#	Xid	#	#	COMMIT /* XID */
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+master-bin.000002	#	Query	#	#	use `test`; INSERT INTO t3 VALUES (4, foo(14,
+'commit_after_release_LOCK_prepare_ordered SIGNAL slave_queued2',
+''))
+master-bin.000002	#	Xid	#	#	COMMIT /* XID */
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+master-bin.000002	#	Query	#	#	use `test`; INSERT INTO t3 VALUES (6, foo(16,
+'group_commit_waiting_for_prior SIGNAL slave_queued3',
+''))
+master-bin.000002	#	Xid	#	#	COMMIT /* XID */
+connection server_2;
+SET debug_sync='now WAIT_FOR slave_queued3';
+connection con_temp1;
+ROLLBACK;
+connection server_2;
+SET debug_sync='now WAIT_FOR slave_queued1';
+connection con_temp2;
+ROLLBACK;
+connection server_2;
+SET debug_sync='now WAIT_FOR slave_queued2';
+SET debug_sync='now SIGNAL slave_cont1';
+SELECT * FROM t3 ORDER BY a;
+a	b
+1	1
+2	12
+3	3
+4	14
+5	5
+6	16
+7	7
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000003	#	Binlog_checkpoint	#	#	slave-bin.000003
+slave-bin.000003	#	Gtid	#	#	GTID #-#-#
+slave-bin.000003	#	Query	#	#	use `test`; CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB
+slave-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000003	#	Query	#	#	use `test`; INSERT INTO t3 VALUES (1,1), (3,3), (5,5), (7,7)
+slave-bin.000003	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+slave-bin.000003	#	Query	#	#	use `test`; INSERT INTO t3 VALUES (2, foo(12,
+'commit_after_release_LOCK_prepare_ordered SIGNAL slave_queued1 WAIT_FOR slave_cont1',
+''))
+slave-bin.000003	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+slave-bin.000003	#	Query	#	#	use `test`; INSERT INTO t3 VALUES (4, foo(14,
+'commit_after_release_LOCK_prepare_ordered SIGNAL slave_queued2',
+''))
+slave-bin.000003	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+slave-bin.000003	#	Query	#	#	use `test`; INSERT INTO t3 VALUES (6, foo(16,
+'group_commit_waiting_for_prior SIGNAL slave_queued3',
+''))
+slave-bin.000003	#	Xid	#	#	COMMIT /* XID */
+*** Test STOP SLAVE in parallel mode ***
+connection server_2;
+include/stop_slave.inc
+SET debug_sync='RESET';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+connection server_1;
+SET binlog_direct_non_transactional_updates=0;
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Statement is unsafe because it accesses a non-transactional table after accessing a transactional table within the same transaction");
+SET sql_log_bin=1;
+BEGIN;
+INSERT INTO t2 VALUES (20);
+INSERT INTO t1 VALUES (20);
+INSERT INTO t2 VALUES (21);
+INSERT INTO t3 VALUES (20, 20);
+COMMIT;
+INSERT INTO t3 VALUES(21, 21);
+INSERT INTO t3 VALUES(22, 22);
+SET binlog_format=@old_format;
+connection con_temp1;
+BEGIN;
+INSERT INTO t2 VALUES (21);
+connection server_2;
+START SLAVE;
+connection con_temp2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
+STOP SLAVE;
+connection con_temp1;
+SET debug_sync='now WAIT_FOR wait_for_done_waiting';
+ROLLBACK;
+connection con_temp2;
+SET GLOBAL debug_dbug=@old_dbug;
+SET debug_sync='RESET';
+connection server_2;
+include/wait_for_slave_to_stop.inc
+SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
+a
+20
+SELECT * FROM t2 WHERE a >= 20 ORDER BY a;
+a
+20
+21
+SELECT * FROM t3 WHERE a >= 20 ORDER BY a;
+a	b
+20	20
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
+a
+20
+SELECT * FROM t2 WHERE a >= 20 ORDER BY a;
+a
+20
+21
+SELECT * FROM t3 WHERE a >= 20 ORDER BY a;
+a	b
+20	20
+21	21
+22	22
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL binlog_format=@old_format;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** Test killing slave threads at various wait points ***
+*** 1. Test killing transaction waiting in commit for previous transaction to commit ***
+connection con_temp3;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (31, foo(31,
+'commit_before_prepare_ordered WAIT_FOR t2_waiting',
+'commit_after_prepare_ordered SIGNAL t1_ready WAIT_FOR t1_cont'));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connection con_temp4;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+SET binlog_format=statement;
+BEGIN;
+INSERT INTO t3 VALUES (32, foo(32,
+'ha_write_row_end SIGNAL t2_query WAIT_FOR t2_cont',
+''));
+INSERT INTO t3 VALUES (33, foo(33,
+'group_commit_waiting_for_prior SIGNAL t2_waiting',
+'group_commit_waiting_for_prior_killed SIGNAL t2_killed'));
+COMMIT;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+connection con_temp5;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (34, foo(34,
+'',
+''));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued3';
+SET debug_sync='now SIGNAL master_cont1';
+connection con_temp3;
+connection con_temp4;
+connection con_temp5;
+connection server_1;
+SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
+a	b
+31	31
+32	32
+33	33
+34	34
+SET debug_sync='RESET';
+connection server_2;
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Query execution was interrupted");
+CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
+CALL mtr.add_suppression("Slave: Connection was killed");
+SET sql_log_bin=1;
+SET debug_sync='now WAIT_FOR t2_query';
+SET debug_sync='now SIGNAL t2_cont';
+SET debug_sync='now WAIT_FOR t1_ready';
+KILL THD_ID;
+SET debug_sync='now WAIT_FOR t2_killed';
+SET debug_sync='now SIGNAL t1_cont';
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
+STOP SLAVE IO_THREAD;
+SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
+a	b
+31	31
+SET debug_sync='RESET';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection server_1;
+INSERT INTO t3 VALUES (39,0);
+connection server_2;
+include/start_slave.inc
+SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
+a	b
+31	31
+32	32
+33	33
+34	34
+39	0
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL binlog_format=@old_format;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** 2. Same as (1), but without restarting IO thread after kill of SQL threads ***
+connection con_temp3;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (41, foo(41,
+'commit_before_prepare_ordered WAIT_FOR t2_waiting',
+'commit_after_prepare_ordered SIGNAL t1_ready WAIT_FOR t1_cont'));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connection con_temp4;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+SET binlog_format=statement;
+BEGIN;
+INSERT INTO t3 VALUES (42, foo(42,
+'ha_write_row_end SIGNAL t2_query WAIT_FOR t2_cont',
+''));
+INSERT INTO t3 VALUES (43, foo(43,
+'group_commit_waiting_for_prior SIGNAL t2_waiting',
+'group_commit_waiting_for_prior_killed SIGNAL t2_killed'));
+COMMIT;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+connection con_temp5;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (44, foo(44,
+'',
+''));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued3';
+SET debug_sync='now SIGNAL master_cont1';
+connection con_temp3;
+connection con_temp4;
+connection con_temp5;
+connection server_1;
+SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
+a	b
+41	41
+42	42
+43	43
+44	44
+SET debug_sync='RESET';
+connection server_2;
+SET debug_sync='now WAIT_FOR t2_query';
+SET debug_sync='now SIGNAL t2_cont';
+SET debug_sync='now WAIT_FOR t1_ready';
+KILL THD_ID;
+SET debug_sync='now WAIT_FOR t2_killed';
+SET debug_sync='now SIGNAL t1_cont';
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
+SET debug_sync='RESET';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection server_1;
+INSERT INTO t3 VALUES (49,0);
+connection server_2;
+START SLAVE SQL_THREAD;
+SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
+a	b
+41	41
+42	42
+43	43
+44	44
+49	0
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL binlog_format=@old_format;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** 3. Same as (2), but not using gtid mode ***
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=no;
+include/start_slave.inc
+connection server_1;
+connection con_temp3;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (51, foo(51,
+'commit_before_prepare_ordered WAIT_FOR t2_waiting',
+'commit_after_prepare_ordered SIGNAL t1_ready WAIT_FOR t1_cont'));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connection con_temp4;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+SET binlog_format=statement;
+BEGIN;
+INSERT INTO t3 VALUES (52, foo(52,
+'ha_write_row_end SIGNAL t2_query WAIT_FOR t2_cont',
+''));
+INSERT INTO t3 VALUES (53, foo(53,
+'group_commit_waiting_for_prior SIGNAL t2_waiting',
+'group_commit_waiting_for_prior_killed SIGNAL t2_killed'));
+COMMIT;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+connection con_temp5;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3';
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (54, foo(54,
+'',
+''));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued3';
+SET debug_sync='now SIGNAL master_cont1';
+connection con_temp3;
+connection con_temp4;
+connection con_temp5;
+connection server_1;
+SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
+a	b
+51	51
+52	52
+53	53
+54	54
+SET debug_sync='RESET';
+connection server_2;
+SET debug_sync='now WAIT_FOR t2_query';
+SET debug_sync='now SIGNAL t2_cont';
+SET debug_sync='now WAIT_FOR t1_ready';
+KILL THD_ID;
+SET debug_sync='now WAIT_FOR t2_killed';
+SET debug_sync='now SIGNAL t1_cont';
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
+SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
+a	b
+51	51
+SET debug_sync='RESET';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection server_1;
+INSERT INTO t3 VALUES (59,0);
+connection server_2;
+START SLAVE SQL_THREAD;
+SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
+a	b
+51	51
+52	52
+53	53
+54	54
+59	0
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL binlog_format=@old_format;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=4;
+include/start_slave.inc
+*** 4. Test killing thread that is waiting to start transaction until previous transaction commits ***
+connection server_1;
+SET binlog_format=statement;
+SET gtid_domain_id=2;
+BEGIN;
+INSERT INTO t3 VALUES (70, foo(70,
+'rpl_parallel_start_waiting_for_prior SIGNAL t4_waiting', ''));
+INSERT INTO t3 VALUES (60, foo(60,
+'ha_write_row_end SIGNAL d2_query WAIT_FOR d2_cont2',
+'rpl_parallel_end_of_group SIGNAL d2_done WAIT_FOR d2_cont'));
+COMMIT;
+SET gtid_domain_id=0;
+connection server_2;
+SET debug_sync='now WAIT_FOR d2_query';
+connection server_1;
+SET gtid_domain_id=1;
+BEGIN;
+INSERT INTO t3 VALUES (61, foo(61,
+'rpl_parallel_start_waiting_for_prior SIGNAL t3_waiting',
+'rpl_parallel_start_waiting_for_prior_killed SIGNAL t3_killed'));
+INSERT INTO t3 VALUES (62, foo(62,
+'ha_write_row_end SIGNAL d1_query WAIT_FOR d1_cont2',
+'rpl_parallel_end_of_group SIGNAL d1_done WAIT_FOR d1_cont'));
+COMMIT;
+SET gtid_domain_id=0;
+connection server_2;
+SET debug_sync='now WAIT_FOR d1_query';
+connection server_1;
+SET gtid_domain_id=0;
+INSERT INTO t3 VALUES (63, foo(63,
+'ha_write_row_end SIGNAL d0_query WAIT_FOR d0_cont2',
+'rpl_parallel_end_of_group SIGNAL d0_done WAIT_FOR d0_cont'));
+connection server_2;
+SET debug_sync='now WAIT_FOR d0_query';
+connection server_1;
+SET gtid_domain_id=3;
+BEGIN;
+INSERT INTO t3 VALUES (68, foo(68,
+'rpl_parallel_start_waiting_for_prior SIGNAL t2_waiting', ''));
+INSERT INTO t3 VALUES (69, foo(69,
+'ha_write_row_end SIGNAL d3_query WAIT_FOR d3_cont2',
+'rpl_parallel_end_of_group SIGNAL d3_done WAIT_FOR d3_cont'));
+COMMIT;
+SET gtid_domain_id=0;
+connection server_2;
+SET debug_sync='now WAIT_FOR d3_query';
+SET debug_sync='now SIGNAL d2_cont2';
+SET debug_sync='now WAIT_FOR d2_done';
+SET debug_sync='now SIGNAL d1_cont2';
+SET debug_sync='now WAIT_FOR d1_done';
+SET debug_sync='now SIGNAL d0_cont2';
+SET debug_sync='now WAIT_FOR d0_done';
+SET debug_sync='now SIGNAL d3_cont2';
+SET debug_sync='now WAIT_FOR d3_done';
+connection con_temp3;
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (64, foo(64,
+'rpl_parallel_before_mark_start_commit SIGNAL t1_waiting WAIT_FOR t1_cont', ''));
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2 WAIT_FOR master_cont2';
+INSERT INTO t3 VALUES (65, foo(65, '', ''));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+connection con_temp4;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3';
+INSERT INTO t3 VALUES (66, foo(66, '', ''));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued3';
+connection con_temp5;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued4';
+INSERT INTO t3 VALUES (67, foo(67, '', ''));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued4';
+SET debug_sync='now SIGNAL master_cont2';
+connection con_temp3;
+connection con_temp4;
+connection con_temp5;
+connection server_1;
+SELECT * FROM t3 WHERE a >= 60 ORDER BY a;
+a	b
+60	60
+61	61
+62	62
+63	63
+64	64
+65	65
+66	66
+67	67
+68	68
+69	69
+70	70
+SET debug_sync='RESET';
+connection server_2;
+SET debug_sync='now SIGNAL d0_cont';
+SET debug_sync='now WAIT_FOR t1_waiting';
+SET debug_sync='now SIGNAL d3_cont';
+SET debug_sync='now WAIT_FOR t2_waiting';
+SET debug_sync='now SIGNAL d1_cont';
+SET debug_sync='now WAIT_FOR t3_waiting';
+SET debug_sync='now SIGNAL d2_cont';
+SET debug_sync='now WAIT_FOR t4_waiting';
+KILL THD_ID;
+SET debug_sync='now WAIT_FOR t3_killed';
+SET debug_sync='now SIGNAL t1_cont';
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
+STOP SLAVE IO_THREAD;
+SELECT * FROM t3 WHERE a >= 60 AND a != 65 ORDER BY a;
+a	b
+60	60
+61	61
+62	62
+63	63
+64	64
+68	68
+69	69
+70	70
+SET debug_sync='RESET';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection server_1;
+UPDATE t3 SET b=b+1 WHERE a=60;
+connection server_2;
+include/start_slave.inc
+SELECT * FROM t3 WHERE a >= 60 ORDER BY a;
+a	b
+60	61
+61	61
+62	62
+63	63
+64	64
+65	65
+66	66
+67	67
+68	68
+69	69
+70	70
+SET sql_log_bin=0;
+DROP FUNCTION foo;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL binlog_format=@old_format;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** 5. Test killing thread that is waiting for queue of max length to shorten ***
+SET @old_max_queued= @@GLOBAL.slave_parallel_max_queued;
+SET GLOBAL slave_parallel_max_queued=9000;
+connection server_1;
+SET binlog_format=statement;
+INSERT INTO t3 VALUES (80, foo(0,
+'ha_write_row_end SIGNAL query_waiting WAIT_FOR query_cont', ''));
+connection server_2;
+SET debug_sync='now WAIT_FOR query_waiting';
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_queue_max";
+connection server_1;
+SELECT * FROM t3 WHERE a >= 80 ORDER BY a;
+a	b
+80	0
+81	10000
+connection server_2;
+SET debug_sync='now WAIT_FOR wait_queue_ready';
+KILL THD_ID;
+SET debug_sync='now WAIT_FOR wait_queue_killed';
+SET debug_sync='now SIGNAL query_cont';
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
+STOP SLAVE IO_THREAD;
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_max_queued= @old_max_queued;
+connection server_1;
+INSERT INTO t3 VALUES (82,0);
+SET binlog_format=@old_format;
+connection server_2;
+SET debug_sync='RESET';
+include/start_slave.inc
+SELECT * FROM t3 WHERE a >= 80 ORDER BY a;
+a	b
+80	0
+81	10000
+82	0
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL binlog_format=@old_format;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** MDEV-5788 Incorrect free of rgi->deferred_events in parallel replication  ***
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL replicate_ignore_table="test.t3";
+SET GLOBAL slave_parallel_threads=2;
+include/start_slave.inc
+connection server_1;
+INSERT INTO t3 VALUES (100, rand());
+INSERT INTO t3 VALUES (101, rand());
+connection server_2;
+connection server_1;
+INSERT INTO t3 VALUES (102, rand());
+INSERT INTO t3 VALUES (103, rand());
+INSERT INTO t3 VALUES (104, rand());
+INSERT INTO t3 VALUES (105, rand());
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL replicate_ignore_table="";
+include/start_slave.inc
+connection server_1;
+INSERT INTO t3 VALUES (106, rand());
+INSERT INTO t3 VALUES (107, rand());
+connection server_2;
+SELECT * FROM t3 WHERE a >= 100 ORDER BY a;
+a	b
+106	#
+107	#
+*** MDEV-5921: In parallel replication, an error is not correctly signalled to the next transaction ***
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+connection server_1;
+INSERT INTO t3 VALUES (110, 1);
+connection server_2;
+SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
+a	b
+110	1
+SET sql_log_bin=0;
+INSERT INTO t3 VALUES (111, 666);
+SET sql_log_bin=1;
+connection server_1;
+connect  con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+INSERT INTO t3 VALUES (111, 2);
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connect  con2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+INSERT INTO t3 VALUES (112, 3);
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+connection con1;
+connection con2;
+SET debug_sync='RESET';
+connection server_2;
+include/wait_for_slave_sql_error.inc [errno=1062]
+include/wait_for_slave_sql_to_stop.inc
+SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
+a	b
+110	1
+111	666
+SET sql_log_bin=0;
+DELETE FROM t3 WHERE a=111 AND b=666;
+SET sql_log_bin=1;
+START SLAVE SQL_THREAD;
+SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
+a	b
+110	1
+111	2
+112	3
+***MDEV-5914: Parallel replication deadlock due to InnoDB lock conflicts ***
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+CREATE TABLE t4 (a INT PRIMARY KEY, b INT, KEY b_idx(b)) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+connection con1;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+UPDATE t4 SET b=NULL WHERE a=6;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connection con2;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+DELETE FROM t4 WHERE b <= 3;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+connection con1;
+connection con2;
+SET debug_sync='RESET';
+connection server_2;
+include/start_slave.inc
+include/stop_slave.inc
+SELECT * FROM t4 ORDER BY a;
+a	b
+1	NULL
+3	NULL
+4	4
+5	NULL
+6	NULL
+connection server_1;
+DELETE FROM t4;
+INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+connection con1;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+INSERT INTO t4 VALUES (7, NULL);
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connection con2;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+DELETE FROM t4 WHERE b <= 3;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+connection con1;
+connection con2;
+SET debug_sync='RESET';
+connection server_2;
+include/start_slave.inc
+include/stop_slave.inc
+SELECT * FROM t4 ORDER BY a;
+a	b
+1	NULL
+3	NULL
+4	4
+5	NULL
+6	6
+7	NULL
+connection server_1;
+DELETE FROM t4;
+INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+connection con1;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+UPDATE t4 SET b=NULL WHERE a=6;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connection con2;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+DELETE FROM t4 WHERE b <= 1;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+connection con1;
+connection con2;
+SET @old_format=@@GLOBAL.binlog_format;
+SET debug_sync='RESET';
+connection server_2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,disable_thd_need_ordering_with";
+include/start_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SELECT * FROM t4 ORDER BY a;
+a	b
+1	NULL
+2	2
+3	NULL
+4	4
+5	NULL
+6	NULL
+SET @last_gtid= 'GTID';
+SELECT IF(@@gtid_slave_pos LIKE CONCAT('%',@last_gtid,'%'), "GTID found ok",
+CONCAT("GTID ", @last_gtid, " not found in gtid_slave_pos=", @@gtid_slave_pos))
+AS result;
+result
+GTID found ok
+SELECT "ROW FOUND" AS `Is the row found?`
+  FROM mysql.gtid_slave_pos
+WHERE CONCAT(domain_id, "-", server_id, "-", seq_no) = @last_gtid;
+Is the row found?
+ROW FOUND
+*** MDEV-5938: Exec_master_log_pos not updated at log rotate in parallel replication ***
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=1;
+SET DEBUG_SYNC= 'RESET';
+include/start_slave.inc
+connection server_1;
+CREATE TABLE t5 (a INT PRIMARY KEY, b INT);
+INSERT INTO t5 VALUES (1,1);
+INSERT INTO t5 VALUES (2,2), (3,8);
+INSERT INTO t5 VALUES (4,16);
+connection server_2;
+test_check
+OK
+test_check
+OK
+connection server_1;
+FLUSH LOGS;
+connection server_2;
+test_check
+OK
+test_check
+OK
+*** MDEV_6435: Incorrect error handling when query binlogged partially on master with "killed" error ***
+connection server_1;
+CREATE TABLE t6 (a INT) ENGINE=MyISAM;
+CREATE TRIGGER tr AFTER INSERT ON t6 FOR EACH ROW SET @a = 1;
+connection con1;
+SET @old_format= @@binlog_format;
+SET binlog_format= statement;
+SET debug_sync='sp_head_execute_before_loop SIGNAL ready WAIT_FOR cont';
+INSERT INTO t6 VALUES (1), (2), (3);
+connection server_1;
+SET debug_sync='now WAIT_FOR ready';
+KILL QUERY CONID;
+SET debug_sync='now SIGNAL cont';
+connection con1;
+ERROR 70100: Query execution was interrupted
+SET binlog_format= @old_format;
+SET debug_sync='RESET';
+connection server_1;
+SET debug_sync='RESET';
+connection server_2;
+include/wait_for_slave_sql_error.inc [errno=1317]
+STOP SLAVE IO_THREAD;
+SET GLOBAL gtid_slave_pos= 'AFTER_ERROR_GTID_POS';
+include/start_slave.inc
+connection server_1;
+INSERT INTO t6 VALUES (4);
+SELECT * FROM t6 ORDER BY a;
+a
+1
+4
+connection server_2;
+SELECT * FROM t6 ORDER BY a;
+a
+4
+*** MDEV-6551: Some replication errors are ignored if slave_parallel_threads > 0 ***
+connection server_1;
+INSERT INTO t2 VALUES (31);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= 0;
+include/start_slave.inc
+SET sql_log_bin= 0;
+INSERT INTO t2 VALUES (32);
+SET sql_log_bin= 1;
+connection server_1;
+INSERT INTO t2 VALUES (32);
+FLUSH LOGS;
+INSERT INTO t2 VALUES (33);
+INSERT INTO t2 VALUES (34);
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
+include/save_master_gtid.inc
+connection server_2;
+include/wait_for_slave_sql_error.inc [errno=1062]
+connection server_2;
+include/stop_slave_io.inc
+SET GLOBAL slave_parallel_threads=10;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1062]
+START SLAVE SQL_THREAD;
+include/wait_for_slave_sql_error.inc [errno=1062]
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+SET sql_slave_skip_counter= 1;
+ERROR HY000: When using parallel replication and GTID with multiple replication domains, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position
+include/stop_slave_io.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
+*** MDEV-6775: Wrong binlog order in parallel replication ***
+connection server_1;
+DELETE FROM t4;
+INSERT INTO t4 VALUES (1,NULL), (3,NULL), (4,4), (5, NULL), (6, 6);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,inject_binlog_commit_before_get_LOCK_log";
+SET @old_format=@@GLOBAL.binlog_format;
+SET GLOBAL binlog_format=ROW;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+connection con1;
+SET @old_format= @@binlog_format;
+SET binlog_format= statement;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+UPDATE t4 SET b=NULL WHERE a=6;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connection con2;
+SET @old_format= @@binlog_format;
+SET binlog_format= statement;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+DELETE FROM t4 WHERE b <= 3;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+connection con1;
+SET binlog_format= @old_format;
+connection con2;
+SET binlog_format= @old_format;
+SET debug_sync='RESET';
+SELECT * FROM t4 ORDER BY a;
+a	b
+1	NULL
+3	NULL
+4	4
+5	NULL
+6	NULL
+connection server_2;
+include/start_slave.inc
+SET debug_sync= 'now WAIT_FOR waiting';
+SELECT * FROM t4 ORDER BY a;
+a	b
+1	NULL
+3	NULL
+4	4
+5	NULL
+6	NULL
+SET debug_sync= 'now SIGNAL cont';
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL binlog_format= @old_format;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** MDEV-7237: Parallel replication: incorrect relaylog position after stop/start the slave ***
+connection server_1;
+INSERT INTO t2 VALUES (40);
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=no;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_scheduled_gtid_0_x_100";
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+connection server_1;
+INSERT INTO t2 VALUES (41);
+INSERT INTO t2 VALUES (42);
+SET @old_format= @@binlog_format;
+SET binlog_format= statement;
+DELETE FROM t2 WHERE a=40;
+SET binlog_format= @old_format;
+INSERT INTO t2 VALUES (43);
+INSERT INTO t2 VALUES (44);
+FLUSH LOGS;
+INSERT INTO t2 VALUES (45);
+SET gtid_seq_no=100;
+INSERT INTO t2 VALUES (46);
+connection con_temp2;
+BEGIN;
+SELECT * FROM t2 WHERE a=40 FOR UPDATE;
+a
+40
+connection server_2;
+include/start_slave.inc
+SET debug_sync= 'now WAIT_FOR scheduled_gtid_0_x_100';
+STOP SLAVE;
+connection con_temp2;
+SET debug_sync= 'now WAIT_FOR wait_for_done_waiting';
+ROLLBACK;
+connection server_2;
+include/wait_for_slave_sql_to_stop.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+a
+41
+42
+include/start_slave.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+a
+41
+42
+43
+44
+45
+46
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+*** MDEV-7326 Server deadlock in connection with parallel replication ***
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=3;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_xid";
+include/start_slave.inc
+connection server_1;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format= STATEMENT;
+INSERT INTO t1 VALUES (foo(50,
+"rpl_parallel_start_waiting_for_prior SIGNAL t3_ready",
+"rpl_parallel_end_of_group SIGNAL prep_ready WAIT_FOR prep_cont"));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR prep_ready";
+connection server_1;
+INSERT INTO t2 VALUES (foo(50,
+"rpl_parallel_simulate_temp_err_xid SIGNAL t1_ready1 WAIT_FOR t1_cont1",
+"rpl_parallel_retry_after_unmark SIGNAL t1_ready2 WAIT_FOR t1_cont2"));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR t1_ready1";
+connection server_1;
+INSERT INTO t1 VALUES (foo(51,
+"rpl_parallel_before_mark_start_commit SIGNAL t2_ready1 WAIT_FOR t2_cont1",
+"rpl_parallel_after_mark_start_commit SIGNAL t2_ready2"));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR t2_ready1";
+SET DEBUG_SYNC= "now SIGNAL t1_cont1";
+SET DEBUG_SYNC= "now WAIT_FOR t1_ready2";
+connection server_1;
+INSERT INTO t1 VALUES (52);
+SET BINLOG_FORMAT= @old_format;
+SELECT * FROM t2 WHERE a>=50 ORDER BY a;
+a
+50
+SELECT * FROM t1 WHERE a>=50 ORDER BY a;
+a
+50
+51
+52
+connection server_2;
+SET DEBUG_SYNC= "now SIGNAL prep_cont";
+SET DEBUG_SYNC= "now WAIT_FOR t3_ready";
+SET DEBUG_SYNC= "now SIGNAL t2_cont1";
+SET DEBUG_SYNC= "now WAIT_FOR t2_ready2";
+SET DEBUG_SYNC= "now SIGNAL t1_cont2";
+connection server_1;
+connection server_2;
+SELECT * FROM t2 WHERE a>=50 ORDER BY a;
+a
+50
+SELECT * FROM t1 WHERE a>=50 ORDER BY a;
+a
+50
+51
+52
+SET DEBUG_SYNC="reset";
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** MDEV-7326 Server deadlock in connection with parallel replication ***
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=3;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_xid";
+include/start_slave.inc
+connection server_1;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format= STATEMENT;
+INSERT INTO t1 VALUES (foo(60,
+"rpl_parallel_start_waiting_for_prior SIGNAL t3_ready",
+"rpl_parallel_end_of_group SIGNAL prep_ready WAIT_FOR prep_cont"));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR prep_ready";
+connection server_1;
+INSERT INTO t2 VALUES (foo(60,
+"rpl_parallel_simulate_temp_err_xid SIGNAL t1_ready1 WAIT_FOR t1_cont1",
+"rpl_parallel_retry_after_unmark SIGNAL t1_ready2 WAIT_FOR t1_cont2"));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR t1_ready1";
+connection con_temp3;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+SET binlog_format=statement;
+INSERT INTO t1 VALUES (foo(61,
+"rpl_parallel_before_mark_start_commit SIGNAL t2_ready1 WAIT_FOR t2_cont1",
+"rpl_parallel_after_mark_start_commit SIGNAL t2_ready2"));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connection con_temp4;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+INSERT INTO t6 VALUES (62);
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+connection con_temp3;
+connection con_temp4;
+connection server_1;
+SET debug_sync='RESET';
+SET BINLOG_FORMAT= @old_format;
+SELECT * FROM t2 WHERE a>=60 ORDER BY a;
+a
+60
+SELECT * FROM t1 WHERE a>=60 ORDER BY a;
+a
+60
+61
+SELECT * FROM t6 WHERE a>=60 ORDER BY a;
+a
+62
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR t2_ready1";
+SET DEBUG_SYNC= "now SIGNAL t1_cont1";
+SET DEBUG_SYNC= "now WAIT_FOR t1_ready2";
+connection server_2;
+SET DEBUG_SYNC= "now SIGNAL prep_cont";
+SET DEBUG_SYNC= "now WAIT_FOR t3_ready";
+SET DEBUG_SYNC= "now SIGNAL t2_cont1";
+SET DEBUG_SYNC= "now WAIT_FOR t2_ready2";
+SET DEBUG_SYNC= "now SIGNAL t1_cont2";
+connection server_1;
+connection server_2;
+SELECT * FROM t2 WHERE a>=60 ORDER BY a;
+a
+60
+SELECT * FROM t1 WHERE a>=60 ORDER BY a;
+a
+60
+61
+SELECT * FROM t6 WHERE a>=60 ORDER BY a;
+a
+62
+SET DEBUG_SYNC="reset";
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** MDEV-7335: Potential parallel slave deadlock with specific binlog corruption ***
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=1;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,slave_discard_xid_for_gtid_0_x_1000";
+connection server_1;
+INSERT INTO t2 VALUES (101);
+INSERT INTO t2 VALUES (102);
+INSERT INTO t2 VALUES (103);
+INSERT INTO t2 VALUES (104);
+INSERT INTO t2 VALUES (105);
+SET gtid_seq_no=1000;
+INSERT INTO t2 VALUES (106);
+INSERT INTO t2 VALUES (107);
+INSERT INTO t2 VALUES (108);
+INSERT INTO t2 VALUES (109);
+INSERT INTO t2 VALUES (110);
+INSERT INTO t2 VALUES (111);
+INSERT INTO t2 VALUES (112);
+INSERT INTO t2 VALUES (113);
+INSERT INTO t2 VALUES (114);
+INSERT INTO t2 VALUES (115);
+INSERT INTO t2 VALUES (116);
+INSERT INTO t2 VALUES (117);
+INSERT INTO t2 VALUES (118);
+INSERT INTO t2 VALUES (119);
+INSERT INTO t2 VALUES (120);
+INSERT INTO t2 VALUES (121);
+INSERT INTO t2 VALUES (122);
+INSERT INTO t2 VALUES (123);
+INSERT INTO t2 VALUES (124);
+INSERT INTO t2 VALUES (125);
+INSERT INTO t2 VALUES (126);
+INSERT INTO t2 VALUES (127);
+INSERT INTO t2 VALUES (128);
+INSERT INTO t2 VALUES (129);
+INSERT INTO t2 VALUES (130);
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 100 ORDER BY a;
+a
+101
+102
+103
+104
+105
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121
+122
+123
+124
+125
+126
+127
+128
+129
+130
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** MDEV-6676 - test syntax of @@slave_parallel_mode ***
+connection server_2;
+Parallel_Mode = 'conservative'
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode='aggressive';
+Parallel_Mode = 'aggressive'
+SET GLOBAL slave_parallel_mode='conservative';
+Parallel_Mode = 'conservative'
+*** MDEV-6676 - test that empty parallel_mode does not replicate in parallel ***
+connection server_1;
+INSERT INTO t2 VALUES (1040);
+include/save_master_gtid.inc
+connection server_2;
+SET GLOBAL slave_parallel_mode='none';
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,slave_crash_if_parallel_apply";
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 1040 ORDER BY a;
+a
+1040
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+*** MDEV-6676 - test disabling domain-based parallel replication ***
+connection server_1;
+SET gtid_domain_id = 1;
+INSERT INTO t2 VALUES (1041);
+INSERT INTO t2 VALUES (1042);
+INSERT INTO t2 VALUES (1043);
+INSERT INTO t2 VALUES (1044);
+INSERT INTO t2 VALUES (1045);
+INSERT INTO t2 VALUES (1046);
+DELETE FROM t2 WHERE a >= 1041;
+SET gtid_domain_id = 2;
+INSERT INTO t2 VALUES (1041);
+INSERT INTO t2 VALUES (1042);
+INSERT INTO t2 VALUES (1043);
+INSERT INTO t2 VALUES (1044);
+INSERT INTO t2 VALUES (1045);
+INSERT INTO t2 VALUES (1046);
+SET gtid_domain_id = 0;
+include/save_master_gtid.inc
+connection server_2;
+SET GLOBAL slave_parallel_mode=minimal;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 1040 ORDER BY a;
+a
+1040
+1041
+1042
+1043
+1044
+1045
+1046
+*** MDEV-7888: ANALYZE TABLE does wakeup_subsequent_commits(), causing wrong binlog order and parallel replication hang ***
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode='conservative';
+SET GLOBAL slave_parallel_threads=10;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
+connection server_1;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10000;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+INSERT INTO t3 VALUES (120, 0);
+SET @commit_id= 10001;
+INSERT INTO t3 VALUES (121, 0);
+SET SESSION debug_dbug=@old_dbug_slave;
+SELECT * FROM t3 WHERE a >= 120 ORDER BY a;
+a	b
+120	0
+121	0
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t3 WHERE a >= 120 ORDER BY a;
+a	b
+120	0
+121	0
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_dbug;
+include/start_slave.inc
+*** MDEV-7929: record_gtid() for non-transactional event group calls wakeup_subsequent_commits() too early, causing slave hang. ***
+connection server_2;
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_record_gtid_serverid_100_sleep';
+connection server_1;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @old_server_id= @@SESSION.server_id;
+SET SESSION server_id= 100;
+SET @commit_id= 10010;
+ALTER TABLE t1 COMMENT "Hulubulu!";
+SET SESSION server_id= @old_server_id;
+INSERT INTO t3 VALUES (130, 0);
+SET @commit_id= 10011;
+INSERT INTO t3 VALUES (131, 0);
+SET SESSION debug_dbug=@old_dbug_slave;
+SELECT * FROM t3 WHERE a >= 130 ORDER BY a;
+a	b
+130	0
+131	0
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t3 WHERE a >= 130 ORDER BY a;
+a	b
+130	0
+131	0
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_dbug;
+include/start_slave.inc
+*** MDEV-8031: Parallel replication stops on "connection killed" error (probably incorrectly handled deadlock kill) ***
+connection server_1;
+INSERT INTO t3 VALUES (201,0), (202,0);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_mdev8031';
+connection server_1;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10200;
+INSERT INTO t3 VALUES (203, 1);
+INSERT INTO t3 VALUES (204, 1);
+INSERT INTO t3 VALUES (205, 1);
+UPDATE t3 SET b=b+1 WHERE a=201;
+UPDATE t3 SET b=b+1 WHERE a=201;
+UPDATE t3 SET b=b+1 WHERE a=201;
+UPDATE t3 SET b=b+1 WHERE a=202;
+UPDATE t3 SET b=b+1 WHERE a=202;
+UPDATE t3 SET b=b+1 WHERE a=202;
+UPDATE t3 SET b=b+1 WHERE a=202;
+UPDATE t3 SET b=b+1 WHERE a=203;
+UPDATE t3 SET b=b+1 WHERE a=203;
+UPDATE t3 SET b=b+1 WHERE a=204;
+UPDATE t3 SET b=b+1 WHERE a=204;
+UPDATE t3 SET b=b+1 WHERE a=204;
+UPDATE t3 SET b=b+1 WHERE a=203;
+UPDATE t3 SET b=b+1 WHERE a=205;
+UPDATE t3 SET b=b+1 WHERE a=205;
+SET SESSION debug_dbug=@old_dbug_slave;
+SELECT * FROM t3 WHERE a>=200 ORDER BY a;
+a	b
+201	3
+202	4
+203	4
+204	4
+205	3
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t3 WHERE a>=200 ORDER BY a;
+a	b
+201	3
+202	4
+203	4
+204	4
+205	3
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_dbug;
+include/start_slave.inc
+*** Check getting deadlock killed inside open_binlog() during retry. ***
+connection server_2;
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_retry_event_group_open_binlog_kill';
+SET @old_max= @@GLOBAL.max_relay_log_size;
+SET GLOBAL max_relay_log_size= 4096;
+connection server_1;
+SET @old_dbug_slave= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10210;
+Omit long queries that cause relaylog rotations and transaction retries...
+SET SESSION debug_dbug=@old_dbug_slave;
+SELECT * FROM t3 WHERE a>=200 ORDER BY a;
+a	b
+201	6
+202	8
+203	7
+204	7
+205	5
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t3 WHERE a>=200 ORDER BY a;
+a	b
+201	6
+202	8
+203	7
+204	7
+205	5
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_dbug;
+SET GLOBAL max_relay_log_size= @old_max;
+include/start_slave.inc
+*** MDEV-8725: Assertion on ROLLBACK statement in the binary log ***
+connection server_1;
+BEGIN;
+INSERT INTO t2 VALUES (2000);
+INSERT INTO t1 VALUES (2000);
+INSERT INTO t2 VALUES (2001);
+ROLLBACK;
+SELECT * FROM t1 WHERE a>=2000 ORDER BY a;
+a
+2000
+SELECT * FROM t2 WHERE a>=2000 ORDER BY a;
+a
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a>=2000 ORDER BY a;
+a
+2000
+SELECT * FROM t2 WHERE a>=2000 ORDER BY a;
+a
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+SET DEBUG_SYNC= 'RESET';
+connection server_1;
+DROP function foo;
+DROP TABLE t1,t2,t3,t4,t5,t6;
+SET DEBUG_SYNC= 'RESET';
+include/rpl_end.inc

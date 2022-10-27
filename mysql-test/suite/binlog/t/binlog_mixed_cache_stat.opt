@@ -1,0 +1,1 @@
+--binlog_cache_size=32768 --binlog_stmt_cache_size=32768

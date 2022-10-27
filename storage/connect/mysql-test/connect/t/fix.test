@@ -1,0 +1,108 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file $MTR_SUITE_DIR/std_data/dept.dat $MYSQLD_DATADIR/test/dept.dat
+--copy_file $MTR_SUITE_DIR/std_data/boys.txt $MYSQLD_DATADIR/test/boys.txt
+--copy_file $MTR_SUITE_DIR/std_data/boyswin.txt $MYSQLD_DATADIR/test/boyswin.txt
+
+--echo #
+--echo # Testing errors
+--echo #
+CREATE TABLE t1
+(
+  ID INT NOT NULL
+) Engine=CONNECT TABLE_TYPE=DOS FILE_NAME='nonexistent.txt';
+--replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
+# TODO: check why this is needed for Windows
+--replace_result Open(rt) Open(rb)
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing READONLY tables
+--echo #
+CREATE TABLE t1
+(
+  id INT NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='t1.txt';
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+ALTER TABLE t1 READONLY=1;
+SHOW CREATE TABLE t1;
+--error ER_OPEN_AS_READONLY
+INSERT INTO t1 VALUES (20);
+--error ER_GET_ERRMSG
+UPDATE t1 SET id=20 WHERE id=10;
+--error ER_GET_ERRMSG
+DELETE FROM t1 WHERE id=10;
+--error ER_OPEN_AS_READONLY
+TRUNCATE TABLE t1;
+ALTER TABLE t1 READONLY=0;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (20);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.txt
+
+
+--echo #
+--echo # Testing manual examples
+--echo #
+CREATE TABLE t1
+(
+  number   CHAR(4) not null,
+  location CHAR(15) NOT NULL flag=5,
+  director CHAR(5) NOT NULL flag=20,
+  function CHAR(12) NOT NULL flag=26,
+  name     CHAR(22) NOT NULL flag=38
+) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='dept.dat';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  name char(12) not null,
+  city char(11) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  name char(12) not null,
+  city char(11) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' LRECL=47 ENDING=1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1
+(
+  name char(12) not null,
+  city char(11) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' ENDING=2;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  name char(12) not null,
+  city char(11) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' LRECL=47 ENDING=2;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/dept.dat
+--remove_file $MYSQLD_DATADIR/test/boys.txt
+--remove_file $MYSQLD_DATADIR/test/boyswin.txt

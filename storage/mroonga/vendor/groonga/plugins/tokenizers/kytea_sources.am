@@ -1,0 +1,2 @@
+kytea_la_SOURCES =				\
+	 kytea.cpp

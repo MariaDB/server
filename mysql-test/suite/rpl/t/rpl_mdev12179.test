@@ -1,0 +1,316 @@
+--source include/have_innodb.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--connection server_2
+call mtr.add_suppression("The automatically created table.*name may not be entirely in lowercase");
+
+--error ER_SLAVE_MUST_STOP
+SET GLOBAL gtid_pos_auto_engines="innodb";
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+
+# Test the @@gtid_pos_auto_engines sysvar.
+SELECT @@gtid_pos_auto_engines;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.gtid_pos_auto_engines;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL gtid_pos_auto_engines= NULL;
+SET GLOBAL gtid_pos_auto_engines="innodb";
+SELECT @@gtid_pos_auto_engines;
+SET GLOBAL gtid_pos_auto_engines="myisam,innodb";
+SELECT @@gtid_pos_auto_engines;
+SET GLOBAL gtid_pos_auto_engines="innodb,myisam";
+SELECT @@gtid_pos_auto_engines;
+SET GLOBAL gtid_pos_auto_engines="innodb,innodb,myisam,innodb,myisam,myisam,innodb";
+SELECT @@gtid_pos_auto_engines;
+SET GLOBAL gtid_pos_auto_engines=DEFAULT;
+SELECT @@gtid_pos_auto_engines;
+SET GLOBAL gtid_pos_auto_engines="";
+SELECT @@gtid_pos_auto_engines;
+
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1 ORDER BY a;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+--source include/stop_slave.inc
+SET sql_log_bin=0;
+# Reset storage engine for mysql.gtid_slave_pos in case an earlier test
+# might have changed it to InnoDB.
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
+CREATE TABLE mysql.gtid_slave_pos_innodb LIKE mysql.gtid_slave_pos;
+ALTER TABLE mysql.gtid_slave_pos_innodb ENGINE=InnoDB;
+INSERT INTO mysql.gtid_slave_pos_innodb SELECT * FROM mysql.gtid_slave_pos;
+TRUNCATE mysql.gtid_slave_pos;
+SET sql_log_bin=1;
+
+# Restart the slave mysqld server, and verify that the GTID position is
+# read correctly from the new mysql.gtid_slave_pos_innodb table.
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+SELECT * FROM t1 ORDER BY a;
+--source include/save_master_gtid.inc
+
+# Let the slave mysqld server start again.
+# As we are restarting, also take the opportunity to test --gtid-pos-auto-engines
+--echo *** Restart server with --gtid-pos-auto-engines=innodb,myisam ***
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0 --gtid-pos-auto-engines=innodb,myisam
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--echo *** Verify no new gtid_slave_pos* tables are created ***
+SELECT table_name, engine FROM information_schema.tables
+ WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
+ ORDER BY table_name;
+
+SELECT @@gtid_pos_auto_engines;
+--source include/stop_slave.inc
+SET sql_log_bin=0;
+INSERT INTO mysql.gtid_slave_pos_innodb SELECT * FROM mysql.gtid_slave_pos;
+DROP TABLE mysql.gtid_slave_pos;
+RENAME TABLE mysql.gtid_slave_pos_innodb TO mysql.gtid_slave_pos;
+SET sql_log_bin=1;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--connection server_1
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (4);
+INSERT INTO t2 VALUES (1);
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--echo *** Restart server with --gtid-pos-auto-engines=myisam,innodb ***
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0 --gtid-pos-auto-engines=myisam,innodb
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo *** Verify that no new gtid_slave_pos* tables are auto-created ***
+SELECT table_name, engine FROM information_schema.tables
+ WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
+ ORDER BY table_name;
+
+
+--source include/stop_slave.inc
+SET sql_log_bin=0;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
+SET sql_log_bin=1;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (5);
+INSERT INTO t2 VALUES (2);
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--echo *** Restart server with --gtid-pos-auto-engines=innodb ***
+restart: --skip-slave-start=0 --gtid-pos-auto-engines=innodb
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo *** Verify that mysql.gtid_slave_pos_InnoDB is auto-created ***
+# Note, the create happens asynchronously, so wait for it.
+let $wait_condition=
+  SELECT EXISTS (SELECT * FROM information_schema.tables
+                  WHERE table_schema='mysql' AND table_name='gtid_slave_pos_InnoDB');
+--source include/wait_condition.inc
+# MDEV-15373 lowercases 'table_name' to satisfy --lower-case-table-names options
+SELECT lower(table_name), engine FROM information_schema.tables
+ WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
+ ORDER BY table_name;
+
+
+--source include/stop_slave.inc
+SET sql_log_bin=0;
+INSERT INTO mysql.gtid_slave_pos SELECT * FROM mysql.gtid_slave_pos_InnoDB;
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+SET sql_log_bin=1;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (6);
+INSERT INTO t2 VALUES (3);
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--echo *** Restart server without --gtid-pos-auto-engines ***
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo *** Verify that no mysql.gtid_slave_pos* table is auto-created ***
+SELECT table_name, engine FROM information_schema.tables
+ WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
+ ORDER BY table_name;
+SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+
+--source include/stop_slave.inc
+SET GLOBAL gtid_pos_auto_engines="innodb";
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (7);
+INSERT INTO t2 VALUES (4);
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo *** Verify that mysql.gtid_slave_pos_InnoDB is auto-created ***
+let $wait_condition=
+  SELECT EXISTS (SELECT * FROM information_schema.tables
+                  WHERE table_schema='mysql' AND table_name='gtid_slave_pos_InnoDB');
+--source include/wait_condition.inc
+SELECT lower(table_name), engine FROM information_schema.tables
+ WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
+ ORDER BY table_name;
+SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+
+# Check that the auto-created InnoDB table starts being used without
+# needing slave restart. The auto-create happens asynchronously, so it
+# is non-deterministic when it will start being used. But we can wait
+# for it to happen.
+
+--let $count=300
+--let $done=0
+--let $old_silent= $keep_include_silent
+--let $keep_include_silent= 1
+--disable_query_log
+while (!$done)
+{
+  --connection server_1
+  INSERT INTO t2(a) SELECT 1+MAX(a) FROM t2;
+  --source include/save_master_gtid.inc
+
+  --connection server_2
+  --source include/sync_with_master_gtid.inc
+  --let $done=`SELECT COUNT(*) > 0 FROM mysql.gtid_slave_pos_InnoDB`
+  if (!$done)
+  {
+    dec $count;
+    if (!$count)
+    {
+      SELECT * FROM mysql.gtid_slave_pos_InnoDB;
+      --die Timeout waiting for mysql.gtid_slave_pos_InnoDB to be used
+    }
+    real_sleep 0.1;
+  }
+}
+--enable_query_log
+--let $keep_include_silent=$old_silent
+# Note that at this point, the contents of table t2, as well as the GTID
+# position, is non-deterministic.
+
+# MDEV-15373 engine gtid_slave_pos table name disobeys lower-case-table-names
+# This snippet verifies that engine gtid_slave_pos table is found,
+# its data are up-to-date.
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--connection server_2
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--echo *** Restart the slave server to prove 'gtid_slave_pos_innodb' autodiscovery ***
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+SELECT max(seq_no) FROM mysql.gtid_slave_pos_InnoDB into @seq_no;
+
+--connection server_1
+INSERT INTO t2(a) SELECT 1+MAX(a) FROM t2;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+if (`SELECT  max(seq_no) <> @seq_no + 1  FROM mysql.gtid_slave_pos_InnoDB`)
+{
+  SELECT * FROM mysql.gtid_slave_pos_InnoDB;
+  --die Inconsistent table
+}
+#
+# end of MDEV-15373
+
+#--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL gtid_pos_auto_engines="";
+SET sql_log_bin=0;
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+SET sql_log_bin=1;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1, t2;
+
+--source include/rpl_end.inc

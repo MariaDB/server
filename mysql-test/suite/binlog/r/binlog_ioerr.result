@@ -1,0 +1,32 @@
+CALL mtr.add_suppression("Error writing file 'master-bin'");
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb;
+INSERT INTO t1 VALUES(0);
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug='+d,fail_binlog_write_1';
+INSERT INTO t1 VALUES(1);
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
+INSERT INTO t1 VALUES(2);
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
+SET SESSION debug_dbug=@saved_dbug;
+INSERT INTO t1 VALUES(3);
+SELECT * FROM t1;
+a
+0
+3
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+BINLOG	POS	Format_desc	1	ENDPOS	Server ver: #, Binlog ver: #
+BINLOG	POS	Gtid_list	1	ENDPOS	[]
+BINLOG	POS	Binlog_checkpoint	1	ENDPOS	master-bin.000001
+BINLOG	POS	Gtid	1	ENDPOS	GTID 0-1-1
+BINLOG	POS	Query	1	ENDPOS	use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb
+BINLOG	POS	Gtid	1	ENDPOS	BEGIN GTID 0-1-2
+BINLOG	POS	Query	1	ENDPOS	use `test`; INSERT INTO t1 VALUES(0)
+BINLOG	POS	Xid	1	ENDPOS	COMMIT /* XID */
+BINLOG	POS	Gtid	1	ENDPOS	BEGIN GTID 0-1-3
+BINLOG	POS	Gtid	1	ENDPOS	BEGIN GTID 0-1-4
+BINLOG	POS	Gtid	1	ENDPOS	BEGIN GTID 0-1-5
+BINLOG	POS	Query	1	ENDPOS	use `test`; INSERT INTO t1 VALUES(3)
+BINLOG	POS	Xid	1	ENDPOS	COMMIT /* XID */
+DROP TABLE t1;

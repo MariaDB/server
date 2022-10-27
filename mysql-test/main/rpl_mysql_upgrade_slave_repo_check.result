@@ -1,0 +1,33 @@
+include/master-slave.inc
+[connection master]
+********************************************************************
+* Test case1: Upgrade when repository tables have data.            *
+* mysql_upgrade script should report warnings.                     *
+********************************************************************
+connection master;
+Slave info repository compatibility check: Found data in `mysql`.`slave_master_info` table.
+Warning: Content of `mysql`.`slave_master_info` table will be ignored as MariaDB supports file based info repository.
+Slave info repository compatibility check: Found data in `mysql`.`slave_relay_log_info` table.
+Warning: Content of `mysql`.`slave_relay_log_info` table will be ignored as MariaDB supports file based repository.
+Slave server may not possess the correct replication metadata.
+Execution of CHANGE MASTER as per `mysql`.`slave_master_info` and  `mysql`.`slave_relay_log_info` table content is recommended.
+connection slave;
+Slave info repository compatibility check: Found data in `mysql`.`slave_master_info` table.
+Warning: Content of `mysql`.`slave_master_info` table will be ignored as MariaDB supports file based info repository.
+Slave info repository compatibility check: Found data in `mysql`.`slave_relay_log_info` table.
+Warning: Content of `mysql`.`slave_relay_log_info` table will be ignored as MariaDB supports file based repository.
+Slave server may not possess the correct replication metadata.
+Execution of CHANGE MASTER as per `mysql`.`slave_master_info` and  `mysql`.`slave_relay_log_info` table content is recommended.
+connection master;
+TRUNCATE TABLE `mysql`.`slave_master_info`;
+TRUNCATE TABLE `mysql`.`slave_relay_log_info`;
+********************************************************************
+* Test case2: Upgrade when repository tables are empty.            *
+* mysql_upgrade script should not report any warning.              *
+********************************************************************
+connection master;
+connection slave;
+"====== Clean up ======"
+connection master;
+DROP TABLE `mysql`.`slave_master_info`, `mysql`.`slave_relay_log_info`;
+include/rpl_end.inc

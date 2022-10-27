@@ -1,0 +1,26 @@
+DROP TABLE IF EXISTS scores;
+SET NAMES utf8;
+CREATE TABLE scores (
+name char(30) NOT NULL,
+score int NOT NULL,
+PRIMARY KEY (name, score)
+) DEFAULT CHARSET=utf8;
+INSERT INTO scores (name, score) VALUES ("Taro Yamada", 29);
+INSERT INTO scores (name, score) VALUES ("Taro Yamada", -12);
+INSERT INTO scores (name, score) VALUES ("Jiro Yamada", 27);
+INSERT INTO scores (name, score) VALUES ("Taro Yamada", 10);
+SELECT * FROM scores;
+name	score
+Jiro Yamada	27
+Taro Yamada	-12
+Taro Yamada	10
+Taro Yamada	29
+UPDATE scores SET name = "Taro Yamada"
+  WHERE name = "Jiro Yamada" AND score = 27;
+ERROR 01000: data truncated for primary key column: <name>
+SELECT * FROM scores
+WHERE name = "Taro Yamada" AND (score >= -12 AND score < 29);
+name	score
+Taro Yamada	-12
+Taro Yamada	10
+DROP TABLE scores;

@@ -1,0 +1,158 @@
+# This test uses chmod, can't be run with root permissions
+-- source include/not_as_root.inc
+
+
+# Initialise
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+#
+# varbinary as string and number
+#
+
+select 0x41,0x41+0,0x41 | 0x7fffffffffffffff | 0,0xffffffffffffffff | 0 ;
+select 0x31+1,concat(0x31)+1,-0xf;
+select x'31',0xffff+0;
+select X'FFFF'+0;
+
+#
+# Hex string vs hex hybrid
+#
+SELECT x'31'+0, 0x31+0;
+SELECT x'31'+0.1e0, 0x31+0.1e0;
+SELECT x'312E39'+0e0, 0x312E39+0e0;
+SELECT CAST(x'31' AS SIGNED), CAST(0x31 AS SIGNED);
+SELECT CAST(x'31' AS DECIMAL(10,1)), CAST(0x31 AS DECIMAL(10,1));
+SELECT CAST(x'312E39' AS SIGNED), CAST(0x312E39 AS SIGNED);
+SELECT CAST(x'312E39' AS DECIMAL(10,1)), CAST(0x312E39 AS DECIMAL(10,1));
+EXPLAIN EXTENDED SELECT X'FFFF', 0xFFFF;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (X'31'),(0x31);
+INSERT INTO t1 VALUES (X'312E39'),(0x312E39);
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(10,1));
+INSERT INTO t1 VALUES (X'31'),(0x31);
+INSERT INTO t1 VALUES (X'312E39'),(0x312E39);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+#
+# Test of hex constants in WHERE:
+#
+
+create table t1 (ID int(8) unsigned zerofill not null auto_increment,UNIQ bigint(21) unsigned zerofill not null,primary key (ID),unique (UNIQ) );
+insert into t1 set UNIQ=0x38afba1d73e6a18a;
+insert into t1 set UNIQ=123; 
+explain extended select * from t1 where UNIQ=0x38afba1d73e6a18a;
+drop table t1;
+
+#
+# Test error conditions
+#
+--error 1064
+select x'hello';
+--error 1054
+select 0xfg;
+
+#
+# Test likely error conditions
+#
+create table t1 select 1 as x, 2 as xx;
+select x,xx from t1;
+drop table t1;
+
+# End of 4.1 tests
+
+#
+# Bug #19371 VARBINARY() have trailing zeros after upgrade from 4.1
+#
+
+# Test with a saved table from 4.1
+let $MYSQLD_DATADIR= `select @@datadir`;
+copy_file std_data/bug19371.frm $MYSQLD_DATADIR/test/t1.frm;
+chmod 0777 $MYSQLD_DATADIR/test/t1.frm;
+copy_file std_data/bug19371.MYD $MYSQLD_DATADIR/test/t1.MYD;
+chmod 0777 $MYSQLD_DATADIR/test/t1.MYD;
+copy_file std_data/bug19371.MYI $MYSQLD_DATADIR/test/t1.MYI;
+chmod 0777 $MYSQLD_DATADIR/test/t1.MYI;
+
+# Everything _looks_ fine
+show create table t1;
+
+# But the length of the varbinary columns are too long
+select length(a), length(b) from t1;
+
+# Run CHECK TABLE, it should indicate table need a REPAIR TABLE
+CHECK TABLE t1 FOR UPGRADE;
+
+# Run REPAIR TABLE to alter the table and repair
+# the varbinary fields
+REPAIR TABLE t1;
+
+# Now check it's back to normal
+show create table t1;
+select length(a), length(b) from t1;
+insert into t1 values("ccc", "ddd");
+select length(a), length(b) from t1;
+select hex(a), hex(b) from t1;
+select concat("'", a, "'"), concat("'", b, "'") from t1;
+
+drop table t1;
+
+# Check that the fix does not affect table created with current version
+create table t1(a varbinary(255));
+insert into t1 values("aaa   ");
+select length(a) from t1;
+alter table t1 modify a varchar(255);
+select length(a) from t1;
+drop table t1;
+
+
+#
+# Bug#28127 (Some valid identifiers names are not parsed correctly)
+#
+
+--disable_warnings
+drop table if exists table_28127_a;
+drop table if exists table_28127_b;
+--enable_warnings
+
+create table table_28127_a(0b02 int);
+show create table table_28127_a;
+
+create table table_28127_b(0b2 int);
+show create table table_28127_b;
+
+drop table table_28127_a;
+drop table table_28127_b;
+
+#
+# Bug#35658 (An empty binary value leads to mysqld crash)
+#
+
+select 0b01000001;
+
+select 0x41;
+
+select b'01000001';
+
+select x'41', 0+x'3635';
+
+select N'abc', length(N'abc');
+
+select N'', length(N'');
+
+select '', length('');
+
+select b'', 0+b'';
+
+select x'', 0+x'';
+
+--error ER_BAD_FIELD_ERROR
+select 0x;
+
+--error ER_BAD_FIELD_ERROR
+select 0b;
+

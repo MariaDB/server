@@ -1,0 +1,27 @@
+--source include/have_udf.inc
+--source include/have_log_bin.inc
+--source include/binlog_start_pos.inc
+
+#
+# Testing binary logging of sequences
+#
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+create or replace sequence s1 cache 3;
+select next value for s1, minimum_value from s1 where maximum_value> 1;
+select next value for s1, minimum_value from s1 where maximum_value> 2;
+select next value for s1, minimum_value from s1 where maximum_value> 3;
+select next value for s1, minimum_value from s1 where maximum_value> 4;
+
+#
+# Alter sequence
+#
+alter sequence s1 maxvalue 1000;
+
+drop sequence s1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

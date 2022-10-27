@@ -1,0 +1,1 @@
+--log_bin --log_slave_updates

@@ -1,0 +1,254 @@
+-- source include/not_embedded.inc
+
+#
+# MDEV-6625 SHOW GRANTS for current_user_name@wrong_host_name
+#
+--error ER_NONEXISTING_GRANT
+SHOW GRANTS FOR root@invalid_host;
+
+#
+# MDEV-9580 SHOW GRANTS FOR <current_user> fails
+#
+create user test;
+create user foo;
+create role foo;
+grant foo to test;
+--connect (conn_1, localhost, test,,)
+set role foo;
+show grants for test; # user
+show grants for foo;  # role
+--error ER_DBACCESS_DENIED_ERROR
+show grants for foo@'%'; # user
+--connection default
+drop user test, foo;
+drop role foo;
+
+#
+# MDEV-17975 Assertion `! is_set()' or `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' failed upon REVOKE under LOCK TABLE
+#
+CREATE TABLE t1 (a INT);
+LOCK TABLE t1 WRITE;
+--error ER_TABLE_NOT_LOCKED
+REVOKE EXECUTE ON PROCEDURE sp FROM u;
+--error ER_TABLE_NOT_LOCKED
+REVOKE PROCESS ON *.* FROM u;
+DROP TABLE t1;
+
+#
+# MDEV-23010 UPDATE privilege at Database and Table level fail to update with SELECT command denied to user
+#
+create database mysqltest1;
+use mysqltest1;
+create table t1(id int);
+insert t1 values(2);
+create user u1@localhost;
+grant select on mysqltest1.t1 to u1@localhost;
+grant update on mysqltest1.* to u1@localhost;
+connect u1, localhost, u1;
+update mysqltest1.t1 set id=1 where id=2;
+connection default;
+disconnect u1;
+drop user u1@localhost;
+drop database mysqltest1;
+
+--echo #
+--echo # MDEV-22313: Neither SHOW CREATE USER nor SHOW GRANTS prints a user's default role
+--echo #
+CREATE ROLE test_role;
+CREATE USER test_user;
+GRANT test_role TO test_user;
+SET DEFAULT ROLE test_role FOR test_user;
+SHOW GRANTS FOR test_user;
+SET DEFAULT ROLE NONE for test_user;
+SHOW GRANTS FOR test_user;
+connect test_user, localhost, test_user;
+SET ROLE test_role;
+SET DEFAULT ROLE test_role;
+SHOW GRANTS;
+SET DEFAULT ROLE NONE;
+SHOW GRANTS;
+disconnect test_user;
+connection default;
+DROP USER test_user;
+DROP ROLE test_role;
+
+#
+# End of 10.1 tests
+#
+
+--echo #
+--echo # MDEV-20076: SHOW GRANTS does not quote role names properly
+--echo #
+
+create role 'role1';
+create role 'fetch';
+create role 'role-1';
+create role 'rock\'n\'roll';
+create user 'user1'@'localhost';
+create user 'fetch'@'localhost';
+create user 'user-1'@'localhost';
+create user 'O\'Brien'@'localhost';
+grant select on mysql.user to role1;
+grant select on mysql.user to 'fetch';
+grant select on mysql.user to 'role-1';
+grant select on mysql.user to 'rock\'n\'roll';
+GRANT 'role1' TO 'user1'@'localhost';
+GRANT 'fetch' TO 'fetch'@'localhost';
+GRANT 'role-1' TO 'user-1'@'localhost';
+GRANT 'rock\'n\'roll' TO 'O\'Brien'@'localhost';
+show grants for 'role1';
+show grants for 'fetch';
+show grants for 'role-1';
+show grants for 'rock\'n\'roll';
+show grants for 'user1'@'localhost';
+show grants for 'fetch'@'localhost';
+show grants for 'user-1'@'localhost';
+show grants for 'O\'Brien'@'localhost';
+set @save_sql_quote_show_create= @@sql_quote_show_create;
+set @@sql_quote_show_create= OFF;
+show grants for 'role1';
+show grants for 'fetch';
+show grants for 'role-1';
+show grants for 'rock\'n\'roll';
+show grants for 'user1'@'localhost';
+show grants for 'fetch'@'localhost';
+show grants for 'user-1'@'localhost';
+show grants for 'O\'Brien'@'localhost';
+set @@sql_quote_show_create= @save_sql_quote_show_create;
+drop role 'role1';
+drop role 'fetch';
+drop role 'role-1';
+drop role 'rock\'n\'roll';
+drop user 'user1'@'localhost';
+drop user 'fetch'@'localhost';
+drop user 'user-1'@'localhost';
+drop user 'O\'Brien'@'localhost';
+
+--echo # End of 10.3 tests
+
+#
+# MDEV-12321 authentication plugin: SET PASSWORD support
+#
+error ER_PASSWD_LENGTH;
+create user u1@h identified with 'mysql_native_password' using 'pwd';
+create user u1@h identified with 'mysql_native_password' using password('pwd');
+let p=`select password('pwd')`;
+eval create user u2@h identified with 'mysql_native_password' using '$p';
+create user u3@h identified with 'mysql_native_password';
+error ER_PASSWD_LENGTH;
+set password for u3@h = 'pwd';
+set password for u3@h = password('pwd');
+create user u4@h identified with 'mysql_native_password';
+eval set password for u4@h = '$p';
+error ER_PASSWD_LENGTH;
+create user u5@h identified with 'mysql_old_password' using 'pwd';
+create user u5@h identified with 'mysql_old_password' using password('pwd');
+let p=`select old_password('pwd')`;
+eval create user u6@h identified with 'mysql_old_password' using '$p';
+create user u7@h identified with 'mysql_old_password';
+error ER_PASSWD_LENGTH;
+set password for u7@h = 'pwd';
+set password for u7@h = old_password('pwd');
+create user u8@h identified with 'mysql_old_password';
+eval set password for u8@h = '$p';
+sorted_result;
+select user,host,plugin,authentication_string from mysql.user where host='h';
+# test with invalid entries
+update mysql.global_priv set priv=json_set(priv, '$.authentication_string', 'bad') where user='u1';
+update mysql.global_priv set priv=json_set(priv, '$.authentication_string', 'bad') where user='u5';
+update mysql.global_priv set priv=json_set(priv, '$.plugin', 'nonexistent') where user='u8';
+flush privileges;
+show create user u1@h;
+show create user u2@h;
+show create user u3@h;
+show create user u4@h;
+show create user u5@h;
+show create user u6@h;
+show create user u7@h;
+show create user u8@h;
+grant select on *.* to u1@h;
+grant select on *.* to u2@h;
+grant select on *.* to u3@h;
+grant select on *.* to u4@h;
+grant select on *.* to u5@h;
+grant select on *.* to u6@h;
+grant select on *.* to u7@h;
+grant select on *.* to u8@h;
+select user,select_priv,plugin,authentication_string from mysql.user where user like 'u_';
+
+# but they still can be dropped
+drop user u1@h, u2@h, u3@h, u4@h, u5@h, u6@h, u7@h, u8@h;
+
+#
+# MDEV-14735 better matching order for grants
+# MDEV-14732 mysql.db privileges evaluated on order of grants rather than hierarchically
+# MDEV-8269 Correct fix for Bug #20181776 :- ACCESS CONTROL DOESN'T MATCH MOST SPECIFIC HOST WHEN IT CONTAINS WILDCARD
+#
+create database mysqltest_1;
+create user twg@'%' identified by 'test';
+create table mysqltest_1.t1(id int);
+
+# MDEV-14732 test case
+grant create, drop on `mysqltest_1%`.* to twg@'%';
+grant all privileges on `mysqltest_1`.* to twg@'%';
+connect conn1,localhost,twg,test,mysqltest_1;
+insert into t1 values(1);
+disconnect conn1;
+connection default;
+
+# prefix%suffix
+revoke all privileges, grant option from twg@'%';
+grant create, drop on `mysqlt%`.* to twg@'%';
+grant all privileges on `mysqlt%1`.* to twg@'%';
+connect conn1,localhost,twg,test,mysqltest_1;
+insert into t1 values(1);
+disconnect conn1;
+connection default;
+
+# more specific can even have a shorter prefix
+revoke all privileges, grant option from twg@'%';
+grant create, drop on `mysqlt%`.* to twg@'%';
+grant all privileges on `%mysqltest_1`.* to twg@'%';
+connect conn1,localhost,twg,test,mysqltest_1;
+insert into t1 values(1);
+disconnect conn1;
+connection default;
+
+drop database mysqltest_1;
+drop user twg@'%';
+
+#
+# test the empty db case
+#
+insert mysql.tables_priv (host,db,user,table_name,grantor,table_priv) values ('localhost','','otto','t1','root@localhost','select');
+flush privileges;
+delete from mysql.tables_priv where db='';
+
+#
+# MDEV-21560 Assertion `grant_table || grant_table_role' failed in check_grant_all_columns
+#
+create database db;
+create table db.t1 (a int);
+insert into db.t1 values (1);
+create user foo;
+grant delete on db.* to foo;
+--connect (con1,localhost,foo,,)
+show create table db.t1;
+--error ER_COLUMNACCESS_DENIED_ERROR
+delete from db.t1 returning *;
+--disconnect con1
+--connection default
+drop database db;
+drop user foo;
+
+#
+# MDEV-23009 SIGSEGV in get_field from acl_load (on optimized builds)
+#
+call mtr.add_suppression('mysql.host table is damaged');
+create table mysql.host (c1 int);
+insert mysql.host values (1);
+--error ER_UNKNOWN_ERROR
+flush privileges;
+drop table mysql.host;
+
+--echo # End of 10.4 tests

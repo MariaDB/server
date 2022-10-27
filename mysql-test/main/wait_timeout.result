@@ -1,0 +1,43 @@
+SET @@global.wait_timeout= 2;
+disconnect default;
+connect  wait_con,localhost,root,,test,,;
+connection wait_con;
+connect  default,localhost,root,,test,,;
+connection default;
+--disable_reconnect;
+SELECT 1;
+1
+1
+connection wait_con;
+connection default;
+SELECT 2;
+Got one of the listed errors
+--enable_reconnect;
+SELECT 3;
+3
+3
+disconnect default;
+connection wait_con;
+connect  con1,127.0.0.1,root,,test,$MASTER_MYPORT,;
+--disable_reconnect;
+SELECT 1;
+1
+1
+connection wait_con;
+disconnect wait_con;
+connection con1;
+SELECT 2;
+Got one of the listed errors
+--enable_reconnect;
+SELECT 3;
+3
+3
+SET @@global.wait_timeout= <start_value>;
+disconnect con1;
+connect  default,localhost,root,,test,,;
+set global log_warnings=2;
+connect  foo,localhost,root;
+set @@wait_timeout=1;
+connection default;
+FOUND 1 /Aborted.*Got timeout reading communication packets/ in mysqld.1.err
+set global log_warnings=@@log_warnings;

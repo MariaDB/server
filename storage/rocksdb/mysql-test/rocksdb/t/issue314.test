@@ -1,0 +1,16 @@
+--source include/have_rocksdb.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+CREATE TABLE t1(a int);
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+INSERT INTO t1 VALUES(1);
+--error ER_ISOLATION_MODE_NOT_SUPPORTED
+select * from t1;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+select * from t1;
+drop table t1;
+

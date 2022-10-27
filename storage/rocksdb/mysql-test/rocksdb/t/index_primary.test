@@ -1,0 +1,96 @@
+--source include/have_rocksdb.inc
+
+# 
+# Basic syntax related to primary keys 
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT PRIMARY KEY,
+  b CHAR(8)
+) ENGINE=rocksdb;
+
+--replace_column 7 #
+SHOW KEYS IN t1;
+
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
+--error ER_DUP_ENTRY
+INSERT INTO t1 (a,b) VALUES (1,'c');
+
+DROP TABLE t1;
+
+--error ER_MULTIPLE_PRI_KEY
+CREATE TABLE t1 (a INT PRIMARY KEY,
+  b CHAR(8) PRIMARY KEY
+) ENGINE=rocksdb;
+
+CREATE TABLE t1 (a INT,
+  b CHAR(8),
+  PRIMARY KEY (a,b)
+) ENGINE=rocksdb;
+
+--replace_column 7 #
+SHOW INDEX IN t1;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(1,'b'),(2,'a'),(2,'b');
+--error ER_DUP_ENTRY
+INSERT INTO t1 (a,b) VALUES (1,'b');
+  DROP TABLE t1;
+
+# KEY in a column definition means PK!
+
+CREATE TABLE t1 (a INT KEY,
+  b CHAR(8),
+  KEY (b)
+) ENGINE=rocksdb;
+
+--replace_column 7 #
+SHOW INDEX IN t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT,
+  b CHAR(8) PRIMARY KEY
+) ENGINE=rocksdb;
+
+--replace_column 7 #
+SHOW INDEX IN t1;
+
+--error ER_MULTIPLE_PRI_KEY
+ALTER TABLE t1 ADD CONSTRAINT PRIMARY KEY pk (a);
+--replace_column 7 #
+SHOW KEYS IN t1;
+DROP TABLE t1;
+
+#
+# Test index prefix length limits.
+#
+set global rocksdb_large_prefix=0;
+
+CREATE TABLE t1 (
+  a BLOB(1024),
+  PRIMARY KEY (a(767))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+
+--error ER_TOO_LONG_KEY
+CREATE TABLE t1 (
+  a BLOB(1024),
+  PRIMARY KEY (a(768))
+) ENGINE=rocksdb;
+
+set global rocksdb_large_prefix=1;
+
+CREATE TABLE t1 (
+  a BLOB(4096),
+  PRIMARY KEY (a(3072))
+) ENGINE=rocksdb;
+DROP TABLE t1;
+
+--error ER_TOO_LONG_KEY
+CREATE TABLE t1 (
+  a BLOB(4096),
+  PRIMARY KEY (a(3073))
+) ENGINE=rocksdb;
+
+set global rocksdb_large_prefix=DEFAULT;

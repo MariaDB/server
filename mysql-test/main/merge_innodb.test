@@ -1,0 +1,72 @@
+# t/merge_innodb.test
+#
+# Tests with MERGE tables over InnoDB tables
+#
+
+--source include/have_innodb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2, t3, t4, t5;
+--enable_warnings
+
+#
+# Bug#30491 - MERGE doesn't report error when one table is Innodb
+#
+CREATE TABLE t1 (c1 varchar(100)) ENGINE=MyISAM;
+CREATE TABLE t2 (c1 varchar(100)) ENGINE=MyISAM;
+CREATE TABLE t3 (c1 varchar(100)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('Ann'), ('Alice');
+INSERT INTO t2 VALUES ('Bob'), ('Brian');
+INSERT INTO t3 VALUES ('Chris'), ('Charlie');
+CREATE TABLE t4 (c1 varchar(100)) ENGINE=MRG_MYISAM UNION=(t1,t2)
+  INSERT_METHOD=LAST;
+CREATE TABLE t5 (c1 varchar(100)) ENGINE=MRG_MYISAM UNION=(t1,t3)
+  INSERT_METHOD=LAST;
+--error ER_WRONG_MRG_TABLE
+SELECT * FROM t5;
+SELECT * FROM t4;
+ALTER TABLE t2 ENGINE=InnoDB;
+--error ER_WRONG_MRG_TABLE
+SELECT * FROM t4;
+DELETE FROM t2 LIMIT 1;
+--error ER_WRONG_MRG_TABLE
+SELECT * FROM t4;
+--error ER_WRONG_MRG_TABLE
+INSERT INTO t4 VALUES ('Beware');
+--error ER_WRONG_MRG_TABLE
+SELECT * FROM t4;
+SELECT * FROM t2;
+SELECT * FROM t1;
+DROP TABLE t1, t2, t3, t4, t5;
+
+#
+# Bug#20691429 temporary merge over view under lock tables
+#
+create table t1 (c1 varchar(100));
+create table t2 (c1 varchar(100));
+create view t3 as select * from t1;
+insert into t1 values ('ann'), ('alice');
+insert into t2 values ('bob'), ('brian');
+create temporary table t4 (c1 varchar(100)) engine=MERGE union=(t2, t1);
+create temporary table t5 (c1 varchar(100)) engine=MERGE union=(t3, t1);
+--error ER_WRONG_MRG_TABLE
+select * from t5;
+lock tables t1 read, t2 read, t3 read, t4 read;
+--error ER_WRONG_MRG_TABLE
+select * from t5;
+select * from t4;
+unlock tables;
+drop table t2;
+create view t2 as select * from t1;
+--error ER_WRONG_MRG_TABLE
+select * from t4;
+lock tables t1 read, t2 read, t3 read;
+--error ER_WRONG_MRG_TABLE
+select * from t4;
+--error ER_WRONG_MRG_TABLE
+select * from t4;
+--error ER_WRONG_MRG_TABLE
+select * from t4;
+unlock tables;
+drop view t2, t3;
+drop table t1;

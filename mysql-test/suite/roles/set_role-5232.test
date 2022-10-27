@@ -1,0 +1,20 @@
+#
+# MDEV-5232 SET ROLE checks privileges differently from check_access()
+#
+--source include/not_embedded.inc
+create user ''@localhost;
+create user c;
+grant select on mysql.* to c;
+create role r1;
+grant r1 to c;
+connect (c,localhost,c,,,,,);
+select user(), current_user();
+--error ER_TABLEACCESS_DENIED_ERROR
+select user from mysql.user group by user;
+--error ER_INVALID_ROLE
+set role r1;
+disconnect c;
+connection default;
+drop role r1;
+drop user c;
+drop user ''@localhost;

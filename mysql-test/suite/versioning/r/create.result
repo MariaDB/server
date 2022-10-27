@@ -1,0 +1,594 @@
+drop table if exists t1;
+create table t1 (
+x1 int unsigned,
+Sys_start SYS_DATATYPE as row start invisible comment 'start',
+Sys_end SYS_DATATYPE as row end invisible comment 'end',
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x1` int(10) unsigned DEFAULT NULL,
+  `Sys_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE COMMENT 'start',
+  `Sys_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE COMMENT 'end',
+  PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select table_catalog,table_schema,table_name,table_type,version,table_rows,data_free,auto_increment,check_time,table_collation,checksum,create_options,table_comment from information_schema.tables where table_name='t1';
+table_catalog	def
+table_schema	test
+table_name	t1
+table_type	SYSTEM VERSIONED
+version	10
+table_rows	0
+data_free	0
+auto_increment	NULL
+check_time	NULL
+table_collation	latin1_swedish_ci
+checksum	NULL
+create_options	
+table_comment	
+select table_catalog,table_schema,table_name,column_name,ordinal_position,column_default,character_maximum_length,character_octet_length,character_set_name,collation_name,column_key,extra,column_comment,is_generated,generation_expression from information_schema.columns where table_name='t1';
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	x1
+ordinal_position	1
+column_default	NULL
+character_maximum_length	NULL
+character_octet_length	NULL
+character_set_name	NULL
+collation_name	NULL
+column_key	
+extra	
+column_comment	
+is_generated	NEVER
+generation_expression	NULL
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	Sys_start
+ordinal_position	2
+column_default	NULL
+character_maximum_length	NULL
+character_octet_length	NULL
+character_set_name	NULL
+collation_name	NULL
+column_key	
+extra	STORED GENERATED, INVISIBLE
+column_comment	start
+is_generated	ALWAYS
+generation_expression	ROW START
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	Sys_end
+ordinal_position	3
+column_default	NULL
+character_maximum_length	NULL
+character_octet_length	NULL
+character_set_name	NULL
+collation_name	NULL
+column_key	
+extra	STORED GENERATED, INVISIBLE
+column_comment	end
+is_generated	ALWAYS
+generation_expression	ROW END
+# Implicit fields test
+create or replace table t1 (
+x2 int unsigned
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x2` int(10) unsigned DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x3 int unsigned,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
+period for system_time (x, Sys_end)
+) with system versioning;
+ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end`
+create or replace table t1 (
+x4 int unsigned,
+Sys_start timestamp(6) as row start invisible,
+Sys_end2 timestamp(6) as row end invisible,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end2`
+create or replace table t1 (
+x5 int unsigned,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
+period for system_time (Sys_start, x)
+) with system versioning;
+ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end`
+create or replace table t1 (
+x6 int unsigned,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: Wrong parameters for `t1`: missing 'AS ROW START'
+create or replace table t1 (
+x7 int unsigned,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
+period for system_time (Sys_start, Sys_end)
+);
+ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
+create or replace table t1 (
+x8 int unsigned,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
+period for system_time (sys_insert, sys_remove)
+) with system versioning;
+ERROR HY000: PERIOD FOR SYSTEM_TIME must use columns `Sys_start` and `Sys_end`
+create or replace table t1 (
+x9 int unsigned,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
+period for system_time (Sys_start, Sys_end)
+);
+ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
+create or replace table t1 (
+x10 int unsigned,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
+period for system_time (Sys_start, Sys_start)
+);
+ERROR HY000: Wrong parameters for `t1`: missing 'WITH SYSTEM VERSIONING'
+create or replace table t1 (
+x11 int unsigned,
+Sys_start bigint unsigned as row start invisible,
+Sys_end timestamp(6) as row end invisible,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+Got one of the listed errors
+create or replace table t1 (
+x12 int unsigned,
+Sys_start timestamp(6) as row start invisible,
+Sys_end bigint unsigned as row end invisible,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+Got one of the listed errors
+create or replace table t1 (
+x13 int unsigned,
+Sys_start bigint as row start invisible,
+Sys_end bigint unsigned as row end invisible,
+period for system_time (Sys_start, Sys_end)
+) with system versioning engine innodb;
+ERROR HY000: `Sys_start` must be of type BIGINT(20) UNSIGNED for system-versioned table `t1`
+create or replace table t1 (
+x14 int unsigned,
+Sys_start bigint unsigned as row start invisible,
+Sys_end bigint as row end invisible,
+period for system_time (Sys_start, Sys_end)
+) with system versioning engine innodb;
+ERROR HY000: `Sys_end` must be of type BIGINT(20) UNSIGNED for system-versioned table `t1`
+create or replace table t1 (
+x15 int with system versioning,
+B int
+);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x15` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x16 int with system versioning,
+B int
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x16` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x17 int,
+B int without system versioning
+);
+create or replace table t1 (
+x18 int,
+B int without system versioning
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x18` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x19 int with system versioning,
+B int without system versioning
+);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x19` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x20 int with system versioning,
+B int without system versioning
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x20` int(11) DEFAULT NULL,
+  `B` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x21 int without system versioning
+);
+create or replace table t1 (
+x22 int without system versioning
+) with system versioning;
+ERROR HY000: Table `t1` must have at least one versioned column
+create or replace table t1 (a int) with system versioning;
+create table tt1 like t1;
+show create table tt1;
+Table	Create Table
+tt1	CREATE TABLE `tt1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table tt1;
+create temporary table tt1 like t1;
+Warnings:
+Warning	1105	System versioning is stripped from temporary `test.tt1`
+# Temporary is stripped from versioning
+show create table tt1;
+Table	Create Table
+tt1	CREATE TEMPORARY TABLE `tt1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+# CREATE TABLE ... SELECT
+create or replace table t1 (x23 int) with system versioning;
+create or replace table t0(
+y int,
+st timestamp(6) as row start,
+en timestamp(6) as row end,
+period for system_time (st, en)
+) with system versioning;
+## For non-versioned table:
+### 1. invisible fields are not included
+create or replace table t2 as select * from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x23` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+### 2. all visible fields are included
+create or replace table t3 as select * from t0;
+select * from t0;
+y	st	en
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `y` int(11) DEFAULT NULL,
+  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+## For versioned table
+insert into t1 values (1);
+select row_start from t1 into @row_start;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+insert into t0 (y) values (2);
+select st from t0 into @st;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+create or replace table t2 with system versioning as select * from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x23` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+#### invisible fields are not copied
+select * from t2;
+x23
+1
+select * from t2 where row_start <= @row_start;
+x23
+### 2. source table with visible system fields, target with invisible
+create or replace table t3 with system versioning as select * from t0;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `y` int(11) DEFAULT NULL,
+  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t3 where y > 2;
+y	st	en
+select y from t3 where st = @st and row_start > @st;
+y
+2
+### 3. source and target table with visible system fields
+create or replace table t3 (
+st timestamp(6) as row start invisible,
+en timestamp(6) as row end invisible,
+period for system_time (st, en)
+) with system versioning as select * from t0;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `y` int(11) DEFAULT NULL,
+  `st` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `en` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`st`, `en`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select y from t3;
+y
+2
+select y from t3 where st = @st;
+y
+### 4. system fields not or wrongly selected
+create or replace table t3 with system versioning select x23 from t1;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x23` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t3;
+x23
+1
+create or replace table t3 with system versioning select x23, row_start from t1;
+ERROR 42S21: Duplicate column name 'row_start'
+create or replace table t3 with system versioning select x23, row_end from t1;
+ERROR 42S21: Duplicate column name 'row_end'
+# Prepare checking for historical row
+delete from t1;
+select row_end from t1 for system_time all into @row_end;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+delete from t0;
+select en from t0 for system_time all into @en;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+## Combinations of versioned + non-versioned
+create or replace table t2 (y int);
+insert into t2 values (3);
+create or replace table t3 with system versioning select * from t1 for system_time all, t2;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x23` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from t3 for system_time all;
+x23	y
+1	3
+select * from t3 for system_time all where row_start = @row_start and row_end = @row_end;
+x23	y
+create or replace table t2 like t0;
+insert into t2 (y) values (1), (2);
+delete from t2 where y = 2;
+create or replace table t3 select * from t2 for system_time all;
+select st, en from t3 where y = 1 into @st, @en;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select y from t2 for system_time all where st = @st and en = @en;
+y
+1
+select st, en from t3 where y = 2 into @st, @en;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select y from t2 for system_time all where st = @st and en = @en;
+y
+2
+## Default engine detection
+create or replace table t1 (x25 int) with system versioning engine NON_DEFAULT_ENGINE;
+create or replace table t2
+as select x25, row_start, row_end from t1 for system_time all;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x25` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+create or replace table t2 with system versioning
+as select x25, row_start rs, row_end re from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x25` int(11) DEFAULT NULL,
+  `rs` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `re` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x26 int,
+st bigint unsigned as row start,
+en bigint unsigned as row end,
+period for system_time (st, en)
+) with system versioning engine innodb;
+create or replace table t2 with system versioning engine myisam
+as select * from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x26` int(11) DEFAULT NULL,
+  `st` bigint(20) unsigned NOT NULL DEFAULT 0,
+  `en` bigint(20) unsigned NOT NULL DEFAULT 0
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (x27 int, id int) with system versioning engine NON_DEFAULT_ENGINE;
+create or replace table t2 (b int, id int);
+create or replace table t3 with system versioning
+as select t2.b, t1.x27, t1.row_start rs, t1.row_end re from t2 inner join t1 on t2.id=t1.id;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `b` int(11) DEFAULT NULL,
+  `x27` int(11) DEFAULT NULL,
+  `rs` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `re` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+## Errors
+create or replace temporary table t (x28 int) with system versioning;
+ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
+create or replace table t1 (
+x29 int unsigned,
+Sys_start0 timestamp(6) as row start invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: Duplicate ROW START column `Sys_start`
+create or replace table t1 (
+x29 int unsigned,
+Sys_end0 timestamp(6) as row end invisible,
+Sys_start timestamp(6) as row start invisible,
+Sys_end timestamp(6) as row end invisible,
+period for system_time (Sys_start, Sys_end)
+) with system versioning;
+ERROR HY000: Duplicate ROW END column `Sys_end`
+## System fields detection
+create or replace table t1 (x30 int) with system versioning;
+create or replace table t2 (
+y int,
+st timestamp(6) as row start invisible,
+en timestamp(6) as row end invisible,
+period for system_time (st, en)
+) with system versioning;
+create or replace table t3
+as select x30, y, row_start, row_end, st, en from t1, t2;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x30` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+create or replace table t3 (
+y int,
+st timestamp(6) as row start invisible,
+en timestamp(6) as row end invisible,
+period for system_time (st, en)
+) with system versioning
+as select x30, y, row_start, row_end, st, en from t1, t2;
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x30` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `st` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `en` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`st`, `en`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+# MDEV-14828 Server crashes in JOIN::prepare / setup_fields on 2nd execution of PS [#437]
+create or replace table t1 (x int) with system versioning;
+prepare bad from 'create or replace table t2 with system versioning as select * from t1';
+execute bad;
+execute bad;
+execute bad;
+execute bad;
+execute bad;
+execute bad;
+execute bad;
+execute bad;
+# bad is good.
+# MDEV-15413 Unexpected errors upon CREATE TABLE .. WITH SYSTEM VERSIONING AS SELECT ...
+create or replace table t1 with system versioning as select 1 as i;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(1) NOT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (i int) with system versioning as select 1 as i;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+a int,
+row_start bigint as row start,
+row_end bigint as row end,
+period for system_time (row_start, row_end)
+) engine=innodb with system versioning;
+ERROR HY000: `row_start` must be of type BIGINT(20) UNSIGNED for system-versioned table `t1`
+create or replace table t1 (
+a int,
+row_start bigint as row start,
+row_end bigint as row end,
+period for system_time (row_start, row_end)
+) engine=myisam with system versioning;
+ERROR HY000: `row_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
+create table t (
+a int,
+row_start datetime(6) generated always as row start,
+row_end datetime(6) generated always as row end,
+period for system_time(row_start, row_end)
+) with system versioning;
+ERROR HY000: `row_start` must be of type TIMESTAMP(6) for system-versioned table `t`
+# MDEV-16490 It's possible to make a system versioned table without any versioning field
+create or replace table t1 (x int without system versioning)
+with system versioning
+select 1 as y;
+create or replace table t1 (x int without system versioning)
+with system versioning
+select 1 as x;
+ERROR HY000: Table `t1` must have at least one versioned column
+drop tables t0, t1, t2, t3;
+#
+# MDEV-23968 CREATE TEMPORARY TABLE .. LIKE (system versioned table) returns error if unique index is defined in the table
+#
+create table t1 (id int primary key, index(row_start)) with system versioning;
+ERROR 42000: Key column 'row_start' doesn't exist in table
+create table t1 (id int primary key, index(row_end)) with system versioning;
+ERROR 42000: Key column 'row_end' doesn't exist in table
+create table t1 (id int, primary key(id, row_end, row_end)) with system versioning;
+ERROR 42000: Key column 'row_end' doesn't exist in table
+create table t1 (id int primary key) with system versioning;
+create temporary table t2 like t1;
+Warnings:
+Warning	1105	System versioning is stripped from temporary `test.t2`
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+show create table t2;
+Table	Create Table
+t2	CREATE TEMPORARY TABLE `t2` (
+  `id` int(11) NOT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+drop temporary table t2;
+create or replace table t1 (
+a int,
+row_start timestamp(6) as row start,
+row_end timestamp(6) as row end,
+period for system_time (row_start, row_end),
+index(row_start),
+index(row_end),
+primary key(row_end, a, row_start),
+index(row_end, row_start, a)) with system versioning;
+create temporary table t2 like t1;
+Warnings:
+Warning	1105	System versioning is stripped from temporary `test.t2`
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PRIMARY KEY (`row_end`,`a`,`row_start`),
+  KEY `row_start` (`row_start`),
+  KEY `row_end` (`row_end`),
+  KEY `row_end_2` (`row_end`,`row_start`,`a`),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+show create table t2;
+Table	Create Table
+t2	CREATE TEMPORARY TABLE `t2` (
+  `a` int(11) NOT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+drop temporary table t2;
+drop table t1;

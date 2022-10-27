@@ -1,0 +1,37 @@
+# switching from mysql.global_priv to mysql.user
+set global sql_mode="";
+set local sql_mode="";
+alter table mysql.user modify User char(16) binary not null default '';
+alter table mysql.db modify User char(16) binary not null default '';
+alter table mysql.tables_priv modify User char(16) binary not null default '';
+alter table mysql.columns_priv modify User char(16) binary not null default '';
+alter table mysql.procs_priv modify User char(16) binary not null default '';
+alter table mysql.proc modify definer char(77) collate utf8_bin not null default '';
+alter table mysql.event modify definer char(77) collate utf8_bin not null default '';
+flush privileges;
+select user();
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					user()	253	77	14	N	1	39	8
+user()
+root@localhost
+create user a17aaaaaaaaaaaaa0@localhost;
+ERROR HY000: String 'a17aaaaaaaaaaaaa0' is too long for user name (should be no longer than 16)
+grant usage on *.* to a17aaaaaaaaaaaaa0@lodalhost;
+ERROR HY000: String 'a17aaaaaaaaaaaaa0' is too long for user name (should be no longer than 16)
+drop user a17aaaaaaaaaaaaa0@lodalhost;
+ERROR HY000: String 'a17aaaaaaaaaaaaa0' is too long for user name (should be no longer than 16)
+alter table mysql.user modify User char(80) binary not null default '';
+alter table mysql.db modify User char(80) binary not null default '';
+alter table mysql.tables_priv modify User char(80) binary not null default '';
+alter table mysql.columns_priv modify User char(80) binary not null default '';
+alter table mysql.procs_priv modify User char(80) binary not null default '';
+alter table mysql.proc modify definer char(141) collate utf8_bin not null default '';
+alter table mysql.event modify definer char(141) collate utf8_bin not null default '';
+flush privileges;
+select user();
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					user()	253	141	14	N	1	39	8
+user()
+root@localhost
+set global sql_mode=default;
+# switching back from mysql.user to mysql.global_priv

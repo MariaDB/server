@@ -1,0 +1,281 @@
+include/rpl_init.inc [topology=1->2]
+*** Test connecting with empty GTID state to start from very beginning of binlog ***
+connection server_2;
+include/stop_slave.inc
+RESET MASTER;
+RESET SLAVE;
+connection server_1;
+RESET MASTER;
+FLUSH LOGS;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+connection server_2;
+SET GLOBAL gtid_slave_pos="";
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_USE_GTID=CURRENT_POS;
+include/start_slave.inc
+SELECT * FROM t1;
+a
+connection server_1;
+INSERT INTO t1 VALUES (1);
+connection server_2;
+SELECT * FROM t1;
+a
+1
+include/stop_slave.inc
+*** Test that master gives error when slave asks for empty gtid pos and binlog files have been purged. ***
+connection server_1;
+FLUSH LOGS;
+INSERT INTO t1 VALUES (2);
+include/wait_for_purge.inc "master-bin.000003"
+show binary logs;
+Log_name	File_size
+master-bin.000003	#
+connection server_2;
+SET GLOBAL gtid_slave_pos="";
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_USE_GTID=CURRENT_POS;
+START SLAVE;
+include/wait_for_slave_io_error.inc [errno=1236]
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_LOG_FILE="master-bin.000003", MASTER_LOG_POS=4;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+SET sql_log_bin=0;
+call mtr.add_suppression('Could not find GTID state requested by slave in any binlog files');
+SET sql_log_bin=1;
+*** Test that we give warning when explict @@gtid_slave_pos=xxx that conflicts with what is in our binary log ***
+include/stop_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES(3);
+include/save_master_gtid.inc
+connection server_2;
+SET GLOBAL gtid_slave_pos='0-1-3';
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_USE_GTID=CURRENT_POS;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER by a;
+a
+1
+2
+3
+include/stop_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (4);
+include/save_master_gtid.inc
+connection server_2;
+INSERT INTO t1 VALUES (10);
+DELETE FROM t1 WHERE a=10;
+SET GLOBAL gtid_slave_pos='0-1-4';
+Warnings:
+Warning	1947	Specified GTID 0-1-4 conflicts with the binary log which contains a more recent GTID 0-2-6. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+RESET MASTER;
+SET GLOBAL gtid_slave_pos='0-1-4';
+START SLAVE;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER by a;
+a
+1
+2
+3
+4
+connection server_1;
+DROP TABLE t1;
+connection server_2;
+*** MDEV-4275: I/O thread restart duplicates events in relay log ***
+connection server_2;
+include/stop_slave.inc
+RESET SLAVE ALL;
+RESET MASTER;
+connection server_1;
+RESET MASTER;
+connection server_2;
+SET GLOBAL gtid_slave_pos='';
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=current_pos;
+include/start_slave.inc
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+connection server_2;
+SELECT * FROM t1;
+a
+1
+include/stop_slave_io.inc
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection server_1;
+INSERT INTO t1 VALUES (2);
+connection server_2;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+*** MDEV-4329: GTID_SLAVE_POS='' is not checked for conflicts with binlog ***
+connection server_2;
+include/stop_slave.inc
+DROP TABLE t1;
+RESET SLAVE;
+SET GLOBAL gtid_slave_pos="";
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-4. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+RESET MASTER;
+SET GLOBAL gtid_slave_pos="";
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+connection server_2;
+include/stop_slave.inc
+SET SQL_LOG_BIN=0;
+DROP TABLE t1;
+SET SQL_LOG_BIN=1;
+RESET SLAVE;
+SET GLOBAL gtid_slave_pos="";
+SET @save_slave_ddl_exec_mode=@@global.slave_ddl_exec_mode;
+SET GLOBAL slave_ddl_exec_mode=STRICT;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+*** Test that RESET SLAVE clears the Using_Gtid flag. ***
+include/stop_slave.inc
+RESET SLAVE;
+Using_Gtid = 'No'
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1050]
+STOP SLAVE IO_THREAD;
+CHANGE MASTER TO MASTER_USE_GTID=CURRENT_POS;
+include/start_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES(3);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+SET SQL_LOG_BIN=0;
+call mtr.add_suppression("Slave: Table 't1' already exists error.* 1050");
+SET SQL_LOG_BIN=1;
+*** Test reconnecting slave with GTID after purge logs on master. ***
+connection server_1;
+FLUSH LOGS;
+INSERT INTO t1 VALUES (4);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection server_1;
+FLUSH LOGS;
+FLUSH LOGS;
+include/wait_for_purge.inc "master-bin.000004"
+show binary logs;
+Log_name	File_size
+master-bin.000004	#
+INSERT INTO t1 VALUES (5);
+include/save_master_gtid.inc
+connection server_2;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+*** Test modifying binlog on slave and the effect on GTID state. ***
+connection server_2;
+include/stop_slave.inc
+RESET MASTER;
+SET GLOBAL gtid_slave_pos="";
+connection server_1;
+RESET MASTER;
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10);
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1;
+a
+10
+SELECT 'Current_Pos' AS Using_Gtid;
+Using_Gtid
+Current_Pos
+SELECT '0-1-2' AS Gtid_Slave_Pos;
+Gtid_Slave_Pos
+0-1-2
+UPDATE t1 SET a=9 WHERE a=10;
+UPDATE t1 SET a=10 WHERE a=9;
+SELECT '0-2-4' AS Gtid_Slave_Pos;
+Gtid_Slave_Pos
+0-2-4
+include/stop_slave.inc
+SET GLOBAL gtid_slave_pos='0-1-2';
+Warnings:
+Warning	1947	Specified GTID 0-1-2 conflicts with the binary log which contains a more recent GTID 0-2-4. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
+RESET MASTER;
+SELECT '0-1-2' AS Gtid_Slave_Pos;
+Gtid_Slave_Pos
+0-1-2
+SET GLOBAL gtid_slave_pos='0-1-2';
+include/start_slave.inc
+SELECT '0-1-2' AS Gtid_Slave_Pos;
+Gtid_Slave_Pos
+0-1-2
+*** MDEV-4483: Slave loses traditional master coordinates immediately on CHANGE MASTER TO MASTER_USE_GTID = 1 ***
+connection server_2;
+include/stop_slave.inc
+DROP TABLE t1;
+RESET SLAVE ALL;
+RESET MASTER;
+SET GLOBAL gtid_slave_pos= "";
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=no, master_log_file="", master_log_pos= 4;
+connection server_1;
+DROP TABLE t1;
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+connection server_2;
+include/start_slave.inc
+include/stop_slave.inc
+connection server_1;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+connection server_2;
+START SLAVE UNTIL master_log_file='LOG_FILE1', master_log_pos=LOG_POS1;
+include/wait_for_slave_sql_to_stop.inc
+SELECT * FROM t1;
+a
+1
+include/wait_for_slave_param.inc [Read_Master_Log_Pos]
+include/stop_slave_io.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET GLOBAL gtid_slave_pos="0-42-42";
+SET sql_log_bin=0;
+call mtr.add_suppression("Error: connecting slave requested to start from GTID");
+SET sql_log_bin=1;
+START SLAVE;
+include/wait_for_slave_io_error.inc [errno=1236]
+STOP SLAVE SQL_THREAD;
+include/wait_for_slave_sql_to_stop.inc
+CHANGE MASTER TO master_use_gtid=no;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+connection server_1;
+DROP TABLE t1;
+connection server_2;
+set @@global.slave_ddl_exec_mode=@save_slave_ddl_exec_mode;
+include/rpl_end.inc

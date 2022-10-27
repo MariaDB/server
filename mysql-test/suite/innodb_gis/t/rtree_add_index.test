@@ -1,0 +1,20 @@
+--source include/have_innodb.inc
+
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
+CREATE TABLE t1 (g MULTIPOINT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('');
+
+connect purge_control,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+
+DELETE FROM t1;
+
+ALTER TABLE t1 ADD SPATIAL INDEX (g);
+
+disconnect purge_control;
+--source ../../innodb/include/wait_all_purged.inc
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

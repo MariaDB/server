@@ -1,0 +1,52 @@
+# Copyright(C) 2012 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+--source include/have_innodb.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS diaries;
+--enable_warnings
+
+CREATE TABLE diaries (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title TEXT,
+  tags TEXT,
+  FULLTEXT INDEX tags_index (tags) COMMENT 'tokenizer "TokenDelimit"'
+) DEFAULT CHARSET=UTF8 COMMENT='ENGINE "InnoDB"';
+
+INSERT INTO diaries (title, tags) VALUES ("Hello groonga!", "groonga install");
+INSERT INTO diaries (title, tags) VALUES ("Hello mroonga!", "mroonga install");
+
+
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("install" IN BOOLEAN MODE);
+
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
+
+# MySQL <= 5.5 reports a wrong warning. :<
+# It has been fixed in MySQL >= 5.6 and MariaDB >= 5.3.
+--disable_warnings
+SET mroonga_match_escalation_threshold = -1;
+--enable_warnings
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
+
+SET mroonga_match_escalation_threshold = 0;
+SELECT * FROM diaries WHERE MATCH (tags) AGAINST ("gr" IN BOOLEAN MODE);
+
+
+DROP TABLE diaries;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

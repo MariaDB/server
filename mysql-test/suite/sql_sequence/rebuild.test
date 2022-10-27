@@ -1,0 +1,21 @@
+--source include/have_innodb.inc
+--source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-15977 Assertion `! thd->in_sub_stmt' failed in trans_commit_stmt
+--echo #
+
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+ALTER TABLE s1 FORCE;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (b VARCHAR(64)) ENGINE=MyISAM;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t2 SELECT TABLE_NAME FROM INFORMATION_SCHEMA.PARTITIONS;
+INSERT INTO t1 VALUES (1);
+--sorted_result
+select * from t1;
+--sorted_result
+select * from t2;
+
+# Cleanup
+DROP TABLE t1, t2, s1;
+

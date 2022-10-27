@@ -1,0 +1,79 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+connection node_2;
+INSERT INTO t1 VALUES (3),(4);
+connection node_1;
+SELECT COUNT(*) = 4 FROM t1;
+COUNT(*) = 4
+1
+connection node_2;
+SELECT COUNT(*) = 4 FROM t1;
+COUNT(*) = 4
+1
+DROP TABLE t1;
+connection node_2;
+CREATE TABLE t1 (f1 INTEGER, KEY (f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(1);
+connection node_1;
+INSERT INTO t1 VALUES (2),(2);
+connection node_2;
+SELECT COUNT(*) = 4 FROM t1;
+COUNT(*) = 4
+1
+connection node_1;
+SELECT COUNT(*) = 4 FROM t1;
+COUNT(*) = 4
+1
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+connection node_2;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET AUTOCOMMIT = OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1), (2);
+connection node_2;
+SET AUTOCOMMIT = OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (2), (1);
+connection node_1;
+COMMIT;
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+INSERT INTO t1 VALUES (1), (2);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1), (2);
+connection node_2;
+START TRANSACTION;
+INSERT INTO t1 VALUES (2), (1);
+connection node_1;
+ROLLBACK;
+connection node_2;
+COMMIT;
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+connection node_1;
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+DROP TABLE t1;

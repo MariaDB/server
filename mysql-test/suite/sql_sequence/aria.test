@@ -1,0 +1,43 @@
+--source include/have_sequence.inc
+--source include/have_aria.inc
+
+#
+# Simple test of the aria engine
+# As most test is above the engine, we only have to test base functionality
+#
+
+set @@default_storage_engine="aria";
+
+CREATE SEQUENCE t1 cache=10;
+show create sequence t1;
+select NEXT VALUE for t1,seq from seq_1_to_20;
+select * from t1;
+drop sequence t1;
+
+#
+# Create and check
+#
+
+create sequence s1;
+check table s1;
+select next value for s1;
+flush tables;
+check table s1;
+select next value for s1;
+flush tables;
+repair table s1;
+select next value for s1;
+drop sequence s1;
+
+#
+# ALTER and RENAME
+
+CREATE SEQUENCE t1;
+--error ER_SEQUENCE_INVALID_DATA
+alter sequence t1 minvalue=100;
+alter sequence t1 minvalue=100 start=100 restart=100;
+rename table t1 to t2;
+select next value for t2;
+alter table t2 rename to t1;
+select next value for t1;
+drop table t1;

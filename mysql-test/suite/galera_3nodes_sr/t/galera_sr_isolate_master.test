@@ -1,0 +1,127 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test the effect of gmcast.isolate on master during an SR transaction
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+
+SET SESSION wsrep_trx_fragment_size = 1;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) > 0 FROM t1;
+
+#
+# Trigger gmcast.isolate=1 .
+# The transaction is aborted and we expect the SR tables to be cleaned up
+#
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--source include/galera_wait_ready.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--source include/galera_wait_ready.inc
+
+#
+# Expect that the transaction is cleaned up entirely across the cluster and in all mysql.wsrep_streaming_log tables
+#
+
+--connection node_2
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_3
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+SELECT COUNT(*) = 0 FROM t1;
+
+#
+# Restore cluster
+#
+
+--connection node_1a
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_3
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_1a
+--source include/galera_wait_ready.inc
+
+#
+# Confirm that the previous transaction is gone on Node #1 as well
+#
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SELECT COUNT(*) = 0 FROM t1;
+
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+#
+# Confirm that the transaction can be retried
+#
+
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+COMMIT;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+SELECT COUNT(*) = 5 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--source include/wait_condition.inc
+SELECT COUNT(*) = 5 FROM t1;
+SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+CALL mtr.add_suppression("failed to send SR rollback for");
+DROP TABLE t1;

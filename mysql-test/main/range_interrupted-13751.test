@@ -1,0 +1,27 @@
+-- source include/have_debug.inc
+--source include/default_optimizer_switch.inc
+
+#
+# MDEV-13751 Interrupted SELECT fails with 1030: 'Got error 1 "Operation not permitted" from storage engine MyISAM'
+#
+CREATE TABLE t1 (i INT AUTO_INCREMENT, c VARCHAR(1), KEY(i), KEY(c,i)) ENGINE=MyISAM;
+INSERT INTO t1 (c) VALUES ('a'),('b'),('c'),('d');
+INSERT INTO t1 (c) SELECT c FROM t1;
+INSERT INTO t1 (c) SELECT c FROM t1;
+INSERT INTO t1 (c) SELECT c FROM t1;
+INSERT INTO t1 (c) SELECT c FROM t1;
+INSERT INTO t1 (c) SELECT c FROM t1;
+INSERT INTO t1 (c) SELECT c FROM t1;
+
+set @old_dbug=@@session.debug_dbug;
+SET debug_dbug="+d,kill_join_init_read_record";
+
+--error ER_QUERY_INTERRUPTED
+SELECT 1 FROM t1 AS alias1, t1 AS alias2, t1 AS alias3
+WHERE alias1.c = alias2.c OR alias1.i <= 1
+;
+
+SET debug_dbug=@old_dbug;
+
+DROP TABLE t1;
+

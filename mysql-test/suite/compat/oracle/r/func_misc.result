@@ -1,0 +1,319 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-10578 sql_mode=ORACLE: SP control functions SQLCODE, SQLERRM
+#
+#
+# Using SQLCODE and SQLERRM outside of an SP
+#
+SELECT SQLCODE;
+ERROR 42S22: Unknown column 'SQLCODE' in 'field list'
+SELECT SQLERRM;
+ERROR 42S22: Unknown column 'SQLERRM' in 'field list'
+CREATE TABLE t1 (SQLCODE INT, SQLERRM VARCHAR(10));
+INSERT INTO t1 VALUES (10, 'test');
+SELECT SQLCODE, SQLERRM FROM t1;
+SQLCODE	SQLERRM
+10	test
+DROP TABLE t1;
+#
+# Normal SQLCODE and SQLERRM usage
+#
+CREATE PROCEDURE p1(stmt VARCHAR)
+AS
+BEGIN
+EXECUTE IMMEDIATE stmt;
+SELECT 'Error1: ' || SQLCODE || ' ' || SQLERRM;
+EXCEPTION
+WHEN OTHERS THEN
+SELECT 'Error2: ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CALL p1('SELECT 1');
+1
+1
+'Error1: ' || SQLCODE || ' ' || SQLERRM
+Error1: 0 normal, successful completion
+CALL p1('xxx');
+'Error2: ' || SQLCODE || ' ' || SQLERRM
+Error2: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+CALL p1('SELECT 1');
+1
+1
+'Error1: ' || SQLCODE || ' ' || SQLERRM
+Error1: 0 normal, successful completion
+DROP PROCEDURE p1;
+#
+# SQLCODE and SQLERRM hidden by local variables
+#
+CREATE PROCEDURE p1()
+AS
+sqlcode INT:= 10;
+sqlerrm VARCHAR(64) := 'test';
+BEGIN
+SELECT 'Error: ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CALL p1;
+'Error: ' || SQLCODE || ' ' || SQLERRM
+Error: 10 test
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+AS
+sqlcode INT;
+sqlerrm VARCHAR(64);
+BEGIN
+SQLCODE:= 10;
+sqlerrm:= 'test';
+SELECT 'Error: ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CALL p1;
+'Error: ' || SQLCODE || ' ' || SQLERRM
+Error: 10 test
+DROP PROCEDURE p1;
+#
+# SQLCODE and SQLERRM hidden by parameters
+#
+CREATE PROCEDURE p1(sqlcode INT, sqlerrm VARCHAR)
+AS
+BEGIN
+SELECT 'Error: ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CALL p1(10, 'test');
+'Error: ' || SQLCODE || ' ' || SQLERRM
+Error: 10 test
+DROP PROCEDURE p1;
+#
+# SQLCODE and SQLERRM in CREATE..SELECT
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+CREATE TABLE t1 AS SELECT SQLCODE, SQLERRM;
+END;
+$$
+CALL p1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "SQLCODE" int(11) NOT NULL,
+  "SQLERRM" varchar(512) CHARACTER SET utf8 NOT NULL
+)
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# SQLCODE and SQLERRM in EXPLAIN EXTENDED SELECT
+#
+CREATE PROCEDURE p1
+AS
+BEGIN
+EXPLAIN EXTENDED SELECT SQLCode, SQLErrm;
+END;
+$$
+CALL p1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select SQLCODE AS "SQLCode",SQLERRM AS "SQLErrm"
+DROP PROCEDURE p1;
+#
+# Warning-alike errors in stored functions
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+a INT;
+BEGIN
+SELECT a INTO a FROM t1;
+RETURN 'No exception ' || SQLCODE || ' ' || SQLERRM;
+EXCEPTION
+WHEN NO_DATA_FOUND THEN
+RETURN 'Exception ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+SELECT f1() FROM DUAL;
+f1()
+Exception 1329 No data - zero rows fetched, selected, or processed
+DROP FUNCTION f1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+a INT;
+BEGIN
+SELECT a INTO a FROM t1;
+RETURN 'No exception ' || SQLCODE || ' ' || SQLERRM;
+EXCEPTION
+WHEN OTHERS THEN
+RETURN 'Exception ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+SELECT f1() FROM DUAL;
+f1()
+Exception 1329 No data - zero rows fetched, selected, or processed
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# Warning-alike errors in stored procedures
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+SELECT a INTO a FROM t1;
+res:= 'No exception ' || SQLCODE || ' ' || SQLERRM;
+EXCEPTION
+WHEN NO_DATA_FOUND THEN
+res:= 'Exception ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CALL p1(@a);
+SELECT @a;
+@a
+Exception 1329 No data - zero rows fetched, selected, or processed
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+a INT;
+BEGIN
+SELECT a INTO a FROM t1;
+res:= 'No exception ' || SQLCODE || ' ' || SQLERRM;
+EXCEPTION
+WHEN OTHERS THEN
+res:= 'Exception ' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CALL p1(@a);
+SELECT @a;
+@a
+Exception 1329 No data - zero rows fetched, selected, or processed
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# SQLCODE and SQLERRM are cleared on RETURN
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+a INT:=10;
+BEGIN
+SELECT a INTO a FROM t1;
+RETURN 'Value=' || a;
+EXCEPTION
+WHEN NO_DATA_FOUND THEN RETURN 'Exception|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CREATE FUNCTION f2 RETURN VARCHAR
+AS
+a VARCHAR(128);
+BEGIN
+RETURN f1() || '|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+SELECT f1() FROM DUAL;
+f1()
+Exception|1329 No data - zero rows fetched, selected, or processed
+SELECT f2() FROM DUAL;
+f2()
+Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completion
+DROP TABLE t1;
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1 RETURN VARCHAR
+AS
+a INT:=10;
+BEGIN
+SELECT a INTO a FROM t1;
+RETURN 'Value=' || a;
+EXCEPTION
+WHEN OTHERS THEN RETURN 'Exception|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CREATE FUNCTION f2 RETURN VARCHAR
+AS
+a VARCHAR(128);
+BEGIN
+RETURN f1() || '|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+SELECT f1() FROM DUAL;
+f1()
+Exception|1329 No data - zero rows fetched, selected, or processed
+SELECT f2() FROM DUAL;
+f2()
+Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completion
+DROP TABLE t1;
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+#
+# SQLCODE and SQLERRM are cleared on a return from a PROCEDURE
+#
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+a INT:=10;
+BEGIN
+SELECT a INTO a FROM t1;
+res:='Value=' || a;
+EXCEPTION
+WHEN NO_DATA_FOUND THEN res:='Exception|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CREATE FUNCTION f2 RETURN VARCHAR
+AS
+res VARCHAR(128);
+BEGIN
+CALL p1(res);
+RETURN res || '|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+SELECT f2() FROM DUAL;
+f2()
+Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completion
+DROP FUNCTION f2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE p1(res OUT VARCHAR)
+AS
+a INT:=10;
+BEGIN
+SELECT a INTO a FROM t1;
+res:='Value=' || a;
+EXCEPTION
+WHEN OTHERS THEN res:='Exception|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+CREATE FUNCTION f2 RETURN VARCHAR
+AS
+res VARCHAR(128);
+BEGIN
+CALL p1(res);
+RETURN res || '|' || SQLCODE || ' ' || SQLERRM;
+END;
+$$
+SELECT f2() FROM DUAL;
+f2()
+Exception|1329 No data - zero rows fetched, selected, or processed|0 normal, successful completion
+DROP FUNCTION f2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# End of MDEV-10578 sql_mode=ORACLE: SP control functions SQLCODE, SQLERRM
+#
+#
+# MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
+#
+BEGIN
+SELECT SQLCODE;
+END
+$$
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					SQLCODE	3	11	1	N	32897	0	63
+SQLCODE
+0

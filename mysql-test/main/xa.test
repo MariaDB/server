@@ -1,0 +1,563 @@
+#
+# WL#1756
+#
+-- source include/have_innodb.inc
+
+--source include/not_embedded.inc
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+
+--disable_warnings
+drop table if exists t1, t2;
+--enable_warnings
+create table t1 (a int) engine=innodb;
+xa start 'test1';
+insert t1 values (10);
+xa end 'test1';
+xa prepare 'test1';
+xa rollback 'test1';
+select * from t1;
+
+xa start 'test2';
+--error ER_XAER_RMFAIL
+xa start 'test-bad';
+insert t1 values (20);
+--error ER_XAER_RMFAIL
+xa prepare 'test2';
+xa end 'test2';
+xa prepare 'test2';
+xa commit 'test2';
+select * from t1;
+
+xa start 'testa','testb';
+insert t1 values (30);
+
+--error ER_XAER_RMFAIL
+commit;
+
+xa end 'testa','testb';
+
+--error ER_XAER_RMFAIL
+begin;
+--error ER_XAER_RMFAIL
+create table t2 (a int);
+
+connect (con1,localhost,root,,);
+connection con1;
+
+--error ER_XAER_DUPID
+xa start 'testa','testb';
+--error ER_XAER_DUPID
+xa start 'testa','testb', 123;
+
+#        gtrid [ , bqual [ , formatID ] ]
+xa start 0x7465737462, 0x2030405060, 0xb;
+insert t1 values (40);
+xa end 'testb',' 0@P`',11;
+xa prepare 'testb',0x2030405060,11;
+
+--error ER_XAER_RMFAIL
+start transaction;
+
+xa recover;
+
+# uncomment the line below when binlog will be able to prepare
+#disconnect con1;
+connection default;
+
+xa prepare 'testa','testb';
+
+xa recover;
+
+--error ER_XAER_NOTA
+xa commit 'testb',0x2030405060,11;
+xa rollback 'testa','testb';
+
+--error ER_PARSE_ERROR
+xa start 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
+
+select * from t1;
+disconnect con1;
+--source include/wait_until_count_sessions.inc
+
+connection default;
+
+# MDEV-14593 human-readable XA RECOVER
+xa start 'tr1';
+insert t1 values (40);
+xa end 'tr1';
+xa prepare 'tr1';
+xa recover format='SQL';
+xa rollback 'tr1';
+
+xa start 'tr1', 'bq';
+insert t1 values (40);
+xa end 'tr1', 'bq';
+xa prepare 'tr1', 'bq';
+xa recover format='SQL';
+xa rollback 'tr1', 'bq';
+
+xa start 'tr1', 'bq', 3;
+insert t1 values (40);
+xa end 'tr1', 'bq', 3;
+xa prepare 'tr1', 'bq', 3;
+xa recover format='SQL';
+xa rollback 'tr1', 'bq', 3;
+
+xa start 'tr1#$';
+insert t1 values (40);
+xa end 'tr1#$';
+xa prepare 'tr1#$';
+xa recover format='SQL';
+xa rollback 'tr1#$';
+
+xa start 'tr1#$', 'bq';
+insert t1 values (40);
+xa end 'tr1#$', 'bq';
+xa prepare 'tr1#$', 'bq';
+xa recover format='SQL';
+xa rollback 'tr1#$', 'bq';
+
+xa start 'tr1#$', 'bq', 3;
+insert t1 values (40);
+xa end 'tr1#$', 'bq', 3;
+xa prepare 'tr1#$', 'bq', 3;
+xa recover format='RAW';
+--error ER_UNKNOWN_EXPLAIN_FORMAT
+xa recover format='PLAIN';
+xa recover format='SQL';
+xa rollback 'tr1#$', 'bq', 3;
+
+drop table t1;
+
+#
+# Bug#28323: Server crashed in xid cache operations
+#
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1(a int, b int, c varchar(20), primary key(a)) engine = innodb;
+insert into t1 values(1, 1, 'a');
+insert into t1 values(2, 2, 'b');
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+--connection con1
+xa start 'a','b';
+update t1 set c = 'aa' where a = 1;
+--connection con2
+xa start 'a','c';
+update t1 set c = 'bb' where a = 2;
+--connection con1
+--send update t1 set c = 'bb' where a = 2
+--connection con2
+--sleep 1
+--error ER_LOCK_DEADLOCK
+update t1 set c = 'aa' where a = 1;
+select count(*) from t1;
+--error ER_XA_RBDEADLOCK
+xa end 'a','c';
+xa rollback 'a','c';
+--disconnect con2
+
+connect (con3,localhost,root,,);
+--connection con3
+xa start 'a','c';
+
+--disconnect con1
+--disconnect con3
+--connection default
+drop table t1;
+
+--echo #
+--echo # BUG#51342 - more xid crashing
+--echo #
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+XA START 'x';
+SET SESSION autocommit=0;
+INSERT INTO t1 VALUES(1);
+--error ER_XAER_RMFAIL
+SET SESSION autocommit=1;
+SELECT @@autocommit;
+INSERT INTO t1 VALUES(1);
+XA END 'x';
+XA COMMIT 'x' ONE PHASE;
+DROP TABLE t1;
+SET SESSION autocommit=1;
+
+--echo End of 5.0 tests
+
+#
+# Bug#44672: Assertion failed: thd->transaction.xid_state.xid.is_null()
+#
+
+xa start 'a';
+xa end 'a';
+xa rollback 'a';
+xa start 'a';
+xa end 'a';
+xa rollback 'a';
+
+#
+# Bug#45548: XA transaction without access to InnoDB tables crashes the server
+#
+
+xa start 'a';
+xa end 'a';
+xa prepare 'a';
+xa commit 'a';
+
+xa start 'a';
+xa end 'a';
+xa prepare 'a';
+xa commit 'a';
+
+#
+# BUG#43171 - Assertion failed: thd->transaction.xid_state.xid.is_null()
+#
+CREATE TABLE t1(a INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+connect(con1,localhost,root,,);
+
+# Part 1: Prepare to test XA START after regular transaction deadlock
+BEGIN;
+UPDATE t1 SET a=3 WHERE a=1;
+
+connection default;
+BEGIN;
+UPDATE t1 SET a=4 WHERE a=2;
+
+connection con1;
+let $conn_id= `SELECT CONNECTION_ID()`;
+SEND UPDATE t1 SET a=5 WHERE a=2;
+
+connection default;
+let $wait_timeout= 2;
+let $wait_condition= SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE ID=$conn_id AND STATE='Searching rows for update';
+--source include/wait_condition.inc
+
+--error ER_LOCK_DEADLOCK
+UPDATE t1 SET a=5 WHERE a=1;
+ROLLBACK;
+
+# Part 2: Prepare to test XA START after XA transaction deadlock
+connection con1;
+REAP;
+ROLLBACK;
+BEGIN;
+UPDATE t1 SET a=3 WHERE a=1;
+
+connection default;
+XA START 'xid1';
+UPDATE t1 SET a=4 WHERE a=2;
+
+connection con1;
+SEND UPDATE t1 SET a=5 WHERE a=2;
+
+connection default;
+let $wait_timeout= 2;
+let $wait_condition= SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE ID=$conn_id AND STATE='Searching rows for update';
+--source include/wait_condition.inc
+
+--error ER_LOCK_DEADLOCK
+UPDATE t1 SET a=5 WHERE a=1;
+--error ER_XA_RBDEADLOCK
+XA END 'xid1';
+XA ROLLBACK 'xid1';
+
+XA START 'xid1';
+XA END 'xid1';
+XA ROLLBACK 'xid1';
+
+disconnect con1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Bug#56448 Assertion failed: ! is_set() with second xa end
+--echo #
+
+XA START 'x';
+XA END 'x';
+# Second XA END caused an assertion.
+--error ER_XAER_RMFAIL
+XA END 'x';
+XA PREPARE 'x';
+# Second XA PREPARE also caused an assertion.
+--error ER_XAER_RMFAIL
+XA PREPARE 'x';
+XA ROLLBACK 'x';
+
+
+--echo #
+--echo # Bug#59986 Assert in Diagnostics_area::set_ok_status() for XA COMMIT
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1(a INT, b INT, PRIMARY KEY(a)) engine=InnoDB;
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+
+connect (con1, localhost, root);
+XA START 'a';
+UPDATE t1 SET b= 3 WHERE a=1;
+
+connection default;
+XA START 'b';
+UPDATE t1 SET b=4 WHERE a=2;
+--echo # Sending:
+--send UPDATE t1 SET b=5 WHERE a=1
+
+connection con1;
+--sleep 1
+--error ER_LOCK_DEADLOCK
+UPDATE t1 SET b=6 WHERE a=2;
+# This used to trigger the assert
+--error ER_XA_RBDEADLOCK
+XA COMMIT 'a';
+
+connection default;
+--echo # Reaping: UPDATE t1 SET b=5 WHERE a=1
+--reap
+XA END 'b';
+XA ROLLBACK 'b';
+DROP TABLE t1;
+disconnect con1;
+
+
+--echo #
+--echo # Bug#11766752 59936: multiple xa assertions - transactional
+--echo #              statement fuzzer
+--echo #
+
+CREATE TABLE t1 (a INT) engine=InnoDB;
+XA START 'a';
+INSERT INTO t1 VALUES (1);
+
+SAVEPOINT savep;
+
+XA END 'a';
+--error ER_XAER_RMFAIL
+SELECT * FROM t1;
+--error ER_XAER_RMFAIL
+INSERT INTO t1 VALUES (2);
+--error ER_XAER_RMFAIL
+SAVEPOINT savep;
+--error ER_XAER_RMFAIL
+SET @a=(SELECT * FROM t1);
+
+XA PREPARE 'a';
+--error ER_XAER_RMFAIL
+SELECT * FROM t1;          # used to cause InnoDB assert
+--error ER_XAER_RMFAIL
+INSERT INTO t1 VALUES (2); # used to cause InnoDB assert
+--error ER_XAER_RMFAIL
+SAVEPOINT savep;
+--error ER_XAER_RMFAIL
+SET @a=(SELECT * FROM t1); # used to cause InnoDB assert
+--error ER_XAER_RMFAIL
+UPDATE t1 SET a=1 WHERE a=2;
+
+XA COMMIT 'a';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-14609 XA Transction unable to ROLLBACK TO SAVEPOINT
+--echo #
+
+CREATE TABLE t1 (c1 INT) ENGINE=INNODB;
+XA START 'xa1';
+SAVEPOINT savepoint1;
+INSERT INTO t1 (c1) VALUES (1),(2),(3),(4);
+ROLLBACK TO SAVEPOINT savepoint1;
+XA END 'xa1';
+XA ROLLBACK 'xa1';
+DROP TABLE t1;
+
+
+--echo #
+--echo # Bug#12352846 - TRANS_XA_START(THD*):
+--echo #                ASSERTION THD->TRANSACTION.XID_STATE.XID.IS_NULL()
+--echo #                FAILED
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+
+INSERT INTO t2 VALUES (1); COMMIT;
+BEGIN;
+INSERT INTO t2 VALUES (2);
+UPDATE t2 SET a=a+1;
+
+--connect (con2,localhost,root)
+XA START 'xid1';
+INSERT INTO t1 VALUES (1);
+--echo # Sending:
+--send DELETE FROM t2
+
+--connection default
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE state = "Updating"
+  AND info = "DELETE FROM t2";
+--source include/wait_condition.inc
+--sleep 0.1
+--send DELETE FROM t1
+
+--connection con2
+--error ER_LOCK_DEADLOCK
+--reap
+--error ER_XA_RBDEADLOCK
+XA COMMIT 'xid1';
+
+connection default;
+
+reap;
+COMMIT;
+
+connection con2;
+# This caused the assert to be triggered
+XA START 'xid1';
+
+XA END 'xid1';
+XA PREPARE 'xid1';
+XA ROLLBACK 'xid1';
+
+connection default;
+DROP TABLE t1, t2;
+disconnect con2;
+
+
+#
+# MDEV 15217 Assertion `thd->transaction.xid_state.xid.is_null()' failed in trans_xa_start.
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (i INT) ENGINE=InnoDB;
+
+XA BEGIN 'xid1';
+REPLACE INTO t1 SELECT * FROM t2;
+
+--connect (con1,localhost,root,,test)
+XA BEGIN 'xid2';
+--send
+INSERT INTO t1 SELECT * FROM t2;
+
+--connection default
+REPLACE INTO t2 SELECT * FROM t2;
+
+--connection con1
+--error 0, ER_LOCK_DEADLOCK, ER_LOCK_WAIT_TIMEOUT
+--reap
+--disconnect con1
+
+--connect (con2,localhost,root,,test)
+INSERT INTO t3 VALUES (1);
+XA BEGIN 'xid3';
+
+
+#Cleanup
+--disconnect con2
+--connection default
+XA END 'xid1';
+XA ROLLBACK 'xid1';
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV 15532 XA: Assertion `!log->same_pk' failed in
+--echo # row_log_table_apply_delete
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+
+--connect (con1,localhost,root,,test)
+
+XA START 'xid';
+UPDATE t1 SET a = 5;
+
+--connection default
+SET innodb_lock_wait_timeout= 2, lock_wait_timeout= 2;
+
+--error ER_NO_SUCH_TABLE
+ALTER TABLE non_existing_table1;
+
+--send ALTER TABLE t1 FORCE;
+
+--connection con1
+--error ER_XAER_RMFAIL
+
+ALTER TABLE non_existing_table2;
+DELETE FROM t1 LIMIT 1;
+
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+--reap
+
+# Cleanup
+--connection con1
+XA END 'xid';
+XA ROLLBACK 'xid';
+DROP TABLE t1;
+--disconnect con1
+connection default;
+
+--source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # XA states and SHOW commands
+--echo #
+create table t1 (pk int primary key) engine=innodb;
+xa start 'foo';
+insert t1 set pk=1;
+xa end 'foo';
+xa prepare 'foo';
+show status like 'foo';
+--query_vertical select table_name,table_comment from information_schema.tables where table_schema='test'
+--query_vertical select table_name,table_rows,table_comment from information_schema.tables where table_schema='test'
+xa commit 'foo';
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+#
+# MDEV-22002 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())'
+# failed upon CREATE TEMPORARY SEQUENCE under XA
+#
+
+XA BEGIN 'xid';
+
+--error ER_XAER_RMFAIL
+CREATE TEMPORARY SEQUENCE s;
+
+XA END 'xid';
+
+XA ROLLBACK 'xid';
+
+XA BEGIN 'xid';
+
+--error ER_XAER_RMFAIL
+CREATE SEQUENCE s;
+
+XA END 'xid';
+
+XA ROLLBACK 'xid';
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

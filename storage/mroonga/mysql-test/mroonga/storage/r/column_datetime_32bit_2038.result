@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+created_at DATETIME
+) DEFAULT CHARSET UTF8;
+INSERT INTO diaries (title, created_at)
+VALUES ('2038-01-18 03:14:07', '2038-01-18 03:14:07');
+INSERT IGNORE INTO diaries (title, created_at)
+VALUES ('2038-01-20 03:14:08', '2038-01-20 03:14:08');
+Warnings:
+Warning	1265	Data truncated for column 'created_at' at row 1
+SELECT * FROM diaries;
+id	title	created_at
+1	2038-01-18 03:14:07	2038-01-18 03:14:07
+2	2038-01-20 03:14:08	1970-01-01 00:00:00
+DROP TABLE diaries;

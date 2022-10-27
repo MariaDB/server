@@ -1,0 +1,169 @@
+--source include/have_rocksdb.inc
+
+# 
+# INSERT statements for tables with keys
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, KEY(b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) VALUES (100,'a'), (6,'f');
+INSERT INTO t1 (a,b) VALUES (30,'m'),(29,'n');
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+INSERT INTO t1 (a,b) VALUES (3,'a'),(0,'');
+--sorted_result
+SELECT a,b FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, UNIQUE INDEX(a)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) VALUES (100,'a'), (6,'f');
+INSERT INTO t1 (a,b) VALUES (30,'m'),(29,'n');
+--error ER_DUP_ENTRY
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+--error ER_DUP_ENTRY
+INSERT INTO t1 (a,b) VALUES (3,'a'),(0,'');
+INSERT INTO t1 (a,b) VALUES (0,'');
+--sorted_result
+SELECT a,b FROM t1;
+
+INSERT IGNORE INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+INSERT INTO t1 (a,b) VALUES (3,'a'),(4,'d') ON DUPLICATE KEY UPDATE a = a+10;
+
+--sorted_result
+SELECT a,b FROM t1;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b CHAR(8), pk INT AUTO_INCREMENT PRIMARY KEY, UNIQUE INDEX(a,b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) VALUES (100,'a'), (6,'f');
+INSERT INTO t1 (a,b) VALUES (30,'m'),(29,'n');
+INSERT INTO t1 (a,b) VALUES (100,'b'), (2,'c');
+--error ER_DUP_ENTRY
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+--sorted_result
+SELECT a,b FROM t1;
+
+INSERT IGNORE INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z') ON DUPLICATE KEY UPDATE a = a+VALUES(a);
+--sorted_result
+SELECT a,b FROM t1;
+
+--error ER_DUP_ENTRY
+INSERT INTO t1 (a,b) VALUES (101,'x'),(101,'x');
+
+--sorted_result
+SELECT a,b FROM t1;
+
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b CHAR(8)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+INSERT INTO t1 (a,b) VALUES (100,'a'), (6,'f');
+INSERT INTO t1 (a,b) VALUES (30,'m'),(29,'n');
+--error ER_DUP_ENTRY
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+--error ER_DUP_ENTRY
+INSERT INTO t1 (a,b) VALUES (3,'a'),(0,'');
+INSERT INTO t1 (a,b) VALUES (0,'');
+--sorted_result
+SELECT a,b FROM t1;
+
+INSERT IGNORE INTO t1 (a,b) VALUES (1,'a'),(12345,'z');
+INSERT INTO t1 (a,b) VALUES (1,'a'),(12345,'z') ON DUPLICATE KEY UPDATE b = CONCAT(b,b);
+--sorted_result
+SELECT a,b FROM t1;
+
+DROP TABLE t1;
+
+#
+# INSERT on DUPLICATE KEY UPDATE with multiple keys
+#
+--echo
+--echo INSERT on DUPLICATE KEY UPDATE with multiple keys
+--echo
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(255)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (3,'a'), (4,'a'), (5,'a'), (6,'a'), (7,'a'), (8,'a'), (9,'a'), (10,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (3,'a'), (4,'a'), (5,'a'), (6,'a'), (7,'a'), (8,'a'), (9,'a'), (10,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+
+--sorted_result
+SELECT a,b FROM t1;
+
+DROP TABLE t1;
+
+#
+# INSERT on DUPLICATE KEY UPDATE with secondary key
+#
+--echo
+--echo INSERT on DUPLICATE KEY UPDATE with secondary key
+--echo
+CREATE TABLE t1 (a INT, b CHAR(8), c INT DEFAULT 0, pk INT AUTO_INCREMENT PRIMARY KEY, UNIQUE INDEX(a,b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d'), (5,'e'), (6,'f'), (7,'g'), (8,'h'), (9,'i'), (10,'j') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d'), (5,'e'), (6,'f'), (7,'g'), (8,'h'), (9,'i'), (10,'j') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c') ON DUPLICATE KEY UPDATE c = c + 1;
+
+--sorted_result
+SELECT a,b,c,pk FROM t1;
+
+DROP TABLE t1;
+
+--echo
+--echo Disable caching and see if it still functions properly
+--echo
+SELECT @@rocksdb_enable_insert_with_update_caching;
+SET GLOBAL rocksdb_enable_insert_with_update_caching=0;
+SELECT @@rocksdb_enable_insert_with_update_caching;
+
+#
+# INSERT on DUPLICATE KEY UPDATE with multiple keys
+#
+--echo
+--echo INSERT on DUPLICATE KEY UPDATE with multiple keys
+--echo
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(255)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (3,'a'), (4,'a'), (5,'a'), (6,'a'), (7,'a'), (8,'a'), (9,'a'), (10,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (3,'a'), (4,'a'), (5,'a'), (6,'a'), (7,'a'), (8,'a'), (9,'a'), (10,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a'), (1,'a'), (2,'a') ON DUPLICATE KEY UPDATE b = CONCAT(b, 'a');
+
+--sorted_result
+SELECT a,b FROM t1;
+
+DROP TABLE t1;
+
+#
+# INSERT on DUPLICATE KEY UPDATE with secondary key
+#
+--echo
+--echo INSERT on DUPLICATE KEY UPDATE with secondary key
+--echo
+CREATE TABLE t1 (a INT, b CHAR(8), c INT DEFAULT 0, pk INT AUTO_INCREMENT PRIMARY KEY, UNIQUE INDEX(a,b)) ENGINE=rocksdb;
+INSERT INTO t1 (a,b) VALUES (1,'a');
+INSERT INTO t1 (a,b) VALUES (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a'), (1,'a') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d'), (5,'e'), (6,'f'), (7,'g'), (8,'h'), (9,'i'), (10,'j') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d'), (5,'e'), (6,'f'), (7,'g'), (8,'h'), (9,'i'), (10,'j') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b'), (1,'a'), (2,'b') ON DUPLICATE KEY UPDATE c = c + 1;
+INSERT INTO t1 (a,b) VALUES (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c'), (1,'a'), (2,'c') ON DUPLICATE KEY UPDATE c = c + 1;
+
+--sorted_result
+SELECT a,b,c,pk FROM t1;
+
+DROP TABLE t1;
+
+--echo
+--echo Cleanup
+--echo
+SET GLOBAL rocksdb_enable_insert_with_update_caching=1;
+

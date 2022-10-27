@@ -1,0 +1,11 @@
+"Testing mysql_upgrade with EVENT performance_schema.user_event"
+create event test.user_event on schedule every 1 day do
+select "not supposed to be here";
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+update mysql.event set db='performance_schema' where name='user_event';
+select name from mysql.event where db='performance_schema';
+name
+user_event
+update mysql.event set db='test' where name='user_event';
+drop event test.user_event;

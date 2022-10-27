@@ -1,0 +1,67 @@
+CREATE TABLE articles (
+id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+title VARCHAR(200),
+body TEXT,
+FULLTEXT (title,body)
+) ENGINE=InnoDB;
+SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,ib_dict_create_index_tree_fail";
+CREATE FULLTEXT INDEX idx ON articles(body);
+ERROR HY000: Out of memory.
+SET SESSION debug_dbug=@saved_debug_dbug;
+ALTER TABLE articles STATS_PERSISTENT=DEFAULT;
+DROP TABLE articles;
+CREATE TABLE t (a INT, b TEXT) engine=innodb;
+SET debug_dbug='+d,alter_table_rollback_new_index';
+ALTER TABLE t ADD FULLTEXT INDEX (b(64));
+ERROR HY000: Unknown error
+SET SESSION debug_dbug=@saved_debug_dbug;
+DROP TABLE t;
+CREATE TABLE t1 (pk INT, a VARCHAR(8), PRIMARY KEY(pk),
+FULLTEXT KEY(a)) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT, FOREIGN KEY(b) REFERENCES t1(pk)) ENGINE=InnoDB;
+DROP TABLE t1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+SET DEBUG_DBUG="+d,fts_instrument_sync";
+INSERT INTO t1 VALUES(1, "mariadb");
+ALTER TABLE t1 FORCE;
+DROP TABLE t2, t1;
+#
+# MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
+#
+CREATE TABLE t1(a INT, b TEXT, c TEXT, FULLTEXT INDEX(b)) ENGINE=InnoDB;
+connect con1,localhost,root,,test;
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL s1 WAIT_FOR g1';
+SET DEBUG_SYNC='innodb_commit_inplace_alter_table_enter SIGNAL s2 WAIT_FOR g2';
+ALTER TABLE t1 ADD FULLTEXT(c);
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s1';
+KILL QUERY @id;
+SET DEBUG_SYNC='now SIGNAL g1 WAIT_FOR s2';
+START TRANSACTION;
+SELECT * FROM t1;
+a	b	c
+SET DEBUG_SYNC='now SIGNAL s2';
+connection con1;
+ERROR 70100: Query execution was interrupted
+disconnect con1;
+connection default;
+SET DEBUG_SYNC=RESET;
+ALTER TABLE t1 ADD bl INT AS (LENGTH(b)) VIRTUAL;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# MDEV-25663 Double free of transaction during TRUNCATE
+#
+call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
+SET DEBUG_DBUG='-d,ib_create_table_fail_too_many_trx';
+CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
+SET @save_dbug= @@debug_dbug;
+SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
+TRUNCATE t1;
+ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage engine InnoDB
+SET debug_dbug=@save_dbug;
+DROP TABLE t1;
+# End of 10.3 tests

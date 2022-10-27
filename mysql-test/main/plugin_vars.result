@@ -1,0 +1,67 @@
+#
+# MDEV-5345 - Deadlock between mysql_change_user(), SHOW VARIABLES and
+#             INSTALL PLUGIN
+#
+CREATE PROCEDURE p_install(x INT)
+BEGIN
+DECLARE CONTINUE HANDLER FOR 1126 BEGIN END;
+WHILE x DO
+SET x= x - 1;
+INSTALL PLUGIN no_such_plugin SONAME 'no_such_object';
+END WHILE;
+END|
+CREATE PROCEDURE p_show_vars(x INT)
+WHILE x DO
+SET x= x - 1;
+SHOW VARIABLES;
+END WHILE|
+connect con1, localhost, root,,;
+connect con2, localhost, root,,;
+connection con1;
+CALL p_install(100);
+connection con2;
+CALL p_show_vars(100);
+connection default;
+connection con1;
+connection con2;
+connection default;
+disconnect con1;
+disconnect con2;
+USE test;
+DROP PROCEDURE p_install;
+DROP PROCEDURE p_show_vars;
+#
+# Bug#29363867: LOST CONNECTION TO MYSQL SERVER DURING QUERY
+#
+## prepared SET with a plugin variable prevents uninstall
+install plugin query_response_time soname 'query_response_time';
+prepare s from 'set global query_response_time_range_base=16';
+select plugin_status from information_schema.plugins where plugin_name='query_response_time';
+plugin_status
+ACTIVE
+uninstall plugin query_response_time;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+execute s;
+execute s;
+select plugin_status from information_schema.plugins where plugin_name='query_response_time';
+plugin_status
+DELETED
+deallocate prepare s;
+select plugin_status from information_schema.plugins where plugin_name='query_response_time';
+plugin_status
+## prepared SET mentioning a plugin otherwise does not prevent uninstall
+install plugin archive soname 'ha_archive';
+create table t1 (a int) engine=archive;
+insert t1 values (1),(2),(3);
+prepare s from 'set session auto_increment_increment=(select count(*) from t1)';
+flush tables;
+select plugin_status from information_schema.plugins where plugin_name='archive';
+plugin_status
+ACTIVE
+uninstall plugin archive;
+select plugin_status from information_schema.plugins where plugin_name='archive';
+plugin_status
+execute s;
+ERROR 42000: Unknown storage engine 'ARCHIVE'
+drop table t1;

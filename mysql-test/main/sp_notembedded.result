@@ -1,0 +1,354 @@
+set @old_concurrent_insert= @@global.concurrent_insert;
+set @@global.concurrent_insert= 0;
+drop table if exists t1,t3;
+drop procedure if exists bug4902|
+create procedure bug4902()
+begin
+show grants for 'root'@'localhost';
+end|
+call bug4902()|
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+call bug4902()|
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+drop procedure bug4902|
+drop procedure if exists bug4902_2|
+create procedure bug4902_2()
+begin
+show processlist;
+end|
+call bug4902_2()|
+show warnings|
+Level	Code	Message
+Note	1305	PROCEDURE test.bug4902_2 does not exist
+call bug4902_2()|
+show warnings|
+Level	Code	Message
+Note	1305	PROCEDURE test.bug4902_2 does not exist
+drop procedure bug4902_2|
+drop procedure if exists bug6807|
+create procedure bug6807()
+begin
+declare a int;
+set a = connection_id();
+kill query a;
+select 'Not reached';
+end|
+call bug6807()|
+ERROR 70100: Query execution was interrupted
+call bug6807()|
+ERROR 70100: Query execution was interrupted
+drop procedure bug6807|
+drop function if exists bug10100f|
+drop procedure if exists bug10100p|
+drop procedure if exists bug10100t|
+drop procedure if exists bug10100pt|
+drop procedure if exists bug10100pv|
+drop procedure if exists bug10100pd|
+drop procedure if exists bug10100pc|
+create function bug10100f(prm int) returns int
+begin
+if prm > 1 then
+return prm * bug10100f(prm - 1);
+end if;
+return 1;
+end|
+set statement sql_mode = '' for
+create procedure bug10100p(prm int, inout res int)
+begin
+set res = res * prm;
+if prm > 1 then
+call bug10100p(prm - 1, res);
+end if;
+end|
+set statement sql_mode = '' for
+create procedure bug10100t(prm int)
+begin
+declare res int;
+set res = 1;
+call bug10100p(prm, res);
+select res;
+end|
+create table t3 (a int)|
+insert into t3 values (0)|
+create view v1 as select a from t3|
+create procedure bug10100pt(level int, lim int)
+begin
+if level < lim then
+update t3 set a=level;
+FLUSH TABLES;
+call bug10100pt(level+1, lim);
+else
+select * from t3;
+end if;
+end|
+create procedure bug10100pv(level int, lim int)
+begin
+if level < lim then
+update v1 set a=level;
+FLUSH TABLES;
+call bug10100pv(level+1, lim);
+else
+select * from v1;
+end if;
+end|
+prepare stmt2 from "select * from t3;";
+create procedure bug10100pd(level int, lim int)
+begin
+if level < lim then
+select level;
+prepare stmt1 from "update t3 set a=a+2";
+execute stmt1;
+FLUSH TABLES;
+execute stmt1;
+FLUSH TABLES;
+execute stmt1;
+FLUSH TABLES;
+deallocate prepare stmt1;
+execute stmt2;
+select * from t3;
+call bug10100pd(level+1, lim);
+else
+execute stmt2;
+end if;
+end|
+create procedure bug10100pc(level int, lim int)
+begin
+declare lv int;
+declare c cursor for select a from t3;
+open c;
+if level < lim then
+select level;
+fetch c into lv;
+select lv;
+update t3 set a=level+lv;
+FLUSH TABLES;
+call bug10100pc(level+1, lim);
+else
+select * from t3;
+end if;
+close c;
+end|
+set @@max_sp_recursion_depth=255|
+set @var=1|
+call bug10100p(255, @var)|
+call bug10100pt(1,255)|
+call bug10100pv(1,255)|
+call bug10100pd(1,255)|
+call bug10100pc(1,255)|
+set @@max_sp_recursion_depth=0|
+deallocate prepare stmt2|
+drop function bug10100f|
+drop procedure bug10100p|
+drop procedure bug10100t|
+drop procedure bug10100pt|
+drop procedure bug10100pv|
+drop procedure bug10100pd|
+drop procedure bug10100pc|
+drop view v1|
+drop table t3|
+drop procedure if exists bug15298_1;
+drop procedure if exists bug15298_2;
+create user 'mysqltest_1'@'localhost';
+grant all privileges on test.* to 'mysqltest_1'@'localhost';
+create procedure 15298_1 () sql security definer show grants for current_user;
+create procedure 15298_2 () sql security definer show grants;
+connect  con1,localhost,mysqltest_1,,test;
+call 15298_1();
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+call 15298_2();
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+connection default;
+disconnect con1;
+drop user mysqltest_1@localhost;
+drop procedure 15298_1;
+drop procedure 15298_2;
+drop table if exists t1;
+drop procedure if exists p1;
+create table t1 (value varchar(15));
+create procedure p1() update t1 set value='updated' where value='old';
+call p1();
+insert into t1 (value) values ("old"),("irrelevant");
+connect  rl_holder, localhost, root,,;
+connect  rl_acquirer, localhost, root,,;
+connect  rl_contender, localhost, root,,;
+connect  rl_wait, localhost, root,,;
+connection rl_holder;
+select get_lock('b26162',120);
+get_lock('b26162',120)
+1
+connection rl_acquirer;
+select 'rl_acquirer', value from t1 where get_lock('b26162',120);;
+connection rl_wait;
+connection default;
+set session low_priority_updates=on;
+call p1();;
+connection rl_wait;
+connection rl_contender;
+select 'rl_contender', value from t1;
+rl_contender	value
+rl_contender	old
+rl_contender	irrelevant
+connection rl_holder;
+select release_lock('b26162');
+release_lock('b26162')
+1
+connection rl_acquirer;
+rl_acquirer	value
+rl_acquirer	old
+rl_acquirer	irrelevant
+connection default;
+disconnect rl_holder;
+disconnect rl_acquirer;
+disconnect rl_wait;
+disconnect rl_contender;
+drop procedure p1;
+drop table t1;
+set session low_priority_updates=default;
+# switching from mysql.global_priv to mysql.user
+INSERT IGNORE INTO mysql.user (Host, User, Password, Select_priv, Insert_priv, Update_priv,
+Delete_priv, Create_priv, Drop_priv, Reload_priv, Shutdown_priv, Process_priv, File_priv,
+Grant_priv, References_priv, Index_priv, Alter_priv, Show_db_priv, Super_priv,
+Create_tmp_table_priv, Lock_tables_priv, Execute_priv, Repl_slave_priv, Repl_client_priv,
+Create_view_priv, Show_view_priv, Create_routine_priv, Alter_routine_priv,
+Create_user_priv, ssl_type, ssl_cipher, x509_issuer, x509_subject, max_questions,
+max_updates, max_connections, max_user_connections) 
+VALUES('%', 'mysqltest_1', password(''), 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'N', 'N', 'N',
+'N', 'N', 'N', 'Y', 'Y', 'N', 'N', 'Y', 'Y', 'N', 'N', 'N', 'N', 'N', 'Y', 'Y', 'N', '',
+'', '', '', '0', '0', '0', '0');
+Warnings:
+Warning	1364	Field 'authentication_string' doesn't have a default value
+FLUSH PRIVILEGES;
+connect  con1, localhost, mysqltest_1,,;
+connection con1;
+CREATE PROCEDURE p1(i INT) BEGIN END;
+disconnect con1;
+connection default;
+DROP PROCEDURE p1;
+# switching back from mysql.user to mysql.global_priv
+#
+# Bug#44521 Prepared Statement: CALL p() - crashes: `! thd->main_da.is_sent' failed et.al.
+#
+SELECT GET_LOCK('Bug44521', 0);
+GET_LOCK('Bug44521', 0)
+1
+connect  con1,localhost,root,,;
+CREATE PROCEDURE p()
+BEGIN
+SELECT 1;
+SELECT GET_LOCK('Bug44521', 100);
+SELECT 2;
+END$
+CALL p();;
+connection default;
+disconnect con1;
+SELECT RELEASE_LOCK('Bug44521');
+RELEASE_LOCK('Bug44521')
+1
+DROP PROCEDURE p;
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES (1);
+CREATE FUNCTION f1 (inp TEXT) RETURNS INT NO SQL RETURN sleep(60);
+CREATE VIEW v1 AS SELECT f1('a') FROM t1;
+connect  con1, localhost, root,,;
+SELECT * FROM v1;;
+connect  con2, localhost, root,,;
+SELECT * FROM v1;
+connection default;
+connection con1;
+ERROR 70100: Query execution was interrupted
+connection con2;
+ERROR 70100: Query execution was interrupted
+connection default;
+DROP VIEW v1;
+DROP TABLE t1;
+DROP FUNCTION f1;
+disconnect con1;
+disconnect con2;
+# ------------------------------------------------------------------
+# -- End of 5.1 tests
+# ------------------------------------------------------------------
+#
+# Test for bug#11763757 "56510: ERROR 42000: FUNCTION DOES NOT EXIST
+# IF NOT-PRIV USER RECONNECTS ".
+#
+# The real problem was that server was unable handle properly stored
+# functions in databases which names contained dot.
+#
+connection default;
+DROP DATABASE IF EXISTS `my.db`;
+create database `my.db`;
+use `my.db`;
+CREATE FUNCTION f1(a int) RETURNS INT RETURN a;
+connect  addcon, localhost, root,,;
+connection addcon;
+USE `my.db`;
+SELECT f1(1);
+f1(1)
+1
+SELECT `my.db`.f1(2);
+`my.db`.f1(2)
+2
+connection default;
+disconnect addcon;
+DROP DATABASE `my.db`;
+USE test;
+#
+# Bug#11763507 - 56224: FUNCTION NAME IS CASE-SENSITIVE
+#
+SET @@SQL_MODE = '';
+CREATE EVENT teste_bug11763507 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR 
+DO SELECT 1 $
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
+SHOW EVENTS LIKE 'teste_bug11763507';
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+test	teste_bug11763507	root@localhost	SYSTEM	ONE TIME	#	#	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW EVENTS LIKE 'TESTE_bug11763507';
+Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
+test	teste_bug11763507	root@localhost	SYSTEM	ONE TIME	#	#	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE EVENT teste_bug11763507;
+Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
+teste_bug11763507		SYSTEM	#	latin1	latin1_swedish_ci	latin1_swedish_ci
+SHOW CREATE EVENT TESTE_bug11763507;
+Event	sql_mode	time_zone	Create Event	character_set_client	collation_connection	Database Collation
+teste_bug11763507		SYSTEM	#	latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP EVENT teste_bug11763507;
+#END OF BUG#11763507 test.
+# ------------------------------------------------------------------
+# -- End of 5.1 tests
+# ------------------------------------------------------------------
+# switching from mysql.global_priv to mysql.user
+grant create routine on test.* to foo1@localhost identified by 'foo';
+update mysql.user set authentication_string = replace(authentication_string, '*', '-') where user='foo1';
+connect  foo,localhost,foo1,foo;
+show grants;
+Grants for foo1@localhost
+GRANT USAGE ON *.* TO `foo1`@`localhost` IDENTIFIED BY PASSWORD '*F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT CREATE ROUTINE ON `test`.* TO `foo1`@`localhost`
+connection default;
+flush privileges;
+connection foo;
+show grants;
+Grants for foo1@localhost
+GRANT USAGE ON *.* TO `foo1`@`localhost` IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT CREATE ROUTINE ON `test`.* TO `foo1`@`localhost`
+create procedure spfoo() select 1;
+show grants;
+Grants for foo1@localhost
+GRANT USAGE ON *.* TO `foo1`@`localhost` IDENTIFIED BY PASSWORD '-F3A2A51A9B0F2BE2468926B4132313728C250DBF'
+GRANT CREATE ROUTINE ON `test`.* TO `foo1`@`localhost`
+GRANT EXECUTE, ALTER ROUTINE ON PROCEDURE `test`.`spfoo` TO `foo1`@`localhost`
+connection default;
+disconnect foo;
+drop procedure spfoo;
+drop user foo1@localhost;
+# switching back from mysql.user to mysql.global_priv
+set @@global.concurrent_insert= @old_concurrent_insert;

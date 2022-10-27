@@ -1,0 +1,92 @@
+--source include/galera_cluster.inc
+--source include/check_ipv6.inc
+--source include/force_restart.inc
+
+call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to'");
+call mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE USER 'sst';
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
+
+--let $wsrep_sst_auth_orig = `SELECT @@wsrep_sst_auth`
+SET GLOBAL wsrep_sst_auth = 'sst:';
+
+--connection node_2
+--source include/wait_until_connected_again.inc
+--let $wsrep_sst_method_orig = `SELECT @@wsrep_sst_method`
+--let $wsrep_sst_receive_address_orig = `SELECT @@wsrep_sst_receive_address`
+
+--disable_query_log
+--eval SET GLOBAL wsrep_sst_receive_address = '[::1]:$NODE_MYPORT_2';
+--enable_query_log
+SET GLOBAL wsrep_sst_method = 'mysqldump';
+
+#
+# Force mysqldump SST
+#
+
+#--connection node_2
+#--source suite/galera/include/galera_stop_replication.inc
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--echo Cleaning var directory ...
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mtr
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mysql
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+--echo Starting server ...
+--let $start_mysqld_params = --wsrep_sst_auth=sst: --wsrep_sst_method=mysqldump --wsrep-sst-receive-address=[::1].1:$NODE_MYPORT_2
+let $restart_noprint=2;
+--source include/start_mysqld.inc
+
+#--source suite/galera/include/galera_start_replication.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+
+DROP TABLE t1;
+
+# Confirm that initial handshake happened over ipv6
+
+SELECT VARIABLE_VALUE LIKE '%[::1]%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_incoming_addresses';
+
+# restart node so we don't fail on WSREP_START_POSITION internal check
+--source include/restart_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+--source ../galera/include/auto_increment_offset_restore.inc
+--source suite/galera/include/galera_sst_restore.inc
+--connection node_2
+CALL mtr.add_suppression("Unsupported protocol downgrade: incremental data collection disabled. Expect abort");
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

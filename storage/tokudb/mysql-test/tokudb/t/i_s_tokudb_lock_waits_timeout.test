@@ -1,0 +1,73 @@
+skip Tokudb Lock Waits not in I_S in MariaDB;
+# verify that tokudb_locks and tokudb_lock_waits contents for 2 conflicting transactions with a lock timeout
+
+source include/have_tokudb.inc;
+set default_storage_engine='tokudb';
+set tokudb_prelock_empty=false;
+disable_warnings;
+drop table if exists t;
+enable_warnings;
+
+create table t (id int primary key);
+
+# should be empty
+select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+select * from information_schema.tokudb_locks;
+select * from information_schema.tokudb_lock_waits;
+
+connect (conn_a,localhost,root,,);
+set autocommit=0;
+set tokudb_prelock_empty=OFF;
+insert into t values (1);
+
+connect (conn_b,localhost,root,,);
+set autocommit=0;
+set tokudb_prelock_empty=OFF;
+set tokudb_lock_timeout=60000; # set lock wait timeout to 1 minute
+
+send replace into t values (1);
+
+# should find the presence of a lock on 1st transaction
+connection default;
+let $wait_condition= select count(*)=1 from information_schema.processlist where info='replace into t values (1)' and state='update';
+source include/wait_condition.inc;
+real_sleep 1; # delay a little to shorten the update -> write row -> lock wait race
+
+replace_column 1 TRX_ID 2 MYSQL_ID; 
+select * from information_schema.tokudb_locks;
+
+# should find the presence of a lock_wait on the 2nd transaction
+replace_column 1 REQUEST_TRX_ID 2 BLOCK_TRX_ID 6 LOCK_WAITS_START_TIME;
+select * from information_schema.tokudb_lock_waits;
+
+# should find the presence of two transactions
+replace_column 1 TRX_ID 2 MYSQL_ID;
+select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+
+connection conn_a;
+real_sleep 45; # sleep till we get close to timeout since wait_condidion will timeout @ 30 seconds
+let $wait_condition= select count(*)=0 from information_schema.processlist where info='replace into t values (1)' and state='update';
+source include/wait_condition.inc;
+commit;
+
+# verify that the lock on the 1st transaction is released and replaced by the lock for the 2nd transaction
+replace_column 1 TRX_ID 2 MYSQL_ID;
+select * from information_schema.tokudb_locks;
+select * from information_schema.tokudb_lock_waits;
+
+connection conn_b;
+--error 1205 # lock timeout
+reap;
+commit;
+
+connection default;
+disconnect conn_a;
+disconnect conn_b;
+
+# should be be empty
+select trx_id,trx_mysql_thread_id from information_schema.tokudb_trx;
+select * from information_schema.tokudb_locks;
+select * from information_schema.tokudb_lock_waits;
+
+# cleanup
+drop table t;

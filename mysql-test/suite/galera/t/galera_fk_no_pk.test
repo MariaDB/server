@@ -1,0 +1,37 @@
+#
+# Test foreign keys if no PK is present
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+CREATE TABLE parent (
+    id INT,
+    KEY (id)
+) ENGINE=InnoDB;
+
+CREATE TABLE child (
+    id INT,
+    parent_id INT,
+    FOREIGN KEY (parent_id) 
+        REFERENCES parent(id)
+	ON UPDATE CASCADE
+	ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO parent VALUES (1), (1), (2), (2);
+INSERT INTO child VALUES (1,1), (2,2), (1,1), (2,2);
+
+--connection node_2
+DELETE FROM parent WHERE id = 1;
+SELECT COUNT(*) = 0 FROM child WHERE id = 1;
+
+--connection node_1
+UPDATE parent SET id = 3 WHERE id = 2;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM child WHERE parent_id = 1;
+SELECT parent_id = 3 FROM child WHERE id = 2;
+
+DROP TABLE child;
+DROP TABLE parent;

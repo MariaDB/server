@@ -1,0 +1,16 @@
+-- source include/have_innodb.inc
+-- source include/big_test.inc
+-- source include/not_embedded.inc
+
+--disable_query_log
+let $status_orig=`SELECT @@innodb_status_output`;
+--enable_query_log
+
+create table foo (id varchar(37) not null, content longblob) engine=INNODB;
+insert into foo (id, content) values('xyz', '');
+update foo set content=repeat('a', 43941888) where id='xyz';
+drop table foo;
+
+--disable_query_log
+EVAL SET GLOBAL innodb_status_output = $status_orig;
+--enable_query_log

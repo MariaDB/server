@@ -1,0 +1,441 @@
+--source suite/versioning/engines.inc
+--source suite/versioning/common.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE NULL ''
+eval create table t1 (
+  x1 int unsigned,
+  Sys_start $sys_datatype_expl as row start invisible comment 'start',
+  Sys_end $sys_datatype_expl as row end invisible comment 'end',
+  period for system_time (Sys_start, Sys_end)
+) with system versioning;
+--replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE
+show create table t1;
+
+--query_vertical select table_catalog,table_schema,table_name,table_type,version,table_rows,data_free,auto_increment,check_time,table_collation,checksum,create_options,table_comment from information_schema.tables where table_name='t1'
+--query_vertical select table_catalog,table_schema,table_name,column_name,ordinal_position,column_default,character_maximum_length,character_octet_length,character_set_name,collation_name,column_key,extra,column_comment,is_generated,generation_expression from information_schema.columns where table_name='t1'
+
+--echo # Implicit fields test
+create or replace table t1 (
+  x2 int unsigned
+) with system versioning;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+--replace_result $default_engine DEFAULT_ENGINE
+--error ER_VERS_PERIOD_COLUMNS
+eval create or replace table t1 (
+  x3 int unsigned,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
+  period for system_time (x, Sys_end)
+) with system versioning;
+
+--replace_result $default_engine DEFAULT_ENGINE
+--error ER_VERS_PERIOD_COLUMNS
+eval create or replace table t1 (
+  x4 int unsigned,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end2 timestamp(6) as row end invisible,
+  period for system_time (Sys_start, Sys_end)
+) with system versioning;
+
+--replace_result $default_engine DEFAULT_ENGINE
+--error ER_VERS_PERIOD_COLUMNS
+eval create or replace table t1 (
+  x5 int unsigned,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
+  period for system_time (Sys_start, x)
+) with system versioning;
+
+--error ER_MISSING
+create or replace table t1 (
+  x6 int unsigned,
+  period for system_time (Sys_start, Sys_end)
+) with system versioning;
+
+--replace_result $default_engine DEFAULT_ENGINE
+--error ER_MISSING
+eval create or replace table t1 (
+  x7 int unsigned,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
+  period for system_time (Sys_start, Sys_end)
+);
+
+--replace_result $default_engine DEFAULT_ENGINE
+--error ER_VERS_PERIOD_COLUMNS
+eval create or replace table t1 (
+  x8 int unsigned,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
+  period for system_time (sys_insert, sys_remove)
+) with system versioning;
+
+--replace_result $default_engine DEFAULT_ENGINE
+--error ER_MISSING
+eval create or replace table t1 (
+  x9 int unsigned,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
+  period for system_time (Sys_start, Sys_end)
+);
+
+--replace_result $default_engine DEFAULT_ENGINE
+--error ER_MISSING
+eval create or replace table t1 (
+  x10 int unsigned,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
+  period for system_time (Sys_start, Sys_start)
+);
+
+--error ER_VERS_FIELD_WRONG_TYPE, ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1 (
+  x11 int unsigned,
+  Sys_start bigint unsigned as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
+  period for system_time (Sys_start, Sys_end)
+) with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE, ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1 (
+  x12 int unsigned,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end bigint unsigned as row end invisible,
+  period for system_time (Sys_start, Sys_end)
+) with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1 (
+  x13 int unsigned,
+  Sys_start bigint as row start invisible,
+  Sys_end bigint unsigned as row end invisible,
+  period for system_time (Sys_start, Sys_end)
+) with system versioning engine innodb;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1 (
+  x14 int unsigned,
+  Sys_start bigint unsigned as row start invisible,
+  Sys_end bigint as row end invisible,
+  period for system_time (Sys_start, Sys_end)
+) with system versioning engine innodb;
+
+# columns with/without system versioning
+
+create or replace table t1 (
+  x15 int with system versioning,
+  B int
+);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (
+  x16 int with system versioning,
+  B int
+) with system versioning;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (
+  x17 int,
+  B int without system versioning
+);
+
+create or replace table t1 (
+  x18 int,
+  B int without system versioning
+) with system versioning;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (
+  x19 int with system versioning,
+  B int without system versioning
+);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (
+  x20 int with system versioning,
+  B int without system versioning
+) with system versioning;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+create or replace table t1 (
+  x21 int without system versioning
+);
+
+--error ER_VERS_TABLE_MUST_HAVE_COLUMNS
+create or replace table t1 (
+  x22 int without system versioning
+) with system versioning;
+
+# CREATE TABLE ... LIKE
+create or replace table t1 (a int) with system versioning;
+create table tt1 like t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table tt1;
+drop table tt1;
+create temporary table tt1 like t1;
+--echo # Temporary is stripped from versioning
+--replace_result $default_engine DEFAULT_ENGINE
+show create table tt1;
+
+--echo # CREATE TABLE ... SELECT
+create or replace table t1 (x23 int) with system versioning;
+--replace_result $default_engine DEFAULT_ENGINE
+eval create or replace table t0(
+  y int,
+  st timestamp(6) as row start,
+  en timestamp(6) as row end,
+  period for system_time (st, en)
+) with system versioning;
+
+--echo ## For non-versioned table:
+--echo ### 1. invisible fields are not included
+create or replace table t2 as select * from t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+
+--echo ### 2. all visible fields are included
+create or replace table t3 as select * from t0;
+select * from t0;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t3;
+
+--echo ## For versioned table
+insert into t1 values (1);
+select row_start from t1 into @row_start;
+insert into t0 (y) values (2);
+select st from t0 into @st;
+
+create or replace table t2 with system versioning as select * from t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+--echo #### invisible fields are not copied
+select * from t2;
+select * from t2 where row_start <= @row_start;
+
+--echo ### 2. source table with visible system fields, target with invisible
+create or replace table t3 with system versioning as select * from t0;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t3;
+select * from t3 where y > 2;
+select y from t3 where st = @st and row_start > @st;
+
+--echo ### 3. source and target table with visible system fields
+--replace_result $default_engine DEFAULT_ENGINE
+eval create or replace table t3 (
+  st timestamp(6) as row start invisible,
+  en timestamp(6) as row end invisible,
+  period for system_time (st, en)
+) with system versioning as select * from t0;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t3;
+select y from t3;
+select y from t3 where st = @st;
+
+--echo ### 4. system fields not or wrongly selected
+create or replace table t3 with system versioning select x23 from t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t3;
+select * from t3;
+--error ER_DUP_FIELDNAME
+create or replace table t3 with system versioning select x23, row_start from t1;
+--error ER_DUP_FIELDNAME
+create or replace table t3 with system versioning select x23, row_end from t1;
+
+--echo # Prepare checking for historical row
+delete from t1;
+select row_end from t1 for system_time all into @row_end;
+delete from t0;
+select en from t0 for system_time all into @en;
+
+--echo ## Combinations of versioned + non-versioned
+create or replace table t2 (y int);
+insert into t2 values (3);
+create or replace table t3 with system versioning select * from t1 for system_time all, t2;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t3;
+select * from t3 for system_time all;
+select * from t3 for system_time all where row_start = @row_start and row_end = @row_end;
+
+create or replace table t2 like t0;
+insert into t2 (y) values (1), (2);
+delete from t2 where y = 2;
+
+create or replace table t3 select * from t2 for system_time all;
+select st, en from t3 where y = 1 into @st, @en;
+select y from t2 for system_time all where st = @st and en = @en;
+select st, en from t3 where y = 2 into @st, @en;
+select y from t2 for system_time all where st = @st and en = @en;
+
+--echo ## Default engine detection
+--replace_result $non_default_engine NON_DEFAULT_ENGINE
+eval create or replace table t1 (x25 int) with system versioning engine $non_default_engine;
+create or replace table t2
+as select x25, row_start, row_end from t1 for system_time all;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+
+create or replace table t2 with system versioning
+as select x25, row_start rs, row_end re from t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+
+create or replace table t1 (
+  x26 int,
+  st bigint unsigned as row start,
+  en bigint unsigned as row end,
+  period for system_time (st, en)
+) with system versioning engine innodb;
+create or replace table t2 with system versioning engine myisam
+as select * from t1;
+show create table t2;
+
+--replace_result $non_default_engine NON_DEFAULT_ENGINE
+eval create or replace table t1 (x27 int, id int) with system versioning engine $non_default_engine;
+create or replace table t2 (b int, id int);
+create or replace table t3 with system versioning
+as select t2.b, t1.x27, t1.row_start rs, t1.row_end re from t2 inner join t1 on t2.id=t1.id;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t3;
+
+--echo ## Errors
+
+--error ER_VERS_NOT_SUPPORTED
+create or replace temporary table t (x28 int) with system versioning;
+
+--error ER_VERS_DUPLICATE_ROW_START_END
+create or replace table t1 (
+  x29 int unsigned,
+  Sys_start0 timestamp(6) as row start invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
+  period for system_time (Sys_start, Sys_end)
+) with system versioning;
+
+--error ER_VERS_DUPLICATE_ROW_START_END
+create or replace table t1 (
+  x29 int unsigned,
+  Sys_end0 timestamp(6) as row end invisible,
+  Sys_start timestamp(6) as row start invisible,
+  Sys_end timestamp(6) as row end invisible,
+  period for system_time (Sys_start, Sys_end)
+) with system versioning;
+
+--echo ## System fields detection
+create or replace table t1 (x30 int) with system versioning;
+--replace_result $default_engine DEFAULT_ENGINE
+eval create or replace table t2 (
+    y int,
+    st timestamp(6) as row start invisible,
+    en timestamp(6) as row end invisible,
+    period for system_time (st, en)
+) with system versioning;
+
+create or replace table t3
+as select x30, y, row_start, row_end, st, en from t1, t2;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t3;
+
+--replace_result $default_engine DEFAULT_ENGINE
+eval create or replace table t3 (
+    y int,
+    st timestamp(6) as row start invisible,
+    en timestamp(6) as row end invisible,
+    period for system_time (st, en)
+) with system versioning
+as select x30, y, row_start, row_end, st, en from t1, t2;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t3;
+
+--echo # MDEV-14828 Server crashes in JOIN::prepare / setup_fields on 2nd execution of PS [#437]
+create or replace table t1 (x int) with system versioning;
+prepare bad from 'create or replace table t2 with system versioning as select * from t1';
+execute bad; execute bad; execute bad; execute bad; execute bad; execute bad; execute bad; execute bad;
+--echo # bad is good.
+
+--echo # MDEV-15413 Unexpected errors upon CREATE TABLE .. WITH SYSTEM VERSIONING AS SELECT ...
+create or replace table t1 with system versioning as select 1 as i;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+create or replace table t1 (i int) with system versioning as select 1 as i;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1 (
+  a int,
+  row_start bigint as row start,
+  row_end bigint as row end,
+  period for system_time (row_start, row_end)
+) engine=innodb with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1 (
+  a int,
+  row_start bigint as row start,
+  row_end bigint as row end,
+  period for system_time (row_start, row_end)
+) engine=myisam with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+create table t (
+  a int,
+  row_start datetime(6) generated always as row start,
+  row_end datetime(6) generated always as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+
+--source suite/versioning/common_finish.inc
+--echo # MDEV-16490 It's possible to make a system versioned table without any versioning field
+create or replace table t1 (x int without system versioning)
+with system versioning
+select 1 as y;
+--error ER_VERS_TABLE_MUST_HAVE_COLUMNS
+create or replace table t1 (x int without system versioning)
+with system versioning
+select 1 as x;
+
+drop tables t0, t1, t2, t3;
+
+--echo #
+--echo # MDEV-23968 CREATE TEMPORARY TABLE .. LIKE (system versioned table) returns error if unique index is defined in the table
+--echo #
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+create table t1 (id int primary key, index(row_start)) with system versioning;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+create table t1 (id int primary key, index(row_end)) with system versioning;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+create table t1 (id int, primary key(id, row_end, row_end)) with system versioning;
+create table t1 (id int primary key) with system versioning;
+create temporary table t2 like t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+drop temporary table t2;
+create or replace table t1 (
+  a int,
+  row_start timestamp(6) as row start,
+  row_end timestamp(6) as row end,
+  period for system_time (row_start, row_end),
+  index(row_start),
+  index(row_end),
+  primary key(row_end, a, row_start),
+  index(row_end, row_start, a)) with system versioning;
+create temporary table t2 like t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t2;
+drop temporary table t2;
+drop table t1;

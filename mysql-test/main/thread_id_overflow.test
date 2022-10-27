@@ -1,0 +1,35 @@
+# test 32bit overflow with connection id
+--source include/have_debug.inc
+
+
+# Connect and disconnect once, to create a "hole" in connection ids
+connect con1, localhost,root;
+disconnect con1;
+
+connect con2, localhost,root;
+connection con2;
+
+connection default;
+let $max_id = `SELECT MAX(ID) FROM INFORMATION_SCHEMA.PROCESSLIST`;
+
+SET @orig_debug=@@debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,thread_id_overflow';
+
+connect con3, localhost,root;
+connection con3;
+# next line gives UINT32_MAX -1;
+SELECT CONNECTION_ID();
+
+connection default;
+SET GLOBAL DEBUG_DBUG=@orig_debug;
+
+connect con4, localhost,root;
+connection con4;
+--replace_result $max_id max_id
+eval select IF(connection_id() - $max_id = 1,'Good','Bad') as result;
+
+disconnect con4;
+disconnect con3;
+disconnect con2;
+
+connection default;

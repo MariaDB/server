@@ -1,0 +1,27 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1 (a int not null primary key);
+insert into  t1 values (1);
+create table t2 (a int);
+insert into  t2 values (1);
+update t1, t2 set t1.a = 0 where t1.a = t2.a;
+connection slave;
+show tables;
+Tables_in_test
+t1
+select * from t1;
+a
+0
+drop table t1;
+connection master;
+insert into t1 values (1);
+connection slave;
+call mtr.add_suppression("Slave SQL.*Error executing row event: .Table .test.t1. doesn.t exist., error.* 1146");
+include/wait_for_slave_sql_error.inc [errno=1146]
+==== Clean up ====
+include/stop_slave_io.inc
+RESET SLAVE;
+connection master;
+drop table t1, t2;
+include/rpl_end.inc

@@ -1,0 +1,93 @@
+--source include/have_debug.inc
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+mkdir $targetdir;
+
+CREATE TABLE t1(i int)   ENGINE INNODB;
+INSERT into t1 values(1);
+
+CREATE TABLE t2(i int)   ENGINE INNODB;
+INSERT INTO t2 values(2);
+
+CREATE TABLE t3(i int) ENGINE INNODB;
+CREATE TABLE t4(i int) ENGINE INNODB;
+CREATE TABLE t5(i int) ENGINE INNODB;
+INSERT INTO t5 VALUES(5);
+
+CREATE TABLE a(a int)    ENGINE INNODB;
+INSERT INTO a values(1);
+CREATE TABLE b(b CHAR(1)) ENGINE INNODB;
+INSERT INTO b VALUES('b');
+
+CREATE TABLE a1(a1 int)    ENGINE INNODB;
+INSERT INTO a1 VALUES(1);
+
+CREATE TABLE b1(b1 CHAR(2)) ENGINE INNODB;
+INSERT INTO b1 VALUES('b1');
+
+# Test renames before of after copying tablespaces
+--let before_copy_test_t1=RENAME TABLE test.t1 TO test.t1_renamed
+--let after_copy_test_t2=RENAME TABLE  test.t2 TO test.t2_renamed
+--let after_copy_test_t3=BEGIN NOT ATOMIC RENAME TABLE test.t3 TO test.t3_tmp; INSERT INTO test.t3_tmp VALUES(3); RENAME TABLE test.t3_tmp TO test.t3; END
+--let before_copy_test_t4=RENAME TABLE test.t4 TO test.t4_tmp
+--let after_copy_test_t4=RENAME TABLE test.t4_tmp TO test.t4
+--let after_copy_test_t5=BEGIN NOT ATOMIC RENAME TABLE test.t5 TO test.t6; CREATE TABLE test.t5(i int) ENGINE INNODB; END
+
+# Test circular renames
+--let before_copy_test_b=RENAME TABLE test.a to test.tmp, test.b to test.a, test.tmp to test.b
+--let after_copy_test_b1=RENAME TABLE test.a1 to test.tmp, test.b1 to test.a1, test.tmp to test.b1
+
+--disable_result_log 
+exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$targetdir  --dbug=+d,mariabackup_events;
+--enable_result_log
+
+--let before_copy_test_t1=''
+--let after_copy_test_t2=''
+--let before_copy_test_a=''
+--let after_copy_test_a1=''
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+# the table was renamed from t1 to t1_renamed
+# make sure t1 does not exist, and t1_renamed does.
+
+CREATE TABLE t1(i int);
+DROP TABLE t1;
+
+SELECT * from t1_renamed;
+DROP TABLE t1_renamed;
+
+
+CREATE TABLE t2(i int);
+DROP TABLE t2;
+
+SELECT * from t2_renamed;
+DROP TABLE t2_renamed;
+
+#rename to itself
+SELECT * from t3;
+DROP TABLE t3;
+
+SELECT * from t4;
+DROP TABLE t4;
+
+# For circular renames , make sure intermediate tables do not exist
+CREATE TABLE tmp(i int);
+DROP TABLE tmp;
+
+SELECT * FROM a;
+SELECT * FROM b;
+SELECT * FROM a1;
+SELECT * FROM b1;
+
+DROP TABLE a,b,a1,b1;
+SELECT * from t5;
+DROP TABLE t5;
+SELECT * from t6;
+DROP TABLE t6;
+rmdir $targetdir;
+
+

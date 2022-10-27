@@ -1,0 +1,224 @@
+################################################################################
+#                                                                              #
+# Variable Name: sql_low_priority_updates                                      #
+# Scope: GLOBAL & SESSION                                                      #
+# Access Type: Dynamic                                                         #
+# Data Type: BOOLEAN                                                           #
+# Default Value: 1 TRUE                                                        #
+# Values:       1 TRUE, 0 FALSE                                                #
+#                                                                              #
+#                                                                              #
+# Creation Date: 2008-02-25                                                    #
+# Author:  Sharique Abdullah                                                   #
+#                                                                              #
+# Description: Test Cases of Dynamic System Variable  sql_low_priority_updates #
+#              that checks behavior of this variable in the following ways     #
+#              * Functionality based on different values                       #
+#                                                                              #
+# Reference: http://dev.mysql.com/doc/refman/5.1/en/set-option.html            #
+#                                                                              #
+################################################################################
+
+--source include/not_embedded.inc
+
+################################################################
+# sql_low_priority_updates was renamed to low_priority_updates #
+################################################################
+
+--echo ** Setup **
+--echo
+#
+# Setup
+#
+connect (con0,localhost,root,,);
+connect (con1,localhost,root,,);
+
+connection default;
+
+SET @global_low_priority_updates = @@GLOBAL.low_priority_updates;
+SET @session_low_priority_updates = @@SESSION.low_priority_updates;
+
+#
+# Create Table
+#
+
+CREATE TABLE t1 (a varchar(100));
+create view v1 as select * from t1;
+
+--echo '#--------------------FN_DYNVARS_160_01-------------------------#'
+#
+# Value ON
+#
+
+connection con0;
+SET SESSION low_priority_updates = ON;
+connection con1;
+SET SESSION low_priority_updates = ON;
+connection default;
+SET SESSION low_priority_updates = ON;
+
+INSERT INTO t1 VALUES('1');
+INSERT INTO t1 VALUES('2');
+INSERT INTO t1 VALUES('3');
+INSERT INTO t1 VALUES('4');
+INSERT INTO t1 VALUES('5');
+INSERT INTO t1 VALUES('6');
+
+LOCK TABLE v1 WRITE CONCURRENT;
+
+connection con1;
+
+--echo ** Asynchronous Execution **
+delimiter |;
+
+send
+UPDATE t1 SET a = CONCAT(a,"-updated");|
+
+delimiter ;|
+
+connection con0;
+
+let $wait_condition = SELECT COUNT(*) > 0 FROM information_schema.processlist
+                      WHERE state='Waiting for table level lock' AND
+                            info LIKE  'UPDATE t1 SET a = CONCAT(a,"-updated")';
+--source include/wait_condition.inc
+
+--echo ** Asynchronous Execution **
+delimiter |;
+
+send
+LOCK TABLE t1 READ;
+SELECT * FROM t1;
+UNLOCK TABLES;|
+
+delimiter ;|
+
+connection default;
+
+let $wait_condition= SELECT count(*) = 2 FROM information_schema.processlist
+                     WHERE state LIKE 'Waiting for table level lock';
+--source include/wait_condition.inc
+UNLOCK TABLES;
+
+connection con0;
+--echo ** Asynchronous Result **
+reap;
+
+--echo Expected values of a without -updated;
+
+connection default;
+
+DELETE FROM t1;
+
+--echo '#--------------------FN_DYNVARS_160_02-------------------------#'
+#
+# Value ON
+#
+
+connection con0;
+SET SESSION low_priority_updates = OFF;
+connection con1;
+reap;
+SET SESSION low_priority_updates = OFF;
+connection default;
+SET SESSION low_priority_updates = OFF;
+
+INSERT INTO t1 VALUES('1');
+INSERT INTO t1 VALUES('2');
+INSERT INTO t1 VALUES('3');
+INSERT INTO t1 VALUES('4');
+INSERT INTO t1 VALUES('5');
+INSERT INTO t1 VALUES('6');
+
+LOCK TABLE v1 READ;
+
+connection con1;
+
+--echo ** Asynchronous Execution **
+delimiter |;
+
+send
+UPDATE t1 SET a = CONCAT(a,"-updated");|
+
+delimiter ;|
+
+connection con0;
+
+let $wait_condition = SELECT COUNT(*) > 0 FROM information_schema.processlist
+                      WHERE state='Waiting for table level lock' AND
+                            info LIKE  'UPDATE t1 SET a = CONCAT(a,"-updated")';
+--source include/wait_condition.inc
+
+--echo ** Asynchronous Execution **
+delimiter |;
+
+send
+LOCK TABLE t1 READ;
+SELECT * FROM t1;
+UNLOCK TABLES;|
+
+delimiter ;|
+
+connection default;
+
+let $wait_condition= SELECT count(*) = 2 FROM information_schema.processlist
+                     WHERE state LIKE 'Waiting for table level lock';
+--source include/wait_condition.inc
+UNLOCK TABLES;
+
+connection con0;
+--echo ** Asynchronous Result **
+reap;
+--echo Expected values of a with -updated;
+
+connection default;
+
+DELETE FROM t1;
+
+--echo '#--------------------FN_DYNVARS_160_03-------------------------#'
+#
+# Session data integrity check & GLOBAL Value check
+#
+
+connect (con_int1,localhost,root,,);
+
+connection con_int1;
+SELECT @@SESSION.low_priority_updates;
+--echo 1 / TRUE Expected
+
+SET SESSION low_priority_updates = FALSE;
+
+connect (con_int2,localhost,root,,);
+
+connection con_int2;
+SELECT @@SESSION.low_priority_updates;
+--echo 1 / TRUE Expected
+
+SET SESSION low_priority_updates = TRUE;
+
+connection con_int1;
+SELECT @@SESSION.low_priority_updates;
+--echo 0 / FALSE Expected
+
+connection con_int2;
+SELECT @@SESSION.low_priority_updates;
+--echo 1 / TRUE Expected
+
+connection default;
+
+disconnect con_int1;
+disconnect con_int2;
+
+#
+# Cleanup
+#
+
+connection default;
+disconnect con0;
+disconnect con1;
+
+drop view v1;
+DROP TABLE t1;
+
+SET @@GLOBAL.low_priority_updates = @global_low_priority_updates;
+SET @@SESSION.low_priority_updates = @session_low_priority_updates;

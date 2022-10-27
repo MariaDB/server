@@ -1,0 +1,40 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+#
+# Test sequences with views
+#
+
+create sequence s1;
+create view v1 as select * from s1;
+create view v2 as select next value for s1;
+select * from v1;
+select * from v2;
+select * from v2;
+--error ER_NOT_SEQUENCE
+select next value for v1;
+drop sequence s1;
+drop view v1,v2;
+
+--echo #
+--echo # MDEV 13020 Server crashes in Item_func_nextval::val_int upon
+--echo # selecting NEXT or PREVIOUS VALUE for a view
+--echo #
+
+CREATE OR REPLACE VIEW v1 AS SELECT 1 AS f;
+--error ER_NOT_SEQUENCE
+SELECT NEXT VALUE FOR v1;
+--error ER_NOT_SEQUENCE
+SELECT PREVIOUS VALUE FOR v1;
+drop view v1;
+
+--echo #
+--echo # MDEV 17978 Server crashes in mysqld_show_create_get_fields
+--echo # upon SHOW CREATE SEQUENCE on a broken view
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE VIEW v1 AS SELECT * FROM t1;
+DROP TABLE t1;
+--error ER_NOT_SEQUENCE
+SHOW CREATE SEQUENCE v1;
+DROP VIEW v1;

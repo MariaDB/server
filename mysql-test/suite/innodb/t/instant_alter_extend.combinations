@@ -1,0 +1,5 @@
+[latin1]
+character-set-server=latin1
+
+[utf8]
+character-set-server=utf8

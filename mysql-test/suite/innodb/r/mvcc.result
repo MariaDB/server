@@ -1,0 +1,46 @@
+SET @save_per_table= @@GLOBAL.innodb_file_per_table;
+SET GLOBAL innodb_file_per_table= 1;
+#
+# MDEV-15249 Crash in MVCC read after IMPORT TABLESPACE
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0);
+FLUSH TABLES t1 WITH READ LOCK;
+UNLOCK TABLES;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connect  con1,localhost,root,,;
+ALTER TABLE t1 FORCE, ALGORITHM=COPY;
+connection default;
+SELECT * FROM t1;
+ERROR HY000: Table definition has changed, please retry transaction
+COMMIT;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection con1;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+disconnect con1;
+connection default;
+# FIXME: Block this with ER_TABLE_DEF_CHANGED
+SELECT * FROM t1;
+a
+0
+COMMIT;
+SELECT * FROM t1;
+a
+0
+DROP TABLE t1;
+#
+# MDEV-23198 Crash in REPLACE
+#
+BEGIN NOT ATOMIC
+DECLARE c TEXT DEFAULT(SELECT CONCAT('CREATE TABLE t1(id INT PRIMARY KEY, c',
+GROUP_CONCAT(seq SEPARATOR ' INT, c'),
+' INT NOT NULL UNIQUE) ENGINE=InnoDB')
+FROM seq_1_to_294);
+EXECUTE IMMEDIATE c;
+END;
+$$
+INSERT INTO t1 SET id=1,c294=1;
+REPLACE t1 SET id=1,c294=1;
+DROP TABLE t1;
+SET GLOBAL innodb_file_per_table= @save_per_table;

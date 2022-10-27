@@ -1,0 +1,115 @@
+# Only test in debug mode since DBUG_EXECUTE_IF is used
+--source include/have_debug.inc
+
+# Can't test this with embedded server
+--source include/not_embedded.inc
+
+# Don't test this with valgrind
+--source include/not_valgrind.inc
+
+# Only test for innodb
+--source include/have_innodb.inc
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+connection con1;
+eval create table t1 (id integer, x integer) engine = InnoDB;
+insert into t1 values(0, 0);
+
+# Enable the debug injection.
+set DEBUG_DBUG='+d,fatal-semaphore-timeout';
+set autocommit=0;
+
+# The following query will hang for an hour since the debug injection
+# code will sleep an hour after holding the lock table mutex
+--echo # Sending query on con1,
+--echo # the session will hold lock table mutex and sleep
+--send
+SELECT * from t1 where id = 0 FOR UPDATE;
+
+# To make sure con1 holding the lock table mutex and sleeping
+--sleep 2
+
+connection con2;
+set autocommit=0;
+
+# The following query will be blocked on the lock table mutex held by
+# con1 so it will be put into sync array.
+--echo # Sending query on con2,
+--echo # the session will be blocked on the lock table mutex and
+--echo # thus be put into sync arry
+--send
+SELECT * from t1 where id = 0 FOR UPDATE;
+
+# Waitting for mysqld to abort due to fatal semaphore timeout.
+# Please note that, in the master.opt file, the fatal timeout
+# was set to 1 second, but in mysqld debug mode, this timeout
+# value will be timed 10 because UNIV_DEBUG_VALGRIND is set
+# (see sync_array_print_long_waits_low() in storage/innobase/sync/sync0arr.cc)
+# so the actual timeout will be 1 * 10 = 10 seconds. Besides,
+# mysqld will abort after detecting this fatal timeout 10 times in
+# a loop with interval of 1 second (see srv_error_monitor_thread
+# thread in torage/innobase/srv/srv0srv.cc), so mysqld will abort
+# in 1 * 10 + 1 * 10 = 20 seconds after con2 being blocked on
+# the lock table mutex.
+#
+# P.S. the default fatal sempahore timeout is 600 seconds,
+# so mysqld will abort after 600 * 10 + 1 * 10 = 6010 seconds
+# in debug mode and 600 + 1 * 10 = 610 seconds in release mode.
+
+connection default;
+
+--disable_result_log
+--disable_query_log
+
+# Since this test generates lot of errors in log, suppress checking errors
+call mtr.add_suppression(".*");
+
+# The crash is expected
+exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+
+--echo # Waitting for mysqld to crash
+
+# It will take 20 seconds to detect the long semaphore and mysqld to abort.
+# This test will be treated as pass as long as mysqld crash/restart is dectected
+# in 80 seconds.
+let $counter= 80;
+let $mysql_errno= 0;
+while (!$mysql_errno)
+{
+  --error 0,ER_SERVER_SHUTDOWN,ER_CONNECTION_KILLED,2002,2006,2013
+  show status;
+
+  dec $counter;
+  if (!$counter)
+  {
+    # This will fail this test.
+    --die Server failed to dissapear
+  }
+  --sleep 1
+}
+
+--echo # Mysqld crash was detected
+--echo # Waitting for reconnect after mysqld restarts
+
+enable_reconnect;
+connection default;
+
+--exec echo "restart:--log-error=$error_log" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+
+# Call script that will poll the server waiting for it to be back online again
+source include/wait_until_connected_again.inc;
+
+--echo # Reconnected after mysqld was successfully restarted
+
+--echo # Cleaning up before exit
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+--echo # Clean exit

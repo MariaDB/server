@@ -1,0 +1,47 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_sync_wait
+--echo #
+
+--echo # save the initial values
+SET @wsrep_sync_wait_global_saved = @@global.wsrep_sync_wait;
+SET @wsrep_sync_wait_session_saved = @@session.wsrep_sync_wait;
+
+--echo # default
+SELECT @@global.wsrep_sync_wait;
+SELECT @@session.wsrep_sync_wait;
+
+--echo
+--echo # scope and valid values
+SET @@global.wsrep_sync_wait=0;
+SELECT @@global.wsrep_sync_wait;
+SET @@global.wsrep_sync_wait=7;
+SELECT @@global.wsrep_sync_wait;
+
+SET @@session.wsrep_sync_wait=0;
+SELECT @@session.wsrep_sync_wait;
+SET @@session.wsrep_sync_wait=7;
+SELECT @@session.wsrep_sync_wait;
+SET @@session.wsrep_sync_wait=default;
+SELECT @@session.wsrep_sync_wait;
+SET @@session.wsrep_sync_wait=8;
+SELECT @@session.wsrep_sync_wait;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_sync_wait=NULL;
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_sync_wait='junk';
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@session.wsrep_sync_wait=NULL;
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@session.wsrep_sync_wait='junk';
+
+--echo
+--echo # restore the initial values
+SET @@global.wsrep_sync_wait = @wsrep_sync_wait_global_saved;
+SET @@session.wsrep_sync_wait = @wsrep_sync_wait_session_saved;
+
+--echo # End of test

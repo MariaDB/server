@@ -1,0 +1,85 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+# Flush any open myisam tables from previous tests
+FLUSH TABLES;
+call mtr.add_suppression("Found 1 prepared XA transactions");
+
+--echo #
+--echo # MDEV-13797 InnoDB may hang if shutdown is initiated soon after startup
+--echo # while rolling back recovered incomplete transactions
+--echo #
+
+CREATE TABLE t (a INT) ENGINE=InnoDB;
+let $size = 100;
+let $trx = 8;
+let $c = $size;
+BEGIN;
+--disable_query_log
+while ($c) {
+INSERT INTO t VALUES();
+dec $c;
+}
+--enable_query_log
+COMMIT;
+
+let $c = $trx;
+connect (con$c,localhost,root,,);
+eval CREATE TABLE t$c (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
+XA START 'x';
+eval INSERT INTO t$c (a) SELECT NULL FROM t;
+eval UPDATE t$c SET a=a+$size, b=a;
+eval DELETE FROM t$c;
+XA END 'x';
+XA PREPARE 'x';
+dec $c;
+while ($c)
+{
+connect (con$c,localhost,root,,);
+eval CREATE TABLE t$c (a SERIAL, b INT UNIQUE, c INT UNIQUE) ENGINE=InnoDB;
+BEGIN;
+eval INSERT INTO t$c (a) SELECT NULL FROM t;
+eval UPDATE t$c SET a=a+$size, b=a;
+eval DELETE FROM t$c;
+dec $c;
+}
+
+INSERT INTO t1(a) SELECT NULL FROM t;
+INSERT INTO t1(a) SELECT NULL FROM t1;
+INSERT INTO t1(a) SELECT NULL FROM t1;
+INSERT INTO t1(a) SELECT NULL FROM t1;
+INSERT INTO t1(a) SELECT NULL FROM t1;
+
+--connection default
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+CREATE TABLE u(a SERIAL) ENGINE=INNODB;
+
+FLUSH TABLES;
+
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+--let $shutdown_timeout=60
+--source include/restart_mysqld.inc
+
+# Perform a slow shutdown in order to roll back all recovered transactions
+# and to avoid locking conflicts with the DROP TABLE below.
+XA RECOVER;
+--disable_query_log
+SET GLOBAL innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+
+--disable_query_log
+let $c = $trx;
+disconnect con$c;
+XA ROLLBACK 'x';
+eval DROP TABLE t$c;
+dec $c;
+while ($c)
+{
+disconnect con$c;
+eval DROP TABLE t$c;
+dec $c;
+}
+--enable_query_log
+
+DROP TABLE t,u;

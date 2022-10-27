@@ -1,0 +1,34 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-19632 Replication aborts with ER_SLAVE_CONVERSION_FAILED upon CREATE ... SELECT in ORACLE mode
+--echo #
+
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:00:00');
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES (NULL);
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+SET sql_mode=MAXDB;
+CREATE TABLE t2 SELECT * FROM t1;
+SET timestamp=DEFAULT;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;
+
+
+--sync_slave_with_master
+SELECT * FROM t1;
+SET sql_mode=DEFAULT;
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+SET sql_mode=MAXDB;
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+--connection master
+DROP TABLE t1, t2; 
+
+--source include/rpl_end.inc

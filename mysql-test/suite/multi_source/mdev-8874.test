@@ -1,0 +1,141 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+# MDEV-8874
+# In Named Master slave connection if we do reset slave 'connection_name' ALL and then
+# if we reconnect slave, replication filters are ignored.
+# This patch fixes this issue.
+--connect (server_1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (server_2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connect (server_3,127.0.0.1,root,,,$SERVER_MYPORT_3)
+--connect (server_4,127.0.0.1,root,,,$SERVER_MYPORT_4)
+
+--connection server_1
+create database a;
+use a;
+create table t1(a int);
+insert into t1 values(1);
+create table t2(a int);
+insert into t2 values(1);
+--save_master_pos
+
+--connection server_2
+create database b;
+use b;
+create table t1(a int);
+insert into t1 values(1);
+create table t2(a int);
+insert into t2 values(1);
+--save_master_pos
+
+--connection server_3
+create database c;
+use c;
+create table t1(a int);
+insert into t1 values(1);
+create table t2(a int);
+insert into t2 values(1);
+--save_master_pos
+
+--connection server_4
+--disable_warnings
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root';
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root';
+--replace_result $SERVER_MYPORT_3 MYPORT_3
+eval change master  to master_port=$SERVER_MYPORT_3 , master_host='127.0.0.1', master_user='root';
+start all slaves;
+set default_master_connection = 'm1';
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'm2';
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+--source include/wait_for_slave_to_start.inc
+select @@global.'m1'.replicate_ignore_table;
+select @@global.'m2'.replicate_ignore_table;
+select @@global.replicate_ignore_table;
+
+--enable_warnings
+--sync_with_master 0,'m1'
+--sync_with_master 0,'m2'
+--sync_with_master 0,''
+use a;
+--echo #No t1 table
+show tables;
+use b;
+--echo #No t1 table
+show tables;
+use c;
+--echo #No t1 table
+show tables;
+--echo #TEST
+STOP ALL SLAVES;
+RESET SLAVE 'm1' ALL ;
+RESET SLAVE 'm2' ALL ;
+RESET SLAVE ALL ;
+drop database a;
+drop database b;
+drop database c;
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root';
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root';
+--replace_result $SERVER_MYPORT_3 MYPORT_3
+eval change master  to master_port=$SERVER_MYPORT_3 , master_host='127.0.0.1', master_user='root';
+start all slaves;
+set default_master_connection = 'm1';
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'm2';
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+--source include/wait_for_slave_to_start.inc
+--sync_with_master 0,'m1'
+--sync_with_master 0,'m2'
+--sync_with_master 0,''
+
+--echo #Replication Filter should be intact (t1 still not replicated)
+select @@global.'m1'.replicate_ignore_table;
+select @@global.'m2'.replicate_ignore_table;
+select @@global.replicate_ignore_table;
+use a;
+--echo #No t1 table
+show tables;
+use b;
+--echo #No t1 table
+show tables;
+use c;
+--echo #No t1 table
+show tables;
+
+
+#--echo #restart the server
+#--source include/restart_mysqld.inc
+
+
+--echo #CleanUp
+--connection server_1
+drop database a;
+--save_master_pos
+
+--connection server_2
+drop database b;
+--save_master_pos
+
+--connection server_3
+drop database c;
+--save_master_pos
+
+--connection server_4
+--sync_with_master 0,'m1'
+--sync_with_master 0,'m2'
+--sync_with_master 0,''
+--disable_warnings
+stop all slaves;
+--enable_warnings
+SET default_master_connection = "m1";
+--source include/wait_for_slave_to_stop.inc
+SET default_master_connection = "m2";
+--source include/wait_for_slave_to_stop.inc
+SET default_master_connection = "";
+--source include/wait_for_slave_to_stop.inc

@@ -1,0 +1,166 @@
+--source include/have_partition.inc
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+set @@global.connect_exact_info=ON;
+
+--echo # This will be used to see what data files are created
+CREATE TABLE dr1 (
+  fname VARCHAR(256) NOT NULL FLAG=2,
+  ftype CHAR(8) NOT NULL FLAG=3
+# ,FSIZE INT(6) NOT NULL FLAG=5  removed because Unix size != Windows size
+) engine=CONNECT table_type=DIR file_name='t1#P#*.*';
+
+--echo #
+--echo # Testing partitioning on inward table
+--echo #
+CREATE TABLE t1 (
+  id INT NOT NULL,
+  msg VARCHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=10
+PARTITION BY RANGE(id) (
+PARTITION first VALUES LESS THAN(10),
+PARTITION middle VALUES LESS THAN(50),
+PARTITION last VALUES LESS THAN(MAXVALUE));
+INSERT INTO t1 VALUES(4, 'four'),(24, 'twenty four');
+INSERT INTO t1 VALUES(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one');
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+SELECT * FROM t1;
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id > 50;
+SELECT * FROM t1 WHERE id > 50;
+#TODO: Differences between Linux and Windows
+#SHOW TABLE STATUS LIKE 't1';
+--error ER_GET_ERRMSG
+UPDATE t1 set id = 41 WHERE msg = 'four';
+UPDATE t1 set msg = 'quatre' WHERE id = 4;
+SELECT * FROM dr1 ORDER BY fname, ftype;
+--echo #
+--echo # Altering partitioning on inward table
+--echo #
+ALTER TABLE t1
+PARTITION by range(id) (
+PARTITION first VALUES LESS THAN(11),
+PARTITION middle VALUES LESS THAN(50),
+PARTITION last VALUES LESS THAN(MAXVALUE));
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+SELECT * FROM dr1 ORDER BY fname, ftype;
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id=10;
+SELECT * FROM t1 WHERE id=10;
+DELETE FROM t1 WHERE id in (4,60);
+SELECT * FROM t1;
+DROP TABLE t1;
+# TODO: this fails on Linux
+#SELECT * FROM dr1;
+
+--echo #
+--echo # Testing partitioning on a void outward table
+--echo #
+ALTER TABLE dr1 FILE_NAME='part*.*';
+CREATE TABLE t1 (
+  rwid INT(6) DEFAULT 0 SPECIAL=ROWID,
+  rnum INT(6) DEFAULT 0 SPECIAL=ROWNUM,
+  prtn VARCHAR(64) DEFAULT '' SPECIAL=PARTID,
+  tbn  VARCHAR(64) DEFAULT '' SPECIAL=TABID,
+  fid  VARCHAR(256) DEFAULT '' SPECIAL=FNAME,
+  id   INT KEY NOT NULL,
+  msg  VARCHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='part%s.txt';
+--replace_result $MYSQLD_DATADIR "DATADIR/"
+ALTER TABLE t1
+PARTITION by range columns(id) (
+PARTITION `1` VALUES LESS THAN(10),
+PARTITION `2` VALUES LESS THAN(50),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+SHOW INDEX FROM t1;
+# TODO: this fails on Linux
+#SELECT * FROM dr1 ORDER BY fname, ftype;
+INSERT INTO t1(id,msg) VALUES(4, 'four');
+SELECT * FROM dr1 ORDER BY fname, ftype;
+INSERT INTO t1(id,msg) VALUES(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one');
+INSERT INTO t1(id,msg) VALUES(72,'seventy two'),(20,'twenty'),(1,'one'),(35,'thirty five'),(8,'eight');
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+SELECT * FROM t1;
+SELECT * FROM t1 order by id;
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 10;
+SELECT * FROM t1 WHERE id = 10;
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id >= 40;
+SELECT * FROM t1 WHERE id >= 40;
+SELECT count(*) FROM t1 WHERE id < 10;
+SELECT case when id < 10 then 1 when id < 50 then 2 else 3 end as pn, count(*) FROM t1 group by pn;
+SELECT prtn, count(*) FROM t1 group by prtn;
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id > 50;
+SELECT * FROM t1 WHERE id = 35;
+SELECT * FROM dr1 ORDER BY fname, ftype;
+--echo # This does not change the partition file data and is WRONG
+ALTER TABLE t1
+PARTITION by range columns(id) (
+PARTITION `1` VALUES LESS THAN(11),
+PARTITION `2` VALUES LESS THAN(70),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+SELECT CASE WHEN id < 11 THEN 1 WHEN id < 70 THEN 2 ELSE 3 END AS pn, COUNT(*) FROM t1 GROUP BY pn;
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+SELECT * FROM dr1 ORDER BY fname, ftype;
+--echo #
+--echo # This is the correct way to change partitioning:
+--echo # Save table values, erase the table, then re-insert saved values in modified table
+--echo #
+CREATE TABLE t2 (
+  id INT NOT NULL,
+  msg VARCHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=FIX;
+INSERT INTO t2 SELECT id, msg FROM t1;
+DELETE FROM t1;
+INSERT INTO t1(id,msg) SELECT * FROM t2;
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+SELECT * FROM t1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing partitioning on a populated outward table
+--echo #
+CREATE TABLE t1 (
+  id   INT NOT NULL,
+  msg  VARCHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='part%s.txt'
+PARTITION by range columns(id) (
+PARTITION `1` VALUES LESS THAN(11),
+PARTITION `2` VALUES LESS THAN(70),
+PARTITION `3` VALUES LESS THAN(MAXVALUE));
+SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
+SELECT * FROM t1 WHERE id < 11;
+SELECT * FROM t1 WHERE id >= 70;
+SELECT * FROM dr1 ORDER BY fname, ftype;
+
+--echo #
+--echo # Testing indexing on a partitioned table
+--echo #
+CREATE INDEX XID ON t1(id);
+SHOW INDEX FROM t1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 10;
+DROP INDEX XID ON t1;
+SHOW INDEX FROM t1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
+ALTER TABLE t1 ADD PRIMARY KEY (id);
+SHOW INDEX FROM t1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
+EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 10;
+ALTER TABLE t1 DROP PRIMARY KEY;
+SHOW INDEX FROM t1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
+DROP TABLE t1;
+DROP TABLE dr1;
+
+#
+# Clean up
+#
+set @@global.connect_exact_info=OFF;
+
+--remove_file $MYSQLD_DATADIR/test/part1.txt
+--remove_file $MYSQLD_DATADIR/test/part2.txt
+--remove_file $MYSQLD_DATADIR/test/part3.txt
+#--remove_file $MYSQLD_DATADIR/test/part%s.fnx
+#--remove_file $MYSQLD_DATADIR/test/part1.fnx
+#--remove_file $MYSQLD_DATADIR/test/part2.fnx
+#--remove_file $MYSQLD_DATADIR/test/part3.fnx

@@ -1,0 +1,51 @@
+#
+# Test that SET DEFAULT ROLE doesn't work on old privilege tables
+# that don't have 'default_role' column
+#
+source include/not_embedded.inc;
+source include/switch_to_mysql_user.inc;
+
+connect (mysql, localhost, root,,);
+use mysql;
+
+#
+# downgrade the table to pre-default-role structure
+#
+alter table user drop column is_role;
+alter table user drop column default_role;
+alter table user drop column max_statement_time;
+
+flush privileges;
+
+--replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
+--error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
+create role test_role;
+--error ER_CANNOT_USER
+drop role test_role;
+alter table user add column is_role enum('N', 'Y') default 'N' not null
+                                                   COLLATE utf8_general_ci
+after password_expired;
+
+# Test default role column
+create role test_role;
+create user test_user@localhost;
+grant test_role to test_user@localhost;
+#--replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
+#--error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
+set default role test_role for root@localhost;
+drop role test_role;
+drop user test_user@localhost;
+
+alter table user add column default_role char(80) binary default '' not null
+                                                   COLLATE utf8_general_ci
+after is_role;
+alter table user add max_statement_time decimal(12,6) default 0 not null
+after default_role;
+
+update user set is_role='N';
+
+flush privileges;
+create role test_role;
+drop role test_role;
+
+source include/switch_to_mysql_global_priv.inc;

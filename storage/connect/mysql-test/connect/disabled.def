@@ -1,0 +1,27 @@
+##############################################################################
+#
+#  List the test cases that are to be disabled temporarily.
+#
+#  Separate the test case name and the comment with ':'.
+#
+#    <testcasename> : BUG#<xxxx> <date disabled> <disabler> <comment>
+#
+#  Do not use any TAB characters for whitespace.
+#
+##############################################################################
+jdbc            : Variable settings depend on machine configuration
+jdbc_new        : Variable settings depend on machine configuration
+jdbc_oracle     : Variable settings depend on machine configuration
+jdbc_postgresql : Variable settings depend on machine configuration
+json_mongo_c    : Need MongoDB running and its C Driver installed
+json_java_2     : Need MongoDB running and its Java Driver installed
+json_java_3     : Need MongoDB running and its Java Driver installed
+bson_mongo_c    : Need MongoDB running and its C Driver installed
+bson_java_2     : Need MongoDB running and its Java Driver installed
+bson_java_3     : Need MongoDB running and its Java Driver installed
+mongo_c         : Need MongoDB running and its C Driver installed
+mongo_java_2    : Need MongoDB running and its Java Driver installed
+mongo_java_3    : Need MongoDB running and its Java Driver installed
+tbl_thread      : Bug MDEV-9844,10179,14214 03/01/2018 OB Option THREAD removed
+#bson            : Development
+#vcol            : Different error code on different versions

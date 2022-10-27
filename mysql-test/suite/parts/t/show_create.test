@@ -1,0 +1,52 @@
+#
+# MDEV-13089 identifier quoting in partitioning
+#
+source include/have_partition.inc;
+set sql_mode=ansi_quotes;
+create table t1 ("select" int) partition by range ("select") (partition "select" values less than maxvalue);
+create table t2 (f1 int) partition by range (f1) (partition p1 values less than maxvalue);
+# "select", "f1", "p1"
+show create table t1;
+show create table t2;
+set sql_quote_show_create=0;
+# "select", f1, p1
+show create table t1;
+show create table t2;
+set sql_mode=default;
+# `select`, f1, p1
+show create table t1;
+show create table t2;
+set sql_quote_show_create=1;
+# `select`, `f1`, `p1`
+show create table t1;
+show create table t2;
+# re-parse
+flush tables;
+# `select`, `f1`, `p1`
+show create table t1;
+show create table t2;
+set sql_mode=ansi_quotes;
+# "select", "f1", "p1"
+show create table t1;
+show create table t2;
+drop table t1, t2;
+set sql_mode=default;
+
+#
+# MDEV-14750 Valgrind Invalid read, ASAN heap-use-after-free in Item_ident::print upon SHOW CREATE on partitioned table
+#
+create table t_partition (f1 int) partition by hash(f1) partitions 2;
+select * from t_partition as tbl;
+show create table t_partition;
+drop table t_partition;
+
+#
+# MDEV-16792 Assertion `m_status == DA_ERROR' failed in Diagnostics_area::sql_errno or wrong result upon SHOW TABLE STATUS after adding partition under ANSI_QUOTES
+#
+create table t1 (a int) partition by range(a) (partition p0 values less than (5));
+set sql_mode='ansi_quotes';
+alter table t1 add partition (partition p1 values less than (10));
+set sql_mode= default;
+--replace_column 12 X 13 X
+show table status;
+drop table t1;

@@ -1,0 +1,26 @@
+#
+# MDEV-5438 - A view can mask a table that supports discovery
+#
+# in a few places the server was still using !access(path, F_OK) to
+# determine whether a table exists
+#
+source include/have_archive.inc;
+
+create table t1 (a int) engine=archive;
+--error ER_TABLE_EXISTS_ERROR
+create view t1 as select "I am a view" as a;
+drop table t1;
+
+create table t1 (a int) engine=archive;
+create user foo@bar;
+grant select on test.t1 to foo@bar;
+drop user foo@bar;
+drop table t1;
+
+create table t1 (a int) engine=archive;
+create table t2 (a int);
+--error ER_TABLE_EXISTS_ERROR
+alter table t2 rename t1;
+drop table t2, t1;
+
+

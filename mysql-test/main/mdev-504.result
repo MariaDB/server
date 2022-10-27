@@ -1,0 +1,25 @@
+set @save_use_stat_tables=@@global.use_stat_tables;
+SET GLOBAL net_write_timeout = 900;
+CREATE TABLE A (
+pk INTEGER AUTO_INCREMENT PRIMARY KEY,
+fdate DATE
+) ENGINE=MyISAM;
+CREATE PROCEDURE p_analyze()
+BEGIN
+DECLARE attempts INTEGER DEFAULT 100;
+wl_loop: WHILE attempts > 0 DO
+ANALYZE TABLE A;
+SET attempts = attempts - 1;
+END WHILE wl_loop;
+END |
+CREATE FUNCTION rnd3() RETURNS INT
+BEGIN
+RETURN ROUND(3 * RAND() + 0.5);
+END |
+SET GLOBAL use_stat_tables = PREFERABLY;
+connection default;
+DROP TABLE A;
+DROP PROCEDURE p_analyze;
+DROP FUNCTION rnd3;
+SET GLOBAL use_stat_tables = @save_use_stat_tables;
+SET GLOBAL net_write_timeout = DEFAULT;

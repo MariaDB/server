@@ -1,0 +1,74 @@
+#
+# Test Galera as a slave to a MySQL master
+#
+# The galera/galera_2node_slave.cnf describes the setup of the nodes
+# also, for this test, master server must have binlog_format=ROW
+#
+
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/galera_cluster.inc
+
+# As node #3 is not a Galera node, and galera_cluster.inc does not open connetion to it
+# we open the node_3 connection here
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+SELECT @@wsrep_on;
+
+--connection node_1
+--disable_query_log
+--eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--enable_query_log
+START SLAVE;
+
+# make sure master server has binlog_format=ROW
+--connection node_3
+SHOW VARIABLES LIKE 'binlog_format';
+
+#
+# test phase one, issue CTAS with empty source table
+#
+
+CREATE TABLE source (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+CREATE TABLE target AS SELECT * FROM source;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'target';
+--source include/wait_condition.inc
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'target';
+--source include/wait_condition.inc
+
+#
+# test phase two, issue CTAS with populated source table
+#
+--connection node_3
+DROP TABLE target;
+INSERT INTO source VALUES(1);
+
+CREATE TABLE target AS SELECT * FROM source;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM target;
+--source include/wait_condition.inc
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM target;
+--source include/wait_condition.inc
+
+--connection node_3
+DROP TABLE source;
+DROP TABLE target;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'target';
+--source include/wait_condition.inc
+
+--connection node_1
+STOP SLAVE;
+RESET SLAVE ALL;
+
+--connection node_3
+RESET MASTER;
+

@@ -1,0 +1,70 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key, c2 varchar(100), fulltext index(c2)) default charset utf8 COMMENT = 'engine "innodb"';
+create table t2 (c1 int primary key, c2 text, fulltext index(c2)) default charset utf8 COMMENT = 'engine "innodb"';
+insert into t1 values (1, "aa ii uu ee oo");
+insert into t1 values (2, "ka ki ku ke ko");
+insert into t1 values (3, "aa ii ii ii oo");
+insert into t1 values (4, "sa si su se so");
+insert into t1 values (5, "ta ti ii ii to");
+insert into t2 values (1, "aa ii uu ee oo");
+insert into t2 values (2, "ka ki ku ke ko");
+insert into t2 values (3, "aa ii ii ii oo");
+insert into t2 values (4, "sa si su se so");
+insert into t2 values (5, "ta ti ii ii to");
+select * from t1;
+c1	c2
+1	aa ii uu ee oo
+2	ka ki ku ke ko
+3	aa ii ii ii oo
+4	sa si su se so
+5	ta ti ii ii to
+select * from t2;
+c1	c2
+1	aa ii uu ee oo
+2	ka ki ku ke ko
+3	aa ii ii ii oo
+4	sa si su se so
+5	ta ti ii ii to
+select * from t1 where c1=3;
+c1	c2
+3	aa ii ii ii oo
+select * from t2 where c1=3;
+c1	c2
+3	aa ii ii ii oo
+select * from t1 where c1>3 order by c1 desc;
+c1	c2
+5	ta ti ii ii to
+4	sa si su se so
+select * from t2 where c1>3 order by c1 asc;
+c1	c2
+4	sa si su se so
+5	ta ti ii ii to
+select * from t1 where c2>"s" order by c2 desc;
+c1	c2
+5	ta ti ii ii to
+4	sa si su se so
+select * from t2 where c2>"s" order by c1 asc;
+c1	c2
+4	sa si su se so
+5	ta ti ii ii to
+select *,match(c2) against("ii") from t1 where match(c2) against("ii") order by match(c2) against("ii") desc;
+c1	c2	match(c2) against("ii")
+3	aa ii ii ii oo	524289
+5	ta ti ii ii to	349526
+1	aa ii uu ee oo	174763
+select *,match(c2) against("ii") from t2 where match(c2) against("ii") order by match(c2) against("ii") asc;
+c1	c2	match(c2) against("ii")
+1	aa ii uu ee oo	174763
+5	ta ti ii ii to	349526
+3	aa ii ii ii oo	524289
+select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
+c1	c2	match(c2) against("ii")
+3	aa ii ii ii oo	524289
+5	ta ti ii ii to	349526
+1	aa ii uu ee oo	174763
+select c1,c2,match(c2) against("ii") from t1 where match(c2) against("ii");
+c1	c2	match(c2) against("ii")
+3	aa ii ii ii oo	524289
+5	ta ti ii ii to	349526
+1	aa ii uu ee oo	174763
+drop table t1,t2;

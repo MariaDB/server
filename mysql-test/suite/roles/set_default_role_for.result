@@ -1,0 +1,60 @@
+create user user_a@localhost;
+create user user_b@localhost;
+create role role_a;
+create role role_b;
+grant role_a to user_a@localhost;
+grant role_b to user_b@localhost;
+grant role_a to user_a@localhost;
+grant select on *.* to role_a;
+grant role_b to user_b@localhost;
+grant insert, update on *.* to role_b;
+set default role role_a for user_b@localhost;
+ERROR 42000: Access denied for user 'user_a'@'localhost' to database 'mysql'
+set default role role_a for user_a@localhost;
+set default role invalid_role for user_a@localhost;
+ERROR OP000: Invalid role specification `invalid_role`
+set default role role_b for user_a@localhost;
+ERROR OP000: User `user_a@localhost` has not been granted role `role_b`
+set default role role_b for user_b@localhost;
+show grants;
+Grants for user_a@localhost
+GRANT `role_a` TO `user_a`@`localhost`
+GRANT USAGE ON *.* TO `user_a`@`localhost`
+GRANT SELECT ON *.* TO `role_a`
+SET DEFAULT ROLE role_a FOR 'user_a'@'localhost'
+select user, host, default_role from mysql.user where user like 'user_%';
+User	Host	default_role
+user_a	localhost	role_a
+user_b	localhost	role_b
+set default role NONE for current_user;
+select user, host, default_role from mysql.user where user like 'user_%';
+User	Host	default_role
+user_a	localhost	
+user_b	localhost	role_b
+set default role current_role for current_user;
+select user, host, default_role from mysql.user where user like 'user_%';
+User	Host	default_role
+user_a	localhost	role_a
+user_b	localhost	role_b
+set default role role_b for current_user;
+ERROR OP000: User `user_a@localhost` has not been granted role `role_b`
+show grants;
+Grants for user_b@localhost
+GRANT `role_b` TO `user_b`@`localhost`
+GRANT USAGE ON *.* TO `user_b`@`localhost`
+GRANT INSERT, UPDATE ON *.* TO `role_b`
+SET DEFAULT ROLE role_b FOR 'user_b'@'localhost'
+select user, host, default_role from mysql.user where user like 'user_%';
+ERROR 42000: SELECT command denied to user 'user_b'@'localhost' for table 'user'
+set default role NONE for user_a@localhost;
+show grants;
+Grants for user_a@localhost
+GRANT `role_a` TO `user_a`@`localhost`
+GRANT USAGE ON *.* TO `user_a`@`localhost`
+GRANT INSERT, UPDATE ON *.* TO `role_b`
+select user, host, default_role from mysql.user where user like 'user_%';
+ERROR 42000: SELECT command denied to user 'user_a'@'localhost' for table 'user'
+drop role role_a;
+drop role role_b;
+drop user user_a@localhost;
+drop user user_b@localhost;
