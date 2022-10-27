@@ -1,6 +1,7 @@
 --source include/check_ipv6.inc
 --source include/not_embedded.inc
 
+call mtr.add_suppression("Can't start server: Bind on TCP/IP port.");
 # The server is started with --bind-address=localhost,192.168.0.1, and should
 # listen on all addresses 'localhost' resolves to and 192.168.0.1. With at least
 # 127.0.0.1 and ::1 amongst them.
