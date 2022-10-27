@@ -1,0 +1,148 @@
+--source suite/versioning/engines.inc
+--source include/have_partition.inc
+--source include/master-slave.inc
+--let $i= 10 
+while($i > 0)
+{
+    --dec $i
+    
+    #BUG#12662190 - COM_COMMIT IS NOT INCREMENTED FROM THE BINARY LOGS ON SLAVE, COM_BEGIN IS
+    #Testing command counters -BEFORE.
+    #Storing the before counts of Slave
+    connection slave;
+    let $slave_com_commit_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_commit', Value, 1);
+    let $slave_com_insert_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_insert', Value, 1);
+    let $slave_com_delete_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_delete', Value, 1);
+    let $slave_com_update_before= query_get_value(SHOW GLOBAL STATUS LIKE 'com_update', Value, 1);
+    
+    connection master;
+    CREATE TABLE t1 (x int) with system versioning;
+    insert into t1 values (1);
+    select * from t1 order by x;
+    delete from t1;
+    select * from t1 order by x;
+    select * from t1 for system_time all order by row_end, x;
+    sync_slave_with_master;
+    select * from t1 order by x;
+    select * from t1 for system_time all order by row_end, x;
+    
+    connection master;
+    insert into t1 values (2);
+    sync_slave_with_master;
+    select * from t1 order by x;
+    
+    connection master;
+    update t1 set x = 3;
+    sync_slave_with_master;
+    select * from t1 order by x;
+    select * from t1 for system_time all order by row_end, x;
+    
+    --echo # check unversioned -> versioned replication
+    connection master;
+    create or replace table t1 (x int primary key);
+    sync_slave_with_master;
+    alter table t1 with system versioning;
+    
+    connection master;
+    insert into t1 values (1);
+    sync_slave_with_master;
+    select * from t1 order by x;
+    select * from t1 for system_time all order by row_end, x;
+    
+    connection master;
+    update t1 set x= 2 where x = 1;
+    sync_slave_with_master;
+    select * from t1 order by x;
+    select * from t1 for system_time all order by row_end, x;
+    
+    connection master;
+    delete from t1;
+    sync_slave_with_master;
+    select * from t1 order by x;
+    select * from t1 for system_time all order by row_end, x;
+    
+    --echo # same thing (UPDATE, DELETE), but without PK
+    connection master;
+    create or replace table t1 (x int);
+    sync_slave_with_master;
+    alter table t1 with system versioning;
+    
+    connection master;
+    insert into t1 values (1);
+    update t1 set x= 2 where x = 1;
+    sync_slave_with_master;
+    select * from t1 order by x;
+    select * from t1 for system_time all order by row_end, x;
+    
+    connection master;
+    delete from t1;
+    sync_slave_with_master;
+    select * from t1 order by x;
+    select * from t1 for system_time all order by row_end, x;
+    
+    --echo # multi-update
+    connection master;
+    create or replace table t1 (x int) with system versioning;
+    create or replace table t2 (x int) with system versioning;
+    insert into t1 values (1);
+    insert into t2 values (2);
+    update t1, t2 set t1.x=11, t2.x=22;
+    sync_slave_with_master;
+    select * from t1 order by x;
+    select * from t2 order by x;
+    select * from t1 for system_time all order by row_end, x;
+    select * from t2 for system_time all order by row_end, x;
+    
+    --echo # MDEV-14767 system_versioning_alter_history breaks ALTER replication
+    --echo ## Case 1: KEEP on the master, ALTER will work on the slave
+    connection master;
+    create or replace table t1 (a int) with system versioning;
+    set system_versioning_alter_history= KEEP;
+    alter table t1 add column b int;
+    sync_slave_with_master;
+    --replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+    show create table t1;
+    
+    --echo ## Case 2: ERROR on the master, it'll fail on the master, the slave won't see it
+    connection master;
+    set system_versioning_alter_history= ERROR;
+    --error ER_VERS_ALTER_NOT_ALLOWED
+    alter table t1 drop column b;
+    sync_slave_with_master;
+    --replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+    show create table t1;
+    
+    --echo ## Case 3: table is not versioned on the master, ALTER will work on the slave
+    connection master;
+    create or replace table t1 (a int);
+    sync_slave_with_master;
+    create or replace table t1 (a int) with system versioning;
+    connection master;
+    alter table t1 add column b int;
+    sync_slave_with_master;
+    --replace_result InnoDB ENGINE MyISAM ENGINE MEMORY ENGINE
+    show create table t1;
+    
+    connection master;
+    drop table t1, t2;
+    
+    #
+    # MDEV-15395 Wrong result or Assertion `old_part_id == m_last_part' failed in ha_partition::update_row on slave
+    #
+    create table t1 (i int) with system versioning partition by system_time limit 8 ( partition p1 history, partition p2 history, partition pn current );
+    insert into t1 values (1);
+    update t1 set i = 1;
+    update t1 set i = 0;
+    sync_slave_with_master;
+    connection master;
+    drop table t1;
+
+    # explicit RESET MASTER for testing MDEV_25611
+    reset master;
+    connection slave;
+    --source include/stop_slave.inc
+    reset slave;
+    --source include/start_slave.inc
+}
+--source include/rpl_end.inc
+
