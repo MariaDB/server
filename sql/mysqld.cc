@@ -2447,9 +2447,24 @@ static void activate_tcp_port(uint port,
       if (ret < 0)
       {
         char buff[100];
+        int s_errno= socket_errno;
         sprintf(buff, "Can't start server: Bind on TCP/IP port. Got error: %d",
-                (int) socket_errno);
+                (int) s_errno);
         sql_perror(buff);
+        /*
+          Linux will quite happily bind to addresses not present. The
+          mtr test main.bind_multiple_addresses_resolution relies on this.
+          For Windows, this is fatal and generates the error:
+            10049: The requested address is not valid in its context
+          In this case, where multiple addresses where specified, maybe
+          we can live with an error in the log and hope the other addresses
+          are successful. We catch if no successful bindings occur at the
+          end of this function.
+        */
+#ifdef _WIN32
+        if (s_errno == 10049)
+	  continue;
+#endif
         sql_print_error("Do you already have another server running on "
                         "port: %u ?", port);
         unireg_abort(1);
@@ -2471,6 +2486,11 @@ static void activate_tcp_port(uint port,
   }
 
   freeaddrinfo(head);
+  if (head && sockets->size() == 0)
+  {
+    sql_print_error("No TCP address could be bound to");
+    unireg_abort(1);
+  }
   DBUG_VOID_RETURN;
 }
 
