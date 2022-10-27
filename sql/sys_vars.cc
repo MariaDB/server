@@ -511,7 +511,8 @@ static Sys_var_charptr_fscs Sys_basedir(
        DEFAULT(0));
 
 static Sys_var_charptr_fscs Sys_my_bind_addr(
-       "bind_address", "IP address to bind to.",
+       "bind_address", "IP address to bind to. Several addresses may be "
+       "specified, separated by a comma (,).",
        READ_ONLY GLOBAL_VAR(my_bind_addr_str), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 

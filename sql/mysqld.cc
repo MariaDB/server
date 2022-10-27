@@ -135,7 +135,6 @@
 
 #define mysqld_charset &my_charset_latin1
 
-
 extern "C" {					// Because of SCO 3.2V4.2
 #include <sys/stat.h>
 #ifndef __GNU_LIBRARY__
@@ -2291,7 +2290,7 @@ static void activate_tcp_port(uint port,
                               Dynamic_array<MYSQL_SOCKET> *sockets,
                               bool is_extra_port= false)
 {
-  struct addrinfo *ai, *a;
+  struct addrinfo *ai, *a = NULL, *head = NULL;
   struct addrinfo hints;
   int error;
   int	arg;
@@ -2312,16 +2311,52 @@ static void activate_tcp_port(uint port,
     real_bind_addr_str= my_bind_addr_str;
 
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
-  error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
-  if (unlikely(error != 0))
-  {
-    DBUG_PRINT("error",("Got error: %d from getaddrinfo()", error));
 
-    sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR), gai_strerror(error));
-    unireg_abort(1);				/* purecov: tested */
+  if (real_bind_addr_str && *real_bind_addr_str)
+  {
+
+    char *end;
+    char address[FN_REFLEN];
+
+    do
+    {
+      end= strcend(real_bind_addr_str, ',');
+      strmake(address, real_bind_addr_str, (uint) (end - real_bind_addr_str));
+
+      error= getaddrinfo(address, port_buf, &hints, &ai);
+      if (unlikely(error != 0))
+      {
+        DBUG_PRINT("error", ("Got error: %d from getaddrinfo()", error));
+
+        sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR),
+                        gai_strerror(error));
+        unireg_abort(1); /* purecov: tested */
+      }
+
+      if (!head)
+      {
+        head= ai;
+      }
+      if (a)
+      {
+        a->ai_next= ai;
+      }
+      a= ai;
+      while (a->ai_next)
+      {
+        a= a->ai_next;
+      }
+
+      real_bind_addr_str= end + 1;
+    } while (*end);
+  }
+  else
+  {
+    error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
+    head= ai;
   }
 
-  for (a= ai; a != NULL; a= a->ai_next)
+  for (a= head; a != NULL; a= a->ai_next)
   {
     ip_sock= mysql_socket_socket(key_socket_tcpip, a->ai_family,
                                  a->ai_socktype, a->ai_protocol);
@@ -2410,9 +2445,31 @@ static void activate_tcp_port(uint port,
       if (ret < 0)
       {
         char buff[100];
+        int s_errno= socket_errno;
         sprintf(buff, "Can't start server: Bind on TCP/IP port. Got error: %d",
-                (int) socket_errno);
+                (int) s_errno);
         sql_perror(buff);
+        /*
+          Linux will quite happily bind to addresses not present. The
+          mtr test main.bind_multiple_addresses_resolution relies on this.
+          For Windows, this is fatal and generates the error:
+            WSAEADDRNOTAVAIL: The requested address is not valid in its context
+          In this case, where multiple addresses where specified, maybe
+          we can live with an error in the log and hope the other addresses
+          are successful. We catch if no successful bindings occur at the
+          end of this function.
+
+          FreeBSD returns EADDRNOTAVAIL, and EADDRNOTAVAIL is even in Linux
+          manual pages. So may was well apply uniform behaviour.
+        */
+#ifdef _WIN32
+        if (s_errno == WSAEADDRNOTAVAIL)
+	  continue;
+#endif
+#ifdef EADDRNOTAVAIL
+        if (s_errno == EADDRNOTAVAIL)
+	  continue;
+#endif
         sql_print_error("Do you already have another server running on "
                         "port: %u ?", port);
         unireg_abort(1);
@@ -2433,7 +2490,12 @@ static void activate_tcp_port(uint port,
     }
   }
 
-  freeaddrinfo(ai);
+  freeaddrinfo(head);
+  if (head && sockets->size() == 0)
+  {
+    sql_print_error("No TCP address could be bound to");
+    unireg_abort(1);
+  }
   DBUG_VOID_RETURN;
 }
 
