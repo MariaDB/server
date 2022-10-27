@@ -23,7 +23,7 @@
 
 #ifndef MAIN
 
-#if defined(_AIX) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__linux__) || defined(__sun) || defined(_WIN32)
+#if defined(_AIX) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__linux__) || defined(__sun) || defined(_WIN32)
 static my_bool memcpy_and_test(uchar *to, uchar *from, uint len)
 {
   uint i, res= 1;
