@@ -35,7 +35,6 @@
 #include "sql_i_s.h"
 #include "sql_type.h"               /* vers_kind_t */
 #include "privilege.h"              /* privilege_t */
-#include "structs.h"
 
 /*
   Buffer for unix timestamp in microseconds:
@@ -54,7 +53,6 @@
 
 class Item;				/* Needed by ORDER */
 typedef Item (*Item_ptr);
-class Item_change_list;
 class Item_subselect;
 class Item_field;
 class GRANT_TABLE;
@@ -93,7 +91,6 @@ typedef ulonglong nested_join_map;
 
 #define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
 #define tmp_file_prefix_length 4
-#define backup_file_prefix tmp_file_prefix "-backup-"
 #define TMP_TABLE_KEY_EXTRA 8
 
 /**
@@ -354,7 +351,6 @@ typedef struct st_grant_info
 
 enum tmp_table_type
 {
-  TMP_TABLE_ATOMIC_REPLACE= -1,
   NO_TMP_TABLE= 0, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
   INTERNAL_TMP_TABLE, SYSTEM_TMP_TABLE
 };
@@ -724,13 +720,12 @@ public:
   void abort_stats_load() { stats_state.abort_load(); }
 };
 
-
 /**
   This structure is shared between different table objects. There is one
   instance of table share per one table in the database.
 */
 
-struct TABLE_SHARE: public Table_name
+struct TABLE_SHARE
 {
   TABLE_SHARE() {}                    /* Remove gcc warning */
 
@@ -780,6 +775,8 @@ struct TABLE_SHARE: public Table_name
     To ensure this one can use set_table_cache() methods.
   */
   LEX_CSTRING table_cache_key;
+  LEX_CSTRING db;                        /* Pointer to db */
+  LEX_CSTRING table_name;                /* Table name (for open) */
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
@@ -1527,7 +1524,6 @@ public:
   bool get_fields_in_item_tree;      /* Signal to fix_field */
   List<Virtual_column_info> vcol_refix_list;
 private:
-  Item_change_list *saved_change_list;
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
 public:
@@ -1846,7 +1842,6 @@ public:
   /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
   void find_constraint_correlated_indexes();
-  bool referenced_by_foreign_table(THD *thd, FOREIGN_KEY_INFO **fk_info) const;
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
@@ -2212,8 +2207,7 @@ struct TABLE_CHAIN
   void set_end_pos(TABLE_LIST **pos) { end_pos= pos; }
 };
 
-
-struct TABLE_LIST: public Table_name
+struct TABLE_LIST
 {
   TABLE_LIST() {}                          /* Remove gcc warning */
 
@@ -2300,7 +2294,10 @@ struct TABLE_LIST: public Table_name
   TABLE_LIST *next_local;
   /* link in a global list of all queries tables */
   TABLE_LIST *next_global, **prev_global;
+  LEX_CSTRING   db;
+  LEX_CSTRING   table_name;
   LEX_CSTRING   schema_table_name;
+  LEX_CSTRING   alias;
   const char    *option;                /* Used by cache index  */
   Item		*on_expr;		/* Used with outer join */
   Name_resolution_context *on_context;  /* For ON expressions */

@@ -61,11 +61,15 @@ foreign constraint parser to get the referenced table.
 heap memory passed in */
 char*
 dict_get_referenced_table(
-	LEX_CSTRING	database_name,	/*!< in: table db name */
-	LEX_CSTRING	table_name,	/*!< in: table name */
+/*======================*/
+	const char*	name,		/*!< in: foreign key table name */
+	const char*	database_name,	/*!< in: table db name */
+	ulint		database_name_len,/*!< in: db name length */
+	const char*	table_name,	/*!< in: table name */
+	ulint		table_name_len,	/*!< in: table name length */
 	dict_table_t**	table,		/*!< out: table object or NULL */
-	mem_heap_t*	heap)		/*!< in/out: heap memory */
-	MY_ATTRIBUTE((nonnull));
+	mem_heap_t*	heap,		/*!< in: heap memory */
+	CHARSET_INFO*	from_cs);	/*!< in: table name charset */
 /*********************************************************************//**
 Frees a foreign key struct. */
 void

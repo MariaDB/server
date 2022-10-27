@@ -4992,7 +4992,7 @@ void handler::mark_trx_read_write_internal()
       table_share can be NULL, for example, in ha_delete_table() or
       ha_rename_table().
     */
-    if (table_share == NULL || table_share->tmp_table <= NO_TMP_TABLE)
+    if (table_share == NULL || table_share->tmp_table == NO_TMP_TABLE)
       ha_info->set_trx_read_write();
   }
 }
@@ -5029,11 +5029,6 @@ int handler::ha_end_bulk_insert()
   DBUG_ENTER("handler::ha_end_bulk_insert");
   DBUG_EXECUTE_IF("crash_end_bulk_insert",
                   { extra(HA_EXTRA_FLUSH) ; DBUG_SUICIDE();});
-  if (DBUG_IF("ha_end_bulk_insert_fail"))
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  }
   estimation_rows_to_insert= 0;
   DBUG_RETURN(end_bulk_insert());
 }
@@ -6205,7 +6200,7 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name, LEX_CUSTRING *table_id,
                      LEX_CSTRING *partition_engine_name,
-                     handlerton **hton, bool *is_sequence, uint flags)
+                     handlerton **hton, bool *is_sequence)
 {
   handlerton *dummy;
   bool dummy2;
@@ -6260,7 +6255,7 @@ retry_from_frm:
 #endif
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
-                                         db->str, table_name->str, "", flags);
+                                         db->str, table_name->str, "", 0);
   st_discover_existence_args args= {path, path_len, db->str, table_name->str, 0, true};
 
   if (file_ext_exists(path, path_len, reg_ext))
@@ -7041,7 +7036,8 @@ int handler::binlog_log_row(TABLE *table,
   THD *thd= table->in_use;
   DBUG_ENTER("binlog_log_row");
 
-  if (!thd->binlog_table_maps && thd->binlog_write_table_maps(table))
+  if (!thd->binlog_table_maps &&
+      thd->binlog_write_table_maps())
     DBUG_RETURN(HA_ERR_RBR_LOGGING_FAILED);
 
   error= (*log_func)(thd, table, row_logging_has_trans,
@@ -7590,7 +7586,7 @@ int handler::ha_write_row(const uchar *buf)
       error= binlog_log_row(table, 0, buf, log_func);
     }
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table <= NO_TMP_TABLE &&
+    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
         ht->flags & HTON_WSREP_REPLICATION &&
         !error && (error= wsrep_after_row(ha_thd())))
     {
@@ -7664,7 +7660,7 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
                       " can not mark as PA unsafe");
       }
 
-      if (!error && table_share->tmp_table <= NO_TMP_TABLE &&
+      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
           ht->flags & HTON_WSREP_REPLICATION)
         error= wsrep_after_row(thd);
     }
@@ -7742,7 +7738,7 @@ int handler::ha_delete_row(const uchar *buf)
                       " can not mark as PA unsafe");
       }
 
-      if (!error && table_share->tmp_table <= NO_TMP_TABLE &&
+      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
           ht->flags & HTON_WSREP_REPLICATION)
         error= wsrep_after_row(thd);
     }
@@ -8190,7 +8186,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
         THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
-        const Lex_table_name &db)
+        const Lex_table_name &db, int select_count)
 {
   if (!(options & HA_VERSIONED_TABLE))
     return false;
@@ -8211,7 +8207,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
          SELECT go last there.
        */
       bool is_dup= false;
-      if (fieldnr >= alter_info->field_count())
+      if (fieldnr >= alter_info->create_list.elements - select_count)
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)
@@ -8618,11 +8614,12 @@ bool Table_period_info::check_field(const Create_field* f,
 }
 
 bool Table_scope_and_contents_source_st::check_fields(
-    THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
-    const Lex_table_name &db)
+  THD *thd, Alter_info *alter_info,
+  const Lex_table_name &table_name, const Lex_table_name &db, int select_count)
 {
-  return (vers_check_system_fields(thd, alter_info, table_name, db) ||
-          check_period_fields(thd, alter_info));
+  return vers_check_system_fields(thd, alter_info,
+                                  table_name, db, select_count) ||
+    check_period_fields(thd, alter_info);
 }
 
 bool Table_scope_and_contents_source_st::check_period_fields(

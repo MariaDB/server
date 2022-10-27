@@ -3723,13 +3723,6 @@ bool TABLE::vcol_fix_expr(THD *thd)
     return false;
   }
 
-  if (!thd->Item_change_list::is_empty())
-  {
-    DBUG_ASSERT(!saved_change_list);
-    saved_change_list= new Item_change_list;
-    thd->move_elements_to(saved_change_list);
-  }
-
   Vcol_expr_context expr_ctx(thd, this);
   if (expr_ctx.init())
     return true;
@@ -3750,27 +3743,13 @@ error:
 bool TABLE::vcol_cleanup_expr(THD *thd)
 {
   if (vcol_refix_list.is_empty())
-  {
-    DBUG_ASSERT(!saved_change_list);
     return false;
-  }
-
-  thd->rollback_item_tree_changes();
 
   List_iterator<Virtual_column_info> it(vcol_refix_list);
   bool result= false;
 
   while (Virtual_column_info *vcol= it++)
     result|= vcol->cleanup_session_expr();
-
-  if (saved_change_list)
-  {
-    DBUG_ASSERT(!vcol_refix_list.is_empty());
-    DBUG_ASSERT(!saved_change_list->is_empty());
-    saved_change_list->move_elements_to(thd);
-    delete saved_change_list;
-    saved_change_list= NULL;
-  }
 
   DBUG_ASSERT(!result || thd->get_stmt_da()->is_error());
   return result;

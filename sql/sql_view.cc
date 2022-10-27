@@ -1101,8 +1101,7 @@ loop_out:
     fn_format(path_buff, file.str, dir.str, "", MY_UNPACK_FILENAME);
     path.length= strlen(path_buff);
 
-    if (ha_table_exists(thd, &view->db, &view->table_name,
-                        NULL, NULL, NULL, NULL, 0))
+    if (ha_table_exists(thd, &view->db, &view->table_name))
     {
       old_view_exists= 1;
       if (lex->create_info.if_not_exists())

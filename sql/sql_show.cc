@@ -2111,8 +2111,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         !create_info_arg->or_replace_slave_generated()) ||
        create_info_arg->table_was_deleted))
     packet->append(STRING_WITH_LEN("OR REPLACE "));
-  if (share->tmp_table &&
-      !(create_info_arg && create_info_arg->is_atomic_replace()))
+  if (share->tmp_table)
     packet->append(STRING_WITH_LEN("TEMPORARY "));
   packet->append(STRING_WITH_LEN("TABLE "));
   if (create_info_arg && create_info_arg->if_not_exists())
@@ -4818,7 +4817,7 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     bool is_sequence;
 
     if (ha_table_exists(thd, db_name, table_name, NULL, NULL,
-                        &hton, &is_sequence, 0))
+                        &hton, &is_sequence))
     {
       if (hton == view_pseudo_hton)
         table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
@@ -5048,7 +5047,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
     init_sql_alloc(key_memory_table_triggers_list,
                    &tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
     if (!Table_triggers_list::check_n_load(thd, db_name,
-                                           table_name, &tbl, true, 0))
+                                           table_name, &tbl, 1))
     {
       table_list.table= &tbl;
       res= schema_table->process_table(thd, &table_list, table,

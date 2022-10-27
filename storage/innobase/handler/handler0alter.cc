@@ -30,7 +30,6 @@ Smart ALTER TABLE
 #include <sql_class.h>
 #include <sql_table.h>
 #include <mysql/plugin.h>
-#include <strfunc.h>
 
 /* Include necessary InnoDB headers */
 #include "btr0sea.h"
@@ -3191,8 +3190,6 @@ innobase_get_foreign_key_info(
 	ulint		num_fk = 0;
 	Alter_info*	alter_info = ha_alter_info->alter_info;
 	const CHARSET_INFO*	cs = thd_charset(trx->mysql_thd);
-	char db_name[MAX_DATABASE_NAME_LEN + 1];
-	char t_name[MAX_TABLE_NAME_LEN + 1];
 
 	DBUG_ENTER("innobase_get_foreign_key_info");
 
@@ -3257,51 +3254,14 @@ innobase_get_foreign_key_info(
 
 		add_fk[num_fk] = dict_mem_foreign_create();
 
-		LEX_CSTRING table_name = fk_key->ref_table;
-		CHARSET_INFO* to_cs = &my_charset_filename;
-
-		if (!strncmp(table_name.str, srv_mysql50_table_name_prefix,
-			     sizeof srv_mysql50_table_name_prefix - 1)) {
-			table_name.str
-				+= sizeof srv_mysql50_table_name_prefix - 1;
-			table_name.length
-				-= sizeof srv_mysql50_table_name_prefix - 1;
-			to_cs = system_charset_info;
-		}
-
-		uint errors;
-		LEX_CSTRING t;
-		t.str = t_name;
-		t.length = strconvert(cs, LEX_STRING_WITH_LEN(table_name),
-				      to_cs, t_name, MAX_TABLE_NAME_LEN,
-				      &errors);
-		LEX_CSTRING d = fk_key->ref_db;
-		if (!d.str) {
-			d.str = table->name.m_name;
-			d.length = table->name.dblen();
-		}
-
-		if (!strncmp(d.str, srv_mysql50_table_name_prefix,
-			     sizeof srv_mysql50_table_name_prefix - 1)) {
-			d.str += sizeof srv_mysql50_table_name_prefix - 1;
-			d.length -= sizeof srv_mysql50_table_name_prefix - 1;
-			to_cs = system_charset_info;
-		} else if (d.str == table->name.m_name) {
-			goto name_converted;
-		} else {
-			to_cs = &my_charset_filename;
-		}
-
-		d.length = strconvert(cs, LEX_STRING_WITH_LEN(d), to_cs,
-				      db_name, MAX_DATABASE_NAME_LEN,
-				      &errors);
-		d.str = db_name;
-
-name_converted:
 		dict_sys.lock(SRW_LOCK_CALL);
 
 		referenced_table_name = dict_get_referenced_table(
-			d, t, &referenced_table, add_fk[num_fk]->heap);
+			table->name.m_name,
+			LEX_STRING_WITH_LEN(fk_key->ref_db),
+			LEX_STRING_WITH_LEN(fk_key->ref_table),
+			&referenced_table,
+			add_fk[num_fk]->heap, cs);
 
 		/* Test the case when referenced_table failed to
 		open, if trx->check_foreigns is not set, we should
@@ -10212,12 +10172,10 @@ commit_try_rebuild(
 	char* old_name= mem_heap_strdup(ctx->heap, user_table->name.m_name);
 
 	dberr_t error = row_rename_table_for_mysql(user_table->name.m_name,
-						   ctx->tmp_name, trx,
-						   RENAME_REBUILD);
+						   ctx->tmp_name, trx, false);
 	if (error == DB_SUCCESS) {
 		error = row_rename_table_for_mysql(
-			rebuilt_table->name.m_name, old_name, trx,
-			RENAME_REBUILD);
+			rebuilt_table->name.m_name, old_name, trx, false);
 		if (error == DB_SUCCESS) {
 			/* The statistics for the surviving indexes will be
 			re-inserted in alter_stats_rebuild(). */

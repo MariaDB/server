@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2022, MariaDB
+   Copyright (c) 2012, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -116,18 +116,18 @@ static const char *fk_info_str(THD *thd, FOREIGN_KEY_INFO *fk_info)
                  error was emitted.
 */
 
-bool
-TABLE::referenced_by_foreign_table(THD *thd, FOREIGN_KEY_INFO **fk_info) const
+static bool
+fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
 {
+  FOREIGN_KEY_INFO *fk_info;
   List<FOREIGN_KEY_INFO> fk_list;
   List_iterator_fast<FOREIGN_KEY_INFO> it;
-  *fk_info= NULL;
 
   /*
     Bail out early if the table is not referenced by a foreign key.
     In this case, the table could only be, if at all, a child table.
   */
-  if (! file->referenced_by_foreign_key())
+  if (! table->file->referenced_by_foreign_key())
     return FALSE;
 
   /*
@@ -136,7 +136,7 @@ TABLE::referenced_by_foreign_table(THD *thd, FOREIGN_KEY_INFO **fk_info) const
     of foreign keys referencing this table in order to check the name
     of the child (dependent) tables.
   */
-  file->get_parent_foreign_key_list(thd, &fk_list);
+  table->file->get_parent_foreign_key_list(thd, &fk_list);
 
   /* Out of memory when building list. */
   if (unlikely(thd->is_error()))
@@ -145,22 +145,25 @@ TABLE::referenced_by_foreign_table(THD *thd, FOREIGN_KEY_INFO **fk_info) const
   it.init(fk_list);
 
   /* Loop over the set of foreign keys for which this table is a parent. */
-  while ((*fk_info= it++))
+  while ((fk_info= it++))
   {
-    if (lex_string_cmp(system_charset_info, (*fk_info)->referenced_db,
-                       &s->db) ||
-        lex_string_cmp(system_charset_info, (*fk_info)->referenced_table,
-                       &s->table_name) ||
-        lex_string_cmp(system_charset_info, (*fk_info)->foreign_db,
-                       &s->db) ||
-        lex_string_cmp(system_charset_info, (*fk_info)->foreign_table,
-                       &s->table_name))
+    if (lex_string_cmp(system_charset_info, fk_info->referenced_db,
+                       &table->s->db) ||
+        lex_string_cmp(system_charset_info, fk_info->referenced_table,
+                       &table->s->table_name) ||
+        lex_string_cmp(system_charset_info, fk_info->foreign_db,
+                       &table->s->db) ||
+        lex_string_cmp(system_charset_info, fk_info->foreign_table,
+                       &table->s->table_name))
       break;
   }
 
   /* Table is parent in a non-self-referencing foreign key. */
-  if (*fk_info)
-    return TRUE; /* tested by main.trigger-trans */
+  if (fk_info)
+  {
+    my_error(ER_TRUNCATE_ILLEGAL_FK, MYF(0), fk_info_str(thd, fk_info));
+    return TRUE;
+  }
 
   return FALSE;
 }
@@ -190,7 +193,6 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
   int error= 0;
   uint flags= 0;
   TABLE *table;
-  FOREIGN_KEY_INFO *fk_info;
   DBUG_ENTER("Sql_cmd_truncate_table::handler_truncate");
 
   /*
@@ -231,13 +233,8 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 
   /* Whether to truncate regardless of foreign keys. */
   if (! (thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
-    if (table_ref->table->referenced_by_foreign_table(thd, &fk_info))
-    {
-      /* Table is parent in a non-self-referencing foreign key. */
-      if (fk_info)
-        my_error(ER_TRUNCATE_ILLEGAL_FK, MYF(0), fk_info_str(thd, fk_info));
+    if (fk_truncate_illegal_if_parent(thd, table_ref->table))
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
-    }
 
   table= table_ref->table;
 

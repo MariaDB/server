@@ -1950,9 +1950,8 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       DBUG_PRINT("info",("Using locked table"));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       part_names_error= set_partitions_as_used(table_list, table);
-      if (!part_names_error &&
-          table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
-          table->vers_switch_partition(thd, table_list, ot_ctx))
+      if (!part_names_error
+          && table->vers_switch_partition(thd, table_list, ot_ctx))
         DBUG_RETURN(true);
 #endif
       goto reset;
@@ -2009,8 +2008,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
 
   if (table_list->open_strategy == TABLE_LIST::OPEN_IF_EXISTS)
   {
-    if (!ha_table_exists(thd, &table_list->db, &table_list->table_name,
-                         NULL, NULL, NULL, NULL, 0))
+    if (!ha_table_exists(thd, &table_list->db, &table_list->table_name))
       DBUG_RETURN(FALSE);
   }
   else if (table_list->open_strategy == TABLE_LIST::OPEN_STUB)
@@ -2214,7 +2212,6 @@ retry_share:
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (!part_names_error &&
-      table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
       table->vers_switch_partition(thd, table_list, ot_ctx))
   {
     MYSQL_UNBIND_TABLE(table->file);
@@ -3156,7 +3153,7 @@ ret:
 static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
 {
   if (Table_triggers_list::check_n_load(thd, &share->db,
-                                        &share->table_name, entry, false, 0))
+                                        &share->table_name, entry, 0))
     return TRUE;
 
   /*
@@ -4228,7 +4225,7 @@ static bool upgrade_lock_if_not_exists(THD *thd,
     DEBUG_SYNC(thd,"create_table_before_check_if_exists");
     if (!create_info.or_replace() &&
         ha_table_exists(thd, &create_table->db, &create_table->table_name,
-                        NULL, NULL, &create_table->db_type, NULL, 0))
+                        NULL, NULL, &create_table->db_type))
     {
       if (create_info.if_not_exists())
       {
