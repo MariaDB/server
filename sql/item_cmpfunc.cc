@@ -5246,7 +5246,7 @@ Item *Item_cond::top_level_transform(THD *thd, Item_transformer transformer, uch
   Item *item;
   while ((item= li++))
   {
-    Item *new_item= item->transform(thd, transformer, arg);
+    Item *new_item= item->top_level_transform(thd, transformer, arg);
     if (!new_item)
       return 0;
     *li.ref()= new_item;
