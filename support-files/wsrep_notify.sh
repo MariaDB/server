@@ -6,30 +6,32 @@
 #
 # Edit parameters below to specify the address and login to server:
 #
-USER=root
-PSWD=rootpass
+USER='root'
+PSWD='rootpass'
 #
 # If these parameters are not set, then the values
 # passed by the server are taken:
 #
-HOST=127.0.0.1
+HOST="127.0.0.1"
 PORT=3306
 #
 # Edit parameters below to specify SSL parameters:
 #
-ssl_key=
-ssl_cert=
-ssl_ca=
-ssl_capath=
-ssl_cipher=
-ssl_crl=
-ssl_crlpath=
+ssl_cert=""
+ssl_key=""
+ssl_ca=""
+ssl_capath=""
+ssl_cipher=""
+ssl_crl=""
+ssl_crlpath=""
 ssl_verify_server_cert=0
 #
 # Client executable path:
 #
 CLIENT="mysql"
-
+#
+# Name of schema and tables:
+#
 SCHEMA="wsrep"
 MEMB_TABLE="$SCHEMA.membership"
 STATUS_TABLE="$SCHEMA.status"
@@ -37,15 +39,14 @@ STATUS_TABLE="$SCHEMA.status"
 WSREP_ON='SET wsrep_on=ON'
 WSREP_OFF='SET wsrep_on=OFF'
 
-BEGIN="$WSREP_OFF;
-DROP SCHEMA IF EXISTS $SCHEMA; CREATE SCHEMA $SCHEMA;
-CREATE TABLE $MEMB_TABLE (
+BEGIN="CREATE SCHEMA IF NOT EXISTS $SCHEMA;
+CREATE TABLE IF NOT EXISTS $MEMB_TABLE (
     idx  INT UNIQUE PRIMARY KEY,
     uuid CHAR(40) UNIQUE, /* node UUID */
     name VARCHAR(32),     /* node name */
     addr VARCHAR(256)     /* node address */
 ) ENGINE=MEMORY;
-CREATE TABLE $STATUS_TABLE (
+CREATE TABLE IF NOT EXISTS $STATUS_TABLE (
     size   INT,      /* component size   */
     idx    INT,      /* this node index  */
     status CHAR(16), /* this node status */
@@ -57,7 +58,7 @@ END="COMMIT; $WSREP_ON"
 
 configuration_change()
 {
-    echo "$BEGIN;"
+    echo "$WSREP_OFF; DROP SCHEMA IF EXISTS $SCHEMA; $BEGIN;"
 
     local idx=0
 
@@ -67,7 +68,7 @@ configuration_change()
         # Don't forget to properly quote string values
         echo "'$NODE'" | sed  s/\\//\',\'/g
         echo ");"
-        idx=$(( $idx + 1 ))
+        idx=$(( $idx+1 ))
     done
 
     echo "INSERT INTO $STATUS_TABLE VALUES($idx, $INDEX, '$STATUS', '$CLUSTER_UUID', $PRIMARY);"
@@ -77,7 +78,7 @@ configuration_change()
 
 status_update()
 {
-    echo "$WSREP_OFF; BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; $END;"
+    echo "$WSREP_OFF; $BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; $END;"
 }
 
 trim_string()
@@ -102,34 +103,35 @@ trim_string()
     fi
 }
 
-COM=status_update # not a configuration change by default
+COM='status_update' # not a configuration change by default
 
 STATUS=""
 CLUSTER_UUID=""
-PRIMARY="0"
+PRIMARY=0
 INDEX=""
 MEMBERS=""
 
 while [ $# -gt 0 ]; do
     case $1 in
-    --status)
+    '--status')
         STATUS=$(trim_string "$2")
         shift
         ;;
-    --uuid)
+    '--uuid')
         CLUSTER_UUID=$(trim_string "$2")
         shift
         ;;
-    --primary)
-        [ "$2" = "yes" ] && PRIMARY="1" || PRIMARY="0"
-        COM=configuration_change
+    '--primary')
+        arg=$(trim_string "$2")
+        [ "$arg" = 'yes' ] && PRIMARY=1 || PRIMARY=0
+        COM='configuration_change'
         shift
         ;;
-    --index)
+    '--index')
         INDEX=$(trim_string "$2")
         shift
         ;;
-    --members)
+    '--members')
         MEMBERS=$(trim_string "$2")
         shift
         ;;
@@ -168,9 +170,7 @@ ssl_verify_server_cert=$(trim_string "$ssl_verify_server_cert");
 
 SSL_PARAM=""
 
-if [ -n "$ssl_key" -o -n "$ssl_cert" -o \
-     -n "$ssl_ca"  -o -n "$ssl_capath" -o \
-     -n "$ssl_cipher" ]
+if [ -n "$ssl_key$ssl_cert$ssl_ca$ssl_capath$ssl_cipher$ssl_crl$ssl_crlpath" ]
 then
     SSL_PARAM=' --ssl'
     [ -n "$ssl_key" ]     && SSL_PARAM="$SSL_PARAM --ssl-key='$ssl_key'"
@@ -181,8 +181,10 @@ then
     [ -n "$ssl_crl" ]     && SSL_PARAM="$SSL_PARAM --ssl-crl='$ssl_crl'"
     [ -n "$ssl_crlpath" ] && SSL_PARAM="$SSL_PARAM --ssl-crlpath='$ssl_crlpath'"
     if [ -n "$ssl_verify_server_cert" ]; then
-        if [ $ssl_verify_server_cert -ne 0 ]; then
-            SSL_PARAM+=' --ssl-verify-server-cert'
+        if [ "$ssl_verify_server_cert" != "0" -o \
+             "$ssl_verify_server_cert" = "on" ]
+        then
+            SSL_PARAM="$SSL_PARAM --ssl-verify-server-cert"
         fi
     fi
 fi
