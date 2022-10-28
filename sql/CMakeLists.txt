@@ -161,7 +161,7 @@ SET (SQL_SOURCE
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
-               my_json_writer.cc
+               my_json_writer.cc json_schema.cc json_schema_helper.cc
                rpl_gtid.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
