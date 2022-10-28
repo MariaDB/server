@@ -4,7 +4,6 @@
 
 --connection slave
 --source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=CURRENT_POS;
 --let $datadir= `SELECT @@datadir`
 
 --let $rpl_server_number= 2

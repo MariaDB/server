@@ -11,9 +11,7 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 connection server_2;
 SET GLOBAL gtid_slave_pos="";
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_USE_GTID=CURRENT_POS;
-Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
+MASTER_USE_GTID=SLAVE_POS;
 include/start_slave.inc
 SELECT * FROM t1;
 a
@@ -35,9 +33,7 @@ master-bin.000003	#
 connection server_2;
 SET GLOBAL gtid_slave_pos="";
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_USE_GTID=CURRENT_POS;
-Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
+MASTER_USE_GTID=SLAVE_POS;
 START SLAVE;
 include/wait_for_slave_io_error.inc [errno=1236]
 include/stop_slave.inc
@@ -59,9 +55,7 @@ include/save_master_gtid.inc
 connection server_2;
 SET GLOBAL gtid_slave_pos='0-1-3';
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_USE_GTID=CURRENT_POS;
-Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
+MASTER_USE_GTID=SLAVE_POS;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER by a;
@@ -96,16 +90,12 @@ connection server_2;
 connection server_2;
 include/stop_slave.inc
 RESET SLAVE ALL;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 RESET MASTER;
 connection server_1;
 RESET MASTER;
 connection server_2;
 SET GLOBAL gtid_slave_pos='';
-CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=current_pos;
-Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=slave_pos;
 include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY);
@@ -129,8 +119,6 @@ connection server_2;
 include/stop_slave.inc
 DROP TABLE t1;
 RESET SLAVE;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 SET GLOBAL gtid_slave_pos="";
 Warnings:
 Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-4. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
@@ -162,9 +150,7 @@ Using_Gtid = 'No'
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1050]
 STOP SLAVE IO_THREAD;
-CHANGE MASTER TO MASTER_USE_GTID=CURRENT_POS;
-Warnings:
-Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release. Please use master_demote_to_slave=1 instead
+CHANGE MASTER TO MASTER_USE_GTID=SLAVE_POS;
 include/start_slave.inc
 connection server_1;
 INSERT INTO t1 VALUES(3);
@@ -223,9 +209,9 @@ include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 a
 10
-SELECT 'Current_Pos' AS Using_Gtid;
+SELECT 'Slave_Pos' AS Using_Gtid;
 Using_Gtid
-Current_Pos
+Slave_Pos
 SELECT '0-1-2' AS Gtid_Slave_Pos;
 Gtid_Slave_Pos
 0-1-2
@@ -252,8 +238,6 @@ connection server_2;
 include/stop_slave.inc
 DROP TABLE t1;
 RESET SLAVE ALL;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 RESET MASTER;
 SET GLOBAL gtid_slave_pos= "";
