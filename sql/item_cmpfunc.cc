@@ -5227,6 +5227,35 @@ Item *Item_cond::transform(THD *thd, Item_transformer transformer, uchar *arg)
 
 
 /**
+  Transform an Item_cond object with a transformer callback function.
+
+  This is like transform() but doesn't use change_item_tree(),
+  because top-level expression is stored in prep_where/prep_on anyway and
+  is restored from there, there is no need to use change_item_tree().
+
+  Furthermore, it can be actually harmful to use it, if build_equal_items()
+  had replaced Item_eq with Item_equal and deleted list_node with a pointer
+  to Item_eq. In this case rollback_item_tree_changes() would modify the
+  deleted list_node.
+*/
+Item *Item_cond::top_level_transform(THD *thd, Item_transformer transformer, uchar *arg)
+{
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
+
+  List_iterator<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    Item *new_item= item->transform(thd, transformer, arg);
+    if (!new_item)
+      return 0;
+    *li.ref()= new_item;
+  }
+  return Item_func::transform(thd, transformer, arg);
+}
+
+
+/**
   Compile Item_cond object with a processor and a transformer
   callback functions.
   

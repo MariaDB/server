@@ -2112,6 +2112,11 @@ public:
   }
 
   virtual Item* transform(THD *thd, Item_transformer transformer, uchar *arg);
+  virtual Item* top_level_transform(THD *thd, Item_transformer transformer,
+                                    uchar *arg)
+  {
+    return transform(thd, transformer, arg);
+  }
 
   /*
     This function performs a generic "compilation" of the Item tree.

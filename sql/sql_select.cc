@@ -30523,7 +30523,7 @@ bool JOIN::transform_all_conds_and_on_exprs(THD *thd,
 {
   if (conds)
   {
-    conds= conds->transform(thd, transformer, (uchar *) 0);
+    conds= conds->top_level_transform(thd, transformer, (uchar *) 0);
     if (!conds)
       return true;
   }
@@ -30553,7 +30553,7 @@ bool JOIN::transform_all_conds_and_on_exprs_in_join_list(
     }
     if (table->on_expr)
     {
-      table->on_expr= table->on_expr->transform(thd, transformer, (uchar *) 0);
+      table->on_expr= table->on_expr->top_level_transform(thd, transformer, 0);
       if (!table->on_expr)
         return true;
     }

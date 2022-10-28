@@ -1,4 +1,3 @@
-drop table if exists t1, t2;
 select 1 in (1,2,3);
 1 in (1,2,3)
 1
@@ -942,6 +941,9 @@ SELECT ('0x',1) IN ((0,1),(1,1));
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: '0x'
 #
+# End of 10.4 tests
+#
+#
 # MDEV-29662 same values in `IN` set vs equal comparison produces
 #            the different performance
 #
@@ -1153,5 +1155,16 @@ DROP TABLE t1, t2, t3, t4;
 DROP VIEW v1;
 DROP PROCEDURE p1;
 #
-# End of 10.4 tests
+# MDEV-29895 prepared view crash server (unit.conc_view)
+#
+create table t1 (username varchar(12) not null, id int(11) not null);
+create view v1 as select username from t1 where id = 0;
+prepare stmt from "select username from v1 where username in (?, ?)";
+execute stmt using "1", "1";
+username
+deallocate prepare stmt;
+drop view v1;
+drop table t1;
+#
+# End of 10.6 tests
 #

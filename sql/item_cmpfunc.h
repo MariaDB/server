@@ -3193,6 +3193,7 @@ public:
   void copy_andor_arguments(THD *thd, Item_cond *item);
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
+  Item *top_level_transform(THD *thd, Item_transformer transformer, uchar *arg) override;
   void traverse_cond(Cond_traverser, void *arg, traverse_order order) override;
   void neg_arguments(THD *thd);
   Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *) override;

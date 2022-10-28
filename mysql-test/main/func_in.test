@@ -1,7 +1,3 @@
-# Initialise
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
 #
 # test of IN (NULL)
 #
@@ -722,6 +718,10 @@ SELECT ('0x',1) IN ((0,1));
 SELECT ('0x',1) IN ((0,1),(1,1));
 
 --echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
 --echo # MDEV-29662 same values in `IN` set vs equal comparison produces
 --echo #            the different performance
 --echo #
@@ -840,6 +840,18 @@ DROP VIEW v1;
 DROP PROCEDURE p1;
 
 --echo #
---echo # End of 10.4 tests
+--echo # MDEV-29895 prepared view crash server (unit.conc_view)
+--echo #
+
+create table t1 (username varchar(12) not null, id int(11) not null);
+create view v1 as select username from t1 where id = 0;
+prepare stmt from "select username from v1 where username in (?, ?)";
+execute stmt using "1", "1";
+deallocate prepare stmt;
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # End of 10.6 tests
 --echo #
 
