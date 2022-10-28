@@ -5379,7 +5379,14 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
     s->dependent= tables->dep_tables;
     if (tables->schema_table)
-      table->file->stats.records= table->used_stat_records= 2;
+    {
+      /*
+        Information schema is slow and we don't know how many rows we will
+        find. Be setting a moderate ammount of rows we are more likely
+        to have it materialized if needed.
+      */
+      table->file->stats.records= table->used_stat_records= 100;
+    }
     table->opt_range_condition_rows= table->stat_records();
 
     s->on_expr_ref= &tables->on_expr;
