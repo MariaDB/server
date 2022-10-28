@@ -1765,7 +1765,7 @@ static void calc_hash_for_unique(ulong &nr1, ulong &nr2, String *str)
   cs->coll->hash_sort(cs, (uchar *)str->ptr(), str->length(), &nr1, &nr2);
 }
 
-longlong  Item_func_hash::val_int()
+longlong  Item_func_hash_mariadb_100403::val_int()
 {
   DBUG_EXECUTE_IF("same_long_unique_hash", return 9;);
   unsigned_flag= true;
@@ -1783,6 +1783,24 @@ longlong  Item_func_hash::val_int()
   }
   null_value= 0;
   return   (longlong)nr1;
+}
+
+
+longlong  Item_func_hash::val_int()
+{
+  DBUG_EXECUTE_IF("same_long_unique_hash", return 9;);
+  unsigned_flag= true;
+  Hasher hasher;
+  for(uint i= 0;i<arg_count;i++)
+  {
+    if (args[i]->hash_not_null(&hasher))
+    {
+      null_value= 1;
+      return 0;
+    }
+  }
+  null_value= 0;
+  return (longlong) hasher.finalize();
 }
 
 

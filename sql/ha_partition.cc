@@ -9850,8 +9850,7 @@ uint8 ha_partition::table_cache_type()
 
 uint32 ha_partition::calculate_key_hash_value(Field **field_array)
 {
-  ulong nr1= 1;
-  ulong nr2= 4;
+  Hasher hasher;
   bool use_51_hash;
   use_51_hash= MY_TEST((*field_array)->table->part_info->key_algorithm ==
                        partition_info::KEY_ALGORITHM_51);
@@ -9878,13 +9877,12 @@ uint32 ha_partition::calculate_key_hash_value(Field **field_array)
         {
           if (field->is_null())
           {
-            nr1^= (nr1 << 1) | 1;
+            hasher.add_null();
             continue;
           }
           /* Force this to my_hash_sort_bin, which was used in 5.1! */
           uint len= field->pack_length();
-          my_charset_bin.coll->hash_sort(&my_charset_bin, field->ptr, len,
-                                         &nr1, &nr2);
+          hasher.add(&my_charset_bin, field->ptr, len);
           /* Done with this field, continue with next one. */
           continue;
         }
@@ -9902,13 +9900,12 @@ uint32 ha_partition::calculate_key_hash_value(Field **field_array)
         {
           if (field->is_null())
           {
-            nr1^= (nr1 << 1) | 1;
+            hasher.add_null();
             continue;
           }
           /* Force this to my_hash_sort_bin, which was used in 5.1! */
           uint len= field->pack_length();
-          my_charset_latin1.coll->hash_sort(&my_charset_latin1, field->ptr,
-                                            len, &nr1, &nr2);
+          hasher.add(&my_charset_latin1, field->ptr, len);
           continue;
         }
       /* New types in mysql-5.6. */
@@ -9935,9 +9932,9 @@ uint32 ha_partition::calculate_key_hash_value(Field **field_array)
       }
       /* fall through, use collation based hashing. */
     }
-    field->hash(&nr1, &nr2);
+    field->hash(&hasher);
   } while (*(++field_array));
-  return (uint32) nr1;
+  return (uint32) hasher.finalize();
 }
 
 

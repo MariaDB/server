@@ -1078,6 +1078,18 @@ public:
   const char *func_name() const { return "<hash>"; }
 };
 
+class Item_func_hash_mariadb_100403: public Item_func_hash
+{
+public:
+  Item_func_hash_mariadb_100403(THD *thd, List<Item> &item)
+   :Item_func_hash(thd, item)
+  {}
+  longlong val_int();
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_hash_mariadb_100403>(thd, this); }
+  const char *func_name() const { return "<hash_mariadb_100403>"; }
+};
+
 class Item_longlong_func: public Item_int_func
 {
 public:
