@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Custom MariaDB "Samurai" Codebase for ServiceNow
 
 * [10.2 Samurai Branch](https://github.com/mariadb-corporation/mariadb-samurai/tree/10.2) (Supported)
@@ -91,4 +90,3 @@ The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server
 
 ***************************************************************************
->>>>>>> 840861df9d1355b84d0f66501ff57d64c29cf038
