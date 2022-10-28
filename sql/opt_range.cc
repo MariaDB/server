@@ -6388,9 +6388,19 @@ bool check_index_intersect_extension(THD *thd,
   COMMON_INDEX_INTERSECT_INFO *common_info= curr->common_info;
   double cutoff_cost= common_info->cutoff_cost;
   uint idx= curr->length;
+  Json_writer_object trace(thd, "check_index_intersect_extension");
+
   next->index_read_cost= curr->index_read_cost+ext_index_scan->index_read_cost;
   if (next->index_read_cost > cutoff_cost)
-    return FALSE; 
+  {
+    if (unlikely(trace.trace_started()))
+      trace.
+        add("index", ext_index_scan->key_info->name.str).
+        add("cost", next->index_read_cost).
+        add("chosen", false).
+        add("cause", "cost");
+    return FALSE;
+  }
 
   if ((next->in_memory= curr->in_memory))
     next->in_memory_cost= curr->in_memory_cost;
@@ -6414,14 +6424,15 @@ bool check_index_intersect_extension(THD *thd,
                                                    common_info->compare_factor)* 
                              ext_index_scan_records;
     cost= next->in_memory_cost;
+
   }
   else
   {
     uint *buff_elems= common_info->buff_elems;
     uint key_size= common_info->key_size;
     double compare_factor= common_info->compare_factor;
-    size_t max_memory_size= common_info->max_memory_size; 
-    
+    size_t max_memory_size= common_info->max_memory_size;
+
     records_sent_to_unique+= ext_index_scan_records;
     cost= Unique::get_use_cost(thd, buff_elems, (size_t) records_sent_to_unique,
                                key_size,
@@ -6451,6 +6462,19 @@ bool check_index_intersect_extension(THD *thd,
     if (next->in_memory)
       next->in_memory_cost= cost;
   }
+  if (unlikely(trace.trace_started()))
+  {
+    trace.
+      add("index", ext_index_scan->key_info->name.str).
+      add("in_memory", next->in_memory).
+      add("range_rows", ext_index_scan_records).
+      add("rows_sent_to_unique", records_sent_to_unique).
+      add("unique_cost", cost).
+      add("index_read_cost", next->index_read_cost);
+    if (next->use_cpk_filter)
+      trace.add("rows_filtered_out_by_clustered_pk", records_filtered_out_by_cpk);
+  }
+
 
   if (next->use_cpk_filter)
   {
@@ -6462,20 +6486,37 @@ bool check_index_intersect_extension(THD *thd,
        
   records= records_in_index_intersect_extension(curr, ext_index_scan);
   if (idx && records > curr->records)
+  {
+    if (unlikely(trace.trace_started()))
+      trace.
+        add("rows", records).
+        add("chosen", false).
+        add("cause", "too many rows");
     return FALSE;
+  }
   if (next->use_cpk_filter && curr->filtered_scans.is_clear_all())
     records-= records_filtered_out_by_cpk;
   next->records= records;
 
   cost+= next->index_read_cost;
   if (cost >= cutoff_cost)
+  {
+    if (unlikely(trace.trace_started()))
+      trace.add("cost", cost).add("chosen", false).add("cause", "cost");
     return FALSE;
+  }
 
+  /*
+    The cost after sweeep can be bigger than cutoff, but that is ok as the
+    end cost can decrease when we add the next index.
+  */
   cost+= get_sweep_read_cost(common_info->param, records, 1);
 
   next->cost= cost;
   next->length= curr->length+1;
 
+  if (unlikely(trace.trace_started()))
+    trace.add("rows", records).add("cost", cost).add("chosen", true);
   return TRUE;
 }
 
@@ -6522,10 +6563,13 @@ void find_index_intersect_best_extension(THD *thd,
 
   next.common_info= common_info;
  
+  Json_writer_array potential_index_intersect(thd, "potential_index_intersect");
+
   INDEX_SCAN_INFO *rem_first_index_scan= *rem_first_index_scan_ptr;
   for (INDEX_SCAN_INFO **index_scan_ptr= rem_first_index_scan_ptr;
        *index_scan_ptr; index_scan_ptr++)
   {
+    Json_writer_object selected(thd);
     *rem_first_index_scan_ptr= *index_scan_ptr;
     *index_scan_ptr= rem_first_index_scan;
     if (check_index_intersect_extension(thd, curr, *rem_first_index_scan_ptr,
@@ -6577,6 +6621,9 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
   DBUG_ENTER("get_best_index_intersect");
 
   Json_writer_object trace_idx_interect(thd, "analyzing_sort_intersect");
+
+  if (unlikely(trace_idx_interect.trace_started()))
+    trace_idx_interect.add("cutoff_cost", read_time);
 
   if (prepare_search_best_index_intersect(param, tree, &common, &init,
                                           read_time))
