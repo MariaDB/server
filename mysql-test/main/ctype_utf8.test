@@ -2310,3 +2310,161 @@ VALUES (_latin1 0xDF) UNION VALUES(_utf8'a' COLLATE utf8_bin);
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-27653 long uniques don't work with unicode collations
+--echo #
+
+SET NAMES utf8mb3;
+
+# CHAR
+
+CREATE TABLE t1 (
+   a CHAR(30) COLLATE utf8mb3_general_ci,
+   UNIQUE KEY(a) USING HASH
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('a');
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('ä');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+   a CHAR(30) COLLATE utf8mb3_general_ci,
+   UNIQUE KEY(a(10)) USING HASH
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('a');
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('ä');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+# VARCHAR
+
+CREATE TABLE t1 (
+   a VARCHAR(30) COLLATE utf8mb3_general_ci,
+   UNIQUE KEY(a) USING HASH
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('a');
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('ä');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+   a VARCHAR(30) COLLATE utf8mb3_general_ci,
+   UNIQUE KEY(a(10)) USING HASH
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('a');
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('ä');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+# TEXT
+
+CREATE TABLE t1 (a TEXT COLLATE utf8mb3_general_ci UNIQUE);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('a');
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('ä');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a LONGTEXT COLLATE utf8mb3_general_ci,
+  UNIQUE KEY(a(10)) USING HASH
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('a');
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('ä');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+# Testing upgrade:
+# Prior to MDEV-27653, the UNIQUE HASH function errorneously
+# took into account string octet length.
+# Old tables should still open and work, but with wrong results.
+
+copy_file std_data/mysql_upgrade/mdev27653_100422_myisam_text.frm $MYSQLD_DATADIR/test/t1.frm;
+copy_file std_data/mysql_upgrade/mdev27653_100422_myisam_text.MYD $MYSQLD_DATADIR/test/t1.MYD;
+copy_file std_data/mysql_upgrade/mdev27653_100422_myisam_text.MYI $MYSQLD_DATADIR/test/t1.MYI;
+SHOW CREATE TABLE t1;
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+CHECK TABLE t1;
+
+# There is already a one byte value 'a' in the table
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('A');
+
+# There is already a two-byte value 'ä' in the table
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('Ä');
+
+# There were no three-byte values in the table so far.
+# The below value violates UNIQUE, but it gets inserted.
+# This is wrong but expected for a pre-MDEV-27653 table.
+INSERT INTO t1 VALUES ('Ấ');
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+CHECK TABLE t1;
+
+# ALTER FORCE fails: it tries to rebuild the table
+# with a correct UNIQUE HASH function, but there are duplicates!
+--error ER_DUP_ENTRY
+ALTER TABLE t1 FORCE;
+
+# Let's remove all duplicate values, so only the one-byte 'a' stays.
+# ALTER..FORCE should work after that.
+DELETE FROM t1 WHERE OCTET_LENGTH(a)>1;
+ALTER TABLE t1 FORCE;
+
+# Make sure that 'a' and 'ä' cannot co-exists any more,
+# because the table was recreated with a correct UNIQUE HASH function.
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES ('ä');
+DROP TABLE t1;
+
+#
+# Testing an old table with ALTER IGNORE.
+# The table is expected to rebuild with a new hash function,
+# duplicates go away.
+#
+copy_file std_data/mysql_upgrade/mdev27653_100422_myisam_text.frm $MYSQLD_DATADIR/test/t1.frm;
+copy_file std_data/mysql_upgrade/mdev27653_100422_myisam_text.MYD $MYSQLD_DATADIR/test/t1.MYD;
+copy_file std_data/mysql_upgrade/mdev27653_100422_myisam_text.MYI $MYSQLD_DATADIR/test/t1.MYI;
+SHOW CREATE TABLE t1;
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+ALTER IGNORE TABLE t1 FORCE;
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+DROP TABLE t1;
+
+#
+# Testing an old table with REPAIR.
+# The table is expected to rebuild with a new hash function,
+# duplicates go away.
+#
+copy_file std_data/mysql_upgrade/mdev27653_100422_myisam_text.frm $MYSQLD_DATADIR/test/t1.frm;
+copy_file std_data/mysql_upgrade/mdev27653_100422_myisam_text.MYD $MYSQLD_DATADIR/test/t1.MYD;
+copy_file std_data/mysql_upgrade/mdev27653_100422_myisam_text.MYI $MYSQLD_DATADIR/test/t1.MYI;
+SHOW CREATE TABLE t1;
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+REPAIR TABLE t1;
+SELECT a, OCTET_LENGTH(a) FROM t1 ORDER BY BINARY a;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

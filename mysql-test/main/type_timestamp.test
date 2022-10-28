@@ -879,5 +879,26 @@ SET timestamp=DEFAULT;
 
 
 --echo #
+--echo # MDEV-27653 long uniques don't work with unicode collations
+--echo #
+
+CREATE TABLE t1 (a timestamp, UNIQUE KEY(a) USING HASH);
+SET time_zone='+00:00';
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+SET time_zone='+01:00';
+--error ER_DUP_ENTRY
+INSERT INTO t1 SELECT MAX(a) FROM t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a timestamp, UNIQUE KEY(a) USING HASH);
+SET time_zone='+00:00';
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+SET time_zone='+01:00';
+CHECK TABLE t1;
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
