@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5288,12 +5288,9 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
   tmp_table_ref->init_one_table(&empty_clex_str, &table_name, NULL, TL_READ);
   tmp_table_ref->table= tmp_table;
 
-  context= new Name_resolution_context;
-  context->init();
-  context->first_name_resolution_table=
-    context->last_name_resolution_table= tmp_table_ref;
+  context= new Name_resolution_context(tmp_table_ref);
   semi_join_conds_context= context;
-  
+
   for (uint i= 0; i < item_in->left_expr->cols(); i++)
   {
     /* New equi-join condition for the current column. */

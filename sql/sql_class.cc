@@ -5111,11 +5111,21 @@ void reset_thd(MYSQL_THD thd)
   before writing response to client, to provide durability
   guarantees, in other words, server can't send OK packet
   before modified data is durable in redo log.
-*/
-extern "C" void thd_increment_pending_ops(MYSQL_THD thd)
+
+  NOTE: system THD (those that are not associated with client
+        connection) do not allows async operations yet.
+
+  @param thd  a THD
+  @return thd
+  @retval nullptr   if this is system THD */
+extern "C" MYSQL_THD thd_increment_pending_ops(MYSQL_THD thd)
 {
+  if (!thd || thd->system_thread != NON_SYSTEM_THREAD)
+    return nullptr;
   thd->async_state.inc_pending_ops();
+  return thd;
 }
+
 
 /**
   This function can be used by plugin/engine to indicate
@@ -5127,6 +5137,8 @@ extern "C" void thd_increment_pending_ops(MYSQL_THD thd)
 extern "C" void thd_decrement_pending_ops(MYSQL_THD thd)
 {
   DBUG_ASSERT(thd);
+  DBUG_ASSERT(thd->system_thread == NON_SYSTEM_THREAD);
+
   thd_async_state::enum_async_state state;
   if (thd->async_state.dec_pending_ops(&state) == 0)
   {

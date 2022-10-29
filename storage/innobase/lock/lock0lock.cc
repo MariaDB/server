@@ -45,6 +45,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "pars0pars.h"
 #include "srv0mon.h"
 #include "que0que.h"
+#include "scope.h"
 
 #include <set>
 
@@ -1724,6 +1725,12 @@ dberr_t lock_wait(que_thr_t *thr)
   if (trx->mysql_thd)
     DEBUG_SYNC_C("lock_wait_start");
 
+  /* Create the sync point for any quit from the function. */
+  ut_d(SCOPE_EXIT([trx]() {
+    if (trx->mysql_thd)
+      DEBUG_SYNC_C("lock_wait_end");
+  }));
+
   /* InnoDB system transactions may use the global value of
   innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
   const ulong innodb_lock_wait_timeout= trx_lock_wait_timeout_get(trx);
@@ -2113,49 +2120,58 @@ lock_rec_reset_and_release_wait(const hash_cell_t &cell, const page_id_t id,
   }
 }
 
-/*************************************************************//**
-Makes a record to inherit the locks (except LOCK_INSERT_INTENTION type)
+/** Makes a record to inherit the locks (except LOCK_INSERT_INTENTION type)
 of another record as gap type locks, but does not reset the lock bits of
 the other record. Also waiting lock requests on rec are inherited as
-GRANTED gap locks. */
-static
-void
-lock_rec_inherit_to_gap(
-/*====================*/
-	hash_cell_t&		heir_cell,	/*!< heir hash table cell */
-	const page_id_t		heir,		/*!< in: page containing the
-						record which inherits */
-	const hash_cell_t&	donor_cell,	/*!< donor hash table cell */
-	const page_id_t		donor,		/*!< in: page containing the
-						record from which inherited;
-						does NOT reset the locks on
-						this record */
-	const page_t*		heir_page,	/*!< in: heir page frame */
-	ulint			heir_heap_no,	/*!< in: heap_no of the
-						inheriting record */
-	ulint			heap_no)	/*!< in: heap_no of the
-						donating record */
+GRANTED gap locks.
+@param heir_cell    heir hash table cell
+@param heir         page containing the record which inherits
+@param donor_cell   donor hash table cell
+@param donor        page containing the record from which inherited; does NOT
+                    reset the locks on this record
+@param heir_page    heir page frame
+@param heir_heap_no heap_no of the inheriting record
+@param heap_no      heap_no of the donating record
+@tparam from_split  true if the function is invoked from
+                    lock_update_split_(left|right)(), in this case not-gap
+                    locks are not inherited to supremum if transaction
+                    isolation level less or equal to READ COMMITTED */
+template <bool from_split= false>
+static void
+lock_rec_inherit_to_gap(hash_cell_t &heir_cell, const page_id_t heir,
+                        const hash_cell_t &donor_cell, const page_id_t donor,
+                        const page_t *heir_page, ulint heir_heap_no,
+                        ulint heap_no)
 {
-	/* At READ UNCOMMITTED or READ COMMITTED isolation level,
-	we do not want locks set
-	by an UPDATE or a DELETE to be inherited as gap type locks. But we
-	DO want S-locks/X-locks(taken for replace) set by a consistency
-	constraint to be inherited also then. */
+  ut_ad(!from_split || heir_heap_no == PAGE_HEAP_NO_SUPREMUM);
 
-	for (lock_t* lock= lock_sys_t::get_first(donor_cell, donor, heap_no);
-	     lock;
-	     lock = lock_rec_get_next(heap_no, lock)) {
-		trx_t* lock_trx = lock->trx;
-		if (!lock->is_insert_intention()
-		    && (lock_trx->isolation_level > TRX_ISO_READ_COMMITTED
-			|| lock->mode() !=
-			(lock_trx->duplicates ? LOCK_S : LOCK_X))) {
-			lock_rec_add_to_queue(LOCK_GAP | lock->mode(),
-					      heir_cell, heir, heir_page,
-					      heir_heap_no,
-					      lock->index, lock_trx, false);
-		}
-	}
+  /* At READ UNCOMMITTED or READ COMMITTED isolation level,
+  we do not want locks set
+  by an UPDATE or a DELETE to be inherited as gap type locks. But we
+  DO want S-locks/X-locks(taken for replace) set by a consistency
+  constraint to be inherited also then. */
+
+  for (lock_t *lock= lock_sys_t::get_first(donor_cell, donor, heap_no); lock;
+       lock= lock_rec_get_next(heap_no, lock))
+  {
+    trx_t *lock_trx= lock->trx;
+    if (!lock->trx->is_not_inheriting_locks() &&
+        !lock->is_insert_intention() &&
+        (lock_trx->isolation_level > TRX_ISO_READ_COMMITTED ||
+         /* When we are in a page split (not purge), then we don't set a lock
+         on supremum if the donor lock type is LOCK_REC_NOT_GAP. That is, do
+         not create bogus gap locks for non-gap locks for READ UNCOMMITTED and
+         READ COMMITTED isolation levels. LOCK_ORDINARY and
+         LOCK_GAP require a gap before the record to be locked, that is why
+         setting lock on supremmum is necessary. */
+         ((!from_split || !lock->is_record_not_gap()) &&
+          lock->mode() != (lock_trx->duplicates ? LOCK_S : LOCK_X))))
+    {
+      lock_rec_add_to_queue(LOCK_GAP | lock->mode(), heir_cell, heir,
+                            heir_page, heir_heap_no, lock->index, lock_trx,
+                            false);
+    }
+  }
 }
 
 /*************************************************************//**
@@ -2179,7 +2195,8 @@ lock_rec_inherit_to_gap_if_gap_lock(
 
   for (lock_t *lock= lock_sys_t::get_first(g.cell(), id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
-     if (!lock->is_insert_intention() && (heap_no == PAGE_HEAP_NO_SUPREMUM ||
+     if (!lock->trx->is_not_inheriting_locks() &&
+         !lock->is_insert_intention() && (heap_no == PAGE_HEAP_NO_SUPREMUM ||
                                           !lock->is_record_not_gap()) &&
          !lock_table_has(lock->trx, lock->index->table, LOCK_X))
        lock_rec_add_to_queue(LOCK_GAP | lock->mode(),
@@ -2796,8 +2813,9 @@ lock_update_split_right(
 
   /* Inherit the locks to the supremum of left page from the successor
   of the infimum on right page */
-  lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r, left_block->page.frame,
-                          PAGE_HEAP_NO_SUPREMUM, h);
+  lock_rec_inherit_to_gap<true>(g.cell1(), l, g.cell2(), r,
+                                left_block->page.frame, PAGE_HEAP_NO_SUPREMUM,
+                                h);
 }
 
 void lock_update_node_pointer(const buf_block_t *left_block,
@@ -2912,8 +2930,9 @@ lock_update_split_left(
   LockMultiGuard g{lock_sys.rec_hash, l, r};
   /* Inherit the locks to the supremum of the left page from the
   successor of the infimum on the right page */
-  lock_rec_inherit_to_gap(g.cell1(), l, g.cell2(), r, left_block->page.frame,
-                          PAGE_HEAP_NO_SUPREMUM, h);
+  lock_rec_inherit_to_gap<true>(g.cell1(), l, g.cell2(), r,
+                                left_block->page.frame, PAGE_HEAP_NO_SUPREMUM,
+                                h);
 }
 
 /** Update the lock table when a page is merged to the left.
@@ -4051,8 +4070,14 @@ static bool lock_release_on_prepare_try(trx_t *trx)
     if (!lock->is_table())
     {
       ut_ad(!lock->index->table->is_temporary());
-      if (lock->mode() == LOCK_X && !lock->is_gap())
+      if (lock->mode() == LOCK_X && !lock->is_gap()) {
+        ut_ad(lock->trx->isolation_level > TRX_ISO_READ_COMMITTED ||
+              /* Insert-intention lock is valid for supremum for isolation
+              level > TRX_ISO_READ_COMMITTED */
+              lock->mode() == LOCK_X ||
+              !lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
         continue;
+      }
       auto &lock_hash= lock_sys.hash_get(lock->type_mode);
       auto cell= lock_hash.cell_get(lock->un_member.rec_lock.page_id.fold());
       auto latch= lock_sys_t::hash_table::latch(cell);
@@ -4098,6 +4123,8 @@ static bool lock_release_on_prepare_try(trx_t *trx)
 and release possible other transactions waiting because of these locks. */
 void lock_release_on_prepare(trx_t *trx)
 {
+  auto _ = make_scope_exit([trx]() { trx->set_skip_lock_inheritance(); });
+
   for (ulint count= 5; count--; )
     if (lock_release_on_prepare_try(trx))
       return;
@@ -4115,6 +4142,12 @@ void lock_release_on_prepare(trx_t *trx)
       ut_ad(!lock->index->table->is_temporary());
       if (lock->mode() != LOCK_X || lock->is_gap())
         lock_rec_dequeue_from_page(lock, false);
+      else
+        ut_ad(lock->trx->isolation_level > TRX_ISO_READ_COMMITTED ||
+              /* Insert-intention lock is valid for supremum for isolation
+              level > TRX_ISO_READ_COMMITTED */
+              lock->mode() == LOCK_X ||
+              !lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
     }
     else
     {

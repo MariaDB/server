@@ -1818,15 +1818,6 @@ MYSQL_THD innobase_create_background_thd(const char* name)
 	return thd;
 }
 
-extern "C" void thd_increment_pending_ops(MYSQL_THD);
-
-THD *innodb_thd_increment_pending_ops(THD *thd)
-{
-  if (!thd || THDVAR(thd, background_thread))
-    return nullptr;
-  thd_increment_pending_ops(thd);
-  return thd;
-}
 
 /** Close opened tables, free memory, delete items for a MYSQL_THD.
 @param[in]	thd	MYSQL_THD to reset */
@@ -7409,6 +7400,11 @@ ha_innobase::build_template(
 
 	m_prebuilt->versioned_write = table->versioned_write(VERS_TRX_ID);
 	m_prebuilt->need_to_access_clustered = (index == clust_index);
+
+	if (m_prebuilt->in_fts_query) {
+		/* Do clustered index lookup to fetch the FTS_DOC_ID */
+		m_prebuilt->need_to_access_clustered = true;
+	}
 
 	/* Either m_prebuilt->index should be a secondary index, or it
 	should be the clustered index. */
@@ -15205,6 +15201,7 @@ ha_innobase::check(
 	of records in some index; to play safe, we normally use
 	REPEATABLE READ here */
 	m_prebuilt->trx->isolation_level = high_level_read_only
+		&& !m_prebuilt->table->is_temporary()
 		? TRX_ISO_READ_UNCOMMITTED
 		: TRX_ISO_REPEATABLE_READ;
 

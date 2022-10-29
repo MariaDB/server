@@ -1,8 +1,5 @@
-connect suspend_purge,localhost,root,,;
-START TRANSACTION WITH CONSISTENT SNAPSHOT;
-connection default;
-CREATE TABLE t (a int PRIMARY KEY, b int) engine = InnoDB;
-CREATE TABLE t2 (a int PRIMARY KEY) engine = InnoDB;
+CREATE TABLE t (a int PRIMARY KEY, b int) engine = InnoDB STATS_PERSISTENT=0;
+CREATE TABLE t2 (a int PRIMARY KEY) engine = InnoDB STATS_PERSISTENT=0;
 INSERT INTO t VALUES (10, 10), (20, 20), (30, 30);
 INSERT INTO t2 VALUES (10), (20), (30);
 BEGIN;
@@ -34,4 +31,3 @@ a	b
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t;
 DROP TABLE t2;
-disconnect suspend_purge;

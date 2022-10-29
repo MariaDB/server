@@ -472,47 +472,6 @@ drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
 
---echo #
---echo # MDEV-28727 ALTER TABLE ALGORITHM=NOCOPY does not work after upgrade
---echo #
-create or replace table pet4 (
-  build_time double(18, 7) default null,
-  key idx1 (build_time)
-) engine innodb;
-
---remove_file $MYSQLD_DATADIR/test/pet4.frm
---copy_file std_data/mdev-28727-pet4.frm $MYSQLD_DATADIR/test/pet4.frm
-
-check table pet4;
-check table pet4 for upgrade;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter table pet4 add i1 int, algorithm=nocopy;
-
---echo # Running mysqlcheck
---exec $MYSQL_CHECK --auto-repair --databases test 2>&1
-check table pet4;
-alter table pet4 add i1 int, algorithm=nocopy;
-
-create or replace table pet4 (
-  build_time double(18, 7) default null,
-  key idx1 (build_time)
-) engine innodb;
-
---remove_file $MYSQLD_DATADIR/test/pet4.frm
---copy_file std_data/mdev-28727-pet4.frm $MYSQLD_DATADIR/test/pet4.frm
-
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter table pet4 add i1 int, algorithm=nocopy;
-
---echo # Running mysql_upgrade
---exec $MYSQL_UPGRADE --silent 2>&1
-file_exists $MYSQLD_DATADIR/mysql_upgrade_info;
-check table pet4;
-alter table pet4 add i1 int, algorithm=nocopy;
-
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
-drop table pet4;
-
 --echo # End of 10.4 tests
 
 #

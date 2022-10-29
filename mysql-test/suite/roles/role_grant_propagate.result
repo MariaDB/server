@@ -1,77 +1,61 @@
---source include/not_embedded.inc
-
+#
+# MDEV-29458 Role grant commands do not propagate all grants
+#
 create user foo;
 create database some_db;
 create table some_db.t1 (a int, b int, secret int);
-
-delimiter //;
 CREATE PROCEDURE some_db.p1 (OUT param1 INT)
- BEGIN
-  SELECT COUNT(*) INTO param1 FROM some_db.t1;
- END;
+BEGIN
+SELECT COUNT(*) INTO param1 FROM some_db.t1;
+END;
 //
-delimiter ;//
-
-delimiter //;
 CREATE FUNCTION some_db.f1 (param1 INT) RETURNS INT
- BEGIN
-  DECLARE c INT;
-  SET c = 100;
-  RETURN param1 + c;
- END;
+BEGIN
+DECLARE c INT;
+SET c = 100;
+RETURN param1 + c;
+END;
 //
-delimiter ;//
-
---echo #
---echo # These roles will form a two level hierarchy.
---echo # The "select" role will have the select privilege, while
---echo # the active role will inherit the select role.
---echo #
---echo # The active role will be granted a different privilege but on the same
---echo # level (global, database, table, proc respectively) *after* the 'select'
---echo # role has been granted its select privilege.
---echo #
-
+#
+# These roles will form a two level hierarchy.
+# The "select" role will have the select privilege, while
+# the active role will inherit the select role.
+#
+# The active role will be granted a different privilege but on the same
+# level (global, database, table, proc respectively) *after* the 'select'
+# role has been granted its select privilege.
+#
 create role r_select_global;
 create role r_active_global;
-
 create role r_select_database;
 create role r_active_database;
-
 create role r_select_table;
 create role r_active_table;
-
 create role r_select_column;
 create role r_active_column;
-
 create role r_execute_proc;
 create role r_active_proc;
-
 create role r_execute_func;
 create role r_active_func;
-
 grant r_select_global to r_active_global;
 grant r_select_database to r_active_database;
 grant r_select_table to r_active_table;
 grant r_select_column to r_active_column;
 grant r_execute_proc to r_active_proc;
 grant r_execute_func to r_active_func;
-
---echo #
---echo # These 3 roles form a chain, where only the upper level has select
---echo # privileges and the middle level will receive a grant for the same level
---echo # privilege, but different kind (for example select on upper and insert
---echo # on middle).
---echo #
---echo # The lower level should inherit both rights.
---echo #
+#
+# These 3 roles form a chain, where only the upper level has select
+# privileges and the middle level will receive a grant for the same level
+# privilege, but different kind (for example select on upper and insert
+# on middle).
+#
+# The lower level should inherit both rights.
+#
 create role upper_level;
 create role middle_level;
 create role lower_level;
-
 grant upper_level to middle_level;
 grant middle_level to lower_level;
-
 grant r_active_global   to foo;
 grant r_active_database to foo;
 grant r_active_table    to foo;
@@ -79,64 +63,59 @@ grant r_active_column   to foo;
 grant r_active_proc     to foo;
 grant r_active_func     to foo;
 grant lower_level       to foo;
-
 grant select on *.*        to r_select_global;
 grant select on some_db.*  to r_select_database;
 grant select on some_db.t1 to r_select_table;
 grant select(a) on some_db.t1 to r_select_column;
 grant select on *.*        to upper_level;
-
 grant execute on procedure some_db.p1 to r_execute_proc;
 grant execute on function  some_db.f1 to r_execute_func;
-
-
---echo #
---echo # Granting a privilege different than select on the corresponding level.
---echo # This tests that the base role correctly inherits its granted roles
---echo # privileges.
---echo #
+#
+# Granting a privilege different than select on the corresponding level.
+# This tests that the base role correctly inherits its granted roles
+# privileges.
+#
 grant insert on *.*        to r_active_global;
 grant insert on some_db.*  to r_active_database;
 grant insert on some_db.t1 to r_active_table;
 grant insert(a) on some_db.t1 to r_active_column;
 grant insert on *.* to middle_level;
-
 grant alter routine on procedure some_db.p1 to r_active_proc;
 grant alter routine on function some_db.f1 to r_active_func;
-
---connect (con1, localhost, foo,,)
---error ER_TABLEACCESS_DENIED_ERROR
+connect  con1, localhost, foo,,;
 select * from some_db.t1;
-
---echo #
---echo # Before MDEV-29458 fix, all these commands would return
---echo # ER_TABLEACCESS_DENIED_ERROR
---echo #
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table `some_db`.`t1`
+#
+# Before MDEV-29458 fix, all these commands would return
+# ER_TABLEACCESS_DENIED_ERROR
+#
 set role r_active_global;
 select * from some_db.t1;
+a	b	secret
 set role r_active_database;
 select * from some_db.t1;
+a	b	secret
 set role r_active_table;
 select * from some_db.t1;
+a	b	secret
 set role r_active_column;
 select a from some_db.t1;
+a
 set role lower_level;
 select * from some_db.t1;
-
+a	b	secret
 set role r_active_proc;
 set @var=100;
 call some_db.p1(@var);
-
 set role r_active_func;
 select some_db.f1(10);
-
+some_db.f1(10)
+110
 disconnect con1;
-
---echo #
---echo # Cleanup.
---echo #
+#
+# Cleanup.
+#
 connection default;
-
 drop database some_db;
 drop role r_select_global, r_select_database, r_select_table, r_select_column;
 drop role r_active_global, r_active_database, r_active_table, r_active_column;
@@ -144,20 +123,45 @@ drop role r_execute_proc, r_execute_func;
 drop role r_active_proc, r_active_func;
 drop role upper_level, middle_level, lower_level;
 drop user foo;
-
---echo #
---echo # Test that dropping of roles clears the intermediate generated
---echo # (such as an `acl_dbs` element with 0 init_access, but with access != 0)
---echo # datastructures.
---echo #
+#
+# Test that dropping of roles clears the intermediate generated
+# (such as an `acl_dbs` element with 0 init_access, but with access != 0)
+# datastructures.
+#
 create role test_role1;
 create role test_role2;
-
 grant test_role2 to test_role1;
 grant select on mysql.* to test_role2;
 grant select on mysql.user to test_role2;
 grant select(user) on mysql.user to test_role2;
 drop role test_role1, test_role2;
-
 create role test_role1;
 drop role test_role1;
+#
+# MDEV-29851 Cached role privileges are not invalidated when needed
+#
+create role admin;
+create role student;
+create database crm;
+grant create on crm.* to admin;
+grant select on crm.* to student;
+create user intern@localhost;
+grant student to intern@localhost;
+set default role student for intern@localhost;
+connect con1, localhost, intern;
+use crm;
+disconnect con1;
+connection default;
+grant admin to student;
+connect con1, localhost, intern;
+use crm;
+create table t1 (a int);
+disconnect con1;
+connection default;
+drop user intern@localhost;
+drop role student;
+drop role admin;
+drop database crm;
+#
+# End of 10.3 tests
+#

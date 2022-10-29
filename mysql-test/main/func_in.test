@@ -1,7 +1,3 @@
-# Initialise
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
 #
 # test of IN (NULL)
 #
@@ -712,8 +708,141 @@ SELECT '0x' IN (0,1);
 SELECT ('0x',1) IN ((0,1));
 SELECT ('0x',1) IN ((0,1),(1,1));
 
-
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-29662 same values in `IN` set vs equal comparison produces
+--echo #            the different performance
+--echo #
+CREATE TABLE t1 (a INT, PRIMARY KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE a IN (1,1);
+--echo # 'const' access since 'a IN (1,1)' is converted to equality 'a=1'
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,1);
+EXPLAIN SELECT * FROM t1 WHERE a = 1;
+SELECT * FROM t1 WHERE a IN (1,1,2);
+--echo # Conversion to equality is impossible due to different values
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,1,2);
+SELECT * FROM t1 WHERE a IN (1,NULL,1);
+--echo # Conversion to equality is impossible due to NULL in the IN list
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,NULL,1);
+
+SELECT * FROM t1 WHERE a NOT IN (2,2,2,2,2,2);
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN (2,2,2,2,2,2);
+EXPLAIN SELECT * FROM t1 WHERE a != 3;
+SELECT * FROM t1 WHERE a NOT IN (3,3,1,1);
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN (3,3,1,1);
+SELECT * FROM t1 WHERE a NOT IN (1,2,NULL,NULL);
+
+--echo # No conversion is possible since elements are not constant
+SELECT * FROM t1 WHERE a IN ((SELECT MAX(a) FROM t1), (SELECT MAX(a) FROM t1));
+EXPLAIN SELECT * FROM t1 WHERE a IN 
+  ((SELECT MAX(a) FROM t1), (SELECT MAX(a) FROM t1));
+
+--echo # There must be no conversion here:
+SELECT * FROM t1 WHERE a IN (3,2,3,3,1,2,3);
+
+--echo # Prepared statement
+PREPARE stmt FROM "SELECT * FROM t1 WHERE a IN (3,3,3)";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo # Conversion to equality since SELECT 2 is evaluated as const
+--disable_warnings
+SELECT * FROM t1 WHERE a IN ((SELECT 2), (SELECT 2));
+EXPLAIN SELECT * FROM t1 WHERE a IN ((SELECT 2), (SELECT 2));
+--enable_warnings
+
+CREATE TABLE t2 (a INT, b VARCHAR(10), PRIMARY KEY(a,b));
+INSERT INTO t2 VALUES (1,'abc'),(2,'def'),(3,'ghi');
+SELECT * FROM t2 WHERE (a,b) IN ((1,'abc'),(1,'abc'));
+--echo # 'const' access due to conversion to equality
+EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((1,'abc'),(1,'abc'));
+SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,'XYZ'));
+--echo # No conversion due to different values
+EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,'XYZ'));
+SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,NULL));
+--echo # No conversion due to NULL
+EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,NULL));
+
+SELECT * FROM t2 WHERE (a,b) NOT IN ((2,'def'),(2,'def'),(2,NULL));
+
+SELECT * FROM t2 WHERE a IN (1,1,1,1);
+EXPLAIN SELECT * FROM t2 WHERE a IN (1,1,1,1);
+EXPLAIN SELECT * FROM t2 WHERE a = 1;
+
+SELECT * FROM t2 WHERE b NOT IN ('abc','abc');
+EXPLAIN SELECT * FROM t2 WHERE b NOT IN ('abc','abc');
+EXPLAIN SELECT * FROM t2 WHERE b != 'abc';
+
+--echo # Prepared statements
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((1,'abc'),(1,'abc'))";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE TABLE t3(a INT, PRIMARY KEY(a));
+INSERT INTO t3 VALUES (1),(2),(3);
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t3 WHERE a IN (?,?,?)";
+EXECUTE stmt USING 1,1,1;
+EXECUTE stmt USING 2,3,4;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+
+--echo # Nested joins
+CREATE TABLE t1 (a INT, b VARCHAR(10), PRIMARY KEY(a));
+INSERT INTO t1 VALUES (1,'abc'),(2,'def'),(3,'ghi');
+CREATE TABLE t2 (a INT, b VARCHAR(20), PRIMARY KEY(a));
+INSERT INTO t2 (a) VALUES (2),(3);
+CREATE TABLE t3 (a INT, PRIMARY KEY(a));
+INSERT INTO t3 VALUES (1),(2),(3),(4);
+CREATE TABLE t4 (a INT);
+INSERT INTO t4 VALUES (2),(3);
+--echo # Conversion to equalities
+EXPLAIN SELECT * FROM (t1,t2) LEFT JOIN (t3,t4) ON t1.a IN (2,2,2)
+    AND t3.a IN (1,1,1);
+--echo # No conversion to equalities due to different values in IN()
+EXPLAIN SELECT * FROM (t1,t2) LEFT JOIN (t3,t4) ON t1.a IN (2,3)
+    AND t3.a IN (1,2);
+--echo # Conversion to equalities
+EXPLAIN SELECT * FROM t1 LEFT JOIN ((t2, t3) LEFT JOIN t4 ON t2.a = t4.a)
+    ON t1.a = t2.a WHERE t1.a IN (2,2,2);
+--echo # No conversion to equalities due to different values in IN()
+EXPLAIN SELECT * FROM t1 LEFT JOIN ((t2, t3) LEFT JOIN t4 ON t2.a = t4.a)
+    ON t1.a = t2.a WHERE t1.a IN (1,3);
+
+--echo # View
+CREATE VIEW v1 AS SELECT t1.*, t2.b AS t2_b FROM t1 LEFT JOIN t2
+    ON t1.a = t2.a;
+EXPLAIN SELECT * FROM v1 WHERE a IN (2,2,2);
+EXPLAIN SELECT * FROM v1 WHERE a IN (1,2,3);
+
+--echo # Stored procedures
+CREATE PROCEDURE p1(pa INT, pb INT)
+    EXPLAIN SELECT * FROM t1 WHERE a IN (pa, pb);
+CALL p1(1,1);
+CALL p1(2,1);
+
+DROP TABLE t1, t2, t3, t4;
+DROP VIEW v1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-29895 prepared view crash server (unit.conc_view)
+--echo #
+
+create table t1 (username varchar(12) not null, id int(11) not null);
+create view v1 as select username from t1 where id = 0;
+prepare stmt from "select username from v1 where username in (?, ?)";
+execute stmt using "1", "1";
+deallocate prepare stmt;
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # End of 10.6 tests
 --echo #
 

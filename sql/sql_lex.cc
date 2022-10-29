@@ -2951,6 +2951,7 @@ void st_select_lex::init_query()
   min_max_opt_list.empty();
   limit_params.clear();
   join= 0;
+  cur_pos_in_select_list= UNDEF_POS;
   having= prep_having= where= prep_where= 0;
   cond_pushed_into_where= cond_pushed_into_having= 0;
   attach_to_conds.empty();
@@ -10851,9 +10852,8 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
   */
   if (cond->get_extraction_flag() == MARKER_FULL_EXTRACTION)
   {
-    Item *result= cond->transform(thd,
-                                  &Item::multiple_equality_transformer,
-                                  (uchar *)this);
+    Item *result= cond->top_level_transform(thd,
+                        &Item::multiple_equality_transformer, (uchar *)this);
     if (!result)
       return true;
     if (result->type() == Item::COND_ITEM &&

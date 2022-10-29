@@ -3597,11 +3597,6 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref,
       /* just pull to the upper context */
       ctx->outer_context= context->outer_context->outer_context;
     }
-    else
-    {
-      /* No upper context (merging Derived/VIEW where context chain ends) */
-      ctx->outer_context= NULL;
-    }
     ctx->table_list= context->first_name_resolution_table;
     ctx->select_lex= new_parent;
     if (context->select_lex == NULL)
@@ -9898,6 +9893,8 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
   Item *item= thd->sp_fix_func_item_for_assignment(field, it);
   if (!item)
     return true;
+  if (field->vers_sys_field())
+    return false;
 
   // NOTE: field->table->copy_blobs should be false here, but let's
   // remember the value at runtime to avoid subtle bugs.
