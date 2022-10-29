@@ -5,7 +5,13 @@ export DEB_BUILD_HARDENING=1
 
 # enable Debian Hardening
 # see: https://wiki.debian.org/Hardening
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all optimize=-lto
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# Disable LTO on Ubuntu, see LP: #1970634 and https://jira.mariadb.org/browse/MDEV-25633
+ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes), yes)
+    export DEB_BUILD_MAINT_OPTIONS += optimize=-lto
+endif
+
 DPKG_EXPORT_BUILDFLAGS = 1
 # Include all defaults, including buildflags.mk
 include /usr/share/dpkg/default.mk
