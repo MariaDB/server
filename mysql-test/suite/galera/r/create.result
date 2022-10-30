@@ -100,6 +100,26 @@ CREATE TABLE t0 (x INT,y INT);
 LOCK TABLES t0 WRITE;
 CREATE OR REPLACE TABLE t0 SELECT 1;
 DROP TABLE t0;
+#
+# MDEV-29831 Galera crashes when running CoR for a locked table after
+#            setting the minimum memory for a user session
+#
+connection node_1;
+SET @max_mem_save= @@session.max_session_mem_used;
+SET SESSION max_session_mem_used= 8192;
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=InnoDB;
+SET autocommit=OFF;
+CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, DATA INT) ENGINE=MEMORY;
+INSERT INTO t2(id) VALUES ('11');
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+ALTER TABLE t1 ADD COLUMN f3 INT NOT NULL DEFAULT 10;
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+LOCK TABLE t1 WRITE, t2 READ;
+CREATE OR REPLACE TABLE t1 SELECT 1;
+ERROR 70100: Query execution was interrupted
+UNLOCK TABLES;
+DROP TABLES t2, t1;
+SET SESSION max_session_mem_used= @max_mem_save;
 disconnect node_2;
 disconnect node_1;
 # End of tests
