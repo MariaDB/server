@@ -336,6 +336,10 @@ lock_sys_t lock_sys;
 /** Only created if !srv_read_only_mode. Protected by lock_sys.latch. */
 static FILE *lock_latest_err_file;
 
+#ifdef WITH_WSREP
+/** number of high priority replication threads in lock waiting state */
+static std::atomic<uint> wsrep_BF_waiting_count;
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 Reports that a transaction id is insensible, i.e., in the future. */
 ATTRIBUTE_COLD
@@ -2005,7 +2009,7 @@ dberr_t lock_wait(que_thr_t *thr)
 #ifdef WITH_WSREP
   if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false))
   {
-    ++wsrep_BF_waiting_count;
+    wsrep_BF_waiting_count.store(wsrep_BF_waiting_count+1, std::memory_order_relaxed);
   }
 #endif /* WITH_WSREP */
 
@@ -2080,7 +2084,7 @@ end_loop:
 #ifdef WITH_WSREP
   if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false))
   {
-    --wsrep_BF_waiting_count;
+    wsrep_BF_waiting_count.store(wsrep_BF_waiting_count-1, std::memory_order_relaxed);
   }
 #endif /* WITH_WSREP */
 
@@ -6869,7 +6873,8 @@ void lock_update_split_and_merge(
   applier thread is released.
  */
 
-std::atomic<uint> wsrep_BF_waiting_count;
+/** max BF lock wait time before lock monitor watchdog will be triggered
+    to resolve conflicts */
 uint innodb_wsrep_applier_lock_wait_timeout =
     INNODB_WSREP_APPLIER_LOCK_WAIT_TIMEOUT_DEFAULT;
 
@@ -6877,7 +6882,7 @@ struct wsrep_BF_lock_waiters_t
 {
   std::vector<trx_t *, ut_allocator<trx_t *> > bf_waiters{};
   ulonglong max_wait_time{0};
-  my_hrtime_t now{my_hrtime_coarse()};
+  my_hrtime_t now= my_hrtime_coarse();
 };
 
 static my_bool wsrep_BF_lock_waiters_collect(rw_trx_hash_element_t *element,
@@ -6895,13 +6900,11 @@ static my_bool wsrep_BF_lock_waiters_collect(rw_trx_hash_element_t *element,
       try
       {
         waiters->bf_waiters.push_back(trx);
-        /* Grab reference to prevent trx going out of scope before
-           it is explicitly released in wsrep_run_BF_lock_wait_watchdog(). */
-        trx->reference();
       }
       catch (const std::bad_alloc &)
       {
         ib::warn() << "WSREP: Failed to alloc memory for bf_waiters";
+        element->mutex.wr_unlock();
         return 1;
       }
     }
@@ -6930,23 +6933,12 @@ void wsrep_run_BF_lock_wait_watchdog()
   for (auto *trx : waiters.bf_waiters)
   {
     lock_wait_wsrep(trx);
-    trx->release_reference();
-  }
-
-  if (waiters.max_wait_time >= 60)
-  {
-    ib::warn() << "WSREP: BF lock wait long " << waiters.max_wait_time
-               << " seconds";
-    srv_print_innodb_monitor= true;
-    srv_print_innodb_lock_monitor= true;
-    /* We are currently running in server monitor thread, no need to wake
-       up. */
   }
 
   auto elapsed= (my_hrtime_coarse().val - start_time.val) / HRTIME_RESOLUTION;
   if (elapsed >= 1)
   {
-    ib::warn() << "WSREP watchdog took " << elapsed << " seconds to execute";
+    sql_print_warning("WSREP watchdog took %ul  seconds to execute", elapsed);
   }
 }
 #endif /* WITH_WSREP */
