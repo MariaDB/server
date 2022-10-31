@@ -1,1 +1,0 @@
---init-file=$MYSQL_TEST_DIR/../storage/spider/mysql-test/spider/bugfix/t/mdev_27233.sql
