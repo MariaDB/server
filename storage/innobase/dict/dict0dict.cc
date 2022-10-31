@@ -1488,6 +1488,7 @@ dict_table_t::rename_tablespace(span<const char> new_name, bool replace) const
     err= DB_TABLESPACE_EXISTS;
   else
   {
+    space->x_lock();
     err= space->rename(path, true, replace);
     if (data_dir)
     {
@@ -1495,6 +1496,7 @@ dict_table_t::rename_tablespace(span<const char> new_name, bool replace) const
         new_name= {name.m_name, strlen(name.m_name)};
       RemoteDatafile::delete_link_file(new_name);
     }
+    space->x_unlock();
   }
 
   ut_free(path);
