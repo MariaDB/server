@@ -150,7 +150,7 @@ partition by system_time limit 1;
 alter table t1 change x big int;
 create or replace table t1 (i int) engine myisam partition by hash(i) partitions 2;
 alter table t1 add partition (partition px history);
-ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
+ERROR HY000: Wrong partition type `SYSTEM_TIME` for partitioning by `HASH`
 ## INSERT, UPDATE, DELETE
 create or replace table t1 (x int)
 with system versioning
@@ -1105,7 +1105,7 @@ drop table t1;
 create table t1 (a int) with system versioning partition by system_time
 (partition p1 history, partition pn current);
 alter table t1 add partition (partition p2);
-ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
+ERROR HY000: Wrong partition type `HASH` for partitioning by `SYSTEM_TIME`
 # MDEV-17891 Assertion failures in select_insert::abort_result_set and
 #            mysql_load upon attempt to replace into a full table
 set @@max_heap_table_size= 1024*1024;
