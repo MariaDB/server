@@ -2271,6 +2271,7 @@ static bool safe_update_on_fly(THD *thd, JOIN_TAB *join_tab,
   case JT_REF:
   case JT_REF_OR_NULL:
     return !is_key_used(table, join_tab->ref.key, table->write_set);
+  case JT_RANGE:
   case JT_ALL:
     if (bitmap_is_overlapping(&table->tmp_set, table->write_set))
       return FALSE;
