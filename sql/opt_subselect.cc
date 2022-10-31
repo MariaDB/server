@@ -4131,6 +4131,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
              */
              if (join->best_positions[idx].key)
              {
+               DBUG_ASSERT(join->best_positions[idx].type != JT_RANGE);
                delete join->best_positions[idx].table->quick;
                join->best_positions[idx].table->quick= NULL;
              }

@@ -675,7 +675,7 @@ typedef struct st_join_table {
     return (is_hash_join_key_no(key) ? hj_key : table->key_info+key);
   }
   void estimate_scan_time();
-  ha_rows get_examined_rows();
+  double get_examined_rows();
   bool preread_init();
 
   bool pfs_batch_update(JOIN *join);

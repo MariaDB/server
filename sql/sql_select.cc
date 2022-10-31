@@ -104,6 +104,11 @@
 
 #define double_to_rows(A) ((A) >= ((double)HA_ROWS_MAX) ? HA_ROWS_MAX : (ha_rows) (A))
 
+inline double safe_filtered(double a, double b)
+{
+  return b != 0 ? a/b*100.0 : 0.0;
+}
+
 const char *join_type_str[]={ "UNKNOWN","system","const","eq_ref","ref",
 			      "MAYBE_REF","ALL","range","index","fulltext",
 			      "ref_or_null","unique_subquery","index_subquery",
@@ -3221,6 +3226,7 @@ int JOIN::optimize_stage2()
     */
     if ((order || group_list) &&
         tab->type != JT_ALL &&
+        tab->type != JT_RANGE &&
         tab->type != JT_NEXT &&
         tab->type != JT_FT &&
         tab->type != JT_REF_OR_NULL &&
@@ -8868,6 +8874,7 @@ best_access_path(JOIN      *join,
     const char *scan_type= "";
     enum join_type type;
     uint forced_index= MAX_KEY;
+    bool force_plan= 0;
 
     /*
       Range optimizer never proposes a RANGE if it isn't better
@@ -8939,6 +8946,15 @@ best_access_path(JOIN      *join,
             cur_cost= COST_ADD(cur_cost, startup_cost);
             startup_cost= 0;                    // Avoid adding it again later
             table->opt_range[key_no].selectivity= filter->selectivity;
+          }
+          if (best.key && key_no == best.key->key &&
+              best.max_key_part < table->opt_range[best.key->key].key_parts)
+          {
+            /*
+              Force to use range as it is using the 'best key' and using more
+              key parts (and thus will read less rows)
+            */
+            force_plan= 1;
           }
         }
         type= JT_RANGE;
@@ -9094,7 +9110,7 @@ best_access_path(JOIN      *join,
       }
     }
 
-    if (cur_cost + COST_EPS < best.cost)
+    if (cur_cost + COST_EPS < best.cost || force_plan)
     {
       /*
         If the table has a range (s->quick is set) make_join_select()
@@ -9689,7 +9705,17 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
       double ratio= current_record_count / original_record_count;
       /* QQQ This is just to stop an assert later */
       if (ratio < 1)
+      {
         position->records_out*= ratio;
+      }
+      if (unlikely(trace_one_table.trace_started()))
+      {
+        trace_one_table.
+          add("sj_rows_out", position->records_out).
+          add("sj_rows_for_plan", current_record_count).
+          add("sj_filtered", safe_filtered(position->records_out,
+                                           position->records_init));
+      }
     }
 
     remaining_tables&= ~(s->table->map);
@@ -9703,8 +9729,10 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
           pushdown_cond_selectivity != 1.0)
       {
         trace_one_table.
+          add("rows_out", records_out).
           add("pushdown_cond_selectivity", pushdown_cond_selectivity).
-          add("rows_out", records_out);
+          add("filtered", safe_filtered(position->records_out,
+                                        position->records_init));
       }
       position->cond_selectivity= pushdown_cond_selectivity;
       position->records_out= records_out;
@@ -10340,8 +10368,9 @@ double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     {
       key_part_map quick_key_map= (key_part_map(1) <<
                                    table->opt_range[key].key_parts) - 1;
-      if (table->opt_range[key].rows &&
-          !(quick_key_map & ~table->const_key_parts[key]))
+      if ((table->opt_range[key].rows &&
+           !(quick_key_map & ~table->const_key_parts[key])) ||
+          s->type == JT_RANGE)
       {
         /* 
           Ok, there is an equality for each of the key parts used by the
@@ -10502,7 +10531,7 @@ double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       all range or ref access, which should not be smaller than what we
       calculated above.
     */
-    records_out= pos->records_after_filter * sel;
+    records_out= pos->records_init * sel;
     set_if_smaller(records_out, pos->records_out);
   }
 
@@ -10962,8 +10991,11 @@ best_extension_by_limited_search(JOIN      *join,
           position->records_out*= ratio;
         if (unlikely(trace_one_table.trace_started()))
         {
-          trace_one_table.add("sj_rows_out", position->records_out);
-          trace_one_table.add("sj_rows_for_plan", current_record_count);
+          trace_one_table.
+            add("sj_rows_out", position->records_out).
+            add("sj_rows_for_plan", current_record_count).
+            add("sj_filtered", safe_filtered(position->records_out,
+                                             position->records_init));
         }
       }
       /* Expand only partial plans with lower cost than the best QEP so far */
@@ -11089,6 +11121,13 @@ best_extension_by_limited_search(JOIN      *join,
                                        remaining_tables & ~real_table_bit,
                                        &position->records_out);
 
+        if (unlikely(trace_one_table.trace_started()) &&
+            pushdown_cond_selectivity != 1.0)
+          trace_one_table.
+            add("pushdown_cond_selectivity", pushdown_cond_selectivity).
+            add("filtered", safe_filtered(position->records_out,
+                                          position->records_init)).
+            add("rows_out", position->records_out);
       }
       join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
 
@@ -12990,14 +13029,12 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         SELECT * FROM t1 LEFT OUTER JOIN (t2 JOIN t3) ON X
       */
       JOIN_TAB *first_inner_tab= tab->first_inner;
+      COND *tmp;
 
       if (!tab->bush_children)
         current_map= tab->table->map;
       else
         current_map= tab->bush_children->start->emb_sj_nest->sj_inner_tables;
-
-      bool use_quick_range=0;
-      COND *tmp;
 
       /* 
         Tables that are within SJ-Materialization nests cannot have their
@@ -13016,7 +13053,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 
       used_tables|=current_map;
 
-      if (tab->type == JT_REF && tab->quick &&
+      if ((tab->type == JT_REF || tab->type == JT_RANGE) && tab->quick &&
 	  (((uint) tab->ref.key == tab->quick->index &&
 	    tab->ref.key_length < tab->quick->max_used_key_length) ||
            (!is_hash_join_key_no(tab->ref.key) &&
@@ -13030,8 +13067,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             add("ref_to_range", true).
             add("cause", "range uses longer key");
         }
-        tab->type=JT_ALL;
-        use_quick_range=1;
+        tab->type= JT_RANGE;
         tab->use_quick=1;
         tab->ref.key= -1;
 	tab->ref.key_parts=0;		// Don't use ref key.
@@ -13096,7 +13132,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 
       if (cond && !tmp && tab->quick)
       {						// Outer join
-        if (tab->type != JT_ALL && !is_hj)
+        if ((tab->type != JT_ALL && tab->type != JT_RANGE) && !is_hj)
         {
           /*
             Don't use the quick method
@@ -13220,8 +13256,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
               tab->table->reginfo.impossible_range)
 	    DBUG_RETURN(1);
 	}
-	else if ((tab->type == JT_ALL || tab->type == JT_NEXT) &&
-                  ! use_quick_range)
+	else if ((tab->type == JT_ALL || tab->type == JT_NEXT))
 	{
 	  if (!tab->const_keys.is_clear_all() &&
 	      tab->table->reginfo.impossible_range)
@@ -14330,6 +14365,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   switch (tab->type) {
   case JT_NEXT:
   case JT_ALL:
+  case JT_RANGE:
     if (cache_level == 1)
       prev_cache= 0;
     if ((tab->cache= new (root) JOIN_CACHE_BNL(join, tab, prev_cache)))
@@ -14412,7 +14448,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   }
 
 no_join_cache:
-  if (tab->type != JT_ALL && tab->is_ref_for_hash_join())
+  if (tab->type != JT_ALL && tab->type != JT_RANGE && tab->is_ref_for_hash_join())
   {
     tab->type= JT_ALL;
     tab->ref.key_parts= 0;
@@ -14494,6 +14530,7 @@ restart:
     case JT_REF_OR_NULL:
     case JT_NEXT:
     case JT_ALL:
+    case JT_RANGE:
       tab->used_join_cache_level= check_join_cache_usage(tab, options,
                                                          no_jbuf_after,
                                                          idx,
@@ -14768,7 +14805,10 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       }
       break;
     case JT_ALL:
+    case JT_RANGE:
     case JT_HASH:
+    {
+      bool have_quick_select= tab->select && tab->select->quick;
       /*
 	If previous table use cache
         If the incoming data set is already sorted don't use cache.
@@ -14806,7 +14846,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	}
 	else
 	{
-	  if (tab->select && tab->select->quick)
+	  if (have_quick_select)
 	  {
 	    if (statistics)
               join->thd->inc_status_select_full_range_join();
@@ -14823,11 +14863,10 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	}
 	if (!table->no_keyread)
 	{
-	  if (!(tab->select && tab->select->quick &&
-          tab->select->quick->index != MAX_KEY && //not index_merge
-          table->covering_keys.is_set(tab->select->quick->index)) &&
-          (!table->covering_keys.is_clear_all() &&
-           !(tab->select && tab->select->quick)))
+	  if (!(have_quick_select &&
+                tab->select->quick->index != MAX_KEY && //not index_merge
+                table->covering_keys.is_set(tab->select->quick->index)) &&
+              (!table->covering_keys.is_clear_all() && ! have_quick_select))
 	  {					// Only read index tree
             if (tab->loosescan_match_tab)
               tab->index= tab->loosescan_key;
@@ -14838,12 +14877,13 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	    tab->type= tab->type == JT_ALL ? JT_NEXT : JT_HASH_NEXT;
 	  }
 	}
-        if (tab->select && tab->select->quick &&
+        if (have_quick_select &&
             tab->select->quick->index != MAX_KEY &&
             !tab->table->covering_keys.is_set(tab->select->quick->index))
           push_index_cond(tab, tab->select->quick->index);
       }
       break;
+    }
     case JT_FT:
       break;
       /* purecov: begin deadcode */
@@ -14945,8 +14985,7 @@ bool error_if_full_join(JOIN *join)
   for (JOIN_TAB *tab=first_top_level_tab(join, WITH_CONST_TABLES); tab;
        tab= next_top_level_tab(join, tab))
   {
-    if ((tab->type == JT_ALL || tab->type == JT_NEXT) &&
-        (!tab->select || !tab->select->quick))
+    if ((tab->type == JT_ALL || tab->type == JT_NEXT))
     {
       my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
                  ER_THD(join->thd,
@@ -15160,15 +15199,18 @@ void JOIN_TAB::estimate_scan_time()
   @todo: why not use JOIN_TAB::found_records or JOIN_TAB::records_read
 */
 
-ha_rows JOIN_TAB::get_examined_rows()
+double JOIN_TAB::get_examined_rows()
 {
   double examined_rows;
   SQL_SELECT *sel= filesort? filesort->select : this->select;
 
   if (sel && sel->quick && use_quick != 2)
-    examined_rows= (double)sel->quick->records;
-  else if (type == JT_NEXT || type == JT_ALL ||
-           type == JT_HASH || type ==JT_HASH_NEXT)
+  {
+    examined_rows= (double) sel->quick->records;
+    DBUG_ASSERT(examined_rows == sel->quick->records);
+  }
+  else if (type == JT_NEXT || type == JT_ALL || type == JT_RANGE ||
+           type == JT_HASH || type == JT_HASH_NEXT)
   {
     if (limit)
     {
@@ -15196,8 +15238,8 @@ ha_rows JOIN_TAB::get_examined_rows()
     examined_rows= records_init;
 
   if (examined_rows >= (double) HA_ROWS_MAX)
-    return HA_ROWS_MAX;
-  return (ha_rows) examined_rows;
+    return (double) HA_ROWS_MAX;
+  return examined_rows;
 }
 
 
@@ -25445,7 +25487,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
             goto use_filesort;
           }
           DBUG_ASSERT(tab->select->quick);
-          tab->type= JT_ALL;
+          tab->type= JT_RANGE;
           tab->ref.key= -1;
           tab->ref.key_parts= 0;
           tab->use_quick= 1;
@@ -25508,7 +25550,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     */
     if (best_key < 0 ||
         ((select_limit >= table_records) &&
-         (tab->type == JT_ALL &&
+         ((tab->type == JT_ALL || tab->type == JT_RANGE) &&
          tab->join->table_count > tab->join->const_tables + 1) &&
          !(table->file->index_flags(best_key, 0, 1) & HA_CLUSTERED_INDEX)))
       goto use_filesort;
@@ -25646,7 +25688,7 @@ check_reverse_order:
           method is actually used.
         */
         DBUG_ASSERT(tab->select->quick);
-        tab->type=JT_ALL;
+        tab->type= JT_RANGE;
         tab->use_quick=1;
         tab->ref.key= -1;
         tab->ref.key_parts=0;		// Don't use ref key.
@@ -28577,7 +28619,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
 
   /* "type" column */
   enum join_type tab_type= type;
-  if ((type == JT_ALL || type == JT_HASH) &&
+  if ((type == JT_ALL || type == JT_RANGE || type == JT_HASH) &&
        tab_select && tab_select->quick && use_quick != 2)
   {
     cur_quick= tab_select->quick;
@@ -28586,9 +28628,9 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
         (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
         (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
         (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
-      tab_type= type == JT_ALL ? JT_INDEX_MERGE : JT_HASH_INDEX_MERGE;
+      tab_type= type == JT_HASH ? JT_HASH_INDEX_MERGE : JT_INDEX_MERGE;
     else
-      tab_type= type == JT_ALL ? JT_RANGE : JT_HASH_RANGE;
+      tab_type= type == JT_HASH ? JT_HASH_RANGE : JT_RANGE;
   }
   eta->type= tab_type;
 
@@ -28726,7 +28768,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   }
   else
   {
-    ha_rows examined_rows= get_examined_rows();
+    double examined_rows= get_examined_rows();
 
     eta->rows_set= true;
     eta->rows= double_to_rows(examined_rows);
@@ -28735,19 +28777,9 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
     float f= 0.0; 
     if (examined_rows)
     {
-#ifdef OLD_CODE // QQQ
-      double pushdown_cond_selectivity= cond_selectivity;
-      if (pushdown_cond_selectivity != 1.0)
-        f= (float) (100.0 * pushdown_cond_selectivity);
-      else if (range_rowid_filter_info)
-        f= (float) (100.0 * range_rowid_filter_info->selectivity);
-      else
-        f= (float) (100.0 * records_read / examined_rows);
-#else
-        f= (float) (100.0 * records_out / examined_rows);
-#endif
+      f= (float) (100.0 * records_out / examined_rows);
+      set_if_smaller(f, 100.0);
     }
-    set_if_smaller(f, 100.0);
     eta->filtered_set= true;
     eta->filtered= f;
   }
@@ -31411,6 +31443,7 @@ void JOIN::init_join_cache_and_keyread()
       break;
     case JT_HASH:
     case JT_ALL:
+    case JT_RANGE:
       SQL_SELECT *select;
       select= tab->select ? tab->select :
               (tab->filesort ? tab->filesort->select : NULL);
