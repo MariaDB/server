@@ -1234,6 +1234,8 @@ eval $query;
 set optimizer_use_condition_selectivity=2;
 eval explain extended $query;
 eval $query;
+analyze table t1;
+eval explain extended $query;
 set optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
 
 drop table t1,t2,t3;
