@@ -1,19 +1,91 @@
 connection node_2;
 connection node_1;
+************************************************************************
+* Phase 1,  BF abort for blocking local trx, after watchdog is launched
+************************************************************************
 CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
 connect node_1_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET SESSION wsrep_sync_wait = 0;
-SET GLOBAL debug_dbug = '+d,wsrep_innodb_skip_kill_victim';
+SET GLOBAL debug_dbug = 'd,wsrep_innodb_skip_kill_victim';
 connection node_1;
 START TRANSACTION;
 INSERT INTO t1 VALUES (1);
 connection node_2;
 INSERT INTO t1 VALUES (1);
 connection node_1_ctrl;
-SET GLOBAL debug_dbug = DEFAULT;
+SET GLOBAL debug_dbug = '';
 SET GLOBAL innodb_wsrep_applier_lock_wait_timeout = 1;
 SET GLOBAL innodb_wsrep_applier_lock_wait_timeout = 0;
 connection node_1;
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 DROP TABLE t1;
+******************************************************
+* Phase 2, non related trx should not be BF aborted
+*****************************************************
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t1 VALUES (3,0);
+INSERT INTO t1 VALUES (4,0);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+BEGIN;
+UPDATE t1 SET f2=3 WHERE f1=4;
+SET GLOBAL debug_dbug = 'd,wsrep_innodb_skip_kill_victim';
+connection node_1;
+START TRANSACTION;
+UPDATE t1 SET f2=2 WHERE f1=2;
+connection node_2;
+UPDATE t1 SET f2=2 WHERE f1=2;
+connection node_1_ctrl;
+SET GLOBAL debug_dbug = '';
+SET GLOBAL innodb_wsrep_applier_lock_wait_timeout = 1;
+SET GLOBAL innodb_wsrep_applier_lock_wait_timeout = 0;
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_1a;
+COMMIT;
+SELECT * FROM t1;
+f1	f2
+1	0
+2	2
+3	0
+4	3
+DROP TABLE t1;
+************************************************************
+* Phase 3, blocking trx waiting for another non-related trx
+************************************************************
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,0);
+INSERT INTO t1 VALUES (3,0);
+INSERT INTO t1 VALUES (4,0);
+SET GLOBAL debug_dbug = 'd,wsrep_innodb_skip_kill_victim';
+connection node_1a;
+BEGIN;
+UPDATE t1 SET f2=3 WHERE f1=4;
+connection node_1;
+START TRANSACTION;
+UPDATE t1 SET f2=4 WHERE f1=2;
+UPDATE t1 SET f2=4 WHERE f1=4;;
+connection node_1_ctrl;
+connection node_2;
+UPDATE t1 SET f2=2 WHERE f1=2;
+connection node_1_ctrl;
+SET GLOBAL debug_dbug = '';
+SET GLOBAL innodb_wsrep_applier_lock_wait_timeout = 1;
+SET GLOBAL innodb_wsrep_applier_lock_wait_timeout = 0;
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+COMMIT;
+connection node_1a;
+COMMIT;
+SELECT * FROM t1;
+f1	f2
+1	0
+2	2
+3	0
+4	3
+DROP TABLE t1;
+CALL mtr.add_suppression("WSREP watchdog took");
