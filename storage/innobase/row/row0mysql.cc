@@ -983,6 +983,7 @@ row_prebuilt_free(
 		mem_heap_free(prebuilt->old_vers_heap);
 	}
 
+#if 0
 	if (prebuilt->fetch_cache[0] != NULL) {
 		byte*	base = prebuilt->fetch_cache[0] - 4;
 		byte*	ptr = base;
@@ -1003,6 +1004,7 @@ row_prebuilt_free(
 
 		ut_free(base);
 	}
+#endif
 
 	if (prebuilt->rtr_info) {
 		rtr_clean_rtr_info(prebuilt->rtr_info, true);

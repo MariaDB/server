@@ -3751,6 +3751,7 @@ row_sel_copy_cached_fields_for_mysql(
 	}
 }
 
+#if 0
 /********************************************************************//**
 Pops a cached row for MySQL from the fetch cache. */
 UNIV_INLINE
@@ -3886,6 +3887,7 @@ row_sel_enqueue_cache_row_for_mysql(
 
 	++prebuilt->n_fetch_cached;
 }
+#endif
 
 #ifdef BTR_CUR_HASH_ADAPT
 /*********************************************************************//**
@@ -4302,7 +4304,9 @@ row_search_mvcc(
 	ulint		next_offs;
 	bool		same_user_rec;
 	ibool		table_lock_waited		= FALSE;
+#if 0
 	byte*		next_buf			= 0;
+#endif
 	bool		spatial_search			= false;
 
 	ut_ad(index && pcur && search_tuple);
@@ -4350,8 +4354,10 @@ row_search_mvcc(
 		trx->op_info = "starting index read";
 
 		prebuilt->n_rows_fetched = 0;
+#if 0
 		prebuilt->n_fetch_cached = 0;
 		prebuilt->fetch_cache_first = 0;
+#endif
 
 		if (prebuilt->sel_graph == NULL) {
 			/* Build a dummy select query graph */
@@ -4365,6 +4371,8 @@ row_search_mvcc(
 		}
 
 		if (UNIV_UNLIKELY(direction != prebuilt->fetch_direction)) {
+			prebuilt->n_rows_fetched = 0;
+#if 0
 			if (UNIV_UNLIKELY(prebuilt->n_fetch_cached > 0)) {
 				ut_error;
 				/* TODO: scrollable cursor: restore cursor to
@@ -4373,20 +4381,23 @@ row_search_mvcc(
 				cursor! */
 			}
 
-			prebuilt->n_rows_fetched = 0;
 			prebuilt->n_fetch_cached = 0;
 			prebuilt->fetch_cache_first = 0;
-
 		} else if (UNIV_LIKELY(prebuilt->n_fetch_cached > 0)) {
 			row_sel_dequeue_cached_row_for_mysql(buf, prebuilt);
 
 			prebuilt->n_rows_fetched++;
 			trx->op_info = "";
 			DBUG_RETURN(DB_SUCCESS);
+#endif
 		}
 
+#if 0
 		if (prebuilt->fetch_cache_first > 0
 		    && prebuilt->fetch_cache_first < MYSQL_FETCH_CACHE_SIZE) {
+#else
+		if (false) {
+#endif
 early_not_found:
 			/* The previous returned row was popped from the fetch
 			cache, but the cache was not full at the time of the
@@ -5440,6 +5451,9 @@ use_covering_index:
 				offsets));
 	ut_ad(!rec_get_deleted_flag(result_rec, comp));
 
+#if 1
+	{
+#else
 	/* Decide whether to prefetch extra rows.
 	At this point, the clustered index record is protected
 	by a page latch that was acquired when pcur was positioned.
@@ -5520,6 +5534,7 @@ use_covering_index:
 		}
 
 	} else {
+#endif
 		if (UNIV_UNLIKELY
 		    (prebuilt->template_type == ROW_MYSQL_DUMMY_TEMPLATE)) {
 			/* CHECK TABLE: fetch the row */
@@ -5779,6 +5794,7 @@ normal_return:
 
 	DEBUG_SYNC_C("row_search_for_mysql_before_return");
 
+#if 0
 	if (prebuilt->pk_filter || prebuilt->idx_cond) {
 		/* When ICP is active we don't write to the MySQL buffer
 		directly, only to buffers that are enqueued in the pre-fetch
@@ -5799,6 +5815,7 @@ normal_return:
 		DEBUG_SYNC_C("row_search_cached_row");
 		err = DB_SUCCESS;
 	}
+#endif
 
 #ifdef UNIV_DEBUG
 	if (dict_index_is_spatial(index) && err != DB_SUCCESS

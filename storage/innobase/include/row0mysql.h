@@ -737,6 +737,7 @@ struct row_prebuilt_t {
 	ulint		n_rows_fetched;	/*!< number of rows fetched after
 					positioning the current cursor */
 	ulint		fetch_direction;/*!< ROW_SEL_NEXT or ROW_SEL_PREV */
+#if 0
 	byte*		fetch_cache[MYSQL_FETCH_CACHE_SIZE];
 					/*!< a cache for fetched rows if we
 					fetch many rows from the same cursor:
@@ -747,14 +748,17 @@ struct row_prebuilt_t {
 					allocated mem buf start, because
 					there is a 4 byte magic number at the
 					start and at the end */
+#endif
 	bool		keep_other_fields_on_keyread; /*!< when using fetch
 					cache with HA_EXTRA_KEYREAD, don't
 					overwrite other fields in mysql row
 					row buffer.*/
+#if 0
 	ulint		fetch_cache_first;/*!< position of the first not yet
 					fetched row in fetch_cache */
 	ulint		n_fetch_cached;	/*!< number of not yet fetched rows
 					in fetch_cache */
+#endif
 	mem_heap_t*	blob_heap;	/*!< in SELECTS BLOB fields are copied
 					to this heap */
 	mem_heap_t*	old_vers_heap;	/*!< memory heap where a previous
