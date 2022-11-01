@@ -122,19 +122,6 @@ loop:
 
 
   /**
-    Check whether transaction id is valid.
-    @param[in] id transaction id to check
-    @param[in] name table name
-
-    @todo changes_visible() was an unfortunate choice for this check.
-    It should be moved towards the functions that load trx id like
-    trx_read_trx_id(). No need to issue a warning, error log message should
-    be enough. Although statement should ideally fail if it sees corrupt
-    data.
-  */
-  static void check_trx_id_sanity(trx_id_t id, const table_name_t &name);
-
-  /**
     Check whether the changes by id are visible.
     @param[in] id transaction id to check against the view
     @return whether the view sees the modifications of id.
@@ -150,26 +137,6 @@ loop:
   }
 
   /**
-    Check whether the changes by id are visible.
-    @param[in] id transaction id to check against the view
-    @param[in] name table name
-    @return whether the view sees the modifications of id.
-  */
-  bool changes_visible(trx_id_t id, const table_name_t &name) const
-  MY_ATTRIBUTE((warn_unused_result))
-  {
-    if (id >= m_low_limit_id)
-    {
-      check_trx_id_sanity(id, name);
-      return false;
-    }
-    return id < m_up_limit_id ||
-           m_ids.empty() ||
-           !std::binary_search(m_ids.begin(), m_ids.end(), id);
-  }
-
-
-  /**
     @param id transaction to check
     @return true if view sees transaction id
   */
@@ -180,6 +147,13 @@ loop:
 
   /** @return the low limit id */
   trx_id_t low_limit_id() const { return m_low_limit_id; }
+
+  /** Clamp the low limit id for purge_sys.end_view */
+  void clamp_low_limit_id(trx_id_t limit)
+  {
+    if (m_low_limit_id > limit)
+      m_low_limit_id= limit;
+  }
 };
 
 
@@ -250,7 +224,6 @@ public:
   */
   void set_creator_trx_id(trx_id_t id)
   {
-    ut_ad(id > 0);
     ut_ad(m_creator_trx_id == 0);
     m_creator_trx_id= id;
   }
@@ -275,8 +248,6 @@ public:
     A wrapper around ReadViewBase::changes_visible().
     Intended to be called by the ReadView owner thread.
   */
-  bool changes_visible(trx_id_t id, const table_name_t &name) const
-  { return id == m_creator_trx_id || ReadViewBase::changes_visible(id, name); }
   bool changes_visible(trx_id_t id) const
   { return id == m_creator_trx_id || ReadViewBase::changes_visible(id); }
 

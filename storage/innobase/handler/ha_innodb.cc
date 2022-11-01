@@ -1754,15 +1754,6 @@ MYSQL_THD innobase_create_background_thd(const char* name)
 	return thd;
 }
 
-extern "C" void thd_increment_pending_ops(MYSQL_THD);
-
-THD *innodb_thd_increment_pending_ops(THD *thd)
-{
-  if (!thd || THDVAR(thd, background_thread))
-    return nullptr;
-  thd_increment_pending_ops(thd);
-  return thd;
-}
 
 /** Close opened tables, free memory, delete items for a MYSQL_THD.
 @param[in]	thd	MYSQL_THD to reset */
@@ -3593,7 +3584,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	innobase_register_trx(ht, m_user_thd, m_prebuilt->trx);
 
 	/* We did the necessary inits in this function, no need to repeat them
-	in row_search_for_mysql */
+	in row_search_mvcc() */
 
 	m_prebuilt->sql_stat_start = FALSE;
 
@@ -7331,7 +7322,7 @@ ha_innobase::build_template(
 			/* We must at least fetch all primary key cols. Note
 			that if the clustered index was internally generated
 			by InnoDB on the row id (no primary key was
-			defined), then row_search_for_mysql() will always
+			defined), then row_search_mvcc() will always
 			retrieve the row id to a special buffer in the
 			m_prebuilt struct. */
 
@@ -7345,6 +7336,11 @@ ha_innobase::build_template(
 
 	m_prebuilt->versioned_write = table->versioned_write(VERS_TRX_ID);
 	m_prebuilt->need_to_access_clustered = (index == clust_index);
+
+	if (m_prebuilt->in_fts_query) {
+		/* Do clustered index lookup to fetch the FTS_DOC_ID */
+		m_prebuilt->need_to_access_clustered = true;
+	}
 
 	/* Either m_prebuilt->index should be a secondary index, or it
 	should be the clustered index. */
@@ -8863,7 +8859,7 @@ statement issued by the user. We also increment trx->n_mysql_tables_in_use.
 instructions to m_prebuilt->template of the table handle instance in
 ::index_read. The template is used to save CPU time in large joins.
 
-  3) In row_search_for_mysql, if m_prebuilt->sql_stat_start is true, we
+  3) In row_search_mvcc(), if m_prebuilt->sql_stat_start is true, we
 allocate a new consistent read view for the trx if it does not yet have one,
 or in the case of a locking read, set an InnoDB 'intention' table level
 lock on the table.
@@ -9158,7 +9154,7 @@ ha_innobase::change_active_index(
 		}
 
 		/* The caller seems to ignore this.  Thus, we must check
-		this again in row_search_for_mysql(). */
+		this again in row_search_mvcc(). */
 		DBUG_RETURN(convert_error_code_to_mysql(DB_MISSING_HISTORY,
 				0, NULL));
 	}
@@ -9751,9 +9747,9 @@ next_record:
 
 		int	error;
 
-		switch (dberr_t ret = row_search_for_mysql(buf, PAGE_CUR_GE,
-							   m_prebuilt,
-							   ROW_SEL_EXACT, 0)) {
+		switch (dberr_t ret = row_search_mvcc(buf, PAGE_CUR_GE,
+						      m_prebuilt,
+						      ROW_SEL_EXACT, 0)) {
 		case DB_SUCCESS:
 			error = 0;
 			table->status = 0;
@@ -15095,8 +15091,10 @@ ha_innobase::check(
 
 	DBUG_ENTER("ha_innobase::check");
 	DBUG_ASSERT(thd == ha_thd());
+	DBUG_ASSERT(thd == m_user_thd);
 	ut_a(m_prebuilt->trx->magic_n == TRX_MAGIC_N);
 	ut_a(m_prebuilt->trx == thd_to_trx(thd));
+	ut_ad(m_prebuilt->trx->mysql_thd == thd);
 
 	if (m_prebuilt->mysql_template == NULL) {
 		/* Build the template; we will use a dummy template
@@ -15106,7 +15104,6 @@ ha_innobase::check(
 	}
 
 	if (!m_prebuilt->table->space) {
-
 		ib_senderrf(
 			thd,
 			IB_LOG_LEVEL_ERROR,
@@ -15114,10 +15111,7 @@ ha_innobase::check(
 			table->s->table_name.str);
 
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
-
-	} else if (!m_prebuilt->table->is_readable() &&
-		   !m_prebuilt->table->space) {
-
+	} else if (!m_prebuilt->table->is_readable()) {
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLESPACE_MISSING,
@@ -15135,8 +15129,12 @@ ha_innobase::check(
 	of records in some index; to play safe, we normally use
 	REPEATABLE READ here */
 	m_prebuilt->trx->isolation_level = high_level_read_only
+		&& !m_prebuilt->table->is_temporary()
 		? TRX_ISO_READ_UNCOMMITTED
 		: TRX_ISO_REPEATABLE_READ;
+
+	trx_start_if_not_started(m_prebuilt->trx, false);
+	m_prebuilt->trx->read_view.open(m_prebuilt->trx);
 
 	for (dict_index_t* index
 	     = dict_table_get_first_index(m_prebuilt->table);
@@ -15146,25 +15144,22 @@ ha_innobase::check(
 		if (!index->is_committed()) {
 			continue;
 		}
+		if (index->type & DICT_FTS) {
+			/* We do not check any FULLTEXT INDEX. */
+			continue;
+		}
 
-		if (!(check_opt->flags & T_QUICK)
-		    && !index->is_corrupted()) {
-
-			dberr_t err = btr_validate_index(
-					index, m_prebuilt->trx);
-
-			if (err != DB_SUCCESS) {
-				is_ok = false;
-
-				push_warning_printf(
-					thd,
-					Sql_condition::WARN_LEVEL_WARN,
-					ER_NOT_KEYFILE,
-					"InnoDB: The B-tree of"
-					" index %s is corrupted.",
-					index->name());
-				continue;
-			}
+		if ((check_opt->flags & T_QUICK) || index->is_corrupted()) {
+		} else if (btr_validate_index(index, m_prebuilt->trx)
+			   != DB_SUCCESS) {
+			is_ok = false;
+			push_warning_printf(thd,
+					    Sql_condition::WARN_LEVEL_WARN,
+					    ER_NOT_KEYFILE,
+					    "InnoDB: The B-tree of"
+					    " index %s is corrupted.",
+					    index->name());
+			continue;
 		}
 
 		/* Instead of invoking change_active_index(), set up
@@ -15186,7 +15181,7 @@ ha_innobase::check(
 		if (UNIV_UNLIKELY(!m_prebuilt->index_usable)) {
 			if (index->is_corrupted()) {
 				push_warning_printf(
-					m_user_thd,
+					thd,
 					Sql_condition::WARN_LEVEL_WARN,
 					HA_ERR_INDEX_CORRUPT,
 					"InnoDB: Index %s is marked as"
@@ -15195,7 +15190,7 @@ ha_innobase::check(
 				is_ok = false;
 			} else {
 				push_warning_printf(
-					m_user_thd,
+					thd,
 					Sql_condition::WARN_LEVEL_WARN,
 					HA_ERR_TABLE_DEF_CHANGED,
 					"InnoDB: Insufficient history for"
@@ -15208,18 +15203,22 @@ ha_innobase::check(
 		m_prebuilt->sql_stat_start = TRUE;
 		m_prebuilt->template_type = ROW_MYSQL_DUMMY_TEMPLATE;
 		m_prebuilt->n_template = 0;
-		m_prebuilt->need_to_access_clustered = FALSE;
+		m_prebuilt->read_just_key = 0;
+		m_prebuilt->autoinc_error = DB_SUCCESS;
+		m_prebuilt->need_to_access_clustered =
+			!!(check_opt->flags & T_EXTEND);
 
 		dtuple_set_n_fields(m_prebuilt->search_tuple, 0);
 
 		m_prebuilt->select_lock_type = LOCK_NONE;
 
 		/* Scan this index. */
-		if (dict_index_is_spatial(index)) {
+		if (index->is_spatial()) {
 			ret = row_count_rtree_recs(m_prebuilt, &n_rows);
+		} else if (index->type & DICT_FTS) {
+			ret = DB_SUCCESS;
 		} else {
-			ret = row_scan_index_for_mysql(
-				m_prebuilt, index, &n_rows);
+			ret = row_check_index(m_prebuilt, &n_rows);
 		}
 
 		DBUG_EXECUTE_IF(
@@ -15228,11 +15227,18 @@ ha_innobase::check(
 				ret = DB_CORRUPTION;
 			});
 
-		if (ret == DB_INTERRUPTED || thd_killed(m_user_thd)) {
+		if (ret == DB_INTERRUPTED || thd_killed(thd)) {
 			/* Do not report error since this could happen
 			during shutdown */
 			break;
 		}
+
+		if (ret == DB_SUCCESS
+		    && m_prebuilt->autoinc_error != DB_MISSING_HISTORY) {
+			/* See if any non-fatal errors were reported. */
+			ret = m_prebuilt->autoinc_error;
+		}
+
 		if (ret != DB_SUCCESS) {
 			/* Assume some kind of corruption. */
 			push_warning_printf(

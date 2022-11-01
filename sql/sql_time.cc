@@ -68,62 +68,71 @@ int append_interval(String *str, interval_type int_type, const INTERVAL &interva
   size_t len;
   switch (int_type) {
   case INTERVAL_YEAR:
-    len= my_snprintf(buf,sizeof(buf),"%u", interval.year);
+    len= my_snprintf(buf,sizeof(buf),"%lu", interval.year);
     break;
   case INTERVAL_QUARTER:
   case INTERVAL_MONTH:
-    len= my_snprintf(buf,sizeof(buf),"%u", interval.month);
+    len= my_snprintf(buf,sizeof(buf),"%lu", interval.month);
     int_type=INTERVAL_MONTH;
     break;
   case INTERVAL_WEEK:
   case INTERVAL_DAY:
-    len= my_snprintf(buf,sizeof(buf),"%u", interval.day);
+    len= my_snprintf(buf,sizeof(buf),"%lu", interval.day);
     int_type=INTERVAL_DAY;
     break;
   case INTERVAL_HOUR:
-    len= my_snprintf(buf,sizeof(buf),"%u", interval.hour);
+    len= my_snprintf(buf,sizeof(buf),"%lu", interval.hour);
     break;
   case INTERVAL_MINUTE:
-    len= my_snprintf(buf,sizeof(buf),"%u", interval.minute);
+    len= my_snprintf(buf,sizeof(buf),"%llu", interval.minute);
     break;
   case INTERVAL_SECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u", interval.second);
+    len= my_snprintf(buf,sizeof(buf),"%llu", interval.second);
     break;
   case INTERVAL_MICROSECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u", interval.second_part);
+    len= my_snprintf(buf,sizeof(buf),"%llu", interval.second_part);
     break;
   case INTERVAL_YEAR_MONTH:
-    len= my_snprintf(buf,sizeof(buf),"%u-%02u", interval.day, interval.month);
+    len= my_snprintf(buf,sizeof(buf),"'%lu-%02lu'",
+                     interval.year, interval.month);
     break;
   case INTERVAL_DAY_HOUR:
-    len= my_snprintf(buf,sizeof(buf),"%u %u", interval.day, interval.hour);
+    len= my_snprintf(buf,sizeof(buf),"'%lu %lu'", interval.day, interval.hour);
     break;
   case INTERVAL_DAY_MINUTE:
-    len= my_snprintf(buf,sizeof(buf),"%u %u:%02u", interval.day, interval.hour, interval.minute);
+    len= my_snprintf(buf,sizeof(buf),"'%lu %lu:%02llu'",
+                     interval.day, interval.hour, interval.minute);
     break;
   case INTERVAL_DAY_SECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u %u:%02u:%02u", interval.day, interval.hour, interval.minute, interval.second);
+    len= my_snprintf(buf,sizeof(buf),"'%lu %lu:%02llu:%02llu'",
+                     interval.day, interval.hour, interval.minute, interval.second);
     break;
   case INTERVAL_HOUR_MINUTE:
-    len= my_snprintf(buf,sizeof(buf),"%u:%02u", interval.hour, interval.minute);
+    len= my_snprintf(buf,sizeof(buf),"'%lu:%02llu'", interval.hour, interval.minute);
     break;
   case INTERVAL_HOUR_SECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u:%02u:%02u", interval.hour, interval.minute, interval.second);
+    len= my_snprintf(buf,sizeof(buf),"'%lu:%02llu:%02llu'",
+                     interval.hour, interval.minute, interval.second);
     break;
   case INTERVAL_MINUTE_SECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u:%02u", interval.minute, interval.second);
+    len= my_snprintf(buf,sizeof(buf),"'%llu:%02llu'", interval.minute, interval.second);
     break;
   case INTERVAL_DAY_MICROSECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u %u:%02u:%02u.%06u", interval.day, interval.hour, interval.minute, interval.second, interval.second_part);
+    len= my_snprintf(buf,sizeof(buf),"'%lu %lu:%02llu:%02llu.%06llu'",
+                     interval.day, interval.hour, interval.minute,
+                     interval.second, interval.second_part);
     break;
   case INTERVAL_HOUR_MICROSECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u:%02u:%02u.%06u", interval.hour, interval.minute, interval.second, interval.second_part);
+    len= my_snprintf(buf,sizeof(buf),"'%lu:%02llu:%02llu.%06llu'",
+                     interval.hour, interval.minute, interval.second,
+                     interval.second_part);
     break;
   case INTERVAL_MINUTE_MICROSECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u:%02u.%06u", interval.minute, interval.second, interval.second_part);
+    len= my_snprintf(buf,sizeof(buf),"'%llu:%02llu.%06llu'",
+                     interval.minute, interval.second, interval.second_part);
     break;
   case INTERVAL_SECOND_MICROSECOND:
-    len= my_snprintf(buf,sizeof(buf),"%u.%06u", interval.second, interval.second_part);
+    len= my_snprintf(buf,sizeof(buf),"%llu.%06llu", interval.second, interval.second_part);
     break;
   default:
     DBUG_ASSERT(0);

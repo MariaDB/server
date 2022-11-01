@@ -257,6 +257,6 @@ maria_declare_plugin(password_reuse_check)
   NULL,
   sysvars,
   "2.0",
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;

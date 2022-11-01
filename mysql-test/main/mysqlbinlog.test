@@ -533,7 +533,7 @@ remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn;
 --echo # Expect error for incomplete --base64-output argument.
 --echo # MYSQL_BINLOG  std_data/master-bin.000001 --base64-output 2>&1
 # The error produces the absolute path of the mysqlbinlog executable, remove it.
---replace_regex /.*mysqlbinlog.*:/mysqlbinlog:/i
+--replace_regex /.*mariadb-binlog.*:/mariadb-binlog:/i
 --error 1
 --exec $MYSQL_BINLOG std_data/master-bin.000001 --base64-output 2>&1
 
@@ -608,7 +608,7 @@ eval SET GLOBAL SERVER_ID = $old_server_id;
 #
 # MDEV-12372 mysqlbinlog --version output is the same on 10.x as on 5.5.x, and contains not only version
 #
-replace_regex /.*mysqlbinlog(\.exe)? Ver .* for .* at [-_a-zA-Z0-9]+/mysqlbinlog Ver VER for OS at ARCH/;
+replace_regex /.*mariadb-binlog(\.exe)? Ver .* for .* at [-_a-zA-Z0-9]+/mariadb-binlog Ver VER for OS at ARCH/;
 exec $MYSQL_BINLOG --version;
 
 --echo #

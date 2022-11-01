@@ -13,12 +13,10 @@
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#include <my_global.h>
 #include <mysql/plugin_encryption.h>
 #include <mysqld_error.h>
 #include <string.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <time.h>
 #include <errno.h>
 #include <string>
 #include <sstream>
@@ -26,8 +24,6 @@
 #ifdef _WIN32
 #include <malloc.h>
 #define alloca _alloca
-#elif !defined(__FreeBSD__) && !defined(__NetBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
-#include <alloca.h>
 #endif
 #include <algorithm>
 #include <unordered_map>

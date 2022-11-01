@@ -1815,6 +1815,12 @@ private:
   bool make_aggr_tables_info();
   bool add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *fields);
   void init_join_cache_and_keyread();
+  bool transform_in_predicates_into_equalities(THD *thd);
+  bool transform_all_conds_and_on_exprs(THD *thd,
+                                        Item_transformer transformer);
+  bool transform_all_conds_and_on_exprs_in_join_list(THD *thd,
+                                                 List<TABLE_LIST> *join_list,
+                                                 Item_transformer transformer);
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};

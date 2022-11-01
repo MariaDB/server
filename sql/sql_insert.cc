@@ -95,8 +95,8 @@ pthread_handler_t handle_delayed_insert(void *arg);
 static void unlink_blobs(TABLE *table);
 #endif
 static bool check_view_insertability(THD *thd, TABLE_LIST *view);
-static int binlog_show_create_table(THD *thd, TABLE *table,
-                                    Table_specification_st *create_info);
+static int binlog_show_create_table_(THD *thd, TABLE *table,
+                                     Table_specification_st *create_info);
 
 /*
   Check that insert/update fields are from the same single table of a view.
@@ -4149,9 +4149,7 @@ int select_insert::send_data(List<Item> &values)
   bool error=0;
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
-  store_values(values);
-  if (table->default_field &&
-      unlikely(table->update_default_fields(info.ignore)))
+  if (store_values(values, info.ignore))
     DBUG_RETURN(1);
   thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
   if (unlikely(thd->is_error()))
@@ -4209,18 +4207,19 @@ int select_insert::send_data(List<Item> &values)
 }
 
 
-void select_insert::store_values(List<Item> &values)
+bool select_insert::store_values(List<Item> &values, bool ignore_errors)
 {
   DBUG_ENTER("select_insert::store_values");
+  bool error;
 
   if (fields->elements)
-    fill_record_n_invoke_before_triggers(thd, table, *fields, values, 1,
-                                         TRG_EVENT_INSERT);
+    error= fill_record_n_invoke_before_triggers(thd, table, *fields, values,
+                                                ignore_errors, TRG_EVENT_INSERT);
   else
-    fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
-                                         values, 1, TRG_EVENT_INSERT);
+    error= fill_record_n_invoke_before_triggers(thd, table, table->field_to_fill(),
+                                                values, ignore_errors, TRG_EVENT_INSERT);
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 bool select_insert::prepare_eof()
@@ -4760,7 +4759,7 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
       TABLE const *const table = *tables;
       if (thd->is_current_stmt_binlog_format_row() &&
           !table->s->tmp_table)
-        return binlog_show_create_table(thd, *tables, ptr->create_info);
+        return binlog_show_create_table_(thd, *tables, ptr->create_info);
       return 0;
     }
     select_create *ptr;
@@ -4881,8 +4880,8 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
 }
 
 
-static int binlog_show_create_table(THD *thd, TABLE *table,
-                                    Table_specification_st *create_info)
+static int binlog_show_create_table_(THD *thd, TABLE *table,
+                                     Table_specification_st *create_info)
 {
   /*
     Note 1: In RBR mode, we generate a CREATE TABLE statement for the
@@ -4975,7 +4974,7 @@ bool binlog_create_table(THD *thd, TABLE *table, bool replace)
                              HA_CREATE_USED_DEFAULT_CHARSET);
   /* Ensure we write all engine options to binary log */
   create_info.used_fields|= HA_CREATE_PRINT_ALL_OPTIONS;
-  result= binlog_show_create_table(thd, table, &create_info) != 0;
+  result= binlog_show_create_table_(thd, table, &create_info) != 0;
   thd->variables.option_bits= save_option_bits;
   return result;
 }
@@ -5017,10 +5016,10 @@ bool binlog_drop_table(THD *thd, TABLE *table)
 }
 
 
-void select_create::store_values(List<Item> &values)
+bool select_create::store_values(List<Item> &values, bool ignore_errors)
 {
-  fill_record_n_invoke_before_triggers(thd, table, field, values, 1,
-                                       TRG_EVENT_INSERT);
+  return fill_record_n_invoke_before_triggers(thd, table, field, values,
+                                              ignore_errors, TRG_EVENT_INSERT);
 }
 
 

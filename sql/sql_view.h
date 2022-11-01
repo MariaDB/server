@@ -66,4 +66,6 @@ extern const LEX_CSTRING view_type;
 
 void make_valid_column_names(List<Item> &item_list);
 
+bool mariadb_view_version_get(TABLE_SHARE *share);
+
 #endif /* SQL_VIEW_INCLUDED */

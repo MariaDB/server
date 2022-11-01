@@ -674,7 +674,11 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
       if (!share->view_def)
         share->error= OPEN_FRM_ERROR_ALREADY_ISSUED;
       else
+      {
         share->error= OPEN_FRM_OK;
+        if (mariadb_view_version_get(share))
+          share->error= OPEN_FRM_ERROR_ALREADY_ISSUED;
+      }
     }
     else
       share->error= OPEN_FRM_NOT_A_TABLE;
@@ -8908,7 +8912,7 @@ int TABLE::update_virtual_field(Field *vf, bool ignore_warnings)
   Counting_error_handler count_errors;
   Suppress_warnings_error_handler warning_handler;
   in_use->push_internal_handler(&count_errors);
-  bool abort_on_warning;
+  bool abort_on_warning= ignore_warnings;
   if (ignore_warnings)
   {
     abort_on_warning= in_use->abort_on_warning;
@@ -9733,7 +9737,8 @@ bool TABLE_LIST::change_refs_to_fields()
 
   Item **materialized_items=
       (Item **)thd->calloc(sizeof(void *) * table->s->fields);
-  if (!materialized_items)
+  Name_resolution_context *ctx= new Name_resolution_context(this);
+  if (!materialized_items || !ctx)
     return TRUE;
 
   while ((ref= (Item_direct_ref*)li++))
@@ -9749,7 +9754,8 @@ bool TABLE_LIST::change_refs_to_fields()
     DBUG_ASSERT(!field_it.end_of_fields());
     if (!materialized_items[idx])
     {
-      materialized_items[idx]= new (thd->mem_root) Item_field(thd, table->field[idx]);
+      materialized_items[idx]=
+        new (thd->mem_root) Item_field(thd, ctx, table->field[idx]);
       if (!materialized_items[idx])
         return TRUE;
     }

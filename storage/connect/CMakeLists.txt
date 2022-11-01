@@ -69,6 +69,7 @@ IF(UNIX)
     DISABLE_WARNING("format-truncation")
     DISABLE_WARNING("implicit-fallthrough")
     DISABLE_WARNING("type-limits")
+    DISABLE_WARNING("deprecated-declarations")
   endif(NOT WITH_WARNINGS)
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )

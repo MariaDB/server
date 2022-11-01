@@ -7090,7 +7090,12 @@ int main(int argc, char **argv)
     if (flush_logs || opt_delete_master_logs)
     {
       if (mysql_refresh(mysql, REFRESH_LOG))
+      {
+        fprintf(stderr,
+                "Flush logs or delete master logs failure in server \n");
+        first_error= EX_MYSQLERR;
         goto err;
+      }
       verbose_msg("-- main : logs flushed successfully!\n");
     }
 

@@ -1000,6 +1000,11 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_Full = false;
   m_UseCnc = false;
   m_IDQuoteChar[0] = '"';
+  if (tdbp)
+  {
+    if (tdbp->Quoted && tdbp->Quote)
+      m_IDQuoteChar[0] = *tdbp->Quote;
+  }
   m_IDQuoteChar[1] = 0;
 //*m_ErrMsg = '\0';
   } // end of ODBConn
@@ -1182,6 +1187,7 @@ int ODBConn::Open(PCSZ ConnectString, POPARM sop, DWORD options)
     // Verify support for required functionality and cache info
 //  VerifyConnect();         Deprecated
     GetConnectInfo();
+    // Still we want to use the set QChar
   } catch(DBX *xp) {
     snprintf(g->Message, sizeof(g->Message), "%s: %s", xp->m_Msg, xp->GetErrorMessage(0));
     Close();

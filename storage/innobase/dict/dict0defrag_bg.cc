@@ -297,7 +297,7 @@ btr_get_size_and_reserved(
 {
 	ulint		dummy;
 
-	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_S_LOCK));
+	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_SX_LOCK));
 	ut_a(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
 
 	if (index->page == FIL_NULL
@@ -314,7 +314,7 @@ btr_get_size_and_reserved(
 		return ULINT_UNDEFINED;
 	}
 
-	mtr->x_lock_space(index->table->space);
+	mtr->s_lock_space(index->table->space);
 
 	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
 					+ root->page.frame, used, mtr);
@@ -345,7 +345,7 @@ dict_stats_save_defrag_stats(
   mtr_t mtr;
   ulint n_leaf_pages;
   mtr.start();
-  mtr_s_lock_index(index, &mtr);
+  mtr_sx_lock_index(index, &mtr);
   ulint n_leaf_reserved= btr_get_size_and_reserved(index, BTR_N_LEAF_PAGES,
                                                    &n_leaf_pages, &mtr);
   mtr.commit();
