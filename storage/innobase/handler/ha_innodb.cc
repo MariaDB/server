@@ -20981,16 +20981,13 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 	return mysql_table;
 }
 
-/** Get the computed value by supplying the base column values.
-@param[in,out]	table		table whose virtual column
-				template to be built */
+/** Only used by the purge thread
+@param[in,out]	table       table whose virtual column template to be built */
 TABLE* innobase_init_vc_templ(dict_table_t* table)
 {
-	if (table->vc_templ != NULL) {
-		return NULL;
-	}
 	DBUG_ENTER("innobase_init_vc_templ");
 
+	ut_ad(table->vc_templ == NULL);
 	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 
 	TABLE	*mysql_table= innodb_find_table_for_vc(current_thd, table);
