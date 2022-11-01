@@ -7726,7 +7726,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 
     if (has_auth(user, thd->lex))
       DBUG_ASSERT(!grantee);
-    else if (!grantee)
+    else if (!grantee && !user->is_public)
       grantee= find_user_exact(hostname.str, username.str);
 
     if (!grantee && !revoke)
@@ -9464,7 +9464,7 @@ bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
   if (lex_user->is_role())
   {
     *rolename= lex_user->user.str;
-    do_check_access= strcmp(*rolename, sctx->priv_role);
+    do_check_access= !lex_user->is_public && strcmp(*rolename, sctx->priv_role);
   }
   else
   {

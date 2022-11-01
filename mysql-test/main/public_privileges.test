@@ -380,3 +380,30 @@ drop database testdb1;
 -- echo # clean up
 delete from mysql.global_priv where user="PUBLIC";
 flush privileges;
+
+--echo #
+--echo # MDEV-29752 SHOW GRANTS FOR PUBLIC should work for all users
+--echo #
+
+create database dbtest;
+create user `testuser`@`%`;
+
+GRANT USAGE ON *.* TO `testuser`@`%`;
+GRANT ALL PRIVILEGES ON `dbtest`.* TO `PUBLIC`;
+
+connect (testuser,localhost,testuser,,);
+
+show grants for public;
+show grants for testuser;
+
+connection default;
+disconnect testuser;
+
+REVOKE ALL PRIVILEGES ON `dbtest`.* FROM `PUBLIC`;
+REVOKE USAGE ON *.* FROM `testuser`@`%`;
+drop user `testuser`@`%`;
+drop database dbtest;
+
+-- echo # clean up
+delete from mysql.global_priv where user="PUBLIC";
+flush privileges;
