@@ -13814,7 +13814,7 @@ show_param:
           {
             Lex->sql_command= SQLCOM_SHOW_GRANTS;
             if (unlikely(!(Lex->grant_user=
-                          (LEX_USER*)thd->alloc(sizeof(LEX_USER)))))
+                          (LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user_and_current_role;
           }
@@ -13923,7 +13923,7 @@ show_param:
           {
             Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
             if (unlikely(!(Lex->grant_user=
-                          (LEX_USER*)thd->alloc(sizeof(LEX_USER)))))
+                          (LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user;
           }
@@ -17138,7 +17138,6 @@ current_role:
             if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user= current_role;
-            $$->auth= NULL;
           }
           ;
 
@@ -17151,12 +17150,10 @@ grant_role:
             ((char*) $1.str)[$1.length] = '\0';
             if (unlikely($1.length == 0))
               my_yyabort_error((ER_INVALID_ROLE, MYF(0), ""));
-            if (unlikely(!($$=(LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
               MYSQL_YYABORT;
             $$->user= $1;
             $$->host= empty_clex_str;
-            $$->auth= NULL;
-            $$->is_public= false;
 
             if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
                                                   username_char_length,

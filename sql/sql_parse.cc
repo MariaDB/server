@@ -2798,9 +2798,15 @@ bool sp_process_definer(THD *thd)
   }
   else
   {
-    LEX_USER *d= lex->definer= get_current_user(thd, lex->definer);
+    LEX_USER *d= get_current_user(thd, lex->definer);
     if (!d)
       DBUG_RETURN(TRUE);
+    if (d->is_public)
+    {
+      my_error(ER_INVALID_ROLE, MYF(0), lex->definer->user.str);
+      DBUG_RETURN(TRUE);
+    }
+    lex->definer= d;
 
     /*
       If the specified definer differs from the current user or role, we
@@ -2823,12 +2829,9 @@ bool sp_process_definer(THD *thd)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (!is_acl_user(lex->definer->host.str, lex->definer->user.str))
   {
-    push_warning_printf(thd,
-                        Sql_condition::WARN_LEVEL_NOTE,
-                        ER_NO_SUCH_USER,
-                        ER_THD(thd, ER_NO_SUCH_USER),
-                        lex->definer->user.str,
-                        lex->definer->host.str);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_NO_SUCH_USER, ER_THD(thd, ER_NO_SUCH_USER),
+                        lex->definer->user.str, lex->definer->host.str);
   }
 #endif /* NO_EMBEDDED_ACCESS_CHECKS */
 
@@ -3120,8 +3123,7 @@ mysql_create_routine(THD *thd, LEX *lex)
     */
     if (thd->slave_thread && is_acl_user(definer->host.str, definer->user.str))
     {
-      security_context.change_security_context(thd,
-                                               &thd->lex->definer->user,
+      security_context.change_security_context(thd, &thd->lex->definer->user,
                                                &thd->lex->definer->host,
                                                &thd->lex->sphead->m_db,
                                                &backup);
@@ -10062,6 +10064,7 @@ void get_default_definer(THD *thd, LEX_USER *definer, bool role)
   }
   definer->user.length= strlen(definer->user.str);
   definer->auth= NULL;
+  definer->is_public= false;
 }
 
 
