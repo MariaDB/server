@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,8 +24,7 @@ Select
 Created 12/19/1997 Heikki Tuuri
 *******************************************************/
 
-#ifndef row0sel_h
-#define row0sel_h
+#pragma once
 
 #include "data0data.h"
 #include "que0types.h"
@@ -58,15 +57,6 @@ void
 sel_col_prefetch_buf_free(
 /*======================*/
 	sel_buf_t*	prefetch_buf);	/*!< in, own: prefetch buffer */
-/*********************************************************************//**
-Gets the plan node for the nth table in a join.
-@return plan node */
-UNIV_INLINE
-plan_t*
-sel_node_get_nth_plan(
-/*==================*/
-	sel_node_t*	node,	/*!< in: select node */
-	ulint		i);	/*!< in: get ith plan node */
 /**********************************************************************//**
 Performs a select step. This is a high-level function used in SQL execution
 graphs.
@@ -74,14 +64,6 @@ graphs.
 que_thr_t*
 row_sel_step(
 /*=========*/
-	que_thr_t*	thr);	/*!< in: query thread */
-/**********************************************************************//**
-Performs an execution step of an open or close cursor statement node.
-@return query thread to run next or NULL */
-UNIV_INLINE
-que_thr_t*
-open_step(
-/*======*/
 	que_thr_t*	thr);	/*!< in: query thread */
 /**********************************************************************//**
 Performs a fetch for a cursor.
@@ -136,37 +118,7 @@ row_sel_convert_mysql_key_to_innobase(
 	ulint		key_len);	/*!< in: MySQL key value length */
 
 
-/** Searches for rows in the database. This is used in the interface to
-MySQL. This function opens a cursor, and also implements fetch next
-and fetch prev. NOTE that if we do a search with a full key value
-from a unique index (ROW_SEL_EXACT), then we will not store the cursor
-position and fetch next or fetch prev must not be tried to the cursor!
-
-@param[out]	buf		buffer for the fetched row in MySQL format
-@param[in]	mode		search mode PAGE_CUR_L
-@param[in,out]	prebuilt	prebuilt struct for the table handler;
-				this contains the info to search_tuple,
-				index; if search tuple contains 0 field then
-				we position the cursor at start or the end of
-				index, depending on 'mode'
-@param[in]	match_mode	0 or ROW_SEL_EXACT or ROW_SEL_EXACT_PREFIX
-@param[in]	direction	0 or ROW_SEL_NEXT or ROW_SEL_PREV;
-				Note: if this is != 0, then prebuilt must has a
-				pcur with stored position! In opening of a
-				cursor 'direction' should be 0.
-@return DB_SUCCESS, DB_RECORD_NOT_FOUND, DB_END_OF_INDEX, DB_DEADLOCK,
-DB_LOCK_TABLE_FULL, DB_CORRUPTION, or DB_TOO_BIG_RECORD */
-UNIV_INLINE
-dberr_t
-row_search_for_mysql(
-	byte*		buf,
-	page_cur_mode_t	mode,
-	row_prebuilt_t*	prebuilt,
-	ulint		match_mode,
-	ulint		direction)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Searches for rows in the database using cursor.
+/** Search for rows in the database using cursor.
 Function is mainly used for tables that are shared across connections and
 so it employs technique that can help re-construct the rows that
 transaction is suppose to see.
@@ -184,7 +136,8 @@ It also has optimization such as pre-caching the rows, using AHI, etc.
 				Note: if this is != 0, then prebuilt must has a
 				pcur with stored position! In opening of a
 				cursor 'direction' should be 0.
-@return DB_SUCCESS or error code */
+@return DB_SUCCESS, DB_RECORD_NOT_FOUND, DB_END_OF_INDEX, DB_DEADLOCK,
+DB_LOCK_TABLE_FULL, DB_CORRUPTION, or DB_TOO_BIG_RECORD */
 dberr_t
 row_search_mvcc(
 	byte*		buf,
@@ -209,6 +162,21 @@ row_count_rtree_recs(
 					'mode' */
 	ulint*		n_rows);	/*!< out: number of entries
 					seen in the consistent read */
+
+/**
+Check the index records in CHECK TABLE.
+The index must contain entries in an ascending order,
+unique constraint must not be violated by duplicated keys,
+and the number of index entries is counted in according to the
+current read view.
+
+@param prebuilt    index and transaction
+@param n_rows      number of records counted
+
+@return error code
+@retval DB_SUCCESS  if no error was found */
+dberr_t row_check_index(row_prebuilt_t *prebuilt, ulint *n_rows)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Read the max AUTOINC value from an index.
 @param[in] index	index starting with an AUTO_INCREMENT column
@@ -382,6 +350,17 @@ struct sel_node_t{
 					fetches */
 };
 
+/**
+Get the plan node for a table in a join.
+@param node  query graph node for SELECT
+@param i     plan node element
+@return ith plan node */
+inline plan_t *sel_node_get_nth_plan(sel_node_t *node, ulint i)
+{
+  ut_ad(i < node->n_tables);
+  return &node->plans[i];
+}
+
 /** Fetch statement node */
 struct fetch_node_t{
 	que_common_t	common;		/*!< type: QUE_NODE_FETCH */
@@ -476,7 +455,3 @@ row_sel_field_store_in_mysql_format_func(
 #endif /* UNIV_DEBUG */
         const byte*     data,   /*!< in: data to store */
         ulint           len);    /*!< in: length of the data */
-
-#include "row0sel.inl"
-
-#endif

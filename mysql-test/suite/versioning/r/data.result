@@ -55,5 +55,5 @@ INSERT INTO `t1` VALUES
 (2),
 (3);
 #MYSQL_DUMP --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
-mysqldump: Incorrect DATETIME value: '1990-08-04 00:00' where 'abc'
+mariadb-dump: Incorrect DATETIME value: '1990-08-04 00:00' where 'abc'
 drop tables t1;

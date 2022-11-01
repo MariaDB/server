@@ -199,13 +199,6 @@ but can be used for comparison.
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd);
 
 
-/**
-  Indicate the start of an async operation in a foreground thread.
-@param thd          current_thd
-@return thd
-@retval nullptr   if this is not a foreground thread */
-THD *innodb_thd_increment_pending_ops(THD *thd);
-
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.
 @param[in]	thd	MySQL thread handle

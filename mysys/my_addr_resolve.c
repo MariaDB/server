@@ -324,7 +324,7 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
       for the base program. This is depending on if the compilation is
       done with PIE or not.
     */
-    addr_offset= info.dli_fbase;
+    addr_offset= (void*) info.dli_fbase;
 #ifndef __PIE__
     if (strcmp(info.dli_fname, my_progname) == 0 &&
         addr_resolve((void*) my_addr_resolve, loc) == 0 &&

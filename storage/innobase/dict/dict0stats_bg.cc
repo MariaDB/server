@@ -339,8 +339,9 @@ invalid_table_id:
   const bool update_now=
     difftime(time(nullptr), table->stats_last_recalc) >= MIN_RECALC_INTERVAL;
 
-  if (update_now)
-    dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
+  const dberr_t err= update_now
+    ? dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT)
+    : DB_SUCCESS_LOCKED_REC;
 
   dict_table_close(table, false, thd, mdl);
 
@@ -361,7 +362,7 @@ done:
     ut_ad(i->state == recalc::IN_PROGRESS);
     recalc_pool.erase(i);
     const bool reschedule= !update_now && recalc_pool.empty();
-    if (!update_now)
+    if (err == DB_SUCCESS_LOCKED_REC)
       recalc_pool.emplace_back(recalc{table_id, recalc::IDLE});
     mysql_mutex_unlock(&recalc_pool_mutex);
     if (reschedule)
