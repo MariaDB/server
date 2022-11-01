@@ -1102,6 +1102,7 @@ dberr_t dict_index_t::clear(que_thr_t *thr)
     mtr.set_log_mode(MTR_LOG_NO_REDO);
   else
     set_modified(mtr);
+  mtr_sx_lock_index(this, &mtr);
 
   dberr_t err;
   if (buf_block_t *root_block=
@@ -5278,11 +5279,6 @@ btr_validate_index(
 	dict_index_t*	index,	/*!< in: index */
 	const trx_t*	trx)	/*!< in: transaction or NULL */
 {
-  /* Full Text index are implemented by auxiliary tables, not the B-tree */
-  if (index->online_status != ONLINE_INDEX_COMPLETE ||
-      (index->type & (DICT_FTS | DICT_CORRUPT)))
-    return DB_SUCCESS;
-
   const bool lockout= index->is_spatial();
 
   mtr_t mtr;

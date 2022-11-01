@@ -2216,6 +2216,9 @@ JOIN::optimize_inner()
         ignore_on_expr= true;
         break;
       }
+
+  transform_in_predicates_into_equalities(thd);
+
   conds= optimize_cond(this, conds, join_list, ignore_on_expr,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
 
@@ -30463,6 +30466,95 @@ static bool process_direct_rownum_comparison(THD *thd, SELECT_LEX_UNIT *unit,
   DBUG_RETURN(false);
 }
 
+/**
+  @brief
+    Transform IN predicates having equal constant elements to equalities
+
+  @param thd         The context of the statement
+
+  @details
+    If all elements in an IN predicate are constant and equal to each other
+    then clause
+    -  "a IN (e1,..,en)" can be transformed to "a = e1"
+    -  "a NOT IN (e1,..,en)" can be transformed to "a != e1".
+    This means an object of Item_func_in can be replaced with an object of
+    Item_func_eq for IN (e1,..,en) clause or Item_func_ne for
+    NOT IN (e1,...,en).
+    Such a replacement allows the optimizer to choose a better execution plan.
+
+    This methods applies such transformation for each IN predicate of the WHERE
+    condition and ON expressions of this join where possible
+
+  @retval
+    false     success
+    true      failure
+*/
+bool JOIN::transform_in_predicates_into_equalities(THD *thd)
+{
+  DBUG_ENTER("JOIN::transform_in_predicates_into_equalities");
+  DBUG_RETURN(transform_all_conds_and_on_exprs(
+      thd, &Item::in_predicate_to_equality_transformer));
+}
+
+
+/**
+  @brief
+    Transform all items in WHERE and ON expressions using a given transformer
+
+  @param thd         The context of the statement
+         transformer Pointer to the transformation function
+
+  @details
+    For each item of the WHERE condition and ON expressions of the SELECT
+    for this join the method performs the intransformation using the given
+    transformation function
+
+  @retval
+    false     success
+    true      failure
+*/
+bool JOIN::transform_all_conds_and_on_exprs(THD *thd,
+                                            Item_transformer transformer)
+{
+  if (conds)
+  {
+    conds= conds->top_level_transform(thd, transformer, (uchar *) 0);
+    if (!conds)
+      return true;
+  }
+  if (join_list)
+  {
+    if (transform_all_conds_and_on_exprs_in_join_list(thd, join_list,
+                                                      transformer))
+      return true;
+  }
+  return false;
+}
+
+
+bool JOIN::transform_all_conds_and_on_exprs_in_join_list(
+    THD *thd, List<TABLE_LIST> *join_list, Item_transformer transformer)
+{
+  TABLE_LIST *table;
+  List_iterator<TABLE_LIST> li(*join_list);
+
+  while ((table= li++))
+  {
+    if (table->nested_join)
+    {
+      if (transform_all_conds_and_on_exprs_in_join_list(
+              thd, &table->nested_join->join_list, transformer))
+        return true;
+    }
+    if (table->on_expr)
+    {
+      table->on_expr= table->on_expr->top_level_transform(thd, transformer, 0);
+      if (!table->on_expr)
+        return true;
+    }
+  }
+  return false;
+}
 
 
 /**

@@ -196,6 +196,19 @@ INSERT INTO t VALUES (1),(0),(1);
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-28327 InnoDB persistent statistics fail to update
+--echo #		after bulk insert
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB;
+INSERT INTO t1 SELECT * FROM seq_1_to_4096;
+--echo # Wait till statistics update after bulk insert operation
+let $wait_condition= select n_rows > 100 from mysql.innodb_table_stats
+where table_name="t1";
+source include/wait_condition.inc;
+SELECT n_rows FROM mysql.innodb_table_stats WHERE TABLE_NAME="t1";
+DROP TABLE t1;
+
+--echo #
 --echo # MDEV-26947 UNIQUE column checks fail in InnoDB resulting
 --echo #	in table corruption
 --echo #
@@ -327,3 +340,38 @@ CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB
 INSERT INTO t1 VALUES (1),(21);
 # Cleanup
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-29761  Bulk insert fails to rollback
+--echo #	during insert..select
+--echo #
+CREATE TABLE t1 (f1 INT)ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INT, UNIQUE INDEX(f1)) ENGINE=InnoDB;
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES(1);
+BEGIN;
+INSERT t1 SELECT 1 FROM seq_1_to_2;
+COMMIT;
+SELECT * FROM t1;
+SELECT * FROM t2;
+CHECK TABLE t1;
+CHECK TABLE t2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo #   MDEV-29801  Inconsistent ER_TOO_BIG_ROWSIZE during bulk
+--echo #			insert operation
+--echo #
+call mtr.add_suppression("InnoDB: Cannot add field `c11` in table");
+
+SET @format= @@innodb_default_row_format;
+CREATE TABLE t1 (pk int primary key, c01 text, c02 text, c03 text,
+                 c04 text, c05 text, c06 text, c07 text, c08 text,
+                 c09 text, c10 text, c11 text, c12 text) ENGINE=InnoDB;
+SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= COMPACT;
+ALTER TABLE t1 FORCE;
+INSERT IGNORE INTO t1 VALUES
+(1, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107)),
+(2, REPEAT('x',4805), REPEAT('t',2211), REPEAT('u',974), REPEAT('e',871), REPEAT('z',224), REPEAT('j',978), REPEAT('n',190), REPEAT('t',888), REPEAT('x',32768), REPEAT('e',968), REPEAT('b',913), REPEAT('x',12107));
+CHECK TABLE t1;
+DROP TABLE t1;
+SET GLOBAL INNODB_DEFAULT_ROW_FORMAT= @format;

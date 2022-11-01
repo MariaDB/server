@@ -1,8 +1,11 @@
 #!/usr/bin/make -f
 
-# Enable Debian Hardening
-# https://wiki.debian.org/Hardening
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DH_VERBOSE=1
+export DEB_BUILD_HARDENING=1
+
+# enable Debian Hardening
+# see: https://wiki.debian.org/Hardening
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all optimize=-lto
 DPKG_EXPORT_BUILDFLAGS = 1
 # Include all defaults, including buildflags.mk
 include /usr/share/dpkg/default.mk

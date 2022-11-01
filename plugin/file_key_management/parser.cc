@@ -162,19 +162,28 @@ bool Parser::read_filekey(const char *filekey, char *secret)
   int f= open(filekey, O_RDONLY|O_BINARY);
   if (f == -1)
   {
-    my_error(EE_FILENOTFOUND,ME_ERROR_LOG, filekey, errno);
+    my_error(EE_FILENOTFOUND, ME_ERROR_LOG, filekey, errno);
     return 1;
   }
 
-  int len= read(f, secret, MAX_SECRET_SIZE);
+  int len= read(f, secret, MAX_SECRET_SIZE + 1);
   if (len <= 0)
   {
-    my_error(EE_READ,ME_ERROR_LOG, filekey, errno);
+    my_error(EE_READ, ME_ERROR_LOG, filekey, errno);
     close(f);
     return 1;
   }
   close(f);
+
   while (secret[len - 1] == '\r' || secret[len - 1] == '\n') len--;
+  if (len > MAX_SECRET_SIZE)
+  {
+    my_printf_error(EE_READ,
+                    "Cannot read %s, the filekey is too long, "
+                    "max secret size is %dB ",
+                    ME_ERROR_LOG, filekey, MAX_SECRET_SIZE);
+    return 1;
+  }
   secret[len]= '\0';
   return 0;
 }

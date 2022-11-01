@@ -326,6 +326,15 @@ STOP SLAVE for channel 'master1';
 START SLAVE for channel 'master1';
 --source include/wait_for_slave_to_start.inc
 
+# Force some data into the relay log to ensure that we get a new relay log
+--connection master1
+create table foo (a int);
+drop table foo;
+--save_master_pos
+--connection slave
+--sync_with_master 0,'master1'
+--source include/wait_for_sql_thread_read_all.inc
+
 --echo
 --echo show slave status for channel 'master1'
 --let $status_items= Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno

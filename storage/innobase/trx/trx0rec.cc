@@ -2076,51 +2076,49 @@ trx_undo_get_undo_rec_low(
   return undo_rec;
 }
 
-/** Copy an undo record to heap.
-@param[in]	roll_ptr	roll pointer to record
-@param[in,out]	heap		memory heap where copied
-@param[in]	trx_id		id of the trx that generated
-				the roll pointer: it points to an
-				undo log of this transaction
-@param[in]	name		table name
-@param[out]	undo_rec	own: copy of the record
-@retval true if the undo log has been
-truncated and we cannot fetch the old version
-@retval false if the undo log record is available
-NOTE: the caller must have latches on the clustered index page. */
-static MY_ATTRIBUTE((warn_unused_result))
-bool
-trx_undo_get_undo_rec(
-	roll_ptr_t		roll_ptr,
-	mem_heap_t*		heap,
-	trx_id_t		trx_id,
-	const table_name_t&	name,
-	trx_undo_rec_t**	undo_rec)
+/** Copy an undo record to heap, to check if a secondary index record
+can be safely purged.
+@param trx_id   DB_TRX_ID corresponding to roll_ptr
+@param name     table name
+@param roll_ptr	DB_ROLL_PTR pointing to the undo log record
+@param heap     memory heap for allocation
+@return copy of the record
+@retval nullptr if the version is visible to purge_sys.view */
+static trx_undo_rec_t *trx_undo_get_rec_if_purgeable(trx_id_t trx_id,
+                                                     const table_name_t &name,
+                                                     roll_ptr_t roll_ptr,
+                                                     mem_heap_t* heap)
 {
-	purge_sys.latch.rd_lock(SRW_LOCK_CALL);
-
-	bool missing_history = purge_sys.changes_visible(trx_id, name);
-	if (!missing_history) {
-		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
-		missing_history = !*undo_rec;
-	}
-
-	purge_sys.latch.rd_unlock();
-
-	return missing_history;
+  {
+    purge_sys_t::view_guard check;
+    if (!check.view().changes_visible(trx_id))
+      return trx_undo_get_undo_rec_low(roll_ptr, heap);
+  }
+  return nullptr;
 }
 
-#ifdef UNIV_DEBUG
-#define ATTRIB_USED_ONLY_IN_DEBUG
-#else /* UNIV_DEBUG */
-#define ATTRIB_USED_ONLY_IN_DEBUG	MY_ATTRIBUTE((unused))
-#endif /* UNIV_DEBUG */
+/** Copy an undo record to heap.
+@param trx_id   DB_TRX_ID corresponding to roll_ptr
+@param name     table name
+@param roll_ptr	DB_ROLL_PTR pointing to the undo log record
+@param heap     memory heap for allocation
+@return copy of the record
+@retval nullptr if the undo log is not available */
+static trx_undo_rec_t *trx_undo_get_undo_rec(trx_id_t trx_id,
+                                             const table_name_t &name,
+                                             roll_ptr_t roll_ptr,
+                                             mem_heap_t *heap)
+{
+  {
+    purge_sys_t::end_view_guard check;
+    if (!check.view().changes_visible(trx_id))
+      return trx_undo_get_undo_rec_low(roll_ptr, heap);
+  }
+  return nullptr;
+}
 
 /** Build a previous version of a clustered index record. The caller
 must hold a latch on the index page of the clustered index record.
-@param	index_rec	clustered index record in the index tree
-@param	index_mtr	mtr which contains the latch to index_rec page
-			and purge_view
 @param	rec		version of a clustered index record
 @param	index		clustered index
 @param	offsets		rec_get_offsets(rec, index)
@@ -2141,14 +2139,13 @@ must hold a latch on the index page of the clustered index record.
 			And if we read "after image" of undo log
 @param	undo_block	undo log block which was cached during
 			online dml apply or nullptr
-@retval true if previous version was built, or if it was an insert
-or the table has been rebuilt
-@retval false if the previous version is earlier than purge_view,
-or being purged, which means that it may have been removed */
-bool
+@return error code
+@retval DB_SUCCESS if previous version was successfully built,
+or if it was an insert or the undo record refers to the table before rebuild
+@retval DB_MISSING_HISTORY if the history is missing */
+TRANSACTIONAL_TARGET
+dberr_t
 trx_undo_prev_version_build(
-	const rec_t	*index_rec ATTRIB_USED_ONLY_IN_DEBUG,
-	mtr_t		*index_mtr ATTRIB_USED_ONLY_IN_DEBUG,
 	const rec_t 	*rec,
 	dict_index_t	*index,
 	rec_offs	*offsets,
@@ -2158,7 +2155,6 @@ trx_undo_prev_version_build(
 	dtuple_t	**vrow,
 	ulint		v_status)
 {
-	trx_undo_rec_t*	undo_rec	= NULL;
 	dtuple_t*	entry;
 	trx_id_t	rec_trx_id;
 	ulint		type;
@@ -2173,11 +2169,7 @@ trx_undo_prev_version_build(
 	byte*		buf;
 
 	ut_ad(!index->table->is_temporary());
-	ut_ad(index_mtr->memo_contains_page_flagged(index_rec,
-						    MTR_MEMO_PAGE_S_FIX
-						    | MTR_MEMO_PAGE_X_FIX));
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_a(index->is_primary());
 
 	roll_ptr = row_get_rec_roll_ptr(rec, index, offsets);
 
@@ -2185,27 +2177,20 @@ trx_undo_prev_version_build(
 
 	if (trx_undo_roll_ptr_is_insert(roll_ptr)) {
 		/* The record rec is the first inserted version */
-		return(true);
+		return DB_SUCCESS;
 	}
 
 	rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
 
 	ut_ad(!index->table->skip_alter_undo);
 
-	if (trx_undo_get_undo_rec(
-		    roll_ptr, heap, rec_trx_id, index->table->name,
-		    &undo_rec)) {
-		if (v_status & TRX_UNDO_PREV_IN_PURGE) {
-			/* We are fetching the record being purged */
-			undo_rec = trx_undo_get_undo_rec_low(roll_ptr, heap);
-			if (!undo_rec) {
-				return false;
-			}
-		} else {
-			/* The undo record may already have been purged,
-			during purge or semi-consistent read. */
-			return(false);
-		}
+	trx_undo_rec_t*	undo_rec = v_status == TRX_UNDO_CHECK_PURGEABILITY
+		? trx_undo_get_rec_if_purgeable(rec_trx_id, index->table->name,
+						roll_ptr, heap)
+		: trx_undo_get_undo_rec(rec_trx_id, index->table->name,
+					roll_ptr, heap);
+	if (!undo_rec) {
+		return DB_MISSING_HISTORY;
 	}
 
 	const byte *ptr =
@@ -2216,7 +2201,7 @@ trx_undo_prev_version_build(
 		/* The table should have been rebuilt, but purge has
 		not yet removed the undo log records for the
 		now-dropped old table (table_id). */
-		return(true);
+		return DB_SUCCESS;
 	}
 
 	ptr = trx_undo_update_rec_get_sys_cols(ptr, &trx_id, &roll_ptr,
@@ -2264,24 +2249,9 @@ trx_undo_prev_version_build(
 		delete-marked record by trx_id, no transactions need to access
 		the BLOB. */
 
-		/* the row_upd_changes_disowned_external(update) call could be
-		omitted, but the synchronization on purge_sys.latch is likely
-		more expensive. */
-
-		if ((update->info_bits & REC_INFO_DELETED_FLAG)
-		    && row_upd_changes_disowned_external(update)) {
-			purge_sys.latch.rd_lock(SRW_LOCK_CALL);
-
-			bool missing_extern = purge_sys.changes_visible(
-				trx_id,	index->table->name);
-
-			purge_sys.latch.rd_unlock();
-
-			if (missing_extern) {
-				/* treat as a fresh insert, not to
-				cause assertion error at the caller. */
-				return(true);
-			}
+		if (update->info_bits & REC_INFO_DELETED_FLAG
+		    && purge_sys.is_purgeable(trx_id)) {
+			return DB_SUCCESS;
 		}
 
 		/* We have to set the appropriate extern storage bits in the
@@ -2296,8 +2266,8 @@ trx_undo_prev_version_build(
 		following call is safe. */
 		if (!row_upd_index_replace_new_col_vals(entry, *index, update,
 							heap)) {
-			ut_a(v_status & TRX_UNDO_PREV_IN_PURGE);
-			return false;
+			return (v_status & TRX_UNDO_PREV_IN_PURGE)
+				? DB_MISSING_HISTORY : DB_CORRUPTION;
 		}
 
 		/* Get number of externally stored columns in updated record */
@@ -2394,7 +2364,7 @@ trx_undo_prev_version_build(
 				     v_status & TRX_UNDO_PREV_IN_PURGE);
 	}
 
-	return(true);
+	return DB_SUCCESS;
 }
 
 /** Read virtual column value from undo log

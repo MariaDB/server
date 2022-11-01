@@ -68,6 +68,7 @@ public:
 	inline PSZ  GetSrcdef(void) { return Srcdef; }
 	inline char GetSep(void) { return (Sep) ? *Sep : 0; }
 	inline int  GetQuoted(void) { return Quoted; }
+	inline PSZ GetQchar(void) { return Qchar; }
 	inline int  GetOptions(void) { return Options; }
 
 	// Methods

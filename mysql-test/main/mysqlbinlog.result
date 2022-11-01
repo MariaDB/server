@@ -886,7 +886,7 @@ Alternatives are: 'NEVER','AUTO','UNSPEC','DECODE-ROWS'
 #
 # Expect error for incomplete --base64-output argument.
 # MYSQL_BINLOG  std_data/master-bin.000001 --base64-output 2>&1
-mysqlbinlog: option '--base64-output' requires an argument
+mariadb-binlog: option '--base64-output' requires an argument
 #
 # Ensure --base64-output=auto outputs the same result as unspecified
 # MYSQL_BINLOG -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
@@ -1267,7 +1267,7 @@ DELIMITER ;
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
-mysqlbinlog Ver VER for OS at ARCH
+mariadb-binlog Ver VER for OS at ARCH
 #
 # Test --rewrite-db
 #

@@ -649,7 +649,7 @@ mariadb.org-10.5 to mariadb-10.8 upgrade:
     - *test-prepare-container
     - apt install -y curl
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.5/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://archive.mariadb.org/mariadb-10.5/repo/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - apt-get install -y mariadb-server-10.5
     - *test-verify-initial
@@ -679,7 +679,7 @@ mariadb.org-10.4 to mariadb-10.8 upgrade:
     - *test-prepare-container
     - apt install -y curl systemctl # systemctl shim needed on platforms that don't have systemd
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.4/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://archive.mariadb.org/mariadb-10.4/repo/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.4
@@ -712,7 +712,7 @@ mariadb.org-10.3 to mariadb-10.8 upgrade:
     - *test-prepare-container
     - apt install -y curl
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.3/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://archive.mariadb.org/mariadb-10.3/repo/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.3
@@ -743,7 +743,7 @@ mariadb.org-10.2 to mariadb-10.8 upgrade:
     - *test-prepare-container
     - apt install -y curl
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
-    - echo "deb https://deb.mariadb.org/10.2/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
+    - echo "deb https://archive.mariadb.org/mariadb-10.2/repo/debian ${RELEASE} main" > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.2
