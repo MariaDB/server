@@ -3651,19 +3651,24 @@ err:
 
 int maria_zerofill(HA_CHECK *param, MARIA_HA *info, const char *name)
 {
-  my_bool error, reenable_logging,
+  my_bool error= 0, reenable_logging,
     zero_lsn= !(param->testflag & T_ZEROFILL_KEEP_LSN);
   MARIA_SHARE *share= info->s;
   DBUG_ENTER("maria_zerofill");
   if ((reenable_logging= share->now_transactional))
     _ma_tmp_disable_logging_for_table(info, 0);
-  if (!(error= (maria_zerofill_index(param, info, name) ||
-                maria_zerofill_data(param, info, name) ||
-                _ma_set_uuid(info->s, 0))))
+
+  if (share->state.changed &(STATE_NOT_ZEROFILLED | STATE_NOT_MOVABLE))
+    error= (maria_zerofill_index(param, info, name) ||
+            maria_zerofill_data(param, info, name));
+  if (!error)
+    error= _ma_set_uuid(info->s, 0);
+
+  if (!error)
   {
     /*
-      Mark that we have done zerofill of data and index. If we zeroed pages'
-      LSN, table is movable.
+      Mark that we have done zerofill of data and index. If we zeroed the LSN
+      on the pages, table is movable.
     */
     share->state.changed&= ~STATE_NOT_ZEROFILLED;
     if (zero_lsn)
