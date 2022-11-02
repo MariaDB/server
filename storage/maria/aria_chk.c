@@ -1624,6 +1624,8 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
 	pos=strmov(pos,"sorted index pages,");
       if (!(share->state.changed & STATE_NOT_ZEROFILLED))
 	pos=strmov(pos,"zerofilled,");
+      if (test_all_bits(share->state.changed, (STATE_NOT_ZEROFILLED | STATE_HAS_LSN)))
+        pos=strmov(pos,"has_lsn,");
       if (!(share->state.changed & STATE_NOT_MOVABLE))
 	pos=strmov(pos,"movable,");
       if (have_control_file && (share->state.changed & STATE_MOVED))
