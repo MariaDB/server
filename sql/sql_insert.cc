@@ -4540,6 +4540,16 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
+  /*
+    Item*::type_handler() always returns pointers to
+    type_handler_{time2|datetime2|timestamp2} no matter what
+    the current mysql56_temporal_format says.
+    Let's convert them according to mysql56_temporal_format.
+    QQ: This perhaps should eventually be fixed to have Item*::type_handler()
+    respect mysql56_temporal_format, and remove the upgrade from here.
+  */
+  Create_field::upgrade_data_types(alter_info->create_list);
+
   if (create_info->check_fields(thd, alter_info,
                                 create_table->table_name,
                                 create_table->db,

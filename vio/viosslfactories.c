@@ -97,7 +97,7 @@ sslGetErrString(enum enum_ssl_init_error e)
 
 static int
 vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
-                   enum enum_ssl_init_error* error)
+                   my_bool is_client, enum enum_ssl_init_error* error)
 {
   DBUG_ENTER("vio_set_cert_stuff");
   DBUG_PRINT("enter", ("ctx: %p cert_file: %s  key_file: %s",
@@ -134,10 +134,10 @@ vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
   }
 
   /*
-    If we are using DSA, we can copy the parameters from the private key
-    Now we know that a key and cert have been set against the SSL context
+    If certificate is used check if private key matches.
+    Note, that server side has to use certificate.
   */
-  if (cert_file && !SSL_CTX_check_private_key(ctx))
+  if ((cert_file != NULL || !is_client) && !SSL_CTX_check_private_key(ctx))
   {
     *error= SSL_INITERR_NOMATCH;
     DBUG_PRINT("error", ("%s",sslGetErrString(*error)));
@@ -353,7 +353,8 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
 #endif
   }
 
-  if (vio_set_cert_stuff(ssl_fd->ssl_context, cert_file, key_file, error))
+  if (vio_set_cert_stuff(ssl_fd->ssl_context, cert_file, key_file,
+                         is_client_method, error))
   {
     DBUG_PRINT("error", ("vio_set_cert_stuff failed"));
     goto err2;

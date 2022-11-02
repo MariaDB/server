@@ -80,3 +80,55 @@ DROP TABLE t1;
 
 --echo # Proof of  correct logging incl empty XA-PREPARE
 --source include/show_binlog_events.inc
+
+
+# MDEV-25616 Binlog event for XA COMMIT is generated without matching XA START
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--source include/count_sessions.inc
+--connect(con1,localhost,root,,)
+
+XA START '1';
+  --error ER_DUP_ENTRY
+  INSERT INTO t1 VALUES (2),(1);
+  SELECT * FROM t1 WHERE a = 2;
+XA END '1';
+XA PREPARE '1';
+
+--disconnect con1
+
+--connection default
+--source include/wait_until_count_sessions.inc
+XA RECOVER;
+
+--error ER_XA_RBROLLBACK
+XA COMMIT '1';
+--echo Must be no XA PREPARE group nor XA completion one:
+--source include/show_binlog_events.inc
+DROP TABLE t1;
+
+--source include/count_sessions.inc
+
+--connect(con2,localhost,root,,)
+CREATE TABLE tm (a INT PRIMARY KEY) ENGINE=MyISAM;
+XA START '1';
+  --error ER_DUP_ENTRY
+  INSERT INTO tm VALUES (1),(1);
+  SELECT * FROM tm WHERE a = 2;
+XA END '1';
+XA PREPARE '1';
+
+--disconnect con2
+
+--connection default
+--source include/wait_until_count_sessions.inc
+XA RECOVER;
+
+--error ER_XA_RBROLLBACK
+XA ROLLBACK '1';
+--echo Must be no XA PREPARE group nor XA completion one:
+--source include/show_binlog_events.inc
+DROP TABLE tm;
+
