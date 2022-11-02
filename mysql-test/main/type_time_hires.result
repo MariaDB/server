@@ -360,7 +360,7 @@ select cast(1e-6 as time(6));
 cast(1e-6 as time(6))
 00:00:00.000001
 #
-# Start of 10.4 tests
+# End of 5.5 tests
 #
 #
 # MDEV-20397 Support TIMESTAMP, DATETIME, TIME in ROUND() and TRUNCATE()
@@ -907,3 +907,14 @@ a	CEILING(a)	CEILING_SP(a)	CEILING(a)=CEILING_SP(a)
 DROP FUNCTION FLOOR_SP;
 DROP FUNCTION CEILING_SP;
 DROP TABLE t1;
+#
+# MDEV-29924 Assertion `(((nr) % (1LL << 24)) % (int) log_10_int[6 - dec]) == 0' failed in my_time_packed_to_binary on SELECT when using TIME field
+#
+create table t1 (c decimal(3,1),d time(6));
+insert into t1 values (null,0.1),(null,0.1), (0.1,0.2);
+select c from t1 where c<all (select d from t1);
+c
+drop table t1;
+#
+# End of 10.4 tests
+#

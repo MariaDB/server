@@ -1,3 +1,4 @@
+source include/not_embedded.inc;
 #
 #    MDEV-6543 Crash if enable 'federatedx' when 'federated' plugin already enabled, and vice-versa
 #
