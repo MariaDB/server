@@ -10841,8 +10841,6 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
 
   type_handler()->Column_definition_reuse_fix_attributes(thd, this, old_field);
 
-  type_handler()->Column_definition_implicit_upgrade(this);
-
   /*
     Copy the default (constant/function) from the column object orig_field, if
     supplied. We do this if all these conditions are met:

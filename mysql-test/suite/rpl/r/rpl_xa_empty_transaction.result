@@ -1,0 +1,1169 @@
+include/rpl_init.inc [topology=1->2->3]
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+#
+# Test Case 1: An XA transaction without any statements should not be
+# binlogged
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';;
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA COMMIT 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';;
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA ROLLBACK 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+#
+# Test Case 2: An XA transaction consisting of a successfully rolled back
+# statement should not be binlogged
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';;
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA COMMIT 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';;
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA ROLLBACK 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+#
+# Test Case 3: An XA transaction with a statement that cannot be rolled
+# back should be binlogged
+connection server_1;
+set @sav_binlog_format = @@binlog_format;
+set @@binlog_format = row;
+set @@global.binlog_format = row;
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';;
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA COMMIT 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA ROLLBACK 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+set @@binlog_format = @sav_binlog_format;
+set @@global.binlog_format = @sav_binlog_format;
+#
+# Test Case 4: An XA transaction with multiple statements that can all
+# be rolled back should not be binlogged
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO ti VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';;
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO ti VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA COMMIT 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO ti VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';;
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO ti VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA ROLLBACK 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+#
+# Test Case 5: A mixed XA transaction consisting of one statement that
+# can successfully be rolled back (first statement), and another that
+# can not (second statement) should be binlogged
+connection server_1;
+set @sav_binlog_format = @@binlog_format;
+set @@binlog_format = row;
+set @@global.binlog_format = row;
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO tm VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';;
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO tm VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA COMMIT 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO tm VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO ti VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO tm VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA ROLLBACK 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+set @@binlog_format = @sav_binlog_format;
+set @@global.binlog_format = @sav_binlog_format;
+#
+# Test Case 6: A mixed XA transaction consisting of one statement that
+# cannot successfully be rolled back (first statement), and another that
+# can (second statement) should be binlogged
+connection server_1;
+set @sav_binlog_format = @@binlog_format;
+set @@binlog_format = row;
+set @@global.binlog_format = row;
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO ti VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';;
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO ti VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA COMMIT 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO ti VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO ti VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA ROLLBACK 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+set @@binlog_format = @sav_binlog_format;
+set @@global.binlog_format = @sav_binlog_format;
+#
+# Test Case 7: An XA transaction consisting of two failed
+# non-transactional statements should be binlogged
+connection server_1;
+set @sav_binlog_format = @@binlog_format;
+set @@binlog_format = row;
+set @@global.binlog_format = row;
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO tm VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA COMMIT 'x';;
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO tm VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA COMMIT 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO tm VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+XA ROLLBACK 'x';;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connection server_2;
+connection server_3;
+connection server_1;
+CREATE TABLE tm (a INT PRIMARY KEY) engine=myisam;
+CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+connect con1,localhost,root,,;
+XA START 'x';
+INSERT INTO tm VALUES (1),(1);;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+INSERT INTO tm VALUES (2),(2);;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+XA END 'x';
+XA PREPARE 'x';
+disconnect con1;
+connection server_1;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	1	0	x
+XA ROLLBACK 'x';;
+ERROR XA100: XA_RBROLLBACK: Transaction branch was rolled back
+include/save_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_1_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_1 should not binlog XA transaction]
+connection server_2;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_2_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_2 should not binlog XA transaction]
+connection server_3;
+include/sync_with_master_gtid.inc
+FLUSH LOGS;
+# MYSQL_BINLOG server_3_datadir/binlog_filename --result-file=assert_file
+include/assert_grep.inc [server_3 should not binlog XA transaction]
+connection server_1;
+DROP TABLE ti,tm;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_1;
+set @@binlog_format = @sav_binlog_format;
+set @@global.binlog_format = @sav_binlog_format;
+connection server_1;
+include/rpl_end.inc
+# End of rpl_xa_empty_transaction.test

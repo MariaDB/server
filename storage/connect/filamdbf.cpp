@@ -245,7 +245,7 @@ PQRYRES DBFColumns(PGLOBAL g, PCSZ dp, PCSZ fn, PTOS topt, bool info)
   int        rc, type, len, field, fields;
   bool       bad, mul;
 	PCSZ       target, pwd;
-  DBFHEADER  mainhead, *hp;
+  DBFHEADER  mainhead, *hp = NULL;
 	DESCRIPTOR thisfield, *tfp;
 	FILE      *infile = NULL;
 	UNZIPUTL  *zutp = NULL;
