@@ -597,6 +597,7 @@ Warnings:
 Warning	1265	Data truncated for column 'a' at row 1
 Warning	1265	Data truncated for column 'a' at row 2
 Warning	1265	Data truncated for column 'a' at row 3
+Warning	1265	Data truncated for column 'a' at row 3
 set sql_mode=default;
 connection default;
 show create table t1;
@@ -696,6 +697,7 @@ set debug_sync= 'now signal goforit';
 connection con2;
 Warnings:
 Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 2
 Warning	1265	Data truncated for column 'b' at row 2
 set sql_mode=default;
 connection default;
@@ -1045,7 +1047,6 @@ set debug_sync= 'now signal goforit';
 connection default;
 Warnings:
 Note	1105	Key chosen: 0
-Note	1105	Key chosen: 0
 select a from t;
 a
 11
@@ -1083,7 +1084,6 @@ set debug_sync= 'now signal goforit';
 connection default;
 Warnings:
 Note	1105	Key chosen: 0
-Note	1105	Key chosen: 0
 #
 # Add key for old row
 #
@@ -1098,7 +1098,6 @@ update t set a = a + 1 where a = 10;
 set debug_sync= 'now signal goforit';
 connection default;
 Warnings:
-Note	1105	Key chosen: 0
 Note	1105	Key chosen: 0
 drop table t;
 set debug_sync= reset;

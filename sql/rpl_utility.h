@@ -259,6 +259,9 @@ struct RPL_TABLE_LIST
   const Copy_field *m_online_alter_copy_fields;
   const Copy_field *m_online_alter_copy_fields_end;
 
+  mutable uint m_key_to_use= MAX_KEY;
+  mutable uint m_usable_key_parts= 0;
+
   RPL_TABLE_LIST(const LEX_CSTRING *db_arg, const LEX_CSTRING *table_name_arg,
                  thr_lock_type thr_lock_type,
                  table_def &&tabledef, bool master_had_trigers)

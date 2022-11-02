@@ -5070,7 +5070,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     table->rpl_write_set= table->write_set;
 
     // Do event specific preparations
-    error= do_before_row_operations(rgi);
+    error= do_before_row_operations(rgi, &rpl_data);
 
     /*
       Bug#56662 Assertion failed: next_insert_id == 0, file handler.cc
@@ -6429,7 +6429,8 @@ bool Write_rows_compressed_log_event::write()
 
 #if defined(HAVE_REPLICATION)
 int 
-Write_rows_log_event::do_before_row_operations(const rpl_group_info *)
+Write_rows_log_event::do_before_row_operations(const rpl_group_info *,
+                                               Rpl_table_data *)
 {
   int error= 0;
 
@@ -7087,10 +7088,8 @@ static uint get_usable_key_parts(const KEY *key, uint master_columns)
 
   @returns Error code on failure, 0 on success.
 */
-int Rows_log_event::find_key()
+int Rows_log_event::find_key(Rpl_table_data *table_data)
 {
-  uint i, best_key_nr;
-  KEY *key, *UNINIT_VAR(best_key);
   ulong UNINIT_VAR(best_rec_per_key), tmp;
   DBUG_ENTER("Rows_log_event::find_key");
   DBUG_ASSERT(m_table);
@@ -7106,8 +7105,25 @@ int Rows_log_event::find_key()
   });
   #endif
 
-  m_key_nr= MAX_KEY;
-  best_key_nr= MAX_KEY;
+  const int master_cols= get_master_cols();
+
+  uint i= m_table->s->primary_key;
+  KEY *key= m_table->key_info + i;
+  if ((m_table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION)
+      && i < MAX_KEY
+      && key->ext_key_parts == get_usable_key_parts(key, master_cols))
+  {
+    /*
+      We don't need to allocate any memory for m_key since it is not used.
+    */
+    m_key_nr= i;
+    m_key_info= key;
+    m_usable_key_parts= key->ext_key_parts;
+    DBUG_RETURN(0);
+  }
+
+  KEY *best_key= NULL;
+  uint best_key_nr= MAX_KEY;
   uint parts_suit= 0;
 
   /*
@@ -7119,7 +7135,7 @@ int Rows_log_event::find_key()
   {
     if (!m_table->s->keys_in_use.is_set(i))
       continue;
-    parts_suit= get_usable_key_parts(key, get_master_cols());
+    parts_suit= get_usable_key_parts(key, master_cols);
     if (!parts_suit)
       continue;
     /*
@@ -7128,12 +7144,12 @@ int Rows_log_event::find_key()
       is available).
     */
     if ((key->flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME &&
-        parts_suit == key->user_defined_key_parts)
+        parts_suit == key->ext_key_parts)
     {
-      best_key_nr= i;
-      best_key= key;
+      m_key_nr= i;
+      m_key_info= key;
       m_usable_key_parts= parts_suit;
-      break;
+      DBUG_RETURN(0);
     }
     /*
       We can only use a non-unique key if it allows range scans (ie. skip
@@ -7154,18 +7170,8 @@ int Rows_log_event::find_key()
     }
   }
 
-  if (best_key_nr == MAX_KEY)
-  {
-    m_key_info= NULL;
-    DBUG_RETURN(0);
-  }
-
-  // Allocate buffer for key searches
-  m_key= (uchar *) my_malloc(PSI_INSTRUMENT_ME, best_key->key_length, MYF(MY_WME));
-  if (m_key == NULL)
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  m_key_info= best_key;
   m_key_nr= best_key_nr;
+  m_key_info= best_key;
 
   DBUG_RETURN(0);
 }
@@ -7568,8 +7574,42 @@ bool Delete_rows_compressed_log_event::write()
 
 #if defined(HAVE_REPLICATION)
 
+int Rows_log_event::do_before_lookup_row_operations(const rpl_group_info *rgi,
+                                                    Rpl_table_data *table_data)
+{
+  const uchar *curr_row_end= m_curr_row_end;
+  unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
+             &curr_row_end, &m_master_reclength, m_rows_end);
+
+  const RPL_TABLE_LIST *table_list= table_data->table;
+  if (table_list->m_key_to_use == MAX_KEY)
+  {
+    int err= find_key(table_data);
+    if (err)
+      return err;
+    table_list->m_key_to_use= m_key_nr;
+    table_list->m_usable_key_parts= m_usable_key_parts;
+  }
+  else
+  {
+    m_key_nr= table_list->m_key_to_use;
+    m_key_info= m_table->key_info + m_key_nr;
+    m_usable_key_parts= table_list->m_usable_key_parts;
+  }
+
+  if (m_key_nr == MAX_KEY)
+    return 0;
+
+  // Allocate buffer for key searches
+  auto key_length= m_key_info->key_length;
+  m_key= (uchar *) my_malloc(PSI_INSTRUMENT_ME, key_length, MYF(MY_WME));
+
+  return m_key == NULL ? HA_ERR_OUT_OF_MEM : 0;
+}
+
 int 
-Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
+Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi,
+                                                Rpl_table_data *table_data)
 {
   /*
     Increment the global status delete count variable
@@ -7577,27 +7617,10 @@ Delete_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
   if (get_flags(STMT_END_F))
     status_var_increment(thd->status_var.com_stat[SQLCOM_DELETE]);
 
-  const uchar *curr_row_end= m_curr_row_end;
-  unpack_row(rgi, m_table, m_width, m_curr_row, &m_cols,
-             &curr_row_end, &m_master_reclength, m_rows_end);
-
-  KEY *pk_info= m_table->key_info + m_table->s->primary_key;
-  if ((m_table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
-      m_table->s->primary_key < MAX_KEY &&
-          get_usable_key_parts(pk_info,
-                               get_master_cols()) == pk_info->ext_key_parts)
-  {
-    /*
-      We don't need to allocate any memory for m_key since it is not used.
-    */
-    m_key_nr= m_table->s->primary_key;
-    m_usable_key_parts= pk_info->ext_key_parts;
-    return 0;
-  }
   if (do_invoke_trigger())
     m_table->prepare_triggers_for_delete_stmt_or_event();
 
-  return find_key();
+  return do_before_lookup_row_operations(rgi, table_data);
 }
 
 int 
@@ -7741,7 +7764,8 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
 #if defined(HAVE_REPLICATION)
 
 int 
-Update_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
+Update_rows_log_event::do_before_row_operations(const rpl_group_info *rgi,
+                                                Rpl_table_data *table_data)
 {
   /*
     Increment the global status update count variable
@@ -7749,14 +7773,10 @@ Update_rows_log_event::do_before_row_operations(const rpl_group_info *rgi)
   if (get_flags(STMT_END_F))
     status_var_increment(thd->status_var.com_stat[SQLCOM_UPDATE]);
 
-  int err;
-  if ((err= find_key()))
-    return err;
-
   if (do_invoke_trigger())
     m_table->prepare_triggers_for_update_stmt_or_event();
 
-  return 0;
+  return do_before_lookup_row_operations(rgi, table_data);
 }
 
 int 
